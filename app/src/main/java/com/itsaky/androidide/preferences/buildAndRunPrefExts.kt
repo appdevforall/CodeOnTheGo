@@ -46,125 +46,128 @@ import kotlin.reflect.KMutableProperty0
 
 @Parcelize
 class BuildAndRunPreferences(
-  override val key: String = "idepref_build_n_run",
-  override val title: Int = string.idepref_build_title,
-  override val summary: Int? = string.idepref_buildnrun_summary,
-  override val children: List<IPreference> = mutableListOf(),
+    override val key: String = "idepref_build_n_run",
+    override val title: Int = string.idepref_build_title,
+    override val summary: Int? = string.idepref_buildnrun_summary,
+    override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceScreen() {
 
-  init {
-    addPreference(GradleOptions())
-    addPreference(RunOptions())
-  }
+    init {
+        addPreference(GradleOptions())
+        addPreference(RunOptions())
+    }
 }
 
 @Parcelize
 private class GradleOptions(
-  override val key: String = "idepref_build_gradle",
-  override val title: Int = string.gradle,
-  override val children: List<IPreference> = mutableListOf(),
+    override val key: String = "idepref_build_gradle",
+    override val title: Int = string.gradle,
+    override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-  init {
-    addPreference(GradleCommands())
-    addPreference(GradleDistrubution())
-    addPreference(GradleClearCache())
-  }
+    init {
+        addPreference(GradleCommands())
+        addPreference(GradleDistrubution())
+        addPreference(GradleClearCache())
+    }
 }
 
 @Parcelize
 private class GradleCommands(
-  override val key: String = GRADLE_COMMANDS,
-  override val title: Int = string.idepref_build_customgradlecommands_title,
-  override val summary: Int? = string.idepref_build_customgradlecommands_summary,
-  override val icon: Int? = drawable.ic_bash_commands,
+    override val key: String = GRADLE_COMMANDS,
+    override val title: Int = string.idepref_build_customgradlecommands_title,
+    override val summary: Int? = string.idepref_build_customgradlecommands_summary,
+    override val icon: Int? = drawable.ic_bash_commands,
 ) : PropertyBasedMultiChoicePreference() {
 
-  override fun getProperties(): Map<String, KMutableProperty0<Boolean>> {
-    return linkedMapOf(
-      "--stacktrace" to ::isStacktraceEnabled,
-      "--info" to ::isInfoEnabled,
-      "--debug" to ::isDebugEnabled,
-      "--scan" to ::isScanEnabled,
-      "--warning-mode all" to ::isWarningModeAllEnabled,
-      "--build-cache" to ::isBuildCacheEnabled,
-      "--offline" to ::isOfflineEnabled,
-    )
-  }
+    override fun getProperties(): Map<String, KMutableProperty0<Boolean>> {
+        return linkedMapOf(
+            "--stacktrace" to ::isStacktraceEnabled,
+            "--info" to ::isInfoEnabled,
+            "--debug" to ::isDebugEnabled,
+            "--scan" to ::isScanEnabled,
+            "--warning-mode all" to ::isWarningModeAllEnabled,
+            "--build-cache" to ::isBuildCacheEnabled,
+            "--offline" to ::isOfflineEnabled,
+        )
+    }
 }
 
 @Parcelize
 private class GradleDistrubution(
-  override val key: String = CUSTOM_GRADLE_INSTALLATION,
-  override val title: Int = string.idepref_title_customGradleInstallation,
-  override val summary: Int? = string.idepref_msg_customGradleInstallation,
-  override val icon: Int? = drawable.ic_gradle,
+    override val key: String = CUSTOM_GRADLE_INSTALLATION,
+    override val title: Int = string.idepref_title_customGradleInstallation,
+    override val summary: Int? = string.idepref_msg_customGradleInstallation,
+    override val icon: Int? = drawable.ic_gradle,
 ) : EditTextPreference() {
 
-  override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-    gradleInstallationDir = newValue as String? ?: ""
-    return true
-  }
+    override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
+        gradleInstallationDir = newValue as String? ?: ""
+        return true
+    }
 
-  override fun onConfigureTextInput(input: TextInputLayout) {
-    input.setStartIconDrawable(drawable.ic_gradle)
-    input.setHint(string.msg_gradle_installation_path)
-    input.helperText = input.context.getString(string.msg_gradle_installation_input_help)
-    input.isCounterEnabled = false
-    input.editText!!.setText(gradleInstallationDir)
-  }
+    override fun onConfigureTextInput(input: TextInputLayout) {
+        input.setStartIconDrawable(drawable.ic_gradle)
+        input.setHint(string.msg_gradle_installation_path)
+        input.helperText = input.context.getString(string.msg_gradle_installation_input_help)
+        input.isCounterEnabled = false
+        input.editText!!.setText(gradleInstallationDir)
+    }
 }
 
 @Parcelize
 private class GradleClearCache(
-  override val key: String = GRADLE_CLEAR_CACHE,
-  override val title: Int = string.idepref_build_clearCache_title,
-  override val summary: Int? = string.idepref_build_clearCache_summary,
-  override val icon: Int? = drawable.ic_delete,
-  override val dialogMessage: Int? = string.msg_clear_cache
+    override val key: String = GRADLE_CLEAR_CACHE,
+    override val title: Int = string.idepref_build_clearCache_title,
+    override val summary: Int? = string.idepref_build_clearCache_summary,
+    override val icon: Int? = drawable.ic_delete,
+    override val dialogMessage: Int? = string.msg_clear_cache
 ) : DialogPreference() {
 
-  override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
-    super.onConfigureDialog(preference, dialog)
-    dialog.setPositiveButton(string.yes) { dlg, _ ->
-      dlg.dismiss()
-      executeAsync(callable = this::deleteCaches) {
-        if (it == true) {
-          flashSuccess(string.deleted)
-        } else {
-          flashError(string.delete_failed)
+    override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
+        super.onConfigureDialog(preference, dialog)
+        dialog.setPositiveButton(string.yes) { dlg, _ ->
+            dlg.dismiss()
+            executeAsync(callable = this::deleteCaches) {
+                if (it == true) {
+                    flashSuccess(string.deleted)
+                } else {
+                    flashError(string.delete_failed)
+                }
+            }
         }
-      }
+        dialog.setNegativeButton(string.no) { dlg, _ -> dlg.dismiss() }
     }
-    dialog.setNegativeButton(string.no) { dlg, _ -> dlg.dismiss() }
-  }
 
-  private fun deleteCaches(): Boolean {
-    val caches = File(GRADLE_USER_HOME, "caches")
-    if (caches.exists()) {
-      return caches.deleteRecursively()
+    private fun deleteCaches(): Boolean {
+        val caches = File(GRADLE_USER_HOME, "caches")
+        if (caches.exists()) {
+            return caches.deleteRecursively()
+        }
+        return false
     }
-    return false
-  }
 }
 
 @Parcelize
 private class RunOptions(
-  override val key: String = "ide.build.runOptions",
-  override val title: Int = R.string.title_run_options,
-  override val children: List<IPreference> = mutableListOf()
+    override val key: String = "ide.build.runOptions",
+    override val title: Int = R.string.title_run_options,
+    override val children: List<IPreference> = mutableListOf()
 ) : IPreferenceGroup() {
 
-  init {
-    addPreference(LaunchAppAfterInstall())
-  }
+    init {
+        addPreference(LaunchAppAfterInstall())
+    }
 }
 
 @Parcelize
 private class LaunchAppAfterInstall(
-  override val key: String = LAUNCH_APP_AFTER_INSTALL,
-  override val title: Int = R.string.idepref_launchAppAfterInstall_title,
-  override val summary: Int? = R.string.idepref_launchAppAfterInstall_summary,
-  override val icon: Int? = drawable.ic_open_external
+    override val key: String = LAUNCH_APP_AFTER_INSTALL,
+    override val title: Int = R.string.idepref_launchAppAfterInstall_title,
+    override val summary: Int? = R.string.idepref_launchAppAfterInstall_summary,
+    override val icon: Int? = drawable.ic_open_external
 ) :
-  SwitchPreference(setValue = ::launchAppAfterInstall::set, getValue = ::launchAppAfterInstall::get)
+    SwitchPreference(
+        setValue = ::launchAppAfterInstall::set,
+        getValue = ::launchAppAfterInstall::get
+    )

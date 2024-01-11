@@ -22,6 +22,7 @@ import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
+import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.executeAsyncProvideError
 import com.itsaky.androidide.tasks.runOnUiThread
@@ -35,8 +36,10 @@ import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.api.CloneCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.ProgressMonitor
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 import java.util.concurrent.CancellationException
 
@@ -146,6 +149,7 @@ class MainFragment : BaseFragment() {
     builder.setView(binding.root)
     builder.setCancelable(false)
 
+    val prefs = BaseApplication.getBaseInstance().prefManager
     val repoName = url.substringAfterLast('/').substringBeforeLast(".git")
     val targetDir = File(Environment.PROJECTS_DIR, repoName)
 
@@ -157,11 +161,17 @@ class MainFragment : BaseFragment() {
     val cloneJob = coroutineScope.launch(Dispatchers.IO) {
 
       val git = try {
-        Git.cloneRepository()
+        val cmd: CloneCommand = Git.cloneRepository()
+        cmd
           .setURI(url)
           .setDirectory(targetDir)
           .setProgressMonitor(progress)
-          .call()
+        val token = prefs.getString(GITHUB_PAT, "")
+        //error is caught in showCloneError
+        if(!token.isNullOrBlank()) {
+          cmd.setCredentialsProvider( UsernamePasswordCredentialsProvider("<token>", token))
+        }
+        cmd.call()
       } catch (err: Throwable) {
         if (!progress.isCancelled) {
           err.printStackTrace()

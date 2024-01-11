@@ -25,6 +25,7 @@ internal fun IDEPreferences.addRootPreferences() {
   addPreference(PrivacyPreferences())
   addPreference(DeveloperOptionsPreferences())
   addPreference(AboutPreferences())
+  addPreference(GitHubPreferences())
 }
 
 @Parcelize
@@ -76,5 +77,17 @@ class AboutPreferences(
   init {
     addPreference(changelog)
     addPreference(about)
+  }
+}
+
+@Parcelize
+class GitHubPreferences(
+  override val key: String = "idepref_category_github",
+  override val title: Int = string.github,
+  override val children: List<IPreference> = mutableListOf()
+) : IPreferenceGroup() {
+
+  init {
+    addPreference(GithubPreferences())
   }
 }
