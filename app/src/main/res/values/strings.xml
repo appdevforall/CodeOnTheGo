@@ -18,5 +18,4 @@
 <resources>
   <!--  Required by F-Droid-->
   <string name="app_name" translatable="false">AndroidIDE</string>
-  <string name="msg_github_pat_hint">Enter your GitHub Persosonal Access Token</string>
 </resources>
