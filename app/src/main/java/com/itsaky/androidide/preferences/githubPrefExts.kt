@@ -64,7 +64,7 @@ import kotlinx.parcelize.Parcelize
         override val key: String = GITHUB_USERNAME,
         override val title: Int = com.itsaky.androidide.R.string.idepref_github_username,
         override val summary: Int? = com.itsaky.androidide.R.string.idepref_github_username_summary,
-        override val icon: Int? = com.itsaky.androidide.R.drawable.ic_ui_mode
+        override val icon: Int? = com.itsaky.androidide.R.drawable.ic_github
     ) : EditTextPreference() {
 
         @IgnoredOnParcel
@@ -88,7 +88,7 @@ import kotlinx.parcelize.Parcelize
         override val key: String = GITHUB_PAT,
         override val title: Int = com.itsaky.androidide.R.string.idepref_github_pat,
         override val summary: Int? = com.itsaky.androidide.R.string.idepref_github_pat_summary,
-        override val icon: Int? = com.itsaky.androidide.R.drawable.ic_color_scheme
+        override val icon: Int? = com.itsaky.androidide.R.drawable.ic_github
     ) : EditTextPreference() {
 
         @IgnoredOnParcel
