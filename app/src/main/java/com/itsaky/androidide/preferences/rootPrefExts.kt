@@ -22,10 +22,10 @@ import kotlinx.parcelize.Parcelize
 
 internal fun IDEPreferences.addRootPreferences() {
   addPreference(ConfigurationPreferences())
+  addPreference(GitHubPreferences())
   addPreference(PrivacyPreferences())
   addPreference(DeveloperOptionsPreferences())
   addPreference(AboutPreferences())
-  addPreference(GitHubPreferences())
 }
 
 @Parcelize
