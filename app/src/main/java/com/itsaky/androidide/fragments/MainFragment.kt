@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments
 
+import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
@@ -152,6 +153,10 @@ class MainFragment : BaseFragment() {
     val prefs = BaseApplication.getBaseInstance().prefManager
     val repoName = url.substringAfterLast('/').substringBeforeLast(".git")
     val targetDir = File(Environment.PROJECTS_DIR, repoName)
+    if (targetDir.exists()) {
+      showCloneDirExistsError(targetDir)
+      return
+    }
 
     val progress = GitCloneProgressMonitor(binding.progress, binding.message)
     val coroutineScope = (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
@@ -204,6 +209,15 @@ class MainFragment : BaseFragment() {
 
     val dialog = builder.show()
     getDialog = { dialog }
+  }
+
+  private fun showCloneDirExistsError(targetDir: File) {
+    val builder = context?.let { AlertDialog.Builder(it) }
+    builder?.setTitle(string.title_warning)
+    builder?.setMessage(string.git_clone_dir_exists)
+    builder?.setPositiveButton(android.R.string.ok) { _, _ -> targetDir.deleteRecursively() }
+    builder?.setNegativeButton(android.R.string.cancel) { dlg, _ -> dlg.dismiss() }
+    builder?.show()
   }
 
   private fun showCloneError(error: Throwable?) {
