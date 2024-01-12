@@ -442,6 +442,8 @@
   <string name="idepref_deleteTabs_summary">When enabled, the editor will delete spaces equal to the tab width when the backspace key is pressed.</string>
 
 <!--  GitHub-->
+  <string name="title_warning">Warning</string>
+  <string name="git_clone_dir_exists">The target directory already exists. This will cause clone to fail. Do you wish to delete it and its contents and try again</string>
   <string name="title_github" translatable="false">GitHub</string>
   <string name="idepref_github_username">Username</string>
   <string name="idepref_github_pat">Presonal Access Token</string>
