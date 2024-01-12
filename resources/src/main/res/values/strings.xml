@@ -13,7 +13,6 @@
   <string name="about_subtitle">Simply, an IDE for Android</string>
   <string name="msg_get_package_failed">Failed to extract package name!</string>
   <string name="msg_need_help">If you\'re facing issues while using AndroidIDE or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggesstions on our email.</string>
-  <string name="title_github" translatable="false">GitHub</string>
   <string name="need_help">Need Help?</string>
   <string name="ide_preferences">IDE preferences</string>
   <string name="discussions_on_telegram">Discussions on Telegram</string>
@@ -237,8 +236,6 @@
   <string name="idepref_msg_customGradleInstallation">Specify a custom Gradle installation to use for build. This OVERRIDES the version specified in gradle-wrapper.properties.</string>
   <string name="msg_gradle_installation_path">Gradle installation path</string>
   <string name="msg_gradle_installation_input_help">Leave empty to use Gradle wrapper.</string>
-  <string name="msg_github_username">Enter your GitHub login userid</string>
-  <string name="msg_github_pat">Enter your GitHub Personal Access Token</string>
 
   <string name="build_status_idle">No builds in progress</string>
   <string name="build_status_in_progress">Build in progress…</string>
@@ -265,8 +262,6 @@
   <string name="idepref_buildnrun_summary">Configure the Gradle build.</string>
   <string name="configure">Configure</string>
   <string name="about">About</string>
-  <string name="github">GitHub</string>
-  <string name="idepref_github_summary">GitHub Credentials</string>
   <string name="idepref_channel_summary">Subscribe for latest updates.</string>
   <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
   <string name="idepref_changelog_summary">What\'s new in this version?</string>
@@ -428,11 +423,7 @@
   <string name="idepref_editor_colorScheme">Color Scheme</string>
   <string name="idepref_editor_colorScheme_summary">Choose color scheme to use in editor</string>
   <string name="idepref_general_uiMode">UI Mode</string>
-  <string name="idepref_github_username">Username</string>
-  <string name="idepref_github_pat">Presonal Access Token</string>
   <string name="idepref_general_uiMode_summary">Choose UI mode for the IDE</string>
-  <string name="idepref_github_username_summary">Enter GitHub login username</string>
-  <string name="idepref_github_pat_summary">Enter GitHub Personal Access Token</string>
   <string name="uiMode_light">Light</string>
   <string name="uiMode_dark">Dark</string>
   <string name="uiMode_system">Follow system</string>
@@ -449,6 +440,18 @@
   <string name="idepref_deleteEmptyLines_summary">Whether the editor should delete empty lines on a single backspace key event.</string>
   <string name="idepref_deleteTabs_title">Delete tab on backspace</string>
   <string name="idepref_deleteTabs_summary">When enabled, the editor will delete spaces equal to the tab width when the backspace key is pressed.</string>
+
+<!--  GitHub-->
+  <string name="title_github" translatable="false">GitHub</string>
+  <string name="idepref_github_username">Username</string>
+  <string name="idepref_github_pat">Presonal Access Token</string>
+  <string name="idepref_github_username_summary">Enter GitHub login username</string>
+  <string name="idepref_github_pat_summary">Enter GitHub Personal Access Token</string>
+  <string name="github">GitHub</string>
+  <string name="idepref_github_summary">GitHub Credentials</string>
+  <string name="msg_github_username">Enter your GitHub login userid</string>
+  <string name="msg_github_pat">Enter your GitHub Personal Access Token</string>
+  <string name="msg_github_pat_hint">Enter your GitHub Persosonal Access Token</string>
 
   <string name="btn_sync">Sync</string>
   <string name="btn_ignore_changes">Ignore these changes</string>
