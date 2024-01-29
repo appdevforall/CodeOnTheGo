@@ -20,6 +20,7 @@ package com.itsaky.androidide.preferences.internal
 /** Custom Gradle installation directory path. */
 
 const val GITHUB_USERNAME = "idepref_githib_username"
+const val GITHUB_EMAIL = "ideprefs_github_email"
 const val GITHUB_PAT = "idepref_github_pat"
 
 
@@ -28,6 +29,19 @@ var githubUsername: String
     get() = prefManager.getString(GITHUB_USERNAME, "")
     set(value) {
         prefManager.putString(GITHUB_USERNAME, value)
+    }
+
+var githubEmail: String
+    get() = prefManager.getString(GITHUB_EMAIL, "")
+    set(value) {
+        prefManager.putString(GITHUB_EMAIL, value)
+    }
+
+/** GitHub login username. */
+var githubEmail: String
+    get() = prefManager.getString(GITHUB_EMAIL, "")
+    set(value) {
+        prefManager.putString(GITHUB_EMAIL, value)
     }
 
 /** GitHub personal access token. */
