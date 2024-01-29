@@ -23,6 +23,16 @@
   <string name="app_logs">App Logs</string>
   <string name="ide_logs">IDE Logs</string>
 
+  <!-- Git -->
+  <string name="commit_message">Commit message</string>
+  <string name="commit_changes">Commit Changes</string>
+  <string name="title_commit">Commit</string>
+  <string name="empty_commit">Commit message can not be empty</string>
+  <string name="set_user_and_password">Please set Username and Email in settings</string>
+  <string name="git_commit_heading">Please enter the commit message for your changes. An empty message aborts the commit.</string>
+  <string name="git_commit_changes">Changes to be committed, uncheck files to be excluded from this commit</string>
+
+
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">Get started</string>
   <string name="msg_cannot_perform_fix">Unable to perform quick fix</string>
@@ -447,13 +457,17 @@
   <string name="title_github" translatable="false">GitHub</string>
   <string name="idepref_github_username">Username</string>
   <string name="idepref_github_pat">Presonal Access Token</string>
+  <string name="idepref_github_email">Email Address</string>
   <string name="idepref_github_username_summary">Enter GitHub login username</string>
   <string name="idepref_github_pat_summary">Enter GitHub Personal Access Token</string>
+  <string name="idepref_github_email_summary">Enter Email Address</string>
   <string name="github">GitHub</string>
   <string name="idepref_github_summary">GitHub Credentials</string>
   <string name="msg_github_username">Enter your GitHub login userid</string>
   <string name="msg_github_pat">Enter your GitHub Personal Access Token</string>
   <string name="msg_github_pat_hint">Enter your GitHub Persosonal Access Token</string>
+  <string name="msg_github_email">Enter your Email Address</string>
+  <string name="msg_github_email_hint">Enter your Email Address</string>
 
   <string name="btn_sync">Sync</string>
   <string name="btn_ignore_changes">Ignore these changes</string>

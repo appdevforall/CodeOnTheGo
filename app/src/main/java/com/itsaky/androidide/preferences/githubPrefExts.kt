@@ -24,6 +24,7 @@ import com.itsaky.androidide.preferences.internal.GITHUB_USERNAME
 import com.itsaky.androidide.preferences.internal.GITHUB_EMAIL
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.preferences.internal.SELECTED_THEME
+import com.itsaky.androidide.preferences.internal.githubEmail
 import com.itsaky.androidide.preferences.internal.githubPAT
 import com.itsaky.androidide.preferences.internal.githubUsername
 import com.itsaky.androidide.preferences.internal.gradleInstallationDir

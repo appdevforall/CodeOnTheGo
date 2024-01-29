@@ -31,13 +31,7 @@ var githubUsername: String
         prefManager.putString(GITHUB_USERNAME, value)
     }
 
-var githubEmail: String
-    get() = prefManager.getString(GITHUB_EMAIL, "")
-    set(value) {
-        prefManager.putString(GITHUB_EMAIL, value)
-    }
-
-/** GitHub login username. */
+/** GitHub login email. */
 var githubEmail: String
     get() = prefManager.getString(GITHUB_EMAIL, "")
     set(value) {
