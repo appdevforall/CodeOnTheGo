@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.preferences.internal.GITHUB_USERNAME
+import com.itsaky.androidide.preferences.internal.GITHUB_EMAIL
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.preferences.internal.SELECTED_THEME
 import com.itsaky.androidide.preferences.internal.githubPAT
@@ -59,31 +60,55 @@ import kotlinx.parcelize.Parcelize
         }
     }
 
-    @Parcelize
-    class Username(
-        override val key: String = GITHUB_USERNAME,
-        override val title: Int = com.itsaky.androidide.R.string.idepref_github_username,
-        override val summary: Int? = com.itsaky.androidide.R.string.idepref_github_username_summary,
-        override val icon: Int? = com.itsaky.androidide.R.drawable.ic_github
-    ) : EditTextPreference() {
+@Parcelize
+class Username(
+    override val key: String = GITHUB_USERNAME,
+    override val title: Int = com.itsaky.androidide.R.string.idepref_github_username,
+    override val summary: Int? = com.itsaky.androidide.R.string.idepref_github_username_summary,
+    override val icon: Int? = com.itsaky.androidide.R.drawable.ic_github
+) : EditTextPreference() {
 
-        @IgnoredOnParcel
-        override val dialogCancellable = true
+    @IgnoredOnParcel
+    override val dialogCancellable = true
 
-        override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-            githubUsername = newValue as String? ?: ""
-            return true
-        }
-
-        override fun onConfigureTextInput(input: TextInputLayout) {
-            input.setStartIconDrawable(R.drawable.ic_gradle)
-            input.setHint(R.string.msg_github_username)
-            input.isCounterEnabled = false
-            input.editText!!.setText("")
-        }
+    override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
+        githubUsername = newValue as String? ?: ""
+        return true
     }
 
-    @Parcelize
+    override fun onConfigureTextInput(input: TextInputLayout) {
+        input.setStartIconDrawable(R.drawable.ic_gradle)
+        input.setHint(R.string.msg_github_username)
+        input.isCounterEnabled = false
+        input.editText!!.setText("")
+    }
+}
+
+@Parcelize
+class Email(
+    override val key: String = GITHUB_EMAIL,
+    override val title: Int = com.itsaky.androidide.R.string.idepref_github_email,
+    override val summary: Int? = com.itsaky.androidide.R.string.idepref_github_email_summary,
+    override val icon: Int? = com.itsaky.androidide.R.drawable.ic_github
+) : EditTextPreference() {
+
+    @IgnoredOnParcel
+    override val dialogCancellable = true
+
+    override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
+        githubEmail = newValue as String? ?: ""
+        return true
+    }
+
+    override fun onConfigureTextInput(input: TextInputLayout) {
+        input.setStartIconDrawable(R.drawable.ic_gradle)
+        input.setHint(R.string.msg_github_email)
+        input.isCounterEnabled = false
+        input.editText!!.setText("")
+    }
+}
+
+@Parcelize
     class PersonalAccessToken(
         override val key: String = GITHUB_PAT,
         override val title: Int = com.itsaky.androidide.R.string.idepref_github_pat,
