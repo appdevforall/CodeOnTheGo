@@ -46,6 +46,10 @@ import com.itsaky.androidide.actions.filetree.NewFileAction
 import com.itsaky.androidide.actions.filetree.NewFolderAction
 import com.itsaky.androidide.actions.filetree.OpenWithAction
 import com.itsaky.androidide.actions.filetree.RenameAction
+import com.itsaky.androidide.actions.github.GitHubCommitAction
+import com.itsaky.androidide.actions.github.GitHubFetchAction
+import com.itsaky.androidide.actions.github.GitHubPullAction
+import com.itsaky.androidide.actions.github.GitHubPushAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 
@@ -76,6 +80,10 @@ class EditorActivityActions {
       registry.registerAction(ReloadColorSchemesAction(context, order++))
       registry.registerAction(DisconnectLogSendersAction(context, order++))
       registry.registerAction(LaunchAppAction(context, order++))
+      registry.registerAction(GitHubCommitAction(context, order++))
+      registry.registerAction(GitHubPushAction(context, order++))
+      registry.registerAction(GitHubFetchAction(context, order++))
+      registry.registerAction(GitHubPullAction(context, order++))
 
       // editor text actions
       registry.registerAction(ExpandSelectionAction(context, order++))
