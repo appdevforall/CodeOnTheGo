@@ -43,6 +43,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.tasks.TaskExecutor.executeAsyncProvideError
 import org.eclipse.jgit.api.CommitCommand
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 
@@ -50,7 +51,7 @@ object GitCommitTask {
 
         private val prefs = BaseApplication.getBaseInstance().prefManager
 
-        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        //@RequiresApi(Build.VERSION_CODES.TIRAMISU)
         fun commit(/*project: Project,*/ context: Context) {
 
             val inflater =
@@ -102,7 +103,11 @@ object GitCommitTask {
                 }
             }
 
-            val git: Git = Git.open(targetDir)
+            val git : Git = try {
+                 Git.open(targetDir)
+            } catch(e : RepositoryNotFoundException) {
+                null
+            } ?: TODO("add alert dialog here to explain missing repo")
             val repo = git.repository
             val branch = repo.branch
             val result = git.status().call()
@@ -218,8 +223,7 @@ object GitCommitTask {
                                 }
                                 cmd.setCommitter(userName.toString(), userEmail.toString())
                                     .setMessage(msg)
-                                val token =
-                                    prefs.getString(
+                                val token = prefs.getString(
                                         GITHUB_PAT,
                                         ""
                                     )
