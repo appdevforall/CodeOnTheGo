@@ -57,6 +57,7 @@ import kotlinx.parcelize.Parcelize
 
         init {
             addPreference(Username())
+            addPreference(Email())
             addPreference(PersonalAccessToken())
         }
     }

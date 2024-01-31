@@ -468,6 +468,16 @@
   <string name="msg_github_pat_hint">Enter your GitHub Persosonal Access Token</string>
   <string name="msg_github_email">Enter your Email Address</string>
   <string name="msg_github_email_hint">Enter your Email Address</string>
+  <string name="title_github_commit">GitHub Commit</string>
+  <string name="title_github_push">GitHub Push</string>
+  <string name="title_github_fetch">GitHub Fetch</string>
+  <string name="title_github_pull">GitHub Pull</string>
+  <string name="pushing">Pushing…</string>
+  <string name="push_completed">Push Completed</string>
+  <string name="pulling">Pulling…</string>
+  <string name="pull_completed">Pull Completed</string>
+  <string name="fetching">Fetching…</string>
+  <string name="fetch_completed">Fetch Completed</string>
 
   <string name="btn_sync">Sync</string>
   <string name="btn_ignore_changes">Ignore these changes</string>
