@@ -30,23 +30,21 @@ import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.app.LimitlessIDEActivity
-import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.preferences.internal.NO_OPENED_PROJECT
 import com.itsaky.androidide.preferences.internal.autoOpenProjects
 import com.itsaky.androidide.preferences.internal.confirmProjectOpen
 import com.itsaky.androidide.preferences.internal.lastOpenedProject
-import com.itsaky.androidide.preferences.internal.statConsentDialogShown
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
-import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
+import io.sentry.Sentry
 import java.io.File
 
 class MainActivity : LimitlessIDEActivity() {
@@ -81,6 +79,25 @@ class MainActivity : LimitlessIDEActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+
+    Thread.setDefaultUncaughtExceptionHandler { t: Thread?, e: Throwable ->
+      try {
+        Sentry.captureException(e)
+//        StringWriter sw = new StringWriter();
+//        e.printStackTrace(new PrintWriter(sw));
+
+//        Intent intent = new Intent(Intent.ACTION_SEND);
+//        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//        intent.putExtra(Intent.EXTRA_TEXT, sw.toString());
+//        intent.setType("text/plain");
+//        startActivity(intent);
+      } catch (ex: Exception) {
+        ex.printStackTrace()
+      }
+    }
+
+
+
     openLastProject()
 
     viewModel.currentScreen.observe(this) { screen ->
