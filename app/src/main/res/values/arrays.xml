@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string-array name="filename_array">
+    <item>manifests</item>
+    <item>Kotlin+java</item>
+    <item>ui.theme</item>
+    <item>MainActivity</item>
+    <item>res</item>
+    <item>\tdrawable</item>
+    <item>\tlayout</item>
+  </string-array>
+</resources>

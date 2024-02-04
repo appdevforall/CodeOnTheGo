@@ -18,4 +18,79 @@
 <resources>
   <!--  Required by F-Droid-->
   <string name="app_name" translatable="false">AndroidIDE</string>
+  <string name="file">File</string>
+  <string name="run">Run</string>
+  <string name="actions">Actions</string>
+  <string name="help">Help</string>
+  <string name="code">1\tpackage com.appdevforall.sequendo\n
+2\t\n
+3\t\n
+4\timport android.content.Context\n
+5\timport android.hardware.display.DisplayManager\n
+6\timport android.os.Bundle\n
+7\timport android.view.Display\n
+8\timport android.view.Menu\n
+9\timport android.view.MenuInflater\n
+10\timport android.view.MenuItem\n
+11\timport androidx.appcompat.app.AppCompatActivity\n
+12\timport androidx.core.view.MenuProvider\n
+13\timport com.appdevforall.sequendo.ui.theme.SecondaryScreen\n
+14\t\n
+15\t\n
+16\tclass MainActivity : AppCompatActivity()  {\n
+17\t\n
+18\t\n
+19\t10\t10\toverride fun onCreate(savedInstanceState: Bundle?) {\n
+20\t\t\t\tsuper.onCreate(savedInstanceState)\n
+21\t\t\tsetContentView(R.layout.activity_main)\n
+22\t\n
+23\t\n
+24\t\n
+25\t\n
+26\t\tval displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager\n
+27\t\tval displays = displayManager.displays\n
+        var secondDisplay : Display? = null\n
+        for (display in displays) {\n
+            if (display.displayId != Display.DEFAULT_DISPLAY) {\n
+                // This is a secondary display\n
+                secondDisplay = display\n
+            }\n
+        }\n
+\n\n\n\n
+
+
+        val presentation = SecondaryScreen(this, secondDisplay!!)\n
+        presentation.show()\n
+\n\n
+    }\n
+\n
+    /**\n
+     * Called by the [MenuHost] to allow the [MenuProvider]\n
+     * to inflate [MenuItem]s into the menu.\n
+     *\n
+     * @param menu         the menu to inflate the new menu items into\n
+     * @param menuInflater the inflater to be used to inflate the updated menu\n
+     */\n
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {\n
+        menuInflater.inflate(R.menu.secondary_menu, menu)\n
+        return true\n
+    }\n
+\n\n
+    /**\n
+     * Called by the [MenuHost] when a [MenuItem] is selected from the menu.\n
+     *\n
+     * @param menuItem the menu item that was selected\n
+     * @return `true` if the given menu item is handled by this menu provider,\n
+     * `false` otherwise\n
+     */\n
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {\n
+        return super.onOptionsItemSelected(item)\n
+    }\n
+}
+</string>
+  <string name="debugger">2024-02-01 10:10:37: Launching app on \'samsung SM-N986U\'./n
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.appdevforall.sequendo/.MainActivity }\n
+\n
+Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
+</string>
 </resources>
