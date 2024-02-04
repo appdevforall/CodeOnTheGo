@@ -17,10 +17,13 @@
 
 package com.itsaky.androidide.activities
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.text.TextUtils
+import android.view.Display
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -83,20 +86,10 @@ class MainActivity : LimitlessIDEActivity() {
     Thread.setDefaultUncaughtExceptionHandler { t: Thread?, e: Throwable ->
       try {
         Sentry.captureException(e)
-//        StringWriter sw = new StringWriter();
-//        e.printStackTrace(new PrintWriter(sw));
-
-//        Intent intent = new Intent(Intent.ACTION_SEND);
-//        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-//        intent.putExtra(Intent.EXTRA_TEXT, sw.toString());
-//        intent.setType("text/plain");
-//        startActivity(intent);
       } catch (ex: Exception) {
         ex.printStackTrace()
       }
     }
-
-
 
     openLastProject()
 
