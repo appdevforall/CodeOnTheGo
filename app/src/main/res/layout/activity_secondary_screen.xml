@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:id="@+id/linearLayout"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@android:color/background_light">
+
+
+  <LinearLayout
+    android:id="@+id/llMenuBar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="0dp"
+    android:layout_marginEnd="0dp"
+    android:layout_marginTop="0dp"
+    android:layout_marginBottom="0dp"
+    android:background="@color/_blue_wave_dark_colorBackground"
+    android:orientation="horizontal"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintBottom_toTopOf="@id/llblock">
+
+    <Button
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      style="@style/Widget.AppCompat.Button.Small"
+      android:paddingTop="0dp"
+      android:paddingBottom="0dp"
+      android:paddingStart="5dp"
+      android:layout_margin="10dp"
+      android:background="@color/white"
+      android:text="File"
+      android:drawableEnd="@android:drawable/ic_media_play"
+      android:drawableTint="@android:color/darker_gray"
+      android:textColor="@color/black" />
+    <Button
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      style="@style/Widget.AppCompat.Button.Small"
+      android:paddingTop="0dp"
+      android:paddingBottom="0dp"
+      android:paddingStart="5dp"
+      android:layout_margin="10dp"
+      android:background="@color/white"
+      android:drawableEnd="@android:drawable/ic_media_play"
+      android:drawableTint="@android:color/darker_gray"
+      android:text="Run"
+      android:textColor="@color/black" />
+    <Button
+      style="@style/Widget.AppCompat.Button.Small"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:paddingTop="0dp"
+      android:paddingBottom="0dp"
+      android:paddingStart="5dp"
+      android:layout_margin="10dp"
+      android:background="@color/white"
+      android:drawableEnd="@android:drawable/ic_media_play"
+      android:drawableTint="@android:color/darker_gray"
+      android:text="Halt"
+      android:textColor="@color/black" />
+    <Button
+      style="@style/Widget.AppCompat.Button.Small"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:paddingTop="0dp"
+      android:paddingBottom="0dp"
+      android:paddingStart="5dp"
+      android:layout_margin="10dp"
+      android:background="@color/white"
+      android:drawableEnd="@android:drawable/ic_media_play"
+      android:drawableTint="@android:color/darker_gray"
+      android:text="Breakpoint"
+      android:textColor="@color/black" />
+    <Button
+      style="@style/Widget.AppCompat.Button.Small"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:paddingTop="0dp"
+      android:paddingBottom="0dp"
+      android:paddingStart="5dp"
+      android:layout_margin="10dp"
+      android:drawableEnd="@android:drawable/ic_media_play"
+      android:drawableTint="@android:color/darker_gray"
+      android:background="@color/white"
+      android:text="Help"
+      android:textColor="@color/black" />
+    <Button
+      style="@style/Widget.AppCompat.Button.Small"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:paddingTop="0dp"
+      android:paddingBottom="0dp"
+      android:paddingStart="5dp"
+      android:layout_margin="10dp"
+      android:background="@color/white"
+      android:drawableEnd="@android:drawable/ic_media_play"
+      android:drawableTint="@android:color/darker_gray"
+      android:text="About"
+      android:textColor="@color/black" />
+  </LinearLayout>
+
+  <androidx.appcompat.widget.LinearLayoutCompat
+    android:id="@+id/llblock"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@android:color/background_light"
+    android:orientation="horizontal"
+    android:weightSum="1.0"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toBottomOf="@+id/llMenuBar">
+    <ListView
+      android:id="@+id/lvFileList"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_weight=".66"
+      android:layout_margin="10dp"
+      android:divider="@null"
+      android:entries="@array/filename_array"
+      android:orientation="vertical" />
+
+    <TextView
+      android:id="@+id/tvCode"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_weight=".33"
+      android:text="@string/code" />
+  </androidx.appcompat.widget.LinearLayoutCompat>
+
+<!--  <TextView-->
+<!--    android:id="@+id/tvDebugger"-->
+<!--    android:layout_width="wrap_content"-->
+<!--    android:layout_height="wrap_content"-->
+<!--    android:layout_marginStart="10dp"-->
+<!--    android:layout_marginEnd="10dp"-->
+<!--    android:text="@string/debugger"-->
+<!--    app:layout_constraintBottom_toBottomOf="parent"-->
+<!--    app:layout_constraintEnd_toEndOf="parent"-->
+<!--    app:layout_constraintStart_toStartOf="parent"-->
+<!--    app:layout_constraintTop_toBottomOf="@+id/llblock" />-->
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>
