@@ -93,4 +93,8 @@ Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.L
 \n
 Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
 </string>
+  <string name="feedback_warning">Sending feedback will create and send a private email to feedback,appdevforall.com,
+    if you feel that this would be an unsafe action, then click &lt;b>&lt;i>Cancel&lt;/i>&lt;/b>, otherwise click &lt;b>&lt;i>Ok&lt;/i>&lt;/b> to proceed</string>
+  <string name="feedback_subject">Feedback for {0} Screen</string>
+  <string name="feedback_message">Please enter your feedback in the space below, \nThank You\n</string>
 </resources>

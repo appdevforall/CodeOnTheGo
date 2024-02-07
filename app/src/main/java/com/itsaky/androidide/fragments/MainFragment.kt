@@ -1,14 +1,16 @@
 package com.itsaky.androidide.fragments
 
-import android.content.DialogInterface
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.R
@@ -31,8 +33,6 @@ import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
-import com.termux.shared.interact.MessageDialogUtils
-import com.termux.shared.termux.TermuxConstants
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,6 +42,7 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
+import java.text.MessageFormat
 import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
@@ -51,6 +52,13 @@ class MainFragment : BaseFragment() {
   private var binding: FragmentMainBinding? = null
 
   private val log = ILogger.newInstance("MainFragment")
+
+  private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
+    ActivityResultContracts.StartActivityForResult()
+  ) { //ACTION_SEND always returns RESULT_CANCELLED, ignore it
+    // There are no request codes
+  }
+
 
   override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
     savedInstanceState: Bundle?
@@ -93,7 +101,41 @@ class MainFragment : BaseFragment() {
     }
 
     binding!!.actions.adapter = MainActionsListAdapter(actions)
+    binding!!.floatingActionButton!!.setBackgroundResource(android.R.color.holo_red_light)
+
+    binding!!.floatingActionButton!!.setOnClickListener {
+      val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
+      builder?.let { builder ->
+        builder.setTitle("Alert!")
+          .setMessage(HtmlCompat.fromHtml(getString(R.string.feedback_warning), HtmlCompat.FROM_HTML_MODE_COMPACT))
+          .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+          .setPositiveButton(android.R.string.ok) { dialog, _ ->
+            run {
+              val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+              val sb = StringBuilder(resources.getString(R.string.feedback_message))
+              sb.append("\n\n\n")
+              sb.append("-------------stack trace----------\n")
+              sb.append(stackTrace)
+              val feedbackIntent = Intent(Intent.ACTION_SEND)
+              val subject = MessageFormat.format(resources.getString(R.string.feedback_subject), "Main")
+              /*To send an email you need to specify mailto: as URI using setData() method
+                     and data type will be to text/plain using setType() method*/
+              feedbackIntent.data = Uri.parse("mailto:")
+              feedbackIntent.type = "text/plain"
+              feedbackIntent.putExtra(Intent.EXTRA_EMAIL, arrayOf("feedback@appdevforall.com"))
+              feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
+              feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())
+              shareActivityResultLauncher.launch(feedbackIntent)
+              dialog.dismiss()
+            }
+          }
+          .create()
+          .show()
+
+      }
+    }
   }
+
 
   override fun onDestroyView() {
     super.onDestroyView()
