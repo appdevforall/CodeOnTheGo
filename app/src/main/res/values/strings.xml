@@ -96,5 +96,6 @@ Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
   <string name="feedback_warning">Sending feedback will create and send a private email to feedback,appdevforall.com,
     if you feel that this would be an unsafe action, then click &lt;b>&lt;i>Cancel&lt;/i>&lt;/b>, otherwise click &lt;b>&lt;i>Ok&lt;/i>&lt;/b> to proceed</string>
   <string name="feedback_subject">Feedback for {0} Screen</string>
-  <string name="feedback_message">Please enter your feedback in the space below, \nThank You\n</string>
+  <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen\nThank You\n</string>
+  <string name="send_feedback">Send Feedback</string>
 </resources>
