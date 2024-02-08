@@ -3,6 +3,8 @@ package com.itsaky.androidide.fragments
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -43,6 +46,7 @@ import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 import java.text.MessageFormat
+import java.util.TimerTask
 import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
@@ -53,11 +57,32 @@ class MainFragment : BaseFragment() {
 
   private val log = ILogger.newInstance("MainFragment")
 
+  private lateinit var fab : FloatingActionButton
+  private var fabAlpha = 1.0f
+  private var fabAlphaDirection : Int = -1
+  private val fabAlpaIncr = 0.1f
+  private val fabAlphaDelay = 500L
   private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
     ActivityResultContracts.StartActivityForResult()
   ) { //ACTION_SEND always returns RESULT_CANCELLED, ignore it
     // There are no request codes
   }
+
+  private val handler : Handler = Handler(Looper.getMainLooper())
+  private  val rotateFab = object : TimerTask() {
+    /**
+     * The action to be performed by this timer task.
+     */
+    override fun run() {
+      fab?.let { it1 ->
+        it1.alpha = fabAlpha
+      }
+      fabAlpha = if (fabAlphaDirection == 1) fabAlpha + fabAlpaIncr else fabAlpha - fabAlpaIncr
+      fabAlphaDirection = if (fabAlpha < 0.0f) 1 else if (fabAlpha > 1.0f) -1 else fabAlphaDirection
+      handler.postDelayed(this, fabAlphaDelay)
+    }
+  }
+
 
 
   override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
@@ -101,9 +126,10 @@ class MainFragment : BaseFragment() {
     }
 
     binding!!.actions.adapter = MainActionsListAdapter(actions)
-    binding!!.floatingActionButton!!.setBackgroundResource(android.R.color.holo_red_light)
 
-    binding!!.floatingActionButton!!.setOnClickListener {
+    fab = binding!!.floatingActionButton!!
+    handler.postDelayed(rotateFab, 50)
+    fab.setOnClickListener {
       val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
       builder?.let { builder ->
         builder.setTitle("Alert!")

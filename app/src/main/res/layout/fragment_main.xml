@@ -68,8 +68,10 @@
     android:layout_gravity="bottom|start"
     app:layout_constraintBottom_toBottomOf="parent"
     app:layout_constraintStart_toStartOf="parent"
+    android:src="@drawable/baseline_feedback_64"
+    android:scaleType="fitXY"
     android:clickable="true"
-    app:srcCompat="@drawable/ic_telegram" />
+    android:tooltipText="@string/send_feedback"/>
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
