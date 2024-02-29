@@ -68,6 +68,7 @@ dependencies {
   kapt(libs.common.glide.ap)
   kapt(libs.google.auto.service)
   kapt(projects.annotationProcessors)
+  kapt(libs.room.compiler)
 
   implementation(libs.common.editor)
   implementation(libs.common.utilcode)
@@ -80,6 +81,9 @@ dependencies {
   implementation(libs.google.auto.service.annotations)
   implementation(libs.google.gson)
   implementation(libs.google.guava)
+
+  //Room
+  implementation(libs.room.ktx)
 
   // Git
   implementation(libs.git.jgit)
