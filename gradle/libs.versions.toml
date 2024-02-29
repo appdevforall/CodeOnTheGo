@@ -18,8 +18,16 @@ retrofit = "2.9.0"
 appintro = "6.3.1"
 markwon = "4.6.2"
 maven-publish-plugin = "0.25.3"
+room = "2.6.1"
+
 
 [libraries]
+
+# Room
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room"}
+room-ktx = { module = "androidx.room:room-ktx", version.ref="room" }
+room-testing = { module = "androidx.room:room-testing", version.ref = "room"}
+
 
 # AndroidIDE
 androidide-javac = { module = "io.github.itsaky:nb-javac-android", version = "17.0.0.4-SNAPSHOT" }
