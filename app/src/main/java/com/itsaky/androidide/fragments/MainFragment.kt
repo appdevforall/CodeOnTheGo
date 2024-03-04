@@ -6,16 +6,19 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.ContextMenu
 import android.view.LayoutInflater
+import android.view.MenuItem
 import android.view.View
+import android.view.View.OnCreateContextMenuListener
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
-import androidx.room.RoomDatabase
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.R
@@ -25,7 +28,6 @@ import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.BaseIDEActivity
-import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.models.MainScreenAction
@@ -115,25 +117,18 @@ class MainFragment : BaseFragment() {
           MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
           MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
             Intent(requireActivity(), TerminalActivity::class.java))
-
           MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
           MainScreenAction.ACTION_DONATE -> BaseApplication.getBaseInstance().openDonationsPage()
           MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
         }
       }
-      val onLongClick = { action: MainScreenAction, _ : View ->
+      val onLongClick = { action: MainScreenAction, _: View ->
         when (action.id) {
           MainScreenAction.ACTION_CREATE_PROJECT -> {
             val coroutineScope = (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
             val database = context?.let { MessageRoomDatabase.getDatabase(it, applicationScope) }
             database?.let { database -> coroutineScope.launch { dumpDatabase(database) } }
-            val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
-            builder?.setTitle("Help")
-              ?.setMessage("This is the help message explaining Create Project")
-              ?.setPositiveButton(android.R.string.ok) { dialogInterface, _ ->
-                dialogInterface.dismiss()}
-              ?.create()
-              ?.show()
+            performOptionsMenuClick(action)
           }
           MainScreenAction.ACTION_OPEN_PROJECT -> pickDirectory()
           MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
@@ -145,6 +140,14 @@ class MainFragment : BaseFragment() {
           MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
         }
         true
+      }
+
+      val onCreateContextMenuListener = {action : MainScreenAction, actionView: View ->
+        when(action.id) {
+          MainScreenAction.ACTION_CREATE_PROJECT -> {
+            actionView.setOnCreateContextMenuListener(this)
+          }
+        }
       }
 
       actions.forEach { action ->
@@ -163,7 +166,7 @@ class MainFragment : BaseFragment() {
       }
     }
 
-    binding!!.actions.adapter = MainActionsListAdapter(actions)
+    binding!!.actions.adapter = MainActionsListAdapter(this, actions)
 
     fab = binding!!.floatingActionButton!!
     handler.postDelayed(rotateFab, 50)
@@ -197,6 +200,72 @@ class MainFragment : BaseFragment() {
           .show()
 
       }
+    }
+  }
+
+  // this method will handle the onclick options click
+  private fun performOptionsMenuClick(action: MainScreenAction) {
+    // create object of PopupMenu and pass context and view where we want
+    // to show the popup menu
+    val view = action.view
+
+    val popupMenu = context?.let { android.widget.PopupMenu(it, view) }
+    // add the menu
+    popupMenu?.inflate(R.menu.ctx_menu)
+    // implement on menu item click Listener
+    popupMenu?.setOnMenuItemClickListener { item ->
+        when (item?.itemId) {
+          R.id.ctx_menu_main_action_help -> {
+            val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
+            builder?.setTitle("Help")
+              ?.setMessage("This is the help message explaining Create Project")
+              ?.setPositiveButton(android.R.string.ok) { dialogInterface, _ ->
+                dialogInterface.dismiss()}
+              ?.create()
+              ?.show()
+            true
+          }
+          // in the same way you can implement others
+          R.id.ctx_menu_main_action_feedback -> {
+            performFeedbackAction(action)
+            true
+          }
+        }
+        false
+      }
+    popupMenu?.show()
+  }
+
+  private fun performFeedbackAction(action : MainScreenAction) {
+    val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
+    builder?.let { builder ->
+      builder.setTitle("Alert!")
+        .setMessage(HtmlCompat.fromHtml(getString(R.string.feedback_warning),
+          HtmlCompat.FROM_HTML_MODE_COMPACT))
+        .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+        .setPositiveButton(android.R.string.ok) { dialog, _ ->
+          run {
+            val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+            val sb = StringBuilder(resources.getString(R.string.feedback_message))
+            sb.append("\n\n\n")
+            sb.append("-------------stack trace----------\n")
+            sb.append(stackTrace)
+            val feedbackIntent = Intent(Intent.ACTION_SEND)
+            val subject = MessageFormat.format(resources.getString(R.string.feedback_subject),
+              "Main")
+            /*To send an email you need to specify mailto: as URI using setData() method
+                   and data type will be to text/plain using setType() method*/
+            feedbackIntent.data = Uri.parse("mailto:")
+            feedbackIntent.type = "text/plain"
+            feedbackIntent.putExtra(Intent.EXTRA_EMAIL, arrayOf("feedback@appdevforall.com"))
+            feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
+            feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())
+            shareActivityResultLauncher.launch(feedbackIntent)
+            dialog.dismiss()
+          }
+        }
+        .create()
+        .show()
     }
   }
 
