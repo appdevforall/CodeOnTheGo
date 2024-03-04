@@ -18,6 +18,7 @@
 package com.itsaky.androidide.models
 
 import android.view.View
+import android.view.View.OnCreateContextMenuListener
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.resources.R
@@ -34,8 +35,9 @@ constructor(
   val id: Int,
   @StringRes val text: Int,
   @DrawableRes val icon: Int,
-  var onClick: ((MainScreenAction, View) -> Unit)? = null,
-  var onLongClick: ((MainScreenAction, View) -> Boolean)? = null
+  var onClick:     ((MainScreenAction, View) -> Unit)? = null,
+  var onLongClick: ((MainScreenAction, View) -> Boolean)? = null,
+  var view : View? = null
 ) {
 
   companion object {
