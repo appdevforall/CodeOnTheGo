@@ -17,10 +17,14 @@
 
 package com.itsaky.androidide.adapters
 
+import android.view.ContextMenu
 import android.view.LayoutInflater
+import android.view.View
+import android.view.View.OnCreateContextMenuListener
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
+import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.models.MainScreenAction
 
 /**
@@ -30,12 +34,13 @@ import com.itsaky.androidide.models.MainScreenAction
  */
 class MainActionsListAdapter
 @JvmOverloads
-constructor(val actions: List<MainScreenAction> = emptyList()) :
+constructor(val mainFragment : MainFragment, val actions: List<MainScreenAction> = emptyList()) :
   RecyclerView.Adapter<MainActionsListAdapter.VH>() {
-  class VH(val binding: LayoutMainActionItemBinding) : RecyclerView.ViewHolder(binding.root)
+  inner class VH(val binding: LayoutMainActionItemBinding) : RecyclerView.ViewHolder(binding.root)
 
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
     VH(LayoutMainActionItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+
   override fun getItemCount(): Int = actions.size
 
   fun getAction(index: Int) = actions[index]
@@ -43,18 +48,19 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
   override fun onBindViewHolder(holder: VH, position: Int) {
     val action = getAction(index = position)
     val binding = holder.binding
-    
+    val button = binding.root
+
     binding.root.apply {
       setText(action.text)
       setIconResource(action.icon)
       setOnClickListener {
         action.onClick?.invoke(action, it)
       }
-      action.onLongClick?.let { onLongClick ->
-        setOnLongClickListener {
-          onLongClick(action, it)
-        }
+      setOnLongClickListener {
+        action.onLongClick?.invoke(action, it)
+        true
       }
+      action.view = button
     }
   }
 }
