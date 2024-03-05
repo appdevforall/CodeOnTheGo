@@ -23,16 +23,19 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.itsaky.androidide.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 
 // Annotates class to be a Room Database with a table (entity) of the Message class
   @Database(entities = arrayOf(Message::class), version = 1, exportSchema = false)
-  public abstract class MessageRoomDatabase : RoomDatabase() {
+  abstract class MessageRoomDatabase : RoomDatabase() {
 
     abstract fun MessageDao(): MessageDao
 
   private class MessageDatabaseCallback(
+    private val context : Context,
     private val scope: CoroutineScope
   ) : RoomDatabase.Callback() {
 
@@ -40,27 +43,37 @@ import kotlinx.coroutines.launch
       super.onCreate(db)
       INSTANCE?.let { database ->
         scope.launch {
-          populateDatabase(database.MessageDao())
+          populateDatabase(context, database.MessageDao())
         }
       }
     }
 
-    suspend fun populateDatabase(MessageDao: MessageDao) {
+    suspend fun populateDatabase(context: Context, messageDao: MessageDao) {
       // Delete all content here.
-      MessageDao.deleteAll()
+      messageDao.deleteAll()
+      try {
+        val userList: JSONArray =
+          context.resources.openRawResource(R.raw.help_messages).bufferedReader().use {
+            JSONArray(it.readText())
+          }
 
-      MessageDao.insert(Message(0, 1, "This is a test 1"))
-      MessageDao.insert(Message(0, 2, "This is a test 2"))
-      MessageDao.insert(Message(0, 3, "This is a test 3"))
-      MessageDao.insert(Message(0, 4, "This is a test 4"))
-      MessageDao.insert(Message(0, 5, "This is a test 5"))
-      MessageDao.insert(Message(0, 6, "This is a test 6"))
-      MessageDao.insert(Message(0, 7, "This is a test 7"))
-      MessageDao.insert(Message(0, 8, "This is a test 8"))
-      MessageDao.insert(Message(0, 9, "This is a test 9"))
-      MessageDao.insert(Message(0, 10, "This is a test 10"))
-      val messageList : List<Message> = MessageDao.getAlphabetizedMessages()
-      messageList.forEach{ msg -> Log.d("MessageRoomDatabase", "after insert database -  key = $(message.key}, messageKey = ${msg.messageKey}, messageText= ${msg.messageText}") }
+        userList.takeIf { it.length() > 0 }?.let { list ->
+          for (index in 0 until list.length()) {
+            val userObj = list.getJSONObject(index)
+            messageDao.insert(
+              Message(0, userObj.getString("id"), userObj.getString("text")))
+
+          }
+          Log.e("User App", "successfully pre-populated users into database")
+        }
+      } catch (exception: Exception) {
+        Log.e(
+          "User App",
+          exception.localizedMessage ?: "failed to pre-populate users into database"
+        )
+      }
+    val messageList : List<Message> = messageDao.getAlphabetizedMessages()
+    messageList.forEach{ msg -> Log.d("MessageRoomDatabase", "after insert database -  key = $(message.key}, messageKey = ${msg.messageKey}, messageText= ${msg.messageText}") }
     }
   }
   
@@ -78,7 +91,7 @@ import kotlinx.coroutines.launch
             context.applicationContext,
             MessageRoomDatabase::class.java,
             "Message_database"
-          ).addCallback(MessageDatabaseCallback(scope))
+          ).addCallback(MessageDatabaseCallback(context, scope))
            .build()
           INSTANCE = instance
           // return instance

@@ -6,17 +6,13 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.ContextMenu
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.View
-import android.view.View.OnCreateContextMenuListener
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.widget.PopupMenu
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -34,6 +30,7 @@ import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.roomData.MessageDao
 import com.itsaky.androidide.roomData.MessageRoomDatabase
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
@@ -45,7 +42,9 @@ import com.itsaky.androidide.viewmodel.MainViewModel
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.CloneCommand
@@ -54,7 +53,6 @@ import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 import java.text.MessageFormat
-import java.util.TimerTask
 import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
@@ -66,10 +64,11 @@ class MainFragment : BaseFragment() {
   private val log = ILogger.newInstance("MainFragment")
 
   private lateinit var fab : FloatingActionButton
-  private var fabAlpha = 1.0f
-  private var fabAlphaDirection : Int = -1
-  private val fabAlpaIncr = 0.1f
-  private val fabAlphaDelay = 500L
+  private val applicationScope = CoroutineScope(SupervisorJob())
+  private val messageRoomDatabase : MessageRoomDatabase by lazy {
+      MessageRoomDatabase.getDatabase(requireContext(), applicationScope)
+  }
+
   private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
     ActivityResultContracts.StartActivityForResult()
   ) { //ACTION_SEND always returns RESULT_CANCELLED, ignore it
@@ -77,19 +76,6 @@ class MainFragment : BaseFragment() {
   }
 
   private val handler : Handler = Handler(Looper.getMainLooper())
-  private  val rotateFab = object : TimerTask() {
-    /**
-     * The action to be performed by this timer task.
-     */
-    override fun run() {
-      fab?.let { it1 ->
-        it1.alpha = fabAlpha
-      }
-      fabAlpha = if (fabAlphaDirection == 1) fabAlpha + fabAlpaIncr else fabAlpha - fabAlpaIncr
-      fabAlphaDirection = if (fabAlpha < 0.0f) 1 else if (fabAlpha > 1.0f) -1 else fabAlphaDirection
-      handler.postDelayed(this, fabAlphaDelay)
-    }
-  }
 
   override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
     savedInstanceState: Bundle?
@@ -100,13 +86,14 @@ class MainFragment : BaseFragment() {
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
-    val applicationScope = CoroutineScope(SupervisorJob())
 
     //////////////////FOR DEBUGGING ONLY////////////////////
-    context?.let {
-      it.deleteDatabase("Message_database")
-      MessageRoomDatabase.getDatabase(it, applicationScope)
-    }
+//    context?.let {
+//      it.deleteDatabase("Message_database")
+//      MessageRoomDatabase.getDatabase(it, applicationScope)
+//      messageRoomDatabase?.let { database -> applicationScope.launch { dumpDatabase(database) } }
+//
+//    }
     //////////////////FOR DEBUGGING ONLY////////////////////
 
     val actions = MainScreenAction.all().also { actions ->
@@ -123,31 +110,8 @@ class MainFragment : BaseFragment() {
         }
       }
       val onLongClick = { action: MainScreenAction, _: View ->
-        when (action.id) {
-          MainScreenAction.ACTION_CREATE_PROJECT -> {
-            val coroutineScope = (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
-            val database = context?.let { MessageRoomDatabase.getDatabase(it, applicationScope) }
-            database?.let { database -> coroutineScope.launch { dumpDatabase(database) } }
-            performOptionsMenuClick(action)
-          }
-          MainScreenAction.ACTION_OPEN_PROJECT -> pickDirectory()
-          MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
-          MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
-            Intent(requireActivity(), TerminalActivity::class.java))
-
-          MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
-          MainScreenAction.ACTION_DONATE -> BaseApplication.getBaseInstance().openDonationsPage()
-          MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
-        }
+        performOptionsMenuClick(action)
         true
-      }
-
-      val onCreateContextMenuListener = {action : MainScreenAction, actionView: View ->
-        when(action.id) {
-          MainScreenAction.ACTION_CREATE_PROJECT -> {
-            actionView.setOnCreateContextMenuListener(this)
-          }
-        }
       }
 
       actions.forEach { action ->
@@ -167,47 +131,17 @@ class MainFragment : BaseFragment() {
     }
 
     binding!!.actions.adapter = MainActionsListAdapter(this, actions)
-
-    fab = binding!!.floatingActionButton!!
-    handler.postDelayed(rotateFab, 50)
-    fab.setOnClickListener {
-      val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
-      builder?.let { builder ->
-        builder.setTitle("Alert!")
-          .setMessage(HtmlCompat.fromHtml(getString(R.string.feedback_warning), HtmlCompat.FROM_HTML_MODE_COMPACT))
-          .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
-          .setPositiveButton(android.R.string.ok) { dialog, _ ->
-            run {
-              val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
-              val sb = StringBuilder(resources.getString(R.string.feedback_message))
-              sb.append("\n\n\n")
-              sb.append("-------------stack trace----------\n")
-              sb.append(stackTrace)
-              val feedbackIntent = Intent(Intent.ACTION_SEND)
-              val subject = MessageFormat.format(resources.getString(R.string.feedback_subject), "Main")
-              /*To send an email you need to specify mailto: as URI using setData() method
-                     and data type will be to text/plain using setType() method*/
-              feedbackIntent.data = Uri.parse("mailto:")
-              feedbackIntent.type = "text/plain"
-              feedbackIntent.putExtra(Intent.EXTRA_EMAIL, arrayOf("feedback@appdevforall.com"))
-              feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-              feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())
-              shareActivityResultLauncher.launch(feedbackIntent)
-              dialog.dismiss()
-            }
-          }
-          .create()
-          .show()
-
-      }
-    }
   }
+
 
   // this method will handle the onclick options click
   private fun performOptionsMenuClick(action: MainScreenAction) {
     // create object of PopupMenu and pass context and view where we want
     // to show the popup menu
     val view = action.view
+    val key = resources.getString(action.text)
+    var text : String = "implementaion imminate"
+    GlobalScope.launch { text = getMessageFromKey(messageRoomDatabase, key) }
 
     val popupMenu = context?.let { android.widget.PopupMenu(it, view) }
     // add the menu
@@ -218,7 +152,7 @@ class MainFragment : BaseFragment() {
           R.id.ctx_menu_main_action_help -> {
             val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
             builder?.setTitle("Help")
-              ?.setMessage("This is the help message explaining Create Project")
+              ?.setMessage(text)
               ?.setPositiveButton(android.R.string.ok) { dialogInterface, _ ->
                 dialogInterface.dismiss()}
               ?.create()
@@ -269,9 +203,13 @@ class MainFragment : BaseFragment() {
     }
   }
 
-suspend fun dumpDatabase(database: MessageRoomDatabase) {
-  Log.d("MessageRoomDatabase", database.MessageDao().getAlphabetizedMessages().toString())
-}
+  suspend fun dumpDatabase(database: MessageRoomDatabase) {
+    Log.d("MessageRoomDatabase", database.MessageDao().getAlphabetizedMessages().toString())
+  }
+
+  suspend fun getMessageFromKey(database: MessageRoomDatabase, key : String) : String {
+    return GlobalScope.async { database.MessageDao().getMessage(key) }.await()
+  }
 
   override fun onDestroyView() {
     super.onDestroyView()

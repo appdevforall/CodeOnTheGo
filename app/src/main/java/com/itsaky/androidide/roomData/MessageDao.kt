@@ -27,8 +27,8 @@ interface MessageDao {
   @Query("SELECT * FROM message_table ORDER BY message_key ASC")
   fun getAlphabetizedMessages(): List<Message>
 
-  @Query("Select message_text FROM message_table WHERE message_key == :key")
-  fun getMessage(key : Int) : String
+  @Query("SELECT message_text FROM message_table WHERE message_key == :key")
+  fun getMessage(key : String) : String
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert( message : Message)
