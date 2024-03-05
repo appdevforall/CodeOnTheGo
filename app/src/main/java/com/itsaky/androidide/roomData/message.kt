@@ -23,5 +23,5 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "message_table")
 class Message(@PrimaryKey(autoGenerate = true) @ColumnInfo(name = "key") val key : Int,
-  @ColumnInfo(name = "message_key") val messageKey : Int,
+  @ColumnInfo(name = "message_key") val messageKey : String,
   @ColumnInfo(name = "message_text") val messageText: String)

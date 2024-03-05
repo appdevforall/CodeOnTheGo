@@ -1,0 +1,31 @@
+[
+  {
+   "id": "Create project",
+   "text": "Click here to create a new project"
+  },
+  {
+   "id": "Open existing project",
+   "text": "Click here to open an existing project"
+  },
+  {
+   "id": "Clone git repository",
+   "text": "Click here to clone a repo from Github"
+  },
+  {
+   "id": "Terminal",
+   "text": "Click here to open the Termux console"
+  },
+  {
+   "id": "Preferences",
+   "text": "Click here to edit your preferences"
+  },
+  {
+   "id": "Donate",
+   "text": "Click here to donate to the AppDevForAll Project"
+  },
+  {
+   "id": "Documentation",
+   "text": "Click here to view the AppDevForAll application's documentation"
+  }
+]
+
