@@ -88,6 +88,6 @@ class GitHubPreferences(
 ) : IPreferenceGroup() {
 
   init {
-    addPreference(GithubPreferences())
+    //addPreference(GithubPreferences())
   }
 }
