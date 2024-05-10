@@ -74,11 +74,11 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
              .section .rodata
          blob:
         #if defined __aarch64__
-             .incbin "${files["aarch64"]!!.absolutePath.replace("\\", File.separator)}"
+             .incbin "${files["aarch64"]!!.absolutePath.replace("\\", "/")}"
          #elif defined __arm__
-             .incbin "${files["arm"]!!.absolutePath.replace("\\", File.separator)}"
+             .incbin "${files["arm"]!!.absolutePath.replace("\\", "/")}"
          #elif defined __x86_64__
-             .incbin "${files["x86_64"]!!.absolutePath.replace("\\", File.separator)}"
+             .incbin "${files["x86_64"]!!.absolutePath.replace("\\", "/")}"
          #else
          # error Unsupported arch
          #endif
