@@ -144,6 +144,31 @@ fun Project.configureAndroidModule(
     lintOptions {
       isCheckDependencies = true
     }
+
+    packagingOptions {
+      resources {
+        resources.excludes.addAll(
+          arrayOf(
+            "META-INF/eclipse.inf",
+            "META-INF/CHANGES",
+            "META-INF/README.md",
+            "about_files/LICENSE-2.0.txt",
+            "META-INF/AL2.0",
+            "META-INF/LGPL2.1",
+            "plugin.xml",
+            "plugin.properties",
+            "about.mappings",
+            "about.properties",
+            "about.ini",
+            "modeling32.png",
+            "META-INF/LICENSE.md",
+            "META-INF/INDEX.LIST",
+            "META-INF/LICENSE-notice.md"
+          )
+        )
+      }
+    }
+
   }
 }
 
