@@ -84,6 +84,8 @@ include(
   ":lsp:models",
   ":lsp:java",
   ":lsp:xml",
+  ":layouteditor",
+  ":vectormaster",
   ":subprojects:aaptcompiler",
   ":subprojects:appintro",
   ":subprojects:builder-model-impl",
