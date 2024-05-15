@@ -1,0 +1,96 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+//    id 'com.google.android.gms.oss-licenses-plugin'
+}
+
+android {
+    compileSdk 34
+    namespace "com.itsvks.layouteditor"
+
+    defaultConfig {
+//        applicationId "com.itsvks.layouteditor"
+        minSdk 26
+        targetSdk 34
+        versionCode 6
+        versionName "0.1-beta"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("../key-layout-editor.keystore")
+            storePassword "itsvks"
+            keyAlias "vivek"
+            keyPassword "itsvks"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            //signingConfig signingConfigs.release
+        }
+        debug {
+            //signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+          sourceCompatibility JavaVersion.VERSION_17
+          targetCompatibility JavaVersion.VERSION_17
+    }
+      
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+
+    packagingOptions {
+        pickFirst "license/README.dom.txt"
+        exclude "license/LICENSE.dom-documentation.txt"
+        exclude "license/NOTICE"
+        exclude "license/LICENSE.dom-software.txt"
+        exclude "license/LICENSE"
+    }
+}
+
+dependencies {
+    def lifecycle_version = '2.7.0'
+    def activity_version = '1.8.2'
+
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
+    implementation "androidx.activity:activity-ktx:$activity_version"
+
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.viewpager2:viewpager2:1.1.0-beta02'
+    implementation 'androidx.palette:palette-ktx:1.0.0'
+    
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'com.google.android.gms:play-services-oss-licenses:17.0.1'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.blankj:utilcodex:1.31.1'
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+    implementation 'com.jsibbold:zoomage:1.3.1'
+    implementation "com.github.skydoves:colorpickerview:2.3.0"
+    
+    implementation platform('io.github.Rosemoe.sora-editor:bom:0.22.2')
+    implementation "io.github.Rosemoe.sora-editor:editor"
+    implementation "io.github.Rosemoe.sora-editor:language-textmate"
+    
+    implementation 'org.apache.commons:commons-text:1.11.0'
+    
+    implementation 'commons-io:commons-io:2.15.1'
+    
+    implementation project(':vectormaster')
+    
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.13'
+}
