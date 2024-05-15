@@ -95,18 +95,18 @@ fun Project.configureAndroidModule(
           "\"${abi}\"")
       }
 
-      splits {
-        abi {
-          reset()
-          isEnable = true
-          isUniversalApk = false
-          if (isFDroidBuild) {
-            include(FDroidConfig.fDroidBuildArch!!)
-          } else {
-            include(*flavorsAbis.keys.toTypedArray())
-          }
-        }
-      }
+//      splits {
+//        abi {
+//          reset()
+//          isEnable = true
+//          isUniversalApk = false
+//          if (isFDroidBuild) {
+//            include(FDroidConfig.fDroidBuildArch!!)
+//          } else {
+//            include(*flavorsAbis.keys.toTypedArray())
+//          }
+//        }
+//      }
 
       extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
         onVariants { variant ->
@@ -115,7 +115,7 @@ fun Project.configureAndroidModule(
             // version code increment
             val verCodeIncr = flavorsAbis[output.getFilter(
               FilterConfiguration.FilterType.ABI)?.identifier]
-              ?: throw UnsupportedOperationException("Universal APKs are not supported!")
+              ?: 10000
 
             output.versionCode.set(100 * projectVersionCode + verCodeIncr)
           }
