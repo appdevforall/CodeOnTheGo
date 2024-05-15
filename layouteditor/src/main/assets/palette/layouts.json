@@ -1,0 +1,76 @@
+[
+    {
+        "name": "RelativeLayout",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.RelativeLayoutDesign",
+        "iconName": "ic_palette_relative_layout",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "ConstraintLayout",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.ConstraintLayoutDesign",
+        "iconName": "ic_palette_constraint_layout",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "LinearLayout (H)",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.LinearLayoutDesign",
+        "iconName": "ic_palette_linear_layout_horz",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:orientation": "horizontal",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "LinearLayout (V)",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.LinearLayoutDesign",
+        "iconName": "ic_palette_linear_layout_vert",
+        "defaultAttributes": {
+            "android:layout_height": "match_parent",
+            "android:orientation": "vertical",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "FrameLayout",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.FrameLayoutDesign",
+        "iconName": "ic_palette_frame_layout",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "TableLayout",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.TableLayoutDesign",
+        "iconName": "ic_palette_table_layout",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "TableRow",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.TableRowDesign",
+        "iconName": "ic_palette_table_row",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "Space",
+        "className": "android.widget.Space",
+        "iconName": "ic_palette_space",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    }
+]

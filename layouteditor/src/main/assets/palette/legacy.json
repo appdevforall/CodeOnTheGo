@@ -1,0 +1,36 @@
+[
+    {
+        "name": "GridLayout",
+        "className": "com.itsvks.layouteditor.editor.palette.legacy.GridLayoutDesign",
+        "iconName": "ic_palette_grid_layout",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent"
+        }
+    },
+    {
+        "name": "ListView",
+        "className": "com.itsvks.layouteditor.editor.palette.legacy.ListViewDesign",
+        "iconName": "ic_palette_list_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"100dp"
+        }
+    },
+    {
+        "name": "TabHost",
+        "className": "com.itsvks.layouteditor.editor.palette.legacy.TabHostDesign",
+        "iconName": "ic_palette_tab_host",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent"
+        }
+    },
+    {
+        "name": "GridView",
+        "className": "com.itsvks.layouteditor.editor.palette.legacy.GridViewDesign",
+        "iconName": "ic_palette_grid_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"100dp"
+        }
+    }
+]
