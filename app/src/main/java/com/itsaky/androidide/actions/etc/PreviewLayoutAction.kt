@@ -27,11 +27,15 @@ import com.blankj.utilcode.util.KeyboardUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.actions.markInvisible
+import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
+import com.itsvks.layouteditor.activities.EditorActivity
 import java.io.File
+
+
 
 /** @author Akash Yadav */
 class PreviewLayoutAction(context: Context, override val order: Int) : EditorRelatedAction() {
@@ -101,7 +105,8 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
   }
 
   private fun EditorHandlerActivity.previewLayout(file: File) {
-    val intent = Intent(this, UIDesignerActivity::class.java)
+//    val intent = Intent(this, UIDesignerActivity::class.java)
+    val intent = Intent(this, EditorActivity::class.java)
     intent.putExtra(UIDesignerActivity.EXTRA_FILE, file.absolutePath)
     uiDesignerResultLauncher?.launch(intent)
   }
