@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto">
+
+  <item
+    android:id="@+id/undo"
+    android:name="@string/undo"
+    android:title="@string/undo"
+    android:icon="@drawable/undo_variant"
+    app:contentDescription="@string/undo"
+    app:showAsAction="always" />
+  <item
+    android:id="@+id/redo"
+    android:name="@string/redo"
+    android:title="@string/redo"
+    android:icon="@drawable/redo_variant"
+    app:contentDescription="@string/redo"
+    app:showAsAction="always" />
+
+  <item
+    android:id="@+id/show_structure"
+    android:name="@string/show_structure"
+    android:title="@string/show_structure"
+    android:icon="@drawable/file_tree"
+    app:contentDescription="@string/show_structure"
+    app:showAsAction="always" />
+
+  <item
+    android:id="@+id/edit_xml"
+    android:name="@string/show_xml"
+    android:title="@string/show_xml"
+    android:icon="@drawable/xml"
+    app:contentDescription="@string/show_xml"
+    app:showAsAction="ifRoom" />
+
+  <item
+    android:id="@+id/preview"
+    android:name="@string/preview_layout"
+    android:title="@string/preview_layout"
+    android:icon="@drawable/cellphone_play"
+    app:contentDescription="@string/preview_layout"
+    app:showAsAction="ifRoom" />
+  
+  <item
+    android:id="@+id/resources_manager"
+    android:name="@string/res_manager"
+    android:title="@string/res_manager"
+    android:icon="@drawable/shape_outline"
+    app:contentDescription="@string/res_manager"
+    app:showAsAction="ifRoom" />
+
+  <item
+    android:id="@+id/export_xml"
+    android:name="@string/export_layout"
+    android:title="@string/export_layout"
+    android:icon="@drawable/file_export"
+    app:contentDescription="@string/export_layout"
+    app:showAsAction="ifRoom" />
+  
+  <item
+    android:id="@+id/export_as_image"
+    android:name="@string/export_as_image"
+    android:title="@string/export_as_image"
+    android:icon="@drawable/image_filter_center_focus"
+    app:contentDescription="@string/export_as_image"
+    app:showAsAction="ifRoom" />
+
+  <item
+    android:id="@+id/import_xml"
+    android:name="Import Xml Layout"
+    android:title="Import Xml Layout(Test)"
+    android:icon="@drawable/file_import"
+    app:contentDescription="Import Xml Layout"
+    app:showAsAction="ifRoom" />
+  
+  <item
+    android:id="@+id/save_xml"
+    android:name="@string/save"
+    android:title="@string/save"
+    android:icon="@drawable/content_save"
+    app:contentDescription="@string/save_xml"
+    app:showAsAction="ifRoom" />
+
+</menu>

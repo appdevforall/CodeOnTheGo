@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  android:layout_height="70dp"
+  android:layout_width="match_parent"
+  android:layout_marginBottom="5dp"
+  android:foreground="?attr/selectableItemBackground"
+  android:layout_marginTop="5dp">
+
+  <TextView
+    android:layout_height="wrap_content"
+    android:layout_width="wrap_content"
+    android:textSize="20sp"
+    android:textColor="?attr/colorPrimary"
+    android:layout_marginLeft="10dp"
+    android:layout_marginTop="12dp"
+    android:id="@+id/name" />
+
+  <LinearLayout
+    android:layout_height="1dp"
+    android:layout_width="match_parent"
+    android:layout_marginBottom="8dp"
+    android:background="?attr/colorAccent"
+    android:orientation="horizontal"
+    android:layout_marginLeft="10dp"
+    android:layout_alignParentBottom="true"
+    android:id="@+id/line">
+
+  </LinearLayout>
+
+  <TextView
+    android:layout_height="wrap_content"
+    android:layout_width="wrap_content"
+    android:layout_marginBottom="5dp"
+    android:layout_above="@id/line"
+    android:textSize="14sp"
+    android:layout_marginLeft="10dp"
+    android:textColor="?attr/colorOnSurfaceVariant"
+    android:text="How will the font look"
+    android:id="@+id/font_look" />
+
+  <ImageView
+    android:layout_height="wrap_content"
+    android:layout_width="wrap_content"
+    android:src="@drawable/dots_vertical"
+    android:layout_centerVertical="true"
+    android:layout_margin="10dp"
+    app:tint="?attr/colorTertiary"
+    android:translationY="-4dp"
+    style="@style/ToolbarButtonStyle"
+    android:layout_alignParentRight="true"
+    android:id="@+id/menu" />
+
+</RelativeLayout>

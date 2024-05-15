@@ -1,0 +1,129 @@
+[
+    {
+        "name": "Spinner",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.SpinnerDesign",
+        "iconName": "ic_palette_spinner"
+    },
+    {
+        "name": "RecyclerView",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.RecyclerViewDesign",
+        "iconName": "ic_palette_recycler_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"100dp"
+        }
+    },
+    {
+        "name": "ScrollView (unable to scroll in the editor)",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.ScrollViewDesign",
+        "iconName": "ic_palette_scroll_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "HorizontalScrollView (unable to scroll in the editor)",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.HorizontalScrollViewDesign",
+        "iconName": "ic_palette_horizontal_scroll_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "NestedScrollView (unable to scroll in the editor)",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.NestedScrollViewDesign",
+        "iconName": "ic_palette_nested_scroll_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "ViewPager",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.ViewPagerDesign",
+        "iconName": "ic_palette_view_pager",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"match_parent"
+        }
+    },
+    {
+        "name": "CardView",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.CardViewDesign",
+        "iconName": "ic_palette_card_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent"
+        }
+    },
+    {
+        "name": "AppBarLayout",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.AppBarLayoutDesign",
+        "iconName": "ic_palette_app_bar_layout",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent"
+        }
+    },
+    {
+        "name": "BottomAppBar",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.BottomAppBarDesign",
+        "iconName": "ic_palette_bottom_app_bar",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:gravity":"bottom"
+        }
+    },
+    {
+        "name": "NavigationView",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.NavigationViewDesign",
+        "iconName": "ic_palette_navigation_view",
+        "defaultAttributes": {
+            "android:layout_width":"100dp"
+        }
+    },
+    {
+        "name": "BottomNavigationView",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.BottomNavigationViewDesign",
+        "iconName": "ic_palette_bottom_navigation_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:gravity":"bottom"
+        }
+    },
+    {
+        "name": "Toolbar",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.ToolbarDesign",
+        "iconName": "ic_palette_toolbar",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent"
+        }
+    },
+    {
+        "name": "MaterialToolbar",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.MaterialToolbarDesign",
+        "iconName": "ic_palette_toolbar",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent"
+        }
+    },
+    {
+        "name": "TabLayout",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.TabLayoutDesign",
+        "iconName": "ic_palette_tab_layout",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent"
+        }
+    },
+    {
+        "name": "TabItem",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.TabItemDesign",
+        "iconName": "ic_palette_tab_item",
+        "defaultAttributes": {
+            "android:layout_height":"match_parent"
+        }
+    }
+]
