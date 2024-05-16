@@ -15,6 +15,8 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.itsaky.androidide.build.config.BuildConfig
+
 plugins {
   id("com.android.library")
   id("com.vanniktech.maven.publish.base")
@@ -38,7 +40,6 @@ android {
     targetCompatibility = JavaVersion.VERSION_1_8
   }
 
-  @Suppress("UnstableApiUsage")
   buildFeatures.apply {
     aidl = true
     viewBinding = false
@@ -46,8 +47,6 @@ android {
 }
 
 dependencies {
-  api(projects.logger)
-
   testImplementation(libs.tests.junit)
   testImplementation(libs.tests.robolectric)
   testImplementation(libs.tests.google.truth)

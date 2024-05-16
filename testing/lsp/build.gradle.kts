@@ -15,6 +15,8 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.itsaky.androidide.build.config.BuildConfig
+
 plugins {
     id("com.android.library")
     id("kotlin-android")
@@ -26,13 +28,15 @@ android {
 
 dependencies {
     api(libs.androidx.core.ktx)
-    api(libs.common.kotlin)
-    
-    api(projects.lsp.api)
-    api(projects.actions)
-    api(projects.eventbusAndroid)
-
     api(libs.common.editor)
+    api(libs.common.kotlin)
+
+    api(projects.actions)
+    api(projects.common)
+    api(projects.eventbusAndroid)
+    api(projects.lsp.api)
+
+    api(projects.testing.common)
     api(projects.testing.tooling)
     api(projects.testing.unit)
 }

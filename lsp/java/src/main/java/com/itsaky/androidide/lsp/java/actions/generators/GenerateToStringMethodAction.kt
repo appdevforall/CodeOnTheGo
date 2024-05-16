@@ -29,15 +29,13 @@ import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
 import com.itsaky.androidide.lsp.java.utils.EditHelper
-import com.itsaky.androidide.preferences.internal.tabSize
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.widget.CodeEditor
-import java.util.concurrent.CompletableFuture
 import jdkx.lang.model.element.VariableElement
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.VariableTree
@@ -48,6 +46,8 @@ import openjdk.tools.javac.code.Symbol.MethodSymbol
 import openjdk.tools.javac.tree.JCTree
 import openjdk.tools.javac.tree.TreeInfo
 import openjdk.tools.javac.util.Names
+import org.slf4j.LoggerFactory
+import java.util.concurrent.CompletableFuture
 
 /**
  * Generates the `toString()` method for the current class.
@@ -55,11 +55,14 @@ import openjdk.tools.javac.util.Names
  * @author Akash Yadav
  */
 class GenerateToStringMethodAction : FieldBasedAction() {
+
   override val titleTextRes: Int = R.string.action_generate_toString
   override val id: String = "ide.editor.lsp.java.generator.toString"
   override var label: String = ""
 
-  private val log = ILogger.newInstance(javaClass.simpleName)
+  companion object {
+    private val log = LoggerFactory.getLogger(GenerateToStringMethodAction::class.java)
+  }
 
   override fun onGetFields(fields: List<String>, data: ActionData) {
     showFieldSelector(fields, data) { selected ->
@@ -93,7 +96,7 @@ class GenerateToStringMethodAction : FieldBasedAction() {
 
       fields.removeIf { !selected.contains("${it.name}: ${it.type}") }
 
-      log.debug("Creating toString() method with fields: ", fields.map { it.name })
+      log.debug("Creating toString() method with fields: {}", fields.map { it.name })
 
       generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
     }
@@ -109,14 +112,14 @@ class GenerateToStringMethodAction : FieldBasedAction() {
       ThreadUtils.runOnUiThread {
         flashError(data[Context::class.java]!!.getString(string.msg_toString_overridden))
       }
-      log.warn("toString() method has already been overridden in class ${type.simpleName}")
+      log.warn("toString() method has already been overridden in class {}", type.simpleName)
       return
     }
 
     val file = data.requirePath()
     val editor = data[CodeEditor::class.java]!!
     val trees = JavacTrees.instance(task.task)
-    val indent = EditHelper.indent(task.task, task.root(), type) + tabSize
+    val indent = EditHelper.indent(task.task, task.root(), type) + EditorPreferences.tabSize
     val insert = EditHelper.insertAtEndOfClass(task.task, task.root(file), type)
     val string = StringBuilder()
     var isFirst = true

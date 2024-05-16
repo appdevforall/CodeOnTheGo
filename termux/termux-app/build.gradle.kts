@@ -1,5 +1,6 @@
 @file:Suppress("UnstableApiUsage")
 
+import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.plugins.TerminalBootstrapPackagesPlugin
 
 plugins {

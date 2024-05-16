@@ -1,6 +1,11 @@
 @file:Suppress("UnstableApiUsage")
 
+import ch.qos.logback.core.util.EnvUtil
+import com.itsaky.androidide.build.config.BuildConfig
+import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
+import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import kotlin.reflect.jvm.javaMethod
 
 plugins {
   id("com.android.application")
@@ -10,10 +15,18 @@ plugins {
   id("androidx.navigation.safeargs.kotlin")
   id("io.sentry.android.gradle") version "4.2.0"
 
+  id("com.itsaky.androidide.desugaring")
 }
 
 apply {
   plugin(AndroidIDEAssetsPlugin::class.java)
+}
+
+buildscript {
+  dependencies {
+    classpath(libs.logging.logback.core)
+    classpath(libs.composite.desugaringCore)
+  }
 }
 
 android {
@@ -34,25 +47,6 @@ android {
     }
   }
 
-  packaging {
-    resources.excludes.addAll(
-      arrayOf(
-        "META-INF/eclipse.inf",
-        "META-INF/CHANGES",
-        "META-INF/README.md",
-        "about_files/LICENSE-2.0.txt",
-        "META-INF/AL2.0",
-        "META-INF/LGPL2.1",
-        "plugin.xml",
-        "plugin.properties",
-        "about.mappings",
-        "about.properties",
-        "about.ini",
-        "modeling32.png"
-      )
-    )
-  }
-
   lint {
     abortOnError = false
     disable.addAll(arrayOf("VectorPath", "NestedWeights", "ContentDescription", "SmallSp"))
@@ -60,6 +54,25 @@ android {
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.packageName}.events.AppEventsIndex") } }
+
+desugaring {
+  replacements {
+    includePackage(
+      "org.eclipse.jgit",
+      "ch.qos.logback.classic.util",
+    )
+
+    applyJavaIOReplacements()
+
+    // EnvUtil.logbackVersion() uses newer Java APIs like Class.getModule() which is not available
+    // on Android. We replace the method usage with DesugarEnvUtil.logbackVersion() which
+    // always returns null
+    replaceMethod(
+      EnvUtil::logbackVersion.javaMethod!!,
+      DesugarEnvUtil::logbackVersion.javaMethod!!
+    )
+  }
+}
 
 dependencies {
   debugImplementation(libs.common.leakcanary)
@@ -113,6 +126,11 @@ dependencies {
   implementation(libs.androidx.core.ktx)
   implementation(libs.common.kotlin)
 
+  // Dependencies in composite build
+  implementation(libs.composite.appintro)
+  implementation(libs.composite.desugaringCore)
+  implementation(libs.composite.javapoet)
+
   // Local projects here
   implementation(projects.actions)
   implementation(projects.buildInfo)
@@ -128,9 +146,7 @@ dependencies {
   implementation(projects.gradlePluginConfig)
   implementation(projects.idestats)
   implementation(projects.subprojects.aaptcompiler)
-  implementation(projects.subprojects.appintro)
   implementation(projects.subprojects.javacServices)
-  implementation(projects.subprojects.javapoet)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)

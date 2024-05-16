@@ -27,10 +27,9 @@ import com.itsaky.androidide.tooling.api.util.AndroidModulePropertyCopier
 import com.itsaky.androidide.tooling.impl.Main
 import com.itsaky.androidide.tooling.impl.Main.finalizeLauncher
 import com.itsaky.androidide.tooling.impl.internal.ProjectImpl
-import com.itsaky.androidide.utils.ILogger
 import org.gradle.tooling.ConfigurableLauncher
-import org.gradle.tooling.ProjectConnection
 import org.gradle.tooling.model.idea.IdeaProject
+import org.slf4j.LoggerFactory
 import java.io.Serializable
 
 /**
@@ -39,16 +38,19 @@ import java.io.Serializable
  * @author Akash Yadav
  */
 class RootModelBuilder(initializationParams: InitializeProjectParams) :
-  AbstractModelBuilder<ProjectConnection, IProject>(initializationParams), Serializable {
+  AbstractModelBuilder<RootProjectModelBuilderParams, IProject>(initializationParams),
+  Serializable {
 
   private val serialVersionUID = 1L
 
-  override fun build(param: ProjectConnection): IProject {
+  override fun build(param: RootProjectModelBuilderParams): IProject {
+
+    val (projectConnection, cancellationToken) = param
 
     // do not reference the 'initializationParams' field in the
     val initializationParams = initializationParams
 
-    val executor = param.action { controller ->
+    val executor = projectConnection.action { controller ->
       val ideaProject = controller.getModelAndLog(IdeaProject::class.java)
 
       val ideaModules = ideaProject.modules
@@ -106,7 +108,11 @@ class RootModelBuilder(initializationParams: InitializeProjectParams) :
     finalizeLauncher(executor)
     applyAndroidModelBuilderProps(executor)
 
-    val logger = ILogger.newInstance("ProjectReader")
+    if (cancellationToken != null) {
+      executor.withCancellationToken(cancellationToken)
+    }
+
+    val logger = LoggerFactory.getLogger("RootModelBuilder")
     logger.warn("Starting build. See build output for more details...")
 
     if (Main.client != null) {
@@ -114,7 +120,7 @@ class RootModelBuilder(initializationParams: InitializeProjectParams) :
     }
 
     return executor.run().also {
-      logger.debug("Build action executed. Result:", it)
+      logger.debug("Build action executed. Result: {}", it)
     }
   }
 

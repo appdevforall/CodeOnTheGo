@@ -3,8 +3,8 @@
     "id": "15548591",
     "username": "itsaky",
     "name": "Akash Yadav (itsaky)",
-    "translated": 40197,
-    "approved": 31176,
+    "translated": 43232,
+    "approved": 31434,
     "picture": "https://crowdin-static.downloads.crowdin.com/avatar/15548591/medium/3c5f3139891eb92915fcf4c1e7ca120e.jpeg",
     "languages": [
       {
@@ -40,6 +40,10 @@
         "name": "Portuguese"
       },
       {
+        "id": "pt-BR",
+        "name": "Portuguese, Brazilian"
+      },
+      {
         "id": "ro",
         "name": "Romanian"
       },
@@ -58,6 +62,20 @@
     ]
   },
   {
+    "id": "15757161",
+    "username": "liziq",
+    "name": "zhiq liu (liziq)",
+    "translated": 4163,
+    "approved": 3204,
+    "picture": "https://crowdin-static.downloads.crowdin.com/avatar/15757161/medium/f3903c160404f095de68760f81609430.jpeg",
+    "languages": [
+      {
+        "id": "zh-CN",
+        "name": "Chinese Simplified"
+      }
+    ]
+  },
+  {
     "id": "15563911",
     "username": "esalessandrx",
     "name": "Alessandro (esalessandrx)",
@@ -72,25 +90,11 @@
     ]
   },
   {
-    "id": "15757161",
-    "username": "liziq",
-    "name": "zhiq liu (liziq)",
-    "translated": 3410,
-    "approved": 1809,
-    "picture": "https://crowdin-static.downloads.crowdin.com/avatar/15757161/medium/f3903c160404f095de68760f81609430.jpeg",
-    "languages": [
-      {
-        "id": "zh-CN",
-        "name": "Chinese Simplified"
-      }
-    ]
-  },
-  {
     "id": "15550047",
     "username": "andihasan97",
     "name": "Andi Hasan A (andihasan97)",
-    "translated": 3338,
-    "approved": 1877,
+    "translated": 3664,
+    "approved": 2203,
     "picture": "https://crowdin-static.downloads.crowdin.com/avatar/15550047/medium/ac9578131f9d0bd877837b2ac604795d.png",
     "languages": [
       {
@@ -110,6 +114,20 @@
       {
         "id": "ar",
         "name": "Arabic"
+      }
+    ]
+  },
+  {
+    "id": "15555625",
+    "username": "Smooth-E",
+    "name": "Smooth-E",
+    "translated": 2400,
+    "approved": 1714,
+    "picture": "https://crowdin-static.downloads.crowdin.com/avatar/15555625/medium/1fc098969551e0430a579242afe26c5f.png",
+    "languages": [
+      {
+        "id": "ru",
+        "name": "Russian"
       }
     ]
   },
@@ -156,16 +174,16 @@
     ]
   },
   {
-    "id": "15555625",
-    "username": "Smooth-E",
-    "name": "Smooth-E",
-    "translated": 1791,
+    "id": "12564628",
+    "username": "krc440002",
+    "name": "Furkan Karcıoğlu (krc440002)",
+    "translated": 1813,
     "approved": 0,
-    "picture": "https://crowdin-static.downloads.crowdin.com/avatar/15555625/medium/1fc098969551e0430a579242afe26c5f.png",
+    "picture": "https://crowdin-static.downloads.crowdin.com/avatar/12564628/medium/addb4132479fae98076ae2fa4ccb42a4_default.png",
     "languages": [
       {
-        "id": "ru",
-        "name": "Russian"
+        "id": "tr",
+        "name": "Turkish"
       }
     ]
   },
@@ -198,24 +216,10 @@
     ]
   },
   {
-    "id": "12564628",
-    "username": "krc440002",
-    "name": "Furkan Karcıoğlu (krc440002)",
-    "translated": 1447,
-    "approved": 0,
-    "picture": "https://crowdin-static.downloads.crowdin.com/avatar/12564628/medium/addb4132479fae98076ae2fa4ccb42a4_default.png",
-    "languages": [
-      {
-        "id": "tr",
-        "name": "Turkish"
-      }
-    ]
-  },
-  {
     "id": "16160248",
     "username": "ranjitsingha",
     "name": "Ranjit (ranjitsingha)",
-    "translated": 902,
+    "translated": 1088,
     "approved": 0,
     "picture": "https://crowdin-static.downloads.crowdin.com/avatar/16160248/medium/fc57448235af07fb7198e51157bd3d9b.jpeg",
     "languages": [
@@ -229,8 +233,8 @@
     "id": "15548687",
     "username": "deepkrg17",
     "name": "Deep Kr. Ghosh (deepkrg17)",
-    "translated": 725,
-    "approved": 156,
+    "translated": 984,
+    "approved": 455,
     "picture": "https://crowdin-static.downloads.crowdin.com/avatar/15548687/medium/728142e47177cd0a16f27404215a9a69.png",
     "languages": [
       {
@@ -254,6 +258,20 @@
       {
         "id": "pt-PT",
         "name": "Portuguese"
+      }
+    ]
+  },
+  {
+    "id": "16205550",
+    "username": "hassanowo013",
+    "name": "HASSAN OWO (hassanowo013)",
+    "translated": 285,
+    "approved": 0,
+    "picture": "https://crowdin-static.downloads.crowdin.com/avatar/16205550/medium/75073a2fde9eb6735fae539714cda4e1.jpeg",
+    "languages": [
+      {
+        "id": "ar",
+        "name": "Arabic"
       }
     ]
   },

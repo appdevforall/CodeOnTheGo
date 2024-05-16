@@ -24,8 +24,10 @@ import android.text.TextUtils
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup.LayoutParams
+import androidx.annotation.DrawableRes
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import com.blankj.utilcode.util.ImageUtils
 import com.itsaky.androidide.R.string
@@ -44,6 +46,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.interfaces.IEditorHandler
+import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
@@ -160,7 +163,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     if (selectedFile == null || openedFiles.isEmpty()) {
       editorViewModel.writeOpenedFiles(null)
       editorViewModel.openedFilesCache = null
-      log.debug("[onPause]", "No opened files.", "Opened files cache reset to null.")
+      log.debug("[onPause] No opened files. Opened files cache reset to null.")
       isOpenedFilesSaved.set(true)
       return
     }
@@ -169,7 +172,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     editorViewModel.writeOpenedFiles(cache)
     editorViewModel.openedFilesCache = if (!isDestroying) cache else null
-    log.debug("[onPause]", "Opened files cache reset to ${editorViewModel.openedFilesCache}")
+    log.debug("[onPause] Opened files cache reset to {}", editorViewModel.openedFilesCache)
     isOpenedFilesSaved.set(true)
   }
 
@@ -304,8 +307,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     return try {
       getEditorAtIndex(index)
     } catch (th: Throwable) {
-      log.error("Unable to get editor fragment at opened file index", index)
-      log.error(th)
+      log.error("Unable to get editor fragment at opened file index {}", index, th)
       null
     }
   }
@@ -322,7 +324,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     val position = editorViewModel.getOpenedFileCount()
 
-    log.info("Opening file at index:", position, "file: ", file)
+    log.info("Opening file at index {} file:{}", position, file)
 
     val editor = CodeEditorView(this, file, selection!!)
     editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -501,11 +503,11 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     val opened = editorViewModel.getOpenedFile(index)
-    log.info("Closing file:", opened)
+    log.info("Closing file: {}", opened)
 
     val editor = getEditorAtIndex(index)
     if (editor?.isModified == true) {
-      log.info("File has been modified:", opened)
+      log.info("File has been modified: {}", opened)
       notifyFilesUnsaved(listOf(editor)) {
         closeFile(index, runAfter)
       }
@@ -551,7 +553,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
       val editor = getEditorAtIndex(index)
 
       if (editor == null) {
-        log.error("Unable to save file at index:", index)
+        log.error("Unable to save file at index {}", index)
         continue
       }
 
@@ -580,7 +582,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     // Files were already saved, close all files one by one
     for (i in 0 until count) {
       getEditorAtIndex(i)?.close() ?: run {
-        log.error("Unable to close file at index:", i)
+        log.error("Unable to close file at index {}", i)
       }
     }
 
@@ -669,7 +671,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     editorActivityScope.launch {
       val files = editorViewModel.getOpenedFiles()
       val dupliCount = mutableMapOf<String, Int>()
-      val names = MutableIntObjectMap<String>()
+      val names = MutableIntObjectMap<Pair<String, @DrawableRes Int>>()
       val nameBuilder = UniqueNameBuilder<File>("", File.separator)
 
       files.forEach {
@@ -681,18 +683,21 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
       for (index in 0 until binding.tabs.tabCount) {
         val file = files.getOrNull(index) ?: continue
         val count = dupliCount[file.name] ?: 0
+
         val isModified = getEditorAtIndex(index)?.isModified ?: false
         var name = if (count > 1) nameBuilder.getShortPath(file) else file.name
         if (isModified) {
           name = "*${name}"
         }
 
-        names[index] = name
+        names[index] = name to FileExtension.Factory.forFile(file).icon
       }
 
       withContext(Dispatchers.Main) {
-        names.forEach { index, name ->
-          binding.tabs.getTabAt(index)?.text = name
+        names.forEach { index, (name, iconId) ->
+          val tab = binding.tabs.getTabAt(index) ?: return@forEach
+          tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
+          tab.text = name
         }
       }
     }

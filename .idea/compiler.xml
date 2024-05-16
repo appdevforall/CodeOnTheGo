@@ -112,12 +112,30 @@
       <module name="AndroidIDE.ksp-processor.test" target="11" />
       <module name="AndroidIDE.lsp.testing" target="17" />
       <module name="AndroidIDE.sdk-info" target="11" />
+      <module name="AndroidIDE.subprojects.appintro" target="17" />
       <module name="AndroidIDE.subprojects.classfile" target="11" />
       <module name="AndroidIDE.subprojects.classfile.main" target="11" />
       <module name="AndroidIDE.subprojects.classfile.test" target="11" />
+      <module name="AndroidIDE.subprojects.fuzzysearch" target="11" />
+      <module name="AndroidIDE.subprojects.fuzzysearch.main" target="11" />
+      <module name="AndroidIDE.subprojects.fuzzysearch.test" target="11" />
+      <module name="AndroidIDE.subprojects.google-java-format" target="17" />
       <module name="AndroidIDE.subprojects.google-java-format.test" target="11" />
       <module name="AndroidIDE.subprojects.java-compiler-utils.main" target="8" />
       <module name="AndroidIDE.subprojects.java-compiler-utils.test" target="8" />
+      <module name="AndroidIDE.subprojects.javac" target="11" />
+      <module name="AndroidIDE.subprojects.javac.main" target="11" />
+      <module name="AndroidIDE.subprojects.javac.test" target="11" />
+      <module name="AndroidIDE.subprojects.javapoet" target="17" />
+      <module name="AndroidIDE.subprojects.javapoet.main" target="17" />
+      <module name="AndroidIDE.subprojects.javapoet.test" target="17" />
+      <module name="AndroidIDE.subprojects.jdk-jdeps" target="11" />
+      <module name="AndroidIDE.subprojects.jdk-jdeps.main" target="11" />
+      <module name="AndroidIDE.subprojects.jdk-jdeps.test" target="11" />
+      <module name="AndroidIDE.subprojects.jdt" target="11" />
+      <module name="AndroidIDE.subprojects.jdt.main" target="11" />
+      <module name="AndroidIDE.subprojects.jdt.test" target="11" />
+      <module name="AndroidIDE.subprojects.layoutlib-api" target="17" />
       <module name="AndroidIDE.subprojects.tooling-api-config" target="11" />
       <module name="AndroidIDE.subprojects.tooling-api-config.main" target="11" />
       <module name="AndroidIDE.subprojects.tooling-api-config.test" target="11" />
@@ -134,9 +152,6 @@
       <module name="AndroidIDE.templates-testing.test" target="11" />
       <module name="AndroidIDE.testing-android" target="17" />
       <module name="AndroidIDE.testing.android.test" target="11" />
-      <module name="AndroidIDE.testing.common" target="11" />
-      <module name="AndroidIDE.testing.common.main" target="11" />
-      <module name="AndroidIDE.testing.common.test" target="11" />
       <module name="AndroidIDE.testing.tooling-api" target="11" />
       <module name="AndroidIDE.testing.tooling-api.main" target="11" />
       <module name="AndroidIDE.testing.tooling-api.test" target="11" />
@@ -151,9 +166,52 @@
       <module name="ATS.tree-sitter-log" target="17" />
       <module name="ATS.tree-sitter-python" target="17" />
       <module name="ATS.tree-sitter-xml" target="17" />
+      <module name="build-deps.appintro" target="17" />
+      <module name="build-deps.desugaring-core" target="11" />
+      <module name="build-deps.desugaring-core.main" target="11" />
+      <module name="build-deps.desugaring-core.test" target="11" />
+      <module name="build-deps.fuzzysearch" target="17" />
+      <module name="build-deps.fuzzysearch.main" target="17" />
+      <module name="build-deps.fuzzysearch.test" target="17" />
+      <module name="build-deps.google-java-format" target="17" />
+      <module name="build-deps.javac" target="17" />
+      <module name="build-deps.javac.main" target="17" />
+      <module name="build-deps.javac.test" target="17" />
+      <module name="build-deps.javapoet" target="17" />
+      <module name="build-deps.javapoet.main" target="17" />
+      <module name="build-deps.javapoet.test" target="17" />
+      <module name="build-deps.jdk-jdeps" target="17" />
+      <module name="build-deps.jdk-jdeps.main" target="17" />
+      <module name="build-deps.jdk-jdeps.test" target="17" />
+      <module name="build-deps.jdt" target="17" />
+      <module name="build-deps.jdt.main" target="17" />
+      <module name="build-deps.jdt.test" target="17" />
+      <module name="build-deps.layoutlib-api" target="17" />
+      <module name="build-deps.layoutlib-api.main" target="17" />
+      <module name="build-deps.layoutlib-api.test" target="17" />
       <module name="build-logic.ats" target="17" />
       <module name="build-logic.ats.main" target="17" />
       <module name="build-logic.ats.test" target="17" />
+      <module name="build-logic.common" target="17" />
+      <module name="build-logic.common.main" target="17" />
+      <module name="build-logic.common.test" target="17" />
+      <module name="build-logic.desugaring" target="17" />
+      <module name="build-logic.desugaring-core" target="11" />
+      <module name="build-logic.desugaring-core.main" target="11" />
+      <module name="build-logic.desugaring-core.test" target="11" />
+      <module name="build-logic.desugaring.main" target="17" />
+      <module name="build-logic.desugaring.test" target="17" />
+      <module name="build-logic.ide" target="17" />
+      <module name="build-logic.ide.main" target="17" />
+      <module name="build-logic.ide.test" target="17" />
+      <module name="build-logic.plugins" target="17" />
+      <module name="build-logic.plugins.main" target="17" />
+      <module name="build-logic.plugins.test" target="17" />
+      <module name="build-logic.properties-parser" target="17" />
+      <module name="build-logic.properties-parser.main" target="17" />
+      <module name="build-logic.properties-parser.test" target="17" />
+      <module name="composite-builds.build-logic.desugaring-core.main" target="11" />
+      <module name="composite-builds.build-logic.desugaring-core.test" target="11" />
       <module name="composite-builds.plugins" target="17" />
       <module name="composite-builds.plugins.main" target="17" />
       <module name="composite-builds.plugins.test" target="17" />
