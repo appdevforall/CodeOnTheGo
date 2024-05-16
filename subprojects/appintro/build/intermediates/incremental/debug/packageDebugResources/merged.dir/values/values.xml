@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="http://schemas.android.com/tools">
+    <color name="appintro_background_color">#222222</color>
+    <color name="appintro_bar_color">@android:color/transparent</color>
+    <color name="appintro_default_fab_background_color">#59000000</color>
+    <color name="appintro_default_selected_color">#FFFFFF</color>
+    <color name="appintro_default_unselected_color">#22000000</color>
+    <color name="appintro_desc_color">#FFFFFF</color>
+    <color name="appintro_icon_tint">#FFFFFF</color>
+    <color name="appintro_navbar_color">#000000</color>
+    <color name="appintro_ripple_color">#1FFFFFFF</color>
+    <color name="appintro_separator_color">#22000000</color>
+    <color name="appintro_statusbar_color">#22000000</color>
+    <color name="appintro_title_color">#FFFFFF</color>
+    <dimen name="appintro2_bottombar_height">90dp</dimen>
+    <dimen name="appintro2_fab_bg_size">56dp</dimen>
+    <dimen name="appintro2_fab_inset">16dp</dimen>
+    <dimen name="appintro2_fab_margin">1dp</dimen>
+    <dimen name="appintro2_fab_size">88dp</dimen>
+    <dimen name="appintro_bottombar_height">70dp</dimen>
+    <dimen name="appintro_button_margin">12dp</dimen>
+    <dimen name="appintro_button_minheight">48dp</dimen>
+    <dimen name="appintro_button_minwidth">48dp</dimen>
+    <dimen name="appintro_desc_padding">16dp</dimen>
+    <dimen name="appintro_desctext_size">16sp</dimen>
+    <dimen name="appintro_donetext_size">14sp</dimen>
+    <dimen name="appintro_head_padding">8dp</dimen>
+    <dimen name="appintro_headtext_size">28sp</dimen>
+    <dimen name="appintro_indicator_inset">3dp</dimen>
+    <dimen name="appintro_indicator_margin">12dp</dimen>
+    <dimen name="appintro_indicator_size">10dp</dimen>
+    <dimen name="appintro_min_text_size">12sp</dimen>
+    <dimen name="appintro_skiptext_size">14sp</dimen>
+    <dimen name="appintro_statusbar_height">24dp</dimen>
+    <dimen name="appintro_text_granularity_size">2sp</dimen>
+    <string name="app_intro_back_button" ns1:ignore="MissingTranslation">BACK</string>
+    <string name="app_intro_done_button">DONE</string>
+    <string name="app_intro_image_content_description" ns1:ignore="MissingTranslation">graphics</string>
+    <string name="app_intro_next_button" ns1:ignore="MissingTranslation">NEXT</string>
+    <string name="app_intro_skip_button">SKIP</string>
+    <style name="AppIntro2ButtonStyleCompat" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/ic_appintro_ripple</item>
+        <item name="android:layout_height">@dimen/appintro2_fab_size</item>
+        <item name="android:layout_width">@dimen/appintro2_fab_size</item>
+        <item name="android:layout_margin">@dimen/appintro2_fab_margin</item>
+    </style>
+    <style name="AppIntroButtonStyleCompat" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:minHeight">@dimen/appintro_button_minheight</item>
+        <item name="android:minWidth">@dimen/appintro_button_minwidth</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_margin">@dimen/appintro_button_margin</item>
+    </style>
+    <style name="AppIntroDefaultHeading" parent="TextAppearance.AppCompat.Display1">
+        <item name="android:textColor">@color/appintro_title_color</item>
+        <item name="android:textSize">@dimen/appintro_headtext_size</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:padding">@dimen/appintro_head_padding</item>
+        <item name="android:gravity">center</item>
+        <item name="autoSizeTextType">uniform</item>
+        <item name="autoSizeMaxTextSize">@dimen/appintro_headtext_size</item>
+        <item name="autoSizeMinTextSize">@dimen/appintro_min_text_size</item>
+        <item name="autoSizeStepGranularity">@dimen/appintro_text_granularity_size</item>
+    </style>
+    <style name="AppIntroDefaultImage">
+        <item name="android:paddingLeft">32dp</item>
+        <item name="android:paddingRight">32dp</item>
+        <item name="android:scaleType">centerInside</item>
+    </style>
+    <style name="AppIntroDefaultText" parent="TextAppearance.AppCompat.Body1">
+        <item name="android:textColor">@color/appintro_desc_color</item>
+        <item name="android:textSize">@dimen/appintro_desctext_size</item>
+        <item name="android:padding">@dimen/appintro_desc_padding</item>
+        <item name="android:gravity">center</item>
+        <item name="autoSizeTextType">uniform</item>
+        <item name="autoSizeMaxTextSize">@dimen/appintro_desctext_size</item>
+        <item name="autoSizeMinTextSize">@dimen/appintro_min_text_size</item>
+        <item name="autoSizeStepGranularity">@dimen/appintro_text_granularity_size</item>
+    </style>
+    <style name="AppIntroIndicatorContainer">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_margin">@dimen/appintro_indicator_margin</item>
+    </style>
+    <style name="AppIntroStyle" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:background">@color/appintro_background_color</item>
+    </style>
+</resources>
