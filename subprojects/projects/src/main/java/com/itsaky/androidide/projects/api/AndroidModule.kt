@@ -27,7 +27,6 @@ import com.android.builder.model.v2.ide.ProjectType
 import com.itsaky.androidide.builder.model.DefaultAndroidGradlePluginProjectFlags
 import com.itsaky.androidide.builder.model.DefaultJavaCompileOptions
 import com.itsaky.androidide.builder.model.DefaultLibrary
-import com.itsaky.androidide.builder.model.DefaultModelSyncFile
 import com.itsaky.androidide.builder.model.DefaultSourceSetContainer
 import com.itsaky.androidide.builder.model.DefaultViewBindingOptions
 import com.itsaky.androidide.builder.model.UNKNOWN_PACKAGE
@@ -36,7 +35,6 @@ import com.itsaky.androidide.tooling.api.ProjectType.Android
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.tooling.api.models.GradleTask
 import com.itsaky.androidide.tooling.api.util.findPackageName
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.withStopWatch
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersions
@@ -51,6 +49,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
 
@@ -66,7 +65,6 @@ import java.util.concurrent.CompletableFuture
  * @param buildDir The build directory of the project.
  * @param buildScript The Gradle buildscript file of the project.
  * @param tasks The tasks of the project.
- * @param packageName The package name of this module extracted from `AndroidManifest.xml`.
  * @param resourcePrefix The resource prefix.
  * @param namespace The namespace of this project. As defined in the buildscript.
  * @param androidTestNamespace The androidTestNamespace of this project. As defined in the
@@ -95,7 +93,6 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
   buildDir: File,
   buildScript: File,
   tasks: List<GradleTask>,
-  open val packageName: String, // Property must be open because BaseXMLTest mocks this...
   val resourcePrefix: String?,
   val namespace: String?,
   val androidTestNamespace: String?,
@@ -109,7 +106,6 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
   val libraries: Set<String>,
   val libraryMap: Map<String, DefaultLibrary>,
   val lintCheckJars: List<File>,
-  val modelSyncFiles: List<DefaultModelSyncFile>,
   val variants: List<BasicAndroidVariantMetadata> = listOf(),
   val configuredVariant: BasicAndroidVariantMetadata?,
   val classesJar: File?
@@ -124,7 +120,10 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
     tasks
   ) {
 
-  private val log = ILogger.newInstance(javaClass.simpleName)
+  companion object {
+
+    private val log = LoggerFactory.getLogger(AndroidModule::class.java)
+  }
 
   init {
     type = Android
@@ -144,7 +143,7 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
 
   fun getResourceDirectories(): Set<File> {
     if (mainSourceSet == null) {
-      log.error("No main source set found in application module: $name")
+      log.error("No main source set found in application module: {}", name)
       return emptySet()
     }
 
@@ -164,7 +163,8 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
 
   override fun getSourceDirectories(): Set<File> {
     if (mainSourceSet == null) {
-      log.warn("No main source set is available for project $name. Cannot get source directories.")
+      log.warn("No main source set is available for project {}. Cannot get source directories.",
+        name)
       return mutableSetOf()
     }
 
@@ -306,24 +306,23 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
 
   /** Get the resource table for this module i.e. without resource tables for dependent modules. */
   fun getResourceTable(): ResourceTable? {
-    if (this.packageName == UNKNOWN_PACKAGE) {
-      return null
-    }
+    val namespace = this.namespace ?: return null
+
     val resDirs = mainSourceSet?.sourceProvider?.resDirectories ?: return null
-    return ResourceTableRegistry.getInstance().forPackage(this.packageName, *resDirs.toTypedArray())
+    return ResourceTableRegistry.getInstance().forPackage(namespace, *resDirs.toTypedArray())
   }
 
   /** Updates the resource table for this module. */
   fun updateResourceTable() {
-    if (this.packageName == UNKNOWN_PACKAGE) {
+    if (this.namespace == null) {
       return
     }
 
     CompletableFuture.runAsync {
       val tableRegistry = ResourceTableRegistry.getInstance()
       val resDirs = mainSourceSet?.sourceProvider?.resDirectories ?: return@runAsync
-      tableRegistry.removeTable(this.packageName)
-      tableRegistry.forPackage(this.packageName, *resDirs.toTypedArray())
+      tableRegistry.removeTable(this.namespace)
+      tableRegistry.forPackage(this.namespace, *resDirs.toTypedArray())
     }
   }
 
@@ -380,7 +379,7 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
           }
       )
 
-      log.info("Created ${it.size} resource tables for $deps dependencies of module '$path'")
+      log.info("Created {} resource tables for {} dependencies of module '{}'", it.size, deps, path)
     }
   }
 
@@ -494,14 +493,14 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
     val info = projectManager.androidBuildVariants[this.path]
     if (info == null) {
       log.error(
-        "Failed to find selected build variant for module: '${this.path}'")
+        "Failed to find selected build variant for module: '{}'", this.path)
       return null
     }
 
     val variant = this.getVariant(info.selectedVariant)
     if (variant == null) {
       log.error(
-        "Build variant with name '${info.selectedVariant}' not found.")
+        "Build variant with name '{}' not found.", info.selectedVariant)
       return null
     }
 

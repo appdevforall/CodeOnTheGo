@@ -14,6 +14,9 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+
+import com.itsaky.androidide.build.config.BuildConfig
+
 plugins {
     id("com.android.library")
     id("kotlin-android")
@@ -51,11 +54,12 @@ dependencies {
     implementation(projects.editorApi)
     implementation(projects.resources)
     implementation(projects.lsp.api)
-    implementation(projects.subprojects.javac)
     implementation(projects.subprojects.javacServices)
-    implementation(projects.subprojects.javapoet)
-    implementation(projects.subprojects.googleJavaFormat)
-    
+
+    implementation(libs.composite.javac)
+    implementation(libs.composite.javapoet)
+    implementation(libs.composite.googleJavaFormat)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.common.kotlin)
 

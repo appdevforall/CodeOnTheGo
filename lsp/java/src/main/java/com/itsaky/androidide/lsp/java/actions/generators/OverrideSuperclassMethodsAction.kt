@@ -36,11 +36,10 @@ import com.itsaky.androidide.lsp.java.utils.JavaParserUtils
 import com.itsaky.androidide.lsp.java.utils.MethodPtr
 import com.itsaky.androidide.lsp.java.visitors.FindTypeDeclarationAt
 import com.itsaky.androidide.models.Position
-import com.itsaky.androidide.preferences.internal.tabSize
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.ElementKind
@@ -52,6 +51,7 @@ import jdkx.lang.model.type.ExecutableType
 import jdkx.tools.JavaFileObject
 import openjdk.source.tree.MethodTree
 import openjdk.source.util.Trees
+import org.slf4j.LoggerFactory
 import java.util.Arrays
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
@@ -66,8 +66,12 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
   override val titleTextRes: Int = R.string.action_override_superclass_methods
   override val id: String = "ide.editor.lsp.java.generator.overrideSuperclassMethods"
   override var label: String = ""
-  private val log = ILogger.newInstance(javaClass.simpleName)
   private var position: Long = -1
+
+  companion object {
+
+    private val log = LoggerFactory.getLogger(OverrideSuperclassMethodsAction::class.java)
+  }
 
   override fun prepare(data: ActionData) {
     super.prepare(data)
@@ -211,7 +215,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
       val typeFinder = FindTypeDeclarationAt(task.task)
       val classTree = typeFinder.scan(task.root(), position)
       val thisClass = trees.getElement(typeFinder.path) as TypeElement
-      val indent = EditHelper.indent(task.task, task.root(), classTree) + tabSize
+      val indent = EditHelper.indent(task.task, task.root(), classTree) + EditorPreferences.tabSize
       val fileImports = task.root(file).imports.map { it.qualifiedIdentifier.toString() }.toSet()
       val filePackage = task.root(file).`package`.packageName.toString()
 

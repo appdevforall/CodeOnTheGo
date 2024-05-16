@@ -18,14 +18,12 @@
 package io.github.rosemoe.sora.editor.ts
 
 import com.itsaky.androidide.treesitter.TSInputEdit
-import com.itsaky.androidide.treesitter.TSParser
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
 import com.itsaky.androidide.treesitter.api.TreeSitterInputEdit
 import com.itsaky.androidide.treesitter.api.TreeSitterQueryCapture
 import com.itsaky.androidide.treesitter.api.safeExecQueryCursor
-import com.itsaky.androidide.treesitter.string.UTF16StringFactory
-import com.itsaky.androidide.utils.ILogger
+import com.itsaky.androidide.treesitter.string.UTF16String
 import io.github.rosemoe.sora.data.ObjectAllocator
 import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.analysis.StyleReceiver
@@ -40,14 +38,14 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
-import java.lang.RuntimeException
+import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.LinkedBlockingQueue
 
 /**
  * @author Akash Yadav
  */
-internal class TsAnalyzeWorker(
+class TsAnalyzeWorker(
   private val analyzer: TsAnalyzeManager,
   private val languageSpec: TsLanguageSpec,
   private val theme: TsTheme,
@@ -58,7 +56,7 @@ internal class TsAnalyzeWorker(
 
   companion object {
 
-    private val log = ILogger.newInstance("TsAnalyzeWorker")
+    private val log = LoggerFactory.getLogger(TsAnalyzeWorker::class.java)
   }
 
   var stylesReceiver: StyleReceiver? = null
@@ -73,13 +71,15 @@ internal class TsAnalyzeWorker(
   private var isInitialized = false
   private var isDestroyed = false
 
-  private var tree: TSTree? = null
-  private val localText = UTF16StringFactory.newString()
-  private val parser = TSParser.create().also {
-    it.language = languageSpec.language
-  }
+  val document = TsTextDocument(languageSpec.language)
 
-  fun init(init: Init) {
+  internal val tree: TSTree?
+    get() = document.tree
+
+  internal val text: UTF16String
+    get() = document.text
+
+  internal fun init(init: Init) {
     if (isDestroyed) {
       log.warn("Received Init after TsAnalyzeWorker has been destroyed. Ignoring...")
       return
@@ -88,7 +88,7 @@ internal class TsAnalyzeWorker(
     messageChannel.offer(init)
   }
 
-  fun onMod(mod: Mod) {
+  internal fun onMod(mod: Mod) {
     if (isDestroyed) {
       log.warn("Received Mod after TsAnalyzeWorker has been destroyed. Ignoring...")
       return
@@ -101,17 +101,13 @@ internal class TsAnalyzeWorker(
     log.debug("Stopping TsAnalyzeWorker...")
     isDestroyed = true
 
-    if (parser.isParsing) {
-      parser.requestCancellationAndWait()
-    }
+    document.requestCancellationAndWaitIfParsing()
 
     analyzerContext.close()
     messageChannel.clear()
     analyzerJob?.cancel(CancellationException("Requested to be stopped"))
     analyzerScope.cancel(CancellationException("Requested to be stopped"))
-    localText.close()
-    tree?.close()
-    parser.close()
+    document.close()
   }
 
   fun start() {
@@ -151,22 +147,24 @@ internal class TsAnalyzeWorker(
       } else ""
       val pendingMsgs = messageChannel.size
       log.error(
-        "AnalyzeWorker[lang=$langName, message=${msgType}${msgTypeSuffix}], pendingMsgs=$pendingMsgs] crashed",
+        "AnalyzeWorker[lang={}, message={}{}], pendingMsgs={}] crashed",
+        langName,
+        msgType,
+        msgTypeSuffix,
+        pendingMsgs,
         err)
     }
   }
 
   private fun doInit(init: Init) {
-    if (parser.isParsing) {
-      parser.requestCancellationAndWait()
-    }
+    document.requestCancellationAndWaitIfParsing()
 
     check(!isInitialized) {
       "'Init' must be the first message to TsAnalyzeWorker"
     }
 
-    localText.append(init.data)
-    tree = parser.parseString(localText)
+    document.doInit(init.data)
+    document.reparse()
     updateStyles()
 
     isInitialized = true
@@ -180,45 +178,35 @@ internal class TsAnalyzeWorker(
 
     val textMod = mod.data
     val edit = textMod.edit
-    val newText = textMod.changedText
 
     val oldTree = tree!!
     oldTree.edit(edit)
 
-    if (newText == null) {
-      localText.deleteBytes(edit.startByte, edit.oldEndByte)
-    } else {
-      if (textMod.start == localText.length) {
-        localText.append(newText)
-      } else {
-        localText.insert(textMod.start, newText)
-      }
-    }
+    document.doMod(textMod)
 
     (edit as? TreeSitterInputEdit?)?.recycle()
 
-    if (parser.isParsing) {
-      parser.requestCancellationAndWait()
-    }
+    document.requestCancellationAndWaitIfParsing()
 
     if (isDestroyed) {
       return
     }
 
-    tree = parser.parseString(oldTree, localText)
+    document.reparse(oldTree)
+
     oldTree.close()
     updateStyles()
   }
 
   private fun updateStyles() {
-    if (isDestroyed || messageChannel.isNotEmpty() || this.tree?.canAccess() != true) {
+    if (isDestroyed || messageChannel.isNotEmpty() || tree?.canAccess() != true) {
       // analyzer stopped or
       // more message need to be processed
       return
     }
 
-    val tree = this.tree!!
-    val scopedVariables = TsScopedVariables(tree, localText, languageSpec)
+    val tree = tree!!
+    val scopedVariables = TsScopedVariables(tree, text, languageSpec)
     val oldTree = (styles.spans as? LineSpansGenerator?)?.tree
     val copied = tree.copy()
 
@@ -264,7 +252,7 @@ internal class TsAnalyzeWorker(
       ) { match ->
         if (!languageSpec.blocksPredicator.doPredicate(
             languageSpec.predicates,
-            localText,
+            text,
             match
           )
         ) {
@@ -312,13 +300,19 @@ internal interface Message<T> {
   val data: T
 }
 
-internal data class Init(override val data: String) : Message<String>
+internal data class Init(override val data: TextInit) : Message<TextInit>
 
 internal data class Mod(override val data: TextMod) : Message<TextMod>
+
+internal data class TextInit(
+  val text: String,
+  val contentVersion: Long
+)
 
 internal data class TextMod(
   val start: Int,
   val end: Int,
   val edit: TSInputEdit,
-  val changedText: String?
+  val changedText: String?,
+  val contentVersion: Long
 )

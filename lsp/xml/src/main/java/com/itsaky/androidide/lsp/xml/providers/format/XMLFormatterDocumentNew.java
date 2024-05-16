@@ -33,8 +33,11 @@ import com.itsaky.androidide.lsp.xml.models.XMLFormattingOptions;
 import com.itsaky.androidide.lsp.xml.models.XMLServerSettings;
 import com.itsaky.androidide.models.Position;
 import com.itsaky.androidide.models.Range;
-import com.itsaky.androidide.preferences.internal.EditorPreferencesKt;
-
+import com.itsaky.androidide.preferences.internal.EditorPreferences;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.eclipse.lemminx.commons.BadLocationException;
 import org.eclipse.lemminx.commons.TextDocument;
 import org.eclipse.lemminx.dom.DOMAttr;
@@ -50,11 +53,6 @@ import org.eclipse.lemminx.utils.StringUtils;
 import org.eclipse.lsp4j.jsonrpc.CancelChecker;
 import org.w3c.dom.Node;
 import org.w3c.dom.Text;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Experimental XML formatter which generates several text edit to remove, add, update spaces /
@@ -96,7 +94,9 @@ public class XMLFormatterDocumentNew {
 
   private CancelChecker cancelChecker;
 
-  /** XML formatter document. */
+  /**
+   * XML formatter document.
+   */
   public XMLFormatterDocumentNew(DOMDocument xmlDocument, Range range) {
     this.xmlDocument = xmlDocument;
     this.textDocument = xmlDocument.getTextDocument();
@@ -200,8 +200,8 @@ public class XMLFormatterDocumentNew {
    * Returns the DOM node to format according to the given range and the DOM document otherwise.
    *
    * @param document the DOM document.
-   * @param start the start range offset and -1 otherwise.
-   * @param end the end range offset and -1 otherwise.
+   * @param start    the start range offset and -1 otherwise.
+   * @param end      the end range offset and -1 otherwise.
    * @return the DOM node to format according to the given range and the DOM document otherwise.
    */
   private static DOMNode getDOMNodeToFormat(DOMDocument document, int start, int end) {
@@ -342,7 +342,8 @@ public class XMLFormatterDocumentNew {
     }
   }
 
-  public void formatAttributeValue(DOMAttr attr, int indentLevel, List<TextEdit> edits) {}
+  public void formatAttributeValue(DOMAttr attr, int indentLevel, List<TextEdit> edits) {
+  }
 
   public void removeLeftSpaces(int leftLimit, int to, List<TextEdit> edits) {
     replaceLeftSpacesWith(leftLimit, to, "", edits);
@@ -517,7 +518,7 @@ public class XMLFormatterDocumentNew {
   /**
    * Returns the format element category of the given DOM element.
    *
-   * @param element the DOM element.
+   * @param element           the DOM element.
    * @param parentConstraints the parent constraints.
    * @return the format element category of the given DOM element.
    */
@@ -595,7 +596,7 @@ public class XMLFormatterDocumentNew {
   /**
    * Return the expected indent spaces and new lines with the specified number of new lines.
    *
-   * @param level the indent level.
+   * @param level        the indent level.
    * @param newLineCount the number of new lines to be added.
    * @return the expected indent spaces and new lines with the specified number of new lines.
    */
@@ -675,11 +676,11 @@ public class XMLFormatterDocumentNew {
   }
 
   private int getTabSize() {
-    return EditorPreferencesKt.getTabSize();
+    return EditorPreferences.INSTANCE.getTabSize();
   }
 
   private boolean isInsertSpaces() {
-    return EditorPreferencesKt.getUseSoftTab();
+    return EditorPreferences.INSTANCE.getUseSoftTab();
   }
 
   private boolean isTrimFinalNewlines() {

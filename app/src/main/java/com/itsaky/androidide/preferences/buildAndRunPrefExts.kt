@@ -17,23 +17,28 @@
 
 package com.itsaky.androidide.preferences
 
+import android.content.Context
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
-import com.itsaky.androidide.preferences.internal.CUSTOM_GRADLE_INSTALLATION
-import com.itsaky.androidide.preferences.internal.GRADLE_CLEAR_CACHE
-import com.itsaky.androidide.preferences.internal.GRADLE_COMMANDS
-import com.itsaky.androidide.preferences.internal.LAUNCH_APP_AFTER_INSTALL
-import com.itsaky.androidide.preferences.internal.gradleInstallationDir
-import com.itsaky.androidide.preferences.internal.isBuildCacheEnabled
-import com.itsaky.androidide.preferences.internal.isDebugEnabled
-import com.itsaky.androidide.preferences.internal.isInfoEnabled
-import com.itsaky.androidide.preferences.internal.isOfflineEnabled
-import com.itsaky.androidide.preferences.internal.isScanEnabled
-import com.itsaky.androidide.preferences.internal.isStacktraceEnabled
-import com.itsaky.androidide.preferences.internal.isWarningModeAllEnabled
-import com.itsaky.androidide.preferences.internal.launchAppAfterInstall
+import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
+import com.itsaky.androidide.models.JdkDistribution
+import com.itsaky.androidide.preferences.internal.BuildPreferences.CUSTOM_GRADLE_INSTALLATION
+import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_CLEAR_CACHE
+import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_COMMANDS
+import com.itsaky.androidide.preferences.internal.BuildPreferences.LAUNCH_APP_AFTER_INSTALL
+import com.itsaky.androidide.preferences.internal.BuildPreferences.PREF_JAVA_HOME
+import com.itsaky.androidide.preferences.internal.BuildPreferences.gradleInstallationDir
+import com.itsaky.androidide.preferences.internal.BuildPreferences.isBuildCacheEnabled
+import com.itsaky.androidide.preferences.internal.BuildPreferences.isDebugEnabled
+import com.itsaky.androidide.preferences.internal.BuildPreferences.isInfoEnabled
+import com.itsaky.androidide.preferences.internal.BuildPreferences.isOfflineEnabled
+import com.itsaky.androidide.preferences.internal.BuildPreferences.isScanEnabled
+import com.itsaky.androidide.preferences.internal.BuildPreferences.isStacktraceEnabled
+import com.itsaky.androidide.preferences.internal.BuildPreferences.isWarningModeAllEnabled
+import com.itsaky.androidide.preferences.internal.BuildPreferences.javaHome
+import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfterInstall
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.executeAsync
@@ -65,11 +70,12 @@ private class GradleOptions(
     override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-    init {
-        addPreference(GradleCommands())
-        addPreference(GradleDistrubution())
-        addPreference(GradleClearCache())
-    }
+  init {
+    addPreference(GradleCommands())
+    addPreference(GradleDistrubution())
+    addPreference(GradleJDKVersionPreference())
+    addPreference(GradleClearCache())
+  }
 }
 
 @Parcelize
@@ -167,7 +173,49 @@ private class LaunchAppAfterInstall(
     override val summary: Int? = R.string.idepref_launchAppAfterInstall_summary,
     override val icon: Int? = drawable.ic_open_external
 ) :
-    SwitchPreference(
-        setValue = ::launchAppAfterInstall::set,
-        getValue = ::launchAppAfterInstall::get
-    )
+  SwitchPreference(setValue = ::launchAppAfterInstall::set, getValue = ::launchAppAfterInstall::get)
+
+@Parcelize
+class GradleJDKVersionPreference(
+  override val key: String = PREF_JAVA_HOME,
+  override val title: Int = R.string.idepref_jdkVersion_title,
+  override val icon: Int? = R.drawable.ic_language_java,
+) : SingleChoicePreference() {
+
+  override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
+    val distributions = IJdkDistributionProvider.getInstance().installedDistributions
+    check(distributions.isNotEmpty()) {
+      "No JDK installations are available."
+    }
+
+    return distributions.map { dist ->
+      PreferenceChoices.Entry(dist.javaVersion, javaHome == dist.javaHome, dist)
+    }.toTypedArray()
+  }
+
+  override fun onChoiceConfirmed(
+    preference: Preference,
+    entry: PreferenceChoices.Entry?,
+    position: Int
+  ) {
+    super.onChoiceConfirmed(preference, entry, position)
+    javaHome = (entry?.data as? JdkDistribution?)?.javaHome ?: ""
+    updatePreference(preference)
+  }
+
+  override fun onCreatePreference(context: Context): Preference {
+    return super.onCreatePreference(context).also { preference ->
+      updatePreference(preference)
+    }
+  }
+
+  private fun updatePreference(preference: Preference) {
+    val jdkDistProvider = IJdkDistributionProvider.getInstance()
+    val javaVersion = jdkDistProvider.forJavaHome(javaHome)?.javaVersion
+      ?: "<unknown>"
+
+    preference.summary = preference.context.getString(R.string.idepref_jdkVersion_summary,
+      javaVersion)
+    preference.isEnabled = jdkDistProvider.installedDistributions.size > 1
+  }
+}

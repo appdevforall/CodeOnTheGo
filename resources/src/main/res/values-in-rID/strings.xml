@@ -230,7 +230,6 @@
   <string name="idepref_useIcu_summary">Gunakan perpustakaan ICU untuk menggunakan ambil tepi kata untuk pemilihan kata ketuk dua kali dan tekan lama.</string>
   <!--The text sorrounded with '@@' is spanned as clickable.-->
   <!--There must be exactly two '@@' sorrounding the text that should be clickable.-->
-  <string name="msg_swipe_for_files">Geser ke kiri untuk @@file@@.</string>
   <string name="msg_swipe_for_output">Geser ke atas untuk @@build output@@.</string>
   <string name="idepref_editor_useSoftTabs_title">Gunakan soft tab</string>
   <string name="idepref_editor_useSoftTabs_summary">Pilih apakah akan menggunakan spasi alih-alih karakter tab (\\t).</string>
@@ -445,7 +444,7 @@
   <string name="msg_files_being_saved">Operasi penyimpanan file sedang berlangsung!</string>
   <string name="title_install_tools">Instalasi SDK</string>
   <string name="subtitle_install_tools">Instal alat pengembangan</string>
-  <string name="msg_install_tools">Alat pengembangan harus diinstal agar IDE dapat berfungsi. Mengklik tombol selesai akan membuka terminal untuk menginstal alat. Untuk menginstal, ikuti petunjuk <![CDATA[ <a href="https://androidide.com/blogs/getting-started/2023/03/15/getting-started-with-androidide/">di sini</a>.<br/><br/>Atau baca <a href="https://androidide.com/docs/">dokumentasi</a>]]>.</string>
+  <string name="msg_install_tools">Alat pengembangan harus diinstal agar IDE dapat berfungsi. Mengklik tombol selesai akan membuka terminal untuk menginstal alat. Untuk menginstal, ikuti petunjuk <![CDATA[ <a href="https://docs.androidide.com/tutorials/get-started.html">di sini</a>.<br/><br/>Atau baca <a href="https://docs.androidide.com/">dokumentasi</a>]]>.</string>
   <string name="greeting_title">Selamat datang</string>
   <string name="greeting_subtitle">Pelajari, bangun, luncurkan. Semua di Android Anda.</string>
   <string name="title_grant">Izinkan</string>
@@ -465,7 +464,6 @@
   <string name="action_manual_install">Instalasi manual</string>
   <string name="hint_android_sdk_version">Versi SDK Android</string>
   <string name="hin_jdk_version">Versi JDK</string>
-  <string name="msg_with_command_line_tools">Dengan alat baris perintah</string>
   <string name="action_install_git">Instal Git</string>
   <string name="action_install_openssh">Instal OpenSSH</string>
   <string name="msg_terminal_new_sessions_disabled">Tidak dapat membuat sesi. Sesi baru dinonaktifkan!</string>
@@ -482,4 +480,6 @@
   <string name="msg_app_unavailable_for_intent">Tidak ada aplikasi yang tersedia untuk menangani maksud.</string>
   <string name="title_open_source_licenses">Lisensi sumber terbuka</string>
   <string name="summary_open_source_licenses">Lihat lisensi sumber terbuka.</string>
+  <string name="idepref_jdkVersion_title">Versi JDK</string>
+  <string name="idepref_jdkVersion_summary">Saat ini dipilih: %1$s (perlu dimulai ulang jika diubah)</string>
 </resources>

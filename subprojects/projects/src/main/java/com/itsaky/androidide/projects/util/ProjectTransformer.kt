@@ -30,7 +30,7 @@ import com.itsaky.androidide.tooling.api.models.AndroidProjectMetadata
 import com.itsaky.androidide.tooling.api.models.BasicProjectMetadata
 import com.itsaky.androidide.tooling.api.models.JavaProjectMetadata
 import com.itsaky.androidide.tooling.api.models.params.StringParameter
-import com.itsaky.androidide.utils.ILogger
+import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -40,7 +40,9 @@ import java.util.concurrent.CopyOnWriteArrayList
  */
 class ProjectTransformer {
 
-  private val log = ILogger.newInstance(javaClass.simpleName)
+  companion object {
+    private val log = LoggerFactory.getLogger(ProjectTransformer::class.java)
+  }
 
   fun transform(project: IProject): Project? {
     try {
@@ -99,7 +101,6 @@ class ProjectTransformer {
       buildDir = metadata.buildDir,
       buildScript = metadata.buildScript,
       tasks = project.getTasks().get(),
-      packageName = metadata.packageName,
       resourcePrefix = metadata.resourcePrefix,
       namespace = metadata.namespace,
       androidTestNamespace = metadata.androidTestNamespace,
@@ -113,7 +114,6 @@ class ProjectTransformer {
       libraries = libraryMap.keys,
       libraryMap = libraryMap,
       lintCheckJars = project.getLintCheckJars().get(),
-      modelSyncFiles = project.getModelSyncFiles().get(),
       variants = variants,
       configuredVariant = variants.find { it.name == configuredVariant },
       classesJar = metadata.classesJar

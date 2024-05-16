@@ -432,7 +432,7 @@ public class TermuxUtils {
 
         ExecutionCommand executionCommand = new ExecutionCommand(-1,
             TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/bash", null, aptInfoScript,
-            null, ExecutionCommand.Runner.APP_SHELL.getName(), false);
+            null, ExecutionCommand.Runner.APP_SHELL.getRunnerName(), false);
         executionCommand.commandLabel = "APT Info Command";
         executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_OFF;
         AppShell appShell = AppShell.execute(context, executionCommand, null, new TermuxShellEnvironment(), null, true);
@@ -491,7 +491,7 @@ public class TermuxUtils {
         // Run script
         // Logging must be disabled for output of logcat command itself in StreamGobbler
         ExecutionCommand executionCommand = new ExecutionCommand(-1, "/system/bin/sh",
-            null, logcatScript + "\n", "/", ExecutionCommand.Runner.APP_SHELL.getName(), true);
+            null, logcatScript + "\n", "/", ExecutionCommand.Runner.APP_SHELL.getRunnerName(), true);
         executionCommand.commandLabel = "Logcat dump command";
         executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_OFF;
         AppShell appShell = AppShell.execute(context, executionCommand, null, new TermuxShellEnvironment(), null, true);
@@ -531,6 +531,11 @@ public class TermuxUtils {
             .equalsIgnoreCase(TermuxConstants.APK_RELEASE_ANDROIDIDE_SIGNING_CERTIFICATE_SHA256_DIGEST)
         ) {
             return TermuxConstants.APK_RELEASE_ANDROIDIDE;
+        }
+        if (signingCertificateSHA256Digest
+            .equalsIgnoreCase(TermuxConstants.APK_RELEASE_FDROID_SIGNING_CERTIFICATE_SHA256_DIGEST)
+        ) {
+            return TermuxConstants.APK_RELEASE_FDROID;
         }
         return "Unknown";
     }

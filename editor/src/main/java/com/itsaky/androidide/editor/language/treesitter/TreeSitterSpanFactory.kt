@@ -22,14 +22,16 @@ import androidx.core.graphics.ColorUtils
 import com.itsaky.androidide.editor.schemes.LanguageScheme
 import com.itsaky.androidide.treesitter.TSQuery
 import com.itsaky.androidide.treesitter.TSQueryCapture
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.parseHexColor
 import io.github.rosemoe.sora.editor.ts.spans.DefaultSpanFactory
 import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.styling.Span
-import io.github.rosemoe.sora.lang.styling.StaticColorSpan
+import io.github.rosemoe.sora.lang.styling.SpanFactory
 import io.github.rosemoe.sora.lang.styling.Styles
+import io.github.rosemoe.sora.lang.styling.span.SpanConstColorResolver
+import io.github.rosemoe.sora.lang.styling.span.SpanExtAttrs
 import io.github.rosemoe.sora.text.ContentReference
+import org.slf4j.LoggerFactory
 
 /**
  * [TsSpanFactory] for tree sitter languages.
@@ -45,7 +47,7 @@ class TreeSitterSpanFactory(
 
   companion object {
 
-    private val log = ILogger.newInstance("TreeSitterSpanFactory")
+    private val log = LoggerFactory.getLogger(TreeSitterSpanFactory::class.java)
 
     @JvmStatic
     private val HEX_REGEX = "#\\b([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b".toRegex()
@@ -99,7 +101,7 @@ class TreeSitterSpanFactory(
       val color = try {
         parseHexColor(result.groupValues[1]).toInt()
       } catch (e: Exception) {
-        log.error("An error occurred parsing hex color. text=$text", e)
+        log.error("An error occurred parsing hex color. text={}", text, e)
         return@forEach
       }
 
@@ -110,12 +112,12 @@ class TreeSitterSpanFactory(
       }
 
       val col = column + result.range.first
-      val span = StaticColorSpan.obtain(
-        color,
-        textColor,
+      val span = SpanFactory.obtain(
         col,
         styleDef.makeStaticStyle()
       )
+
+      span.setSpanExt(SpanExtAttrs.EXT_COLOR_RESOLVER, SpanConstColorResolver(textColor, color))
 
       spans.add(span)
     }
@@ -126,11 +128,11 @@ class TreeSitterSpanFactory(
 
     // make sure that the default style is used for unmatched regions
     if (s != 0) {
-      spans.add(0, Span.obtain(column, spanStyle))
+      spans.add(0, SpanFactory.obtain(column, spanStyle))
     }
 
     if (e != text.lastIndex) {
-      spans.add(Span.obtain(column + e + 1, spanStyle))
+      spans.add(SpanFactory.obtain(column + e + 1, spanStyle))
     }
 
     return spans

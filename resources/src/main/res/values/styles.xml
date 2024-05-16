@@ -28,8 +28,6 @@
   </style>
 
   <style name="Theme.AndroidIDE.Styled" parent="Theme.AndroidIDE.Base">
-    <item name="android:statusBarColor">@android:color/transparent</item>
-    <item name="android:navigationBarColor">@android:color/transparent</item>
     <item name="switchPreferenceStyle">@style/AppTheme.SwitchPreference</item>
     <item name="shapeAppearanceLargeComponent">@style/AppTheme.ShapeOverlay.Large</item>
     <item name="textAppearanceBodySmall">@style/TextAppearance.AndroidIDE.BodySmall</item>
@@ -37,9 +35,6 @@
   </style>
 
   <style name="Theme.AndroidIDE" parent="Theme.AndroidIDE.Styled">
-    <item name="android:windowLightStatusBar">true</item>
-    <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
-
     <!-- Left drawer. -->
     <item name="buttonBarButtonStyle">@style/TermuxActivity.Drawer.ButtonBarStyle.Light</item>
     <item name="termuxActivityDrawerBackground">@android:color/white</item>
@@ -80,6 +75,10 @@
     <item name="tabIndicatorGravity">bottom</item>
     <item name="tabIndicatorHeight">3dp</item>
     <item name="tabMode">scrollable</item>
+    <!-- Increase tab's width according to its title -->
+    <item name="tabMaxWidth">0px</item>
+    <!-- Make icons appear inline with tab's title -->
+    <item name="tabInlineLabel">true</item>
   </style>
 
   <style name="AppTheme.ShapeOverlay.Large" parent="">

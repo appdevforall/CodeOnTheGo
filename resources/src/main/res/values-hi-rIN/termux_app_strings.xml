@@ -82,8 +82,7 @@
   <!-- Terminal View Key Logging -->
   <string name="termux_terminal_view_key_logging_enabled_title">टर्मिनल दृश्य कुंजी लॉग करें</string>
   <string name="termux_terminal_view_key_logging_enabled_off">लॉग में टर्मिनल दृश्य कुंजियों के लिए एंट्रीज नहीं होंगी। (डिफ़ॉल्ट)</string>
-  <string name="termux_terminal_view_key_logging_enabled_on">लॉगकैट लॉग में टर्मिनल व्यू कुंजियों के लिए एंट्रीज होंगी।
-                     ये बहुत वाचाल हैं और इन्हें सामान्य परिस्थितियों में अक्षम कर दिया जाना चाहिए अन्यथा प्रदर्शन संबंधी समस्याएं पैदा होंगी।</string>
+  <string name="termux_terminal_view_key_logging_enabled_on">लॉगकैट लॉग में टर्मिनल व्यू कुंजियों के लिए एंट्रीज होंगी। ये बहुत वाचाल हैं और इन्हें सामान्य परिस्थितियों में अक्षम कर दिया जाना चाहिए अन्यथा प्रदर्शन संबंधी समस्याएं पैदा होंगी।</string>
   <!-- Crash Report Notifications -->
   <string name="termux_crash_report_notifications_enabled_title">क्रैश रिपोर्ट सूचनाएं</string>
   <string name="termux_crash_report_notifications_enabled_off">क्रैश रिपोर्ट के लिए सूचनाएं अक्षम करें.</string>

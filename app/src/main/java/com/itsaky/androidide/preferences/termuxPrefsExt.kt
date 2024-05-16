@@ -35,7 +35,7 @@ private const val KEY_TERMUX_DEBUGGING_TERMINAL_VIEW_KEY_LOGGING_PREFERENCE = "$
 private const val KEY_TERMUX_DEBUGGING_CRASH_REPORT_NOTIFICATIONS_PREFERENCE = "${KEY_TERMUX_DEBUGGING_PREFERENCES}.crashReportNotifications"
 private const val KEY_TERMUX_KBD_PREFERENCES = "${KEY_TERMUX_PREFERENCES}.keyboard"
 private const val KEY_TERMUX_KBD_SOFT_KDB_ENABLED_PREFERENCE = "${KEY_TERMUX_KBD_PREFERENCES}.softKeyboardEnabled"
-private const val KEY_TERMUX_KBD_SOFT_KDB_ONLY_IF_NO_HARD_KBD_PREFERENCE = "${KEY_TERMUX_KBD_PREFERENCES}.softKeyboardEnabled"
+private const val KEY_TERMUX_KBD_SOFT_KDB_ONLY_IF_NO_HARD_KBD_PREFERENCE = "${KEY_TERMUX_KBD_PREFERENCES}.softKbdOnlyIfNoHardKbd"
 private const val KEY_TERMUX_VIEW_PREFERENCES = "${KEY_TERMUX_PREFERENCES}.view"
 private const val KEY_TERMUX_VIEW_MARGIN_ADJUSTMENT_ENABLED_PREFERENCE = "${KEY_TERMUX_VIEW_PREFERENCES}.marginAdjustment"
 
@@ -117,10 +117,10 @@ class TermuxDebuggingLogLevelPreference(
 
   override fun onChoiceConfirmed(
     preference: Preference,
-    entry: PreferenceChoices.Entry,
+    entry: PreferenceChoices.Entry?,
     position: Int
   ) {
-    val newLevel = entry.data as Int
+    val newLevel = (entry?.data as? Int?) ?: Logger.DEFAULT_LOG_LEVEL
     TermuxAppSharedPreferences.build(preference.context, false)
       ?.setLogLevel(preference.context, newLevel)
 

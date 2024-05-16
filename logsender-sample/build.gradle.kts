@@ -15,6 +15,8 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.itsaky.androidide.build.config.BuildConfig
+
 plugins {
   id("com.android.application")
 }
@@ -31,6 +33,7 @@ android {
 
 dependencies {
 
+  implementation(projects.logger)
   implementation(projects.logsender)
 
   implementation(libs.androidx.appcompat)

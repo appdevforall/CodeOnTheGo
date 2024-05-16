@@ -35,7 +35,6 @@ import com.itsaky.androidide.roomData.MessageRoomDatabase
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -51,6 +50,7 @@ import org.eclipse.jgit.api.CloneCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
@@ -61,7 +61,10 @@ class MainFragment : BaseFragment() {
     ownerProducer = { requireActivity() })
   private var binding: FragmentMainBinding? = null
 
-  private val log = ILogger.newInstance("MainFragment")
+  companion object {
+
+    private val log = LoggerFactory.getLogger(MainFragment::class.java)
+  }
 
   private lateinit var fab : FloatingActionButton
   private val applicationScope = CoroutineScope(SupervisorJob())
@@ -247,7 +250,7 @@ class MainFragment : BaseFragment() {
 
   private fun doClone(repo: String?) {
     if (repo.isNullOrBlank()) {
-      log.warn("Unable to clone repo. Invalid repo URL : '$repo'")
+      log.warn("Unable to clone repo. Invalid repo URL : {}'", repo)
       return
     }
 

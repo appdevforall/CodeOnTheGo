@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~  This file is part of AndroidIDE.
+  ~
+  ~  AndroidIDE is free software: you can redistribute it and/or modify
+  ~  it under the terms of the GNU General Public License as published by
+  ~  the Free Software Foundation, either version 3 of the License, or
+  ~  (at your option) any later version.
+  ~
+  ~  AndroidIDE is distributed in the hope that it will be useful,
+  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~  GNU General Public License for more details.
+  ~
+  ~  You should have received a copy of the GNU General Public License
+  ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="UnusedResources">
+  <!-- Termux Bootstrap Packages Installation -->
+  <string name="bootstrap_installer_body">Instalando pacotes de inicialização…</string>
+  <string name="bootstrap_error_title">Não foi possível instalar os arquivos de inicialização</string>
+  <string name="bootstrap_error_body">AndroidIDE was unable to install the bootstrap packages.</string>
+  <string name="bootstrap_error_abort">Cancelar</string>
+  <string name="bootstrap_error_try_again">Tente novamente</string>
+  <string name="bootstrap_error_not_primary_user_message">AndroidIDE can only be run as the primary user.\nBootstrap binaries compiled for AndroidIDE have hardcoded $PREFIX path and cannot be installed under any path other than:\n%1$s.</string>
+  <string name="bootstrap_error_installed_on_portable_sd">AndroidIDE cannot be installed on portable/external/removable sd card on your device.\nBootstrap binaries compiled for AndroidIDE have hardcoded $PREFIX path and cannot be installed under any path other than:\n%1$s.</string>
+  <!-- Terminal Sidebar and Shortcuts -->
+  <string name="action_new_session">Nova sessão</string>
+  <string name="action_new_session_failsafe">À prova de falhas</string>
+  <string name="title_max_terminals_reached">Limite de terminais atingido</string>
+  <string name="msg_max_terminals_reached">Feche as existentes antes de criar novas.</string>
+  <string name="title_rename_session">Definir nome da sessão</string>
+  <string name="action_rename_session_confirm">Definir</string>
+  <string name="title_create_named_session">Nova sessão nomeada</string>
+  <string name="action_create_named_session_confirm">Criar</string>
+  <string name="action_toggle_soft_keyboard">Teclado</string>
+  <string name="msg_enabling_terminal_toolbar">Ativando a barra de ferramentas do Terminal</string>
+  <string name="msg_disabling_terminal_toolbar">Desativando a barra de ferramentas do Terminal</string>
+  <!-- Terminal Popup -->
+  <string name="action_select_url">Selecionar URL</string>
+  <string name="title_select_url_dialog">Clique no URL para copiar ou mantenha pressionado para abrir</string>
+  <string name="title_select_url_none_found">Nenhuma URL encontrada no terminal.</string>
+  <string name="msg_select_url_copied_to_clipboard">URL copiada para a área de transferência</string>
+  <string name="action_share_transcript">Compartilhar transcrição</string>
+  <string name="title_share_transcript">Transcrição do Terminal</string>
+  <string name="title_share_transcript_with">Enviar transcrição para:</string>
+  <string name="action_share_selected_text">Compartilhar texto selecionado</string>
+  <string name="title_share_selected_text">Texto do Terminal</string>
+  <string name="title_share_selected_text_with">Enviar texto selecionado para:</string>
+  <string name="action_autofill_password">Preenchimento automático</string>
+  <string name="action_reset_terminal">Redefinir</string>
+  <string name="msg_terminal_reset">Redefinir Terminal</string>
+  <string name="action_kill_process">Matar processo (%d)</string>
+  <string name="title_confirm_kill_process">Quer mesmo encerrar esta sessão?</string>
+  <string name="action_toggle_keep_screen_on">Manter a tela ligada</string>
+  <string name="action_open_help">Ajuda</string>
+  <string name="action_open_settings">Configurações</string>
+  <string name="action_report_issue">Reportar um Problema</string>
+  <string name="msg_generating_report">Criando relatório</string>
+  <string name="msg_add_termux_debug_info">Adicionar informações de depuração do Termux ao relatório?</string>
+  <!-- Termux Notifications -->
+  <string name="notification_action_wake_lock">Adquirir wakelock</string>
+  <string name="notification_action_wake_unlock">Liberar wakelock</string>
+  <!-- TermuxService -->
+  <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">AndroidIDE requires \"Display over other apps\" permission to start terminal sessions from background on Android &gt;= 10. Grants it from Settings -&gt; Apps -&gt; AndroidIDE -&gt; Advanced</string>
+  <!-- Termux File Receiver -->
+  <string name="title_file_received">Salvar arquivo em ~/downloads/</string>
+  <string name="action_file_received_edit">Editar</string>
+  <string name="action_file_received_open_directory">Abrir diretório</string>
+  <!-- Miscellaneous -->
+  <string name="error_termux_service_start_failed_general">Falha ao iniciar o TermuxService. Verifique o logcat pela mensagem de exceção.</string>
+  <string name="error_termux_service_start_failed_bg">Falha ao iniciar o TermuxService enquanto o aplicativo está em segundo plano devido a restrições no android bg.</string>
+  <!-- Termux App Preferences -->
+  <string name="termux_preferences_summary">Preferências para o terminal de Termux.</string>
+  <!-- Debugging Preferences -->
+  <string name="termux_debugging_preferences_title">Depuração</string>
+  <string name="termux_debugging_preferences_summary">Preferências para depuração</string>
+  <!-- Logging Category -->
+  <string name="termux_logging_header">Conectando</string>
+  <!-- Log Level -->
+  <string name="termux_log_level_title">Nível dos Logs</string>
+  <!-- Terminal View Key Logging -->
+  <string name="termux_terminal_view_key_logging_enabled_title">Registro de chave da visualização Terminal</string>
+  <string name="termux_terminal_view_key_logging_enabled_off">Logs não terão entradas para as chaves de exibição do terminal. (Padrão)</string>
+  <string name="termux_terminal_view_key_logging_enabled_on">Logcat logs will have entries for terminal view keys. These are very verbose and should be disabled under normal circumstances or will cause performance issues.</string>
+  <!-- Crash Report Notifications -->
+  <string name="termux_crash_report_notifications_enabled_title">Notificações de relatório de falhas</string>
+  <string name="termux_crash_report_notifications_enabled_off">Desativar notificações para relatórios de falhas.</string>
+  <string name="termux_crash_report_notifications_enabled_on">Mostrar notificações para relatórios de falhas. (Padrão)</string>
+  <!-- Terminal IO Preferences -->
+  <string name="termux_terminal_io_preferences_title">Terminal E/S</string>
+  <string name="termux_terminal_io_preferences_summary">Preferências para E/S do terminal</string>
+  <!-- Keyboard Category -->
+  <string name="termux_keyboard_header">Teclado</string>
+  <!-- Soft Keyboard -->
+  <string name="termux_soft_keyboard_enabled_title">Teclado virtual ativado</string>
+  <string name="termux_soft_keyboard_enabled_off">O teclado virtual será desativado.</string>
+  <string name="termux_soft_keyboard_enabled_on">O teclado virtual será ativado. (Padrão)</string>
+  <!-- Soft Keyboard Only If No Hardware-->
+  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_title">Teclado virtual apenas se não houver físico</string>
+  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_off">Soft keyboard will be enabled even if hardware keyboard is connected. (Default)</string>
+  <string name="termux_soft_keyboard_enabled_only_if_no_hardware_on">Soft keyboard will be enabled only if no hardware keyboard is connected.</string>
+  <!-- Terminal View Preferences -->
+  <string name="termux_terminal_view_preferences_title">Visualização do Terminal</string>
+  <string name="termux_terminal_view_preferences_summary">Preferências para a exibição do terminal</string>
+  <!-- View Category -->
+  <string name="termux_terminal_view_view_header">Visualização</string>
+  <!-- Terminal View Margin Adjustment -->
+  <string name="termux_terminal_view_terminal_margin_adjustment_title">Ajuste da margem do Terminal</string>
+  <string name="termux_terminal_view_terminal_margin_adjustment_off">Ajuste de margem do Terminal será desativado.</string>
+  <string name="termux_terminal_view_terminal_margin_adjustment_on">Terminal margin adjustment will be enabled. It should be enabled to try to fix the issue where soft keyboard covers part of extra keys/terminal view. If it causes screen flickering on your devices, then disable it. (Default)</string>
+</resources>

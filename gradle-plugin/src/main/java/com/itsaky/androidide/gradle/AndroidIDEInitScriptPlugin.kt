@@ -20,7 +20,9 @@ package com.itsaky.androidide.gradle
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_IS_TEST_ENV
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_MAVEN_LOCAL_REPOSITORY
+import org.gradle.StartParameter
 import org.gradle.api.Plugin
+import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.initialization.Settings
 import org.gradle.api.invocation.Gradle
@@ -43,14 +45,23 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 
   override fun apply(target: Gradle) {
     target.settingsEvaluated { settings ->
-      val (isTestEnv, mavenLocalRepos) = settings.startParameter.run {
-        val isTestEnv = projectProperties.containsKey(_PROPERTY_IS_TEST_ENV)
-            && projectProperties[_PROPERTY_IS_TEST_ENV].toString().toBoolean()
-        val mavenLocalRepos = projectProperties.getOrDefault(_PROPERTY_MAVEN_LOCAL_REPOSITORY, "")
-        isTestEnv to mavenLocalRepos
-      }
+      settings.addDependencyRepositories()
+    }
 
-      settings.addDependencyRepositories(isTestEnv, mavenLocalRepos)
+    target.rootProject { rootProject ->
+      rootProject.buildscript.apply {
+        dependencies.apply {
+          val gradlePluginDep = rootProject.ideDependency("gradle-plugin")
+          if (gradlePluginDep is ExternalModuleDependency) {
+            // SNAPSHOT versions of gradle-plugin do not change
+            gradlePluginDep.isChanging = false
+          }
+
+          add("classpath", gradlePluginDep)
+        }
+
+        repositories.addDependencyRepositories(rootProject.gradle.startParameter)
+      }
     }
 
     target.projectsLoaded { gradle ->
@@ -62,10 +73,6 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
           return@subprojects
         }
 
-        sub.buildscript.dependencies.apply {
-          add("classpath", sub.ideDependency("gradle-plugin"))
-        }
-
         sub.afterEvaluate {
           logger.info("Trying to apply plugin '${BuildInfo.PACKAGE_NAME}' to project '${sub.path}'")
           sub.pluginManager.apply(BuildInfo.PACKAGE_NAME)
@@ -74,15 +81,37 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
     }
   }
 
+  private fun Settings.addDependencyRepositories() {
+    val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParameter)
+    addDependencyRepositories(isTestEnv, mavenLocalRepos)
+  }
+
   @Suppress("UnstableApiUsage")
-  private fun Settings.addDependencyRepositories(isMavenLocalEnabled: Boolean,
-    mavenLocalRepo: String) {
+  private fun Settings.addDependencyRepositories(
+    isMavenLocalEnabled: Boolean,
+    mavenLocalRepo: String
+  ) {
     dependencyResolutionManagement.run {
       repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepo)
     }
 
     pluginManagement.apply {
       repositories.configureRepositories(isMavenLocalEnabled, mavenLocalRepo)
+    }
+  }
+
+  private fun RepositoryHandler.addDependencyRepositories(startParams: StartParameter) {
+    val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParams)
+    configureRepositories(isTestEnv, mavenLocalRepos)
+  }
+
+  private fun getTestEnvProps(startParameter: StartParameter): Pair<Boolean, String> {
+    return startParameter.run {
+      val isTestEnv = projectProperties.containsKey(_PROPERTY_IS_TEST_ENV)
+          && projectProperties[_PROPERTY_IS_TEST_ENV].toString().toBoolean()
+      val mavenLocalRepos = projectProperties.getOrDefault(_PROPERTY_MAVEN_LOCAL_REPOSITORY, "")
+
+      isTestEnv to mavenLocalRepos
     }
   }
 
@@ -120,6 +149,10 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 
     // for AGP API dependency
     google()
+
+    maven { repository ->
+      repository.setUrl(BuildInfo.PUBLIC_REPOSITORY)
+    }
 
     mavenCentral()
     gradlePluginPortal()

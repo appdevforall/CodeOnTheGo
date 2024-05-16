@@ -46,8 +46,8 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.impl.internal.ProjectImpl
 import com.itsaky.androidide.tooling.impl.sync.ModelBuilderException
 import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
-import com.itsaky.androidide.tooling.impl.util.StopWatch
-import com.itsaky.androidide.utils.ILogger
+import com.itsaky.androidide.tooling.impl.sync.RootProjectModelBuilderParams
+import com.itsaky.androidide.utils.StopWatch
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.BuildException
 import org.gradle.tooling.CancellationTokenSource
@@ -58,10 +58,12 @@ import org.gradle.tooling.UnsupportedVersionException
 import org.gradle.tooling.exceptions.UnsupportedBuildArgumentException
 import org.gradle.tooling.exceptions.UnsupportedOperationConfigurationException
 import org.gradle.tooling.internal.consumer.DefaultGradleConnector
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
-import kotlin.system.exitProcess
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Implementation for the Gradle Tooling API server.
@@ -75,8 +77,12 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
   private var connector: GradleConnector? = null
   private var connection: ProjectConnection? = null
   private var lastInitParams: InitializeProjectParams? = null
-  private var buildCancellationToken: CancellationTokenSource? = null
-  private val log = ILogger.newInstance(javaClass.simpleName)
+  private var _buildCancellationToken: CancellationTokenSource? = null
+
+  private val cancellationTokenAccessLock = ReentrantLock(/* fair = */ true)
+  private var buildCancellationToken: CancellationTokenSource?
+    get() = cancellationTokenAccessLock.withLock { _buildCancellationToken }
+    set(value) = cancellationTokenAccessLock.withLock { _buildCancellationToken = value }
 
   /**
    * Whether the project has been initialized or not.
@@ -97,6 +103,8 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
 
   companion object {
 
+    private val log = LoggerFactory.getLogger(ToolingApiServerImpl::class.java)
+
     /**
      * Time duration for which the the Tooling API server waits after calling
      * [DefaultGradleConnector.close] and before exiting the server's process.
@@ -110,7 +118,7 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
   override fun initialize(params: InitializeProjectParams): CompletableFuture<InitializeResult> {
     return runBuild {
       try {
-        log.debug("Got initialize request", params)
+        log.debug("Received project initialization request with params: {}", params)
 
         Main.checkGradleWrapper()
 
@@ -122,7 +130,7 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
         val failureReason = validateProjectDirectory(projectDirectory)
 
         if (failureReason != null) {
-          log.error("Cannot initialize project: $failureReason")
+          log.error("Cannot initialize project: {}", failureReason)
           return@runBuild InitializeResult(false, failureReason)
         }
 
@@ -162,8 +170,14 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
 
         stopWatch.lapFromLast("Project connection established")
 
+        this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
+
         val project = try {
-          val impl = RootModelBuilder(params).build(connection) as? ProjectImpl?
+          val modelBuilderParams = RootProjectModelBuilderParams(
+            connection,
+            this.buildCancellationToken!!.token()
+          )
+          val impl = RootModelBuilder(params).build(modelBuilderParams) as? ProjectImpl?
             ?: throw ModelBuilderException("Failed to build project model")
           impl
         } catch (err: Throwable) {
@@ -209,7 +223,7 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
   override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
     return runBuild {
       if (!isServerInitialized().get()) {
-        log.error("Cannot execute tasks: $PROJECT_NOT_INITIALIZED")
+        log.error("Cannot execute tasks: {}", PROJECT_NOT_INITIALIZED)
         return@runBuild TaskExecutionResult(false, PROJECT_NOT_INITIALIZED)
       }
 
@@ -218,12 +232,12 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
         val projectDirectory = File(lastInitParams.directory)
         val failureReason = validateProjectDirectory(projectDirectory)
         if (failureReason != null) {
-          log.error("Cannot execute tasks: $failureReason")
+          log.error("Cannot execute tasks: {}", failureReason)
           return@runBuild TaskExecutionResult(isSuccessful = false, failureReason)
         }
       }
 
-      log.debug("Received request to run tasks.", message)
+      log.debug("Received request to run tasks: {}", message)
 
       Main.checkGradleWrapper()
 
@@ -271,16 +285,16 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
       GradleDistributionType.GRADLE_INSTALLATION -> {
         val file = File(params.value)
         if (!file.exists() || !file.isDirectory) {
-          log.error("Specified Gradle installation does not exist:", params)
+          log.error("Specified Gradle installation does not exist: {}", params)
           return
         }
 
-        log.info("Using Gradle installation:", file.canonicalPath)
+        log.info("Using Gradle installation: {}", file.canonicalPath)
         connector.useInstallation(file)
       }
 
       GradleDistributionType.GRADLE_VERSION -> {
-        log.info("Using Gradle version '${params.value}'")
+        log.info("Using Gradle version '{}'", params.value)
         connector.useGradleVersion(params.value)
       }
     }
@@ -309,6 +323,7 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
 
       try {
         this.buildCancellationToken!!.cancel()
+        this.buildCancellationToken = null
       } catch (e: Exception) {
         val failureReason = CANCELLATION_ERROR
         failureReason.message = "${failureReason.message}: ${e.message}"
@@ -320,38 +335,33 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
   }
 
   override fun shutdown(): CompletableFuture<Void> {
-    log.info("Shutting down Tooling API Server...")
+    return CompletableFuture.supplyAsync {
+      log.info("Shutting down Tooling API Server...")
 
-    connection?.close()
-    connector?.disconnect()
-    connection = null
-    connector = null
+      connection?.close()
+      connector?.disconnect()
+      connection = null
+      connector = null
 
-    // Stop all daemons
-    log.info("Stopping all Gradle Daemons...")
-    DefaultGradleConnector.close()
+      // Stop all daemons
+      log.info("Stopping all Gradle Daemons...")
+      DefaultGradleConnector.close()
 
-    try {
-      // wait for the daemon to be stopped properly
-      Thread.sleep(DELAY_BEFORE_EXIT_MS)
-    } catch (e: Exception) {
-      // ignored
+      // update the initialization flag before cancelling future
+      this.isInitialized = false
+
+      // cancelling this future will finish the Tooling API server process
+      // see com.itsaky.androidide.tooling.impl.Main.main(String[])
+      Main.future?.cancel(true)
+
+      this.client = null
+      this.buildCancellationToken = null // connector.disconnect() cancels any running builds
+      this.lastInitParams = null
+      Main.future = null
+      Main.client = null
+
+      null
     }
-
-    // update the initialization flag before cancelling future
-    this.isInitialized = false
-
-    Main.future?.cancel(true)
-
-    this.client = null
-    this.buildCancellationToken = null // connector.disconnect() cancels any running builds
-    this.lastInitParams = null
-    Main.future = null
-    Main.client = null
-
-    // no need to return anything
-    // tooling server should be restarted once it has been shutdown
-    exitProcess(0)
   }
 
   private fun getTaskFailureType(error: Throwable): Failure =
