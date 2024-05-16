@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="http://schemas.android.com/tools">
+    <string name="app_intro_back_button" ns1:ignore="MissingTranslation">KEMBALI</string>
+    <string name="app_intro_done_button">SELESAI</string>
+    <string name="app_intro_image_content_description" ns1:ignore="MissingTranslation">grafik</string>
+    <string name="app_intro_next_button" ns1:ignore="MissingTranslation">LANJUT</string>
+    <string name="app_intro_skip_button">LEWATI</string>
+</resources>
