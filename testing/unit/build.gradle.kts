@@ -15,6 +15,8 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.itsaky.androidide.build.config.BuildConfig
+
 plugins {
   id("com.android.library")
   kotlin("android")
@@ -34,4 +36,6 @@ dependencies {
   api(projects.buildInfo)
   api(projects.common)
   api(projects.shared)
+
+  api(projects.testing.common)
 }

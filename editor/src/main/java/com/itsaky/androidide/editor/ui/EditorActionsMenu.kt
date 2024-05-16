@@ -43,7 +43,7 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.EditorActionItem
 import com.itsaky.androidide.actions.FillMenuParams
-import com.itsaky.androidide.editor.R.*
+import com.itsaky.androidide.editor.R.layout
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
@@ -69,7 +69,7 @@ import kotlin.math.min
  * @author Akash Yadav
  */
 @SuppressLint("RestrictedApi")
-open class EditorActionsMenu constructor(val editor: IDEEditor) :
+open class EditorActionsMenu(val editor: IDEEditor) :
   AbstractPopupWindow(editor, FEATURE_SHOW_OUTSIDE_VIEW_ALLOWED),
   ActionsRegistry.ActionExecListener,
   MenuBuilder.Callback {

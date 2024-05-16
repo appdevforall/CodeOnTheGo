@@ -20,8 +20,7 @@
 <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License"></p>
 
 <p align="center">
-  <a href="https://androidide.com/docs/">Explore the docs »</a> &nbsp; &nbsp;
-  <a href="https://androidide.com/blogs/">Read our blog »</a>
+  <a href="https://docs.androidide.com/">Explore the docs »</a> &nbsp; &nbsp;
 </p>
 
 <p align="center">
@@ -29,6 +28,8 @@
   <a href="https://github.com/AndroidIDEOfficial/AndroidIDE/issues/new?labels=feature&template=FEATURE.yml&title=%5BFeature%5D%3A+">Request a feature</a> &nbsp; &#8226; &nbsp;
   <a href="https://t.me/androidide_discussions">Join us on Telegram</a>
 </p>
+
+> **We are looking for contributors/maintainers to help keep the project alive and speed up the development. You can help by fixing bugs, implementing & improving features, writing documentation, etc.**
 
 ## Features
 
@@ -113,7 +114,7 @@ Thanks to all the developers who have contributed to this project.
 
 ## Contact Us
 
-- [Website](https://androidide.com)
+- [Website](https://m.androidide.com)
 - [Telegram](https://t.me/androidide_discussions)
 
 ## License

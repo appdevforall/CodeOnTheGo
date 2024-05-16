@@ -55,9 +55,11 @@ captures/
 # Android Studio 3 in .gitignore file.
 .idea/caches
 .idea/modules.xml
+.idea/androidTestResultsUserPreferences.xml
 # Comment next line if keeping position of elements in Navigation Editor is relevant for you
 .idea/navEditor.xml
 .idea/deploymentTargetDropDown.xml
+.idea/studiobot.xml
 
 # Keystore files
 # Uncomment the following lines if you do not want to check your keystore files in.

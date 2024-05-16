@@ -24,16 +24,15 @@ import androidx.activity.viewModels
 import androidx.core.view.isVisible
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.ContributorsGridAdapter
-import com.itsaky.androidide.app.LimitlessIDEActivity
+import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityContributorsBinding
-import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.getConnectionInfo
 import com.itsaky.androidide.viewmodel.ContributorsViewModel
 
 /**
  * @author Akash Yadav
  */
-class ContributorsActivity : LimitlessIDEActivity() {
+class ContributorsActivity : EdgeToEdgeIDEActivity() {
 
   private var _binding: ActivityContributorsBinding? = null
   private val binding: ActivityContributorsBinding
@@ -55,7 +54,7 @@ class ContributorsActivity : LimitlessIDEActivity() {
       setSupportActionBar(toolbar)
       supportActionBar!!.setTitle(R.string.title_contributors)
       supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-      toolbar.setNavigationOnClickListener { finish() }
+      toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 
       githubContributors.apply {
         sectionTitle.setText(R.string.title_github_contributors)

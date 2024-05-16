@@ -36,8 +36,8 @@ class ConfigurationPreferences(
 ) : IPreferenceGroup() {
 
   init {
-    addPreference(GeneralPreferences())
-    addPreference(EditorPreferences())
+    addPreference(GeneralPreferencesScreen())
+    addPreference(EditorPreferencesScreen())
     addPreference(BuildAndRunPreferences())
     addPreference(TermuxPreferences())
   }
@@ -51,7 +51,7 @@ class PrivacyPreferences(
 ) : IPreferenceGroup() {
 
   init {
-    addPreference(StatPreferences())
+    addPreference(StatPreferencesScreen())
   }
 }
 

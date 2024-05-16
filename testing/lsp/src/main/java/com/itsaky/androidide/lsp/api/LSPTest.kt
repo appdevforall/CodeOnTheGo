@@ -27,19 +27,19 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.managers.PreferenceManager
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
-import com.itsaky.androidide.preferences.internal.tabSize
+import com.itsaky.androidide.preferences.internal.EditorPreferences
+import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.testing.tooling.ToolingApiTestLauncher
 import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiServer
-import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
-import com.itsaky.androidide.tooling.testing.ToolingApiTestLauncher
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileProvider
-import com.itsaky.androidide.utils.ILogger
 import io.github.rosemoe.sora.text.Content
 import io.mockk.every
 import io.mockk.mockkStatic
@@ -50,6 +50,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
 
@@ -69,9 +71,10 @@ abstract class LSPTest {
   var file: Path? = null
   var contents: StringBuilder? = null
 
-  protected val log = ILogger.newInstance(javaClass.simpleName)
-
   companion object {
+
+    @JvmStatic
+    protected val log: Logger = LoggerFactory.getLogger(LSPTest::class.java)
 
     @JvmStatic
     protected var isInitialized: Boolean = false
@@ -83,35 +86,37 @@ abstract class LSPTest {
       return
     }
 
-    mockkStatic(::tabSize)
-    every { tabSize } returns 4
+    mockkStatic(::prefManager)
+    every { prefManager } returns PreferenceManager(RuntimeEnvironment.getApplication())
 
-    val (server, project, result) =
-      ToolingApiTestLauncher()
-        .launchServer()
+    mockkStatic(EditorPreferences::tabSize)
+    every { EditorPreferences.tabSize } returns 4
 
-    assertThat(result?.isSuccessful).isTrue()
+    ToolingApiTestLauncher.launchServer {
 
-    this.toolingProject = project
-    this.toolingServer = server
+      assertThat(result?.isSuccessful).isTrue()
 
-    Lookup.getDefault().update(BuildService.KEY_PROJECT_PROXY, project)
+      this@LSPTest.toolingProject = project
+      this@LSPTest.toolingServer = server
 
-    Environment.ANDROID_JAR = FileProvider.resources().resolve("android.jar").toFile()
-    Environment.JAVA_HOME = File(System.getProperty("java.home")!!)
-    registerServer()
+      Lookup.getDefault().update(BuildService.KEY_PROJECT_PROXY, project)
 
-    val projectManager = ProjectManagerImpl.getInstance()
-    projectManager.register()
-    runBlocking { projectManager.setupProject(project) }
+      Environment.ANDROID_JAR = FileProvider.resources().resolve("android.jar").toFile()
+      Environment.JAVA_HOME = File(System.getProperty("java.home")!!)
+      registerServer()
 
-    // We need to manually setup the language server with the project here
-    // ProjectManager.notifyProjectUpdate()
-    ILanguageServerRegistry.getDefault()
-      .getServer(getServerId())!!
-      .setupWithProject(projectManager.rootProject!!)
+      val projectManager = ProjectManagerImpl.getInstance()
+      projectManager.register()
+      runBlocking { projectManager.setupProject(project) }
 
-    isInitialized = true
+      // We need to manually setup the language server with the project here
+      // ProjectManager.notifyProjectUpdate()
+      ILanguageServerRegistry.getDefault()
+        .getServer(getServerId())!!
+        .setupWithProject(projectManager.rootProject!!)
+
+      isInitialized = true
+    }
   }
 
   protected abstract fun registerServer()

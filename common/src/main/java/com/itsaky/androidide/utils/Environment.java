@@ -17,36 +17,25 @@
 package com.itsaky.androidide.utils;
 
 import android.annotation.SuppressLint;
-import android.system.ErrnoException;
-import android.system.Os;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
 import java.io.File;
-import java.io.IOException;
-import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
-import kotlin.io.FilesKt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SuppressLint("SdCardPath")
 public final class Environment {
 
-  public static final Map<String, String> IDE_PROPS = new HashMap<>();
   public static final String PROJECTS_FOLDER = "AndroidIDEProjects";
   public static final String DEFAULT_ROOT = "/data/data/com.itsaky.androidide/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
-  private static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
+  public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
   private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
-  private static final ILogger LOG = ILogger.newInstance("Environment");
-  private static final List<String> blacklist = new ArrayList<>();
+  private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
   public static File ROOT;
   public static File PREFIX;
   public static File HOME;
@@ -58,8 +47,6 @@ public final class Environment {
   public static File BIN_DIR;
   public static File LIB_DIR;
   public static File PROJECTS_DIR;
-  public static File IDE_PROPS_FILE;
-  public static File LIB_HOOK;
 
   /**
    * Used by Java LSP until the project is initialized.
@@ -69,11 +56,10 @@ public final class Environment {
   public static File TOOLING_API_JAR;
 
   public static File INIT_SCRIPT;
-  public static File PROJECT_DATA_FILE;
   public static File GRADLE_USER_HOME;
   public static File AAPT2;
   public static File JAVA;
-  public static File SHELL;
+  public static File BASH_SHELL;
   public static File LOGIN_SHELL;
 
   public static void init() {
@@ -86,36 +72,23 @@ public final class Environment {
     LIB_DIR = mkdirIfNotExits(new File(PREFIX, "lib"));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
     ANDROID_JAR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "android.jar"));
-    TOOLING_API_JAR =
-        new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "tooling-api")), "tooling-api-all.jar");
+    TOOLING_API_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "tooling-api")),
+        "tooling-api-all.jar");
     AAPT2 = new File(ANDROIDIDE_HOME, "aapt2");
     ANDROIDIDE_UI = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "ui"));
-
-    IDE_PROPS_FILE = new File(PREFIX, "etc/ide-environment.properties");
-    LIB_HOOK = new File(LIB_DIR, "libhook.so");
-    PROJECT_DATA_FILE = new File(TMP_DIR, "ide_project");
 
     INIT_SCRIPT = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
     GRADLE_USER_HOME = new File(HOME, ".gradle");
 
-    IDE_PROPS.putAll(readProperties());
-    ANDROID_HOME = new File(readProp("ANDROID_HOME", DEFAULT_ANDROID_HOME));
-    JAVA_HOME = new File(readProp("JAVA_HOME", DEFAULT_JAVA_HOME));
-
-    // If JDK 17 is not installed, check for any JDK in home directory
-    if (!JAVA_HOME.exists()) {
-      final var java_home = new File(HOME, "jdk");
-      if (java_home.exists()) {
-        JAVA_HOME = java_home;
-      }
-    }
+    ANDROID_HOME = new File(DEFAULT_ANDROID_HOME);
+    JAVA_HOME = new File(DEFAULT_JAVA_HOME);
 
     JAVA = new File(JAVA_HOME, "bin/java");
-    SHELL = new File(BIN_DIR, "bash");
+    BASH_SHELL = new File(BIN_DIR, "bash");
     LOGIN_SHELL = new File(BIN_DIR, "login");
 
     setExecutable(JAVA);
-    setExecutable(SHELL);
+    setExecutable(BASH_SHELL);
 
     System.setProperty("user.home", HOME.getAbsolutePath());
   }
@@ -126,48 +99,6 @@ public final class Environment {
     }
 
     return in;
-  }
-
-  @NonNull
-  private static Map<String, String> readProperties() {
-    final Map<String, String> props = new HashMap<>();
-    if (IDE_PROPS_FILE == null || !IDE_PROPS_FILE.exists()) {
-      return props;
-    }
-    try {
-      Properties p = new Properties();
-      p.load(new StringReader(FileIOUtils.readFile2String(IDE_PROPS_FILE)));
-      for (@SuppressWarnings("rawtypes") Map.Entry entry : p.entrySet()) {
-        props.put(String.valueOf(entry.getKey()), String.valueOf(entry.getValue()));
-      }
-    } catch (Throwable th) {
-      LOG.error("Unable to read properties file", th);
-    }
-    return props;
-  }
-
-  public static String readProp(String key, String defaultValue) {
-    String value = IDE_PROPS.getOrDefault(key, defaultValue);
-    if (value == null) {
-      return defaultValue;
-    }
-    if (value.contains("$HOME")) {
-      value = value.replace("$HOME", HOME.getAbsolutePath());
-    }
-    if (value.contains("$SYSROOT")) {
-      value = value.replace("$SYSROOT", PREFIX.getAbsolutePath());
-    }
-    if (value.contains("$PATH")) {
-      value = value.replace("$PATH", createPath());
-    }
-    return value;
-  }
-
-  @NonNull
-  public static String createPath() {
-    String path = BIN_DIR.getAbsolutePath();
-    path += String.format(":%s/cmdline-tools/latest/bin", ANDROID_HOME.getAbsolutePath());
-    return path;
   }
 
   public static void setExecutable(@NonNull final File file) {
@@ -195,23 +126,7 @@ public final class Environment {
     if (!forFailsafe) {
       // No mirror select
       env.put("TERMUX_PKG_NO_MIRROR_SELECT", "true");
-
-      for (String key : IDE_PROPS.keySet()) {
-        if (!blacklistedVariables().contains(key.trim())) {
-          env.put(key, readProp(key, ""));
-        }
-      }
     }
-
-
-  }
-
-  private static List<String> blacklistedVariables() {
-    if (blacklist.isEmpty()) {
-      blacklist.add("HOME");
-      blacklist.add("SYSROOT");
-    }
-    return blacklist;
   }
 
   public static File getProjectCacheDir(File projectDir) {

@@ -254,7 +254,7 @@ class EditorViewModel : ViewModel() {
   fun handleOpenedFilesCacheJobCompletion(it: Job, operation: String) {
     it.invokeOnCompletion { err ->
       if (err != null) {
-        ILogger.instance().error("[EditorViewModel] Failed to $operation opened files cache", err)
+        ILogger.ROOT.error("[EditorViewModel] Failed to {} opened files cache", operation, err)
       }
     }
   }
@@ -270,6 +270,7 @@ class EditorViewModel : ViewModel() {
 
       val gson = GsonBuilder().setPrettyPrinting().create()
       val string = gson.toJson(cache)
+      file.createNewFile()
       file.writeText(string)
     }.also { job ->
       handleOpenedFilesCacheJobCompletion(job, "write")

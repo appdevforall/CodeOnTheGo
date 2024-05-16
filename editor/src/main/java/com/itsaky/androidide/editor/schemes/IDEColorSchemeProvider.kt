@@ -20,17 +20,16 @@ package com.itsaky.androidide.editor.schemes
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.eventbus.events.editor.ColorSchemeInvalidatedEvent
-import com.itsaky.androidide.preferences.internal.DEFAULT_COLOR_SCHEME
-import com.itsaky.androidide.preferences.internal.colorScheme
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileFilter
 import java.util.Properties
@@ -40,7 +39,7 @@ import kotlin.coroutines.CoroutineContext
 /** @author Akash Yadav */
 object IDEColorSchemeProvider {
 
-  private val log = ILogger.newInstance("IDEColorSchemeProvider")
+  private val log = LoggerFactory.getLogger(IDEColorSchemeProvider::class.java)
   private val schemesDir = File(Environment.ANDROIDIDE_UI, "editor/schemes")
 
   private val schemes = ConcurrentHashMap<String, IDEColorScheme>()
@@ -61,7 +60,7 @@ object IDEColorSchemeProvider {
    */
   private var defaultScheme: IDEColorScheme? = null
     get() {
-      return field ?: getColorScheme(DEFAULT_COLOR_SCHEME).also { scheme ->
+      return field ?: getColorScheme(EditorPreferences.DEFAULT_COLOR_SCHEME).also { scheme ->
         field = scheme
         isDefaultSchemeLoaded = scheme != null
       }
@@ -75,7 +74,7 @@ object IDEColorSchemeProvider {
    */
   private var currentScheme: IDEColorScheme? = null
     get() {
-      return field ?: getColorScheme(colorScheme).also { scheme ->
+      return field ?: getColorScheme(EditorPreferences.colorScheme).also { scheme ->
         field = scheme
         isCurrentSchemeLoaded = scheme != null
       }
@@ -99,7 +98,8 @@ object IDEColorSchemeProvider {
       scheme.darkVariant?.load()
       scheme
     } catch (err: Exception) {
-      log.error("An error occurred while loading color scheme '$colorScheme'", err)
+      log.error("An error occurred while loading color scheme '{}'", EditorPreferences.colorScheme,
+        err)
       null
     }
   }
@@ -126,7 +126,7 @@ object IDEColorSchemeProvider {
             Properties().apply { load(reader) }
           }
         } catch (err: Exception) {
-          log.error("Failed to read properties for scheme '${schemeDir.name}'")
+          log.error("Failed to read properties for scheme '{}'", schemeDir.name)
           continue
         }
 
@@ -143,7 +143,7 @@ object IDEColorSchemeProvider {
           }
 
       if (version <= 0) {
-        log.warn("Version code of color scheme '$schemeDir' must be set to >= 1")
+        log.warn("Version code of color scheme '{}' must be set to >= 1", schemeDir)
       }
 
       if (file.isBlank()) {
@@ -258,7 +258,7 @@ object IDEColorSchemeProvider {
 
     return currentScheme?.let { scheme ->
       return@let if (scheme.getLanguageScheme(type) == null) {
-        log.warn("Color scheme '${scheme.name}' does not support '$type'")
+        log.warn("Color scheme '{}' does not support '{}'", scheme.name, type)
         log.warn("Falling back to default color scheme")
         null
       } else {

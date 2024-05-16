@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.services.builder
 
+import ch.qos.logback.core.CoreConstants
 import com.itsaky.androidide.shell.executeProcessAsync
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
@@ -25,7 +26,6 @@ import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.ILogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -59,7 +60,7 @@ internal class ToolingServerRunner(
 
   companion object {
 
-    private val log = ILogger.newInstance("ToolingServerRunner")
+    private val log = LoggerFactory.getLogger(ToolingServerRunner::class.java)
   }
 
   fun setListener(listener: OnServerStartListener?) {
@@ -89,6 +90,7 @@ internal class ToolingServerRunner(
         "--add-opens", "java.base/java.lang=ALL-UNNAMED", "--add-opens",
         "java.base/java.util=ALL-UNNAMED", "--add-opens",
         "java.base/java.io=ALL-UNNAMED", // The JAR file to run
+        "-D${CoreConstants.STATUS_LISTENER_CLASS_KEY}=com.itsaky.androidide.tooling.impl.util.LogbackStatusListener",
         "-jar", Environment.TOOLING_API_JAR.absolutePath
       )
 
@@ -109,7 +111,7 @@ internal class ToolingServerRunner(
       val processJob = launch(Dispatchers.IO) {
         try {
           process?.waitFor()
-          log.info("Tooling API process exited with code : ${process?.exitValue() ?: "<unknown>"}")
+          log.info("Tooling API process exited with code : {}", process?.exitValue() ?: "<unknown>")
           process = null
         } finally {
           log.info("Destroying Tooling API process...")

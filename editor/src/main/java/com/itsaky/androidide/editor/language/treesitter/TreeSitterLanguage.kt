@@ -25,18 +25,15 @@ import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.LanguageScheme
 import com.itsaky.androidide.editor.schemes.LanguageSpecProvider.getLanguageSpec
 import com.itsaky.androidide.editor.schemes.LocalCaptureSpecProvider.newLocalCaptureSpec
+import com.itsaky.androidide.editor.utils.isNonBlankLine
 import com.itsaky.androidide.treesitter.TSLanguage
-import com.itsaky.androidide.treesitter.TSParser
-import com.itsaky.androidide.treesitter.TSQueryCapture
-import com.itsaky.androidide.treesitter.TSQueryCursor
-import com.itsaky.androidide.treesitter.TSQueryMatch
-import com.itsaky.androidide.utils.ILogger
+import com.itsaky.androidide.utils.IntPair
 import io.github.rosemoe.sora.editor.ts.TsTheme
 import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_STRONG
 import io.github.rosemoe.sora.lang.analysis.AnalyzeManager
 import io.github.rosemoe.sora.text.ContentReference
-import io.github.rosemoe.sora.text.TextUtils
 import io.github.rosemoe.sora.widget.SymbolPairMatch
+import org.slf4j.LoggerFactory
 
 /**
  * Tree Sitter language implementation.
@@ -51,10 +48,30 @@ abstract class TreeSitterLanguage(
 
   private lateinit var tsTheme: TsTheme
   private lateinit var languageSpec: TreeSitterLanguageSpec
+  private lateinit var _indentProvider: TreeSitterIndentProvider
   private val analyzer by lazy { TreeSitterAnalyzeManager(languageSpec.spec, tsTheme) }
   private val newlineHandlersLazy by lazy { createNewlineHandlers() }
 
   private var languageScheme: LanguageScheme? = null
+
+  private val indentProvider: TreeSitterIndentProvider
+    get() {
+      if (!this::_indentProvider.isInitialized) {
+        this._indentProvider = TreeSitterIndentProvider(
+          languageSpec,
+          analyzer.analyzeWorker!!,
+          getTabSize()
+        )
+      }
+
+      return _indentProvider
+    }
+
+  companion object {
+
+    private val log = LoggerFactory.getLogger(TreeSitterLanguage::class.java)
+    private const val DEF_IDENT_ADV = 0
+  }
 
   init {
     this.languageSpec = getLanguageSpec(context, langType, lang, newLocalCaptureSpec(langType))
@@ -66,10 +83,6 @@ abstract class TreeSitterLanguage(
     this.languageScheme = langScheme
     this.analyzer.langScheme = languageScheme
     langScheme?.styles?.forEach { tsTheme.putStyleRule(it.key, it.value.makeStyle()) }
-  }
-
-  open fun finalizeIndent(indent: Int): Int {
-    return indent * getTabSize()
   }
 
   override fun getAnalyzeManager(): AnalyzeManager {
@@ -92,58 +105,57 @@ abstract class TreeSitterLanguage(
     return INTERRUPTION_LEVEL_STRONG
   }
 
-  override fun getIndentAdvance(content: ContentReference, line: Int, column: Int): Int {
-    return computeIndent(
-      content.toString(),
-      line,
-      column,
-      decrementBy = TextUtils.countLeadingSpaceCount(content.getLine(line), getTabSize())
-    )
-  }
-
-  protected open fun computeIndent(
-    content: String,
+  override fun getIndentAdvance(
+    content: ContentReference,
     line: Int,
     column: Int,
-    decrementBy: Int = 0
+    spaceCountOnLine: Int,
+    tabCountOnLine: Int
   ): Int {
-    val indentsQuery = languageSpec.indentsQuery ?: return 0
-    return TSParser.create().use { parser ->
-      parser.language = languageSpec.language
-      return@use parser.parseString(content).use { tree ->
-        TSQueryCursor.create().use { cursor ->
-          cursor.exec(indentsQuery, tree.rootNode)
-
-          var indent = 0
-          var match: TSQueryMatch? = cursor.nextMatch()
-          val captures = mutableListOf<TSQueryCapture>()
-          while (match != null) {
-            captures.addAll(match.captures)
-            match = cursor.nextMatch()
-          }
-
-          captures.sortBy { it.node.startByte }
-
-          for (capture in captures) {
-            val capLine = capture.node.startPoint.row
-            val capCol = capture.node.endPoint.column / 2
-
-            if (capLine > line || (capLine == line && capCol > column)) {
-              break
-            }
-
-            val captureName = indentsQuery.getCaptureNameForId(capture.index)
-            if (captureName == "indent") {
-              ++indent
-            } else if (captureName == "outdent") {
-              --indent
-            }
-          }
-
-          finalizeIndent(indent) - decrementBy
-        }
+    return try {
+      if (line == content.reference.lineCount - 1) {
+        // line + 1 does not exist
+        // TODO(itsaky): Update this implementation when this behavior is fixed in sora-editor
+        return DEF_IDENT_ADV
       }
+
+      var linesToReq = LongArray(1)
+      linesToReq[0] = IntPair.pack(line, column)
+
+      if (content.reference.isNonBlankLine(line + 1)) {
+        // consider the indentation of the next line only if it is non-blank
+        linesToReq += IntPair.pack(line + 1, 0)
+      }
+
+      val indents = this.indentProvider.getIndentsForLines(
+        content = content.reference,
+        positions = linesToReq,
+      )
+
+      if (indents.size == 1) {
+        val indent = indents[0]
+        if (indent == TreeSitterIndentProvider.INDENTATION_ERR) {
+          return DEF_IDENT_ADV
+        }
+
+        return indent - (spaceCountOnLine + (tabCountOnLine * getTabSize()))
+      }
+
+      val (indentLine, indentNxtLine) = indents
+      if (indentLine == TreeSitterIndentProvider.INDENTATION_ERR
+        || indentNxtLine == TreeSitterIndentProvider.INDENTATION_ERR) {
+        log.debug(
+          "expectedIndent[{}]={}, expectedIndentNextLine[{}]={}, returning default indent advance",
+          line, indentLine, line + 1, indentNxtLine)
+        return DEF_IDENT_ADV
+      }
+
+      return indentNxtLine - indentLine
+    } catch (e: Exception) {
+      log.error("An error occurred computing indentation at line:column::{}:{}", line, column, e)
+      DEF_IDENT_ADV
     }
+
   }
 
   override fun destroy() {

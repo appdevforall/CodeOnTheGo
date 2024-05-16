@@ -14,43 +14,39 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import com.termux.R;
 import com.termux.app.event.SystemEventReceiver;
 import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
 import com.termux.app.terminal.TermuxTerminalSessionServiceClient;
-import com.termux.shared.termux.plugins.TermuxPluginUtils;
-import com.termux.shared.data.IntentUtils;
-import com.termux.shared.net.uri.UriUtils;
-import com.termux.shared.errors.Errno;
-import com.termux.shared.shell.ShellUtils;
-import com.termux.shared.shell.command.runner.app.AppShell;
-import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
-import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment;
-import com.termux.shared.termux.shell.TermuxShellUtils;
-import com.termux.shared.termux.TermuxConstants;
-import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY;
-import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_SERVICE;
-import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
-import com.termux.shared.termux.shell.TermuxShellManager;
-import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
-import com.termux.shared.termux.terminal.TermuxTerminalSessionClientBase;
-import com.termux.shared.logger.Logger;
-import com.termux.shared.notification.NotificationUtils;
 import com.termux.shared.android.PermissionUtils;
 import com.termux.shared.data.DataUtils;
+import com.termux.shared.data.IntentUtils;
+import com.termux.shared.errors.Errno;
+import com.termux.shared.logger.Logger;
+import com.termux.shared.net.uri.UriUtils;
+import com.termux.shared.notification.NotificationUtils;
+import com.termux.shared.shell.ShellUtils;
 import com.termux.shared.shell.command.ExecutionCommand;
 import com.termux.shared.shell.command.ExecutionCommand.Runner;
 import com.termux.shared.shell.command.ExecutionCommand.ShellCreateMode;
+import com.termux.shared.shell.command.runner.app.AppShell;
+import com.termux.shared.termux.TermuxConstants;
+import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY;
+import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_SERVICE;
+import com.termux.shared.termux.plugins.TermuxPluginUtils;
+import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
+import com.termux.shared.termux.shell.TermuxShellManager;
+import com.termux.shared.termux.shell.TermuxShellUtils;
+import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment;
+import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
+import com.termux.shared.termux.terminal.TermuxTerminalSessionClientBase;
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
-
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -384,7 +380,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
 
         // If EXTRA_RUNNER is passed, use that, otherwise check EXTRA_BACKGROUND and default to Runner.TERMINAL_SESSION
         executionCommand.runner = IntentUtils.getStringExtraIfSet(intent, TERMUX_SERVICE.EXTRA_RUNNER,
-            (intent.getBooleanExtra(TERMUX_SERVICE.EXTRA_BACKGROUND, false) ? Runner.APP_SHELL.getName() : Runner.TERMINAL_SESSION.getName()));
+            (intent.getBooleanExtra(TERMUX_SERVICE.EXTRA_BACKGROUND, false) ? Runner.APP_SHELL.getRunnerName() : Runner.TERMINAL_SESSION.getRunnerName()));
         if (Runner.runnerOf(executionCommand.runner) == null) {
             String errmsg = this.getString(R.string.error_termux_service_invalid_execution_command_runner, executionCommand.runner);
             executionCommand.setStateFailed(Errno.ERRNO_FAILED.getCode(), errmsg);
@@ -472,7 +468,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     @Nullable
     public AppShell createTermuxTask(String executablePath, String[] arguments, String stdin, String workingDirectory) {
         return createTermuxTask(new ExecutionCommand(TermuxShellManager.getNextShellId(), executablePath,
-            arguments, stdin, workingDirectory, Runner.APP_SHELL.getName(), false));
+            arguments, stdin, workingDirectory, Runner.APP_SHELL.getRunnerName(), false));
     }
 
     /** Create a TermuxTask. */
@@ -580,7 +576,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     public TermuxSession createTermuxSession(String executablePath, String[] arguments, String stdin,
         String workingDirectory, boolean isFailSafe, String sessionName) {
         ExecutionCommand executionCommand = new ExecutionCommand(TermuxShellManager.getNextShellId(),
-            executablePath, arguments, stdin, workingDirectory, Runner.TERMINAL_SESSION.getName(), isFailSafe);
+            executablePath, arguments, stdin, workingDirectory, Runner.TERMINAL_SESSION.getRunnerName(), isFailSafe);
         executionCommand.shellName = sessionName;
         return createTermuxSession(executionCommand);
     }

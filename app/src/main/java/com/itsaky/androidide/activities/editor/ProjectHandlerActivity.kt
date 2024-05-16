@@ -38,8 +38,7 @@ import com.itsaky.androidide.handlers.LspHandler.destroyLanguageServers
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
-import com.itsaky.androidide.preferences.internal.NO_OPENED_PROJECT
-import com.itsaky.androidide.preferences.internal.lastOpenedProject
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.GradleProject
 import com.itsaky.androidide.projects.builder.BuildService
@@ -204,9 +203,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
       } catch (err: Throwable) {
         log.error("Unable to unbind service")
       } finally {
-        (Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService?)
-          ?.setEventListener(null)
-        Lookup.getDefault().unregister(BuildService.KEY_BUILD_SERVICE)
+        Lookup.getDefault().apply {
+
+          (lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService?)
+            ?.setEventListener(null)
+
+          unregister(BuildService.KEY_BUILD_SERVICE)
+        }
+
+        mBuildEventListener.release()
         editorViewModel.isBoundToBuildSerice = false
       }
     }
@@ -230,7 +235,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
   private fun notifySyncNeeded(onConfirm: () -> Unit) {
     val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-    if (buildService == null || buildService.isBuildInProgress) return
+    if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return
 
     this.syncNotificationFlashbar?.dismiss()
 
@@ -328,7 +333,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
       newSelections.putAll(buildVariantsViewModel.updatedBuildVariants)
       initializeProject {
         newSelections.mapToSelectedVariants().also {
-          log.debug("Initializing project with new build variant selections: $it")
+          log.debug("Initializing project with new build variant selections: {}", it)
         }
       }
       return
@@ -357,7 +362,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     val initialized = manager.projectInitialized && manager.cachedInitResult != null
-    log.debug("Is project initialized: $initialized")
+    log.debug("Is project initialized: {}", initialized)
     // When returning after a configuration change between the initialization process,
     // we do not want to start another project initialization
     if (isFromSavedInstance && initialized && !shouldInitialize) {
@@ -489,7 +494,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
       val initFailed = getString(string.msg_project_initialization_failed)
       setStatus(initFailed)
 
-      val msg = when(failure) {
+      val msg = when (failure) {
         PROJECT_DIRECTORY_INACCESSIBLE -> string.msg_project_dir_inaccessible
         PROJECT_NOT_DIRECTORY -> string.msg_file_is_not_dir
         PROJECT_NOT_FOUND -> string.msg_project_dir_doesnt_exist
@@ -628,7 +633,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
   private fun initialSetup() {
     val manager = ProjectManagerImpl.getInstance()
-    lastOpenedProject = manager.projectDirPath
+    GeneralPreferences.lastOpenedProject = manager.projectDirPath
     try {
       val project = manager.rootProject
       if (project == null) {
@@ -656,7 +661,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
       saveOpenedFiles()
 
       // reset the lastOpenedProject if the user explicitly chose to close the project
-      lastOpenedProject = NO_OPENED_PROJECT
+      GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
     }
 
     // Make sure we close files

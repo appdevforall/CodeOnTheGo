@@ -21,16 +21,15 @@ import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.ui.IDECompletionPublisher
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.ILanguageServer
-import com.itsaky.androidide.preferences.internal.tabSize
-import com.itsaky.androidide.preferences.internal.useSoftTab
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.progress.ICancelChecker
-import com.itsaky.androidide.utils.ILogger
 import io.github.rosemoe.sora.lang.Language
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher
 import io.github.rosemoe.sora.lang.format.Formatter
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
+import org.slf4j.LoggerFactory
 import java.nio.file.Paths
 
 /**
@@ -46,7 +45,7 @@ abstract class IDELanguage : Language {
     get() = null
 
   open fun getTabSize(): Int {
-    return tabSize
+    return EditorPreferences.tabSize
   }
 
   @Throws(CompletionCancelledException::class)
@@ -76,13 +75,14 @@ abstract class IDELanguage : Language {
     val server = languageServer ?: return
     val path = extraArguments.getString(IEditor.KEY_FILE, null)
     if (path == null) {
-      LOG.warn("Cannot provide completions. No file provided.")
+      log.warn("Cannot provide completions. No file provided.")
       return
     }
 
     val completionProvider = CommonCompletionProvider(server, cancelChecker)
     val file = Paths.get(path)
-    val completionItems = completionProvider.complete(content, file, position) { checkIsCompletionChar(it) }
+    val completionItems = completionProvider.complete(content, file,
+      position) { checkIsCompletionChar(it) }
     publisher.setUpdateThreshold(1)
     (publisher as IDECompletionPublisher).addLSPItems(completionItems)
   }
@@ -98,15 +98,18 @@ abstract class IDELanguage : Language {
   }
 
   override fun useTab(): Boolean {
-    return !useSoftTab
+    return !EditorPreferences.useSoftTab
   }
 
   override fun getFormatter(): Formatter {
     return formatter ?: LSPFormatter(languageServer).also { formatter = it }
   }
 
-  override fun getIndentAdvance(content: ContentReference, line: Int,
-    column: Int): Int {
+  override fun getIndentAdvance(
+    content: ContentReference,
+    line: Int,
+    column: Int
+  ): Int {
     return getIndentAdvance(content.getLine(line).substring(0, column))
   }
 
@@ -116,6 +119,6 @@ abstract class IDELanguage : Language {
 
   companion object {
 
-    private val LOG = ILogger.newInstance("IDELanguage")
+    private val log = LoggerFactory.getLogger(IDELanguage::class.java)
   }
 }

@@ -47,13 +47,9 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.preferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS
-import com.itsaky.androidide.preferences.dumpLogs
-import com.itsaky.androidide.preferences.internal.SELECTED_LOCALE
-import com.itsaky.androidide.preferences.internal.STAT_OPT_IN
-import com.itsaky.androidide.preferences.internal.UI_MODE
-import com.itsaky.androidide.preferences.internal.statOptIn
-import com.itsaky.androidide.preferences.internal.uiMode
+import com.itsaky.androidide.preferences.internal.DevOpsPreferences
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.stats.AndroidIDEStats
 import com.itsaky.androidide.stats.StatUploadWorker
@@ -62,8 +58,6 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
-import com.itsaky.androidide.ui.themes.ThemeManager
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
@@ -72,16 +66,15 @@ import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import java.time.Duration
-import java.util.Locale
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
 
   private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
   private var ideLogcatReader: IDELogcatReader? = null
-  private val log = ILogger.newInstance("IDEApplication")
 
   init {
     if (!VMUtils.isJvm()) {
@@ -100,10 +93,9 @@ class IDEApplication : TermuxApplication() {
 
     if (BuildConfig.DEBUG) {
       StrictMode.setVmPolicy(
-        StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll().build()
-      )
+        StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll().build())
 
-      if (dumpLogs) {
+      if (DevOpsPreferences.dumpLogs) {
         startLogcatReader()
       }
 
@@ -111,17 +103,13 @@ class IDEApplication : TermuxApplication() {
 
     }
 
-    EventBus.builder()
-      .addIndex(AppEventsIndex())
-      .addIndex(EditorEventsIndex())
-      .addIndex(ProjectsApiEventsIndex())
-      .addIndex(LspApiEventsIndex())
-      .addIndex(LspJavaEventsIndex())
-      .installDefaultEventBus(true)
+    EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
+      .addIndex(ProjectsApiEventsIndex()).addIndex(LspApiEventsIndex())
+      .addIndex(LspJavaEventsIndex()).installDefaultEventBus(true)
 
     EventBus.getDefault().register(this)
 
-    AppCompatDelegate.setDefaultNightMode(uiMode)
+    AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
     if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
       DynamicColors.applyToActivitiesIfAvailable(this)
@@ -148,7 +136,7 @@ class IDEApplication : TermuxApplication() {
 
       exitProcess(1)
     } catch (error: Throwable) {
-      LOG.error("Unable to show crash handler activity", error)
+      log.error("Unable to show crash handler activity", error)
     }
   }
 
@@ -163,36 +151,33 @@ class IDEApplication : TermuxApplication() {
     try {
       startActivity(intent)
     } catch (th: Throwable) {
-      LOG.error("Unable to start activity to show changelog", th)
+      log.error("Unable to start activity to show changelog", th)
       flashError("Unable to start activity")
     }
   }
 
   fun reportStatsIfNecessary() {
 
-    if (!statOptIn) {
+    if (!StatPreferences.statOptIn) {
       log.info("Stat collection is disabled.")
       return
     }
 
     val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-    val request = PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24))
-      .setInputData(AndroidIDEStats.statData.toInputData())
-      .setConstraints(constraints)
-      .addTag(StatUploadWorker.WORKER_WORK_NAME)
-      .build()
+    val request = PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24)).setInputData(
+      AndroidIDEStats.statData.toInputData()).setConstraints(constraints)
+      .addTag(StatUploadWorker.WORKER_WORK_NAME).build()
 
     val workManager = WorkManager.getInstance(this)
 
     log.info("reportStatsIfNecessary: Enqueuing StatUploadWorker...")
-    val operation = workManager
-      .enqueueUniquePeriodicWork(StatUploadWorker.WORKER_WORK_NAME,
-        ExistingPeriodicWorkPolicy.UPDATE, request)
+    val operation = workManager.enqueueUniquePeriodicWork(StatUploadWorker.WORKER_WORK_NAME,
+      ExistingPeriodicWorkPolicy.UPDATE, request)
 
     operation.state.observeForever(object : Observer<Operation.State> {
-      override fun onChanged(t: Operation.State) {
+      override fun onChanged(value: Operation.State) {
         operation.state.removeObserver(this)
-        log.debug("reportStatsIfNecessary: WorkManager enqueue result: $t")
+        log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
       }
     })
   }
@@ -216,24 +201,24 @@ class IDEApplication : TermuxApplication() {
   @Subscribe(threadMode = ThreadMode.MAIN)
   fun onPrefChanged(event: PreferenceChangeEvent) {
     val enabled = event.value as? Boolean?
-    if (event.key == STAT_OPT_IN) {
+    if (event.key == StatPreferences.STAT_OPT_IN) {
       if (enabled == true) {
         reportStatsIfNecessary()
       } else {
         cancelStatUploadWorker()
       }
-    } else if (event.key == KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+    } else if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
       if (enabled == true) {
         startLogcatReader()
       } else {
         stopLogcatReader()
       }
-    } else if (event.key == UI_MODE && uiMode != AppCompatDelegate.getDefaultNightMode()) {
-      AppCompatDelegate.setDefaultNightMode(uiMode)
-    } else if (event.key == SELECTED_LOCALE) {
+    } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
+      AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+    } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
 
       // Use empty locale list if the locale has been reset to 'System Default'
-      val selectedLocale = com.itsaky.androidide.preferences.internal.selectedLocale
+      val selectedLocale = GeneralPreferences.selectedLocale
       val localeListCompat = selectedLocale?.let {
         LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
       } ?: LocaleListCompat.getEmptyLocaleList()
@@ -247,9 +232,9 @@ class IDEApplication : TermuxApplication() {
     val operation = WorkManager.getInstance(this)
       .cancelUniqueWork(StatUploadWorker.WORKER_WORK_NAME)
     operation.state.observeForever(object : Observer<Operation.State> {
-      override fun onChanged(t: Operation.State) {
+      override fun onChanged(value: Operation.State) {
         operation.state.removeObserver(this)
-        log.info("StatUploadWorker: Cancellation result state: $t")
+        log.info("StatUploadWorker: Cancellation result state: {}", value)
       }
     })
   }
@@ -271,7 +256,7 @@ class IDEApplication : TermuxApplication() {
   }
   companion object {
 
-    private val LOG = ILogger.newInstance("IDEApplication")
+    private val log = LoggerFactory.getLogger(IDEApplication::class.java)
 
     @JvmStatic
     lateinit var instance: IDEApplication

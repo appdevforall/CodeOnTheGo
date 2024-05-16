@@ -21,6 +21,7 @@ import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.ui.IDEEditor.Companion.log
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
+import io.github.rosemoe.sora.widget.SelectionMovement
 import java.io.File
 
 /**
@@ -45,11 +46,22 @@ class EditorFeatures(
   override fun setSelection(start: Position, end: Position) {
     withEditor {
       if (!isValidPosition(start, true) || !isValidPosition(end, true)) {
-        log.warn("Invalid selection range: start=$start end=$end")
+        log.warn("Invalid selection range: start={} end={}", start, end)
         return@withEditor
       }
 
       setSelectionRegion(start.line, start.column, end.line, end.column)
+    }
+  }
+
+  override fun setSelectionAround(line: Int, column: Int) {
+    withEditor {
+      if (line < lineCount) {
+        val columnCount = text.getColumnCount(line)
+        setSelection(line, if (column > columnCount) columnCount else column)
+      } else {
+        setSelection(lineCount - 1, text.getColumnCount(lineCount - 1))
+      }
     }
   }
 
@@ -134,8 +146,7 @@ class EditorFeatures(
 
   override fun goToEnd() {
     withEditor {
-      val line = text.lineCount - 1
-      setSelection(line, 0)
+      moveSelection(SelectionMovement.TEXT_END)
     }
   }
 

@@ -63,8 +63,7 @@ import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
-import com.itsaky.androidide.preferences.internal.tabSize
-import com.itsaky.androidide.preferences.internal.visiblePasswordFlag
+import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.syntax.colorschemes.DynamicColorScheme
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
@@ -72,7 +71,6 @@ import com.itsaky.androidide.tasks.JobCancelChecker
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.utils.DocumentUtils
-import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
@@ -95,6 +93,7 @@ import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -102,10 +101,13 @@ import java.io.File
  *
  * @author Akash Yadav
  */
-open class IDEEditor @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null,
-  defStyleAttr: Int = 0, defStyleRes: Int = 0,
-  private val editorFeatures: EditorFeatures = EditorFeatures()) :
-  CodeEditor(context, attrs, defStyleAttr, defStyleRes), IEditor by editorFeatures, ILspEditor {
+open class IDEEditor @JvmOverloads constructor(
+  context: Context,
+  attrs: AttributeSet? = null,
+  defStyleAttr: Int = 0,
+  defStyleRes: Int = 0,
+  private val editorFeatures: EditorFeatures = EditorFeatures()
+) : CodeEditor(context, attrs, defStyleAttr, defStyleRes), IEditor by editorFeatures, ILspEditor {
 
   @Suppress("PropertyName")
   internal var _file: File? = null
@@ -177,14 +179,14 @@ open class IDEEditor @JvmOverloads constructor(context: Context, attrs: Attribut
 
     private const val SELECTION_CHANGE_DELAY = 500L
 
-    internal val log = ILogger.newInstance("IDEEditor")
+    internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
 
     /**
      * Create input type flags for the editor.
      */
     fun createInputTypeFlags(): Int {
       var flags = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-      if (visiblePasswordFlag) {
+      if (EditorPreferences.visiblePasswordFlag) {
         flags = flags or EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
       }
       return flags
@@ -435,7 +437,7 @@ open class IDEEditor @JvmOverloads constructor(context: Context, attrs: Attribut
   }
 
   override fun getTabWidth(): Int {
-    return tabSize
+    return EditorPreferences.tabSize
   }
 
   override fun beginSearchMode() {
@@ -596,7 +598,7 @@ open class IDEEditor @JvmOverloads constructor(context: Context, attrs: Attribut
       language.setupWith(finalScheme)
 
       if (finalScheme.getLanguageScheme(type) == null) {
-        log.warn("Color scheme does not support file type '$type'")
+        log.warn("Color scheme does not support file type '{}'", type)
         finalScheme = SchemeAndroidIDE.newInstance(context)
       }
     }
@@ -626,7 +628,7 @@ open class IDEEditor @JvmOverloads constructor(context: Context, attrs: Attribut
       }.also { job ->
         job.invokeOnCompletion { err ->
           if (err != null) {
-            log.error("Failed to setup tree sitter language for file: $file", err)
+            log.error("Failed to setup tree sitter language for file: {}", file, err)
           }
 
           setupTsLanguageJob = null
@@ -888,7 +890,7 @@ open class IDEEditor @JvmOverloads constructor(context: Context, attrs: Attribut
       }
   }
 
-  private inline fun <T> safeGet(name: String, action: () -> T) : T? {
+  private inline fun <T> safeGet(name: String, action: () -> T): T? {
     return try {
       action()
     } catch (err: Throwable) {
@@ -897,16 +899,20 @@ open class IDEEditor @JvmOverloads constructor(context: Context, attrs: Attribut
     }
   }
 
-  private fun Job.logError(action: String) : Job = apply {
+  private fun Job.logError(action: String): Job = apply {
     invokeOnCompletion { err -> logError(err, action) }
   }
 
   private fun logError(err: Throwable?, action: String) {
     err ?: return
     if (CancelChecker.isCancelled(err)) {
-      log.warn("$action has been cancelled")
+      log.warn("{} has been cancelled", action)
     } else {
-      log.error("$action failed")
+      log.error("{} failed", action)
     }
+  }
+
+  override fun setSelectionAround(line: Int, column: Int) {
+    editorFeatures.setSelectionAround(line, column)
   }
 }
