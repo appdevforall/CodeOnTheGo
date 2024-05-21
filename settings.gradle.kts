@@ -77,6 +77,7 @@ dependencyResolutionManagement {
 buildscript {
   repositories {
     mavenCentral()
+
   }
   dependencies {
     classpath("com.mooltiverse.oss.nyx:gradle:2.5.2")
@@ -136,8 +137,6 @@ include(
   ":lsp:models",
   ":lsp:java",
   ":lsp:xml",
-  ":layouteditor",
-  ":vectormaster",
   ":subprojects:aaptcompiler",
   ":subprojects:builder-model-impl",
   ":subprojects:flashbar",
