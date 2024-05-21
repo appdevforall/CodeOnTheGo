@@ -279,7 +279,7 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
 
   companion object {
 
-    // Should be same as defined in layout/activity_editor.xml
+    // Should be same as defined in layout/activity_layouteditor.xml
     const val TAG = "editor.fileTree"
 
     @JvmStatic

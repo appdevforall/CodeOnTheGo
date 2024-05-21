@@ -40,7 +40,7 @@ class CompilerTest {
   @Test
   fun `test simple compilatation`() {
     val input =
-      FileProvider.projectRoot().resolve("app/src/main/res/layout/activity_editor.xml").toFile()
+      FileProvider.projectRoot().resolve("app/src/main/res/layout/activity_layouteditor.xml").toFile()
     val output = Paths.get("./build").absolute().normalize().toFile()
     println(input)
     println(output)
@@ -53,7 +53,7 @@ class CompilerTest {
   @Test
   fun `test xml processor`() {
     val input =
-      Paths.get(".", "src/test/resources/layout/activity_editor.xml").absolute().normalize().toFile()
+      Paths.get(".", "src/test/resources/layout/activity_layouteditor.xml").absolute().normalize().toFile()
     val pathData = extractPathData(input, input.absolutePath)
     val resFile = ResourceFile(
       ResourceName("", pathData.type!!, pathData.name),
