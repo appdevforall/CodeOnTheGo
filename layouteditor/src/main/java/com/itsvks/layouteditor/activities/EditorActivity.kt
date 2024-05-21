@@ -39,7 +39,7 @@ import com.itsvks.layouteditor.R
 import com.itsvks.layouteditor.R.string
 import com.itsvks.layouteditor.adapters.LayoutListAdapter
 import com.itsvks.layouteditor.adapters.PaletteListAdapter
-import com.itsvks.layouteditor.databinding.ActivityEditorBinding
+import com.itsvks.layouteditor.databinding.ActivityLayouteditorBinding
 import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
 import com.itsvks.layouteditor.editor.DesignEditor
 import com.itsvks.layouteditor.editor.DeviceConfiguration
@@ -64,7 +64,7 @@ import java.io.File
 
 @SuppressLint("UnsafeOptInUsageError")
 class EditorActivity : BaseActivity() {
-  private lateinit var binding: ActivityEditorBinding
+  private lateinit var binding: ActivityLayouteditorBinding
 
   private lateinit var drawerLayout: DrawerLayout
   private var actionBarDrawerToggle: ActionBarDrawerToggle? = null
@@ -101,7 +101,7 @@ class EditorActivity : BaseActivity() {
   }
 
   private fun init() {
-    binding = ActivityEditorBinding.inflate(layoutInflater)
+    binding = ActivityLayouteditorBinding.inflate(layoutInflater)
 
     setContentView(binding.root)
     setSupportActionBar(binding.topAppBar)
@@ -454,9 +454,9 @@ class EditorActivity : BaseActivity() {
       .show()
   }
 
-  private fun setToolbarButtonOnClickListener(binding: ActivityEditorBinding) {
+  private fun setToolbarButtonOnClickListener(binding: ActivityLayouteditorBinding) {
     TooltipCompat.setTooltipText(binding.viewType, "View Type")
-    TooltipCompat.setTooltipText(binding.deviceSize1, "Size")
+    TooltipCompat.setTooltipText(binding.deviceSize, "Size")
     binding.viewType.setOnClickListener { view ->
       val popupMenu = PopupMenu(view.context, view)
       popupMenu.inflate(R.menu.menu_view_type)
@@ -475,7 +475,7 @@ class EditorActivity : BaseActivity() {
       }
       popupMenu.show()
     }
-    binding.deviceSize1.setOnClickListener {
+    binding.deviceSize.setOnClickListener {
       val popupMenu = PopupMenu(it.context, it)
       popupMenu.inflate(R.menu.menu_device_size)
       popupMenu.setOnMenuItemClickListener { item ->
