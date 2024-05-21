@@ -33,14 +33,14 @@
           android:src="@drawable/cellphone_screenshot"
           android:layout_alignParentEnd="true"
           android:layout_marginEnd="5dp"
-          android:id="@+id/device_size1"
+          android:id="@+id/device_size"
           android:layout_centerVertical="true"
           tools:ignore="ContentDescription" />
 
         <ImageView
           style="@style/ToolbarButtonStyle"
           android:src="@drawable/view_type"
-          android:layout_toStartOf="@id/device_size1"
+          android:layout_toStartOf="@id/device_size"
           android:layout_centerVertical="true"
           android:layout_marginEnd="5dp"
           android:id="@+id/view_type"
