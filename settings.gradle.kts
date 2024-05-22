@@ -158,7 +158,12 @@ include(
   ":testing:lsp",
   ":testing:tooling",
   ":testing:unit",
+  ":layouteditor:app",
+  ":layouteditor:vectormaster",
 )
+
+project(":layouteditor:app").name = "layouteditor-app"
+project(":layouteditor:vectormaster").name = "vectormaster"
 
 object FDroidConfig {
 
