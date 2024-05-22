@@ -1,0 +1,4 @@
+[submodule "LayoutEditor"]
+	path = LayoutEditor
+	url = https://github.com/yaturner/LayoutEditor.git
+	branch = modular_root_main
