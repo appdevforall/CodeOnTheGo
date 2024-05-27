@@ -107,7 +107,9 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
   private fun EditorHandlerActivity.previewLayout(file: File) {
 //    val intent = Intent(this, UIDesignerActivity::class.java)
     val intent = Intent(this, EditorActivity::class.java)
-    intent.putExtra(UIDesignerActivity.EXTRA_FILE, file.absolutePath)
+    //todo fix with normal key and path for both extras
+    intent.putExtra("file_key", file.absolutePath.substringBefore("layout"))
+    intent.putExtra("file_name_key", "activity_main.xml")
     uiDesignerResultLauncher?.launch(intent)
   }
 
