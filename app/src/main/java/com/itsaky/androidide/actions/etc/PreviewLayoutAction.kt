@@ -33,6 +33,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsvks.layouteditor.activities.EditorActivity
+import com.itsvks.layouteditor.utils.Constants
 import java.io.File
 
 
@@ -108,8 +109,8 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
 //    val intent = Intent(this, UIDesignerActivity::class.java)
     val intent = Intent(this, EditorActivity::class.java)
     //todo fix with normal key and path for both extras
-    intent.putExtra("file_key", file.absolutePath.substringBefore("layout"))
-    intent.putExtra("file_name_key", "activity_main.xml")
+    intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBefore("layout"))
+    intent.putExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME, file.name.substringBefore("."))
     uiDesignerResultLauncher?.launch(intent)
   }
 
