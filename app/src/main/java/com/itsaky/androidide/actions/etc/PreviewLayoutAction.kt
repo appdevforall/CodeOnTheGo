@@ -26,6 +26,7 @@ import com.android.aaptcompiler.extractPathData
 import com.blankj.utilcode.util.KeyboardUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
@@ -106,9 +107,14 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
   }
 
   private fun EditorHandlerActivity.previewLayout(file: File) {
-//    val intent = Intent(this, UIDesignerActivity::class.java)
+    //close any open xml files first
+    val openEditors = editorViewModel.getOpenedFileCount()
+    for(index in 1..openEditors) {
+      closeFile(index-1) //zero based
+    }
+    invalidateOptionsMenu()
+
     val intent = Intent(this, EditorActivity::class.java)
-    //todo fix with normal key and path for both extras
     intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBefore("layout"))
     intent.putExtra(Constants.EXTRA_KEY_LAYOUT_FILE_NAME, file.name.substringBefore("."))
     uiDesignerResultLauncher?.launch(intent)
