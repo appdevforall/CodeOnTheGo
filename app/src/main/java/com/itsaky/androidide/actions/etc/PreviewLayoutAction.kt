@@ -107,12 +107,12 @@ class PreviewLayoutAction(context: Context, override val order: Int) : EditorRel
   }
 
   private fun EditorHandlerActivity.previewLayout(file: File) {
-    //close any open xml files first
-    val openEditors = editorViewModel.getOpenedFileCount()
-    for(index in 1..openEditors) {
-      closeFile(index-1) //zero based
-    }
-    invalidateOptionsMenu()
+//    //close any open xml files first
+//    val openEditors = editorViewModel.getOpenedFileCount()
+//    for(index in 1..openEditors) {
+//      closeFile(index-1) //zero based
+//    }
+//    invalidateOptionsMenu()
 
     val intent = Intent(this, EditorActivity::class.java)
     intent.putExtra(Constants.EXTRA_KEY_FILE_PATH, file.absolutePath.substringBefore("layout"))

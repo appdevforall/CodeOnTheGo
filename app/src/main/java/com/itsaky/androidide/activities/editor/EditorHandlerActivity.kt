@@ -602,6 +602,14 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
       OpenedFile(it.absolutePath, editor.cursorLSPRange)
     }
 
+  fun closeCurrentFile() {
+    binding.tabs.selectedTabPosition.let { index ->
+      closeFile(index) {
+        invalidateOptionsMenu()
+      }
+    }
+  }
+
   private fun notifyFilesUnsaved(unsavedEditors: List<CodeEditorView?>, invokeAfter: Runnable) {
     if (isDestroying) {
       // Do not show unsaved files dialog if the activity is being destroyed
