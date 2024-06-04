@@ -417,6 +417,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
   }
 
   private fun handleUiDesignerResult(result: ActivityResult) {
+    if (this is EditorHandlerActivity) {
+      this.closeCurrentFile()
+    }
     if (result.resultCode != RESULT_OK || result.data == null) {
       log.warn("UI Designer returned invalid result: resultCode={}, data={}", result.resultCode,
         result.data)
