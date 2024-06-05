@@ -194,5 +194,6 @@ dependencies {
   compileOnly(projects.subprojects.toolingApiImpl)
 
   testImplementation(projects.testing.unit)
+  testImplementation(libs.core.tests.anroidx.arch)
   androidTestImplementation(projects.testing.android)
 }
