@@ -603,7 +603,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
   fun closeCurrentFile() {
-    binding.tabs.selectedTabPosition.let { index ->
+    content.tabs.selectedTabPosition.let { index ->
       closeFile(index) {
         invalidateOptionsMenu()
       }
