@@ -1,4 +1,4 @@
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
   ~  This file is part of AndroidIDE.
   ~
   ~  AndroidIDE is free software: you can redistribute it and/or modify
@@ -15,18 +15,8 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<configuration>
-  <appender class="com.itsaky.androidide.logging.LogcatAppender" name="LOGCAT">
-    <checkLoggable>false</checkLoggable>
-    <encoder class="com.itsaky.androidide.logging.encoder.IDELogFormatEncoder" />
-  </appender>
-  <appender class="com.itsaky.androidide.logging.JvmStdErrAppender" name="JVM_STDERR">
-    <encoder class="com.itsaky.androidide.logging.encoder.IDELogFormatEncoder" />
-  </appender>
-  <appender class="com.itsaky.androidide.tooling.impl.logging.ToolingApiAppender" name="TOOLING" />
-  <root level="DEBUG">
-    <appender-ref ref="LOGCAT" />
-    <appender-ref ref="JVM_STDERR" />
-    <appender-ref ref="TOOLING" />
-  </root>
-</configuration>
+<resources>
+  <declare-styleable name="SwipeRevealLayout">
+    <attr name="dragHandle" format="reference"/>
+  </declare-styleable>
+</resources>

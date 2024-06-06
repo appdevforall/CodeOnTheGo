@@ -26,6 +26,7 @@ import android.text.TextUtils
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
+import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
@@ -110,13 +111,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
   }
 
-  private fun openOnboarding() {
-    startActivity(Intent(this, OnboardingActivity::class.java))
-  }
-
-  override fun onInsetsUpdated(insets: Rect) {
-    super.onInsetsUpdated(insets)
-    binding.fragmentContainersParent.setPadding(insets.left, 0, insets.right, insets.bottom)
+  override fun onApplySystemBarInsets(insets: Insets) {
+    binding.fragmentContainersParent.setPadding(
+      insets.left,
+      0,
+      insets.right,
+      insets.bottom
+    )
   }
 
   private fun onScreenChanged(screen: Int?) {
@@ -125,7 +126,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
       // template list -> template details
       // ------- OR -------
       // template details -> template list
-      val setAxisToX = (previous == SCREEN_TEMPLATE_LIST || previous == SCREEN_TEMPLATE_DETAILS) && (screen == SCREEN_TEMPLATE_LIST || screen == SCREEN_TEMPLATE_DETAILS)
+      val setAxisToX =
+        (previous == SCREEN_TEMPLATE_LIST || previous == SCREEN_TEMPLATE_DETAILS) && (screen == SCREEN_TEMPLATE_LIST || screen == SCREEN_TEMPLATE_DETAILS)
 
       val axis = if (setAxisToX) {
         MaterialSharedAxis.X
