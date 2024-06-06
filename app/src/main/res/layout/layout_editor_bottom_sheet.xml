@@ -21,7 +21,8 @@
   xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:tools="http://schemas.android.com/tools"
   android:layout_width="match_parent"
-  android:layout_height="match_parent">
+  android:layout_height="match_parent"
+  android:background="?attr/colorSurface">
 
   <include
     android:id="@+id/border"
@@ -65,7 +66,6 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_alignParentBottom="true"
-    android:background="?attr/colorSurface"
     tools:layout_height="56dp" />
 
   <androidx.viewpager2.widget.ViewPager2
@@ -75,8 +75,7 @@
     android:layout_above="@id/space_bottom"
     android:layout_below="@id/tabs"
     android:clickable="true"
-    android:focusable="false"
-    android:background="?attr/colorSurface" />
+    android:focusable="false" />
 
   <com.google.android.material.floatingactionbutton.FloatingActionButton
     android:id="@+id/clear_fab"

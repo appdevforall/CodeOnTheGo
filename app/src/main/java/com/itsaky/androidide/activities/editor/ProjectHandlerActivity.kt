@@ -226,7 +226,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
   }
 
   fun appendBuildOutput(str: String) {
-    binding.bottomSheet.appendBuildOut(str)
+    content.bottomSheet.appendBuildOut(str)
   }
 
   fun notifySyncNeeded() {
@@ -458,7 +458,27 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     service.setEventListener(mBuildEventListener)
 
     if (!service.isToolingServerStarted()) {
-      service.startToolingServer { initializeProject() }
+      service.startToolingServer { pid ->
+        memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
+        resetMemUsageChart()
+
+        service.metadata().whenComplete { metadata, err ->
+          if (metadata == null || err != null) {
+            log.error("Failed to get tooling server metadata")
+            return@whenComplete
+          }
+
+          if (pid != metadata.pid) {
+            log.warn(
+              "Tooling server pid mismatch. Expected: {}, Actual: {}. Replacing memory watcher...",
+              pid, metadata.pid)
+            memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
+            resetMemUsageChart()
+          }
+        }
+
+        initializeProject()
+      }
     } else {
       initializeProject()
     }

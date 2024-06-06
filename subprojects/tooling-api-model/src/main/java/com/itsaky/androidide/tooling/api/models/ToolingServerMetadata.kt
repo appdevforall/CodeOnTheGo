@@ -15,18 +15,14 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-@Suppress("JavaPluginLanguageLevel")
-plugins {
-  id("java-library")
-  id("kotlin-kapt")
-  id("org.jetbrains.kotlin.jvm")
-}
+package com.itsaky.androidide.tooling.api.models
 
-dependencies {
-  implementation(project(":subprojects:tooling-api-impl"))
-  kapt(libs.google.auto.service)
-  implementation(libs.google.auto.service.annotations)
-
-  api(libs.tests.junit)
-  api(projects.logger)
-}
+/**
+ * Metadata about the tooling server.
+ *
+ * @param pid The process id of the tooling server.
+ * @author Akash Yadav
+ */
+data class ToolingServerMetadata(
+  val pid: Int
+)
