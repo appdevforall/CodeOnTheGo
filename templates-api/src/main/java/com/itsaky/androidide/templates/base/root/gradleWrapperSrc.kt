@@ -17,15 +17,15 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.itsaky.androidide.templates.GRADLE_WRAPPER_PATH_SUFFIX
-import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
-import java.io.File
+import com.itsaky.androidide.templates.GRADLE_WRAPPER_FILE_NAME
 
-internal fun ProjectTemplateBuilder.gradleWrapperProps() {
-    val name = "gradle-wrapper.properties"
-    val wrapperPropsFile = File(data.projectDir, GRADLE_WRAPPER_PATH_SUFFIX + name)
-    wrapperPropsFile.parentFile!!.mkdirs()
-
-    executor.save(gradleWrapperPropsSrc(), wrapperPropsFile)
+fun gradleWrapperPropsSrc(): String {
+    return """
+    distributionBase=GRADLE_USER_HOME
+    distributionPath=wrapper/dists
+    distributionUrl=$GRADLE_WRAPPER_FILE_NAME
+    networkTimeout=10000
+    zipStoreBase=GRADLE_USER_HOME
+    zipStorePath=wrapper/dists
+  """.trimIndent()
 }
-

@@ -15,17 +15,23 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.templates.base.root
+package com.itsaky.androidide.activities.editor
 
-import com.itsaky.androidide.templates.GRADLE_WRAPPER_PATH_SUFFIX
-import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
-import java.io.File
+import com.itsaky.androidide.activities.MainActivity
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.MockitoAnnotations
+import org.mockito.junit.MockitoJUnitRunner
+class EditorHandlerActivityTest {
 
-internal fun ProjectTemplateBuilder.gradleWrapperProps() {
-    val name = "gradle-wrapper.properties"
-    val wrapperPropsFile = File(data.projectDir, GRADLE_WRAPPER_PATH_SUFFIX + name)
-    wrapperPropsFile.parentFile!!.mkdirs()
+  @Before
+  fun setUp(){
+    MockitoAnnotations.initMocks(MockitoJUnitRunner::class.java)
+  }
 
-    executor.save(gradleWrapperPropsSrc(), wrapperPropsFile)
+  @Test
+  fun saveAll() {
+  }
 }
-
