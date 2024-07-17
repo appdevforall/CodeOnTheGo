@@ -17,7 +17,13 @@
 
 package com.itsaky.androidide.templates.base
 
+import com.blankj.utilcode.util.ResourceUtils
 import com.itsaky.androidide.managers.ToolsManager
+import com.itsaky.androidide.templates.ANDROID_GRADLE_PLUGIN_NAME
+import com.itsaky.androidide.templates.APG_SOURCE_FOLDER_NAME
+import com.itsaky.androidide.templates.GRADLE_FOLDER_NAME
+import com.itsaky.androidide.templates.GRADLE_WRAPPER_FILE_NAME
+import com.itsaky.androidide.templates.GRADLE_WRAPPER_PATH_SUFFIX
 import com.itsaky.androidide.templates.ModuleTemplate
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.ProjectTemplate
@@ -39,142 +45,168 @@ import java.util.zip.ZipInputStream
  * @author Akash Yadav
  */
 class ProjectTemplateBuilder :
-  ExecutorDataTemplateBuilder<ProjectTemplateRecipeResult, ProjectTemplateData>() {
+    ExecutorDataTemplateBuilder<ProjectTemplateRecipeResult, ProjectTemplateData>() {
 
-  private var _defModule: ModuleTemplateData? = null
+    private var _defModule: ModuleTemplateData? = null
 
-  @PublishedApi
-  internal val defModuleTemplate: ModuleTemplate? = null
+    @PublishedApi
+    internal val defModuleTemplate: ModuleTemplate? = null
 
-  @PublishedApi
-  internal val modules = mutableListOf<ModuleTemplate>()
+    @PublishedApi
+    internal val modules = mutableListOf<ModuleTemplate>()
 
-  @PublishedApi
-  internal val defModule: ModuleTemplateData
-    get() = checkNotNull(_defModule) { "Module template data not set" }
+    @PublishedApi
+    internal val defModule: ModuleTemplateData
+        get() = checkNotNull(_defModule) { "Module template data not set" }
 
-  /**
-   * Set the template data that will be used to create the default application module in the project.
-   *
-   * @param data The module template data to use.
-   */
-  fun setDefaultModuleData(data: ModuleTemplateData) {
-    _defModule = data
-  }
-
-  /**
-   * Get the asset path for base root project template.
-   *
-   * @param path The path to the asset.
-   * @see com.itsaky.androidide.templates.base.baseAsset
-   */
-  fun baseAsset(path: String) =
-    com.itsaky.androidide.templates.base.util.baseAsset("root", path)
-
-  /**
-   * Get the `build.gradle[.kts] file for the project.
-   */
-  fun buildGradleFile(): File {
-    return data.buildGradleFile()
-  }
-
-  /**
-   * Writes the `build.gradle[.kts]` file in the project root directory.
-   */
-  fun buildGradle() {
-    executor.save(buildGradleSrc(), buildGradleFile())
-  }
-
-  /**
-   * Get the source for `build.gradle[.kts]` files.
-   */
-  fun buildGradleSrc(): String {
-    return if (data.useKts) buildGradleSrcKts() else buildGradleSrcGroovy()
-  }
-
-  /**
-   * Writes the `settings.gradle[.kts]` file in the project root directory.
-   */
-  fun settingsGradle() {
-    executor.save(settingsGradleSrc(), settingsGradleFile())
-  }
-
-  /**
-   * Get the `settings.gradle[.kts]` file for this project.
-   */
-  fun settingsGradleFile(): File {
-    return File(data.projectDir, data.optonallyKts("settings.gradle"))
-  }
-
-  /**
-   * Get the source for `settings.gradle[.kts]`.
-   */
-  fun settingsGradleSrc(): String {
-    return settingsGradleSrcStr()
-  }
-
-  /**
-   * Writes the `gradle.properties` file in the root project.
-   */
-  fun gradleProps() {
-    val name = "gradle.properties"
-    val gradleProps = File(data.projectDir, name)
-    executor.copyAsset(baseAsset(name), gradleProps)
-  }
-
-  /**
-   * Writes/copies the Gradle Wrapper related files in the project directory.
-   */
-  fun gradleWrapper() {
-
-    ZipInputStream(
-      executor.openAsset(ToolsManager.getCommonAsset("gradle-wrapper.zip")).buffered()
-    ).use { zipIn ->
-      val entriesToCopy = arrayOf("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar")
-
-      var zipEntry: ZipEntry? = zipIn.nextEntry
-      while (zipEntry != null) {
-        if (zipEntry.name in entriesToCopy) {
-          val fileOut = File(data.projectDir, zipEntry.name)
-          fileOut.parentFile!!.mkdirs()
-
-          fileOut.outputStream().buffered().use { outStream ->
-            zipIn.transferToStream(outStream)
-            outStream.flush()
-          }
-        }
-
-        zipEntry = zipIn.nextEntry
-      }
-
-
-      val gradlew = File(data.projectDir, "gradlew")
-      val gradlewBat = File(data.projectDir, "${gradlew.name}.bat")
-
-      check(gradlew.exists()) {
-        "'$gradlew' does not exist!"
-      }
-      check(gradlewBat.exists()) {
-        "'$gradlew' does not exist!"
-      }
-
-      gradlew.setExecutable(true)
-      gradlewBat.setExecutable(true)
+    /**
+     * Set the template data that will be used to create the default application module in the project.
+     *
+     * @param data The module template data to use.
+     */
+    fun setDefaultModuleData(data: ModuleTemplateData) {
+        _defModule = data
     }
 
-    gradleWrapperProps()
-  }
+    /**
+     * Get the asset path for base root project template.
+     *
+     * @param path The path to the asset.
+     * @see com.itsaky.androidide.templates.base.baseAsset
+     */
+    fun baseAsset(path: String) =
+        com.itsaky.androidide.templates.base.util.baseAsset("root", path)
 
-  /**
-   * Writes the `.gitignore` file in the project directory.
-   */
-  fun gitignore() {
-    val gitignore = File(data.projectDir, ".gitignore")
-    executor.copyAsset(baseAsset("gitignore"), gitignore)
-  }
+    /**
+     * Get the `build.gradle[.kts] file for the project.
+     */
+    fun buildGradleFile(): File {
+        return data.buildGradleFile()
+    }
 
-  override fun buildInternal(): ProjectTemplate {
-    return ProjectTemplate(modules, templateName!!, thumb!!,
-      widgets!!, recipe!!)
-  }
+    /**
+     * Writes the `build.gradle[.kts]` file in the project root directory.
+     */
+    fun buildGradle() {
+        executor.save(buildGradleSrc(), buildGradleFile())
+    }
+
+    /**
+     * Get the source for `build.gradle[.kts]` files.
+     */
+    fun buildGradleSrc(): String {
+        return if (data.useKts) buildGradleSrcKts() else buildGradleSrcGroovy()
+    }
+
+    /**
+     * Writes the `settings.gradle[.kts]` file in the project root directory.
+     */
+    fun settingsGradle() {
+        executor.save(settingsGradleSrc(), settingsGradleFile())
+    }
+
+    /**
+     * Get the `settings.gradle[.kts]` file for this project.
+     */
+    fun settingsGradleFile(): File {
+        return File(data.projectDir, data.optonallyKts("settings.gradle"))
+    }
+
+    /**
+     * Get the source for `settings.gradle[.kts]`.
+     */
+    fun settingsGradleSrc(): String {
+        return settingsGradleSrcStr()
+    }
+
+    /**
+     * Writes the `gradle.properties` file in the root project.
+     */
+    fun gradleProps() {
+        val name = "gradle.properties"
+        val gradleProps = File(data.projectDir, name)
+        executor.copyAsset(baseAsset(name), gradleProps)
+    }
+
+    /**
+     * Writes/copies the Gradle Wrapper related files in the project directory.
+     *
+     * This method created gradle folder, child folders and copies gradleWrapper jar and
+     * gradle-wrapper.properties files.
+     * So anything that wshould be put under gradle folder should be called after this.
+     * We can change this behaviour by separating folder creation from file creation.
+     * But I will leave it as is for now.
+     *
+     */
+    fun gradleWrapper() {
+
+        ZipInputStream(
+            executor.openAsset(ToolsManager.getCommonAsset("gradle-wrapper.zip")).buffered()
+        ).use { zipIn ->
+            val entriesToCopy =
+                arrayOf("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar")
+
+            var zipEntry: ZipEntry? = zipIn.nextEntry
+            while (zipEntry != null) {
+                if (zipEntry.name in entriesToCopy) {
+                    val fileOut = File(data.projectDir, zipEntry.name)
+                    fileOut.parentFile!!.mkdirs()
+
+                    fileOut.outputStream().buffered().use { outStream ->
+                        zipIn.transferToStream(outStream)
+                        outStream.flush()
+                    }
+                }
+
+                zipEntry = zipIn.nextEntry
+            }
+
+
+            val gradlew = File(data.projectDir, "gradlew")
+            val gradlewBat = File(data.projectDir, "${gradlew.name}.bat")
+
+            check(gradlew.exists()) {
+                "'$gradlew' does not exist!"
+            }
+            check(gradlewBat.exists()) {
+                "'$gradlew' does not exist!"
+            }
+
+            gradlew.setExecutable(true)
+            gradlewBat.setExecutable(true)
+        }
+        gradleWrapperProps()
+    }
+
+    /**
+     * Writes the `.gitignore` file in the project directory.
+     */
+    fun gitignore() {
+        val gitignore = File(data.projectDir, ".gitignore")
+        executor.copyAsset(baseAsset("gitignore"), gitignore)
+    }
+
+    /**
+     * Copies local gradle version from androidIDE to gradle folder inside the created project.
+     */
+    fun gradleZip(gradleFileName: String = GRADLE_WRAPPER_FILE_NAME) {
+        ResourceUtils.copyFileFromAssets(
+            File(ToolsManager.getCommonAsset(gradleFileName)).path,
+            File(data.projectDir.absolutePath + File.separator + GRADLE_WRAPPER_PATH_SUFFIX + gradleFileName).path
+        )
+    }
+
+    fun agpJar(agpFileName: String = ANDROID_GRADLE_PLUGIN_NAME) {
+        ResourceUtils.copyFileFromAssets(
+            File(ToolsManager.getCommonAsset(APG_SOURCE_FOLDER_NAME + File.separator + agpFileName)).path,
+            File(data.projectDir.absolutePath + File.separator + GRADLE_FOLDER_NAME + File.separator + agpFileName).path
+        )
+    }
+
+    override fun buildInternal(): ProjectTemplate {
+        return ProjectTemplate(
+            modules, templateName!!, thumb!!,
+            widgets!!, recipe!!
+        )
+    }
 }

@@ -35,6 +35,7 @@ import com.itsaky.androidide.templates.ParameterConstraint.NONEMPTY
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectVersionData
+import com.itsaky.androidide.templates.ProjectVersionLocalData
 import com.itsaky.androidide.templates.R
 import com.itsaky.androidide.templates.Sdk
 import com.itsaky.androidide.templates.SpinnerWidget
@@ -65,7 +66,7 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
   useKts: BooleanParameter = useKtsParameter(),
   minSdk: EnumParameter<Sdk> = minSdkParameter(),
   language: EnumParameter<Language> = projectLanguageParameter(),
-  projectVersionData: ProjectVersionData = ProjectVersionData(),
+  projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
   crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
   return ProjectTemplateBuilder().apply {
@@ -133,6 +134,8 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
       // gradle/wrapper/gradle-wrapper.jar
       // gradle/wrapper/gradle-wrapper.properties
       gradleWrapper()
+      gradleZip()
+      agpJar()
 
       // .gitignore
       gitignore()

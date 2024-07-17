@@ -26,6 +26,9 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
 /**
+ * Keywords: [init.gradle, gradle, gradle plugin]
+ * This code generates init.gradle script that is reponsible for all project gradle repos and
+ * gradle plugin classpath.
  * Generates the Gradle init script for AndroidIDE.
  */
 abstract class GenerateInitScriptTask : DefaultTask() {
