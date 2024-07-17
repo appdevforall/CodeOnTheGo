@@ -156,8 +156,19 @@ enum class SrcSet(val folder: String) {
  * @property gradle The Gradle version.
  * @property kotlin The Kotlin Plugin version.
  */
-data class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_VERSION,
+open class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_VERSION,
   val gradle: String = GRADLE_DISTRIBUTION_VERSION, val kotlin: String = KOTLIN_VERSION)
+
+/**
+ * Version information for the project.
+ *
+ * Created to gradually replace ProjectVersionData without breaking the whole project.
+ *
+ * @property gradlePlugin The Android Gradle Plugin version.
+ * @property gradle The Gradle version.
+ * @property kotlin The Kotlin Plugin version.
+ */
+class ProjectVersionLocalData : ProjectVersionData(LOCAL_ANDROID_GRADLE_PLUGIN_VERSION, LOCAL_GRADLE_DISTRIBUTION_VERSION, KOTLIN_VERSION)
 
 /**
  * Version information about a module.

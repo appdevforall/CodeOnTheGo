@@ -17,6 +17,9 @@
 
 package com.itsaky.androidide.templates.base.root
 
+import com.itsaky.androidide.templates.GRADLE_FOLDER_NAME
+import com.itsaky.androidide.templates.GRADLE_VERSION
+import com.itsaky.androidide.templates.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 internal fun ProjectTemplateBuilder.settingsGradleSrcStr(): String {
@@ -26,6 +29,12 @@ pluginManagement {
     gradlePluginPortal()
     google()
     mavenCentral()
+    flatDir {
+        dirs '../$GRADLE_FOLDER_NAME' // Directory containing your local JAR
+    }
+  }
+  plugins {
+     id 'com.android.application' version '$LOCAL_ANDROID_GRADLE_PLUGIN_VERSION' // Adjust this to match your local plugin version
   }
 }
 

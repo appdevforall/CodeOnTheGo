@@ -41,7 +41,7 @@ abstract class GradleWrapperGeneratorTask : DefaultTask() {
 
   companion object {
 
-    private const val GRADLE_VERSION = "7.4.2"
+    private const val GRADLE_VERSION = "8.0"
   }
 
   @TaskAction
