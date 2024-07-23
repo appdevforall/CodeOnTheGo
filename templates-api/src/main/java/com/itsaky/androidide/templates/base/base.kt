@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.base
 
+import com.adfa.constants.Sdk
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.EnumParameter
@@ -37,7 +38,6 @@ import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectVersionData
 import com.itsaky.androidide.templates.ProjectVersionLocalData
 import com.itsaky.androidide.templates.R
-import com.itsaky.androidide.templates.Sdk
 import com.itsaky.androidide.templates.SpinnerWidget
 import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.TextFieldWidget
@@ -62,12 +62,12 @@ typealias AndroidModuleTemplateConfigurator = AndroidModuleTemplateBuilder.() ->
  * @param block Function to configure the template.
  */
 inline fun baseProject(projectName: StringParameter = projectNameParameter(),
-  packageName: StringParameter = packageNameParameter(),
-  useKts: BooleanParameter = useKtsParameter(),
-  minSdk: EnumParameter<Sdk> = minSdkParameter(),
-  language: EnumParameter<Language> = projectLanguageParameter(),
-  projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
-  crossinline block: ProjectTemplateBuilder.() -> Unit
+                       packageName: StringParameter = packageNameParameter(),
+                       useKts: BooleanParameter = useKtsParameter(),
+                       minSdk: EnumParameter<Sdk> = minSdkParameter(),
+                       language: EnumParameter<Language> = projectLanguageParameter(),
+                       projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+                       crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
   return ProjectTemplateBuilder().apply {
 

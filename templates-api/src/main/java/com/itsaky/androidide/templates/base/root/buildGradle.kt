@@ -17,20 +17,40 @@
 
 package com.itsaky.androidide.templates.base.root
 
+import com.adfa.constants.GRADLE_FOLDER_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
-    plugins {
-        id("com.android.application") version "${data.version.gradlePlugin}" apply false
-        id("com.android.library") version "${data.version.gradlePlugin}" apply false
-        ${ktPlugin()}     
+    
+    buildscript {
+        repositories {
+            google()  // Add Google's Maven repository
+            mavenCentral()  // Add Maven Central repository (optional)
+            flatDir {
+              dirs("$GRADLE_FOLDER_NAME") // Directory containing your local JAR
+            }
+        }
+        dependencies {
+            // Use the local plugin JAR for the Android Gradle plugin
+            // if this will not work, use files alternative below
+            //classpath("$LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME")
+            classpath(files("gradle/com.android.tools.build.gradle-2.7.1.jar"))
+    
+            // Specify the Android Gradle plugin version if needed
+            // classpath("com.android.tools.build:gradle:your-plugin-version")
+        }
     }
 
     tasks.register<Delete>("clean") {
-        delete(rootProject.buildDir)
+        delete(rootProject.layout.buildDirectory)
     }
   """.trimIndent()
 }
@@ -38,14 +58,27 @@ internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
 internal fun ProjectTemplateBuilder.buildGradleSrcGroovy(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
-    plugins {
-        id 'com.android.application' version '${data.version.gradlePlugin}' apply false
-        id 'com.android.library' version '${data.version.gradlePlugin}' apply false
-        ${ktPlugin()}     
+    buildscript {
+        repositories {
+            google()  // Add Google's Maven repository
+            mavenCentral()  // Add Maven Central repository (optional)
+            flatDir {
+              dirs("$GRADLE_FOLDER_NAME") // Directory containing your local JAR
+            }
+        }
+        dependencies {
+            // Use the local plugin JAR for the Android Gradle plugin
+            // if this will not work, use files alternative below
+            //classpath("$LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME")
+            classpath(files("gradle/com.android.tools.build.gradle-2.7.1.jar"))
+    
+            // Specify the Android Gradle plugin version if needed
+            // classpath("com.android.tools.build:gradle:your-plugin-version")
+        }
     }
 
     task clean(type: Delete) {
-        delete rootProject.buildDir
+        delete rootProject.layout.buildDirectory
     }
   """.trimIndent()
 }

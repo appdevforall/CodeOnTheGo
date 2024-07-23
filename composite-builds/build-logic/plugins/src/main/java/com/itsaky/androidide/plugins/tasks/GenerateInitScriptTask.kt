@@ -26,10 +26,12 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
 /**
- * Keywords: [init.gradle, gradle, gradle plugin]
+ * Keywords: [init.gradle, gradle, gradle plugin, initscript]
  * This code generates init.gradle script that is reponsible for all project gradle repos and
  * gradle plugin classpath.
  * Generates the Gradle init script for AndroidIDE.
+ * This script is also stored at
+ * ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common
  */
 abstract class GenerateInitScriptTask : DefaultTask() {
 
@@ -42,6 +44,10 @@ abstract class GenerateInitScriptTask : DefaultTask() {
   @get:OutputDirectory
   abstract val outputDir: DirectoryProperty
 
+  //TODO add variable import to repalce gradle part
+  //flatDir {
+  //  dirs '../gradle' // Directory containing your local JAR
+  //}
   @TaskAction
   fun generate() {
 
@@ -66,6 +72,13 @@ abstract class GenerateInitScriptTask : DefaultTask() {
               maven {
                   // Add public repository for AndroidIDE release builds
                   url "${VersionUtils.SONATYPE_PUBLIC_REPO}"
+              }
+              
+              // This values is hardcoded in GenerateInitScriptTask
+              // It was taking way too much time to properly provide it with module dependencies.
+              // But we should invest more time into this later.
+              flatDir {
+                  dirs 'gradle' // Directory containing your local JAR
               }
               
               mavenCentral()
