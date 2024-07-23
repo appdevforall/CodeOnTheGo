@@ -17,7 +17,7 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.itsaky.androidide.templates.GRADLE_WRAPPER_FILE_NAME
+import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 
 fun gradleWrapperPropsSrc(): String {
     return """

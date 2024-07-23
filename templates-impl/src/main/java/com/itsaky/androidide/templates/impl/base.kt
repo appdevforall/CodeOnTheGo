@@ -17,12 +17,13 @@
 
 package com.itsaky.androidide.templates.impl
 
+import com.adfa.constants.Sdk
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.EnumParameter
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectVersionData
-import com.itsaky.androidide.templates.Sdk
+import com.itsaky.androidide.templates.ProjectVersionLocalData
 import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
@@ -60,7 +61,7 @@ internal inline fun baseProjectImpl(
   useKts: BooleanParameter = useKtsParameter(),
   minSdk: EnumParameter<Sdk> = minSdkParameter(),
   language: EnumParameter<Language> = projectLanguageParameter(),
-  projectVersionData: ProjectVersionData = ProjectVersionData(),
+  projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
   crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate =
   baseProject(projectName = projectName, packageName = packageName,
