@@ -17,11 +17,18 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.itsaky.androidide.templates.GRADLE_FOLDER_NAME
-import com.itsaky.androidide.templates.GRADLE_VERSION
-import com.itsaky.androidide.templates.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import com.adfa.constants.GRADLE_FOLDER_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
+/**
+ * Keyword: [com.android.application, tools.build.gradle, gradle plugin]
+ * I have added com.android.tools.build.gradle plugin. From what I see
+ * it's a wrapper plugin around com.android.application / com.android.library
+ * I was not able to find aa standalone com.android.application jar.
+ */
 internal fun ProjectTemplateBuilder.settingsGradleSrcStr(): String {
   return """
 pluginManagement {
@@ -30,12 +37,17 @@ pluginManagement {
     google()
     mavenCentral()
     flatDir {
-        dirs '../$GRADLE_FOLDER_NAME' // Directory containing your local JAR
+        dirs("$GRADLE_FOLDER_NAME") // Directory containing your local JAR
     }
   }
-  plugins {
-     id 'com.android.application' version '$LOCAL_ANDROID_GRADLE_PLUGIN_VERSION' // Adjust this to match your local plugin version
-  }
+  
+  //resolutionStrategy {
+  //   eachPlugin {
+  //        if (requested.id.id == "com.android.application") {
+  //            useModule("$LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME")
+  //        }
+  //   }
+  //}
 }
 
 dependencyResolutionManagement {

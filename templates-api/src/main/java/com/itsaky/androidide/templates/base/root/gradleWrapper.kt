@@ -17,7 +17,7 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.itsaky.androidide.templates.GRADLE_WRAPPER_PATH_SUFFIX
+import com.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 import java.io.File
 

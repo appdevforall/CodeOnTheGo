@@ -17,13 +17,14 @@
 
 package com.itsaky.androidide.templates.base
 
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
+import com.adfa.constants.APG_SOURCE_FOLDER_NAME
+import com.adfa.constants.GRADLE_FOLDER_NAME
+import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
+import com.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.itsaky.androidide.managers.ToolsManager
-import com.itsaky.androidide.templates.ANDROID_GRADLE_PLUGIN_NAME
-import com.itsaky.androidide.templates.APG_SOURCE_FOLDER_NAME
-import com.itsaky.androidide.templates.GRADLE_FOLDER_NAME
-import com.itsaky.androidide.templates.GRADLE_WRAPPER_FILE_NAME
-import com.itsaky.androidide.templates.GRADLE_WRAPPER_PATH_SUFFIX
 import com.itsaky.androidide.templates.ModuleTemplate
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.ProjectTemplate
@@ -190,17 +191,24 @@ class ProjectTemplateBuilder :
      * Copies local gradle version from androidIDE to gradle folder inside the created project.
      */
     fun gradleZip(gradleFileName: String = GRADLE_WRAPPER_FILE_NAME) {
-        ResourceUtils.copyFileFromAssets(
+        val result = ResourceUtils.copyFileFromAssets(
             File(ToolsManager.getCommonAsset(gradleFileName)).path,
             File(data.projectDir.absolutePath + File.separator + GRADLE_WRAPPER_PATH_SUFFIX + gradleFileName).path
         )
+        if (!result) {
+            println("Gradle files copy failed + ${this.javaClass}")
+        }
+
     }
 
-    fun agpJar(agpFileName: String = ANDROID_GRADLE_PLUGIN_NAME) {
-        ResourceUtils.copyFileFromAssets(
-            File(ToolsManager.getCommonAsset(APG_SOURCE_FOLDER_NAME + File.separator + agpFileName)).path,
+    fun agpJar(agpFileName: String = LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME) {
+        val result = ResourceUtils.copyFileFromAssets(
+            File(ToolsManager.getCommonAsset(agpFileName)).path,
             File(data.projectDir.absolutePath + File.separator + GRADLE_FOLDER_NAME + File.separator + agpFileName).path
         )
+        if (!result) {
+            println("Android Gradle files copy failed + ${this.javaClass}")
+        }
     }
 
     override fun buildInternal(): ProjectTemplate {
