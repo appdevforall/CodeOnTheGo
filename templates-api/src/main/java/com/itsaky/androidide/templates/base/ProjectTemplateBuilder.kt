@@ -19,9 +19,11 @@ package com.itsaky.androidide.templates.base
 
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
 import com.adfa.constants.APG_SOURCE_FOLDER_NAME
+import com.adfa.constants.ASSETS_COMMON_FOLDER
 import com.adfa.constants.GRADLE_FOLDER_NAME
 import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
+import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.itsaky.androidide.managers.ToolsManager
@@ -37,8 +39,14 @@ import com.itsaky.androidide.templates.base.root.settingsGradleSrcStr
 import com.itsaky.androidide.templates.base.util.optonallyKts
 import com.itsaky.androidide.utils.transferToStream
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
+import kotlin.io.path.Path
+import kotlin.io.path.pathString
 
 /**
  * Builder for building project templates.
@@ -209,6 +217,10 @@ class ProjectTemplateBuilder :
         if (!result) {
             println("Android Gradle files copy failed + ${this.javaClass}")
         }
+    }
+
+    fun gradleCaches() {
+        executor.updateCaches()
     }
 
     override fun buildInternal(): ProjectTemplate {
