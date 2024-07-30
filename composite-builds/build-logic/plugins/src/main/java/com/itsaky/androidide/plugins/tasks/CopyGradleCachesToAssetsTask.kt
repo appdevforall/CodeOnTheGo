@@ -18,6 +18,7 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
+import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
 import com.adfa.constants.LOCAL_TERMUX_LIB_FOLDER_PATH
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
@@ -33,8 +34,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import kotlin.io.path.Path
 
-
-abstract class CopyTermauxCacheTask : DefaultTask() {
+abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -44,7 +44,8 @@ abstract class CopyTermauxCacheTask : DefaultTask() {
 
     @TaskAction
     fun copyTermuxLibsToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER + LOCAL_TERMUX_LIB_FOLDER_PATH).asFile
+        val outputDirectory = this.outputDirectory.get()
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOACL_SOURCE_AGP_8_0_0_CACHES).asFile
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
@@ -53,8 +54,15 @@ abstract class CopyTermauxCacheTask : DefaultTask() {
             outputDirectory.delete()
         }
 
+        /**
+         * Currently we are hardcoded to LOACL_SOURCE_AGP_8_0_0_CACHES, but we can add
+         * an if statement that will change this based on whatever gradle version we choose
+         * from the supported once.
+         * Supported gradle versions are limited by the pregenerated cahces we have in libs_source
+         * folder.
+         */
         val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + LOCAL_TERMUX_LIB_FOLDER_PATH
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOACL_SOURCE_AGP_8_0_0_CACHES
 
         try {
             copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))

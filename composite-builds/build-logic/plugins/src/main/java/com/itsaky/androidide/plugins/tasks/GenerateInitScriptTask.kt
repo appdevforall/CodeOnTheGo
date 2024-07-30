@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.plugins.tasks
 
+import com.adfa.constants.GRADLE_FOLDER_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
 import com.itsaky.androidide.build.config.VersionUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
@@ -26,12 +28,14 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
 /**
- * Keywords: [init.gradle, gradle, gradle plugin, initscript]
+ * Keywords: [init.gradle, gradle, gradle plugin, initscript, 2.7.1, 8.5.1]
  * This code generates init.gradle script that is reponsible for all project gradle repos and
  * gradle plugin classpath.
  * Generates the Gradle init script for AndroidIDE.
  * This script is also stored at
  * ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common
+ *
+ * I have replaced itsaky gradle plugin with a local jar.
  */
 abstract class GenerateInitScriptTask : DefaultTask() {
 
@@ -44,10 +48,6 @@ abstract class GenerateInitScriptTask : DefaultTask() {
   @get:OutputDirectory
   abstract val outputDir: DirectoryProperty
 
-  //TODO add variable import to repalce gradle part
-  //flatDir {
-  //  dirs '../gradle' // Directory containing your local JAR
-  //}
   @TaskAction
   fun generate() {
 
@@ -86,13 +86,11 @@ abstract class GenerateInitScriptTask : DefaultTask() {
           }
 
           dependencies {
-              classpath('${mavenGroupId.get()}:gradle-plugin:${downloadVersion.get()}') {
-                  setChanging(false)
-              }
+              classpath(files("$LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME"))
           }
       }
       
-      apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
+      //apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
     """
           .trimIndent()
       )

@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.templates.base.modules.android
 
+import com.adfa.constants.DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.ModuleType
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
@@ -42,7 +44,7 @@ private fun AndroidModuleTemplateBuilder.buildGradleSrcKts(
 ): String {
   return """
 plugins {
-    id("$androidPlugin")
+    id("$androidPlugin") version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
     ${ktPlugin()}
 }
 

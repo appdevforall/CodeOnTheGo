@@ -118,6 +118,7 @@ public class Main {
     if (client != null) {
       try {
         final var args = client.getBuildArguments().get();
+        args.add("--info");
         args.removeIf(Objects::isNull);
         args.removeIf(String::isBlank);
 
