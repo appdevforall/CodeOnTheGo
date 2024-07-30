@@ -136,6 +136,7 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
       gradleWrapper()
       gradleZip()
       agpJar()
+      gradleCaches()
 
       // .gitignore
       gitignore()

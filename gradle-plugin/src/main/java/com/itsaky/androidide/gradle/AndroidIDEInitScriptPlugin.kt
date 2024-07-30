@@ -46,7 +46,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
   /**
    * Keywords: [gradle, agp, androidGradlePlugin, classpath, build ]
    * It seeme like this method adds custom android-gradle-plugin to the classpath.
-   * Without explicitly adding it to andy gradle files.
+   * Without explicitly adding it to any gradle files.
    * This script is a prat of androidIde. So even if child process fails to build,
    * it only means that androidIDE toolchain was not satisfied.
    * So far I can't find
