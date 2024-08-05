@@ -40,15 +40,6 @@ pluginManagement {
         dirs("$GRADLE_FOLDER_NAME") // Directory containing your local JAR
     }
   }
-  
-  //resolutionStrategy {
-  //   eachPlugin {
-//
-  //        if (requested.id.id == "com.android.application") {
-  //            useModule("$LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME")
-  //        }
-  //   }
-  //}
 }
 
 dependencyResolutionManagement {

@@ -34,44 +34,9 @@ internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
         id("com.android.application") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
         id("com.android.library") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
     }
-    
-    buildscript {
-        dependencies {
-            // Use the local plugin JAR for the Android Gradle plugin
-            // if this will not work, use files alternative below
-            //classpath("$LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME")
-            //classpath(files("$GRADLE_FOLDER_NAME/$LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME"))
-    
-            // Specify the Android Gradle plugin version if needed
-            // classpath("com.android.tools.build:gradle:your-plugin-version")
-        }
-    }
 
-    tasks.register("printClasspath") {
-        doLast {
-            println("Buildscript Classpath:")
-            buildscript.configurations.forEach { config ->
-                println("Configuration:" + config.name)
-                config.files.forEach { file ->
-                    println(" - " + file.absolutePath)
-                }
-            }
-        }
-    }
-    
     tasks.register<Delete>("clean") {
         delete(rootProject.layout.buildDirectory)
-    }
-    
-    gradle.taskGraph.whenReady {
-        allTasks.forEach {
-            println("hz " + it)
-        }
-        //if (allTasks.firstOrNull { it.name.contains("build") } != null || allTasks.firstOrNull { it.name.contains("assemble") } != null) {
-            tasks.named("printClasspath").get().actions.forEach { action ->
-                action.execute(tasks.named("printClasspath").get())
-            }
-        //}
     }
   """.trimIndent()
 }
@@ -79,23 +44,9 @@ internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
 internal fun ProjectTemplateBuilder.buildGradleSrcGroovy(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
-    buildscript {
-        repositories {
-            google()  // Add Google's Maven repository
-            mavenCentral()  // Add Maven Central repository (optional)
-            flatDir {
-              dirs("$GRADLE_FOLDER_NAME") // Directory containing your local JAR
-            }
-        }
-        dependencies {
-            // Use the local plugin JAR for the Android Gradle plugin
-            // if this will not work, use files alternative below
-            //classpath("$LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME")
-            classpath(files("$GRADLE_FOLDER_NAME/$LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME"))
-    
-            // Specify the Android Gradle plugin version if needed
-            // classpath("com.android.tools.build:gradle:your-plugin-version")
-        }
+    plugins {
+        id 'com.android.application' version "${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}" apply false
+        id 'com.android.library' version "${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}" apply false
     }
 
     task clean(type: Delete) {

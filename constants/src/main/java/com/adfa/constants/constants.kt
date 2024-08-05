@@ -49,12 +49,12 @@ const val GRADLE_WRAPPER_FILE_NAME = "${GRADLE_VERSION}-bin.zip"
 val GRADLE_WRAPPER_PATH_SUFFIX = GRADLE_FOLDER_NAME + File.separator + "wrapper" + File.separator
 
 // AGP
-const val LOCAL_ANDROID_GRADLE_PLUGIN_VERSION = "2.7.1"
+const val LOCAL_ANDROID_GRADLE_PLUGIN_VERSION = "8.0.0"
 const val DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION = "8.0.0"
 const val LOCAL_SOURCE_ANDROID_GRADLE_PLUGIN_VERSION_NAME =
-    "gradle-plugin-${LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}-beta.jar"
+    "gradle-${LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}.jar"
 const val LOCAL_ANDROID_GRADLE_PLUGIN_NAME =
-    "com.android.tools.build.gradle-${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
+    "gradle-${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
 const val LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME = "${LOCAL_ANDROID_GRADLE_PLUGIN_NAME}.jar"
 /**
  * this line differes from LOCAL_ANDROID_GRADLE_PLUGIN_NAME by the : that we can use outside of gradle files.
@@ -65,7 +65,8 @@ const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME = "com.android.tools.build
 const val LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME = "termux"
 
 // Caches
-const val LOACL_SOURCE_AGP_8_0_0_CACHES = "caches-8.0.0"
+const val LOACL_GRADLE_8_0_0_CACHES_PATH = "gradle"
+const val LOACL_SOURCE_AGP_8_0_0_CACHES_DEST = "gradle"
 const val LOACL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
 
 // New tasks
