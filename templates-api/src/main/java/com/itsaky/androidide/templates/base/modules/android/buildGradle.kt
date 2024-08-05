@@ -38,7 +38,7 @@ fun AndroidModuleTemplateBuilder.buildGradleSrc(isComposeModule: Boolean
   return if (data.useKts) buildGradleSrcKts(
     isComposeModule) else buildGradleSrcGroovy(isComposeModule)
 }
-
+//todo fix hardcoded buildToolsVersion version.
 private fun AndroidModuleTemplateBuilder.buildGradleSrcKts(
   isComposeModule: Boolean
 ): String {
@@ -51,6 +51,9 @@ plugins {
 android {
     namespace = "${data.packageName}"
     compileSdk = ${data.versions.compileSdk.api}
+    // currently this is hardcodede to make it work but we should probably make it dependant on the
+    // onboarding choice.
+    buildToolsVersion = "34.0.4" 
     
     defaultConfig {
         applicationId = "${data.packageName}"
@@ -99,6 +102,9 @@ plugins {
 android {
     namespace '${data.packageName}'
     compileSdk ${data.versions.compileSdk.api}
+    // currently this is hardcodede to make it work but we should probably make it dependant on the
+    // onboarding choice.
+    buildToolsVersion = "34.0.4"
     
     defaultConfig {
         applicationId "${data.packageName}"
