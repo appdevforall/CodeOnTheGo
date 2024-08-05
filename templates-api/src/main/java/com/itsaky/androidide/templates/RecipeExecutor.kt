@@ -18,8 +18,8 @@
 package com.itsaky.androidide.templates
 
 import android.content.Context
-import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
-import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
+import com.adfa.constants.LOACL_GRADLE_8_0_0_CACHES_PATH
+import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES_DEST
 import com.blankj.utilcode.util.ResourceUtils
 import com.itsaky.androidide.managers.ToolsManager
 import java.io.File
@@ -92,6 +92,6 @@ interface RecipeExecutor {
      *
      * This appends missing files and does not replace existing files.
      */
-    fun updateCaches(gradlePath: String = LOACL_SOURCE_AGP_8_0_0_CACHES)
+    fun updateCaches(gradlePath: String = LOACL_SOURCE_AGP_8_0_0_CACHES_DEST)
 
 }

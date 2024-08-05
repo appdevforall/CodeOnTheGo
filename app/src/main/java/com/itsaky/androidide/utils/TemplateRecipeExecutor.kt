@@ -64,7 +64,8 @@ class TemplateRecipeExecutor : RecipeExecutor {
     }
 
     override fun updateCaches(gradlePath: String) {
-        val outputDirectory = File(application.filesDir.path + "/home/.gradle/caches/")
+        val outputDirectory =
+            File(application.filesDir.path + File.separator + "home" + File.separator + ".gradle")
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }

@@ -21,11 +21,6 @@ import com.adfa.constants.ASSETS_COMMON_FOLDER
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
 import com.adfa.constants.LOCAL_SOURCE_ANDROID_GRADLE_PLUGIN_VERSION_NAME
 import com.adfa.constants.SOURCE_LIB_FOLDER
-import com.adfa.constants.GRADLE_FOLDER_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.google.common.io.Files
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -44,7 +39,7 @@ abstract class CopyGradleAndroidExceutableTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyGradleExecutableToAssets() {
+    fun copyGradleAndroidPluginExecutableToAssets() {
         val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER).asFile
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
