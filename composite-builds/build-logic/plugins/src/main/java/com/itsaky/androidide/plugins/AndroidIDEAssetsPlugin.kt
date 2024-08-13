@@ -17,11 +17,19 @@
 
 package com.itsaky.androidide.plugins
 
+import com.adfa.constants.COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME
+import com.adfa.constants.COPY_GRADLE_CAHCES_TO_ASSETS
+import com.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import com.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
 import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
+import com.itsaky.androidide.plugins.tasks.CopyGradleAndroidExceutableTask
+import com.itsaky.androidide.plugins.tasks.CopyGradleCachesToAssetsTask
+import com.itsaky.androidide.plugins.tasks.CopyGradleExecutableToAssetsTask
+import com.itsaky.androidide.plugins.tasks.CopyTermauxCacheTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
@@ -34,6 +42,13 @@ import org.gradle.configurationcache.extensions.capitalized
  * Handles asset copying and generation.
  *
  * @author Akash Yadav
+ *
+ * Keywors:[build, gradle, copyJar, assets, tooling, data/common, libs]
+ * This class create new tasks and generates init script. It also specifies the
+ * androidIDE android gradle plugin version.
+ * It is also related to copyJar task and tooling system for the app.
+ * @see ToolingApiServerImpl
+ *
  */
 class AndroidIDEAssetsPlugin : Plugin<Project> {
 
@@ -51,6 +66,18 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         AddAndroidJarToAssetsTask::class.java) {
         androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
       }
+
+      val gradleExecutableToAssetsTaskProvider = tasks.register(COPY_GRADLE_EXECUTABLE_TASK_NAME,
+        CopyGradleExecutableToAssetsTask::class.java)
+
+      val gradleAndroidPluginToAssetsTaskProvider = tasks.register(COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME,
+        CopyGradleAndroidExceutableTask::class.java)
+
+      val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME,
+        CopyTermauxCacheTask::class.java)
+
+      val gradleCachesToAssetsTaskProvider = tasks.register(COPY_GRADLE_CAHCES_TO_ASSETS,
+        CopyGradleCachesToAssetsTask::class.java)
 
       androidComponentsExtension.onVariants { variant ->
 
@@ -89,6 +116,22 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
         variant.sources.assets?.addGeneratedSourceDirectory(copyToolingApiJar,
           AddFileToAssetsTask::outputDirectory)
+
+        // Local gradle zip copier
+        variant.sources.assets?.addGeneratedSourceDirectory(gradleExecutableToAssetsTaskProvider,
+          CopyGradleExecutableToAssetsTask::outputDirectory)
+
+        // Local gradle android plugin copier
+        variant.sources.assets?.addGeneratedSourceDirectory(gradleAndroidPluginToAssetsTaskProvider,
+          CopyGradleAndroidExceutableTask::outputDirectory)
+
+        // Local termux libs copier
+        variant.sources.assets?.addGeneratedSourceDirectory(gradleTermuxLibsToAssetsTaskProvider,
+          CopyTermauxCacheTask::outputDirectory)
+
+        // Local gradle caches copier
+        variant.sources.assets?.addGeneratedSourceDirectory(gradleCachesToAssetsTaskProvider,
+          CopyGradleCachesToAssetsTask::outputDirectory)
       }
     }
   }

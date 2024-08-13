@@ -41,9 +41,10 @@ abstract class GradleWrapperGeneratorTask : DefaultTask() {
 
   companion object {
 
-    private const val GRADLE_VERSION = "7.4.2"
+    private const val GRADLE_VERSION = "8.0"
   }
 
+  //TODO change gradle version to constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
   @TaskAction
   fun generateGradleWrapperZip() {
     val outputDirectory = this.outputDirectory.get().file("data/common").asFile

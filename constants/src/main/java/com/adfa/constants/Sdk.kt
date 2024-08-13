@@ -15,12 +15,15 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.templates
+package com.adfa.constants
 
 /**
  * Android API versions.
  *
  * @author Akash Yadav
+ *
+ * Keyword: [template-api, templateapi]
+ * * Moved from template-api in case of a roor repo merge we have to manuall move changes here.
  */
 enum class Sdk(val codename: String, val version: String, val api: Int) {
   JellyBean("Jelly Bean", "4.1", 16),

@@ -15,18 +15,17 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.templates
+package com.itsaky.androidide.templates.base.root
 
-/**
- * @author Akash Yadav
- */
+import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 
-const val ANDROID_GRADLE_PLUGIN_VERSION = "8.0.0"
-const val GRADLE_DISTRIBUTION_VERSION = "8.1.1"
-const val KOTLIN_VERSION = "1.8.21"
-
-val TARGET_SDK_VERSION = Sdk.Tiramisu
-val COMPILE_SDK_VERSION = Sdk.Tiramisu
-
-const val JAVA_SOURCE_VERSION = "11"
-const val JAVA_TARGET_VERSION = "11"
+fun gradleWrapperPropsSrc(): String {
+    return """
+    distributionBase=GRADLE_USER_HOME
+    distributionPath=wrapper/dists
+    distributionUrl=$GRADLE_WRAPPER_FILE_NAME
+    networkTimeout=10000
+    zipStoreBase=GRADLE_USER_HOME
+    zipStorePath=wrapper/dists
+  """.trimIndent()
+}

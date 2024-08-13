@@ -25,6 +25,10 @@ import org.gradle.api.artifacts.dsl.DependencyHandler
 
 /**
  * @author Akash Yadav
+ * Keywords: [android gradle plugin, agp, version, gradle, build, AndroidIDEInitScriptPlugin]
+ * @see AndroidIDEInitScriptPlugin
+ * related to
+ * @see Project.ideDependency
  */
 
 const val APP_PLUGIN = "com.android.application"
