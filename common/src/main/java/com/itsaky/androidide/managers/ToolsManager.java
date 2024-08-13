@@ -30,6 +30,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -55,6 +56,10 @@ public class ToolsManager {
     CompletableFuture.runAsync(() -> {
       // Load installed JDK distributions
       IJdkDistributionProvider.getInstance().loadDistributions();
+      String userDirectory = Paths.get("")
+              .toAbsolutePath()
+              .toString();
+      System.out.println("Working Directory = " + userDirectory);
 
       writeNoMediaFile();
       extractAapt2();
@@ -168,6 +173,22 @@ public class ToolsManager {
       LOG.warn("Unable to delete file: {}", file);
     }
   }
+
+  /**
+   * Keywords: [assets, gradle, gradleWrapper, localJars, Jars, Jar, ProjectTemplate, postRecipe ]
+   * ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common
+   * Why do we need build/intermediates/*** folder when we can just use assets? I don't know.
+   * During my short search I wasn't able to find anything meaningful in regards to that folder.
+   * The fact is that app copies assets from data/common folder.
+   * And to add any new libs using existing mechanisms
+   * @see ToolsManager getCommonAsset(String name)
+   * @see ResourceUtils copyFileFromAssets
+   * We have to put our files under data/common folder.  And add new postRecipe entry to templates
+   * @see ProjectTemplateBuilder
+   * @see base.kt
+   * @param name - asset name
+   * @return Full path to debug/compressed_assets/name
+   */
 
   @NonNull
   @Contract(pure = true)

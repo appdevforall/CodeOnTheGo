@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.templates.base.modules.android
 
+import com.adfa.constants.DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.ModuleType
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
@@ -36,19 +38,22 @@ fun AndroidModuleTemplateBuilder.buildGradleSrc(isComposeModule: Boolean
   return if (data.useKts) buildGradleSrcKts(
     isComposeModule) else buildGradleSrcGroovy(isComposeModule)
 }
-
+//todo fix hardcoded buildToolsVersion version.
 private fun AndroidModuleTemplateBuilder.buildGradleSrcKts(
   isComposeModule: Boolean
 ): String {
   return """
 plugins {
-    id("$androidPlugin")
+    id("$androidPlugin") version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
     ${ktPlugin()}
 }
 
 android {
     namespace = "${data.packageName}"
     compileSdk = ${data.versions.compileSdk.api}
+    // currently this is hardcodede to make it work but we should probably make it dependant on the
+    // onboarding choice.
+    buildToolsVersion = "34.0.4" 
     
     defaultConfig {
         applicationId = "${data.packageName}"
@@ -97,6 +102,9 @@ plugins {
 android {
     namespace '${data.packageName}'
     compileSdk ${data.versions.compileSdk.api}
+    // currently this is hardcodede to make it work but we should probably make it dependant on the
+    // onboarding choice.
+    buildToolsVersion = "34.0.4"
     
     defaultConfig {
         applicationId "${data.packageName}"
