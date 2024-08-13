@@ -15,11 +15,19 @@
 *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+plugins {
+    id("java")
+    kotlin("jvm") version "1.9.22"
+}
 subprojects {
-  plugins.withId("java-library") {
-    extensions.getByType(JavaPluginExtension::class.java).apply {
-      sourceCompatibility = JavaVersion.VERSION_17
-      targetCompatibility = JavaVersion.VERSION_17
+    plugins.withId("java-library") {
+        extensions.getByType(JavaPluginExtension::class.java).apply {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
     }
-  }
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }

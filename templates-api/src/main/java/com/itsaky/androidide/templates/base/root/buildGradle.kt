@@ -17,6 +17,13 @@
 
 package com.itsaky.androidide.templates.base.root
 
+import com.adfa.constants.DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import com.adfa.constants.GRADLE_FOLDER_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
@@ -24,13 +31,12 @@ internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
     plugins {
-        id("com.android.application") version "${data.version.gradlePlugin}" apply false
-        id("com.android.library") version "${data.version.gradlePlugin}" apply false
-        ${ktPlugin()}     
+        id("com.android.application") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
+        id("com.android.library") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
     }
 
     tasks.register<Delete>("clean") {
-        delete(rootProject.buildDir)
+        delete(rootProject.layout.buildDirectory)
     }
   """.trimIndent()
 }
@@ -39,13 +45,12 @@ internal fun ProjectTemplateBuilder.buildGradleSrcGroovy(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
     plugins {
-        id 'com.android.application' version '${data.version.gradlePlugin}' apply false
-        id 'com.android.library' version '${data.version.gradlePlugin}' apply false
-        ${ktPlugin()}     
+        id 'com.android.application' version "${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}" apply false
+        id 'com.android.library' version "${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}" apply false
     }
 
     task clean(type: Delete) {
-        delete rootProject.buildDir
+        delete rootProject.layout.buildDirectory
     }
   """.trimIndent()
 }

@@ -17,6 +17,9 @@
 
 @file:Suppress("UnstableApiUsage")
 
+include(":constants")
+
+
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -160,6 +163,7 @@ include(
   ":testing:unit",
   ":layouteditor:app",
   ":layouteditor:vectormaster",
+  ":constants"
 )
 
 project(":layouteditor:app").name = "layouteditor-app"

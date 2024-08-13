@@ -51,6 +51,13 @@ internal fun buildProject(
     }
   }
 
+  /**
+   * Keywords: [gradle build task, gradle.init]
+   * This is an expected build task with expected parameters, as far as I can tell.
+   * It is only used anb in ToolsManager.kt with no straightforward meaning.
+   * It is only used in ToolsManager.kt
+   * @see writeInitScript
+   */
   val args = mutableListOf(
     ":app:tasks", // run any task, as long as it applies the plugins
     "--init-script", initScript.pathString,

@@ -19,6 +19,16 @@ package com.itsaky.androidide.templates
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import com.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
+import com.adfa.constants.COMPILE_SDK_VERSION
+import com.adfa.constants.GRADLE_DISTRIBUTION_VERSION
+import com.adfa.constants.JAVA_SOURCE_VERSION
+import com.adfa.constants.JAVA_TARGET_VERSION
+import com.adfa.constants.KOTLIN_VERSION
+import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import com.adfa.constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
+import com.adfa.constants.Sdk
+import com.adfa.constants.TARGET_SDK_VERSION
 import com.itsaky.androidide.templates.base.util.optonallyKts
 import java.io.File
 import java.util.UUID
@@ -156,8 +166,19 @@ enum class SrcSet(val folder: String) {
  * @property gradle The Gradle version.
  * @property kotlin The Kotlin Plugin version.
  */
-data class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_VERSION,
+open class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_VERSION,
   val gradle: String = GRADLE_DISTRIBUTION_VERSION, val kotlin: String = KOTLIN_VERSION)
+
+/**
+ * Version information for the project.
+ *
+ * Created to gradually replace ProjectVersionData without breaking the whole project.
+ *
+ * @property gradlePlugin The Android Gradle Plugin version.
+ * @property gradle The Gradle version.
+ * @property kotlin The Kotlin Plugin version.
+ */
+class ProjectVersionLocalData : ProjectVersionData(LOCAL_ANDROID_GRADLE_PLUGIN_VERSION, LOCAL_GRADLE_DISTRIBUTION_VERSION, KOTLIN_VERSION)
 
 /**
  * Version information about a module.
@@ -166,8 +187,8 @@ data class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_V
  * @property buildTools The build tools version for modules.
  */
 data class ModuleVersionData(val minSdk: Sdk, val targetSdk: Sdk = TARGET_SDK_VERSION,
-  val compileSdk: Sdk = COMPILE_SDK_VERSION, val javaSource: String = JAVA_SOURCE_VERSION,
-  val javaTarget: String = JAVA_TARGET_VERSION) {
+                             val compileSdk: Sdk = COMPILE_SDK_VERSION, val javaSource: String = JAVA_SOURCE_VERSION,
+                             val javaTarget: String = JAVA_TARGET_VERSION) {
 
   /**
    * Get the Java source version string representation in the `JavaVersion.VERSION_${version}` format.

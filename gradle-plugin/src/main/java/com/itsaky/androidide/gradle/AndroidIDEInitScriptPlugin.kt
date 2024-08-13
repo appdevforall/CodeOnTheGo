@@ -43,6 +43,17 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
     private val logger = Logging.getLogger(AndroidIDEInitScriptPlugin::class.java)
   }
 
+  /**
+   * Keywords: [gradle, agp, androidGradlePlugin, classpath, build ]
+   * It seeme like this method adds custom android-gradle-plugin to the classpath.
+   * Without explicitly adding it to any gradle files.
+   * This script is a prat of androidIde. So even if child process fails to build,
+   * it only means that androidIDE toolchain was not satisfied.
+   * So far I can't find
+   * @see VERSION_NAME_DOWNLOAD
+   * gradle .jar and it seems to be required.
+   * This script has no direct usage by AS search, but is invoked from string and in gradle tasks.
+   */
   override fun apply(target: Gradle) {
     target.settingsEvaluated { settings ->
       settings.addDependencyRepositories()

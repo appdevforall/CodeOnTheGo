@@ -33,7 +33,7 @@ import androidx.work.NetworkType
 import androidx.work.Operation
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import ch.qos.logback.classic.Logger
+import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
@@ -48,8 +48,7 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.logging.LogcatAppender
-import com.itsaky.androidide.logging.encoder.IDELogFormatEncoder
+import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -72,204 +71,220 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
+import java.io.File
+import java.io.IOException
 import java.lang.Thread.UncaughtExceptionHandler
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.time.Duration
+import kotlin.io.path.Path
+import kotlin.io.path.exists
+import kotlin.io.path.pathString
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
 
-  private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
-  private var ideLogcatReader: IDELogcatReader? = null
+    private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
+    private var ideLogcatReader: IDELogcatReader? = null
 
-  init {
-    if (!VMUtils.isJvm()) {
-      TreeSitter.loadLibrary()
+    init {
+        if (!VMUtils.isJvm()) {
+            TreeSitter.loadLibrary()
+        }
+
+        RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
-    RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
-  }
+    @OptIn(DelicateCoroutinesApi::class)
+    override fun onCreate() {
+        instance = this
+        uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
-  @OptIn(DelicateCoroutinesApi::class)
-  override fun onCreate() {
-    instance = this
-    uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
-    Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
+        super.onCreate()
 
-    super.onCreate()
+        if (BuildConfig.DEBUG) {
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
+                    .build()
+            )
+            if (DevOpsPreferences.dumpLogs) {
+                startLogcatReader()
+            }
 
-    if (BuildConfig.DEBUG) {
-      StrictMode.setVmPolicy(
-        StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll().build())
-      if (DevOpsPreferences.dumpLogs) {
-        startLogcatReader()
-      }
+            checkForSecondDisplay()
 
-      checkForSecondDisplay()
+        }
 
+        EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
+            .addIndex(ProjectsApiEventsIndex()).addIndex(LspApiEventsIndex())
+            .addIndex(LspJavaEventsIndex()).installDefaultEventBus(true)
+
+        EventBus.getDefault().register(this)
+
+        AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+
+        if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+            DynamicColors.applyToActivitiesIfAvailable(this)
+        }
+
+        EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+
+        ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
+        GlobalScope.launch {
+            IDEColorSchemeProvider.init()
+        }
     }
 
-    EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
-      .addIndex(ProjectsApiEventsIndex()).addIndex(LspApiEventsIndex())
-      .addIndex(LspJavaEventsIndex()).installDefaultEventBus(true)
+    private fun handleCrash(thread: Thread, th: Throwable) {
+        writeException(th)
 
-    EventBus.getDefault().register(this)
+        try {
 
-    AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+            val intent = Intent()
+            intent.action = CrashHandlerActivity.REPORT_ACTION
+            intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            if (uncaughtExceptionHandler != null) {
+                uncaughtExceptionHandler!!.uncaughtException(thread, th)
+            }
 
-    if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-      DynamicColors.applyToActivitiesIfAvailable(this)
+            exitProcess(1)
+        } catch (error: Throwable) {
+            log.error("Unable to show crash handler activity", error)
+        }
     }
 
-    EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
-
-    ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-    GlobalScope.launch {
-      IDEColorSchemeProvider.init()
-    }
-  }
-
-  private fun handleCrash(thread: Thread, th: Throwable) {
-    writeException(th)
-
-    try {
-
-      val intent = Intent()
-      intent.action = CrashHandlerActivity.REPORT_ACTION
-      intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      startActivity(intent)
-      if (uncaughtExceptionHandler != null) {
-        uncaughtExceptionHandler!!.uncaughtException(thread, th)
-      }
-
-      exitProcess(1)
-    } catch (error: Throwable) {
-      log.error("Unable to show crash handler activity", error)
-    }
-  }
-
-  fun showChangelog() {
-    val intent = Intent(Intent.ACTION_VIEW)
-    var version = BuildInfo.VERSION_NAME_SIMPLE
-    if (!version.startsWith('v')) {
-      version = "v${version}"
-    }
-    intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/${version}")
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    try {
-      startActivity(intent)
-    } catch (th: Throwable) {
-      log.error("Unable to start activity to show changelog", th)
-      flashError("Unable to start activity")
-    }
-  }
-
-  fun reportStatsIfNecessary() {
-
-    if (!StatPreferences.statOptIn) {
-      log.info("Stat collection is disabled.")
-      return
+    fun showChangelog() {
+        val intent = Intent(Intent.ACTION_VIEW)
+        var version = BuildInfo.VERSION_NAME_SIMPLE
+        if (!version.startsWith('v')) {
+            version = "v${version}"
+        }
+        intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/${version}")
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (th: Throwable) {
+            log.error("Unable to start activity to show changelog", th)
+            flashError("Unable to start activity")
+        }
     }
 
-    val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-    val request = PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24)).setInputData(
-      AndroidIDEStats.statData.toInputData()).setConstraints(constraints)
-      .addTag(StatUploadWorker.WORKER_WORK_NAME).build()
+    fun reportStatsIfNecessary() {
 
-    val workManager = WorkManager.getInstance(this)
+        if (!StatPreferences.statOptIn) {
+            log.info("Stat collection is disabled.")
+            return
+        }
 
-    log.info("reportStatsIfNecessary: Enqueuing StatUploadWorker...")
-    val operation = workManager.enqueueUniquePeriodicWork(StatUploadWorker.WORKER_WORK_NAME,
-      ExistingPeriodicWorkPolicy.UPDATE, request)
+        val constraints =
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val request =
+            PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24)).setInputData(
+                AndroidIDEStats.statData.toInputData()
+            ).setConstraints(constraints)
+                .addTag(StatUploadWorker.WORKER_WORK_NAME).build()
 
-    operation.state.observeForever(object : Observer<Operation.State> {
-      override fun onChanged(value: Operation.State) {
-        operation.state.removeObserver(this)
-        log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
-      }
-    })
-  }
+        val workManager = WorkManager.getInstance(this)
 
-  private fun startLogcatReader() {
-    if (ideLogcatReader != null) {
-      // already started
-      return
+        log.info("reportStatsIfNecessary: Enqueuing StatUploadWorker...")
+        val operation = workManager.enqueueUniquePeriodicWork(
+            StatUploadWorker.WORKER_WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE, request
+        )
+
+        operation.state.observeForever(object : Observer<Operation.State> {
+            override fun onChanged(value: Operation.State) {
+                operation.state.removeObserver(this)
+                log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
+            }
+        })
     }
 
-    log.info("Starting logcat reader...")
-    ideLogcatReader = IDELogcatReader().also { it.start() }
-  }
+    private fun startLogcatReader() {
+        if (ideLogcatReader != null) {
+            // already started
+            return
+        }
 
-  private fun stopLogcatReader() {
-    log.info("Stopping logcat reader...")
-    ideLogcatReader?.stop()
-    ideLogcatReader = null
-  }
-
-  @Subscribe(threadMode = ThreadMode.MAIN)
-  fun onPrefChanged(event: PreferenceChangeEvent) {
-    val enabled = event.value as? Boolean?
-    if (event.key == StatPreferences.STAT_OPT_IN) {
-      if (enabled == true) {
-        reportStatsIfNecessary()
-      } else {
-        cancelStatUploadWorker()
-      }
-    } else if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
-      if (enabled == true) {
-        startLogcatReader()
-      } else {
-        stopLogcatReader()
-      }
-    } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
-      AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
-    } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
-
-      // Use empty locale list if the locale has been reset to 'System Default'
-      val selectedLocale = GeneralPreferences.selectedLocale
-      val localeListCompat = selectedLocale?.let {
-        LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
-      } ?: LocaleListCompat.getEmptyLocaleList()
-
-      AppCompatDelegate.setApplicationLocales(localeListCompat)
+        log.info("Starting logcat reader...")
+        ideLogcatReader = IDELogcatReader().also { it.start() }
     }
-  }
 
-  private fun cancelStatUploadWorker() {
-    log.info("Opted-out of stat collection. Cancelling StatUploadWorker if enqueued...")
-    val operation = WorkManager.getInstance(this)
-      .cancelUniqueWork(StatUploadWorker.WORKER_WORK_NAME)
-    operation.state.observeForever(object : Observer<Operation.State> {
-      override fun onChanged(value: Operation.State) {
-        operation.state.removeObserver(this)
-        log.info("StatUploadWorker: Cancellation result state: {}", value)
-      }
-    })
-  }
-
-  private fun checkForSecondDisplay() {
-    val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-    val displays = displayManager.displays
-    var secondDisplay: Display? = null
-    for (display in displays) {
-      if (display.displayId != Display.DEFAULT_DISPLAY) {
-        // This is a secondary display
-        secondDisplay = display
-      }
+    private fun stopLogcatReader() {
+        log.info("Stopping logcat reader...")
+        ideLogcatReader?.stop()
+        ideLogcatReader = null
     }
-    if (secondDisplay != null) {
-      val presentation = SecondaryScreen(this, secondDisplay!!)
-      presentation.show()
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onPrefChanged(event: PreferenceChangeEvent) {
+        val enabled = event.value as? Boolean?
+        if (event.key == StatPreferences.STAT_OPT_IN) {
+            if (enabled == true) {
+                reportStatsIfNecessary()
+            } else {
+                cancelStatUploadWorker()
+            }
+        } else if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+            if (enabled == true) {
+                startLogcatReader()
+            } else {
+                stopLogcatReader()
+            }
+        } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
+            AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+        } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
+
+            // Use empty locale list if the locale has been reset to 'System Default'
+            val selectedLocale = GeneralPreferences.selectedLocale
+            val localeListCompat = selectedLocale?.let {
+                LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
+            } ?: LocaleListCompat.getEmptyLocaleList()
+
+            AppCompatDelegate.setApplicationLocales(localeListCompat)
+        }
     }
-  }
-  companion object {
 
-    private val log = LoggerFactory.getLogger(IDEApplication::class.java)
+    private fun cancelStatUploadWorker() {
+        log.info("Opted-out of stat collection. Cancelling StatUploadWorker if enqueued...")
+        val operation = WorkManager.getInstance(this)
+            .cancelUniqueWork(StatUploadWorker.WORKER_WORK_NAME)
+        operation.state.observeForever(object : Observer<Operation.State> {
+            override fun onChanged(value: Operation.State) {
+                operation.state.removeObserver(this)
+                log.info("StatUploadWorker: Cancellation result state: {}", value)
+            }
+        })
+    }
 
-    @JvmStatic
-    lateinit var instance: IDEApplication
-      private set
-  }
+    private fun checkForSecondDisplay() {
+        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val displays = displayManager.displays
+        var secondDisplay: Display? = null
+        for (display in displays) {
+            if (display.displayId != Display.DEFAULT_DISPLAY) {
+                // This is a secondary display
+                secondDisplay = display
+            }
+        }
+        if (secondDisplay != null) {
+            val presentation = SecondaryScreen(this, secondDisplay!!)
+            presentation.show()
+        }
+    }
+
+    companion object {
+
+        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
+
+        @JvmStatic
+        lateinit var instance: IDEApplication
+            private set
+    }
+
 }

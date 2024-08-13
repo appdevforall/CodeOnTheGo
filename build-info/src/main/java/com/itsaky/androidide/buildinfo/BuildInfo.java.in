@@ -18,6 +18,8 @@
 package com.itsaky.androidide.buildinfo;
 
 /**
+ * Keywords: [Gradle, Build, AGP version, AndroidPluginVersion.kt]
+ * This class is generated from BuildInfo.java.in if you want to edit it please change the .in file.
  * Contains various information about the AndroidIDE build.
  */
 public class BuildInfo {
