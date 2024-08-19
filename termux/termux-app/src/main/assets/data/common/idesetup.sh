@@ -17,10 +17,11 @@ sdkver_org=34.0.4
 with_cmdline=true
 assume_yes=false
 manifest="https://raw.githubusercontent.com/AndroidIDEOfficial/androidide-tools/main/manifest.json"
-pkgm="pkg"
+pkgm="apt"
 pkg_curl="libcurl"
 pkgs="jq tar"
 jdk_version="17"
+offline_mode=true
 
 print_info() {
   # shellcheck disable=SC2059
@@ -82,6 +83,10 @@ check_command_exists() {
 
 # shellcheck disable=SC2068
 install_packages() {
+  #set
+  env | sort
+  #export
+
   if [ "$assume_yes" == "true" ]; then
     $pkgm install $@ -y
   else
@@ -189,6 +194,7 @@ download_comp() {
 ## When adding more installation configuration arguments,
 # add them in com.itsaky.andridide.models.IdeSetupArgument as well
 while [ $# -gt 0 ]; do
+  print_info $1
   case $1 in
   -c | --with-cmdline-tools)
     shift
@@ -204,7 +210,13 @@ while [ $# -gt 0 ]; do
     ;;
   -y | --assume-yes)
     shift
+    print_info "assume_yes option detected"
     assume_yes=true
+    ;;
+  -f | --offline-mode)
+    shift
+    print_info "offline_mode option detected"
+    offline_mode=true
     ;;
   -i | --install-dir)
     shift
@@ -288,7 +300,9 @@ echo "Installation directory    : ${install_dir}"
 echo "SDK version               : ${sdkver_org}"
 echo "JDK version               : ${jdk_version}"
 echo "With command line tools   : ${with_cmdline}"
+echo "In offline mode           : ${offline_mode}"
 echo "Extra packages            : ${pkgs}"
+echo "PKG manager               : ${pkgm}"
 echo "CPU architecture          : ${arch}"
 echo "------------------------------------------"
 
@@ -323,6 +337,8 @@ print_info "Installing required packages.."
 install_packages $pkgs && print_success "Packages installed"
 echo ""
 
+print_info "offline=$offline_mode"
+if [ "$offline_mode" = false ]; then
 # Download the manifest.json file
 print_info "Downloading manifest file..."
 downloaded_manifest="$install_dir/manifest.json"
@@ -343,6 +359,10 @@ if [ "$with_cmdline" = true ]; then
   download_comp "Command-line tools" ".cmdline_tools" "$install_dir/android-sdk" "cmdline-tools"
 fi
 
+fi
+
+read -p "Prompt"
+
 # Install JDK
 print_info "Installing package: 'openjdk-$jdk_version'"
 install_packages "openjdk-$jdk_version" && print_info "JDK $jdk_version has been installed."
@@ -359,6 +379,8 @@ if [ ! -d "$props_dir" ]; then
   mkdir -p "$props_dir"
 fi
 
+read -p "Prompt"
+
 if [ ! -e "$props" ]; then
   printf "JAVA_HOME=%s" "$jdk_dir" >"$props" && print_success "Properties file updated successfully!"
 else
@@ -369,5 +391,9 @@ else
   fi
 fi
 
+if [ "$offline_mode" == "false" ]; then
 rm -vf "$downloaded_manifest"
 print_success "Downloads completed. You are ready to go!"
+else
+print_success "Offline install completed. You are ready to go!"
+fi
