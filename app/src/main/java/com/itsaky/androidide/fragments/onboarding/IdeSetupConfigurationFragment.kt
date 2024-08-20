@@ -132,6 +132,8 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
     if (content.installOpenssh.isChecked) {
       args.setArgument(IdeSetupArgument.WITH_OPENSSH)
     }
+    //todo add logic that will add or remove this conditionally
+    args.setArgument(IdeSetupArgument.OFFLINE_MODE)
     return args.toTypedArray()
   }
 

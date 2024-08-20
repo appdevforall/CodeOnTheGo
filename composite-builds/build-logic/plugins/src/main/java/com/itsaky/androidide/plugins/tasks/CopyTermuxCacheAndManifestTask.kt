@@ -18,9 +18,11 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOACL_GRADLE_8_0_0_CACHES_PATH
-import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES_DEST
+import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+import com.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
+import com.adfa.constants.MANIFEST_FILE_NAME
 import com.adfa.constants.SOURCE_LIB_FOLDER
+import com.google.common.io.Files
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -29,10 +31,10 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
 import kotlin.io.path.Path
 
-abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
+
+abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -41,28 +43,36 @@ abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyGradleCachesToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER + File.separator + LOACL_SOURCE_AGP_8_0_0_CACHES_DEST).asFile
+    fun copyTermuxCachesToAssets() {
+        val outputDirectory = this.outputDirectory.get()
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME).asFile
+        val sourceFilePath =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+        copy(sourceFilePath, outputDirectory)
+
+        val varOutputDirectory = this.outputDirectory.get()
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME).asFile
+        val varSourceFilePath =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
+        copy(varSourceFilePath, varOutputDirectory)
+
+        val manifestOutputDirectory = this.outputDirectory.get()
+            .file(ASSETS_COMMON_FOLDER).asFile.resolve(MANIFEST_FILE_NAME)
+        val manifestSourceFilePath =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + MANIFEST_FILE_NAME
+        Files.copy(File(manifestSourceFilePath), manifestOutputDirectory)
+    }
+
+    private fun copy(sourceFilePath: String, outputDirectory: File) {
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
-
-        /**
-         * Currently we are hardcoded to LOACL_SOURCE_AGP_8_0_0_CACHES, but we can add
-         * an if statement that will change this based on whatever gradle version we choose
-         * from the supported once.
-         * Supported gradle versions are limited by the pregenerated cahces we have in libs_source
-         * folder.
-         */
-        val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOACL_GRADLE_8_0_0_CACHES_PATH
 
         try {
             copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }
-
     }
 
 }

@@ -18,18 +18,22 @@
 package com.itsaky.androidide.plugins
 
 import com.adfa.constants.COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME
+import com.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
 import com.adfa.constants.COPY_GRADLE_CAHCES_TO_ASSETS
 import com.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import com.adfa.constants.COPY_PLATFORM_TOOLS_TO_ASSETS
 import com.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
 import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
-import com.itsaky.androidide.plugins.tasks.CopyGradleAndroidExceutableTask
+import com.itsaky.androidide.plugins.tasks.CopyPlatformToolsToAssetsTask
+import com.itsaky.androidide.plugins.tasks.CopyGradleAndroidExceutableToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleCachesToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleExecutableToAssetsTask
-import com.itsaky.androidide.plugins.tasks.CopyTermauxCacheTask
+import com.itsaky.androidide.plugins.tasks.CopySdkToAssetsTask
+import com.itsaky.androidide.plugins.tasks.CopyTermuxCacheAndManifestTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
@@ -71,13 +75,15 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         CopyGradleExecutableToAssetsTask::class.java)
 
       val gradleAndroidPluginToAssetsTaskProvider = tasks.register(COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME,
-        CopyGradleAndroidExceutableTask::class.java)
+        CopyGradleAndroidExceutableToAssetsTask::class.java)
 
-      val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME,
-        CopyTermauxCacheTask::class.java)
+      val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
 
       val gradleCachesToAssetsTaskProvider = tasks.register(COPY_GRADLE_CAHCES_TO_ASSETS,
         CopyGradleCachesToAssetsTask::class.java)
+
+      val androidSdkToAssetsTaskProvider = tasks.register(COPY_ANDROID_SDK_TO_ASSETS,
+        CopySdkToAssetsTask::class.java)
 
       androidComponentsExtension.onVariants { variant ->
 
@@ -123,15 +129,20 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
         // Local gradle android plugin copier
         variant.sources.assets?.addGeneratedSourceDirectory(gradleAndroidPluginToAssetsTaskProvider,
-          CopyGradleAndroidExceutableTask::outputDirectory)
+          CopyGradleAndroidExceutableToAssetsTask::outputDirectory)
 
         // Local termux libs copier
         variant.sources.assets?.addGeneratedSourceDirectory(gradleTermuxLibsToAssetsTaskProvider,
-          CopyTermauxCacheTask::outputDirectory)
+          CopyTermuxCacheAndManifestTask::outputDirectory)
 
         // Local gradle caches copier
         variant.sources.assets?.addGeneratedSourceDirectory(gradleCachesToAssetsTaskProvider,
           CopyGradleCachesToAssetsTask::outputDirectory)
+
+        // Local android sdk version copier
+        variant.sources.assets?.addGeneratedSourceDirectory(androidSdkToAssetsTaskProvider,
+          CopySdkToAssetsTask::outputDirectory)
+
       }
     }
   }

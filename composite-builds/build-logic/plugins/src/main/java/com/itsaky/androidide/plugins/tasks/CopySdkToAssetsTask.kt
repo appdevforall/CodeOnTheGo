@@ -18,10 +18,9 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
-import com.adfa.constants.LOCAL_SOURCE_ANDROID_GRADLE_PLUGIN_VERSION_NAME
+import com.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.SOURCE_LIB_FOLDER
-import com.google.common.io.Files
+import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
@@ -29,8 +28,9 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.io.IOException
+import kotlin.io.path.Path
 
-abstract class CopyGradleAndroidExceutableTask : DefaultTask() {
+abstract class CopySdkToAssetsTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -39,26 +39,24 @@ abstract class CopyGradleAndroidExceutableTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyGradleAndroidPluginExecutableToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER).asFile
+    fun copySdkToAssets() {
+        val outputDirectory = this.outputDirectory.get()
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_SDK).asFile
+        val sourceFilePath =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_SDK
+        copy(sourceFilePath, outputDirectory)
+    }
+
+    private fun copy(sourceFilePath: String, outputDirectory: File) {
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
-        val destFile = outputDirectory.resolve(LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME)
-
-        if (destFile.exists()) {
-            destFile.delete()
-        }
-
-        val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_GRADLE_PLUGIN_VERSION_NAME
 
         try {
-            Files.copy(File(sourceFilePath), destFile)
+            copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }
-
     }
 
 }
