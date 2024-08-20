@@ -18,7 +18,6 @@
 package com.itsaky.androidide.actions.file
 
 import android.content.Context
-import android.graphics.RectF
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -32,8 +31,6 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
 import io.github.rosemoe.sora.widget.CodeEditor
-import kotlin.math.max
-import kotlin.math.min
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
     EditorRelatedAction() {
@@ -48,9 +45,8 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     override suspend fun execAction(data: ActionData): Any {
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
-
         if (cursor.isSelected) {
-            showTooltip(editor, "init", "expand", 1, 1)
+            showTooltip(editor, editor.text.substring(cursor.left, cursor.right), "expand")
         }
 
         return true
@@ -59,32 +55,30 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     private fun showTooltip(
         editor: CodeEditor,
         initialText: String,
-        expandedText: String,
-        panelX: Int,
-        top: Int
+        moreText: String,
     ) {
         // Inflate the custom layout for the tooltip
         val inflater = LayoutInflater.from(context)
         val tooltipView = inflater.inflate(R.layout.layout_tooltip, null)
 
         // Find views within the tooltip layout
-        val tooltipText: TextView = tooltipView.findViewById(R.id.tooltip_text)
+        val titleText: TextView = tooltipView.findViewById(R.id.tooltip_text)
         val showMoreButton: Button = tooltipView.findViewById(R.id.btn_show_more)
-        val moreInfoText: TextView = tooltipView.findViewById(R.id.tooltip_more_info)
+        val expandedText: TextView = tooltipView.findViewById(R.id.tooltip_more_info)
 
         // Set initial text for the tooltip
-        tooltipText.text = initialText
+        titleText.text = initialText
 
         // Set the expanded text
-        moreInfoText.text = expandedText
+        expandedText.text = moreText
 
         // Handle the "Show More" button click
         showMoreButton.setOnClickListener {
-            if (moreInfoText.visibility == View.GONE) {
-                moreInfoText.visibility = View.VISIBLE
+            if (expandedText.visibility == View.GONE) {
+                expandedText.visibility = View.VISIBLE
                 showMoreButton.text = "Show Less"
             } else {
-                moreInfoText.visibility = View.GONE
+                expandedText.visibility = View.GONE
                 showMoreButton.text = "Show More"
             }
         }
@@ -97,7 +91,6 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         popupWindow.isOutsideTouchable = true
         popupWindow.isFocusable = true
 
-        //popupWindow.showAsDropDown(anchorView, panelX, top)
-        popupWindow.showAtLocation(editor, Gravity.NO_GRAVITY, panelX, top)
+        popupWindow.showAtLocation(editor, Gravity.CENTER, 0, 0)
     }
 }
