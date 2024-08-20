@@ -40,6 +40,7 @@ import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
 import com.itsaky.androidide.actions.file.FormatCodeAction
 import com.itsaky.androidide.actions.file.SaveFileAction
+import com.itsaky.androidide.actions.file.ShowTooltipAction
 import com.itsaky.androidide.actions.filetree.CopyPathAction
 import com.itsaky.androidide.actions.filetree.DeleteAction
 import com.itsaky.androidide.actions.filetree.NewFileAction
@@ -93,6 +94,7 @@ class EditorActivityActions {
       registry.registerAction(CopyAction(context, order++))
       registry.registerAction(PasteAction(context, order++))
       registry.registerAction(FormatCodeAction(context, order++))
+      registry.registerAction(ShowTooltipAction(context,order++))
 
       // file tab actions
       registry.registerAction(CloseFileAction(context, order++))
