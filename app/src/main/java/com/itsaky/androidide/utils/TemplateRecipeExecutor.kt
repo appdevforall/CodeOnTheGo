@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
+import com.adfa.constants.LOACL_AGP_8_0_0_CACHES_DEST
 import com.blankj.utilcode.util.ResourceUtils
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.managers.ToolsManager
@@ -65,7 +66,7 @@ class TemplateRecipeExecutor : RecipeExecutor {
 
     override fun updateCaches(gradlePath: String) {
         val outputDirectory =
-            File(application.filesDir.path + File.separator + "home" + File.separator + ".gradle")
+            File(application.filesDir.path + File.separator + LOACL_AGP_8_0_0_CACHES_DEST)
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
