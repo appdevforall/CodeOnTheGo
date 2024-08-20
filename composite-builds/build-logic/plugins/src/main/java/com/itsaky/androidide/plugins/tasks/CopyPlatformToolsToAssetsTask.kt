@@ -18,7 +18,7 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_TERMUX_LIB_FOLDER_PATH
+import com.adfa.constants.LOCAL_PALTFORM_TOOLS
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
@@ -28,13 +28,9 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import kotlin.io.path.Path
 
-
-abstract class CopyTermauxCacheTask : DefaultTask() {
+abstract class CopyPlatformToolsToAssetsTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -43,25 +39,24 @@ abstract class CopyTermauxCacheTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyTermuxLibsToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER + LOCAL_TERMUX_LIB_FOLDER_PATH).asFile
+    fun copyPlatformToolsToAssets() {
+        val outputDirectory = this.outputDirectory.get()
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_PALTFORM_TOOLS).asFile
+        val sourceFilePath =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_PALTFORM_TOOLS
+        copy(sourceFilePath, outputDirectory)
+    }
+
+    private fun copy(sourceFilePath: String, outputDirectory: File) {
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
-
-        if (outputDirectory.exists()) {
-            outputDirectory.delete()
-        }
-
-        val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + LOCAL_TERMUX_LIB_FOLDER_PATH
 
         try {
             copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }
-
     }
 
 }

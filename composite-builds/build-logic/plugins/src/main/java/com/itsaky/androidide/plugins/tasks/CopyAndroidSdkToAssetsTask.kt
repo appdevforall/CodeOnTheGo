@@ -16,10 +16,8 @@
  */
 
 package com.itsaky.androidide.plugins.tasks
-
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOACL_GRADLE_8_0_0_CACHES_PATH
-import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES_DEST
+import com.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
@@ -29,10 +27,10 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
 import kotlin.io.path.Path
 
-abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
+
+abstract class CopyAndroidSdkToAssetsTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -41,28 +39,24 @@ abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyGradleCachesToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER + File.separator + LOACL_SOURCE_AGP_8_0_0_CACHES_DEST).asFile
+    fun copyAndroidSdkToAssets() {
+        val outputDirectory = this.outputDirectory.get()
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_SDK).asFile
+        val sourceFilePath =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_SDK
+        copy(sourceFilePath, outputDirectory)
+    }
+
+    private fun copy(sourceFilePath: String, outputDirectory: File) {
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
-
-        /**
-         * Currently we are hardcoded to LOACL_SOURCE_AGP_8_0_0_CACHES, but we can add
-         * an if statement that will change this based on whatever gradle version we choose
-         * from the supported once.
-         * Supported gradle versions are limited by the pregenerated cahces we have in libs_source
-         * folder.
-         */
-        val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOACL_GRADLE_8_0_0_CACHES_PATH
 
         try {
             copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }
-
     }
 
 }
