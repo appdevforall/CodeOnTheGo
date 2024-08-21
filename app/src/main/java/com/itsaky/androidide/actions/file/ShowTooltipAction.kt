@@ -39,7 +39,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
 
     init {
         label = context.getString(R.string.title_show_tooltip)
-        icon = ContextCompat.getDrawable(context, R.drawable.ic_android)
+        icon = ContextCompat.getDrawable(context, R.drawable.ic_docs)
     }
 
     override suspend fun execAction(data: ActionData): Any {

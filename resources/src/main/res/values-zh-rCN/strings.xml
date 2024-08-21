@@ -196,6 +196,7 @@
   <string name="msg_file_tree">文件树</string>
   <string name="hint_attr_value">属性值</string>
   <string name="title_format_code">格式化代码</string>
+  <string name="title_show_tooltip">帮助</string>
   <string name="idepref_java_useGoogleStyle_title">使用 Google Java 样式代码格式化</string>
   <string name="idepref_java_useGoogleStyle_summary">使用 Google Java 样式代码格式化配置格式化 Java 源代码</string>
   <string name="idepref_visiblePassword_title">明文密码标记</string>

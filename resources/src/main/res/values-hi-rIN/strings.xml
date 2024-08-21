@@ -196,6 +196,7 @@
   <string name="msg_file_tree">फ़ाइल ट्री</string>
   <string name="hint_attr_value">एट्रिब्यूट वैल्यू</string>
   <string name="title_format_code">फ़ॉर्मेट कोड</string>
+  <string name="title_show_tooltip">मदद</string>
   <string name="idepref_java_useGoogleStyle_title">गुगल जावा स्टाइल कोड फ़ॉर्मेट का प्रयोग करें</string>
   <string name="idepref_java_useGoogleStyle_summary">जावा सोर्स कोड को फ़ॉर्मेट करने के लिए गुगल जावा स्टाइल कोड फ़ॉर्मेट कॉन्फ़िगरेशन का उपयोग करें।</string>
   <string name="idepref_visiblePassword_title">दृश्यमान पासवर्ड फ्लेग</string>

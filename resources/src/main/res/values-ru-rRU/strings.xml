@@ -196,6 +196,7 @@
   <string name="msg_file_tree">Дерево файлов</string>
   <string name="hint_attr_value">Значение атрибута</string>
   <string name="title_format_code">Форматирование кода</string>
+  <string name="title_show_tooltip">Помощь</string>
   <string name="idepref_java_useGoogleStyle_title">Используйте форматирование кода в стиле Google Java</string>
   <string name="idepref_java_useGoogleStyle_summary">Используйте конфигурацию форматирования кода в стиле Google Java для форматирования исходного кода Java.</string>
   <string name="idepref_visiblePassword_title">Флаг видимого пароля</string>
