@@ -196,6 +196,7 @@
   <string name="msg_file_tree">Lista de arquivos</string>
   <string name="hint_attr_value">Valor do atributo</string>
   <string name="title_format_code">Formatar código</string>
+  <string name="title_show_tooltip">Ajuda</string>
   <string name="idepref_java_useGoogleStyle_title">Usar a formatação de código Google Java Style</string>
   <string name="idepref_java_useGoogleStyle_summary">Usa a configuração de formatação de código Google Java Style para formatar o código-fonte Java.</string>
   <string name="idepref_visiblePassword_title">Sinalizador de senha visível</string>

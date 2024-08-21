@@ -196,6 +196,7 @@
   <string name="msg_file_tree">Dateipfad</string>
   <string name="hint_attr_value">Attributwert</string>
   <string name="title_format_code">Code formatieren</string>
+  <string name="title_show_tooltip">Helfen</string>
   <string name="idepref_java_useGoogleStyle_title">Verwenden Sie die Codeformatierung im Google-Java-Stil</string>
   <string name="idepref_java_useGoogleStyle_summary">Verwenden Sie die Codeformatierungskonfiguration im Google-Java-Stil zum Formatieren des Java-Quellcodes.</string>
   <string name="idepref_visiblePassword_title">Sichtbares Passwort-Flag</string>
