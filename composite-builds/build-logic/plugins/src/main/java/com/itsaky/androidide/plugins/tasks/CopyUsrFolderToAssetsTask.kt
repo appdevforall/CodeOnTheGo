@@ -17,12 +17,10 @@
 
 package com.itsaky.androidide.plugins.tasks
 
+import com.adfa.constants.LOCAL_SOURCE_USR_FOLDER
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
-import com.adfa.constants.MANIFEST_FILE_NAME
+import com.adfa.constants.LOCAL_PALTFORM_TOOLS
 import com.adfa.constants.SOURCE_LIB_FOLDER
-import com.google.common.io.Files
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -33,8 +31,7 @@ import java.io.File
 import java.io.IOException
 import kotlin.io.path.Path
 
-
-abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
+abstract class CopyUsrFolderToAssetsTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -43,18 +40,12 @@ abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyTermuxCachesToAssets() {
+    fun copyUsrFolderToAssets() {
         val outputDirectory = this.outputDirectory.get()
-            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME).asFile
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_USR_FOLDER).asFile
         val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_USR_FOLDER
         copy(sourceFilePath, outputDirectory)
-
-        val manifestOutputDirectory = this.outputDirectory.get()
-            .file(ASSETS_COMMON_FOLDER).asFile.resolve(MANIFEST_FILE_NAME)
-        val manifestSourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + MANIFEST_FILE_NAME
-        Files.copy(File(manifestSourceFilePath), manifestOutputDirectory)
     }
 
     private fun copy(sourceFilePath: String, outputDirectory: File) {

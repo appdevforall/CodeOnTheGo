@@ -72,10 +72,12 @@ const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME =
 
 // Termux
 const val LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME = "termux"
-val TERMUX_DEBS_PATH = "cache" + File.separator + "apt"
+val TERMUX_DEBS_PATH = "cache" + File.separator + "apt" + File.separator + "archives"
 const val MANIFEST_FILE_NAME = "manifest.json"
 const val LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME = "var"
-const val DESTINATION_TERMUX_VAR_FOLER_PATH = "{$USR}/{$LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME}"
+const val DESTINATION_TERMUX_VAR_FOLER_PATH = "$USR/$LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME"
+const val LOCAL_SOURCE_USR_FOLDER = USR
+const val DESSTINATION_USR_FOLDER = USR
 
 // Caches
 const val LOACL_GRADLE_8_0_0_CACHES_PATH = "gradle"
@@ -98,3 +100,4 @@ const val COPY_TERMUX_LIBS_TASK_NAME = "copyTermuxLibs"
 const val COPY_GRADLE_CAHCES_TO_ASSETS = "copyGradleCachesToAssets"
 const val COPY_ANDROID_SDK_TO_ASSETS = "copyAndroidSdkToAssets"
 const val COPY_PLATFORM_TOOLS_TO_ASSETS = "copyPlatfromToolsToAssets"
+const val COPY_USR_FOLDER_TO_ASSETS = "copyUsrFolderToAssets"

@@ -31,5 +31,6 @@ enum class IdeSetupArgument(val argumentName: String, val requiresValue: Boolean
   WITH_OPENSSH("--with-openssh"),
   SDK_VERSION("--sdk", true),
   JDK_VERSION("--jdk", true),
-  OFFLINE_MODE("--offline-mode")
+  OFFLINE_MODE("--offline-mode"),
+  CACHE_DIR("--cache-dir")
 }
