@@ -45,8 +45,10 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     override suspend fun execAction(data: ActionData): Any {
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
+        val activity = data.getActivity()
+        activity
         if (cursor.isSelected) {
-            showTooltip(editor, editor.text.substring(cursor.left, cursor.right), "expand")
+            showTooltip(editor, editor.text.substring(cursor.left, cursor.right), "expand") { activity?.openFAQActivity() }
         }
 
         return true
@@ -56,6 +58,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         editor: CodeEditor,
         initialText: String,
         moreText: String,
+        block: () -> Unit
     ) {
         // Inflate the custom layout for the tooltip
         val inflater = LayoutInflater.from(context)
@@ -63,7 +66,10 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
 
         // Find views within the tooltip layout
         val titleText: TextView = tooltipView.findViewById(R.id.tooltip_text)
-        val showMoreButton: Button = tooltipView.findViewById(R.id.btn_show_more)
+        val showMoreSecondLevelButton: Button =
+            tooltipView.findViewById(R.id.btn_show_more_second_level)
+        val showMoreThirdLevelButton: Button =
+            tooltipView.findViewById(R.id.btn_show_more_third_levewl)
         val expandedText: TextView = tooltipView.findViewById(R.id.tooltip_more_info)
 
         // Set initial text for the tooltip
@@ -73,14 +79,20 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         expandedText.text = moreText
 
         // Handle the "Show More" button click
-        showMoreButton.setOnClickListener {
+        showMoreSecondLevelButton.setOnClickListener {
             if (expandedText.visibility == View.GONE) {
                 expandedText.visibility = View.VISIBLE
-                showMoreButton.text = "Show Less"
+                showMoreSecondLevelButton.text = context.getString(R.string.show_tooltip_show_less)
+                showMoreThirdLevelButton.visibility = View.VISIBLE
             } else {
                 expandedText.visibility = View.GONE
-                showMoreButton.text = "Show More"
+                showMoreSecondLevelButton.text = context.getString(R.string.show_tooltip_show_more)
+                showMoreThirdLevelButton.visibility = View.GONE
             }
+        }
+
+        showMoreThirdLevelButton.setOnClickListener {
+            block.invoke()
         }
 
         val popupWindow = PopupWindow(

@@ -85,4 +85,5 @@ interface IEditorHandler {
   fun closeAll() = closeAll {}
   fun closeAll(runAfter: () -> Unit)
   fun closeOthers()
+  fun openFAQActivity()
 }
