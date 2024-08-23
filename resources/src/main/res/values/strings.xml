@@ -225,6 +225,8 @@
   <string name="hint_attr_value">Attribute value</string>
   <string name="title_format_code">Format code</string>
   <string name="title_show_tooltip">Help</string>
+  <string name="show_tooltip_show_more">Show more</string>
+  <string name="show_tooltip_show_less">Show less</string>
   <string name="idepref_java_useGoogleStyle_title">Use Google Java Style code formatting</string>
   <string name="idepref_java_useGoogleStyle_summary">Use Google Java Style code formatting configuration for formatting Java source code.</string>
   <string name="idepref_visiblePassword_title">Visible password flag</string>
