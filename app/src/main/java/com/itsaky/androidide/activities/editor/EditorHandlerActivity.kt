@@ -19,6 +19,7 @@ package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.Menu
@@ -566,6 +567,11 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
       }
     }
   }
+
+    override fun openFAQActivity() {
+        val intent = Intent(this, FAQActivity::class.java)
+        startActivity(intent)
+    }
 
   override fun closeAll(runAfter: () -> Unit) {
     val count = editorViewModel.getOpenedFileCount()

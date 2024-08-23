@@ -15,33 +15,46 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:background="@color/slate_black"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/tooltip_text"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="This is a custom tooltip!"
-        android:textColor="@color/white" />
+        android:background="@color/slate_black"
+        android:orientation="vertical"
+        android:padding="8dp">
 
-    <Button
-        android:id="@+id/btn_show_more"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingTop="8dp"
-        android:text="Show More" />
+        <TextView
+            android:id="@+id/tooltip_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="This is a custom tooltip!"
+            android:textColor="@color/white" />
 
-    <TextView
-        android:id="@+id/tooltip_more_info"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingTop="8dp"
-        android:text="Here is more information..."
-        android:textColor="@color/white"
-        android:visibility="gone" />
-</LinearLayout>
+        <Button
+            android:id="@+id/btn_show_more_second_level"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="@string/show_tooltip_show_more" />
+
+        <TextView
+            android:id="@+id/tooltip_more_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="Here is more information..."
+            android:textColor="@color/white"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btn_show_more_third_levewl"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:text="@string/show_tooltip_show_more"
+            android:visibility="gone" />
+    </LinearLayout>
+</ScrollView>
