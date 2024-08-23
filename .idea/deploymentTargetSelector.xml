@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2024-08-12T13:11:21.032585300Z">
+        <DropdownSelection timestamp="2024-08-22T17:03:07.141366200Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=HA1JXV10" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\Roman\.android\avd\CryoSpa_API_TiramisuPrivacySandbox.avd" />
             </handle>
           </Target>
         </DropdownSelection>

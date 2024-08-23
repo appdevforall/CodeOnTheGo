@@ -13,6 +13,7 @@ yes='^[Yy][Ee]?[Ss]?$'
 # Defualt values
 arch=$(uname -m)
 install_dir=$HOME
+cache_dir=$HOME
 sdkver_org=34.0.4
 with_cmdline=true
 assume_yes=false
@@ -83,15 +84,17 @@ check_command_exists() {
 
 # shellcheck disable=SC2068
 install_packages() {
-  #set
-  env | sort
-  #export
 
+if [ "$offline_mode" = false ]; then
   if [ "$assume_yes" == "true" ]; then
     $pkgm install $@ -y
   else
     $pkgm install $@
   fi
+else
+    #offline mode true
+    dpkg -i ${cache_dir}/*.deb
+fi
 }
 
 print_help() {
@@ -223,6 +226,11 @@ while [ $# -gt 0 ]; do
     check_arg_value "--install-dir" "${1:-}"
     install_dir="$1"
     ;;
+  -c | --cache-dir)
+    shift
+    check_arg_value "--cache-dir" "${1:-}"
+    cache_dir="$1"
+    ;;
   -m | --manifest)
     shift
     check_arg_value "--manifest" "${1:-}"
@@ -297,6 +305,7 @@ pkgs+=" $pkg_curl"
 
 echo "------------------------------------------"
 echo "Installation directory    : ${install_dir}"
+echo "Cache directory           : ${cache_dir}"
 echo "SDK version               : ${sdkver_org}"
 echo "JDK version               : ${jdk_version}"
 echo "With command line tools   : ${with_cmdline}"

@@ -134,6 +134,7 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
     }
     //todo add logic that will add or remove this conditionally
     args.setArgument(IdeSetupArgument.OFFLINE_MODE)
+    args.setArgument(IdeSetupArgument.CACHE_DIR, "../../cache/apt/archives")
     return args.toTypedArray()
   }
 
