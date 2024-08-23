@@ -370,8 +370,6 @@ fi
 
 fi
 
-read -p "Prompt"
-
 # Install JDK
 print_info "Installing package: 'openjdk-$jdk_version'"
 install_packages "openjdk-$jdk_version" && print_info "JDK $jdk_version has been installed."
@@ -387,8 +385,6 @@ props="$props_dir/ide-environment.properties"
 if [ ! -d "$props_dir" ]; then
   mkdir -p "$props_dir"
 fi
-
-read -p "Prompt"
 
 if [ ! -e "$props" ]; then
   printf "JAVA_HOME=%s" "$jdk_dir" >"$props" && print_success "Properties file updated successfully!"
