@@ -33,7 +33,6 @@ import androidx.work.NetworkType
 import androidx.work.Operation
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
@@ -48,7 +47,6 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -64,6 +62,8 @@ import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
+import com.termux.shared.termux.file.TermuxFileUtils
+import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -72,16 +72,8 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
-import java.io.File
-import java.io.IOException
 import java.lang.Thread.UncaughtExceptionHandler
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.time.Duration
-import kotlin.io.path.Path
-import kotlin.io.path.exists
-import kotlin.io.path.pathString
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {

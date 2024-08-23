@@ -23,13 +23,16 @@ import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.adfa.constants.DESSTINATION_USR_FOLDER
 import com.adfa.constants.DESTINATION_ANDROID_SDK
 import com.adfa.constants.DESTINATION_PLATFORM_TOOLS
+import com.adfa.constants.DESTINATION_TERMUX_VAR_FOLER_PATH
 import com.adfa.constants.HOME_PATH
 import com.adfa.constants.LOCAL_PALTFORM_TOOLS
 import com.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
+import com.adfa.constants.LOCAL_SOURCE_USR_FOLDER
 import com.adfa.constants.MANIFEST_FILE_NAME
 import com.adfa.constants.TERMUX_DEBS_PATH
 import com.adfa.constants.USR
@@ -188,8 +191,9 @@ class OnboardingActivity : AppIntro2() {
         }
 
         if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
+            //copyUsrFodler()
             copyTermuxDebsAndManifest()
-            //copyAndroidSDK()
+            copyAndroidSDK()
             val intent = Intent(this, TerminalActivity::class.java)
             if (currentFragment.isAutoInstall()) {
                 intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
@@ -206,7 +210,6 @@ class OnboardingActivity : AppIntro2() {
     }
 
     private fun copyTermuxDebsAndManifest() {
-        //todo replace application.dataDir.path with a static constants.constant
         val outputDirectory = File(application.dataDir.path + File.separator + TERMUX_DEBS_PATH)
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
@@ -219,16 +222,6 @@ class OnboardingActivity : AppIntro2() {
             )
         } catch (e: IOException) {
             println("Termux caches copy failed + ${e.message}")
-        }
-
-        val varOutputDirectory = File(application.filesDir.path + File.separator + USR + File.separator + LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME)
-        try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME),
-                varOutputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux var caches copy failed + ${e.message}")
         }
 
         try {
