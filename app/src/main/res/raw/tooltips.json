@@ -1,0 +1,26 @@
+[
+  {
+    "word": "plugins",
+    "description_short": "Ability to take many forms",
+    "description_long": "In programming, polymorphism refers to the ability of a function or an object to take many forms.",
+    "description_full": "<p>Polymorphism is one of the key concepts of object-oriented programming, allowing objects to be treated as instances of their parent class.</p>"
+  },
+  {
+    "word": "tasks",
+    "description_short": "Bundling data with methods",
+    "description_long": "Encapsulation refers to the bundling of data with the methods that operate on that data.",
+    "description_full": "<p>Encapsulation is a mechanism of restricting access to some of an object's components and only allowing manipulation of the object in ways the designer intended.</p>"
+  },
+  {
+    "word": "delete",
+    "description_short": "Acquiring properties of parent class",
+    "description_long": "Inheritance is a mechanism where a class inherits properties and behaviors from a parent class.",
+    "description_full": "<p>Inheritance allows for the creation of a new class that reuses, extends, or modifies the behavior defined in a parent class.</p>"
+  },
+  {
+    "word": "rootProject",
+    "description_short": "Hiding complexity",
+    "description_long": "Abstraction is the concept of hiding the complex implementation details and showing only essential features of an object.",
+    "description_full": "<p>Abstraction allows programmers to reduce complexity and increase efficiency by working with higher-level concepts.</p>"
+  }
+]
