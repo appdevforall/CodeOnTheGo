@@ -53,6 +53,8 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.roomData.tooltips.Tooltip
+import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
@@ -67,6 +69,8 @@ import org.greenrobot.eventbus.ThreadMode
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.set
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -76,6 +80,11 @@ import kotlin.collections.set
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
   protected val isOpenedFilesSaved = AtomicBoolean(false)
+
+    private val applicationScope = CoroutineScope(SupervisorJob())
+    private val tooltipDatabase: TooltipRoomDatabase by lazy {
+        TooltipRoomDatabase.getDatabase(this, applicationScope)
+    }
 
   override fun doOpenFile(file: File, selection: Range?) {
     openFileAndSelect(file, selection)
@@ -572,6 +581,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         val intent = Intent(this, FAQActivity::class.java)
         startActivity(intent)
     }
+
+  override suspend fun getTooltipData(word:String): Tooltip? {
+      return withContext(Dispatchers.IO) {
+          tooltipDatabase.tooltipDao().getTooltipWord(word)
+      }
+  }
 
   override fun closeAll(runAfter: () -> Unit) {
     val count = editorViewModel.getOpenedFileCount()

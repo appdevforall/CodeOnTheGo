@@ -27,7 +27,7 @@
         android:padding="8dp">
 
         <TextView
-            android:id="@+id/tooltip_text"
+            android:id="@+id/tooltip_inforamtion_first_level"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="This is a custom tooltip!"
@@ -41,7 +41,7 @@
             android:text="@string/show_tooltip_show_more" />
 
         <TextView
-            android:id="@+id/tooltip_more_info"
+            android:id="@+id/tooltip_information_second_level"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingTop="8dp"
