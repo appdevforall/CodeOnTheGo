@@ -79,3 +79,5 @@ const val COPY_GRADLE_CAHCES_TO_ASSETS = "copyGradleCachesToAssets"
 val ASSETS_COMMON_FOLDER = "data" + File.separator + "common"
 const val SOURCE_LIB_FOLDER = "libs_source"
 val LOCAL_TERMUX_LIB_FOLDER_PATH = File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+
+const val CONTENT_KEY = "CONTENT_KEY"

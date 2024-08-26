@@ -30,6 +30,7 @@ import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import com.adfa.constants.CONTENT_KEY
 import com.blankj.utilcode.util.ImageUtils
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
@@ -577,16 +578,17 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
   }
 
-    override fun openFAQActivity() {
+    override fun openFAQActivity(htmlData: String) {
         val intent = Intent(this, FAQActivity::class.java)
+        intent.putExtra(CONTENT_KEY, htmlData)
         startActivity(intent)
     }
 
-  override suspend fun getTooltipData(word:String): Tooltip? {
-      return withContext(Dispatchers.IO) {
-          tooltipDatabase.tooltipDao().getTooltipWord(word)
-      }
-  }
+    override suspend fun getTooltipData(word: String): Tooltip? {
+        return withContext(Dispatchers.IO) {
+            tooltipDatabase.tooltipDao().getTooltipWord(word)
+        }
+    }
 
   override fun closeAll(runAfter: () -> Unit) {
     val count = editorViewModel.getOpenedFileCount()

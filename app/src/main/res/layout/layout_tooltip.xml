@@ -16,6 +16,7 @@
   -->
 
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content">
 
@@ -24,36 +25,36 @@
         android:layout_height="wrap_content"
         android:background="@color/slate_black"
         android:orientation="vertical"
-        android:padding="8dp">
+        android:padding="@dimen/tooltip_padding">
 
         <TextView
             android:id="@+id/tooltip_inforamtion_first_level"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="This is a custom tooltip!"
-            android:textColor="@color/white" />
+            android:textColor="@color/white"
+            tools:text="This is a custom tooltip!" />
 
         <Button
             android:id="@+id/btn_show_more_second_level"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingTop="8dp"
+            android:paddingTop="@dimen/tooltip_padding"
             android:text="@string/show_tooltip_show_more" />
 
         <TextView
             android:id="@+id/tooltip_information_second_level"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingTop="8dp"
-            android:text="Here is more information..."
+            android:paddingTop="@dimen/tooltip_padding"
             android:textColor="@color/white"
-            android:visibility="gone" />
+            android:visibility="gone"
+            tools:text="Here is more information..." />
 
         <Button
             android:id="@+id/btn_show_more_third_levewl"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingTop="8dp"
+            android:paddingTop="@dimen/tooltip_padding"
             android:text="@string/show_tooltip_show_more"
             android:visibility="gone" />
     </LinearLayout>
