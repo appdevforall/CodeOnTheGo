@@ -17,7 +17,11 @@
 
 package com.itsaky.androidide.activities.editor
 
+import androidx.core.graphics.Insets
+import android.os.Bundle
 import android.view.View
+import com.adfa.constants.CONTENT_KEY
+import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityFaqBinding
 
@@ -32,5 +36,41 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
     override fun bindLayout(): View {
         _binding = ActivityFaqBinding.inflate(layoutInflater)
         return binding.root
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        with(binding) {
+            setSupportActionBar(toolbar)
+            supportActionBar!!.setTitle(R.string.faq_activity_title)
+            supportActionBar!!.setDisplayHomeAsUpEnabled(true)
+            toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+
+            val htmlContent = intent.getStringExtra(CONTENT_KEY)
+
+            htmlContent?.let {
+                webView.clearCache(true)
+                webView.loadDataWithBaseURL(null, it, "text/html", "UTF-8", null)
+            }
+        }
+    }
+
+    override fun onApplySystemBarInsets(insets: Insets) {
+        val toolbar: View = binding.toolbar
+        toolbar.setPadding(
+            toolbar.paddingLeft + insets.left,
+            toolbar.paddingTop,
+            toolbar.paddingRight + insets.right,
+            toolbar.paddingBottom
+        )
+
+        val webview: View = binding.webView
+        webview.setPadding(
+            webview.paddingLeft + insets.left,
+            webview.paddingTop,
+            webview.paddingRight + insets.right,
+            webview.paddingBottom
+        )
     }
 }
