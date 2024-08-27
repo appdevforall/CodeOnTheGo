@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import android.util.Log
 import java.io.IOException
+import kotlinx.coroutines.Dispatchers
 import org.json.JSONException
 
 @Database(entities = [Tooltip::class], version = 1, exportSchema = false)
@@ -44,7 +45,7 @@ abstract class TooltipRoomDatabase : RoomDatabase() {
             super.onCreate(db)
 
             INSTANCE?.let { database ->
-                scope.launch {
+                scope.launch(Dispatchers.IO) {
                     populateDatabase(context, database.tooltipDao())
                 }
             }
@@ -112,17 +113,13 @@ abstract class TooltipRoomDatabase : RoomDatabase() {
         private var INSTANCE: TooltipRoomDatabase? = null
 
         fun getDatabase(context: Context, scope: CoroutineScope): TooltipRoomDatabase {
-
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     TooltipRoomDatabase::class.java,
                     "Tooltip_database"
                 ).addCallback(TooltipRoomDatabaseCallback(context, scope)).build()
-
-                INSTANCE = instance
-
-                instance
+                    .also { INSTANCE = it }
             }
         }
     }

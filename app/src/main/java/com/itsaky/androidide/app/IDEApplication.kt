@@ -33,7 +33,6 @@ import androidx.work.NetworkType
 import androidx.work.Operation
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
@@ -48,11 +47,12 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
+import com.itsaky.androidide.roomData.tooltips.TooltipDao
+import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
 import com.itsaky.androidide.stats.AndroidIDEStats
 import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
@@ -65,29 +65,25 @@ import com.itsaky.androidide.utils.flashError
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import java.lang.Thread.UncaughtExceptionHandler
+import java.time.Duration
+import kotlin.system.exitProcess
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
-import java.io.File
-import java.io.IOException
-import java.lang.Thread.UncaughtExceptionHandler
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import java.time.Duration
-import kotlin.io.path.Path
-import kotlin.io.path.exists
-import kotlin.io.path.pathString
-import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
+
+    private val applicationScope = CoroutineScope(SupervisorJob())
 
     init {
         if (!VMUtils.isJvm()) {
@@ -135,6 +131,13 @@ class IDEApplication : TermuxApplication() {
         ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
         GlobalScope.launch {
             IDEColorSchemeProvider.init()
+        }
+
+        tooltipDao = TooltipRoomDatabase.getDatabase(this, applicationScope).tooltipDao()
+
+        //Trigger a lightweight database access to force initialization
+        applicationScope.launch {
+            tooltipDao.getCount()
         }
     }
 
@@ -284,6 +287,9 @@ class IDEApplication : TermuxApplication() {
 
         @JvmStatic
         lateinit var instance: IDEApplication
+            private set
+
+        lateinit var tooltipDao: TooltipDao
             private set
     }
 

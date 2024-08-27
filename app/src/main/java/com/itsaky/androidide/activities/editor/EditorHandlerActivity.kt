@@ -37,6 +37,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -55,23 +56,20 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.roomData.tooltips.Tooltip
-import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.collections.set
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.collections.set
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -81,11 +79,6 @@ import kotlinx.coroutines.SupervisorJob
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
   protected val isOpenedFilesSaved = AtomicBoolean(false)
-
-    private val applicationScope = CoroutineScope(SupervisorJob())
-    private val tooltipDatabase: TooltipRoomDatabase by lazy {
-        TooltipRoomDatabase.getDatabase(this, applicationScope)
-    }
 
   override fun doOpenFile(file: File, selection: Range?) {
     openFileAndSelect(file, selection)
@@ -586,7 +579,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     override suspend fun getTooltipData(word: String): Tooltip? {
         return withContext(Dispatchers.IO) {
-            tooltipDatabase.tooltipDao().getTooltipWord(word)
+            IDEApplication.tooltipDao.getTooltipWord(word)
         }
     }
 
