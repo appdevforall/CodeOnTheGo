@@ -20,12 +20,12 @@ package com.itsaky.androidide.actions.file
 import android.content.Context
 import android.view.Gravity
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
@@ -84,17 +84,9 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
             informationSecondLevel.text = tooltipData.descriptionLong
 
             showMoreSecondLevelButton.setOnClickListener {
-                if (informationSecondLevel.visibility == View.GONE) {
-                    informationSecondLevel.visibility = View.VISIBLE
-                    showMoreSecondLevelButton.text =
-                        context.getString(R.string.show_tooltip_show_less)
-                    showMoreThirdLevelButton.visibility = View.VISIBLE
-                } else {
-                    informationSecondLevel.visibility = View.GONE
-                    showMoreSecondLevelButton.text =
-                        context.getString(R.string.show_tooltip_show_more)
-                    showMoreThirdLevelButton.visibility = View.GONE
-                }
+                informationSecondLevel.isVisible = true
+                showMoreThirdLevelButton.isVisible = true
+                showMoreSecondLevelButton.isVisible = false
             }
 
             val popupWindow = PopupWindow(
