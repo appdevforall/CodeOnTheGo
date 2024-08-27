@@ -36,4 +36,7 @@ interface TooltipDao {
 
     @Query("DELETE FROM tooltip_table")
     suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM tooltip_table")
+    suspend fun getCount(): Int
 }
