@@ -63,6 +63,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -191,18 +192,23 @@ class OnboardingActivity : AppIntro2() {
         }
 
         if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
-            //copyUsrFodler()
-            copyTermuxDebsAndManifest()
-            copyAndroidSDK()
-            val intent = Intent(this, TerminalActivity::class.java)
-            if (currentFragment.isAutoInstall()) {
-                intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
-                intent.putExtra(
-                    TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
-                    currentFragment.buildIdeSetupArguments()
-                )
+            activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
+                flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
+                copyTermuxDebsAndManifest()
+                copyAndroidSDK()
+
+                runOnUiThread {
+                    val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
+                    if (currentFragment.isAutoInstall()) {
+                        intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
+                        intent.putExtra(
+                            TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
+                            currentFragment.buildIdeSetupArguments()
+                        )
+                    }
+                    terminalActivityCallback.launch(intent)
+                }
             }
-            terminalActivityCallback.launch(intent)
             return
         }
 
@@ -225,18 +231,22 @@ class OnboardingActivity : AppIntro2() {
         }
 
         try {
-            val manifestOutputDirectory = File(application.filesDir.path + File.separator + HOME_PATH).resolve(MANIFEST_FILE_NAME)
+            val manifestOutputDirectory =
+                File(application.filesDir.path + File.separator + HOME_PATH).resolve(
+                    MANIFEST_FILE_NAME
+                )
             ResourceUtils.copyFileFromAssets(
                 ToolsManager.getCommonAsset(MANIFEST_FILE_NAME),
                 manifestOutputDirectory.path
             )
-        } catch (e:IOException){
+        } catch (e: IOException) {
             println("Termux manifest copy failed + ${e.message}")
         }
     }
 
     private fun copyAndroidSDK() {
-        val outputDirectory = File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK)
+        val outputDirectory =
+            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK)
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
