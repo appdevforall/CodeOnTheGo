@@ -595,4 +595,5 @@
   <string name="summary_open_source_licenses">View open source licenses.</string>
   <string name="idepref_jdkVersion_title">JDK version</string>
   <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
+  <string name="ide_setup_in_progress">IDE setup in progress.</string>
 </resources>
