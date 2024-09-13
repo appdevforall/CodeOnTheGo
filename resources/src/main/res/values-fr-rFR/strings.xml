@@ -197,6 +197,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_file_tree">Fichiers</string>
   <string name="hint_attr_value">Attribute value</string>
   <string name="title_format_code">Formater code</string>
+  <string name="title_show_tooltip">Aide</string>
   <string name="idepref_java_useGoogleStyle_title">Style de formatage Java de Google</string>
   <string name="idepref_java_useGoogleStyle_summary">Utiliser le style de formatage Java de Google.</string>
   <string name="idepref_visiblePassword_title">Suggestions de mot de passe</string>

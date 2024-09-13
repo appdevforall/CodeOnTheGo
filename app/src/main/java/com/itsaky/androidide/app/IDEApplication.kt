@@ -51,6 +51,8 @@ import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
+import com.itsaky.androidide.roomData.tooltips.TooltipDao
+import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
 import com.itsaky.androidide.stats.AndroidIDEStats
 import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
@@ -65,8 +67,13 @@ import com.termux.shared.reflection.ReflectionUtils
 import com.termux.shared.termux.file.TermuxFileUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import java.lang.Thread.UncaughtExceptionHandler
+import java.time.Duration
+import kotlin.system.exitProcess
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -80,6 +87,8 @@ class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
+
+    private val applicationScope = CoroutineScope(SupervisorJob())
 
     init {
         if (!VMUtils.isJvm()) {
@@ -127,6 +136,13 @@ class IDEApplication : TermuxApplication() {
         ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
         GlobalScope.launch {
             IDEColorSchemeProvider.init()
+        }
+
+        tooltipDao = TooltipRoomDatabase.getDatabase(this, applicationScope).tooltipDao()
+
+        //Trigger a lightweight database access to force initialization
+        applicationScope.launch {
+            tooltipDao.getCount()
         }
     }
 
@@ -276,6 +292,9 @@ class IDEApplication : TermuxApplication() {
 
         @JvmStatic
         lateinit var instance: IDEApplication
+            private set
+
+        lateinit var tooltipDao: TooltipDao
             private set
     }
 

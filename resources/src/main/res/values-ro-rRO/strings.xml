@@ -196,6 +196,7 @@
   <string name="msg_file_tree">Arbore de fișiere</string>
   <string name="hint_attr_value">Valoarea atributului</string>
   <string name="title_format_code">Formatarea codului</string>
+  <string name="title_show_tooltip">Ajutor</string>
   <string name="idepref_java_useGoogleStyle_title">Utilizarea formatării codului Stil Java Google</string>
   <string name="idepref_java_useGoogleStyle_summary">Utilizați configurația de formatare a codului Stil Java Google pentru formatarea codului sursă Java.</string>
   <string name="idepref_visiblePassword_title">Semnalizare parolă vizibilă</string>

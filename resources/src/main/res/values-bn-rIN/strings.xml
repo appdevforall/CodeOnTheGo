@@ -197,6 +197,7 @@
   <string name="msg_file_tree">ফাইল ট্রি</string>
   <string name="hint_attr_value">আ্যট্রিবিউট এর মান</string>
   <string name="title_format_code">ফর্ম্যাট কোড</string>
+  <string name="title_show_tooltip">সাহায্য</string>
   <string name="idepref_java_useGoogleStyle_title">Google Java স্টাইল কোড ফরম্যাটিং ব্যবহার করুন</string>
   <string name="idepref_java_useGoogleStyle_summary">Java সোর্স কোড ফরম্যাট করার জন্য Google Java Style কোড ফরম্যাটিং কনফিগারেশন ব্যবহার করুন।</string>
   <string name="idepref_visiblePassword_title">দৃশ্যমান পাসওয়ার্ড ফ্লাগ</string>

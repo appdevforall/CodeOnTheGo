@@ -18,4 +18,7 @@
 <resources>
   <dimen name="editor_mem_usage_view_height">200dp</dimen>
   <dimen name="editor_container_corners">28dp</dimen>
+
+  <dimen name="tooltip_padding">8dp</dimen>
+  <dimen name="faq_bottom_padding">24dp</dimen>
 </resources>
