@@ -101,3 +101,6 @@ const val COPY_GRADLE_CAHCES_TO_ASSETS = "copyGradleCachesToAssets"
 const val COPY_ANDROID_SDK_TO_ASSETS = "copyAndroidSdkToAssets"
 const val COPY_PLATFORM_TOOLS_TO_ASSETS = "copyPlatfromToolsToAssets"
 const val COPY_USR_FOLDER_TO_ASSETS = "copyUsrFolderToAssets"
+
+//tooltips
+const val CONTENT_KEY = "CONTENT_KEY"
