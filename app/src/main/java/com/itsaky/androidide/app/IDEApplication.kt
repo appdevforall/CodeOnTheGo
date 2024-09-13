@@ -79,8 +79,6 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
-import java.lang.Thread.UncaughtExceptionHandler
-import java.time.Duration
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
