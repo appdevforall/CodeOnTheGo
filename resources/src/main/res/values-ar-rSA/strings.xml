@@ -196,6 +196,7 @@
   <string name="msg_file_tree">درج الملفات</string>
   <string name="hint_attr_value">قيمة السمة</string>
   <string name="title_format_code">تنسيق الكود</string>
+  <string name="title_show_tooltip">يساعد</string>
   <string name="idepref_java_useGoogleStyle_title">استخدام تنسيق الكود بنمط جافا Google</string>
   <string name="idepref_java_useGoogleStyle_summary">استخدم إعدادات تنسيق الكود بنمط جافا لـ Google لتنسيق كود مصدر جافا.</string>
   <string name="idepref_visiblePassword_title">علامة كلمة المرور المرئية</string>
