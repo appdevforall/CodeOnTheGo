@@ -73,6 +73,7 @@
       android:name=".activities.editor.EditorActivityKt"/>
     <activity android:name=".activities.PreferencesActivity" />
     <activity android:name=".activities.AboutActivity" />
+    <activity android:name=".activities.editor.FAQActivity" />
     <activity android:name=".activities.ContributorsActivity" />
     <activity
       android:name=".activities.TerminalActivity"

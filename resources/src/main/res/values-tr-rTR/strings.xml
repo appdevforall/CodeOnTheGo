@@ -196,6 +196,7 @@
   <string name="msg_file_tree">Dosyalar</string>
   <string name="hint_attr_value">Öznitelik değeri</string>
   <string name="title_format_code">Biçim kodu</string>
+  <string name="title_show_tooltip">Yardım</string>
   <string name="idepref_java_useGoogleStyle_title">Kod formatında Google Java Stilini kullan</string>
   <string name="idepref_java_useGoogleStyle_summary">Java kaynak kodu için Google Java Stili kod biçimlendirme yapılandırmasını kullan.</string>
   <string name="idepref_visiblePassword_title">Görünür parola bayrağı</string>

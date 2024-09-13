@@ -19,6 +19,7 @@ package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.Menu
@@ -29,12 +30,14 @@ import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import com.adfa.constants.CONTENT_KEY
 import com.blankj.utilcode.util.ImageUtils
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -52,20 +55,21 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.roomData.tooltips.Tooltip
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.collections.set
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.collections.set
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -566,6 +570,18 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
       }
     }
   }
+
+    override fun openFAQActivity(htmlData: String) {
+        val intent = Intent(this, FAQActivity::class.java)
+        intent.putExtra(CONTENT_KEY, htmlData)
+        startActivity(intent)
+    }
+
+    override suspend fun getTooltipData(word: String): Tooltip? {
+        return withContext(Dispatchers.IO) {
+            IDEApplication.tooltipDao.getTooltipWord(word)
+        }
+    }
 
   override fun closeAll(runAfter: () -> Unit) {
     val count = editorViewModel.getOpenedFileCount()
