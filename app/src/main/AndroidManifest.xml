@@ -40,7 +40,7 @@
     android:supportsRtl="true"
     android:theme="@style/Theme.AndroidIDE"
     tools:ignore="DiscouragedApi,MediaCapabilities,UnusedAttribute"
-    tools:replace="android:name,android:allowBackup, android:supportsRtl, android:theme">
+    tools:replace="android:icon,android:name,android:allowBackup, android:supportsRtl, android:theme">
     <activity
       android:exported="true"
       android:name=".activities.CrashHandlerActivity"
