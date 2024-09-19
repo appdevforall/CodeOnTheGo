@@ -17,7 +17,7 @@
 
 <resources>
   <!--  Required by F-Droid-->
-  <string name="app_name" translatable="false">AndroidIDE</string>
+  <string name="app_name" translatable="false">Code on the Go</string>
   <string name="file">File</string>
   <string name="run">Run</string>
   <string name="actions">Actions</string>
