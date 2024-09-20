@@ -270,7 +270,7 @@ class OnboardingActivity : AppIntro2() {
 
     private fun isSetupCompleted(): Boolean {
         return checkToolsIsInstalled()
-                && StatPreferences.statConsentDialogShown
+                /* JMT && StatPreferences.statConsentDialogShown */
                 && PermissionsFragment.areAllPermissionsGranted(this)
     }
 
