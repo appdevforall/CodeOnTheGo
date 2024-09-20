@@ -60,6 +60,7 @@ data class ConnectionInfo(
 @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
 @JvmOverloads
 fun getConnectionInfo(context: Context, networkCapabilities: NetworkCapabilities? = null): ConnectionInfo {
+/* JMT removed for offline demo 24sept24
   val connectivityManager = context.getSystemService<ConnectivityManager>()
     ?: return ConnectionInfo.UNKNOWN
   val activeNetCapabilities = networkCapabilities ?: connectivityManager.activeNetwork?.let(
@@ -83,5 +84,12 @@ fun getConnectionInfo(context: Context, networkCapabilities: NetworkCapabilities
     isCellularTransport = isCellularTransport,
     isMeteredConnection = isMeteredConnection,
     isBackgroundDataRestricted = isBackgroundDataRestricted
+  )
+*/
+  return ConnectionInfo(
+    isConnected = true,
+    isCellularTransport = false,
+    isMeteredConnection = false,
+    isBackgroundDataRestricted = false
   )
 }
