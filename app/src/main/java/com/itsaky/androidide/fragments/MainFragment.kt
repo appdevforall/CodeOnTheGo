@@ -30,8 +30,7 @@ import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.roomData.MessageDao
-import com.itsaky.androidide.roomData.MessageRoomDatabase
+import com.itsaky.androidide.IDETooltips.IDETooltipRoomDatabase
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
@@ -68,8 +67,8 @@ class MainFragment : BaseFragment() {
 
   private lateinit var fab : FloatingActionButton
   private val applicationScope = CoroutineScope(SupervisorJob())
-  private val messageRoomDatabase : MessageRoomDatabase by lazy {
-      MessageRoomDatabase.getDatabase(requireContext(), applicationScope)
+  private val IDEDatabase : IDETooltipRoomDatabase by lazy {
+      IDETooltipRoomDatabase.getDatabase(requireContext())
   }
 
   private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
@@ -144,7 +143,7 @@ class MainFragment : BaseFragment() {
     val view = action.view
     val key = resources.getString(action.text)
     var text : String = "implementaion imminate"
-    GlobalScope.launch { text = getMessageFromKey(messageRoomDatabase, key) }
+    GlobalScope.launch { /*TODO JMT fix this text = getMessageFromKey(IDETooltipRoomDatabase, key)*/ }
 
     val popupMenu = context?.let { android.widget.PopupMenu(it, view) }
     // add the menu
@@ -206,12 +205,8 @@ class MainFragment : BaseFragment() {
     }
   }
 
-  suspend fun dumpDatabase(database: MessageRoomDatabase) {
-    Log.d("MessageRoomDatabase", database.MessageDao().getAlphabetizedMessages().toString())
-  }
-
-  suspend fun getMessageFromKey(database: MessageRoomDatabase, key : String) : String {
-    return GlobalScope.async { database.MessageDao().getMessage(key) }.await()
+  suspend fun dumpDatabase(database: IDETooltipRoomDatabase) {
+    Log.d("MessageRoomDatabase", database.tooltipDao().getTooltipItems().toString())
   }
 
   override fun onDestroyView() {
