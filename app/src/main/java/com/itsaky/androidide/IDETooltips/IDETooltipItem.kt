@@ -15,13 +15,18 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.roomData
+package com.itsaky.androidide.IDETooltips
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "message_table")
-class Message(@PrimaryKey(autoGenerate = true) @ColumnInfo(name = "key") val key : Int,
-  @ColumnInfo(name = "message_key") val messageKey : String,
-  @ColumnInfo(name = "message_text") val messageText: String)
+@Entity(tableName = "ide_tooltip_table")
+data class IDETooltipItem(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "itemTag")        val tag : Int,
+    @ColumnInfo(name = "tooltipSummary") val summary: String,
+    @ColumnInfo(name = "tooltipDetail")  val detail: String,
+    @ColumnInfo(name = "tooltipURI")     val uri: String
+)
+

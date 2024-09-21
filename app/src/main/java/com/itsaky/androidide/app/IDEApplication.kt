@@ -64,12 +64,7 @@ import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
-import com.termux.shared.termux.file.TermuxFileUtils
-import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
-import java.lang.Thread.UncaughtExceptionHandler
-import java.time.Duration
-import kotlin.system.exitProcess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -79,6 +74,8 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
+import java.lang.Thread.UncaughtExceptionHandler
+import java.time.Duration
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
