@@ -40,4 +40,8 @@ interface IDETooltipDao {
   suspend fun insert(IDETooltipItem: IDETooltipItem)
 
   @Query("DELETE FROM ide_tooltip_table")
-  suspend fun deleteAll()}
+  suspend fun deleteAll()
+
+  @Query("SELECT COUNT(*) FROM ide_tooltip_table")
+  suspend fun getCount(): Int
+}

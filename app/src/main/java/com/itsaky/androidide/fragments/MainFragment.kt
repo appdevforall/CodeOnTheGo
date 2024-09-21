@@ -206,7 +206,7 @@ class MainFragment : BaseFragment() {
   }
 
   suspend fun dumpDatabase(database: IDETooltipRoomDatabase) {
-    Log.d("MessageRoomDatabase", database.tooltipDao().getTooltipItems().toString())
+    Log.d("MessageRoomDatabase", database.idetooltipDao().getTooltipItems().toString())
   }
 
   override fun onDestroyView() {
