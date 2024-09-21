@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.roomData
+package com.itsaky.androidide.IDETooltips
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -23,15 +23,21 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 @Dao
-interface MessageDao {
-  @Query("SELECT * FROM message_table ORDER BY message_key ASC")
-  fun getAlphabetizedMessages(): List<Message>
+interface IDETooltipDao {
+  @Query("SELECT * FROM ide_tooltip_table ORDER BY itemTag ASC")
+  fun getTooltipItems(): List<IDETooltipItem>
 
-  @Query("SELECT message_text FROM message_table WHERE message_key == :key")
-  fun getMessage(key : String) : String
+  @Query("SELECT tooltipSummary FROM ide_tooltip_table WHERE itemTag == :tag")
+  fun getSummary(tag : String) : String
+
+  @Query("SELECT tooltipDetail FROM ide_tooltip_table WHERE itemTag == :tag")
+  fun getDetail(tag : String) : String
+
+  @Query("SELECT tooltipURI FROM ide_tooltip_table WHERE itemTag == :tag")
+  fun getURI(tag : String) : String
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
-  suspend fun insert( message : Message)
+  suspend fun insert(IDETooltipItem: IDETooltipItem)
 
-  @Query("DELETE FROM message_table")
+  @Query("DELETE FROM ide_tooltip_table")
   suspend fun deleteAll()}
