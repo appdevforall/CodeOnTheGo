@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
 @Database(entities = [IDETooltipItem::class], version = 1, exportSchema = false)
 abstract class IDETooltipRoomDatabase : RoomDatabase() {
 
-    abstract fun tooltipDao(): IDETooltipDao
+    abstract fun idetooltipDao(): IDETooltipDao
+
 
     companion object {
         @Volatile private var instance: IDETooltipRoomDatabase? = null
@@ -40,8 +41,9 @@ abstract class IDETooltipRoomDatabase : RoomDatabase() {
                 val newInstance = Room.databaseBuilder(
                     context.applicationContext,
                     IDETooltipRoomDatabase::class.java,
-                    "my_database"
+                    "ide_tooltip_database"
                 ).build()
+                newInstance.loadData(context)
                 instance = newInstance
                 newInstance
             }
@@ -56,7 +58,7 @@ abstract class IDETooltipRoomDatabase : RoomDatabase() {
 
         private suspend fun populateDatabase(context: Context) {
             val db = getDatabase(context)
-            val dao = db.tooltipDao()
+            val dao = db.idetooltipDao()
 
         // Delete all content here.
             dao.deleteAll()
@@ -102,7 +104,7 @@ abstract class IDETooltipRoomDatabase : RoomDatabase() {
             IDETooltipItemList.forEach { tooltipItem ->
                 Log.d(
                     "TooltipRoomDatabase",
-                    "after insert database -  key = $(tooltipItem.key}, " +
+                    "after insert database - itemTag = ${tooltipItem.tag}, " +
                             "summary = ${tooltipItem.summary}, detail=${tooltipItem.detail}, uri=${tooltipItem.uri}"
                 )
             }

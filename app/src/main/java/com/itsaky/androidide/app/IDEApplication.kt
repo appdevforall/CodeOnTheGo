@@ -53,6 +53,8 @@ import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.roomData.tooltips.TooltipDao
 import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
+import com.itsaky.androidide.IDETooltips.IDETooltipDao
+import com.itsaky.androidide.IDETooltips.IDETooltipRoomDatabase
 import com.itsaky.androidide.stats.AndroidIDEStats
 import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
@@ -134,10 +136,12 @@ class IDEApplication : TermuxApplication() {
         }
 
         tooltipDao = TooltipRoomDatabase.getDatabase(this, applicationScope).tooltipDao()
+        idetooltipDao = IDETooltipRoomDatabase.getDatabase(this).idetooltipDao()
 
         //Trigger a lightweight database access to force initialization
         applicationScope.launch {
             tooltipDao.getCount()
+            idetooltipDao.getCount()
         }
     }
 
@@ -290,6 +294,9 @@ class IDEApplication : TermuxApplication() {
             private set
 
         lateinit var tooltipDao: TooltipDao
+            private set
+
+        lateinit var idetooltipDao: IDETooltipDao
             private set
     }
 
