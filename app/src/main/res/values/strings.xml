@@ -98,4 +98,5 @@ Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
   <string name="feedback_subject">Feedback for {0} Screen</string>
   <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen\nThank You\n</string>
   <string name="send_feedback">Send Feedback</string>
+    <string name="fab_more">More</string>
 </resources>

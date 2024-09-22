@@ -28,13 +28,13 @@ interface IDETooltipDao {
   fun getTooltipItems(): List<IDETooltipItem>
 
   @Query("SELECT tooltipSummary FROM ide_tooltip_table WHERE itemTag == :tag")
-  fun getSummary(tag : String) : String
+  fun getSummary(tag : Int) : String
 
   @Query("SELECT tooltipDetail FROM ide_tooltip_table WHERE itemTag == :tag")
-  fun getDetail(tag : String) : String
+  fun getDetail(tag : Int) : String
 
   @Query("SELECT tooltipURI FROM ide_tooltip_table WHERE itemTag == :tag")
-  fun getURI(tag : String) : String
+  fun getURI(tag : Int) : String
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(IDETooltipItem: IDETooltipItem)

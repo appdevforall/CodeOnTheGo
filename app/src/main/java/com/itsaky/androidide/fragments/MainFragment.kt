@@ -1,22 +1,31 @@
 package com.itsaky.androidide.fragments
 
+import android.content.Context.LAYOUT_INFLATER_SERVICE
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
+import androidx.fragment.app.FragmentTransaction
 import androidx.fragment.app.viewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.itsaky.androidide.IDETooltips.IDETooltipRoomDatabase
+import com.itsaky.androidide.IDETooltips.IDETooltipWebviewFragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -30,7 +39,6 @@ import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.IDETooltips.IDETooltipRoomDatabase
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
@@ -40,9 +48,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.CloneCommand
@@ -138,39 +144,91 @@ class MainFragment : BaseFragment() {
 
   // this method will handle the onclick options click
   private fun performOptionsMenuClick(action: MainScreenAction) {
-    // create object of PopupMenu and pass context and view where we want
-    // to show the popup menu
     val view = action.view
-    val key = resources.getString(action.text)
-    var text : String = "implementaion imminate"
-    GlobalScope.launch { /*TODO JMT fix this text = getMessageFromKey(IDETooltipRoomDatabase, key)*/ }
 
-    val popupMenu = context?.let { android.widget.PopupMenu(it, view) }
-    // add the menu
-    popupMenu?.inflate(R.menu.ctx_menu)
-    // implement on menu item click Listener
-    popupMenu?.setOnMenuItemClickListener { item ->
-        when (item?.itemId) {
-          R.id.ctx_menu_main_action_help -> {
-            val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
-            builder?.setTitle("Help")
-              ?.setMessage(text)
-              ?.setPositiveButton(android.R.string.ok) { dialogInterface, _ ->
-                dialogInterface.dismiss()}
-              ?.create()
-              ?.show()
-            true
-          }
-          // in the same way you can implement others
-          R.id.ctx_menu_main_action_feedback -> {
-            performFeedbackAction(action)
-            true
-          }
-        }
-        false
+    CoroutineScope(Dispatchers.IO).launch {
+//      val records = IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getTooltipItems().toString()
+//
+//      Log.d("Tooltips", "records = ${records}")
+      val detail =
+        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getDetail(100)
+      val summary =
+        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getSummary(100)
+      val uri =
+        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getURI(100)
+      withContext((Dispatchers.Main)) {
+        //Log.d("Tooltip", "summary = ${summary}")
+        showIDETooltip(view!!, 0, detail, summary, uri)
       }
-    popupMenu?.show()
+    }
   }
+
+  private fun showIDETooltip(view:View, level:Int, detail:String, summary:String, uri:String) {
+   val inflater = requireContext().getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
+   val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
+   val popupWindow = PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT,
+     ViewGroup.LayoutParams.WRAP_CONTENT, true)
+// Inflate the PopupWindow layout
+    val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
+    val tooltip = when (level) {
+      0 -> summary
+      1 -> detail
+      2 -> uri
+      else -> {
+        fab.hide()
+        ""
+      }
+    }
+
+    //Dismiss the old PopupWindow
+    if (popupWindow.isShowing) {
+      popupWindow.dismiss()
+    }
+
+    when (level) {
+      0, 1 -> {
+        fab.setOnClickListener {
+          showIDETooltip(view, level + 1, detail, summary, uri)
+        }
+
+        // Initialize the WebView
+        val webView = popupView.findViewById<WebView>(R.id.webview)
+        webView.webViewClient = WebViewClient() // Ensure links open within the WebView
+        webView.settings.javaScriptEnabled = true // Enable JavaScript if needed
+        webView.loadData(tooltip, "text/html", "UTF-8")
+
+        // Set the background to match the theme
+        popupWindow.setBackgroundDrawable(ColorDrawable(requireContext().getColor(android.R.color.transparent)))
+
+        // Optional: Set up a border or padding if needed (you'll need to define this in your popup layout XML)
+        // Set a theme-aware background, depending on your design
+        //TODO JMT popupView.setBackgroundResource(R.drawable.popup_background) // Make sure to create this drawable
+
+        // Show the popup window
+        popupWindow.isFocusable = true
+        popupWindow.showAsDropDown(view)
+
+        // Optional: For dismissing the popup when clicking outside
+        popupWindow.setOutsideTouchable(true)
+
+        // Show the PopupWindow
+        popupWindow.showAtLocation(
+          view,
+          Gravity.CENTER,
+          0,
+          0 /*anchorView.x.toInt(), anchorView.y.toInt()*/
+        )
+      }
+
+      2 -> {
+        val transaction : FragmentTransaction = requireActivity().supportFragmentManager.beginTransaction().addToBackStack("WebView")
+        transaction.replace(R.id.fragment_container, IDETooltipWebviewFragment())
+        transaction.commit()
+      }
+    }
+  }
+
+
 
   private fun performFeedbackAction(action : MainScreenAction) {
     val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
