@@ -60,6 +60,10 @@ abstract class IDETooltipRoomDatabase : RoomDatabase() {
             val db = getDatabase(context)
             val dao = db.idetooltipDao()
 
+            //don't do anything if there is already records in the database
+            if(dao.getCount() > 0) {
+                return
+            }
         // Delete all content here.
             dao.deleteAll()
             try {
