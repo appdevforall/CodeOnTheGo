@@ -55,6 +55,12 @@
       android:layout_width="match_parent"
       android:layout_height="match_parent" />
 
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/tooltip_web_view"
+        android:name="com.itsaky.androidide.IDETooltips.IDETooltipWebviewFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
   </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -44,6 +44,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
+import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import io.sentry.Sentry
 import java.io.File
 
@@ -151,10 +152,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
       SCREEN_MAIN -> binding.main
       SCREEN_TEMPLATE_LIST -> binding.templateList
       SCREEN_TEMPLATE_DETAILS -> binding.templateDetails
+      TOOLTIPS_WEB_VIEW -> binding.tooltipWebView
       else -> throw IllegalArgumentException("Invalid screen id: '$screen'")
     }
 
-    for (fragment in arrayOf(binding.main, binding.templateList, binding.templateDetails)) {
+    for (fragment in arrayOf(binding.main, binding.templateList, binding.templateDetails, binding.tooltipWebView)) {
       fragment.isVisible = fragment == currentFragment
     }
   }
