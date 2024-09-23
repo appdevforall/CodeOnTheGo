@@ -72,7 +72,7 @@
   <string name="new_project">New project</string>
   <string name="package_name">Package name</string>
   <string name="project_app_name">App name</string>
-  <string name="msg_create_new_project_greeting">Start your new awesome project!</string>
+  <string name="msg_create_new_project_greeting">Learn about <b>Code on the Go</b> here!</string>
   <string name="title_confirm_open_project">Open last project?</string>
   <string name="msg_confirm_open_project">Do you want to open last opened project? Opened project was:\n%s</string>
   <string name="title_close_project">Close this project</string>
