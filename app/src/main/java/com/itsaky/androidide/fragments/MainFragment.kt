@@ -222,7 +222,7 @@ class MainFragment : BaseFragment() {
 
       2 -> {
         val transaction : FragmentTransaction = requireActivity().supportFragmentManager.beginTransaction().addToBackStack("WebView")
-        transaction.replace(R.id.fragment_container, IDETooltipWebviewFragment())
+        transaction.replace(R.id.fragment_containers_parent, IDETooltipWebviewFragment())
         transaction.commit()
       }
     }
