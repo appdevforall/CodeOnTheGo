@@ -1,0 +1,48 @@
+html *
+{
+
+   font-family: arial, sans serif;
+}
+
+p {
+  font-size: 12px;
+}
+
+h1 {
+  font-size: 16px;
+}
+
+h2 {
+  font-size: 14px;
+}
+
+h3 {
+  font-size: 13px;
+}
+li {
+  font-size: 12px;
+}
+table {
+  font-family: arial, sans-serif;
+font-size: 11px
+border-collapse: collapse;
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid #dddddd;
+  text-align: left;
+  padding: 8px;
+}
+
+tr:nth-child(even) {
+  background-color: #dddddd;
+}
+
+pre {
+  font-family: monospace;
+}
+
+code {
+  font-family: monospace;
+}
