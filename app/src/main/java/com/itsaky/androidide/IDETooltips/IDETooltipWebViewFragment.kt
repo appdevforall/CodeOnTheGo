@@ -20,6 +20,12 @@ class IDETooltipWebviewFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
+        // Inflate the layout for this fragment
+        val view = inflater.inflate(R.layout.ide_tooltip_fragment_webview, container, false)
+
+        // Initialize the WebView
+        webView = view.findViewById(R.id.webView)
+
         // Handle back press using OnBackPressedCallback
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -38,12 +44,6 @@ class IDETooltipWebviewFragment : Fragment() {
                     }
                 }
             })
-
-        // Inflate the layout for this fragment
-        val view = inflater.inflate(R.layout.ide_tooltip_fragment_webview, container, false)
-
-        // Initialize the WebView
-        webView = view.findViewById(R.id.webView)
 
         // Set up WebChromeClient to support JavaScript
         webView.webChromeClient = WebChromeClient()
