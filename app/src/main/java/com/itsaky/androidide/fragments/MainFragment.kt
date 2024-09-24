@@ -19,6 +19,8 @@ import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContentProviderCompat.requireContext
+import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.FragmentTransaction
 import androidx.fragment.app.viewModels
@@ -65,6 +67,8 @@ class MainFragment : BaseFragment() {
   private val viewModel by viewModels<MainViewModel>(
     ownerProducer = { requireActivity() })
   private var binding: FragmentMainBinding? = null
+  private lateinit var popupWindow: PopupWindow
+  private lateinit var popupView : View
 
   companion object {
 
@@ -89,6 +93,11 @@ class MainFragment : BaseFragment() {
   override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
     savedInstanceState: Bundle?
   ): View {
+    popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
+    popupWindow = PopupWindow(
+      popupView, ViewGroup.LayoutParams.WRAP_CONTENT,
+      ViewGroup.LayoutParams.WRAP_CONTENT, true)
+
     binding = FragmentMainBinding.inflate(inflater, container, false)
     return binding!!.root
   }
@@ -162,12 +171,6 @@ class MainFragment : BaseFragment() {
   }
 
   private fun showIDETooltip(view:View, level:Int, detail:String, summary:String, uri:String) {
-    val inflater = requireContext().getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
-    val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
-    var popupWindow = PopupWindow(
-      popupView, ViewGroup.LayoutParams.WRAP_CONTENT,
-      ViewGroup.LayoutParams.WRAP_CONTENT, true
-    )
 // Inflate the PopupWindow layout
     val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
     val tooltip = when (level) {
