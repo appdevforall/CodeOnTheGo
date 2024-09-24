@@ -22,6 +22,8 @@ import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.itsaky.androidide.activities.MainActivity
+import com.itsaky.androidide.models.MainScreenAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -61,19 +63,18 @@ abstract class IDETooltipRoomDatabase : RoomDatabase() {
             val dao = db.idetooltipDao()
 
             //don't do anything if there is already records in the database
-            if(dao.getCount() > 0) {
-                return
-            }
+//            if(dao.getCount() > 0) {
+//                return
+//            }
         // Delete all content here.
             dao.deleteAll()
             try {
             //// JMT for demo only
                 val item1 = IDETooltipItem(
-                    tag = 100,
+                    tag = MainScreenAction.ACTION_CREATE_PROJECT,
                     summary = "Create a new empty project or use a template.",
                     detail = "When you start a new project, Code on the Go creates the right structure for your files. To get started quickly, you can begin a new project using a template that contains starter code and features for a specific kind of app. ",
-                    uri = "file://100.html")
-                    //'<a href=\"file://projects_top.html\">Learn more about projects</a><br><a href=\"file://templates_top.html\">Learn more about projects and templates</a><br><a href=\"file://IntroToActivities.html\">Learn about activities</a>'))
+                    uri = "file:///android_asset/idetooltips/100.html")
 
                 dao.insert(item1)
 
