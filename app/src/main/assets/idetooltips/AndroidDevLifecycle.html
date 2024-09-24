@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">    
+<script src="toggle.js"></script>
+<link rel="stylesheet" href="style.css">
+<title>Preferences overview</title>
+<html>
+<body> 
+
+<p>On this page:</p>
+<ul>
+<li><a href="#overview">Building an Android app with Code on the Go</a>
+<li><a href="#concepts">Key Android development concepts </a>
+<li><a href="#lifecycle">About the Android app lifecycle  </a>
+</ul>
+<h1><a name="overview">Building an Android app with Code on the Go</a></h1>
+<p>Here's a high-level overview of building an Android app using Code on the Go:</p>
+<h2>1. Set up a new project</h2><ul>
+<li><Launch Code on the Go and create a new project
+<li>Choose a project template, such as Empty Activity, which provides a basic layout for your app with one screen (Activity).
+<li>Define your app name, package name, and target device API level. </ul>
+    
+    <h2>2. Understand the project structure</h2>
+ <ul>
+<li>Java/Kotlin Code: Located in the app/src/main/java directory. This is where you'll write your program logic, such as activities, services, etc.
+<li>XML Layouts: Located in the res/layout folder. These define the UI of your app.
+<li>Manifest File: AndroidManifest.xml defines essential app information, like activities, permissions, and app metadata.
+    </ul> 
+    <h2>3. Create the user interface (UI)</h2>      <ul>
+    <li> Use the Layout Editor (drag-and-drop) or write XML to define your app's User Interface (UI).
+<li>Common elements include TextView, Button, and RecyclerView.
+        </ul>
+<h2>4. Write Java or Kotlin code (logic)</h2><ul>
+<li> Logic for the app is written in activities such as MainActivity.java (or other activities). 
+<li> Lifecycle methods such as onCreate(), onStart(), and onDestroy() control how the app behaves as it moves between different states.
+</ul>
+<h2>5. Run and test the app</h2>
+ <ul>
+ <li>UPDATE THIS FOR CODE ON THE GO Use the Android Emulator (or connect a real device) to run and test your app.
+<li>CAN YOU REALLY? You can simulate different screen sizes, versions, and orientations.
+</ul>                                                                                   
+<h2>6. Debug the app</h2><ul>
+<li>Code on the Go has a built-in debugger to help you find and fix issues.
+<li>You can use breakpoints and view logs using Logcat.  CAN YOU THOUGH???
+</ul>
+ <h2>Build the APK or App Bundle for distribution</h2>
+ <ul>
+ <li>In the MENUNAME menu, select <b>Build > Build Bundle(s)/APK(s)</b>
+ </ul>
+ 
+<h1><a name="concepts">Key Android development concepts</a></h1>
+<p>Android app development relies on the following concepts:</p><ul> 
+<b><li>Activities</b>: The building blocks for screens.
+<li><b>Fragments</b>: Reusable portions of UI inside an activity.
+<li><b>Intents</b>: For navigation between activities or launching system services.
+<li><b>ViewModel</b>: Manages UI-related data in a lifecycle-conscious way.
+<li><b>RecyclerView</b>: Efficiently displays lists of data.
+<li><b>Gradle</b>: The build system for configuring dependencies and app versions.
+ </ul>
+
+<h1><a name="lifecycle">About the Android app lifecycle</a></h1>
+<p><p>Lifecycle refers to the series of states that an Android activity or fragment goes through from its creation to its destruction. The lifecycle ensures that your app behaves correctly during different user interactions (like rotating the screen) and system conditions (like restoring the app's state when a user returns to your app). The following image shows the flow and relationships of all possible stages of an Android activity lifecycle.</p>
+
+<img src="activity_lifecycle_overview.png" alt="Android lifecycle" />
+
+<p>There are seven key stages to an Android activity lifecycle. </p>
+<h2>onCreate()</h2>
+<p><b>Used when</b></b>: The activity is first created.  </p>
+<p><b>Sample functions</b>: Sets up the UI, initialize variables, and prepare resources.</p>
+<p><button onclick="ShowHide('change')">See snippet (Java)</button>
+<div id="change" style="display:none;">
+  <pre>        @Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main); // Sets the layout
+    // Initialize views and resources
+}
+</pre>
+</div>     
+
+
+</pre>
+</div> 
+<p><button onclick="ShowHide('onCreateKotlin')">See snippet (Kotlin)</button>
+<div id="onCreateKotlin" style="display:none;">
+  <pre>        @Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main); // Sets the layout
+    // Initialize views and resources
+}
+</pre>
+</div>   
+</p>
+<h2>onStart()</h2>
+<b><p>Used when</b>: The activity is about to become visible to the user.</p>
+<p><b>Sample functions</b>: Start animations or load resources that are needed when the activity is visible.</p>
+<button onclick="ShowHide('onStart')">See snippet (Java) </button>
+<div id="onStart" style="display:none;">
+  <pre>@Override
+protected void onStart() {
+    super.onStart();
+    // Register listeners, start UI updates
+}
+
+</pre> </div>
+
+<p><button onclick="ShowHide('whatever')">See snippet (Kotlin) </button>
+<div id="whatever" style="display:none;">
+  <pre>@Override
+protected void onStart() {
+    super.onStart();
+    // Register listeners, start UI updates
+}
+
+</div>  
+<h2>onResume()</h2>
+<p><b>Used when</b>: The activity is visible and interactive in the foreground for the user.</p>
+<p><b>Sample functions</b>: You can resume animations, refresh data, or reconnect to sensors.</p>
+<p><button onclick="ShowHide('onResume')">See snippet (Java) </button>
+<div id="onResume" style="display:none;">
+  <pre>  @Override
+protected void onResume() {
+    super.onResume();
+    // Resume ongoing tasks or media playback
+}
+
+</pre>
+</div>   
+<p><button onclick="ShowHide('onResume')">See snippet (Kotlin) </button>
+<div id="onResume" style="display:none;">
+  <pre>      class CameraComponent : LifecycleObserver {
+    ...
+    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    fun initializeCamera() {
+        if (camera == null) {
+            getCamera()
+        }
+    }
+    ...
+}   
+
+</pre>
+</div>  
+<h2>onPause()</h2>
+<p><b>Used when</b>: The activity is partially visible but not interactive (e.g., when a dialog box is displayed over the activity).</p>
+<p><b>Sample functions</b>: Pause ongoing actions, save transient data or stop animations.</p>
+<p><button onclick="ShowHide('onPause')">See snippet (Java) </button>
+<div id="onPause" style="display:none;">
+  <pre> @Override
+protected void onPause() {
+    super.onPause();
+    // Pause or throttle down operations (e.g., animations)
+}
+
+</pre>
+</div>  
+<h2>onStop()</h2>
+<p><b>Used when</b>: The activity is no longer visible.</p>
+<p><b>Sample functions</b>: Release resources like stopping background processes or save persistent data.</p>
+<p><button onclick="ShowHide('onStop')">See snippet (Java) </button>
+<div id="onStop" style="display:none;">
+  <pre>        @Override
+protected void onStop() {
+    super.onStop();
+    // Save persistent data or stop heavy resource usage
+}
+</pre>
+</div>  
+<h2>onDestroy()</h2>
+<p><b>Used when</b>: The activity is being completely removed from memory as a result of user action or the system.</p>
+<p><b>Sample functions</b>: The user closes the app or the system needs to free up resources.</p>
+<p><button onclick="ShowHide('onDestroy')">See snippet (Java) </button>
+<div id="onDestroy" style="display:none;">
+  <pre>        @Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main); // Sets the layout
+    // Initialize views and resources
+}
+</pre>
+</div>  
+<h2>onRestart()</h2>
+<p><b>Used when</b>: Called when the activity is stopped and then restarted (e.g. when a user returns to the open app)</p>
+<p><b>Sample functions</b>: Re-initialize anything that was released in onStop().</p>
+<p><button onclick="ShowHide('onRestart')">See snippet (Java) </button>
+<div id="onRestart" style="display:none;">
+  <pre>        @Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main); // Sets the layout
+    // Initialize views and resources
+}
+</pre>
+</div>  
+
+
+</body>
+</html>
