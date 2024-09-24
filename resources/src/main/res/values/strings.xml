@@ -5,14 +5,14 @@
   <string name="copy" tools:override="true">Copy</string>
   <string name="terminal_more">More…</string>
   <string name="text_to_search">Text to search</string>
-  <string name="app_name" translatable="false">AndroidIDE</string>
+  <string name="app_name" translatable="false">Code on the Go</string>
   <string name="about_option_email">Email</string>
   <string name="about_option_website">Website</string>
-  <string name="about_footer_alternate" translatable="false">AndroidIDE v\u2022 %s</string>
-  <string name="about_footer">AndroidIDE %1$s for %2$s</string>
+  <string name="about_footer_alternate" translatable="false">Code on the Go v\u2022 %s</string>
+  <string name="about_footer">Code on the Go %1$s for %2$s</string>
   <string name="about_subtitle">Simply, an IDE for Android</string>
   <string name="msg_get_package_failed">Failed to extract package name!</string>
-  <string name="msg_need_help">If you\'re facing issues while using AndroidIDE or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggesstions on our email.</string>
+  <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggesstions on our email.</string>
   <string name="need_help">Need Help?</string>
   <string name="ide_preferences">IDE preferences</string>
   <string name="discussions_on_telegram">Discussions on Telegram</string>
@@ -66,7 +66,7 @@
 
   <!-- Project -->
   <string name="title_first_build">First Build</string>
-  <string name="msg_first_build">This is the first time build after you installed AndroidIDE. First build usually takes time as Gradle downloads all dependencies and plugins. This process may take about 10–15 minutes. But this totally depends on your network connection.\n\nPlease be patient …</string>
+  <string name="msg_first_build">This is the first time build after you installed Code on the Go. First build usually takes time as Gradle downloads all dependencies and plugins. This process may take about 10–15 minutes. But this totally depends on your network connection.\n\nPlease be patient …</string>
   <string name="create_project">Create project</string>
   <string name="minimum_sdk">Minimum SDK</string>
   <string name="new_project">New project</string>
@@ -161,7 +161,7 @@
 
   <!-- Preferences -->
   <string name="title_change_text_size">Editor font size</string>
-  <string name="idepref_about_title">About AndroidIDE</string>
+  <string name="idepref_about_title">About Code on the Go</string>
   <string name="idepref_build_clearCache_title">Clear Gradle caches</string>
   <string name="idepref_build_clearCache_summary">Clear Gradle caches directory. This will delete all dependencies downloaded by Gradle. Required files will be downloaded again in next build.</string>
   <string name="idepref_build_customgradlecommands_title">Additional Gradle commands</string>
@@ -201,7 +201,7 @@
   <string name="msg_generate_xml_failed">Failed to generate XML code</string>
   <string name="title_generating_xml">Generating XML code</string>
   <string name="msg_swipe_up">Swipe up or click for build output, logs and more.</string>
-  <string name="msg_ide_crashed">AndroidIDE crashed</string>
+  <string name="msg_ide_crashed">Code on the Go crashed</string>
   <string name="msg_report_crash">Please open an issue on github with the following stacktrace :</string>
   <string name="msg_crash_report_hint">Click on the button below to copy log and open issues page.</string>
   <string name="msg_copy_report_action">Copy and report</string>
@@ -278,7 +278,7 @@
   <string name="idepref_channel_summary">Subscribe for latest updates.</string>
   <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
   <string name="idepref_changelog_summary">What\'s new in this version?</string>
-  <string name="idepref_about_summary">More about AndroidIDE.</string>
+  <string name="idepref_about_summary">More about Code on the Go.</string>
   <string name="idepref_general_summary">General IDE configuration.</string>
   <string name="idepref_editor_summary">Configure the editor.</string>
   <string name="xml" translatable="false">XML</string>
@@ -319,7 +319,7 @@
   <string name="msg_installing_apk">Installing APK...</string>
   <string name="msg_action_open_application">Do you want to open the application?</string>
 
-  <string name="title_gradle_service_notification_channel">AndroidIDE Gradle build service</string>
+  <string name="title_gradle_service_notification_channel">Code on the Go Gradle build service</string>
   <string name="msg_hex_color_code">Hex color code</string>
   <string name="msg_color_picker_pick">Pick</string>
   <string name="msg_chmod_exec">Setting executable permissions…</string>
@@ -441,7 +441,7 @@
   <string name="uiMode_dark">Dark</string>
   <string name="uiMode_system">Follow system</string>
   <string name="idepref_general_themeSelector_title">Theme</string>
-  <string name="idepref_general_themeSelector_summary">Select a theme for AndroidIDE (requires restart).</string>
+  <string name="idepref_general_themeSelector_summary">Select a theme for Code on the Go (requires restart).</string>
   <string name="idepref_general_projectConfig">Project configuration</string>
   <string name="msg_app_launch_failed">Launch failed. Install the application first.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostics enabled</string>
@@ -489,7 +489,7 @@
   <string name="title_class_chooser">Which %1$s?</string>
 
   <string name="permlab_bind_logger_service">bind to log service</string>
-  <string name="permdesc_bind_logger_service">Allows this application to bind to AndroidIDE\'s logging service. This permission is required for AndroidIDE to read logs of this application.</string>
+  <string name="permdesc_bind_logger_service">Allows this application to bind to Code on the Go\'s logging service. This permission is required for Code on the Go to read logs of this application.</string>
   <string name="wizard_module_name">Module name</string>
   <string name="wizard_module_type">Module type</string>
   <string name="msg_invalid_module_name">Invalid Gradle module name</string>
@@ -502,8 +502,8 @@
   <string name="msg_invalid_project_details">Invalid project details</string>
   <string name="msg_use_kts">Use Kotlin Script (.kts) for Gradle build files</string>
   <string name="title_privacy">Privacy</string>
-  <string name="title_androidide_statistics">AndroidIDE Statistics</string>
-  <string name="msg_androidide_statistics">Help us improve AndroidIDE by providing anonymous statistics. We collect basic information about your device for user base statistics only. The exact data that is shared can be viewed in preferences. Your data is secure and not shared with third-party services. You can opt-out anytime in preferences.</string>
+  <string name="title_androidide_statistics">Code on the Go Statistics</string>
+  <string name="msg_androidide_statistics">Help us improve Code on the Go by providing anonymous statistics. We collect basic information about your device for user base statistics only. The exact data that is shared can be viewed in preferences. Your data is secure and not shared with third-party services. You can opt-out anytime in preferences.</string>
   <string name="summary_anonymous_usage_stats">Anonymous usage stats</string>
   <string name="idepref_stats_optIn_title">Stats collection</string>
   <string name="idepref_stats_optIn_summary">Allow installation metrics and device statistics to be collected (fully anonymous).</string>
@@ -516,10 +516,10 @@
   <string name="title_android_version">Android version</string>
   <string name="btn_opt_in">Opt-in</string>
   <string name="title_developer_options">Developer options</string>
-  <string name="idepref_devOptions_summary">Experimental/debugging options for AndroidIDE</string>
+  <string name="idepref_devOptions_summary">Experimental/debugging options for Code on the Go</string>
   <string name="idepref_group_debugging">Debugging</string>
   <string name="idepref_devOptions_dumpLogs_title">Dump logs</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Dump AndroidIDE logs to $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Dump Code on the Go logs to $HOME/.androidide/logs</string>
   <string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
   <string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
   <string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
@@ -527,7 +527,7 @@
   <string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
   <string name="msg_codeaction_failed">Failed to perform code action</string>
   <string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
-  <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in AndroidIDE</string>
+  <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
   <string name="title_build_variants">Build variants</string>
   <string name="title_apply">Apply</string>
   <string name="title_discard">Discard</string>
@@ -552,7 +552,7 @@
   <string name="theme_sunny_glow">Sunny Glow</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">Language</string>
-  <string name="idepref_general_localeSelector_summary">Select a language for AndroidIDE.</string>
+  <string name="idepref_general_localeSelector_summary">Select a language for Code on the Go.</string>
   <string name="locale_system_default">System Default</string>
   <string name="msg_project_dir_inaccessible">Project directory is not accessible</string>
   <string name="msg_file_is_not_dir">Selected file is not a directory</string>
@@ -560,13 +560,13 @@
   <string name="msg_files_being_saved">A file save operation is already in progress!</string>
   <string name="title_install_tools">SDK Installation</string>
   <string name="subtitle_install_tools">Install the development tools</string>
-  <string name="msg_install_tools">The development tools must be installed for the IDE to work. Clicking the done button will open terminal to install the tools. To install, follow the instructions <![CDATA[ <a href="https://docs.androidide.com/tutorials/get-started.html">here</a>.<br/><br/>]]>.</string>
+  <string name="msg_install_tools">The development tools must be installed for the IDE to work. Clicking the done button will open terminal to install the tools. </string>
   <string name="greeting_title">Welcome</string>
   <string name="greeting_subtitle">Learn, build, launch. All on your Android.</string>
   <string name="title_grant">Grant</string>
   <string name="permission_title_storage">Storage</string>
   <string name="permission_desc_storage">Required to access project files.</string>
-  <string name="permission_desc_install_packages">Allow installing APKs built with AndroidIDE.</string>
+  <string name="permission_desc_install_packages">Allow installing APKs built with Code on the Go.</string>
   <string name="permission_title_install_packages">Install packages</string>
   <string name="onboarding_title_permissions">Permissions</string>
   <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions</string>

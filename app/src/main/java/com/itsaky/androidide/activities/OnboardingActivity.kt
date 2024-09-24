@@ -314,37 +314,40 @@ class OnboardingActivity : AppIntro2() {
         val configProvider = IDEBuildConfigProvider.getInstance()
 
         if (!configProvider.supportsCpuAbi()) {
-            addSlide(
-                OnboardingInfoFragment.newInstance(
-                    getString(string.title_unsupported_device),
-                    getString(
-                        string.msg_unsupported_device,
-                        configProvider.cpuArch.abi,
-                        configProvider.deviceArch.abi
-                    ),
-                    R.drawable.ic_alert,
-                    ContextCompat.getColor(this, R.color.color_error)
-                )
-            )
-            return false
+            //TODO JMT figure out how to build v8a and/or x64_86
+//            addSlide(
+//                OnboardingInfoFragment.newInstance(
+//                    getString(string.title_unsupported_device),
+//                    getString(
+//                        string.msg_unsupported_device,
+//                        configProvider.cpuArch.abi,
+//                        configProvider.deviceArch.abi
+//                    ),
+//                    R.drawable.ic_alert,
+//                    ContextCompat.getColor(this, R.color.color_error)
+//                )
+//            )
+//            return false
+            return true
         }
 
         if (configProvider.cpuArch != configProvider.deviceArch) {
             // IDE's build flavor is NOT the primary arch of the device
             // warn the user
             if (!archConfigExperimentalWarningIsShown()) {
-                addSlide(
-                    OnboardingInfoFragment.newInstance(
-                        getString(string.title_experiment_flavor),
-                        getString(
-                            string.msg_experimental_flavor,
-                            configProvider.cpuArch.abi,
-                            configProvider.deviceArch.abi
-                        ),
-                        R.drawable.ic_alert,
-                        ContextCompat.getColor(this, R.color.color_warning)
-                    )
-                )
+                //TODO JMT get build to support v8a and/or x86_64
+//                addSlide(
+//                    OnboardingInfoFragment.newInstance(
+//                        getString(string.title_experiment_flavor),
+//                        getString(
+//                            string.msg_experimental_flavor,
+//                            configProvider.cpuArch.abi,
+//                            configProvider.deviceArch.abi
+//                        ),
+//                        R.drawable.ic_alert,
+//                        ContextCompat.getColor(this, R.color.color_warning)
+//                    )
+//                )
                 prefManager.putBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, true)
             }
         }

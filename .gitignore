@@ -95,3 +95,6 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# Sentry Config File
+sentry.properties
