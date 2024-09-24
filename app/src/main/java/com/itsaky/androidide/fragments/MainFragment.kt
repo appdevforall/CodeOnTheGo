@@ -149,11 +149,10 @@ class MainFragment : BaseFragment() {
     }
 
     binding!!.actions.adapter = MainActionsListAdapter(this, actions)
-    binding!!.greeting?.setOnClickListener(View.OnClickListener {
-
+    binding!!.greetingText.setOnClickListener(View.OnClickListener {
+      showWebPage("file:///android_asset/idetooltips/getstarted_top.html")
     })
   }
-
 
   // this method will handle the onclick options click
   private fun performOptionsMenuClick(action: MainScreenAction) {
@@ -168,6 +167,16 @@ class MainFragment : BaseFragment() {
         showIDETooltip(view!!, 0, detail, summary, uri)
       }
     }
+  }
+
+  private fun showWebPage(url : String) {
+    val transaction : FragmentTransaction = requireActivity().supportFragmentManager.beginTransaction().addToBackStack("WebView")
+    val fragment = IDETooltipWebviewFragment()
+    val bundle = Bundle()
+    bundle.putString(Companion.KEY_TOOLTIP_URL, url)
+    fragment.arguments = bundle
+    transaction.replace(R.id.fragment_containers_parent, fragment)
+    transaction.commit()
   }
 
   private fun showIDETooltip(view:View, level:Int, detail:String, summary:String, uri:String) {
@@ -231,13 +240,8 @@ class MainFragment : BaseFragment() {
         while(popupWindow.isShowing) {
           popupWindow.dismiss()
         }
-        val transaction : FragmentTransaction = requireActivity().supportFragmentManager.beginTransaction().addToBackStack("WebView")
-        val fragment = IDETooltipWebviewFragment()
-        val bundle = Bundle()
-        bundle.putString(Companion.KEY_TOOLTIP_URL, tooltip)
-        fragment.arguments = bundle
-        transaction.replace(R.id.fragment_containers_parent, fragment)
-        transaction.commit()
+
+        showWebPage(tooltip)
       }
     }
   }
