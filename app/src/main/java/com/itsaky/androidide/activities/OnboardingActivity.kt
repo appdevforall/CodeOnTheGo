@@ -153,7 +153,7 @@ class OnboardingActivity : AppIntro2() {
             return
         }
 
-        /******** JMT deleted for offline mode
+        /******** TODO JMT deleted for offline mode
         if (!StatPreferences.statConsentDialogShown) {
             addSlide(StatisticsFragment.newInstance(this))
             StatPreferences.statConsentDialogShown = true

@@ -90,6 +90,8 @@ class IDETooltipWebviewFragment : Fragment() {
         webView.settings.allowFileAccessFromFileURLs
         webView.settings.allowFileAccess
         webView.settings.allowUniversalAccessFromFileURLs
+        webView.scrollBarStyle = WebView.SCROLLBARS_OUTSIDE_OVERLAY
+        webView.scrollBarDefaultDelayBeforeFade = 1000
 
 
         // Enable JavaScript if needed
