@@ -42,13 +42,13 @@ constructor(
 
   companion object {
 
-    const val ACTION_CREATE_PROJECT = 0
-    const val ACTION_OPEN_PROJECT = 1
-    const val ACTION_CLONE_REPO = 2
-    const val ACTION_OPEN_TERMINAL = 3
-    const val ACTION_PREFERENCES = 4
-    const val ACTION_DONATE = 5
-    const val ACTION_DOCS = 6
+    const val ACTION_CREATE_PROJECT = 100
+    const val ACTION_OPEN_PROJECT = 110
+    const val ACTION_CLONE_REPO = 120
+    const val ACTION_OPEN_TERMINAL = 130
+    const val ACTION_PREFERENCES = 140
+    const val ACTION_DONATE = 150
+    const val ACTION_DOCS = 160
 
     /**
      * Get all main screen actions.
