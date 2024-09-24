@@ -73,7 +73,11 @@ abstract class IDETooltipRoomDatabase : RoomDatabase() {
                 val item1 = IDETooltipItem(
                     tag = MainScreenAction.ACTION_CREATE_PROJECT,
                     summary = "Create a new empty project or use a template.",
-                    detail = "When you start a new project, Code on the Go creates the right structure for your files. To get started quickly, you can begin a new project using a template that contains starter code and features for a specific kind of app. ",
+                    detail = """
+                            When you start a new project, Code on the Go creates the right structure for your files. 
+                            To get started quickly, you can begin a new project using a template that contains 
+                            starter code and features for a specific kind of app. 
+                            """,
                     uri = "file:///android_asset/idetooltips/100.html")
 
                 dao.insert(item1)
