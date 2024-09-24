@@ -57,7 +57,7 @@
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/tooltip_web_view"
-        android:name="com.itsaky.androidide.IDETooltips.IDETooltipWebviewFragment"
+        android:name="com.itsaky.androidide.fragments.IDETooltipWebviewFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 

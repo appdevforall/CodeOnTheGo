@@ -24,8 +24,8 @@ import androidx.fragment.app.FragmentTransaction
 import androidx.fragment.app.viewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.itsaky.androidide.IDETooltips.IDETooltipItem
 import com.itsaky.androidide.IDETooltips.IDETooltipRoomDatabase
-import com.itsaky.androidide.IDETooltips.IDETooltipWebviewFragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -69,6 +69,7 @@ class MainFragment : BaseFragment() {
   companion object {
 
     private val log = LoggerFactory.getLogger(MainFragment::class.java)
+    const val KEY_TOOLTIP_URL = "tooltip_url"
   }
 
   private lateinit var fab : FloatingActionButton
@@ -139,40 +140,39 @@ class MainFragment : BaseFragment() {
     }
 
     binding!!.actions.adapter = MainActionsListAdapter(this, actions)
+    binding!!.greeting?.setOnClickListener(View.OnClickListener {
+
+    })
   }
 
 
   // this method will handle the onclick options click
   private fun performOptionsMenuClick(action: MainScreenAction) {
     val view = action.view
-
+    val tag = action.id
     CoroutineScope(Dispatchers.IO).launch {
-//      val records = IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getTooltipItems().toString()
-//
-//      Log.d("Tooltips", "records = ${records}")
-      val detail =
-        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getDetail(100)
-      val summary =
-        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getSummary(100)
-      val uri =
-        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getURI(100)
+      val dao = IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao()
+      val detail = dao.getDetail(tag)
+      val summary = dao.getSummary(tag)
+      val uri = dao.getURI(tag)
       withContext((Dispatchers.Main)) {
-        //Log.d("Tooltip", "summary = ${summary}")
         showIDETooltip(view!!, 0, detail, summary, uri)
       }
     }
   }
 
   private fun showIDETooltip(view:View, level:Int, detail:String, summary:String, uri:String) {
-   val inflater = requireContext().getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
-   val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
-   val popupWindow = PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT,
-     ViewGroup.LayoutParams.WRAP_CONTENT, true)
+    val inflater = requireContext().getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
+    val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
+    var popupWindow = PopupWindow(
+      popupView, ViewGroup.LayoutParams.WRAP_CONTENT,
+      ViewGroup.LayoutParams.WRAP_CONTENT, true
+    )
 // Inflate the PopupWindow layout
     val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
     val tooltip = when (level) {
       0 -> summary
-      1 -> detail
+      1 -> "$summary<br/><br/>$detail"
       2 -> uri
       else -> {
         fab.hide()
@@ -187,10 +187,14 @@ class MainFragment : BaseFragment() {
 
     when (level) {
       0, 1 -> {
+        while(popupWindow.isShowing) {
+          popupWindow.dismiss()
+        }
         fab.setOnClickListener {
           showIDETooltip(view, level + 1, detail, summary, uri)
         }
 
+        popupView.setBackgroundColor(resources.getColor(android.R.color.holo_blue_light, null))
         // Initialize the WebView
         val webView = popupView.findViewById<WebView>(R.id.webview)
         webView.webViewClient = WebViewClient() // Ensure links open within the WebView
@@ -202,14 +206,14 @@ class MainFragment : BaseFragment() {
 
         // Optional: Set up a border or padding if needed (you'll need to define this in your popup layout XML)
         // Set a theme-aware background, depending on your design
-        //TODO JMT popupView.setBackgroundResource(R.drawable.popup_background) // Make sure to create this drawable
+        popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
         // Show the popup window
         popupWindow.isFocusable = true
         popupWindow.showAsDropDown(view)
 
         // Optional: For dismissing the popup when clicking outside
-        popupWindow.setOutsideTouchable(true)
+        popupWindow.isOutsideTouchable = true
 
         // Show the PopupWindow
         popupWindow.showAtLocation(
@@ -221,13 +225,19 @@ class MainFragment : BaseFragment() {
       }
 
       2 -> {
+        while(popupWindow.isShowing) {
+          popupWindow.dismiss()
+        }
         val transaction : FragmentTransaction = requireActivity().supportFragmentManager.beginTransaction().addToBackStack("WebView")
-        transaction.replace(R.id.fragment_containers_parent, IDETooltipWebviewFragment())
+        val fragment = IDETooltipWebviewFragment()
+        val bundle = Bundle()
+        bundle.putString(Companion.KEY_TOOLTIP_URL, tooltip)
+        fragment.arguments = bundle
+        transaction.replace(R.id.fragment_containers_parent, fragment)
         transaction.commit()
       }
     }
   }
-
 
 
   private fun performFeedbackAction(action : MainScreenAction) {
@@ -264,7 +274,15 @@ class MainFragment : BaseFragment() {
   }
 
   suspend fun dumpDatabase(database: IDETooltipRoomDatabase) {
-    Log.d("MessageRoomDatabase", database.idetooltipDao().getTooltipItems().toString())
+    CoroutineScope(Dispatchers.IO).launch {
+      val records =
+        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getTooltipItems()
+      withContext(Dispatchers.Main) {
+        for (item:IDETooltipItem in records) {
+          Log.d("DumpIDEDatabase", "tag = ${item.tag}\n\tdetail = ${item.detail}\n\tsummary = ${item.summary}\n\turi = ${item.uri}" )
+        }
+      }
+    }
   }
 
   override fun onDestroyView() {

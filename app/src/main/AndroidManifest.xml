@@ -28,7 +28,7 @@
     android:allowBackup="false"
     android:allowNativeHeapPointerTagging="false"
     android:enableOnBackInvokedCallback="true"
-    android:extractNativeLibs="true"
+    android:extractNativeLibs="false"
     android:hardwareAccelerated="true"
     android:icon="@drawable/ic_launcher"
     android:label="@string/app_name"
@@ -80,42 +80,19 @@
       android:windowSoftInputMode="adjustResize" />
 
     <!-- Required: set your sentry.io project identifier (DSN) -->
-    <meta-data
-      android:name="io.sentry.dsn"
-      android:value="https://27a60ca667581c414a4fd39e1b18d4f1@o4507770666221568.ingest.us.sentry.io/4507770670219264"
-      />
+    <meta-data android:name="io.sentry.dsn" android:value="https://e27b85ad9ff58221029395291bf1617c@o4508003514712064.ingest.us.sentry.io/4508003516940288" />
 
     <!-- enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) -->
-    <meta-data
-      android:name="io.sentry.traces.user-interaction.enable"
-      android:value="true"
-      />
+    <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />
     <!-- enable screenshot for crashes -->
-    <meta-data
-      android:name="io.sentry.attach-screenshot"
-      android:value="true"
-      />
+    <meta-data android:name="io.sentry.attach-screenshot" android:value="true" />
     <!-- enable view hierarchy for crashes -->
-    <meta-data
-      android:name="io.sentry.attach-view-hierarchy"
-      android:value="true"
-      />
+    <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
 
     <!-- enable the performance API by setting a sample-rate, adjust in production env -->
-    <meta-data
-      android:name="io.sentry.traces.sample-rate"
-      android:value="1.0"
-      />
+    <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
     <!-- enable profiling when starting transactions, adjust in production env -->
-    <meta-data
-      android:name="io.sentry.traces.profiling.sample-rate"
-      android:value="1.0"
-      />
-    <!-- enable app start profiling -->
-    <meta-data
-      android:name="io.sentry.traces.profiling.enable-app-start"
-      android:value="true"
-      />
+    <meta-data android:name="io.sentry.traces.profiling.sample-rate" android:value="1.0" />
 
     <provider
       android:authorities="com.itsaky.androidide.documents"
