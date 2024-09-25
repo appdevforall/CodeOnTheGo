@@ -18,7 +18,6 @@
 package com.itsaky.androidide.models
 
 import android.view.View
-import android.view.View.OnCreateContextMenuListener
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.resources.R
@@ -66,26 +65,26 @@ constructor(
           R.string.msg_open_existing_project,
           R.drawable.ic_folder)
 
-        val cloneGitRepository = MainScreenAction(
-          ACTION_CLONE_REPO,
-          R.string.git_clone_repo,
-          R.drawable.ic_git)
+//        val cloneGitRepository = MainScreenAction(
+//          ACTION_CLONE_REPO,
+//          R.string.git_clone_repo,
+//          R.drawable.ic_git)
 
-        val openTerminal = MainScreenAction(
-          ACTION_OPEN_TERMINAL,
-          R.string.title_terminal,
-          R.drawable.ic_terminal)
+//        val openTerminal = MainScreenAction(
+//          ACTION_OPEN_TERMINAL,
+//          R.string.title_terminal,
+//          R.drawable.ic_terminal)
 
-        val preferences = MainScreenAction(
-          ACTION_PREFERENCES,
-          R.string.msg_preferences,
-          R.drawable.ic_settings)
+//        val preferences = MainScreenAction(
+//          ACTION_PREFERENCES,
+//          R.string.msg_preferences,
+//          R.drawable.ic_settings)
 
-        val donate = MainScreenAction(
-          ACTION_DONATE,
-          R.string.btn_donate,
-          R.drawable.ic_heart
-        )
+//        val donate = MainScreenAction(
+//          ACTION_DONATE,
+//          R.string.btn_donate,
+//          R.drawable.ic_heart
+//        )
 
         val docs = MainScreenAction(
           ACTION_DOCS,
@@ -95,10 +94,11 @@ constructor(
         Collections.addAll(this,
           createProject,
           openProject,
-          cloneGitRepository,
-          openTerminal,
-          preferences,
-          donate,
+//TODO JMT Move to Advanced
+//          cloneGitRepository,
+//          openTerminal,
+//          preferences,
+//          donate,
           docs
         )
       }
