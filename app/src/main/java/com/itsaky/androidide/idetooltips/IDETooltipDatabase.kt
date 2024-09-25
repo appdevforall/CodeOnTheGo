@@ -29,7 +29,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 
 // Annotates class to be a Room Database with a table (entity) of the Message class
-@Database(entities = [IDETooltipItem::class], version = 1, exportSchema = false)
+@Database(entities = [IDETooltipItem::class], version = 2, exportSchema = false)
 abstract class IDETooltipDatabase : RoomDatabase() {
     abstract fun idetooltipDao(): IDETooltipDao
 
@@ -58,67 +58,6 @@ abstract class IDETooltipDatabase : RoomDatabase() {
         }
     }
 
-//        private suspend fun populateDatabase(context: Context) {
-//            val db = getDatabase(context)
-//            val dao = db.idetooltipDao()
-
-    //don't do anything if there is already records in the database
-//            if(dao.getCount() > 0) {
-//                return
-//            }
-    // Delete all content here.
-//            dao.deleteAll()
-//            try {
-//            //// JMT for demo only
-//                val item1 = IDETooltipItem(
-//                    tag = MainScreenAction.ACTION_CREATE_PROJECT,
-//                    summary = "Create a new empty project or use a template.",
-//                    detail = """
-//                            When you start a new project, Code on the Go creates the right structure for your files.
-//                            To get started quickly, you can begin a new project using a template that contains
-//                            starter code and features for a specific kind of app.
-//                            """,
-//                    uri = "file:///android_asset/idetooltips/100.html")
-//
-//                dao.insert(item1)
-//
-//
-////                val userList: JSONArray =
-////                    context.resources.openRawResource(R.raw.tooltips.csv).bufferedReader().use {
-////                        JSONArray(it.readText())
-////                    }
-////
-////                userList.takeIf { it.length() > 0 }?.let { list ->
-////                    for (index in 0 until list.length()) {
-////                        val userObj = list.getJSONObject(index)
-////                        tooltipDao.insert(
-////                            TooltipItem(
-////                                userObj.getInt("key"),
-////                                userObj.getString("summary"),
-////                                userObj.getString("detail"),
-////                                userObj.getString("uri")
-////                            )
-////                        )
-////
-////                    }
-//                    Log.e("User App", "successfully pre-populated users into database")
-//
-//            } catch (exception: Exception) {
-//                Log.e(
-//                    "User App",
-//                    exception.localizedMessage ?: "failed to pre-populate users into database"
-//                )
-//            }
-//            val IDETooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
-//            IDETooltipItemList.forEach { tooltipItem ->
-//                Log.d(
-//                    "TooltipRoomDatabase",
-//                    "after insert database - itemTag = ${tooltipItem.tag}, " +
-//                            "summary = ${tooltipItem.summary}, detail=${tooltipItem.detail}, uri=${tooltipItem.uri}"
-//                )
-//            }
-//        }
-
     private suspend fun populateDatabaseFromCSV(context: Context) {
         // Reading the CSV file from assets
         val db = getDatabase(context)
@@ -132,7 +71,7 @@ abstract class IDETooltipDatabase : RoomDatabase() {
             // Loop through the lines of the CSV
             while (reader.readLine().also { line = it } != null) {
                 // Split the line by comma
-                val parts = line!!.split(",")
+                val parts = line!!.split("|")
                 if (parts.size > 4) {
                     val id = parts[0]
                     val scope = parts[1]
@@ -140,6 +79,7 @@ abstract class IDETooltipDatabase : RoomDatabase() {
                     val detail = parts[3]
 
                     val item = IDETooltipItem(tooltipTag = id, summary = summary, detail = detail)
+
                     // Insert into the database
                     dao.insert(item)
                 }

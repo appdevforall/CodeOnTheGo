@@ -21,7 +21,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 
 class IDETooltipWithButtonDatabase {
-    @Database(entities = [IDETooltipItem::class, IDETooltipButton::class], version = 1)
+    @Database(entities = [IDETooltipItem::class, IDETooltipButton::class], version = 2)
     abstract class IDETooltipItemWithButton : RoomDatabase() {
         abstract fun IDETooltipDao(): IDETooltipDao
         abstract fun IDETooltipButtonDao(): IDETooltipButtonDao
