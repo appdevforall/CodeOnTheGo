@@ -104,10 +104,11 @@ class IDEApplication : TermuxApplication() {
         super.onCreate()
 
         if (BuildConfig.DEBUG) {
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
-                    .build()
-            )
+            //TODO JMT enable this
+//            StrictMode.setVmPolicy(
+//                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
+//                    .build()
+//            )
             if (DevOpsPreferences.dumpLogs) {
                 startLogcatReader()
             }
