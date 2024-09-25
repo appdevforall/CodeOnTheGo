@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.IDETooltips
+package com.itsaky.androidide.idetooltips
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -24,17 +24,17 @@ import androidx.room.Query
 
 @Dao
 interface IDETooltipDao {
-  @Query("SELECT * FROM ide_tooltip_table ORDER BY itemTag ASC")
+  @Query("SELECT * FROM ide_tooltip_table ORDER BY tooltipTag ASC")
   fun getTooltipItems(): List<IDETooltipItem>
 
-  @Query("SELECT tooltipSummary FROM ide_tooltip_table WHERE itemTag == :tag")
-  fun getSummary(tag : Int) : String
+  @Query("SELECT tooltipSummary FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
+  fun getSummary(tooltipTag : String) : String
 
-  @Query("SELECT tooltipDetail FROM ide_tooltip_table WHERE itemTag == :tag")
-  fun getDetail(tag : Int) : String
+  @Query("SELECT tooltipDetail FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
+  fun getDetail(tooltipTag : String) : String
 
-  @Query("SELECT tooltipURI FROM ide_tooltip_table WHERE itemTag == :tag")
-  fun getURI(tag : Int) : String
+//  @Query("SELECT tooltipURI FROM ide_tooltip_table WHERE tooltipTag == :tag")
+//  fun getURI(tag : Int) : String
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(IDETooltipItem: IDETooltipItem)

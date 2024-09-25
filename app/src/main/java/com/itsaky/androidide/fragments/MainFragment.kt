@@ -1,6 +1,5 @@
 package com.itsaky.androidide.fragments
 
-import android.content.Context.LAYOUT_INFLATER_SERVICE
 import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
@@ -19,15 +18,13 @@ import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContentProviderCompat.requireContext
-import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.FragmentTransaction
 import androidx.fragment.app.viewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import com.itsaky.androidide.IDETooltips.IDETooltipItem
-import com.itsaky.androidide.IDETooltips.IDETooltipRoomDatabase
+import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.IDETooltipDatabase
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -78,8 +75,8 @@ class MainFragment : BaseFragment() {
 
   private lateinit var fab : FloatingActionButton
   private val applicationScope = CoroutineScope(SupervisorJob())
-  private val IDEDatabase : IDETooltipRoomDatabase by lazy {
-      IDETooltipRoomDatabase.getDatabase(requireContext())
+  private val IDEDatabase : IDETooltipDatabase by lazy {
+      IDETooltipDatabase.getDatabase(requireContext())
   }
 
   private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
@@ -157,12 +154,12 @@ class MainFragment : BaseFragment() {
   // this method will handle the onclick options click
   private fun performOptionsMenuClick(action: MainScreenAction) {
     val view = action.view
-    val tag = action.id
+    val tag = action.id.toString()
     CoroutineScope(Dispatchers.IO).launch {
-      val dao = IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao()
+      val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
       val detail = dao.getDetail(tag)
       val summary = dao.getSummary(tag)
-      val uri = dao.getURI(tag)
+      val uri = ""    //TODO JMT use buttons     dao.getURI(tag)
       withContext((Dispatchers.Main)) {
         showIDETooltip(view!!, 0, detail, summary, uri)
       }
@@ -280,13 +277,13 @@ class MainFragment : BaseFragment() {
     }
   }
 
-  suspend fun dumpDatabase(database: IDETooltipRoomDatabase) {
+  suspend fun dumpDatabase(database: IDETooltipDatabase) {
     CoroutineScope(Dispatchers.IO).launch {
       val records =
-        IDETooltipRoomDatabase.getDatabase(requireContext()).idetooltipDao().getTooltipItems()
+        IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao().getTooltipItems()
       withContext(Dispatchers.Main) {
         for (item:IDETooltipItem in records) {
-          Log.d("DumpIDEDatabase", "tag = ${item.tag}\n\tdetail = ${item.detail}\n\tsummary = ${item.summary}\n\turi = ${item.uri}" )
+          Log.d("DumpIDEDatabase", "tag = ${item.tooltipTag}\n\tdetail = ${item.detail}\n\tsummary = ${item.summary}" )
         }
       }
     }
