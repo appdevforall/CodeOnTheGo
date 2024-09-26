@@ -22,14 +22,17 @@ import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
 // Annotates class to be a Room Database with a table (entity) of the Message class
 @Database(entities = [IDETooltipItem::class], version = 2, exportSchema = false)
+@TypeConverters(ButtonsConverters::class)
 abstract class IDETooltipDatabase : RoomDatabase() {
     abstract fun idetooltipDao(): IDETooltipDao
 
@@ -66,6 +69,7 @@ abstract class IDETooltipDatabase : RoomDatabase() {
         val inputStream = context.assets.open("idetooltips/idetooltips.csv")
         val reader = BufferedReader(InputStreamReader(inputStream))
         var line: String?
+        val buttons = ArrayList<Pair<String, String>>()
 
         try {
             // Loop through the lines of the CSV
@@ -78,7 +82,16 @@ abstract class IDETooltipDatabase : RoomDatabase() {
                     val summary = parts[2]
                     val detail = parts[3]
 
-                    val item = IDETooltipItem(tooltipTag = id, summary = summary, detail = detail)
+                    val nButtons:Int = parts[4].toInt()
+                    val start:Int = 5
+                    val stop:Int = start + nButtons * 2
+                    for (index in start..stop step 2) {
+                        val buttonText = parts[index]
+                        val buttonURI = parts[index+1]
+                        buttons.add(Pair(buttonText, buttonURI))
+                    }
+
+                    val item = IDETooltipItem(tooltipTag = id, summary = summary, detail = detail, buttons = buttons)
 
                     // Insert into the database
                     dao.insert(item)
@@ -90,7 +103,9 @@ abstract class IDETooltipDatabase : RoomDatabase() {
                 exception.localizedMessage ?: "failed to pre-populate users into database"
             )
         } finally {
-            reader.close() // Ensure the reader is closed after use
+            withContext(Dispatchers.IO) {
+                reader.close()
+            } // Ensure the reader is closed after use
         }
 
         val IDETooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()

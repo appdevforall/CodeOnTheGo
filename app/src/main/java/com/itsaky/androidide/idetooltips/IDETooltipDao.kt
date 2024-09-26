@@ -33,11 +33,14 @@ interface IDETooltipDao {
   @Query("SELECT tooltipDetail FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
   fun getDetail(tooltipTag : String) : String
 
-//  @Query("SELECT tooltipURI FROM ide_tooltip_table WHERE tooltipTag == :tag")
-//  fun getURI(tag : Int) : String
+  //@Query("SELECT tooltipButtons FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
+  //fun getButtons(tooltipTag: String) : ArrayList<Pair<String, String>>
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(IDETooltipItem: IDETooltipItem)
+
+  @Query("SELECT * FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
+  suspend fun getTooltip(tooltipTag: String) : IDETooltipItem
 
   @Query("DELETE FROM ide_tooltip_table")
   suspend fun deleteAll()

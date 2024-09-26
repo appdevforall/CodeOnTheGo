@@ -159,6 +159,8 @@ class MainFragment : BaseFragment() {
       val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
       val detail = dao.getDetail(tag)
       val summary = dao.getSummary(tag)
+      val item = dao.getTooltip(tag)
+
       val uri = ""    //TODO JMT use buttons     dao.getURI(tag)
       withContext((Dispatchers.Main)) {
         showIDETooltip(view!!, 0, detail, summary, uri)
