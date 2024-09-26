@@ -17,12 +17,25 @@
 
 package com.itsaky.androidide.idetooltips
 
-import androidx.room.Dao
-import androidx.room.Query
-import androidx.room.Transaction
+import androidx.room.TypeConverter
+import com.google.common.reflect.TypeToken
+import com.google.gson.Gson
 
-@Dao
-interface IDETooltipItemWithButtonDao {
-    @Transaction
-    @Query("SELECT * FROM ide_tooltip_table WHERE tooltipTag = :tooltipTag")
-    suspend fun getTooltipwithButton(tooltipTag: String): List<IDETooltipWithButton>}
+class ButtonsConverters {
+    private val gson = Gson()
+
+    @TypeConverter
+    fun fromButtons(pairList: ArrayList<Pair<String, String>>?): String? {
+        return gson.toJson(pairList)
+    }
+
+    @TypeConverter
+    fun toButtons(pairListString: String?): ArrayList<Pair<String, String>>? {
+        if (pairListString == null) {
+            return java.util.ArrayList()
+        }
+
+        val type = object : TypeToken<ArrayList<Pair<String, String>>>() {}.type
+        return gson.fromJson(pairListString, type)
+    }
+}

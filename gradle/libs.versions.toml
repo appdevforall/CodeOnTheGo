@@ -33,6 +33,7 @@ material3 = "1.2.1"
 preferenceKtx = "1.2.1"
 utilcodex = "1.31.1"
 zoomage = "1.3.1"
+serialization = "1.0.1"
 
 [libraries]
 
@@ -114,6 +115,7 @@ common-markwon-recycler = { module = "io.noties.markwon:recycler", version.ref =
 common-hiddenApiBypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version = "4.3" }
 common-termuxAmLib = { module = "com.termux:termux-am-library", version = "v2.0.0" }
 common-charts = { module = "com.github.AppDevNext:AndroidChart", version = "3.1.0.21" }
+common-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "serialization" }
 
 # AndroidX
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.7.1" }
