@@ -13,18 +13,18 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.PopupMenu.OnDismissListener
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.FragmentTransaction
 import androidx.fragment.app.viewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.IDETooltipDatabase
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -34,6 +34,8 @@ import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
+import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -61,151 +63,153 @@ import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
 
-  private val viewModel by viewModels<MainViewModel>(
-    ownerProducer = { requireActivity() })
-  private var binding: FragmentMainBinding? = null
-  private lateinit var popupWindow: PopupWindow
-  private lateinit var popupView : View
+    private val viewModel by viewModels<MainViewModel>(
+        ownerProducer = { requireActivity() })
+    private var binding: FragmentMainBinding? = null
+    private lateinit var popupWindow: PopupWindow
+    private lateinit var popupView: View
 
-  companion object {
+    companion object {
 
-    private val log = LoggerFactory.getLogger(MainFragment::class.java)
-    const val KEY_TOOLTIP_URL = "tooltip_url"
-  }
+        private val log = LoggerFactory.getLogger(MainFragment::class.java)
+        const val KEY_TOOLTIP_URL = "tooltip_url"
+    }
 
-  private lateinit var fab : FloatingActionButton
-  private val applicationScope = CoroutineScope(SupervisorJob())
-  private val IDEDatabase : IDETooltipDatabase by lazy {
-      IDETooltipDatabase.getDatabase(requireContext())
-  }
+    private lateinit var fab: FloatingActionButton
+    private val applicationScope = CoroutineScope(SupervisorJob())
+    private val IDEDatabase: IDETooltipDatabase by lazy {
+        IDETooltipDatabase.getDatabase(requireContext())
+    }
 
-  private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
-    ActivityResultContracts.StartActivityForResult()
-  ) { //ACTION_SEND always returns RESULT_CANCELLED, ignore it
-    // There are no request codes
-  }
+    private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
+        ActivityResultContracts.StartActivityForResult()
+    ) { //ACTION_SEND always returns RESULT_CANCELLED, ignore it
+        // There are no request codes
+    }
 
-  private val handler : Handler = Handler(Looper.getMainLooper())
+    private val handler: Handler = Handler(Looper.getMainLooper())
 
-  override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
-    popupWindow = PopupWindow(
-      popupView, ViewGroup.LayoutParams.WRAP_CONTENT,
-      ViewGroup.LayoutParams.WRAP_CONTENT, true)
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
+        popupWindow = PopupWindow(
+            popupView, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT, true
+        )
 
-    binding = FragmentMainBinding.inflate(inflater, container, false)
-    return binding!!.root
-  }
+        binding = FragmentMainBinding.inflate(inflater, container, false)
+        return binding!!.root
+    }
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val actions = MainScreenAction.all().also { actions ->
+            val onClick = { action: MainScreenAction, _: View ->
+                when (action.id) {
+                    MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
+                    MainScreenAction.ACTION_OPEN_PROJECT -> pickDirectory()
+                    MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
+                    MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
+                        Intent(requireActivity(), TerminalActivity::class.java)
+                    )
 
-    //////////////////FOR DEBUGGING ONLY////////////////////
-//    context?.let {
-//      it.deleteDatabase("Message_database")
-//      MessageRoomDatabase.getDatabase(it, applicationScope)
-//      messageRoomDatabase?.let { database -> applicationScope.launch { dumpDatabase(database) } }
-//
-//    }
-    //////////////////FOR DEBUGGING ONLY////////////////////
+                    MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
+                    MainScreenAction.ACTION_DONATE -> BaseApplication.getBaseInstance()
+                        .openDonationsPage()
 
-    val actions = MainScreenAction.all().also { actions ->
-      val onClick = { action: MainScreenAction, _: View ->
-        when (action.id) {
-          MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
-          MainScreenAction.ACTION_OPEN_PROJECT -> pickDirectory()
-          MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
-          MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
-            Intent(requireActivity(), TerminalActivity::class.java))
-          MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
-          MainScreenAction.ACTION_DONATE -> BaseApplication.getBaseInstance().openDonationsPage()
-          MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
-        }
-      }
-      val onLongClick = { action: MainScreenAction, _: View ->
-        performOptionsMenuClick(action)
-        true
-      }
-
-      actions.forEach { action ->
-        action.onClick = onClick
-        action.onLongClick = onLongClick
-
-        if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
-          action.onLongClick = { _: MainScreenAction, _: View ->
-            val intent = Intent(requireActivity(), TerminalActivity::class.java).apply {
-              putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
+                    MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
+                }
             }
-            startActivity(intent)
-            true
-          }
+            val onLongClick = { action: MainScreenAction, _: View ->
+                performOptionsMenuClick(action)
+                true
+            }
+
+            actions.forEach { action ->
+                action.onClick = onClick
+                action.onLongClick = onLongClick
+
+                if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
+                    action.onLongClick = { _: MainScreenAction, _: View ->
+                        val intent = Intent(requireActivity(), TerminalActivity::class.java).apply {
+                            putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
+                        }
+                        startActivity(intent)
+                        true
+                    }
+                }
+            }
         }
-      }
+
+        binding!!.actions.adapter = MainActionsListAdapter(this, actions)
+        binding!!.greetingText.setOnClickListener(View.OnClickListener {
+            showWebPage("file:///android_asset/idetooltips/getstarted_top.html")
+        })
     }
 
-    binding!!.actions.adapter = MainActionsListAdapter(this, actions)
-    binding!!.greetingText.setOnClickListener(View.OnClickListener {
-      showWebPage("file:///android_asset/idetooltips/getstarted_top.html")
-    })
-  }
-
-  // this method will handle the onclick options click
-  private fun performOptionsMenuClick(action: MainScreenAction) {
-    val view = action.view
-    val tag = action.id.toString()
-    CoroutineScope(Dispatchers.IO).launch {
-      val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
-      val detail = dao.getDetail(tag)
-      val summary = dao.getSummary(tag)
-      val item = dao.getTooltip(tag)
-
-      val uri = ""    //TODO JMT use buttons     dao.getURI(tag)
-      withContext((Dispatchers.Main)) {
-        showIDETooltip(view!!, 0, detail, summary, uri)
-      }
-    }
-  }
-
-  private fun showWebPage(url : String) {
-    val transaction : FragmentTransaction = requireActivity().supportFragmentManager.beginTransaction().addToBackStack("WebView")
-    val fragment = IDETooltipWebviewFragment()
-    val bundle = Bundle()
-    bundle.putString(Companion.KEY_TOOLTIP_URL, url)
-    fragment.arguments = bundle
-    transaction.replace(R.id.fragment_containers_parent, fragment)
-    transaction.commit()
-  }
-
-  private fun showIDETooltip(view:View, level:Int, detail:String, summary:String, uri:String) {
-// Inflate the PopupWindow layout
-    val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
-    val tooltip = when (level) {
-      0 -> summary
-      1 -> "$summary<br/><br/>$detail"
-      2 -> uri
-      else -> {
-        fab.hide()
-        ""
-      }
+    // this method will handle the onclick options click
+    private fun performOptionsMenuClick(action: MainScreenAction) {
+        val view = action.view
+        val tag = action.id.toString()
+        CoroutineScope(Dispatchers.IO).launch {
+            val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
+            val item = dao.getTooltip(tag)
+            val buttons = item.buttons
+            withContext((Dispatchers.Main)) {
+                showIDETooltip(view!!, 0, item.detail, item.summary, buttons)
+            }
+        }
     }
 
-    //Dismiss the old PopupWindow
-    if (popupWindow.isShowing) {
-      popupWindow.dismiss()
+    private fun showWebPage(url: String) {
+        val transaction: FragmentTransaction =
+            requireActivity().supportFragmentManager.beginTransaction().addToBackStack("WebView")
+        val fragment = IDETooltipWebviewFragment()
+        val bundle = Bundle()
+        bundle.putString(Companion.KEY_TOOLTIP_URL, url)
+        fragment.arguments = bundle
+        transaction.replace(R.id.fragment_containers_parent, fragment)
+        transaction.commit()
     }
 
-    when (level) {
-      0, 1 -> {
-        while(popupWindow.isShowing) {
-          popupWindow.dismiss()
+    private fun showIDETooltip(
+        view: View,
+        level: Int,
+        detail: String,
+        summary: String,
+        buttons: ArrayList<Pair<String, String>>
+    ) {
+        // Inflate the PopupWindow layout
+        val buttonId = listOf(R.id.button1, R.id.button2, R.id.button3)
+        val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
+        val tooltip = when (level) {
+            0 -> summary
+            1 -> "{$summary<br/><br/>$detail"
+            else -> ""
+        }
+
+        //Dismiss the old PopupWindow
+        if (popupWindow.isShowing) {
+            popupWindow.dismiss()
+        }
+
+        while (popupWindow.isShowing) {
+            popupWindow.dismiss()
         }
         fab.setOnClickListener {
-          showIDETooltip(view, level + 1, detail, summary, uri)
+            showIDETooltip(view, level + 1, detail, summary, buttons)
         }
 
         popupView.setBackgroundColor(resources.getColor(android.R.color.holo_blue_light, null))
+        //start with all the buttons gone and the FAB visible
+        for(index in 0..2) {
+            popupView.findViewById<Button>(buttonId[index]).visibility = View.GONE
+        }
+        fab.visibility = View.VISIBLE
+
+
         // Initialize the WebView
         val webView = popupView.findViewById<WebView>(R.id.webview)
         webView.webViewClient = WebViewClient() // Ensure links open within the WebView
@@ -219,6 +223,26 @@ class MainFragment : BaseFragment() {
         // Set a theme-aware background, depending on your design
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
+        if (level == 1) {
+            fab.hide()
+            if (buttons.size > 0) {
+                var buttonIndex = 0
+                for (buttonPair: Pair<String, String> in buttons) {
+                    val id = buttonId[buttonIndex++]
+                    val button = popupView.findViewById<Button>(id)
+                    button?.text = buttonPair.first
+                    button?.visibility = View.VISIBLE
+                    button?.tag = buttonPair.second
+                    button?.setOnClickListener(View.OnClickListener { view ->
+                        val btn = view as Button
+                        val url:String = btn.tag.toString()
+                        popupWindow.dismiss()
+                        showWebPage(url)
+                    })
+                }
+            }
+        }
+
         // Show the popup window
         popupWindow.isFocusable = true
         popupWindow.showAsDropDown(view)
@@ -228,242 +252,254 @@ class MainFragment : BaseFragment() {
 
         // Show the PopupWindow
         popupWindow.showAtLocation(
-          view,
-          Gravity.CENTER,
-          0,
-          0 /*anchorView.x.toInt(), anchorView.y.toInt()*/
+            view,
+            Gravity.CENTER,
+            0,
+            0 /*anchorView.x.toInt(), anchorView.y.toInt()*/
         )
-      }
-
-      2 -> {
-        while(popupWindow.isShowing) {
-          popupWindow.dismiss()
-        }
-
-        showWebPage(tooltip)
-      }
     }
-  }
 
 
-  private fun performFeedbackAction(action : MainScreenAction) {
-    val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
-    builder?.let { builder ->
-      builder.setTitle("Alert!")
-        .setMessage(HtmlCompat.fromHtml(getString(R.string.feedback_warning),
-          HtmlCompat.FROM_HTML_MODE_COMPACT))
-        .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
-        .setPositiveButton(android.R.string.ok) { dialog, _ ->
-          run {
-            val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
-            val sb = StringBuilder(resources.getString(R.string.feedback_message))
-            sb.append("\n\n\n")
-            sb.append("-------------stack trace----------\n")
-            sb.append(stackTrace)
-            val feedbackIntent = Intent(Intent.ACTION_SEND)
-            val subject = MessageFormat.format(resources.getString(R.string.feedback_subject),
-              "Main")
-            /*To send an email you need to specify mailto: as URI using setData() method
-                   and data type will be to text/plain using setType() method*/
-            feedbackIntent.data = Uri.parse("mailto:")
-            feedbackIntent.type = "text/plain"
-            feedbackIntent.putExtra(Intent.EXTRA_EMAIL, arrayOf("feedback@appdevforall.com"))
-            feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-            feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())
-            shareActivityResultLauncher.launch(feedbackIntent)
+    private fun performFeedbackAction(action: MainScreenAction) {
+        val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
+        builder?.let { builder ->
+            builder.setTitle("Alert!")
+                .setMessage(
+                    HtmlCompat.fromHtml(
+                        getString(R.string.feedback_warning),
+                        HtmlCompat.FROM_HTML_MODE_COMPACT
+                    )
+                )
+                .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+                .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                    run {
+                        val stackTrace =
+                            Exception().stackTrace.asList().toString().replace(",", "\n")
+                        val sb = StringBuilder(resources.getString(R.string.feedback_message))
+                        sb.append("\n\n\n")
+                        sb.append("-------------stack trace----------\n")
+                        sb.append(stackTrace)
+                        val feedbackIntent = Intent(Intent.ACTION_SEND)
+                        val subject = MessageFormat.format(
+                            resources.getString(R.string.feedback_subject),
+                            "Main"
+                        )
+                        /*To send an email you need to specify mailto: as URI using setData() method
+                               and data type will be to text/plain using setType() method*/
+                        feedbackIntent.data = Uri.parse("mailto:")
+                        feedbackIntent.type = "text/plain"
+                        feedbackIntent.putExtra(
+                            Intent.EXTRA_EMAIL,
+                            arrayOf("feedback@appdevforall.com")
+                        )
+                        feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
+                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())
+                        shareActivityResultLauncher.launch(feedbackIntent)
+                        dialog.dismiss()
+                    }
+                }
+                .create()
+                .show()
+        }
+    }
+
+    suspend fun dumpDatabase(database: IDETooltipDatabase) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val records =
+                IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
+                    .getTooltipItems()
+            withContext(Dispatchers.Main) {
+                for (item: IDETooltipItem in records) {
+                    Log.d(
+                        "DumpIDEDatabase",
+                        "tag = ${item.tooltipTag}\n\tdetail = ${item.detail}\n\tsummary = ${item.summary}"
+                    )
+                }
+            }
+        }
+    }
+
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        binding = null
+    }
+
+    private fun pickDirectory() {
+        pickDirectory(this::openProject)
+    }
+
+    private fun showCreateProject() {
+        viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
+    }
+
+    fun openProject(root: File) {
+        (requireActivity() as MainActivity).openProject(root)
+    }
+
+    private fun cloneGitRepo() {
+        val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
+        val binding = LayoutDialogTextInputBinding.inflate(layoutInflater)
+        binding.name.setHint(string.git_clone_repo_url)
+
+        builder.setView(binding.root)
+        builder.setTitle(string.git_clone_repo)
+        builder.setCancelable(true)
+        builder.setPositiveButton(string.git_clone) { dialog, _ ->
             dialog.dismiss()
-          }
+            val url = binding.name.editText?.text?.toString()
+            doClone(url)
         }
-        .create()
-        .show()
+        builder.setNegativeButton(android.R.string.cancel, null)
+        builder.show()
     }
-  }
 
-  suspend fun dumpDatabase(database: IDETooltipDatabase) {
-    CoroutineScope(Dispatchers.IO).launch {
-      val records =
-        IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao().getTooltipItems()
-      withContext(Dispatchers.Main) {
-        for (item:IDETooltipItem in records) {
-          Log.d("DumpIDEDatabase", "tag = ${item.tooltipTag}\n\tdetail = ${item.detail}\n\tsummary = ${item.summary}" )
+    private fun doClone(repo: String?) {
+        if (repo.isNullOrBlank()) {
+            log.warn("Unable to clone repo. Invalid repo URL : {}'", repo)
+            return
         }
-      }
-    }
-  }
 
-  override fun onDestroyView() {
-    super.onDestroyView()
-    binding = null
-  }
-
-  private fun pickDirectory() {
-    pickDirectory(this::openProject)
-  }
-
-  private fun showCreateProject() {
-    viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
-  }
-
-  fun openProject(root: File) {
-    (requireActivity() as MainActivity).openProject(root)
-  }
-
-  private fun cloneGitRepo() {
-    val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
-    val binding = LayoutDialogTextInputBinding.inflate(layoutInflater)
-    binding.name.setHint(string.git_clone_repo_url)
-
-    builder.setView(binding.root)
-    builder.setTitle(string.git_clone_repo)
-    builder.setCancelable(true)
-    builder.setPositiveButton(string.git_clone) { dialog, _ ->
-      dialog.dismiss()
-      val url = binding.name.editText?.text?.toString()
-      doClone(url)
-    }
-    builder.setNegativeButton(android.R.string.cancel, null)
-    builder.show()
-  }
-
-  private fun doClone(repo: String?) {
-    if (repo.isNullOrBlank()) {
-      log.warn("Unable to clone repo. Invalid repo URL : {}'", repo)
-      return
-    }
-
-    var url = repo.trim()
-    if (!url.endsWith(".git")) {
-      url += ".git"
-    }
-
-    val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
-    val binding = LayoutDialogProgressBinding.inflate(layoutInflater)
-
-    binding.message.visibility = View.VISIBLE
-
-    builder.setTitle(string.git_clone_in_progress)
-    builder.setMessage(url)
-    builder.setView(binding.root)
-    builder.setCancelable(false)
-
-    val prefs = BaseApplication.getBaseInstance().prefManager
-    val repoName = url.substringAfterLast('/').substringBeforeLast(".git")
-    val targetDir = File(Environment.PROJECTS_DIR, repoName)
-    if (targetDir.exists()) {
-      showCloneDirExistsError(targetDir)
-      return
-    }
-
-    val progress = GitCloneProgressMonitor(binding.progress, binding.message)
-    val coroutineScope = (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
-
-    var getDialog: Function0<AlertDialog?>? = null
-
-    val cloneJob = coroutineScope.launch(Dispatchers.IO) {
-
-      val git = try {
-        val cmd: CloneCommand = Git.cloneRepository()
-        cmd
-          .setURI(url)
-          .setDirectory(targetDir)
-          .setProgressMonitor(progress)
-        val token = prefs.getString(GITHUB_PAT, "")
-        //error is caught in showCloneError
-        if(!token.isNullOrBlank()) {
-          cmd.setCredentialsProvider( UsernamePasswordCredentialsProvider("<token>", token))
+        var url = repo.trim()
+        if (!url.endsWith(".git")) {
+            url += ".git"
         }
-        cmd.call()
-      } catch (err: Throwable) {
-        if (!progress.isCancelled) {
-          err.printStackTrace()
-          withContext(Dispatchers.Main) {
-            getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
-            showCloneError(err)
-          }
+
+        val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
+        val binding = LayoutDialogProgressBinding.inflate(layoutInflater)
+
+        binding.message.visibility = View.VISIBLE
+
+        builder.setTitle(string.git_clone_in_progress)
+        builder.setMessage(url)
+        builder.setView(binding.root)
+        builder.setCancelable(false)
+
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        val repoName = url.substringAfterLast('/').substringBeforeLast(".git")
+        val targetDir = File(Environment.PROJECTS_DIR, repoName)
+        if (targetDir.exists()) {
+            showCloneDirExistsError(targetDir)
+            return
         }
-        null
-      }
 
-      try {
-        git?.close()
-      } finally {
-        val success = git != null
-        withContext(Dispatchers.Main) {
-          getDialog?.invoke()?.also { dialog ->
-            if (dialog.isShowing) dialog.dismiss()
-            if (success) flashSuccess(string.git_clone_success)
-          }
+        val progress = GitCloneProgressMonitor(binding.progress, binding.message)
+        val coroutineScope =
+            (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
+
+        var getDialog: Function0<AlertDialog?>? = null
+
+        val cloneJob = coroutineScope.launch(Dispatchers.IO) {
+
+            val git = try {
+                val cmd: CloneCommand = Git.cloneRepository()
+                cmd
+                    .setURI(url)
+                    .setDirectory(targetDir)
+                    .setProgressMonitor(progress)
+                val token = prefs.getString(GITHUB_PAT, "")
+                //error is caught in showCloneError
+                if (!token.isNullOrBlank()) {
+                    cmd.setCredentialsProvider(
+                        UsernamePasswordCredentialsProvider(
+                            "<token>",
+                            token
+                        )
+                    )
+                }
+                cmd.call()
+            } catch (err: Throwable) {
+                if (!progress.isCancelled) {
+                    err.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
+                        showCloneError(err)
+                    }
+                }
+                null
+            }
+
+            try {
+                git?.close()
+            } finally {
+                val success = git != null
+                withContext(Dispatchers.Main) {
+                    getDialog?.invoke()?.also { dialog ->
+                        if (dialog.isShowing) dialog.dismiss()
+                        if (success) flashSuccess(string.git_clone_success)
+                    }
+                }
+            }
         }
-      }
+
+        builder.setPositiveButton(android.R.string.cancel) { iface, _ ->
+            iface.dismiss()
+            progress.cancel()
+            cloneJob.cancel(CancellationException("Cancelled by user"))
+        }
+
+        val dialog = builder.show()
+        getDialog = { dialog }
     }
 
-    builder.setPositiveButton(android.R.string.cancel) { iface, _ ->
-      iface.dismiss()
-      progress.cancel()
-      cloneJob.cancel(CancellationException("Cancelled by user"))
+    private fun showCloneDirExistsError(targetDir: File) {
+        val builder = context?.let { AlertDialog.Builder(it) }
+        builder?.setTitle(string.title_warning)
+        builder?.setMessage(string.git_clone_dir_exists)
+        builder?.setPositiveButton(android.R.string.ok) { _, _ -> targetDir.deleteRecursively() }
+        builder?.setNegativeButton(android.R.string.cancel) { dlg, _ -> dlg.dismiss() }
+        builder?.show()
     }
 
-    val dialog = builder.show()
-    getDialog = { dialog }
-  }
+    private fun showCloneError(error: Throwable?) {
+        if (error == null) {
+            flashError(string.git_clone_failed)
+            return
+        }
 
-  private fun showCloneDirExistsError(targetDir: File) {
-    val builder = context?.let { AlertDialog.Builder(it) }
-    builder?.setTitle(string.title_warning)
-    builder?.setMessage(string.git_clone_dir_exists)
-    builder?.setPositiveButton(android.R.string.ok) { _, _ -> targetDir.deleteRecursively() }
-    builder?.setNegativeButton(android.R.string.cancel) { dlg, _ -> dlg.dismiss() }
-    builder?.show()
-  }
-
-  private fun showCloneError(error: Throwable?) {
-    if (error == null) {
-      flashError(string.git_clone_failed)
-      return
+        val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
+        builder.setTitle(string.git_clone_failed)
+        builder.setMessage(error.localizedMessage)
+        builder.setPositiveButton(android.R.string.ok, null)
+        builder.show()
     }
 
-    val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
-    builder.setTitle(string.git_clone_failed)
-    builder.setMessage(error.localizedMessage)
-    builder.setPositiveButton(android.R.string.ok, null)
-    builder.show()
-  }
-
-  private fun gotoPreferences() {
-    startActivity(Intent(requireActivity(), PreferencesActivity::class.java))
-  }
-
-  // TODO(itsaky) : Improve this implementation
-  class GitCloneProgressMonitor(val progress: LinearProgressIndicator,
-    val message: TextView
-  ) : ProgressMonitor {
-
-    private var cancelled = false
-
-    fun cancel() {
-      cancelled = true
+    private fun gotoPreferences() {
+        startActivity(Intent(requireActivity(), PreferencesActivity::class.java))
     }
 
-    override fun start(totalTasks: Int) {
-      runOnUiThread { progress.max = totalTasks }
-    }
+    // TODO(itsaky) : Improve this implementation
+    class GitCloneProgressMonitor(
+        val progress: LinearProgressIndicator,
+        val message: TextView
+    ) : ProgressMonitor {
 
-    override fun beginTask(title: String?, totalWork: Int) {
-      runOnUiThread { message.text = title }
-    }
+        private var cancelled = false
 
-    override fun update(completed: Int) {
-      runOnUiThread { progress.progress = completed }
-    }
+        fun cancel() {
+            cancelled = true
+        }
 
-    override fun showDuration(enabled: Boolean) {
-      // no-op
-    }
+        override fun start(totalTasks: Int) {
+            runOnUiThread { progress.max = totalTasks }
+        }
 
-    override fun endTask() {}
+        override fun beginTask(title: String?, totalWork: Int) {
+            runOnUiThread { message.text = title }
+        }
 
-    override fun isCancelled(): Boolean {
-      return cancelled || Thread.currentThread().isInterrupted
+        override fun update(completed: Int) {
+            runOnUiThread { progress.progress = completed }
+        }
+
+        override fun showDuration(enabled: Boolean) {
+            // no-op
+        }
+
+        override fun endTask() {}
+
+        override fun isCancelled(): Boolean {
+            return cancelled || Thread.currentThread().isInterrupted
+        }
     }
-  }
 }

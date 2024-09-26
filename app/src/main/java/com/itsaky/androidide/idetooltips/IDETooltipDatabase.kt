@@ -83,11 +83,10 @@ abstract class IDETooltipDatabase : RoomDatabase() {
                     val detail = parts[3]
 
                     val nButtons:Int = parts[4].toInt()
-                    val start:Int = 5
-                    val stop:Int = start + nButtons * 2
-                    for (index in start..stop step 2) {
-                        val buttonText = parts[index]
-                        val buttonURI = parts[index+1]
+                    var index:Int = 5
+                    for (i in 0..nButtons-1) { //zero based
+                        val buttonText = parts[index++]
+                        val buttonURI = parts[index++]
                         buttons.add(Pair(buttonText, buttonURI))
                     }
 
