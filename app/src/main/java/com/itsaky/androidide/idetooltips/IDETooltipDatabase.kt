@@ -69,28 +69,37 @@ abstract class IDETooltipDatabase : RoomDatabase() {
         val inputStream = context.assets.open("idetooltips/idetooltips.csv")
         val reader = BufferedReader(InputStreamReader(inputStream))
         var line: String?
-        val buttons = ArrayList<Pair<String, String>>()
+        var buttons = ArrayList<Pair<String, String>>()
 
         try {
             // Loop through the lines of the CSV
-            while (reader.readLine().also { line = it } != null) {
+            while (withContext(Dispatchers.IO) {
+                    reader.readLine()
+                }.also { line = it } != null) {
                 // Split the line by comma
-                val parts = line!!.split("|")
-                if (parts.size > 4) {
+                val parts = line!!.split("^")
+                if (parts.size > 3) {
                     val id = parts[0]
-                    val scope = parts[1]
-                    val summary = parts[2]
-                    val detail = parts[3]
+                    val summary = parts[1]
+                    val detail = parts[2]
+                    buttons = ArrayList()
 
-                    val nButtons:Int = parts[4].toInt()
-                    var index:Int = 5
-                    for (i in 0..nButtons-1) { //zero based
-                        val buttonText = parts[index++]
-                        val buttonURI = parts[index++]
-                        buttons.add(Pair(buttonText, buttonURI))
+                    val nButtons: Int = parts[3].toInt()
+                    if (nButtons > 0) {
+                        var index: Int = 4
+                        for (i in 0..<nButtons) {
+                            val buttonText = parts[index++]
+                            val buttonURI = parts[index++]
+                            buttons.add(Pair(buttonText, buttonURI))
+                        }
                     }
 
-                    val item = IDETooltipItem(tooltipTag = id, summary = summary, detail = detail, buttons = buttons)
+                    val item = IDETooltipItem(
+                        tooltipTag = id,
+                        summary = summary,
+                        detail = detail,
+                        buttons = buttons
+                    )
 
                     // Insert into the database
                     dao.insert(item)
