@@ -41,6 +41,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     EditorRelatedAction() {
     override val id: String = "ide.editor.code.text.format"
     override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
+    var htmlString: String = ""
 
     init {
         label = context.getString(R.string.title_show_tooltip)
@@ -58,7 +59,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
                     editor,
                     0,
                     tooltipData,
-                ) { activity.openFAQActivity(tooltipData.summary) }
+                ) { activity.openFAQActivity(htmlString) }
             }
         }
 
@@ -94,9 +95,6 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
             }
 
             popupWindow.dismiss()
-            while (popupWindow.isShowing) {
-                popupWindow.dismiss()
-            }
 
             fab.setOnClickListener {
                 showTooltip(editor, level + 1, tooltip, block)
@@ -130,8 +128,9 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
                         button?.setOnClickListener(View.OnClickListener { view ->
                             val btn = view as Button
                             val url:String = btn.tag.toString()
+                            htmlString = "<p>This is a test"
                             popupWindow.dismiss()
-                            showWebPage(context, url)
+                            block.invoke()
                         })
                     }
                 }
