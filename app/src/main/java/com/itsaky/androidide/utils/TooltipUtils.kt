@@ -50,7 +50,7 @@ object TooltipUtils {
 
     fun showWebPage(context: Context, url: String) {
         val transaction: FragmentTransaction =
-            mainActivity?.supportFragmentManager!!.beginTransaction() //JMT .addToBackStack("WebView")
+            mainActivity?.supportFragmentManager!!.beginTransaction().addToBackStack("WebView")
         val fragment = IDETooltipWebviewFragment()
         val bundle = Bundle()
         bundle.putString(MainFragment.KEY_TOOLTIP_URL, url)
@@ -82,14 +82,8 @@ object TooltipUtils {
         }
 
         //Dismiss the old PopupWindow
-        if (popupWindow.isShowing) {
-            popupWindow.dismiss()
-        }
-
-        while (popupWindow.isShowing) {
-            popupWindow.dismiss()
-        }
         fab.setOnClickListener {
+            popupWindow.dismiss()
             showIDETooltip(context, view, level + 1, detail, summary, buttons)
         }
 
