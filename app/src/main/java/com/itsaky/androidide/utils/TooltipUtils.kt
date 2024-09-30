@@ -50,13 +50,13 @@ object TooltipUtils {
 
     fun showWebPage(context: Context, url: String) {
         val transaction: FragmentTransaction =
-            mainActivity?.supportFragmentManager!!.beginTransaction().addToBackStack("WebView")
+            mainActivity?.supportFragmentManager!!.beginTransaction() //JMT .addToBackStack("WebView")
         val fragment = IDETooltipWebviewFragment()
         val bundle = Bundle()
         bundle.putString(MainFragment.KEY_TOOLTIP_URL, url)
         fragment.arguments = bundle
         transaction.replace(R.id.fragment_containers_parent, fragment)
-        transaction.commit()
+        transaction.commitAllowingStateLoss()
     }
 
     fun showIDETooltip(context: Context,
