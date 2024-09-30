@@ -24,7 +24,7 @@ li {
 }
 table {
   font-family: arial, sans-serif;
-font-size: 11px
+font-size: 12px
 border-collapse: collapse;
   width: 100%;
 }
@@ -39,10 +39,6 @@ tr:nth-child(even) {
   background-color: #dddddd;
 }
 
-pre {
-  font-family: monospace;
-}
+pre { font-family: monospace; }
 
-code {
-  font-family: monospace;
-}
+button {width:15%;}
