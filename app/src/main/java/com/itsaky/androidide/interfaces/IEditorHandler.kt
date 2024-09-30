@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.interfaces
 
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.roomData.tooltips.Tooltip
@@ -87,5 +88,5 @@ interface IEditorHandler {
   fun closeAll(runAfter: () -> Unit)
   fun closeOthers()
   fun openFAQActivity(htmlData: String)
-  suspend fun getTooltipData(word:String): Tooltip?
+  suspend fun getTooltipData(word:String): IDETooltipItem?
 }

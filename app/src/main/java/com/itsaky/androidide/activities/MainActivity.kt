@@ -53,6 +53,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
   private val viewModel by viewModels<MainViewModel>()
   private var _binding: ActivityMainBinding? = null
 
+  companion object {
+    private var instance: MainActivity? = null
+
+    // This method will be used to get access to MainActivity instance
+    fun getInstance(): MainActivity? {
+      return instance
+    }
+  }
+
   private val onBackPressedCallback = object : OnBackPressedCallback(true) {
     override fun handleOnBackPressed() {
       viewModel.apply {
@@ -110,6 +119,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+    instance = this
   }
 
   override fun onApplySystemBarInsets(insets: Insets) {

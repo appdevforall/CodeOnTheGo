@@ -48,6 +48,7 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
@@ -577,9 +578,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         startActivity(intent)
     }
 
-    override suspend fun getTooltipData(word: String): Tooltip? {
+    override suspend fun getTooltipData(word: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
-            IDEApplication.tooltipDao.getTooltipWord(word)
+//            IDEApplication.tooltipDao.getTooltipWord(word)
+          IDEApplication.idetooltipDao.getTooltip(word)
         }
     }
 
