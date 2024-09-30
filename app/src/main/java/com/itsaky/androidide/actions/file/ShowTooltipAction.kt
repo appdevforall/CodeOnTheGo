@@ -94,9 +94,8 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
                 else -> ""
             }
 
-            popupWindow.dismiss()
-
             fab.setOnClickListener {
+                popupWindow.dismiss()
                 showTooltip(editor, level + 1, tooltip, block)
             }
 
@@ -128,7 +127,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
                         button?.setOnClickListener(View.OnClickListener { view ->
                             val btn = view as Button
                             val url:String = btn.tag.toString()
-                            htmlString = "<p>This is a test"
+                            htmlString = url
                             popupWindow.dismiss()
                             block.invoke()
                         })
