@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities.editor
 import androidx.core.graphics.Insets
 import android.os.Bundle
 import android.view.View
+import android.webkit.WebViewClient
 import com.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
@@ -49,10 +50,18 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 
             val htmlContent = intent.getStringExtra(CONTENT_KEY)
 
-            htmlContent?.let {
-                webView.clearCache(true)
-                webView.loadDataWithBaseURL(null, it, "text/html", "UTF-8", null)
-            }
+//            htmlContent?.let {
+//                webView.clearCache(true)
+//                webView.loadDataWithBaseURL(null, it, "text/html", "UTF-8", null)
+//            }
+            // Enable JavaScript if required
+            webView.settings.javaScriptEnabled = true
+
+            // Set WebViewClient to handle page navigation within the WebView
+            webView.webViewClient = WebViewClient()
+
+            // Load the HTML file from the assets folder
+            htmlContent?.let { webView.loadUrl(it) }
         }
     }
 
