@@ -1,48 +1,61 @@
 <!DOCTYPE html>
+
+<html lang="en">    
+<script src="toggle.js"></script>
+<link rel="stylesheet" href="style.css">
 <title>Templates</title>
-<html><style>
-html *
-{
-  
-   font-family: arial, sans serif;
-}
 
-p {
-  font-size: 12px;
-}
-
-h1 {
-  font-size: 14px;
-}
-
-h2 {
-  font-size: 12px;
-}
-
-li {
-  font-size: 12px;
-}
-table {
-  font-family: arial, sans-serif;
-font-size: 12px  
-border-collapse: collapse;
-  width: 100%;
-}
-
-td, th {
-  border: 1px solid #dddddd;
-  text-align: left;
-  padding: 8px;
-}
-
-tr:nth-child(even) {
-  background-color: #dddddd;
-}
-</style>
 <body>
 <h1>Templates</h1>
-<p>This page contains a lot of interesting and useful information about templates: what they are, how to use them, and maybe even how to make them...but probably not that last one.</p>
-<p>We may also decide that at this level (the IDE start page), combining general information about projects and templates might make sense.</p>
+<p>Code on the Go provides code templates with starter code for common elements such as navigation drawers or login screens. You can choose from app module and activity templates at these times:
+<ul><li>When you first create your project <li>When you add a new app module within an existing project
+<li>When you add a new activity within an app module.                                                </ul>   
+<p>
+<h2>Select a template when you create a project</h2>  
+<p> When you create a project, you can choose from the following templates:
+
+<table style="font-size: 12px;">
+  <tr>
+    <th>Project Template</th>
+    
+    <th>About</th>
+  </tr>
+<tr><td>No Activity </td>
+
+<td>The No Activity template is completely blank and does not contain Java/Kotlin or XML files. You should only select this template if you have experience building Android apps.<td>      
+
+<tr><td>Empty Project</td>
+
+<td>This template is completely blank. If you choose this template, you must create all the activities for the project.<td>      
+
+<tr><td>Basic Project</td> 
+
+<td>This template is completely blank. If you choose this template, you must create all the activities for the project.<td>      
+
+<tr><td>Navigation Drawer Project</td> 
+
+<td>The Navigation Drawer is a sliding menu on the left side of the screen that contains links to help the user naviate your app.<td>      
+
+<tr><td>Bottom Navigation Project</td>
+
+<td>This template creates a new project that includes a navigation bar at the bottom of the screen.  </td></tr>
+
+      
+           <tr>     <td> Project</td> 
+<td>This template creates project with navigation tabs across the top of the screen. <td> 
+
+<tr><td>No AndroidX Project</td>  
+<td>Creates a project without the Android Jetpack libraries. (Future documentation--what is Android JetPack and why would I choose/not choose this?<td>     
+
+<tr><td>Jetpack Compose</td> 
+<td>This template is completely blank. If you choose this template, you must create all the activities for the project. Do the othr apps <td>     
+ 
+</table> 
+
+<h2><a name="add"></a>Add a new app module to an existing project</h2>
+<p>Templates can be used to add new activities to an existing app module. Templates are available for common tasks like creating login screens,  for logging into an account, presenting a list of items, or scrolling through a long block of text.</p><p>Android Studio also provides templates for a variety of different app module types, including Wear OS, Android TV, and Cloud App Engine. You can view templates for these different module types when adding a project component. Templates also exist for more API-specific modules and activities, such as Google AdMobs Ads and Google Maps.
+
+<p>One of the most commonly used templates is the Empty Compose Activity template, which creates an empty activity with a sample composable and a preview of the composable. It lets you to start from scratch when building your app module or activity.
 
 
 </body>
