@@ -219,7 +219,8 @@ while [ $# -gt 0 ]; do
   -f | --offline-mode)
     shift
     print_info "offline_mode option detected"
-    offline_mode=true
+    check_arg_value "--offline-mode" "${1:-}"
+    offline_mode=$1
     ;;
   -i | --install-dir)
     shift
