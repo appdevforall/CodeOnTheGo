@@ -133,7 +133,7 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
       args.setArgument(IdeSetupArgument.WITH_OPENSSH)
     }
     //todo add logic that will add or remove this conditionally
-    args.setArgument(IdeSetupArgument.OFFLINE_MODE)
+    args.setArgument(IdeSetupArgument.OFFLINE_MODE, false)
     args.setArgument(IdeSetupArgument.CACHE_DIR, "../../cache/apt/archives")
     return args.toTypedArray()
   }
