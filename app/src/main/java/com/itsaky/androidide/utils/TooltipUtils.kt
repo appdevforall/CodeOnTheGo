@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.utils
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
@@ -145,12 +146,13 @@ object TooltipUtils {
         )
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
     fun showEditorTooltip(context: Context,
-                       editor: IDEEditor,
-                       level: Int,
-                       detail: String,
-                       summary: String,
-                       buttons: ArrayList<Pair<String, String>>
+                          editor: IDEEditor,
+                          level: Int,
+                          detail: String,
+                          summary: String,
+                          buttons: ArrayList<Pair<String, String>>
     ) {
         val popupView = mainActivity?.layoutInflater!!.inflate(R.layout.ide_tooltip_window, null)
         val popupWindow = PopupWindow(
