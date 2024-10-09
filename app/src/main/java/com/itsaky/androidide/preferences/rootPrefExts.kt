@@ -51,7 +51,7 @@ class PrivacyPreferences(
 ) : IPreferenceGroup() {
 
   init {
-    addPreference(StatPreferencesScreen())
+//    addPreference(StatPreferencesScreen())
   }
 }
 
