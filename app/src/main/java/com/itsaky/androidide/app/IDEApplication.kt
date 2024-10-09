@@ -184,33 +184,33 @@ class IDEApplication : TermuxApplication() {
 
     fun reportStatsIfNecessary() {
 
-        if (!StatPreferences.statOptIn) {
-            log.info("Stat collection is disabled.")
-            return
-        }
-
-        val constraints =
-            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-        val request =
-            PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24)).setInputData(
-                AndroidIDEStats.statData.toInputData()
-            ).setConstraints(constraints)
-                .addTag(StatUploadWorker.WORKER_WORK_NAME).build()
-
-        val workManager = WorkManager.getInstance(this)
-
-        log.info("reportStatsIfNecessary: Enqueuing StatUploadWorker...")
-        val operation = workManager.enqueueUniquePeriodicWork(
-            StatUploadWorker.WORKER_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE, request
-        )
-
-        operation.state.observeForever(object : Observer<Operation.State> {
-            override fun onChanged(value: Operation.State) {
-                operation.state.removeObserver(this)
-                log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
-            }
-        })
+//        if (!StatPreferences.statOptIn) {
+//            log.info("Stat collection is disabled.")
+//            return
+//        }
+//
+//        val constraints =
+//            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+//        val request =
+//            PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24)).setInputData(
+//                AndroidIDEStats.statData.toInputData()
+//            ).setConstraints(constraints)
+//                .addTag(StatUploadWorker.WORKER_WORK_NAME).build()
+//
+//        val workManager = WorkManager.getInstance(this)
+//
+//        log.info("reportStatsIfNecessary: Enqueuing StatUploadWorker...")
+//        val operation = workManager.enqueueUniquePeriodicWork(
+//            StatUploadWorker.WORKER_WORK_NAME,
+//            ExistingPeriodicWorkPolicy.UPDATE, request
+//        )
+//
+//        operation.state.observeForever(object : Observer<Operation.State> {
+//            override fun onChanged(value: Operation.State) {
+//                operation.state.removeObserver(this)
+//                log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
+//            }
+//        })
     }
 
     private fun startLogcatReader() {
