@@ -3,7 +3,7 @@
     "word": "import",
     "description_short": "<p><code>import</code> declares a Java class to use in the code below the import statement.</p>",
     "description_long": "<p>After a Java class is declared, the class name can be used in the code without specifying the package that the class belongs to.</p>",
-    "description_full": "Learn more about import and other Java keywords<p>file:///android_asset/idetooltips/java_keywords.html#import"
+    "description_full": "Learn more about import and other Java keywords<p>file:///android_asset/CoGoTooltips/html/java_keywords.html#import"
   },
   {
     "word": "tasks",
