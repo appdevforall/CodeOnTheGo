@@ -2,3 +2,6 @@
 	path = LayoutEditor
 	url = https://github.com/yaturner/LayoutEditor.git
 	branch = modular_root_main
+[submodule "/home/yaturner/Documents/GitHub/AndroidIDE/app/src/main/assets/CoGoTooltips"]
+	path = /home/yaturner/Documents/GitHub/AndroidIDE/app/src/main/assets/CoGoTooltips
+	url = https://github.com/appdevforall/CoGoTooltips.git
