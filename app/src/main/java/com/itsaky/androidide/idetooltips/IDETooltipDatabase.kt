@@ -66,10 +66,10 @@ abstract class IDETooltipDatabase : RoomDatabase() {
         val db = getDatabase(context)
         val dao = db.idetooltipDao()
 
-        val inputStream = context.assets.open("idetooltips/idetooltips.csv")
+        val inputStream = context.assets.open("CoGoTooltips/misc/idetooltips.csv")
         val reader = BufferedReader(InputStreamReader(inputStream))
         var line: String?
-        var buttons = ArrayList<Pair<String, String>>()
+        var buttons: ArrayList<Pair<String, String>>
 
         try {
             // Loop through the lines of the CSV
@@ -86,7 +86,7 @@ abstract class IDETooltipDatabase : RoomDatabase() {
 
                     val nButtons: Int = parts[3].toInt()
                     if (nButtons > 0) {
-                        var index: Int = 4
+                        var index = 4
                         for (i in 0..<nButtons) {
                             val buttonText = parts[index++]
                             val buttonURI = parts[index++]
@@ -116,8 +116,8 @@ abstract class IDETooltipDatabase : RoomDatabase() {
             } // Ensure the reader is closed after use
         }
 
-        val IDETooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
-        IDETooltipItemList.forEach { tooltipItem ->
+        val tooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
+        tooltipItemList.forEach { tooltipItem ->
             Log.d(
                 "TooltipRoomDatabase",
                 "after insert database - itemTag = ${tooltipItem.tooltipTag}, " +
@@ -126,24 +126,3 @@ abstract class IDETooltipDatabase : RoomDatabase() {
         }
     }
 }
-
-//        companion object {
-//            // Singleton prevents multiple instances of database opening at the
-//            // same time.
-//            @Volatile
-//            private var INSTANCE: TooltipRoomDatabase? = null
-//
-//            fun getDatabase(context: Context, scope: CoroutineScope): IDETooltipRoomDatabase {
-//                // if the INSTANCE is not null, then return it,
-//                // if it is, then create the database
-//                return INSTANCE ?: synchronized(IDETooltipRoomDatabase::class) {
-//                    val instance = Room.databaseBuilder(
-//                        context.applicationContext,
-//                        IDETooltipRoomDatabase::class.java,
-//                        "ide_tooltip_database"
-//                    ).build()
-//                    instance
-//                }
-//            }
-//        }
-//    }
