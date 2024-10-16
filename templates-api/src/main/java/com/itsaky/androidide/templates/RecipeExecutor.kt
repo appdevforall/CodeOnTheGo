@@ -17,17 +17,9 @@
 
 package com.itsaky.androidide.templates
 
-import android.content.Context
-import com.adfa.constants.LOACL_GRADLE_8_0_0_CACHES_PATH
-import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES_DEST
-import com.blankj.utilcode.util.ResourceUtils
-import com.itsaky.androidide.managers.ToolsManager
+import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
-import java.nio.file.Files
-import java.nio.file.Path
-import kotlin.io.path.pathString
 
 /**
  * Handles execution of template recipe.
@@ -92,6 +84,6 @@ interface RecipeExecutor {
      *
      * This appends missing files and does not replace existing files.
      */
-    fun updateCaches(gradlePath: String = LOACL_SOURCE_AGP_8_0_0_CACHES_DEST)
+    fun updateCaches(gradlePath: String = LOACL_SOURCE_AGP_8_0_0_CACHES)
 
 }

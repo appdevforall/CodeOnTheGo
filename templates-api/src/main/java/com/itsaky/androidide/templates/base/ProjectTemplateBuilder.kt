@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.base
 
+import com.adfa.constants.ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
 import com.adfa.constants.APG_SOURCE_FOLDER_NAME
 import com.adfa.constants.ASSETS_COMMON_FOLDER
@@ -209,12 +210,19 @@ class ProjectTemplateBuilder :
 
     }
 
-    fun agpJar(agpFileName: String = LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME) {
+    fun agpJar(
+        agpFileName: String = LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME,
+        kotlinAgpFileName: String = ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
+    ) {
         val result = ResourceUtils.copyFileFromAssets(
             File(ToolsManager.getCommonAsset(agpFileName)).path,
             File(data.projectDir.absolutePath + File.separator + GRADLE_FOLDER_NAME + File.separator + agpFileName).path
         )
-        if (!result) {
+        val kotlinRresult = ResourceUtils.copyFileFromAssets(
+            File(ToolsManager.getCommonAsset(kotlinAgpFileName)).path,
+            File(data.projectDir.absolutePath + File.separator + GRADLE_FOLDER_NAME + File.separator + kotlinAgpFileName).path
+        )
+        if (!result && kotlinRresult) {
             println("Android Gradle files copy failed + ${this.javaClass}")
         }
     }
