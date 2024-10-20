@@ -26,9 +26,10 @@ import androidx.room.TypeConverters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+
 
 // Annotates class to be a Room Database with a table (entity) of the Message class
 @Database(entities = [IDETooltipItem::class], version = 2, exportSchema = false)
@@ -57,72 +58,69 @@ abstract class IDETooltipDatabase : RoomDatabase() {
 
     fun loadData(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
-            populateDatabaseFromCSV(context)
-        }
-    }
 
-    private suspend fun populateDatabaseFromCSV(context: Context) {
-        // Reading the CSV file from assets
-        val db = getDatabase(context)
-        val dao = db.idetooltipDao()
+            val db = getDatabase(context)
+            val dao = db.idetooltipDao()
 
-        val inputStream = context.assets.open("CoGoTooltips/misc/idetooltips.csv")
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        var line: String?
-        var buttons: ArrayList<Pair<String, String>>
+            val jsonString: String =  loadJsonFromAssets(context, "CoGoTooltips/misc/CoGoTooltips.json")
+            val arrayObj: JSONArray = JSONArray(jsonString)
+            try {
+            for( index in 0 until arrayObj.length()) {
+                val jsonObj: JSONObject = arrayObj.get(index) as JSONObject
+                val tag = jsonObj.getString("tag")
+                val summary = jsonObj.getString("summary")
+                val detail = jsonObj.getString("detail")
+                val buttonList = jsonObj.get("buttonList") as JSONArray
+                val buttonsList = readJsonArrayOfArrays(context, buttonList)
+                val item = IDETooltipItem(
+                    tooltipTag = tag,
+                    summary = summary,
+                    detail = detail,
+                    buttons = buttonsList
+                )
 
-        try {
-            // Loop through the lines of the CSV
-            while (withContext(Dispatchers.IO) {
-                    reader.readLine()
-                }.also { line = it } != null) {
-                // Split the line by comma
-                val parts = line!!.split("^")
-                if (parts.size > 3) {
-                    val id = parts[0]
-                    val summary = parts[1]
-                    val detail = parts[2]
-                    buttons = ArrayList()
+                dao.insert(item)
+            }
 
-                    val nButtons: Int = parts[3].toInt()
-                    if (nButtons > 0) {
-                        var index = 4
-                        for (i in 0..<nButtons) {
-                            val buttonText = parts[index++]
-                            val buttonURI = parts[index++]
-                            buttons.add(Pair(buttonText, buttonURI))
-                        }
-                    }
+            val tooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
+            tooltipItemList.forEach { tooltipItem ->
+                Log.d(
+                    "TooltipRoomDatabase",
+                    "after insert database - itemTag = ${tooltipItem.tooltipTag}, " +
+                            "summary = ${tooltipItem.summary}, detail=${tooltipItem.detail}"
+                )
+            }
 
-                    val item = IDETooltipItem(
-                        tooltipTag = id,
-                        summary = summary,
-                        detail = detail,
-                        buttons = buttons
-                    )
 
-                    // Insert into the database
-                    dao.insert(item)
+        } catch(e: Exception) {
+                e.printStackTrace()
+                Log.e("loadData", "loading tooltip database failed - " + e.localizedMessage)
                 }
             }
-        } catch (exception: Exception) {
-            Log.e(
-                "User App",
-                exception.localizedMessage ?: "failed to pre-populate users into database"
-            )
-        } finally {
-            withContext(Dispatchers.IO) {
-                reader.close()
-            } // Ensure the reader is closed after use
-        }
-
-        val tooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
-        tooltipItemList.forEach { tooltipItem ->
-            Log.d(
-                "TooltipRoomDatabase",
-                "after insert database - itemTag = ${tooltipItem.tooltipTag}, " +
-                        "summary = ${tooltipItem.summary}, detail=${tooltipItem.detail}"
-            )
         }
     }
-}
+
+    fun readJsonArrayOfArrays(context: Context, jsonArray: JSONArray): ArrayList<Pair<String,String>> {
+        val resultList = ArrayList<Pair<String,String>>()
+
+        for (i in 0 until jsonArray.length()) {
+            val innerArray = jsonArray.getJSONArray(i)
+            val pear = Pair(innerArray.getString(0), innerArray.getString(1))
+            resultList.add(pear)
+        }
+
+        return resultList
+    }
+
+    private fun loadJsonFromAssets(context: Context, fileName: String): String {
+        val json: String?
+        try {
+            json = context.assets.open(fileName).bufferedReader().use { it.readText() }
+        } catch (ex: IOException) {
+            ex.printStackTrace()
+            return ""
+        }
+        return json
+    }
+
+
