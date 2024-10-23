@@ -93,6 +93,7 @@ const val LOACL_GRADLE_8_0_0_CACHES_PATH = "gradle"
 const val LOACL_SOURCE_AGP_8_0_0_CACHES = "gradle"
 const val DEST_GRADLE_FOLDER_NAME = ".gradle"
 const val GRADLE_ZIP_FILE_NAME = "gradle.zip"
+const val GRADDLE_WRAPPER_PART_FILE_NAME = "wrapper.zip"
 val LOACL_AGP_8_0_0_CACHES_DEST = HOME_PATH + File.separator + DEST_GRADLE_FOLDER_NAME
 const val LOACL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
 
