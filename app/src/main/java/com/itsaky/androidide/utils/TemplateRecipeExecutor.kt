@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import com.adfa.constants.DEST_GRADLE_FOLDER_NAME
+import com.adfa.constants.GRADDLE_WRAPPER_PART_FILE_NAME
 import com.adfa.constants.GRADLE_ZIP_FILE_NAME
 import com.adfa.constants.LOACL_AGP_8_0_0_CACHES_DEST
 import com.blankj.utilcode.util.ResourceUtils
@@ -71,6 +72,8 @@ class TemplateRecipeExecutor : RecipeExecutor {
         val outputDirectory =
             File(application.filesDir.path + File.separator + LOACL_AGP_8_0_0_CACHES_DEST)
         val zipFile = File("$outputDirectory${File.separator}$GRADLE_ZIP_FILE_NAME")
+        val wrapperZipFile =
+            File("$outputDirectory${File.separator}$GRADDLE_WRAPPER_PART_FILE_NAME")
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
@@ -80,11 +83,11 @@ class TemplateRecipeExecutor : RecipeExecutor {
                 ToolsManager.getCommonAsset(gradlePath),
                 outputDirectory.path
             )
-            ZipUtils.unzipFile(
-                zipFile,
-                outputDirectory
-            )
+            ZipUtils.unzipFile(zipFile, outputDirectory)
             zipFile.delete()
+
+            ZipUtils.unzipFile(wrapperZipFile, outputDirectory)
+            wrapperZipFile.delete()
         } catch (e: IOException) {
             println("Android Gradle caches copy failed + ${e.message}")
         }
