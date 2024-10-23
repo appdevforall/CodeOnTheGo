@@ -67,7 +67,7 @@ object BuildPreferences {
 
   /** Switch for Gradle `--offline` option. */
   var isOfflineEnabled: Boolean
-    get() = prefManager.getBoolean(OFFLINE_MODE, false)
+    get() = prefManager.getBoolean(OFFLINE_MODE, true)
     set(enabled) {
       prefManager.putBoolean(OFFLINE_MODE, enabled)
     }
