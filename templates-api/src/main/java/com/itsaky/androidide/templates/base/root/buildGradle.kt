@@ -37,11 +37,21 @@ internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
         id("com.android.library") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
     }
 
-    buildscript {
-      dependencies {
-        classpath(files("$GRADLE_FOLDER_NAME${File.separator}$ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME"))
-      }
-    }
+
+    // This part is pointless. Plugin jars are not enough, there are dozens of supoprt libs
+    // that are required by the plugin.
+    //Java:
+    // Plugins are only retreived from gradle chache from androidide. For java nothng else worked for me.
+    //Kotlin:
+    // For kotlin I was able to gather all jars for the plugin and make it work.
+    //But we have to have a common cahce instead of 
+    
+    //buildscript {
+    //  dependencies {
+    //    classpath(files("$GRADLE_FOLDER_NAME${File.separator}$ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME"))
+    //    classpath(files("$GRADLE_FOLDER_NAME${File.separator}gradle-8.0.0.jar"))
+    //  }
+    //}
 
     tasks.register<Delete>("clean") {
         delete(rootProject.layout.buildDirectory)

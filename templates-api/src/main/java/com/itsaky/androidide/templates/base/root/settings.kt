@@ -38,6 +38,7 @@ pluginManagement {
     mavenCentral()
     flatDir {
         dirs("$GRADLE_FOLDER_NAME") // Directory containing your local JAR
+        dirs("$GRADLE_FOLDER_NAME/localMvnRepository") // Directory containing your local maven repo
     }
   }
 }
