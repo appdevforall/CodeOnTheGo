@@ -43,6 +43,7 @@ val ASSETS_COMMON_FOLDER = "data" + File.separator + "common"
 const val SOURCE_LIB_FOLDER = "libs_source"
 const val HOME_PATH = "home"
 const val ANDROID_SDK_PATH = "android-sdk"
+const val ANDROID_SDK_ZIP = "android-sdk.zip"
 const val USR = "usr"
 
 // Gradle folder
@@ -87,6 +88,9 @@ const val LOACL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
 
 // SDK
 const val LOCAL_SOURCE_ANDROID_SDK = "androidsdk"
+val LOCAL_V7_LOCAL_SOURCE_ANDROID_SDK = LOCAL_SOURCE_ANDROID_SDK + File.separator + "v7a"
+val LOCAL_V8_LOCAL_SOURCE_ANDROID_SDK = LOCAL_SOURCE_ANDROID_SDK + File.separator + "v8a"
+const val V8_ABI = "arm64-v8a"
 const val DESTINATION_ANDROID_SDK = "${HOME_PATH}/${ANDROID_SDK_PATH}"
 
 // Platform Tools
