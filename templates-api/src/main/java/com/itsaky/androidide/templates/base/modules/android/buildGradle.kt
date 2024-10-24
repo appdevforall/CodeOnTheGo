@@ -200,7 +200,7 @@ private fun AndroidModuleTemplateBuilder.ktPlugin(): String {
 }
 
 private fun ktPluginKts(): String {
-  return """id("kotlin-android")"""
+  return """kotlin("android") version "1.9.22" """
 }
 
 private fun ktPluginGroovy(): String {

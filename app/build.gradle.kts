@@ -75,7 +75,7 @@ desugaring {
 }
 
 dependencies {
-  debugImplementation(libs.common.leakcanary)
+  //debugImplementation(libs.common.leakcanary)
 
   // Annotation processors
   kapt(libs.common.glide.ap)
