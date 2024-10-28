@@ -132,7 +132,6 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
     if (content.installOpenssh.isChecked) {
       args.setArgument(IdeSetupArgument.WITH_OPENSSH)
     }
-    //todo add logic that will add or remove this conditionally
     args.setArgument(IdeSetupArgument.OFFLINE_MODE, true)
     args.setArgument(IdeSetupArgument.CACHE_DIR, "../../cache/apt/archives")
     return args.toTypedArray()
