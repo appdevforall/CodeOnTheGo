@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -97,6 +98,7 @@ import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.EditorViewModel

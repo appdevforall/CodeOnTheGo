@@ -17,7 +17,9 @@
 
 package com.itsaky.androidide.activities
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -53,6 +55,7 @@ import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.OrientationUtilities
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -90,9 +93,14 @@ class OnboardingActivity : AppIntro2() {
             "ide.archConfig.experimentalWarning.isShown"
     }
 
+    @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         IThemeManager.getInstance().applyTheme(this)
-
+        setOrientationFunction {
+            OrientationUtilities.setOrientation {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+        }
         super.onCreate(savedInstanceState)
 
         if (tryNavigateToMainIfSetupIsCompleted()) {
