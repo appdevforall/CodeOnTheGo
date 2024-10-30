@@ -13,7 +13,7 @@ plugins {
   id("kotlin-kapt")
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
-  id("io.sentry.android.gradle") version "4.2.0"
+//  id("io.sentry.android.gradle") version "4.2.0"
 
   id("com.itsaky.androidide.desugaring")
 }
@@ -200,11 +200,11 @@ dependencies {
   androidTestImplementation(projects.testing.android)
 }
 
-sentry {
-    org.set("appdevforall-inc-pb")
-    projectName.set("android")
-
-    // this will upload your source code to Sentry to show it as part of the stack traces
-    // disable if you don't want to expose your sources
-    includeSourceContext.set(true)
-}
+//sentry {
+//    org.set("appdevforall-inc-pb")
+//    projectName.set("android")
+//
+//    // this will upload your source code to Sentry to show it as part of the stack traces
+//    // disable if you don't want to expose your sources
+//    includeSourceContext.set(true)
+//}
