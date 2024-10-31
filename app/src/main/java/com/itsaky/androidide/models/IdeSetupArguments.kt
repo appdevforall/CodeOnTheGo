@@ -32,5 +32,6 @@ enum class IdeSetupArgument(val argumentName: String, val requiresValue: Boolean
   SDK_VERSION("--sdk", true),
   JDK_VERSION("--jdk", true),
   OFFLINE_MODE("--offline-mode"),
-  CACHE_DIR("--cache-dir")
+  CACHE_DIR("--cache-dir"),
+  ABI_FOLDER("--arch", true)
 }
