@@ -79,6 +79,11 @@ const val ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME =
 const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME =
     "com.android.tools.build:gradle:${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
 
+//ABI
+const val V7_KEY = "v7"
+const val V8_KEY = "v8"
+const val ARM_KEY = "armeabi"
+
 // Termux
 const val LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME = "termux"
 val TERMUX_DEBS_PATH = "cache" + File.separator + "apt" + File.separator + "archives"
@@ -99,9 +104,6 @@ const val LOACL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
 
 // SDK
 const val LOCAL_SOURCE_ANDROID_SDK = "androidsdk"
-val LOCAL_V7_LOCAL_SOURCE_ANDROID_SDK = LOCAL_SOURCE_ANDROID_SDK + File.separator + "v7a"
-val LOCAL_V8_LOCAL_SOURCE_ANDROID_SDK = LOCAL_SOURCE_ANDROID_SDK + File.separator + "v8a"
-const val V8_ABI = "arm64-v8a"
 const val DESTINATION_ANDROID_SDK = "${HOME_PATH}/${ANDROID_SDK_PATH}"
 
 // Platform Tools

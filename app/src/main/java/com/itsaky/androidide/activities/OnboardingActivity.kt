@@ -31,11 +31,8 @@ import com.adfa.constants.DESTINATION_ANDROID_SDK
 import com.adfa.constants.HOME_PATH
 import com.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import com.adfa.constants.LOCAL_V7_LOCAL_SOURCE_ANDROID_SDK
-import com.adfa.constants.LOCAL_V8_LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.MANIFEST_FILE_NAME
 import com.adfa.constants.TERMUX_DEBS_PATH
-import com.adfa.constants.V8_ABI
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.github.appintro.AppIntro2
