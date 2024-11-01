@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <script src="toggle.js"></script>
+<link rel="stylesheet" href="style.css"> 
+  <body>          
+ 
+   <p>Java reserves the following keywords.</p>
+   <table border="1"  width="100%"  style="font-size: 12px;"> 
+<tr><!-- Row 1 -->
+     <th style="width:10%;">Java keyword</td><!-- Col 1 -->
+     <th style="width:90%;">Description</td><!-- Col 2 -->
+  
+  </tr>
+  <tr><!-- Row 2 -->
+     <td><a name="abstract"><code>abstract</code></a></td><!-- Col 1 -->
+     <td>A method with no definition must be declared as <code>abstract</code> and the class containing it must be declared as abstract Abstract classes cannot be instantiated. Abstract methods must be implemented in the subclasses. <code>Abstract</code> cannot be used with variables or constructors. Note that an abstract class is not required to have an abstract method.
+
+[WIKIPEDIA]
+
+</td><!-- Col 3 -->
+  </tr>
+  <tr><!-- Row 3 -->
+     <td><code><a name="assert"><code>assert</code></a></td><!-- Col 1 -->
+     <td><code>assert</code> describes a predicate placed in a Java program to indicate that the developer thinks that a true/false statement is true and must always be true at that place. <code>Assert</code> describes a predicate (a true-false statement (called a predicate) placed in a Java program that to indicates that the developer thinks that the predicate is always true at that place. If an assertion evaluates to false at run-time, an assertion failure results, which typically causes execution to abort. [From Wikipedia.]
+<pre>
+// A person's first name should not be null and execution should abort if it is.
+Name firstName = person.getFirstName();
+assert firstName != null;
+doSomething(firstName);
+</pre>
+
+
+</td><!-- Col 3 -->
+  </tr>
+  <tr><!-- Row 4 -->
+     <td><a name="boolean"><code>boolean</code></a></td><!-- Col 1 -->
+     <td>Defines a Boolean variable for the values "true" or "false" only. Defines a Boolean variable for the values "true" or "false" only. By default, the value of the boolean primitive type is false. This keyword is also used to declare that a method returns a value of the primitive type boolean.
+[WIKIPEDIA]
+
+</td> 
+
+  </tr>
+  <tr><td><a name="break"><code>break</code></a></td>
+     <td>Ends the execution in the current loop body or breaks out of a switch block. For loop example:         
+This code loops through an array and prints each element. When it encounters the value 5, the loop terminates and does not print this value.   <pre>
+int[] = {1, 2, 5, 10}
+for (k=0;k < arr.length; k++)
+    if (arr[k] == 5)
+</pre>
+</td>       </tr>
+
+     </tr>
+  <tr><td><a name="byte"><code>byte</code></a></td>
+     <td>Used in conjunction with a try block and an optional finally block. The statements in the catch block specify what to do if the try block throws a specific type of exception.
+ 
+</td>       </tr>
+  
+
+</tr>    
+
+<tr><td><a name="case"><code>case</code></a></td>
+<td>A statement in the switch block can be labeled with one or more case or default labels. The switch statement evaluates its expression, then executes all statements that follow the matching case label.
+
+</td>
+  <tr><td><a name="char"><code>char</code></a></td>
+     <td>A statement in the switch block can be labeled with one or more case or default labels. The switch statement evaluates its expression, then executes all statements that follow the matching case label.;
+
+
+
+</td>       </tr>
+
+ </tr>
+<a name="class"> <tr><td><code>class</code></td></a>
+     <td>A class definition contains variables that store the object's information and methods that process the information.  A defined class acts as a template to create individual objects or instances of the class.
+</td></tr>     <tr><td><code>const</code>*</td>
+     <td>This keyword is reserved for potential use in the future.
+</td></tr>                                                                      
+
+ <tr><td><a name="continue"><code>continue</code></a></td>
+     <td>Resumes program execution at the end of the current loop body. If followed by a label, continue resumes execution at the end of the enclosing labeled loop body.
+       <pre>// This code loops through an array and prints each value. When it encounters the value 5, it skips the print statement and resumes the for loop at the next value. [Ask Jim to explain more clearly]
+// Prints:
+// 1
+// 2
+// 10
+int[] arr = {1, 2, 5, 10}
+for (k = 0; k < arr.length; k++)
+    if (arr[k] == 5)
+        continue;
+    System.out.println(arr[k]);
+</pre>                                                            
+</td> </tr>
+
+
+
+<tr><td><a name="default"><code>default</code></a></td><td>The <code>default</code> keyword can optionally be used in a switch statement to label a block of statements to be executed if no case matches the specified value; see switch.[9][10] Alternatively, the default keyword can also be used to declare default values in a Java annotation. From Java 8 onwards, the default keyword can be used to allow an interface to provide an implementation of a method.  </td>
+   
+         <tr><td><a name="do"><code>do</code></a></td><td>The <code>do</code> keyword is used in conjunction with while to create a do-while loop, which executes a block of statements associated with the loop and then tests a boolean expression associated with the <code>while</code>. If the expression evaluates to true, the block is executed again; this continues until the expression evaluates to false. </td>
+   
+   
+      <tr><td><a name="double"><code>double</code></a></td><td>The <code>double</code> keyword is used to declare a variable that can hold a 64-bit double precision IEEE 754 floating-point number. This keyword is also used to declare that a method returns a value of the primitive type double. Can take on double precision values from -1.79769313486231570e+308 to +1.79769313486231570e+308 </td>
+ <tr><td><a name="extends"><code>extends<code></a></td><td>Class X extends class Y to add functionality by adding fields or methods to class Y, or by overriding methods of class Y. When used in an interface declaration, an interface Z extends one or more interfaces by adding methods. Z is said to be a subinterface of the interfaces it extends. Also used to specify an upper bound on a type parameter in Generics. (elements that are not classes and can’t be further expanded)
+
+ </td></tr>
+ <tr><td><a name="import"><code>import</code></td><td> The <code>import</code> keyword imports a specific class  or entire Java packages to be referred to later without including their package names in the reference. 
+ 
+ <pre>import package.name.Class;   // Import a single class
+import package.name.*;   // Import the whole package</pre></td></tr>  
+     
+</table>
+
+  </body>
+</html>
