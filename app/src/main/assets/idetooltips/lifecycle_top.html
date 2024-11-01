@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">    
+<script src="toggle.js"></script>
+<link rel="stylesheet" href="style.css">
+<title>Preferences overview</title>
+<html>
+<body> 
+
+<p>On this page:</p>
+<ul>
+<li><a href="#overview">Building an Android app with Code on the Go</a>
+<li><a href="#concepts">Key Android development concepts </a>
+<li><a href="#lifecycle">About the Android app lifecycle  </a>
+</ul>
+<h1><a name="overview">Building an Android app with Code on the Go</a></h1>
+<p>Here's a high-level overview of building an Android app using Code on the Go:</p>
+<h2>1. Set up a new project</h2><ul>
+<li><Launch Code on the Go and create a new project
+<li>Choose a project template, such as Empty Activity, which provides a basic layout for your app with one screen (Activity).
+<li>Define your app name, package name, and target device API level. </ul>
+    
+    <h2>2. Understand the project structure</h2>
+ <ul>
+<li>Java/Kotlin Code: Located in the app/src/main/java directory. This is where you'll write your program logic, such as activities, services, etc.
+<li>XML Layouts: Located in the res/layout folder. These define the UI of your app.
+<li>Manifest File: AndroidManifest.xml defines essential app information, like activities, permissions, and app metadata.
+    </ul> 
+    <h2>3. Create the user interface (UI)</h2>      <ul>
+    <li> Use the Layout Editor (drag-and-drop) or write XML to define your app's User Interface (UI).
+<li>Common elements include TextView, Button, and RecyclerView.
+        </ul>
+<h2>4. Write Java or Kotlin code (logic)</h2><ul>
+<li> Logic for the app is written in activities such as MainActivity.java (or other activities). 
+<li> Lifecycle methods such as onCreate(), onStart(), and onDestroy() control how the app behaves as it moves between different states.
+</ul>
+<h2>5. Run and test the app</h2>
+ <ul>
+ <li>Use the Android Emulator (or connect a real device) to run and test your app.
+<li>CAN YOU REALLY? You can simulate different screen sizes, versions, and orientations.
+</ul>                                                                                   
+<h2>6. Debug the app</h2><ul>
+<li>Code on the Go has a built-in debugger to help you find and fix issues.
+<li>You can use breakpoints and view logs using...
+</ul>
+ <h2>Build the APK or App Bundle for distribution</h2>
+ <ul>
+ <li>In the MENUNAME menu, select <b>Build > Build Bundle(s)/APK(s)</b>
+ </ul>
+ 
+<h1><a name="concepts">Key Android development concepts</a></h1>
+<p>Android app development relies on the following concepts:</p><ul> 
+<b><li>Activities</b>: The building blocks for screens.
+<li><b>Fragments</b>: Reusable portions of UI inside an activity.
+<li><b>Intents</b>: For navigation between activities or launching system services.
+<li><b>ViewModel</b>: Manages UI-related data in a lifecycle-conscious way.
+<li><b>RecyclerView</b>: Efficiently displays lists of data.
+<li><b>Gradle</b>: The build system for configuring dependencies and app versions.
+ </ul>
+
+<h1><a name="lifecycle">About the Android app lifecycle</a></h1>
+<p><p>Lifecycle refers to the series of states that an Android activity or fragment goes through from its creation to its destruction. The lifecycle ensures that your app behaves correctly during different user interactions (like rotating the screen) and system conditions (like restoring the app's state when a user returns to your app). The following image shows the flow and relationships of all possible stages of an Android activity lifecycle.</p>
+
+<img src="activity_lifecycle_overview.png" alt="Android lifecycle" />
+<p><a href="activities_top.html">Learn more about activities and the Android lifecycle here</a>.</p>
+
+</body>
+</html>
