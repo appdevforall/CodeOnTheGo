@@ -70,7 +70,7 @@ abstract class IDETooltipDatabase : RoomDatabase() {
                 val tag = jsonObj.getString("tag")
                 val summary = jsonObj.getString("summary")
                 val detail = jsonObj.getString("detail")
-                val buttonList = jsonObj.get("buttonList") as JSONArray
+                val buttonList = jsonObj.get("buttons") as JSONArray
                 val buttonsList = readJsonArrayOfArrays(context, buttonList)
                 val item = IDETooltipItem(
                     tooltipTag = tag,
