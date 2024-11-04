@@ -16,7 +16,7 @@ plugins {
   id("kotlin-kapt")
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
-  id("io.sentry.android.gradle") version "4.2.0"
+//  id("io.sentry.android.gradle") version "4.2.0"
 
   id("com.itsaky.androidide.desugaring")
 }
