@@ -5,6 +5,9 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.util.archivesName
+import java.text.SimpleDateFormat
+import java.util.Date
 import kotlin.reflect.jvm.javaMethod
 
 plugins {
@@ -44,6 +47,16 @@ android {
   buildTypes {
     release {
       isShrinkResources = true
+    }
+
+    applicationVariants.all {
+      outputs.all {
+        val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
+        val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
+        val newApkName = "CodeOnTheGo-${buildTypeName}${date}.apk"
+
+        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
+      }
     }
   }
 
@@ -200,11 +213,11 @@ dependencies {
   androidTestImplementation(projects.testing.android)
 }
 
-sentry {
-    org.set("appdevforall-inc-pb")
-    projectName.set("android")
-
-    // this will upload your source code to Sentry to show it as part of the stack traces
-    // disable if you don't want to expose your sources
-    includeSourceContext.set(true)
-}
+//sentry {
+//    org.set("appdevforall-inc-pb")
+//    projectName.set("android")
+//
+//    // this will upload your source code to Sentry to show it as part of the stack traces
+//    // disable if you don't want to expose your sources
+//    includeSourceContext.set(true)
+//}
