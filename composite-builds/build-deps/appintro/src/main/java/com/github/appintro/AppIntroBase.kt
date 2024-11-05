@@ -138,6 +138,12 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
      PUBLIC API
      =================================== */
 
+    private var mOrientationFunction: (() -> Unit)? = null
+
+    protected fun setOrientationFunction(function: () -> Unit) {
+        mOrientationFunction = function
+    }
+
     /**
      * Adds a new slide at the end of the Intro
      * @param fragment Instance of Fragment which should be added as slide.
@@ -163,7 +169,11 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
      * @param required - Whether the user can change this slide without granting the permissions.
      */
     @JvmOverloads
-    protected fun askForPermissions(permissions: Array<String>, slideNumber: Int, required: Boolean = true) {
+    protected fun askForPermissions(
+        permissions: Array<String>,
+        slideNumber: Int,
+        required: Boolean = true
+    ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (slideNumber <= 0) {
                 error("Invalid Slide Number: $slideNumber")
@@ -202,7 +212,8 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
     protected fun setStatusBarColor(@ColorInt color: Int) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             // We set the light status bar/translucent first via the WindowInsetsControllerCompat
-            WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+            WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars =
+                true
             window.statusBarColor = color
         }
     }
@@ -431,6 +442,8 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
         pagerController.setAdapter(this.pagerAdapter)
         pagerController.registerOnPageChangeCallback(OnPageChangeCallback())
         pagerController.onNextPageRequestedListener = this
+
+        mOrientationFunction?.invoke()
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
@@ -500,7 +513,10 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
 
             @Suppress("UNCHECKED_CAST", "DEPRECATION")
             permissionsMap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                (getSerializable(ARG_BUNDLE_PERMISSION_MAP, HashMap::class.java) as HashMap<Int, PermissionWrapper>?)
+                (getSerializable(
+                    ARG_BUNDLE_PERMISSION_MAP,
+                    HashMap::class.java
+                ) as HashMap<Int, PermissionWrapper>?)
                     ?: hashMapOf()
             } else {
                 (getSerializable(ARG_BUNDLE_PERMISSION_MAP) as HashMap<Int, PermissionWrapper>?)
@@ -713,7 +729,11 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
     }
 
     /** Performs color interpolation between two slides.. */
-    private fun performColorTransition(currentSlide: Fragment?, nextSlide: Fragment?, positionOffset: Float) {
+    private fun performColorTransition(
+        currentSlide: Fragment?,
+        nextSlide: Fragment?,
+        positionOffset: Float
+    ) {
         if (nextSlide == null) return
 
         if (currentSlide is SlideBackgroundColorHolder &&
@@ -745,7 +765,8 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
         return slide.defaultBackgroundColor
     }
 
-    private fun getPagerItem(position: Int): Fragment? = pagerAdapter.getItem(position, supportFragmentManager)
+    private fun getPagerItem(position: Int): Fragment? =
+        pagerAdapter.getItem(position, supportFragmentManager)
 
     /**
      * Onclick listener for the Next/Done button.
@@ -781,7 +802,11 @@ abstract class AppIntroBase : AppCompatActivity(), AppIntroViewPagerListener {
      */
     internal inner class OnPageChangeCallback : ViewPager2.OnPageChangeCallback() {
 
-        override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
+        override fun onPageScrolled(
+            position: Int,
+            positionOffset: Float,
+            positionOffsetPixels: Int
+        ) {
             if (isColorTransitionsEnabled && position < pagerAdapter.itemCount - 1) {
                 val currentSlide = getPagerItem(position)
                 val nextSlide = getPagerItem(position + 1)

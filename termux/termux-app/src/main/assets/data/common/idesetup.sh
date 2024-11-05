@@ -23,6 +23,7 @@ pkg_curl="libcurl"
 pkgs="jq tar"
 jdk_version="17"
 offline_mode=true
+supported_abis=(v8 v7 armeabi)
 
 print_info() {
   # shellcheck disable=SC2059
@@ -93,7 +94,14 @@ if [ "$offline_mode" = false ]; then
   fi
 else
     #offline mode true
-    dpkg -i ${cache_dir}/*.deb
+    dpkg -i ${cache_dir}/${arch}/*.deb
+    for abi in "${supported_abis[@]}"
+    do
+      if [ "$abi" != "$arch" ]; then
+        rm -rf "${cache_dir}/${abi}/"
+      fi
+    done
+
 fi
 }
 

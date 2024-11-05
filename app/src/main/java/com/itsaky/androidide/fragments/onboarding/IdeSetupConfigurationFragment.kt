@@ -27,6 +27,7 @@ import android.net.ConnectivityManager.NetworkCallback
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Html
@@ -37,6 +38,9 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
+import com.adfa.constants.ARM_KEY
+import com.adfa.constants.V7_KEY
+import com.adfa.constants.V8_KEY
 import com.github.appintro.SlidePolicy
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutOnboardngSetupConfigBinding
@@ -132,9 +136,9 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
     if (content.installOpenssh.isChecked) {
       args.setArgument(IdeSetupArgument.WITH_OPENSSH)
     }
-    //todo add logic that will add or remove this conditionally
     args.setArgument(IdeSetupArgument.OFFLINE_MODE, true)
     args.setArgument(IdeSetupArgument.CACHE_DIR, "../../cache/apt/archives")
+    args.setArgument(IdeSetupArgument.ABI_FOLDER, getAbiFolder(Build.SUPPORTED_ABIS[0]))
     return args.toTypedArray()
   }
 
@@ -146,6 +150,13 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
 
     add(argument.argumentName)
     add(strVal)
+  }
+
+  private fun getAbiFolder(deviceAbi:String) : String {
+    val abiList = listOf(V8_KEY, V7_KEY, ARM_KEY)  // List of substrings to check for
+
+    val index = abiList.indexOfFirst { deviceAbi.contains(it) }
+    return abiList[index]
   }
 
   override fun onStart() {
