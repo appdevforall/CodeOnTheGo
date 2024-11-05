@@ -23,8 +23,8 @@
 
   <style name="Theme.AndroidIDE.Base" parent="Theme.AndroidIDE.Material3">
     <item name="android:textCursorDrawable">@drawable/textfield_cursor</item>
-    <item name="fontFamily">@font/josefin_sans</item>
-    <item name="android:fontFamily">@font/josefin_sans</item>
+    <item name="fontFamily">@font/atkinsonhyperlegible_regular</item>
+    <item name="android:fontFamily">@font/atkinsonhyperlegible_regular</item>
   </style>
 
   <style name="Theme.AndroidIDE.Styled" parent="Theme.AndroidIDE.Base">
