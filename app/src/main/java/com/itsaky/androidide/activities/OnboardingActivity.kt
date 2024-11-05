@@ -17,7 +17,9 @@
 
 package com.itsaky.androidide.activities
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -29,11 +31,8 @@ import com.adfa.constants.DESTINATION_ANDROID_SDK
 import com.adfa.constants.HOME_PATH
 import com.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import com.adfa.constants.LOCAL_V7_LOCAL_SOURCE_ANDROID_SDK
-import com.adfa.constants.LOCAL_V8_LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.MANIFEST_FILE_NAME
 import com.adfa.constants.TERMUX_DEBS_PATH
-import com.adfa.constants.V8_ABI
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.github.appintro.AppIntro2
@@ -53,6 +52,7 @@ import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.OrientationUtilities
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -90,9 +90,14 @@ class OnboardingActivity : AppIntro2() {
             "ide.archConfig.experimentalWarning.isShown"
     }
 
+    @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         IThemeManager.getInstance().applyTheme(this)
-
+        setOrientationFunction {
+            OrientationUtilities.setOrientation {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+        }
         super.onCreate(savedInstanceState)
 
         if (tryNavigateToMainIfSetupIsCompleted()) {
