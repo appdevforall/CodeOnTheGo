@@ -2,7 +2,8 @@
 	path = LayoutEditor
 	url = https://github.com/yaturner/LayoutEditor.git
 	branch = modular_root_main
-[submodule "CoGoTooltips	"]
-	path = app/main/src/assets/CoGoTooltips
-	url = https://github.com/appdevforall/CodeOnTheGo.git
-	branch = stage
+[submodule "app/src/main/assets/CoGoTooltips"]
+	path = app/src/main/assets/CoGoTooltips
+	url = https://github.com/appdevforall/CoGoTooltips.git
+	branch=main
+
