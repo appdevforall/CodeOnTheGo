@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./images/icon.png" alt="AndroidIDE" width="80" height="80"/>
+  <img src="./images/icon.png" alt="Code On The Go" width="80" height="80"/>
 </p>
 
-<h2 align="center"><b>AndroidIDE</b></h2>
+<h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
   An IDE to develop real, Gradle-based Android applications on Android devices.
 <p><br>
@@ -64,22 +64,22 @@
     alt="Get it on F-Droid"
     height="80">](https://github.com/AndroidIDEOfficial/AndroidIDE/releases)
 
-> _Please install AndroidIDE from trusted sources only i.e._
-> - [_The AndroidIDE website_](https://androidide.com)
+> _Please install Code On The Go from trusted sources only i.e._
+> - [_The Code On The Go website_](https://CodeOnTheGo.com)
 > - [_GitHub Releases_](https://github.com/AndroidIDEOfficial/AndroidIDE/releases)
 > - [_GitHub Actions_](https://github.com/AndroidIDEOfficial/AndroidIDE/actions?query=branch%3Adev+event%3Apush)
 > - [_F-Droid_](https://f-droid.org/packages/com.itsaky.androidide/)
 
-- Download the AndroidIDE APK from the mentioned trusted sources.
+- Download the Code On The Go APK from the mentioned trusted sources.
 - Follow the
   instructions [here](https://docs.androidide.com/tutorials/get-started.html) to
   install the build tools.
 
 ## Limitations
 
-- For working with projects in AndroidIDE, your project must use Android Gradle Plugin v7.2.0 or
+- For working with projects in Code On The Go, your project must use Android Gradle Plugin v7.2.0 or
   newer. Projects with older AGP must be migrated to newer versions.
-- SDK Manager is already included in Android SDK and is accessible in AndroidIDE via its Terminal.
+- SDK Manager is already included in Android SDK and is accessible in Code On The Go via its Terminal.
   But, you cannot use it to install some tools (like NDK) because those tools are not built for
   Android.
 - No official NDK support because we haven't built the NDK for Android.
@@ -120,18 +120,18 @@ Thanks to all the developers who have contributed to this project.
 ## License
 
 ```
-AndroidIDE is free software: you can redistribute it and/or modify
+Code On The Go is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-AndroidIDE is distributed in the hope that it will be useful,
+Code On The Go is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 ```
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
