@@ -1,6 +1,6 @@
 # Contributing
 
-This document outlines how to propose a change to AndroidIDE. By contributing to this project, you
+This document outlines how to propose a change to Code On The Go. By contributing to this project, you
 agree to abide the terms specified in the [CODE OF CONDUCT](./CODE_OF_CONDUCT.md).
 
 ## Requirements
