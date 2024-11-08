@@ -1,6 +1,6 @@
 # Crowdin Contributors
 
-Thanks to all these people, AndroidIDE has been translated into multiple languages!
+Thanks to all these people, Code On The Go has been translated into multiple languages!
 
 <!-- CROWDIN-CONTRIBUTORS-START -->
 <table>
