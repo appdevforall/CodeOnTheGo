@@ -66,7 +66,7 @@
 
   <!-- Project -->
   <string name="title_first_build">First Build</string>
-  <string name="msg_first_build">This is the first time build after you installed Code on the Go. First build usually takes time as Gradle downloads all dependencies and plugins. This process may take about 10–15 minutes. But this totally depends on your network connection.\n\nPlease be patient …</string>
+  <string name="msg_first_build">This is the first time build after you installed Code on the Go. First build usually takes time as Gradle downloads all dependencies and plugins. This process may take about 10–15 minutes.\n\nPlease be patient …</string>
   <string name="create_project">Create a new project</string>
   <string name="minimum_sdk">Minimum SDK</string>
   <string name="new_project">New project</string>
