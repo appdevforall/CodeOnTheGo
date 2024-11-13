@@ -67,23 +67,25 @@
   </androidx.appcompat.widget.LinearLayoutCompat>
 
   <com.google.android.material.checkbox.MaterialCheckBox
-    android:id="@+id/install_git"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="16dp"
-    android:checked="true"
-    android:text="@string/action_install_git"
-    app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-    app:layout_constraintTop_toBottomOf="@id/jdk_version_layout" />
+      android:id="@+id/install_git"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="16dp"
+      android:checked="true"
+      android:text="@string/action_install_git"
+      app:layout_constraintStart_toStartOf="@id/auto_install_switch"
+      app:layout_constraintTop_toBottomOf="@id/jdk_version_layout"
+      android:visibility="gone" />
 
   <com.google.android.material.checkbox.MaterialCheckBox
-    android:id="@+id/install_openssh"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:checked="true"
-    android:text="@string/action_install_openssh"
-    app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-    app:layout_constraintTop_toBottomOf="@id/install_git" />
+      android:id="@+id/install_openssh"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:checked="true"
+      android:text="@string/action_install_openssh"
+      app:layout_constraintStart_toStartOf="@id/auto_install_switch"
+      app:layout_constraintTop_toBottomOf="@id/install_git"
+      android:visibility="gone" />
 
   <com.google.android.material.materialswitch.MaterialSwitch
     android:id="@+id/auto_install_switch"
@@ -106,13 +108,16 @@
     android:labelFor="@id/jdk_version"
     app:layout_constraintEnd_toEndOf="@id/auto_install_switch"
     app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-    app:layout_constraintTop_toBottomOf="@id/sdk_version_layout">
+    app:layout_constraintTop_toBottomOf="@id/sdk_version_layout"
+      android:visibility="gone"
+      >
 
     <com.google.android.material.textfield.MaterialAutoCompleteTextView
-      android:id="@+id/jdk_version"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      android:inputType="none" />
+        android:id="@+id/jdk_version"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:inputType="none"
+        android:visibility="gone" />
 
   </com.google.android.material.textfield.TextInputLayout>
 
@@ -126,13 +131,15 @@
     android:labelFor="@id/sdk_version"
     app:layout_constraintEnd_toEndOf="@id/auto_install_switch"
     app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-    app:layout_constraintTop_toBottomOf="@id/auto_install_switch">
+    app:layout_constraintTop_toBottomOf="@id/auto_install_switch"
+      android:visibility="gone">
 
     <com.google.android.material.textfield.MaterialAutoCompleteTextView
-      android:id="@+id/sdk_version"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      android:inputType="none" />
+        android:id="@+id/sdk_version"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:inputType="none"
+        android:visibility="gone" />
 
   </com.google.android.material.textfield.TextInputLayout>
 
