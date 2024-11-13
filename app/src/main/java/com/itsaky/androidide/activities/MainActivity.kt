@@ -17,10 +17,7 @@
 
 package com.itsaky.androidide.activities
 
-import android.content.Context
 import android.content.Intent
-import android.graphics.Rect
-import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.View
@@ -223,6 +220,23 @@ class MainActivity : EdgeToEdgeIDEActivity() {
   internal fun openProject(root: File) {
     ProjectManagerImpl.getInstance().projectPath = root.absolutePath
     startActivity(Intent(this, EditorActivityKt::class.java))
+  }
+
+  internal fun deleteProject(root: File) {
+    ProjectManagerImpl.getInstance().projectPath = root.absolutePath
+    try {
+      val directory = File(ProjectManagerImpl.getInstance().projectPath)
+      val parentDir = directory.parent
+      deleteRecursive(directory)
+    } catch (e:Exception) {
+      flashInfo(string.msg_delete_existing_project_failed)
+    }
+  }
+
+  fun deleteRecursive(fileOrDirectory: File) {
+    if (fileOrDirectory.isDirectory) for (child in fileOrDirectory.listFiles()) deleteRecursive(child)
+
+    fileOrDirectory.delete()
   }
 
   override fun onDestroy() {

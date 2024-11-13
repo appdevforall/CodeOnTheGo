@@ -110,6 +110,15 @@ open class BaseFragment @JvmOverloads constructor(contentLayoutId: Int = 0) :
     }
   }
 
+  protected fun deleteDirectory(dirCallback: OnDirectoryPickedCallback?) {
+    this.callback = dirCallback
+    try {
+      this.startForResult.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
+    } catch (e: Exception) {
+      requireActivity().flashError(getString(R.string.msg_dir_picker_failed, e.message))
+    }
+  }
+
   fun interface OnDirectoryPickedCallback {
     fun onDirectoryPicked(file: File)
   }

@@ -5,7 +5,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -26,7 +25,6 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -87,6 +85,7 @@ class MainFragment : BaseFragment() {
                 when (action.id) {
                     MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
                     MainScreenAction.ACTION_OPEN_PROJECT -> pickDirectory()
+                    MainScreenAction.ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
                     MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
                     MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
                         Intent(requireActivity(), TerminalActivity::class.java)
@@ -192,12 +191,20 @@ class MainFragment : BaseFragment() {
         pickDirectory(this::openProject)
     }
 
+    private fun pickDirectoryForDeletion() {
+        pickDirectory(this::deleteProject)
+    }
+
     private fun showCreateProject() {
         viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
     }
 
     fun openProject(root: File) {
         (requireActivity() as MainActivity).openProject(root)
+    }
+
+    fun deleteProject(root: File) {
+        (requireActivity() as MainActivity).deleteProject(root)
     }
 
     private fun cloneGitRepo() {
