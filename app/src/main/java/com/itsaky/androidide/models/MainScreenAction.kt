@@ -48,6 +48,7 @@ constructor(
     const val ACTION_PREFERENCES = 140
     const val ACTION_DONATE = 150
     const val ACTION_DOCS = 160
+    const val ACTION_DELETE_PROJECT = 170
 
     /**
      * Get all main screen actions.
@@ -64,6 +65,11 @@ constructor(
           ACTION_OPEN_PROJECT,
           R.string.msg_open_existing_project,
           R.drawable.ic_folder)
+
+        val deleteProject = MainScreenAction(
+          ACTION_DELETE_PROJECT,
+          R.string.msg_delete_existing_project,
+          R.drawable.ic_delete)
 
 //        val cloneGitRepository = MainScreenAction(
 //          ACTION_CLONE_REPO,
@@ -94,6 +100,7 @@ constructor(
         Collections.addAll(this,
           createProject,
           openProject,
+          deleteProject,
 //TODO JMT Move to Advanced
 //          cloneGitRepository,
 //          openTerminal,
