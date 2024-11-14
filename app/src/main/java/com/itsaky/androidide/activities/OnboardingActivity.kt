@@ -29,6 +29,9 @@ import androidx.fragment.app.Fragment
 import com.adfa.constants.ANDROID_SDK_ZIP
 import com.adfa.constants.DESTINATION_ANDROID_SDK
 import com.adfa.constants.HOME_PATH
+import com.adfa.constants.LOACL_MAVEN_CACHES_DEST
+import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
+import com.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import com.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
 import com.adfa.constants.MANIFEST_FILE_NAME
@@ -202,6 +205,7 @@ class OnboardingActivity : AppIntro2() {
                 }
                 copyTermuxDebsAndManifest()
                 copyAndroidSDK()
+                copyMavenLocalRepoFiles()
 
                 runOnUiThread {
                     val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
@@ -268,6 +272,28 @@ class OnboardingActivity : AppIntro2() {
             zipFile.delete()
         } catch (e: IOException) {
             println("Termux caches copy failed + ${e.message}")
+        }
+    }
+
+    private fun copyMavenLocalRepoFiles() {
+        val outputDirectory =
+            File(application.filesDir.path + File.separator + LOACL_MAVEN_CACHES_DEST)
+        val mavenZipFile =
+            File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
+        if (!outputDirectory.exists()) {
+            outputDirectory.mkdirs()
+        }
+
+        try {
+            ResourceUtils.copyFileFromAssets(
+                ToolsManager.getCommonAsset(LOACL_SOURCE_AGP_8_0_0_CACHES),
+                outputDirectory.path
+            )
+
+            ZipUtils.unzipFile(mavenZipFile, outputDirectory)
+            mavenZipFile.delete()
+        } catch (e: IOException) {
+            println("Android Gradle caches copy failed + ${e.message}")
         }
     }
 

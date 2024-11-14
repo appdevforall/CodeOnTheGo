@@ -17,11 +17,11 @@
 
 package com.itsaky.androidide.utils
 
-import android.content.Context
-import com.adfa.constants.DEST_GRADLE_FOLDER_NAME
 import com.adfa.constants.GRADDLE_WRAPPER_PART_FILE_NAME
 import com.adfa.constants.GRADLE_ZIP_FILE_NAME
 import com.adfa.constants.LOACL_AGP_8_0_0_CACHES_DEST
+import com.adfa.constants.LOACL_MAVEN_CACHES_DEST
+import com.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.app.IDEApplication
@@ -68,26 +68,22 @@ class TemplateRecipeExecutor : RecipeExecutor {
         ResourceUtils.copyFileFromAssets(path, destDir.absolutePath)
     }
 
-    override fun updateCaches(gradlePath: String) {
+    override fun updateCaches(sourcePath: String) {
         val outputDirectory =
-            File(application.filesDir.path + File.separator + LOACL_AGP_8_0_0_CACHES_DEST)
-        val zipFile = File("$outputDirectory${File.separator}$GRADLE_ZIP_FILE_NAME")
-        val wrapperZipFile =
-            File("$outputDirectory${File.separator}$GRADDLE_WRAPPER_PART_FILE_NAME")
+            File(application.filesDir.path + File.separator + LOACL_MAVEN_CACHES_DEST)
+        val mavenZipFile = File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
 
         try {
             ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(gradlePath),
+                ToolsManager.getCommonAsset(sourcePath),
                 outputDirectory.path
             )
-            ZipUtils.unzipFile(zipFile, outputDirectory)
-            zipFile.delete()
 
-            ZipUtils.unzipFile(wrapperZipFile, outputDirectory)
-            wrapperZipFile.delete()
+            ZipUtils.unzipFile(mavenZipFile, outputDirectory)
+            mavenZipFile.delete()
         } catch (e: IOException) {
             println("Android Gradle caches copy failed + ${e.message}")
         }
