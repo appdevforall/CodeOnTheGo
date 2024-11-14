@@ -37,7 +37,6 @@ const val JAVA_SOURCE_VERSION = "17"
 const val JAVA_TARGET_VERSION = "17"
 
 // Constants that are supposed to be used to replace constants above for local builds
-
 // Path
 val ASSETS_COMMON_FOLDER = "data" + File.separator + "common"
 const val SOURCE_LIB_FOLDER = "libs_source"
