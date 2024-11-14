@@ -53,7 +53,7 @@
 
   <!-- Project Builder -->
   <string name="title_unsupported_device">Device Not Supported</string>
-  <string name="msg_unsupported_device">You are using %1$s variant of AndroidIDE on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of AndroidIDE.</string>
+  <string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code On The Go.</string>
   <string name="title_clear_output">Clear output</string>
   <string name="build_output">Build output</string>
   <string name="quick_run_debug">Quick run</string>
@@ -547,7 +547,7 @@
   <string name="msg_launch_failure_no_app_module">Cannot run application. No application modules found in project.</string>
   <string name="title_launch_app">Launch app</string>
   <string name="title_experiment_flavor">Experimental</string>
-  <string name="msg_experimental_flavor">You are using %1$s variant of AndroidIDE on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
+  <string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
   <string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
   <string name="idepref_editor_pinLineNumbers_summary">Whether the editor should pin line number panel when scrolled horizontally.</string>
   <string name="theme_blue_wave">Blue Wave</string>
@@ -565,13 +565,13 @@
   <string name="msg_install_tools">The development tools must be installed for the IDE to work. Clicking the done button will open terminal to install the tools. </string>
   <string name="greeting_title">Welcome</string>
   <string name="greeting_subtitle">Learn, build, launch. All on your Android.</string>
-  <string name="title_grant">Grant</string>
+  <string name="title_grant">Allow</string>
   <string name="permission_title_storage">Storage</string>
-  <string name="permission_desc_storage">Required to access project files.</string>
-  <string name="permission_desc_install_packages">Allow installing APKs built with Code on the Go.</string>
+  <string name="permission_desc_storage">Allow Code on the Go to access files.</string>
+  <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
   <string name="permission_title_install_packages">Install packages</string>
   <string name="onboarding_title_permissions">Permissions</string>
-  <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions</string>
+  <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
   <string name="msg_grant_permissions">Please grant the permissions to continue.</string>
   <string name="msg_no_internet">It seems you\'re offline. Check your internet connection.</string>
   <string name="msg_connected_to_cellular">Heads up! You\'re using cellular data.</string>
@@ -594,11 +594,11 @@
   <string name="title_crowdin_translators">Crowdin Translators</string>
   <string name="title_misc">Misc</string>
   <string name="title_contribute">Contribute</string>
-  <string name="summary_contribute">It\'s not just an IDE, it\'s a community. Contribute code, ideas, and passion to AndroidIDE.</string>
+  <string name="summary_contribute">It\'s not just an IDE, it\'s a community. Contribute code, ideas, and passion to Code On The Go.</string>
   <string name="msg_app_unavailable_for_intent">No application available to handle intent.</string>
   <string name="title_open_source_licenses">Open source licenses</string>
   <string name="summary_open_source_licenses">View open source licenses.</string>
   <string name="idepref_jdkVersion_title">JDK version</string>
   <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
-  <string name="ide_setup_in_progress">IDE setup in progress.</string>
+  <string name="ide_setup_in_progress">Code On The Go setup in progress.</string>
 </resources>
