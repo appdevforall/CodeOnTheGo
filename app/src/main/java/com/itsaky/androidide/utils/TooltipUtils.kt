@@ -23,6 +23,7 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -33,12 +34,10 @@ import androidx.fragment.app.FragmentTransaction
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
-import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.fragments.IDETooltipWebviewFragment
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
 import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.ui.CodeEditorView
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +59,7 @@ object TooltipUtils {
         transaction.commitAllowingStateLoss()
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
     fun showIDETooltip(context: Context,
                        view: View,
                        level: Int,
@@ -146,92 +146,83 @@ object TooltipUtils {
         )
     }
 
+    /**
+     * showEditorToolTip
+     */
     @SuppressLint("SetJavaScriptEnabled")
-    fun showEditorTooltip(context: Context,
-                          editor: IDEEditor,
-                          level: Int,
-                          detail: String,
-                          summary: String,
-                          buttons: ArrayList<Pair<String, String>>
+    fun showEditorTooltip(
+        context: Context,
+        editor: CodeEditor,
+        level : Int,
+        tooltip: IDETooltipItem?,
+        block: (htmlString: String) -> Unit
     ) {
-        val popupView = mainActivity?.layoutInflater!!.inflate(R.layout.ide_tooltip_window, null)
+        val inflater = LayoutInflater.from(context)
+        val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
         val popupWindow = PopupWindow(
             popupView,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT)
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        var htmlString: String = ""
 
-        // Inflate the PopupWindow layout
-        val buttonId = listOf(R.id.button1, R.id.button2, R.id.button3)
-        val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
-        val tooltip = when (level) {
-            0 -> summary
-            1 -> "{$summary<br/><br/>$detail"
-            else -> ""
-        }
+        tooltip?.let {
+            val mainActivity: MainActivity? = MainActivity.getInstance()
 
-        while (popupWindow.isShowing) {
-            popupWindow.dismiss()
-        }
-        fab.setOnClickListener {
-            showIDETooltip(context, editor, level + 1, detail, summary, buttons)
-        }
+            // Inflate the PopupWindow layout
+            val buttonId = listOf(R.id.button1, R.id.button2, R.id.button3)
+            val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
+            val tooltipText = when (level) {
+                0 -> tooltip.summary
+                1 -> tooltip.summary + "<br/>" + tooltip.detail
+                else -> ""
+            }
 
-        mainActivity?.getColor(android.R.color.holo_blue_light)
-            ?.let { popupView.setBackgroundColor(it) }
-        //start with all the buttons gone and the FAB visible
-        for(index in 0..2) {
-            popupView.findViewById<Button>(buttonId[index]).visibility = View.GONE
-        }
-        fab.visibility = View.VISIBLE
+            fab.setOnClickListener {
+                popupWindow.dismiss()
+                showEditorTooltip(context, editor, level + 1, tooltip, block)
+            }
 
+            fab.visibility = View.VISIBLE
 
-        // Initialize the WebView
-        val webView = popupView.findViewById<WebView>(R.id.webview)
-        webView.webViewClient = WebViewClient() // Ensure links open within the WebView
-        webView.settings.javaScriptEnabled = true // Enable JavaScript if needed
-        webView.loadData(tooltip, "text/html", "UTF-8")
+            val webView : WebView = popupView.findViewById(R.id.webview)
+            webView.loadData(tooltipText, "text/html", "utf-8")
+            webView.webViewClient = WebViewClient() // Ensure links open within the WebView
+            webView.settings.javaScriptEnabled = true // Enable JavaScript if needed
 
-        // Set the background to match the theme
-        popupWindow.setBackgroundDrawable(ColorDrawable(mainActivity?.getColor(android.R.color.transparent)!!))
+            // Set the background to match the them
+            mainActivity?.getColor(android.R.color.holo_blue_light)
+                ?.let { popupView.setBackgroundColor(it) }
 
-        // Optional: Set up a border or padding if needed (you'll need to define this in your popup layout XML)
-        // Set a theme-aware background, depending on your design
-        popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
+            // Optional: Set up a border or padding if needed (you'll need to define this in your popup layout XML)
+            // Set a theme-aware background, depending on your design
+            popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-        if (level == 1) {
-            fab.hide()
-            if (buttons.size > 0) {
-                var buttonIndex = 0
-                for (buttonPair: Pair<String, String> in buttons) {
-                    val id = buttonId[buttonIndex++]
-                    val button = popupView.findViewById<Button>(id)
-                    button?.text = buttonPair.first
-                    button?.visibility = View.VISIBLE
-                    button?.tag = buttonPair.second
-                    button?.setOnClickListener(View.OnClickListener { view ->
-                        val btn = view as Button
-                        val url:String = btn.tag.toString()
-                        popupWindow.dismiss()
-                        showWebPage(context, url)
-                    })
+            if (level == 1) {
+                fab.hide()
+                if (tooltip.buttons.size > 0) {
+                    for ((buttonIndex, buttonPair: Pair<String, String>) in tooltip.buttons.withIndex()) {
+                        val id = buttonId[buttonIndex]
+                        val button = popupView.findViewById<Button>(id)
+                        button?.text = buttonPair.first
+                        button?.visibility = View.VISIBLE
+                        button?.tag = buttonPair.second
+                        button?.setOnClickListener(View.OnClickListener { view ->
+                            val btn = view as Button
+                            val url:String = btn.tag.toString()
+                            htmlString = url
+                            popupWindow.dismiss()
+                            block.invoke(url)
+                        })
+                    }
                 }
             }
+
+            popupWindow.isOutsideTouchable = true
+            popupWindow.isFocusable = true
+
+            popupWindow.showAtLocation(editor, Gravity.CENTER, 0, 0)
         }
-
-        // Show the popup window
-        popupWindow.isFocusable = true
-        popupWindow.showAsDropDown(editor)
-
-        // Optional: For dismissing the popup when clicking outside
-        popupWindow.isOutsideTouchable = true
-
-        // Show the PopupWindow
-        popupWindow.showAtLocation(
-            editor,
-            Gravity.CENTER,
-            0,
-            0 /*anchorView.x.toInt(), anchorView.y.toInt()*/
-        )
     }
 
     suspend fun dumpDatabase(context: Context, database: IDETooltipDatabase) {
