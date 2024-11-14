@@ -17,10 +17,8 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.adfa.constants.GRADLE_FOLDER_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import com.adfa.constants.LOACL_MAVEN_CACHES_DEST
+import com.adfa.constants.LOCAL_MAVEN_REPO_FROLDER_DEST
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 /**
@@ -33,21 +31,14 @@ internal fun ProjectTemplateBuilder.settingsGradleSrcStr(): String {
   return """
 pluginManagement {
   repositories {
-    gradlePluginPortal()
-    google()
-    mavenCentral()
-    flatDir {
-        dirs("$GRADLE_FOLDER_NAME") // Directory containing your local JAR
-        dirs("$GRADLE_FOLDER_NAME/localMvnRepository") // Directory containing your local maven repo
-    }
+    maven(uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST"))
   }
 }
 
 dependencyResolutionManagement {
   repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
   repositories {
-    google()
-    mavenCentral()
+    maven(uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST"))
   }
 }
 

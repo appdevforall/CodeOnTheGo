@@ -108,6 +108,10 @@ public class XmlBuilder {
     return this;
   }
 
+  public XmlBuilder toolsAttribute(String name, String value) {
+    return addSingleAttribute("tools:" + name, value, true);
+  }
+
   public XmlBuilder androidAttribute(String name, String value) {
     return addSingleAttribute("android:" + name, value, true);
   }
