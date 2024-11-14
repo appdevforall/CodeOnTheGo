@@ -21,6 +21,7 @@ import com.adfa.constants.COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME
 import com.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
 import com.adfa.constants.COPY_GRADLE_CAHCES_TO_ASSETS
 import com.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import com.adfa.constants.COPY_LOCAL_MAVEN_REPO_TO_ASSETS
 import com.adfa.constants.COPY_PLATFORM_TOOLS_TO_ASSETS
 import com.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
@@ -142,7 +143,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         // Local android sdk version copier
         variant.sources.assets?.addGeneratedSourceDirectory(androidSdkToAssetsTaskProvider,
           CopySdkToAssetsTask::outputDirectory)
-
       }
     }
   }

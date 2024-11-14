@@ -84,6 +84,12 @@ android {
         ${if (isComposeModule) "compose = true" else ""}
     }
     ${if(isComposeModule) composeConfigKts() else ""}
+    
+    packaging {
+        resources {
+            pickFirsts += "META-INF/kotlinx_coroutines_core.version"
+        }
+    }
 }
 ${ktJvmTarget()}
 ${dependencies()}

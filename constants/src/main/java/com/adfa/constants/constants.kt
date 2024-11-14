@@ -33,8 +33,8 @@ const val KOTLIN_VERSION = "1.8.21"
 val TARGET_SDK_VERSION = Sdk.Tiramisu
 val COMPILE_SDK_VERSION = Sdk.Tiramisu
 
-const val JAVA_SOURCE_VERSION = "11"
-const val JAVA_TARGET_VERSION = "11"
+const val JAVA_SOURCE_VERSION = "17"
+const val JAVA_TARGET_VERSION = "17"
 
 // Constants that are supposed to be used to replace constants above for local builds
 
@@ -102,6 +102,11 @@ const val GRADDLE_WRAPPER_PART_FILE_NAME = "wrapper.zip"
 val LOACL_AGP_8_0_0_CACHES_DEST = HOME_PATH + File.separator + DEST_GRADLE_FOLDER_NAME
 const val LOACL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
 
+//Local maven repo
+const val LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME = "localMvnRepository.zip"
+val LOACL_MAVEN_CACHES_DEST = HOME_PATH + File.separator + "maven"
+const val LOCAL_MAVEN_REPO_FROLDER_DEST = "localMvnRepository"
+
 // SDK
 const val LOCAL_SOURCE_ANDROID_SDK = "androidsdk"
 const val DESTINATION_ANDROID_SDK = "${HOME_PATH}/${ANDROID_SDK_PATH}"
@@ -118,6 +123,7 @@ const val COPY_GRADLE_CAHCES_TO_ASSETS = "copyGradleCachesToAssets"
 const val COPY_ANDROID_SDK_TO_ASSETS = "copyAndroidSdkToAssets"
 const val COPY_PLATFORM_TOOLS_TO_ASSETS = "copyPlatfromToolsToAssets"
 const val COPY_USR_FOLDER_TO_ASSETS = "copyUsrFolderToAssets"
+const val COPY_LOCAL_MAVEN_REPO_TO_ASSETS = "copyLocalMavenRepoToAssets"
 
 //tooltips
 const val CONTENT_KEY = "CONTENT_KEY"
