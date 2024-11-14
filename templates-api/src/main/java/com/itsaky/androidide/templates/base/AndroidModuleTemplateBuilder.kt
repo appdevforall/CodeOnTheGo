@@ -47,8 +47,7 @@ class AndroidModuleTemplateBuilder : ModuleTemplateBuilder() {
    * Return the file path to `AndroidManifest.xml`.
    */
   fun manifestFile(): File {
-    return File(srcFolder(SrcSet.Main),
-      ANDROID_MANIFEST_XML).also { it.parentFile!!.mkdirs() }
+    return File(srcFolder(SrcSet.Main), ANDROID_MANIFEST_XML).also { it.parentFile!!.mkdirs() }
   }
 
   /**

@@ -42,7 +42,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import io.sentry.Sentry
+//import io.sentry.Sentry
 import java.io.File
 
 class MainActivity : EdgeToEdgeIDEActivity() {
@@ -87,13 +87,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    Thread.setDefaultUncaughtExceptionHandler { t: Thread?, e: Throwable ->
-      try {
-        Sentry.captureException(e)
-      } catch (ex: Exception) {
-        ex.printStackTrace()
-      }
-    }
+    //Thread.setDefaultUncaughtExceptionHandler { t: Thread?, e: Throwable ->
+    //  try {
+    //    Sentry.captureException(e)
+    //  } catch (ex: Exception) {
+    //    ex.printStackTrace()
+    //  }
+    //}
 
     openLastProject()
 
