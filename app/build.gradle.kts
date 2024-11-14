@@ -16,7 +16,7 @@ plugins {
   id("kotlin-kapt")
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
-  id("io.sentry.android.gradle") version "4.2.0"
+//  id("io.sentry.android.gradle") version "4.2.0"
 
   id("com.itsaky.androidide.desugaring")
 }
@@ -63,6 +63,11 @@ android {
   lint {
     abortOnError = false
     disable.addAll(arrayOf("VectorPath", "NestedWeights", "ContentDescription", "SmallSp"))
+  }
+
+  installation {
+    installOptions.addAll(listOf("-timeout", "420000"))
+    //installOptions("-timeout", "420000") // 5 minutes (in milliseconds)
   }
 }
 
