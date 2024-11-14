@@ -84,6 +84,9 @@ data class Dependency(val configuration: DependencyConfiguration,
     val Navigation_Ui_Ktx = parseDependency(
       "androidx.navigation:navigation-ui-ktx:${navigationVersion}")
 
+    @JvmStatic
+    val Startup_Runtime = parseDependency("androidx.startup:startup-runtime:1.1.1")
+
     object Compose {
 
       @JvmStatic

@@ -64,6 +64,11 @@ android {
     abortOnError = false
     disable.addAll(arrayOf("VectorPath", "NestedWeights", "ContentDescription", "SmallSp"))
   }
+
+  installation {
+    installOptions.addAll(listOf("-timeout", "420000"))
+    //installOptions("-timeout", "420000") // 5 minutes (in milliseconds)
+  }
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.packageName}.events.AppEventsIndex") } }

@@ -25,7 +25,10 @@ import com.android.SdkConstants.TAG_APPLICATION
 import com.android.SdkConstants.TAG_CATEGORY
 import com.android.SdkConstants.TAG_INTENT_FILTER
 import com.android.SdkConstants.TAG_MANIFEST
+import com.android.SdkConstants.TAG_PROVIDER
 import com.android.SdkConstants.TAG_USES_PERMISSION
+import com.android.SdkConstants.TOOLS_NS_NAME
+import com.android.SdkConstants.TOOLS_URI
 import com.android.SdkConstants.XMLNS
 import com.itsaky.androidide.templates.RecipeExecutor
 import com.itsaky.androidide.templates.base.modules.android.ManifestActivity
@@ -145,6 +148,7 @@ class AndroidManifestBuilder {
   private fun IndentedXmlBuilder.buildManifest() {
     createElement(TAG_MANIFEST) {
       attr(name = ANDROID_NS_NAME, value = ANDROID_URI, ns = XMLNS)
+      attr(name = TOOLS_NS_NAME, value = TOOLS_URI, ns = XMLNS)
       configurators[MANIFEST_ATTR]?.forEach { configurator -> configurator() }
       closeStartElement()
 
@@ -189,7 +193,18 @@ class AndroidManifestBuilder {
 
       activities()
 
+      initializationProviderFix()
+
       configurators[APPLICATION_CONTENT]?.forEach { configurator -> configurator() }
+    }
+  }
+
+  private fun IndentedXmlBuilder.initializationProviderFix() {
+    createElement(TAG_PROVIDER) {
+      androidAttr("name", "androidx.startup.InitializationProvider")
+      androidAttr("authorities", "\${applicationId}.androidx-startup")
+      toolsAttr("node", "remove")
+      closeStartElement()
     }
   }
 
@@ -228,6 +243,10 @@ class AndroidManifestBuilder {
         androidAttr("name", "android.intent.category.LAUNCHER")
       }
     }
+  }
+
+  private fun IndentedXmlBuilder.toolsAttr(name: String, value: String) {
+    toolsAttribute(name, value)
   }
 
   private fun IndentedXmlBuilder.androidAttr(name: String, value: String) {
