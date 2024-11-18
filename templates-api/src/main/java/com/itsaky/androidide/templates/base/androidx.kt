@@ -27,6 +27,7 @@ fun AndroidModuleTemplateBuilder.baseAndroidXDependencies() {
   addDependency(Dependency.AndroidX.ConstraintLayout)
   addDependency(Dependency.Google.Material)
   addDependency(Dependency.AndroidX.Startup_Runtime)
+  addDependency(Dependency.AndroidX.Interpolator)
 }
 
 fun AndroidModuleTemplateBuilder.composeDependencies() {

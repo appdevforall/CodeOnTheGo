@@ -87,6 +87,9 @@ data class Dependency(val configuration: DependencyConfiguration,
     @JvmStatic
     val Startup_Runtime = parseDependency("androidx.startup:startup-runtime:1.1.1")
 
+    @JvmStatic
+    val Interpolator = parseDependency("androidx.interpolator:interpolator:1.0.0")
+
     object Compose {
 
       @JvmStatic
