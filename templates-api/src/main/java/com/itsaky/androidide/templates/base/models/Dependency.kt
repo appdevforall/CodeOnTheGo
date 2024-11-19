@@ -135,4 +135,10 @@ data class Dependency(val configuration: DependencyConfiguration,
     @JvmStatic
     val Material = parseDependency("com.google.android.material:material:1.9.0")
   }
+
+  object Kotlin {
+    @JvmStatic
+    val Kotlinx_Coroutines_Core = parseDependency("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+  }
+
 }
