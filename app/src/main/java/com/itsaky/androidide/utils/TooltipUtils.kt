@@ -48,6 +48,13 @@ object TooltipUtils {
     private val mainActivity: MainActivity?
         get() = MainActivity.getInstance()
 
+    /**
+     * This displays a webpage as the 3rd level tooltip
+     *
+     * @param   context callers context
+     * @param   url    the url as specified in the tooltips database
+     * @return  none
+     */
     fun showWebPage(context: Context, url: String) {
         val transaction: FragmentTransaction =
             mainActivity?.supportFragmentManager!!.beginTransaction().addToBackStack("WebView")
@@ -180,7 +187,8 @@ object TooltipUtils {
 
             fab.setOnClickListener {
                 popupWindow.dismiss()
-                showEditorTooltip(context, editor, level + 1, tooltip, block)
+                showIDETooltip(context, editor, level + 1, tooltip.detail, tooltip.summary, tooltip.buttons) //JMT
+                    //tooltip, block)
             }
 
             fab.visibility = View.VISIBLE
