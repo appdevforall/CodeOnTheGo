@@ -62,6 +62,10 @@ class TestRecipeExecutor : RecipeExecutor {
     findAsset(path, true).copyRecursively(destDir, true)
   }
 
+  override fun updateCaches(sourcePath: String) {
+    TODO("Not yet implemented")
+  }
+
   private fun findAsset(path: String, isDir: Boolean = false) : File {
     for (module in modulesWithAssets) {
       val moduleDir = File(FileProvider.projectRoot().toFile(), module)
