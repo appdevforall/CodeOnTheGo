@@ -101,6 +101,8 @@ dependencies {
   kapt(projects.annotationProcessors)
   kapt(libs.room.compiler)
 
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))    
+
   implementation(libs.common.editor)
   implementation(libs.common.utilcode)
   implementation(libs.common.glide)

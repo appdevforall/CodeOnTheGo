@@ -55,6 +55,7 @@ import com.itsaky.androidide.roomData.tooltips.TooltipDao
 import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
 import com.itsaky.androidide.idetooltips.IDETooltipDao
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+import com.itsaky.androidide.localHTTPServer.LocalServerUtil
 import com.itsaky.androidide.stats.AndroidIDEStats
 import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
@@ -115,6 +116,8 @@ class IDEApplication : TermuxApplication() {
 
             checkForSecondDisplay()
 
+            //Start the local HTTP server for tooltips
+            LocalServerUtil.startServer("", 8080)
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -150,7 +153,7 @@ class IDEApplication : TermuxApplication() {
         writeException(th)
 
         try {
-
+            LocalServerUtil.stopServer()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
