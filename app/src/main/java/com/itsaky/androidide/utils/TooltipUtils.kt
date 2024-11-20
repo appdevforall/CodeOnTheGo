@@ -85,7 +85,7 @@ object TooltipUtils {
         val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
         val tooltip = when (level) {
             0 -> summary
-            1 -> "{$summary<br/><br/>$detail"
+            1 -> "$summary$detail"
             else -> ""
         }
 
