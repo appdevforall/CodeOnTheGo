@@ -87,14 +87,14 @@ abstract class IDETooltipDatabase : RoomDatabase() {
             }
 
 
-            val tooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
-            tooltipItemList.forEach { tooltipItem ->
+//            val tooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
+//            tooltipItemList.forEach { tooltipItem ->
 //                Log.d(
 //                    "TooltipRoomDatabase",
 //                    "after insert database - itemTag = ${tooltipItem.tooltipTag}, " +
 //                            "summary = ${tooltipItem.summary}, detail=${tooltipItem.detail}"
 //                )
-            }
+//            }
 
 
         } catch(e: Exception) {

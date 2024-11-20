@@ -85,7 +85,7 @@ object TooltipUtils {
         val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
         val tooltip = when (level) {
             0 -> summary
-            1 -> "$summary$detail"
+            1 -> "$summary<br>$detail"
             else -> ""
         }
 
@@ -104,12 +104,15 @@ object TooltipUtils {
         fab.visibility = View.VISIBLE
 
 
+        val htmlString =
+            "<head><style type=\"text/css\"> html, body { width:100%; height: 100%; margin: 0px; padding: 0px; }" +
+                    "</style></head><body>$tooltip</body>"
+
         // Initialize the WebView
         val webView = popupView.findViewById<WebView>(R.id.webview)
         webView.webViewClient = WebViewClient() // Ensure links open within the WebView
         webView.settings.javaScriptEnabled = true // Enable JavaScript if needed
         webView.loadData(tooltip, "text/html", "UTF-8")
-
         // Set the background to match the theme
         popupWindow.setBackgroundDrawable(ColorDrawable(mainActivity?.getColor(android.R.color.transparent)!!))
 
