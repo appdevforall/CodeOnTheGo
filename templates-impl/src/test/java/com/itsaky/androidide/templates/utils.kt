@@ -18,6 +18,7 @@
 package com.itsaky.androidide.templates
 
 import androidx.test.core.app.ApplicationProvider
+import com.adfa.constants.Sdk
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.managers.PreferenceManager
 import com.itsaky.androidide.preferences.internal.prefManager
