@@ -81,7 +81,7 @@ class LocalServerUtil() {
             // Get request method
             when (exchange!!.requestMethod) {
                 "GET" -> {
-                    Log.d("HTTPRequest", exchange.requestURI.toString())
+                    ////Log.d("HTTPRequest", exchange.requestURI.toString())
                     val responseText = FileUtil.readFromAsset("CoGoTooltips/html/help_top.html", context)
                     sendResponse(exchange, responseText)
                 }

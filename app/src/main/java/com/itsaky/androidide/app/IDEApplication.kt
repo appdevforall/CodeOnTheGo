@@ -113,7 +113,7 @@ class IDEApplication : TermuxApplication() {
 
             checkForSecondDisplay()
 
-            //Start the local HTTP server for tooltips
+            //Start the local HTTP server for CoGo tooltips
             val localServerUtil = LocalServerUtil()
             localServerUtil.startServer(8080)
         }
