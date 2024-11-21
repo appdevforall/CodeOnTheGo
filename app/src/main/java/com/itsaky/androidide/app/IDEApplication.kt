@@ -27,11 +27,7 @@ import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.Observer
-import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.Operation
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
@@ -47,16 +43,15 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
+import com.itsaky.androidide.idetooltips.IDETooltipDao
+import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+import com.itsaky.androidide.localHTTPServer.LocalServerUtil
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.roomData.tooltips.TooltipDao
 import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
-import com.itsaky.androidide.idetooltips.IDETooltipDao
-import com.itsaky.androidide.idetooltips.IDETooltipDatabase
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
-import com.itsaky.androidide.stats.AndroidIDEStats
 import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TreeSitter
@@ -78,13 +73,13 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
-import java.time.Duration
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
+    private var localServerUtil: LocalServerUtil? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
@@ -105,11 +100,13 @@ class IDEApplication : TermuxApplication() {
         super.onCreate()
 
         if (BuildConfig.DEBUG) {
-            //TODO JMT enable this
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
-                    .build()
-            )
+            val builder = StrictMode.VmPolicy.Builder()
+            StrictMode.setVmPolicy(builder.build())
+            //TODO JMT
+//            StrictMode.setVmPolicy(
+//                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
+//                    .build()
+//            )
             if (DevOpsPreferences.dumpLogs) {
                 startLogcatReader()
             }
@@ -117,7 +114,8 @@ class IDEApplication : TermuxApplication() {
             checkForSecondDisplay()
 
             //Start the local HTTP server for tooltips
-            LocalServerUtil.startServer("", 8080)
+            val localServerUtil = LocalServerUtil()
+            localServerUtil.startServer(8080)
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -153,7 +151,7 @@ class IDEApplication : TermuxApplication() {
         writeException(th)
 
         try {
-            LocalServerUtil.stopServer()
+            localServerUtil!!.stopServer()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))

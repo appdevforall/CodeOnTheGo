@@ -17,7 +17,12 @@
 
 package com.itsaky.androidide.localHTTPServer
 
+import android.app.Application
+import android.content.Context
 import android.util.Log
+import android.util.Log.*
+import com.itsaky.androidide.app.IDEApplication
+import com.itsvks.layouteditor.utils.FileUtil
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
@@ -28,13 +33,14 @@ import java.net.InetSocketAddress
 import java.util.Scanner
 import java.util.concurrent.Executors
 
-object LocalServerUtil {
+class LocalServerUtil() {
 
     val TAG = this.javaClass.simpleName
     var httpServer : HttpServer? = null
     var serverUp = false
+    val context = IDEApplication.instance.applicationContext
 
-    public fun startServer(hostAddress: String, port: Int) {
+    public fun startServer(port: Int) {
         try {
             httpServer = HttpServer.create(InetSocketAddress(port), 0)
             httpServer!!.executor = Executors.newCachedThreadPool()
@@ -42,7 +48,7 @@ object LocalServerUtil {
             // 'this' refers to the handle method
             httpServer!!.createContext("/index", rootHandler)
             httpServer!!.start()//start server;
-            Log.d(TAG, "Server is running on ${httpServer!!.address}:$port")
+            d(TAG, "Server is running on ${httpServer!!.address}:$port")
         } catch (e: IOException) {
             e.printStackTrace()
         }
@@ -75,15 +81,8 @@ object LocalServerUtil {
             // Get request method
             when (exchange!!.requestMethod) {
                 "GET" -> {
-                    val responseText = "<!DOCTYPE html>\n" +
-                            "<html>\n" +
-                            "    <head>\n" +
-                            "        <title>test title</title>\n" +
-                            "    </head>\n" +
-                            "    <body>\n" +
-                            "        <b> hello world </b>\n" +
-                            "    </body>\n" +
-                            "</html>"
+                    Log.d("HTTPRequest", exchange.requestURI.toString())
+                    val responseText = FileUtil.readFromAsset("CoGoTooltips/html/help_top.html", context)
                     sendResponse(exchange, responseText)
                 }
             }
