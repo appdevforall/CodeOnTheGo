@@ -48,6 +48,13 @@ object TooltipUtils {
     private val mainActivity: MainActivity?
         get() = MainActivity.getInstance()
 
+    /**
+     * This displays a webpage as the 3rd level tooltip
+     *
+     * @param   context callers context
+     * @param   url    the url as specified in the tooltips database
+     * @return  none
+     */
     fun showWebPage(context: Context, url: String) {
         val transaction: FragmentTransaction =
             mainActivity?.supportFragmentManager!!.beginTransaction().addToBackStack("WebView")
@@ -78,7 +85,7 @@ object TooltipUtils {
         val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
         val tooltip = when (level) {
             0 -> summary
-            1 -> "{$summary<br/><br/>$detail"
+            1 -> "$summary<br>$detail"
             else -> ""
         }
 
@@ -97,12 +104,15 @@ object TooltipUtils {
         fab.visibility = View.VISIBLE
 
 
+        val htmlString =
+            "<head><style type=\"text/css\"> html, body { width:100%; height: 100%; margin: 0px; padding: 0px; }" +
+                    "</style></head><body>$tooltip</body>"
+
         // Initialize the WebView
         val webView = popupView.findViewById<WebView>(R.id.webview)
         webView.webViewClient = WebViewClient() // Ensure links open within the WebView
         webView.settings.javaScriptEnabled = true // Enable JavaScript if needed
         webView.loadData(tooltip, "text/html", "UTF-8")
-
         // Set the background to match the theme
         popupWindow.setBackgroundDrawable(ColorDrawable(mainActivity?.getColor(android.R.color.transparent)!!))
 
@@ -180,7 +190,8 @@ object TooltipUtils {
 
             fab.setOnClickListener {
                 popupWindow.dismiss()
-                showEditorTooltip(context, editor, level + 1, tooltip, block)
+                showIDETooltip(context, editor, level + 1, tooltip.detail, tooltip.summary, tooltip.buttons) //JMT
+                    //tooltip, block)
             }
 
             fab.visibility = View.VISIBLE
