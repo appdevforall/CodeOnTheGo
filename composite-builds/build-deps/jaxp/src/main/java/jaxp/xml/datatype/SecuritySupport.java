@@ -112,12 +112,13 @@ class SecuritySupport  {
     }
 
     boolean doesFileExist(final File f) {
-    return ((Boolean)
-            AccessController.doPrivileged(new PrivilegedAction() {
-                public Object run() {
-                    return new Boolean(f.exists());
-                }
-            })).booleanValue();
+        Boolean value = ((Boolean)
+                AccessController.doPrivileged(new PrivilegedAction() {
+                    public Object run() {
+                        return new Boolean(f.exists());
+                    }
+                }));
+        return (value != null) ? value : false;
     }
 
 }

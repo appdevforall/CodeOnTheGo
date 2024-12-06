@@ -67,6 +67,7 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
                        minSdk: EnumParameter<Sdk> = minSdkParameter(),
                        language: EnumParameter<Language> = projectLanguageParameter(),
                        projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+                       isCompose: Boolean = false,
                        crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
   return ProjectTemplateBuilder().apply {
@@ -128,6 +129,9 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
 
       // gradle.properties
       gradleProps()
+      if(isCompose) {
+          tomlFile()
+      }
 
       // gradlew
       // gradlew.bat

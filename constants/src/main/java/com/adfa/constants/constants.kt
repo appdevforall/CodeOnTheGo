@@ -26,12 +26,13 @@ import java.io.File
  * Moved from template-api in case of a roor repo merge we have to manuall move changes here.
  */
 
-const val ANDROID_GRADLE_PLUGIN_VERSION = "8.0.0"
-const val GRADLE_DISTRIBUTION_VERSION = "8.1.1"
-const val KOTLIN_VERSION = "1.8.21"
+const val ANDROID_GRADLE_PLUGIN_VERSION = "8.5.0"
+const val GRADLE_DISTRIBUTION_VERSION = "8.0.0"
+const val KOTLIN_VERSION = "1.9.22"
 
 val TARGET_SDK_VERSION = Sdk.Tiramisu
 val COMPILE_SDK_VERSION = Sdk.Tiramisu
+val COMPOSE_SDK_VERSION = Sdk.VanollaIceCream
 
 const val JAVA_SOURCE_VERSION = "17"
 const val JAVA_TARGET_VERSION = "17"
@@ -124,5 +125,8 @@ const val COPY_PLATFORM_TOOLS_TO_ASSETS = "copyPlatfromToolsToAssets"
 const val COPY_USR_FOLDER_TO_ASSETS = "copyUsrFolderToAssets"
 const val COPY_LOCAL_MAVEN_REPO_TO_ASSETS = "copyLocalMavenRepoToAssets"
 
-//tooltips
+// Tooltips
 const val CONTENT_KEY = "CONTENT_KEY"
+
+// Toml
+const val TOML_FILE_NAME = "libs.versions.toml"

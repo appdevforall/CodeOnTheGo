@@ -31,15 +31,18 @@ fun AndroidModuleTemplateBuilder.baseAndroidXDependencies() {
 }
 
 fun AndroidModuleTemplateBuilder.composeDependencies() {
-  addDependency(Dependency.AndroidX.Compose.Core_Ktx)
-  addDependency(Dependency.AndroidX.Compose.LifeCycle_Runtime_Ktx)
-  addDependency(Dependency.AndroidX.Compose.Activity)
+  addCustomDependency("libs.androidx.core.ktx")
+  addCustomDependency("libs.androidx.lifecycle.runtime.ktx")
+  addCustomDependency("libs.androidx.activity.compose")
+  addCustomDependency("platform(libs.androidx.compose.bom)")
+  addCustomDependency("libs.androidx.ui")
+  addCustomDependency("libs.androidx.ui.graphics")
+  addCustomDependency("libs.androidx.ui.tooling.preview")
+  addCustomDependency("libs.androidx.material3")
+  addCustomDependency("libs.androidx.ui.tooling.preview.android")
+  addCustomDependency("libs.androidx.ui.tooling")
+  addCustomDependency("libs.androidx.ui.test.manifest")
+  addCustomDependency("libs.collection.jvm")
 
-  addDependency(dependency = Dependency.AndroidX.Compose.BOM, isPlatform = true)
-  addDependency(Dependency.AndroidX.Compose.UI)
-  addDependency(Dependency.AndroidX.Compose.UI_Graphics)
-  addDependency(Dependency.AndroidX.Compose.UI_Tooling_Preview)
-  addDependency(Dependency.AndroidX.Compose.Material3)
-  addDependency(Dependency.AndroidX.Compose.UI_Tooling)
-  addDependency(Dependency.AndroidX.Compose.UI_Test_Manifest)
+  addCustomDependency(Dependency.AndroidX.Compose.Collection_Ktx)
 }

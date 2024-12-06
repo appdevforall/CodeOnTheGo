@@ -21,6 +21,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
 import com.adfa.constants.COMPILE_SDK_VERSION
+import com.adfa.constants.COMPOSE_SDK_VERSION
 import com.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import com.adfa.constants.JAVA_SOURCE_VERSION
 import com.adfa.constants.JAVA_TARGET_VERSION
@@ -188,7 +189,7 @@ class ProjectVersionLocalData : ProjectVersionData(LOCAL_ANDROID_GRADLE_PLUGIN_V
  */
 data class ModuleVersionData(val minSdk: Sdk, val targetSdk: Sdk = TARGET_SDK_VERSION,
                              val compileSdk: Sdk = COMPILE_SDK_VERSION, val javaSource: String = JAVA_SOURCE_VERSION,
-                             val javaTarget: String = JAVA_TARGET_VERSION) {
+                             val javaTarget: String = JAVA_TARGET_VERSION, val composeSdk: Sdk = COMPOSE_SDK_VERSION) {
 
   /**
    * Get the Java source version string representation in the `JavaVersion.VERSION_${version}` format.

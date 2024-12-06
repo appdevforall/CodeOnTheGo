@@ -225,7 +225,7 @@ final public class XMLReaderFactory
     throws SAXException
     {
         try {
-            return (XMLReader) NewInstance.newInstance (loader, className);
+            return (XMLReader) NewInstance.newInstance(loader.loadClass(className), loader, className);
         } catch (ClassNotFoundException e1) {
             throw new SAXException("SAX2 driver class " + className +
                                    " not found", e1);

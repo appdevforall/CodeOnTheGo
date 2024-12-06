@@ -25,7 +25,7 @@ import com.squareup.javapoet.TypeSpec
 import jdkx.lang.model.element.Modifier
 
 internal fun ModuleTemplateBuilder.dependencies(): String {
-  if (dependencies.isEmpty() && platforms.isEmpty()) {
+  if (customDependencies.isEmpty() && dependencies.isEmpty() && platforms.isEmpty()) {
     return ""
   }
 
@@ -40,6 +40,10 @@ internal fun ModuleTemplateBuilder.dependencies(): String {
     for (dep in dependencies) {
       append(System.lineSeparator())
       append("    ${dep.value()}")
+    }
+    for(dep in customDependencies) {
+      append(System.lineSeparator())
+      append(dep)
     }
     append(System.lineSeparator())
     append("}")

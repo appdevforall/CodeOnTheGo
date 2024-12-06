@@ -92,41 +92,56 @@ data class Dependency(val configuration: DependencyConfiguration,
 
     object Compose {
 
-      @JvmStatic
-      val Core_Ktx = parseDependency("androidx.core:core-ktx:1.8.0")
+      //@JvmStatic
+      //val Core_Ktx = parseDependency("libs.androidx.core.ktx")
+//
+      //@JvmStatic
+      //val LifeCycle_Runtime_Ktx = parseDependency(
+      //  "libs.androidx.lifecycle.runtime.ktx")
+//
+      //@JvmStatic
+      //val Activity = parseDependency("libs.androidx.activity.compose")
+//
+      //@JvmStatic
+      //val BOM = parseDependency("libs.androidx.compose.bom", isPlatform = true)
+//
+      //@JvmStatic
+      //val UI = parseDependency("libs.androidx.ui")
+//
+      //@JvmStatic
+      //val UI_Graphics = parseDependency("libs.androidx.ui.graphics")
+//
+      //@JvmStatic
+      //val UI_Tooling_Preview =
+      //  parseDependency("libs.androidx.ui.tooling.preview")
+//
+      //@JvmStatic
+      //val Material3 = parseDependency("libs.androidx.material3")
+//
+      //@JvmStatic
+      //val UI_Tooling_Preview_Android = parseDependency("libs.androidx.ui.tooling.preview.android")
+//
+      //@JvmStatic
+      //val UI_Tooling = parseDependency("libs.androidx.ui.tooling",
+      //  configuration = DebugImplementation)
+//
+      //@JvmStatic
+      //val UI_Test_Manifest =
+      //  parseDependency("libs.androidx.ui.test.manifest",
+      //    configuration = DebugImplementation)
+//
+      //@JvmStatic
+      //val Collection_Jvm = parseDependency("libs.collection.jvm")
 
       @JvmStatic
-      val LifeCycle_Runtime_Ktx = parseDependency(
-        "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
-
-      @JvmStatic
-      val Activity = parseDependency("androidx.activity:activity-compose:1.5.1")
-
-      @JvmStatic
-      val BOM = parseDependency("androidx.compose:compose-bom:2022.10.00",
-        isPlatform = true)
-
-      @JvmStatic
-      val UI = parseDependency("androidx.compose.ui:ui")
-
-      @JvmStatic
-      val UI_Graphics = parseDependency("androidx.compose.ui:ui-graphics")
-
-      @JvmStatic
-      val UI_Tooling_Preview =
-        parseDependency("androidx.compose.ui:ui-tooling-preview")
-
-      @JvmStatic
-      val Material3 = parseDependency("androidx.compose.material3:material3")
-
-      @JvmStatic
-      val UI_Tooling = parseDependency("androidx.compose.ui:ui-tooling",
-        configuration = DebugImplementation)
-
-      @JvmStatic
-      val UI_Test_Manifest =
-        parseDependency("androidx.compose.ui:ui-test-manifest",
-          configuration = DebugImplementation)
+      val Collection_Ktx = """ +
+              // Exclude older conflicting version from transitive dependencies
+              // Again this arises only when using a local maven repo. Most probably because it lacks flexibility of online one.
+              // We can run some gradle:app dependency commands to compare the results for online and offline maven repo later.
+              "implementation(libs.collection.ktx) {" +
+              "        exclude(group = "androidx.collection", module = "collection-ktx")" +
+              "        exclude(group = "androidx.collection", module = "collection-jvm") // If necessary" +
+              "    }""".trimIndent()
     }
   }
 
