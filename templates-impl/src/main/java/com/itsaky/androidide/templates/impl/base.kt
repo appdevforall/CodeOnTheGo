@@ -62,11 +62,12 @@ internal inline fun baseProjectImpl(
   minSdk: EnumParameter<Sdk> = minSdkParameter(),
   language: EnumParameter<Language> = projectLanguageParameter(),
   projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+  isCompose: Boolean = false,
   crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate =
   baseProject(projectName = projectName, packageName = packageName,
     useKts = useKts, minSdk = minSdk, language = language,
-    projectVersionData = projectVersionData) {
+    projectVersionData = projectVersionData, isCompose = isCompose) {
     block()
 
     // make sure we return a proper result

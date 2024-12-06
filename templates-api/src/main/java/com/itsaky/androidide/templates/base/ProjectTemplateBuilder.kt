@@ -23,6 +23,7 @@ import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
 import com.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import com.adfa.constants.TOML_FILE_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.managers.ToolsManager
@@ -33,6 +34,7 @@ import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.base.root.buildGradleSrcGroovy
 import com.itsaky.androidide.templates.base.root.buildGradleSrcKts
+import com.itsaky.androidide.templates.base.root.composeTomlFileSrc
 import com.itsaky.androidide.templates.base.root.gradleWrapperProps
 import com.itsaky.androidide.templates.base.root.settingsGradleSrcStr
 import com.itsaky.androidide.templates.base.util.optonallyKts
@@ -221,6 +223,12 @@ class ProjectTemplateBuilder :
 
     fun gradleCaches() {
         executor.updateCaches()
+    }
+
+    fun tomlFile() {
+        val name = TOML_FILE_NAME
+        val tomlFileDest = File("${data.projectDir}${File.separator}$GRADLE_FOLDER_NAME", name)
+        executor.save(composeTomlFileSrc(), tomlFileDest)
     }
 
     override fun buildInternal(): ProjectTemplate {
