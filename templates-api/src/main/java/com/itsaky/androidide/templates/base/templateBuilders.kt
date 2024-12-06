@@ -65,6 +65,8 @@ sealed class ExecutorDataTemplateBuilder<R : TemplateRecipeResult, D : TemplateD
   @PublishedApi
   internal var _data: D? = null
 
+  internal open var isComposeProject = false
+
   val executor: RecipeExecutor
     get() = checkNotNull(_executor)
 
