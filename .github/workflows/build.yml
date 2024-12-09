@@ -66,12 +66,12 @@ jobs:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
       - name: Create symbolic links for layout-editor
-        run:
-          git submodule init &&
-          git submodule update &&
-          pwd &&
-          ls -ld &&
-          ln -s ~/Layout-Editor layout-editor && 
+        run: |
+          git submodule init
+          git submodule update
+          pwd 
+          ls -ld
+          ln -s ~/Layout-Editor layout-editor 
           ls -ld ~/Layout-Editor layout-editor
       - name: Restore cache
         uses: actions/cache@v4
