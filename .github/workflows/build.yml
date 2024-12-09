@@ -2,13 +2,15 @@ name: Build and test
 
 on:
   push:
-    branches: [ "stage", "dev", "main", "release/**", "feature/**" ]
+#    branches: [ "stage", "dev", "main", "release/**", "feature/**" ]
+    branches: [ "stage", "feature/**" ]
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
       - '.github/workflows/crowdin_contributors.yml'
   pull_request:
-    branches: [ "stage", "dev", "release/**", "feature/**" ]
+#    branches: [ "stage", "dev", "release/**", "feature/**" ]
+    branches: [ "stage", "feature/**" ]
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
