@@ -49,9 +49,6 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     steps:
-      - name: Grant execute permissions for gradlew
-        run: chmod +x gradlew
-
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
