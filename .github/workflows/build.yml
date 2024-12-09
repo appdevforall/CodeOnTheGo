@@ -2,13 +2,13 @@ name: Build and test
 
 on:
   push:
-    branches: [ "dev", "main", "release/**", "feature/**" ]
+    branches: [ "stage", "dev", "main", "release/**", "feature/**" ]
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
       - '.github/workflows/crowdin_contributors.yml'
   pull_request:
-    branches: [ "dev", "release/**", "feature/**" ]
+    branches: [ "stage", "dev", "release/**", "feature/**" ]
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
@@ -45,7 +45,8 @@ jobs:
   build_apk:
     strategy:
       matrix:
-        build_type: ['debug', 'release']
+#        build_type: ['debug', 'release']
+        build_type: ['debug']
     name: Build APK
     runs-on: ubuntu-latest
     steps:
