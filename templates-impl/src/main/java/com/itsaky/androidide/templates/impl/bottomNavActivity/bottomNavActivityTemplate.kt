@@ -67,6 +67,7 @@ fun AndroidModuleTemplateBuilder.bottomNavActivityProjectKt() {
     addDependency(Dependency.AndroidX.Navigation_Fragment_Ktx)
     addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
     addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
+    addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
 
     sources {
       writeKtSrc("${data.packageName}.ui.dashboard", "DashboardFragment",
@@ -94,6 +95,7 @@ private fun AndroidModuleTemplateBuilder.bottomNavActivityProjectJava() {
     addDependency(Dependency.AndroidX.Navigation_Fragment)
     addDependency(Dependency.AndroidX.LifeCycle_LiveData)
     addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
+    addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
 
     sources {
       writeJavaSrc("${data.packageName}.ui.dashboard", "DashboardFragment",
