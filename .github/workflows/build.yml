@@ -67,7 +67,9 @@ jobs:
           distribution: ${{ env.BUILD_JAVA_DIST }}
       - name: Create symbolic links for layout-editor
         run:
-          ln -s Layout-Editor layout-editor && ls -ld Layout-Editor layout-editor
+          pwd
+          ls -ld
+          ln -s ~/Layout-Editor layout-editor && ls -ld ~/Layout-Editor layout-editor
       - name: Restore cache
         uses: actions/cache@v4
         with:
