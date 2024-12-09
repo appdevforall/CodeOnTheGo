@@ -71,8 +71,8 @@ jobs:
           git submodule update
           pwd 
           ls -ld
-          ln -s ~/Layout-Editor layout-editor 
-          ls -ld ~/Layout-Editor layout-editor
+          ln -s Layout-Editor layout-editor 
+          ls -ld Layout-Editor layout-editor
       - name: Restore cache
         uses: actions/cache@v4
         with:
