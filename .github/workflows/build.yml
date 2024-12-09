@@ -60,6 +60,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Create symbolic links for layout-editor
+        run:
+          ln -s Layout-Editor layout-editor
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
