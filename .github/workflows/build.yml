@@ -50,7 +50,9 @@ jobs:
 #        build_type: ['debug', 'release']
         build_type: ['debug']
     name: Build APK
-    runs-on: ubuntu-latest
+    runs-on: |
+      ubuntu-22.04
+      timeout-minutes: 15
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
