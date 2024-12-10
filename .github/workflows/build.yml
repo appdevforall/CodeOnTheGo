@@ -50,7 +50,9 @@ jobs:
 #        build_type: ['debug', 'release']
         build_type: ['debug']
     name: Build APK
-    runs-on: ubuntu-latest
+    runs-on: | 
+        ubuntu-latest
+        timeout-minutes: 15
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
@@ -84,7 +86,7 @@ jobs:
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
           build_type=${{ matrix.build_type }}
-          ./gradlew :app:assemble${build_type^}
+          ./gradlew -d :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
         run: |
           cp app/build/outputs/apk/${{ matrix.build_type }}/app-*.apk ./
