@@ -86,7 +86,8 @@ jobs:
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
           build_type=${{ matrix.build_type }}
-          ./gradlew :app:assemble${build_type^}
+#          ./gradlew :app:assemble${build_type^}
+          ./gradlew --version
       - name: Copy ${{ matrix.build_type }} APK
         run: |
           cp app/build/outputs/apk/${{ matrix.build_type }}/app-*.apk ./
