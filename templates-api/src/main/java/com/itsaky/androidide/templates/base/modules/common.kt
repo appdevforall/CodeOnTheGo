@@ -25,29 +25,40 @@ import com.squareup.javapoet.TypeSpec
 import jdkx.lang.model.element.Modifier
 
 internal fun ModuleTemplateBuilder.dependencies(): String {
-  if (customDependencies.isEmpty() && dependencies.isEmpty() && platforms.isEmpty()) {
-    return ""
-  }
+    if (customDependencies.isEmpty() && dependencies.isEmpty() && platforms.isEmpty()) {
+        return ""
+    }
 
-  return StringBuilder().apply {
-    append("dependencies {")
-    append(System.lineSeparator())
-    for (dep in platforms) {
-      append(System.lineSeparator())
-      append("    ${dep.platformValue()}")
-    }
-    append(System.lineSeparator())
-    for (dep in dependencies) {
-      append(System.lineSeparator())
-      append("    ${dep.value()}")
-    }
-    for(dep in customDependencies) {
-      append(System.lineSeparator())
-      append(dep)
-    }
-    append(System.lineSeparator())
-    append("}")
-  }.toString()
+    return StringBuilder().apply {
+        append("dependencies {")
+        append(System.lineSeparator())
+        for (dep in platforms) {
+            if (dep.tomlDependency != null) {
+                append(System.lineSeparator())
+                append("    ${dep.tomlPlatformValue()}")
+            } else {
+                append(System.lineSeparator())
+                append("    ${dep.platformValue()}")
+            }
+        }
+        append(System.lineSeparator())
+        for (dep in dependencies) {
+            if (dep.tomlDependency != null) {
+                append(System.lineSeparator())
+                append("    ${dep.tomlValue()}")
+            } else {
+                append(System.lineSeparator())
+                append("    ${dep.value()}")
+            }
+
+        }
+        for (dep in customDependencies) {
+            append(System.lineSeparator())
+            append(dep)
+        }
+        append(System.lineSeparator())
+        append("}")
+    }.toString()
 }
 
 /**
@@ -56,14 +67,15 @@ internal fun ModuleTemplateBuilder.dependencies(): String {
  * @param name The name of the field.
  * @param configure A function to configure the field.
  */
-inline fun TypeSpec.Builder.createConstant(type: TypeName, name: String, isPublic: Boolean,
-                                    crossinline configure: FieldSpec.Builder.() -> Unit
+inline fun TypeSpec.Builder.createConstant(
+    type: TypeName, name: String, isPublic: Boolean,
+    crossinline configure: FieldSpec.Builder.() -> Unit
 ) {
-  val accessMod = if (isPublic) Modifier.PUBLIC else Modifier.PRIVATE
-  FieldSpec.builder(type, name, accessMod, Modifier.STATIC, Modifier.FINAL)
-    .apply(configure)
-    .build()
-    .also { addField(it) }
+    val accessMod = if (isPublic) Modifier.PUBLIC else Modifier.PRIVATE
+    FieldSpec.builder(type, name, accessMod, Modifier.STATIC, Modifier.FINAL)
+        .apply(configure)
+        .build()
+        .also { addField(it) }
 }
 
 /**
@@ -72,10 +84,11 @@ inline fun TypeSpec.Builder.createConstant(type: TypeName, name: String, isPubli
  * @param name The name of the field.
  * @param configure A function to configure the field.
  */
-inline fun TypeSpec.Builder.createField(type: TypeName, name: String, vararg modifiers: Modifier,
-                                 crossinline configure: FieldSpec.Builder.() -> Unit
+inline fun TypeSpec.Builder.createField(
+    type: TypeName, name: String, vararg modifiers: Modifier,
+    crossinline configure: FieldSpec.Builder.() -> Unit
 ) {
-  FieldSpec.builder(type, name, *modifiers).apply(configure).build().also { addField(it) }
+    FieldSpec.builder(type, name, *modifiers).apply(configure).build().also { addField(it) }
 }
 
 /**
@@ -84,7 +97,7 @@ inline fun TypeSpec.Builder.createField(type: TypeName, name: String, vararg mod
  * @param configure A function to configure the method.
  */
 inline fun TypeSpec.Builder.createConstructor(crossinline configure: MethodSpec.Builder.() -> Unit) {
-  MethodSpec.constructorBuilder().apply(configure).build().also { addMethod(it) }
+    MethodSpec.constructorBuilder().apply(configure).build().also { addMethod(it) }
 }
 
 /**
@@ -93,6 +106,9 @@ inline fun TypeSpec.Builder.createConstructor(crossinline configure: MethodSpec.
  * @param name The name of the method.
  * @param configure A function to configure the method.
  */
-inline fun TypeSpec.Builder.createMethod(name: String, crossinline configure: MethodSpec.Builder.() -> Unit) {
-  MethodSpec.methodBuilder(name).apply(configure).build().also { addMethod(it) }
+inline fun TypeSpec.Builder.createMethod(
+    name: String,
+    crossinline configure: MethodSpec.Builder.() -> Unit
+) {
+    MethodSpec.methodBuilder(name).apply(configure).build().also { addMethod(it) }
 }

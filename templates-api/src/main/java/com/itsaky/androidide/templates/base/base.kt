@@ -129,7 +129,7 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
 
       // gradle.properties
       gradleProps()
-      if(isCompose) {
+      if (isCompose) {
           tomlFile()
       }
 

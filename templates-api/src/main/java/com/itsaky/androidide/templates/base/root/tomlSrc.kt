@@ -21,17 +21,17 @@ import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 fun ProjectTemplateBuilder.composeTomlFileSrc() = """
 [versions]
-agp = "8.5.0"
+agp = "8.0.0"
 kotlin = "1.9.22"
-coreKtx = "1.15.0"
+coreKtx = "1.8.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-lifecycleRuntimeKtx = "2.8.7"
-activityCompose = "1.9.3"
-composeBom = "2024.04.01"
-composeUiVersion = "1.6.6"
-material3Version = "1.3.0"
+lifecycleRuntimeKtx = "2.3.1"
+activityCompose = "1.5.1"
+composeBom = "2022.10.00"
+composeUiVersion = "1.3.0"
+material3Version = "1.0.0"
 uiToolingPreviewAndroid = "1.6.6"
 collectionVersion = "1.4.2"
 
@@ -53,6 +53,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3",
 androidx-ui-tooling-preview-android = { group = "androidx.compose.ui", name = "ui-tooling-preview-android", version.ref = "uiToolingPreviewAndroid" }
 collection-jvm = { group = "androidx.collection", name = "collection-jvm", version.ref = "collectionVersion" }
 collection-ktx = { group = "androidx.collection", name = "collection-ktx", version.ref = "collectionVersion"}
+kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
