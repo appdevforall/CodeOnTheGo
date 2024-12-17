@@ -208,6 +208,15 @@ abstract class ModuleTemplateBuilder :
         }
     }
 
+    @JvmOverloads
+    fun addTomlDependency(dependency: Dependency, isPlatform: Boolean = false) {
+        if (isPlatform) {
+            this.platforms.add(dependency)
+        } else {
+            this.dependencies.add(dependency)
+        }
+    }
+
     fun addCustomDependency(dependency: String) {
         customDependencies.add(dependency)
     }
