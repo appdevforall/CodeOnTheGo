@@ -31,18 +31,17 @@ fun AndroidModuleTemplateBuilder.baseAndroidXDependencies() {
 }
 
 fun AndroidModuleTemplateBuilder.composeDependencies() {
-  addCustomDependency("libs.androidx.core.ktx")
-  addCustomDependency("libs.androidx.lifecycle.runtime.ktx")
-  addCustomDependency("libs.androidx.activity.compose")
-  addCustomDependency("platform(libs.androidx.compose.bom)")
-  addCustomDependency("libs.androidx.ui")
-  addCustomDependency("libs.androidx.ui.graphics")
-  addCustomDependency("libs.androidx.ui.tooling.preview")
-  addCustomDependency("libs.androidx.material3")
-  addCustomDependency("libs.androidx.ui.tooling.preview.android")
-  addCustomDependency("libs.androidx.ui.tooling")
-  addCustomDependency("libs.androidx.ui.test.manifest")
-  addCustomDependency("libs.collection.jvm")
+  addDependency(Dependency.Compose.BOM, isPlatform = true)
+  addDependency(Dependency.Compose.Material3)
+  addDependency(Dependency.Compose.UI_Tooling)
+  addDependency(Dependency.Compose.LifeCycle_Runtime_Ktx)
+  addDependency(Dependency.Compose.Activity)
+  addDependency(Dependency.Compose.UI_Graphics)
+  addDependency(Dependency.Compose.UI)
+  addDependency(Dependency.Compose.UI_Tooling_Preview)
+  addDependency(Dependency.Compose.Core_Ktx)
+  addDependency(Dependency.Compose.UI_Test_Manifest)
+  addDependency(Dependency.Compose.Collection_Ktx)
 
-  addCustomDependency(Dependency.AndroidX.Compose.Collection_Ktx)
+  addCustomDependency(Dependency.Compose.Kotlin_Stdlib)
 }
