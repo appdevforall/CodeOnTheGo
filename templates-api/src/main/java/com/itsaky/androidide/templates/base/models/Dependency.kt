@@ -28,13 +28,13 @@ data class Dependency(val configuration: DependencyConfiguration,
 
   fun tomlValue() : String {
     return """
-      ${configuration.configName}("$tomlDependency")
+      ${configuration.configName}($tomlDependency)
     """.trimIndent()
   }
 
   fun tomlPlatformValue() : String {
     return """
-      ${configuration.configName}(platform("$tomlDependency"))
+      ${configuration.configName}(platform($tomlDependency))
     """.trimIndent()
   }
 
@@ -149,14 +149,14 @@ data class Dependency(val configuration: DependencyConfiguration,
 
     @JvmStatic
     val Kotlin_Stdlib = """
-        // Exclude older conflicting version from transitive dependencies
-        // Again this arises only when using a local maven repo. Most probably because it lacks flexibility of online one.
-        // We can run some gradle:app dependency commands to compare the results for online and offline maven repo later.
-        // Use Kotlin stdlib 1.9.22, and exclude old jdk7 and jdk8 versions
-        implementation(libs.kotlin.stdlib) {
-          exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
-          exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
-        }""".trimIndent()
+    // Exclude older conflicting version from transitive dependencies
+    // Again this arises only when using a local maven repo. Most probably because it lacks flexibility of online one.
+    // We can run some gradle:app dependency commands to compare the results for online and offline maven repo later.
+    // Use Kotlin stdlib 1.9.22, and exclude old jdk7 and jdk8 versions
+    implementation(libs.kotlin.stdlib) {
+      exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
+      exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
+    }"""
 
   }
 

@@ -32,7 +32,7 @@ const val KOTLIN_VERSION = "1.9.22"
 
 val TARGET_SDK_VERSION = Sdk.Tiramisu
 val COMPILE_SDK_VERSION = Sdk.Tiramisu
-val COMPOSE_SDK_VERSION = Sdk.VanollaIceCream
+val COMPOSE_SDK_VERSION = Sdk.Tiramisu
 
 const val JAVA_SOURCE_VERSION = "17"
 const val JAVA_TARGET_VERSION = "17"
@@ -52,8 +52,11 @@ const val APG_SOURCE_FOLDER_NAME = "android_gradle_plugin"
 
 // GradleWrapper
 const val LOCAL_GRADLE_DISTRIBUTION_VERSION = "8.0"
+const val LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION = "8.7"
 const val GRADLE_VERSION = "gradle-${LOCAL_GRADLE_DISTRIBUTION_VERSION}"
+const val COMPOSE_GRADLE_VERSION = "gradle-${LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION}"
 const val GRADLE_WRAPPER_FILE_NAME = "${GRADLE_VERSION}-bin.zip"
+const val COMPOSE_GRADLE_WRAPPER_FILE_NAME = "${COMPOSE_GRADLE_VERSION}-bin.zip"
 val GRADLE_WRAPPER_PATH_SUFFIX = GRADLE_FOLDER_NAME + File.separator + "wrapper" + File.separator
 
 // AGP

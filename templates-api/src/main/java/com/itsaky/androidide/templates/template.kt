@@ -109,7 +109,7 @@ typealias TemplateRecipeFinalizer = RecipeExecutor.() -> Unit
  * @property useKts Whether to use Kotlin DSL for Gradle build scripts.
  */
 abstract class BaseTemplateData(val name: String, val projectDir: File, val language: Language,
-  val useKts: Boolean) : TemplateData() {
+  val useKts: Boolean, val useToml: Boolean = false) : TemplateData() {
 
   /**
    * Get the `build.gradle[.kts]` file for the project.
@@ -210,7 +210,7 @@ data class ModuleVersionData(val minSdk: Sdk, val targetSdk: Sdk = TARGET_SDK_VE
  * @property version The version information for this project.
  */
 class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVersionData,
-  language: Language, useKts: Boolean) : BaseTemplateData(name, projectDir, language, useKts)
+  language: Language, useKts: Boolean, useToml: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml)
 
 /**
  * Data for creating module projects.
@@ -218,11 +218,15 @@ class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVe
  * @property packageName The package name of the module.
  * @property type The type of module.
  * @property versions Version information for the module.
+ *
+ * @property useToml at this point is equals to isCompose / isComposeModule because toml is only used with
+ * compose project. But I would like to highlight separation of those two concepts here.
+ * So in future we would not get confused.
  */
 open class ModuleTemplateData(name: String, val appName: String?, val packageName: String,
   projectDir: File, val type: ModuleType, language: Language, useKts: Boolean = true, minSdk: Sdk,
-  val versions: ModuleVersionData = ModuleVersionData(minSdk)) :
-  BaseTemplateData(name, projectDir, language, useKts) {
+  val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
+  BaseTemplateData(name, projectDir, language, useKts, useToml) {
 
   private val srcDirs = mutableMapOf<SrcSet, File>()
 

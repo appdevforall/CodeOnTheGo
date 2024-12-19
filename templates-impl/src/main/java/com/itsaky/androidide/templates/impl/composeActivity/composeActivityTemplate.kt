@@ -40,7 +40,7 @@ fun composeActivityProject() =
     baseProjectImpl(
         language = composeLanguageParameter(),
         projectVersionData = ProjectVersionData(kotlin = composeKotlinVersion),
-        isCompose = true
+        isToml = true
     ) {
 
         templateName = R.string.template_compose

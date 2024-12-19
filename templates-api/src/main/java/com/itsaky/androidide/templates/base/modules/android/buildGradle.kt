@@ -39,23 +39,26 @@ fun AndroidModuleTemplateBuilder.buildGradleSrc(isComposeModule: Boolean): Strin
     )
 }
 
-//todo fix hardcoded buildToolsVersion version.
+/**
+ * At this point isComposeModule is equals to isToml. But in case we will extend toml support to
+ * not compose templates, we will have to change this.
+ */
 private fun AndroidModuleTemplateBuilder.buildGradleSrcKts(
     isComposeModule: Boolean
 ): String {
     return """
 plugins {
-    id("$androidPlugin") version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
-    ${ktPlugin()}
+    ${androidPlugin(isComposeModule)}
+    ${ktPlugin(isComposeModule)}
 }
 
 android {
     namespace = "${data.packageName}"
-    compileSdk = ${if (isComposeModule) data.versions.composeSdk else data.versions.targetSdk.api}
+    compileSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api}
     // currently this is hardcodede to make it work but we should probably make it dependant on the
     // onboarding choice.
     
-    buildToolsVersion = ${if (isComposeModule) "35" else "34.0.4"} 
+    buildToolsVersion = "34.0.4" 
     
     defaultConfig {
         applicationId = "${data.packageName}"
@@ -98,7 +101,7 @@ private fun AndroidModuleTemplateBuilder.buildGradleSrcGroovy(
     return """
 plugins {
     id '$androidPlugin'
-    ${ktPlugin()}
+    ${ktPlugin(isComposeModule)}
 }
 
 android {
@@ -149,8 +152,11 @@ fun composeConfigGroovy(): String = """
     }
     packagingOptions {
         resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
-                   
+            resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
+            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
+
+            // The part below is only needed for compose builds.
             // This packaging block is required to solve interdependency conflicts.
             // They arise only when using local maven repo, so I suppose online repos have some way of solving such issues.
 
@@ -178,6 +184,21 @@ fun composeConfigGroovy(): String = """
             resources.merges.add("nativeMain/default/manifest")
         }
     }
+    
+    configurations.all {
+        resolutionStrategy {
+            // Force the use of Kotlin stdlib 1.9.22 for all modules
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
+    
+            // Force specific AndroidX versions to avoid conflicts
+            force("androidx.collection:collection:1.4.2")
+            force("androidx.annotation:annotation:1.8.1")
+            force("androidx.core:core-ktx:1.8.0")
+            force("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
+        }
+    }
 """.trim()
 
 fun composeConfigKts(): String = """
@@ -186,8 +207,11 @@ fun composeConfigKts(): String = """
     }
     packagingOptions {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-           
+            resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
+            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
+
+            // The part below is only needed for compose builds.
             // This packaging block is required to solve interdependency conflicts.
             // They arise only when using local maven repo, so I suppose online repos have some way of solving such issues.
 
@@ -213,6 +237,21 @@ fun composeConfigKts(): String = """
             resources.merges.add("commonMain/default/manifest")
             resources.merges.add("nonJvmMain/default/manifest")
             resources.merges.add("nativeMain/default/manifest")
+        }
+    }
+    
+    configurations.all {
+        resolutionStrategy {
+            // Force the use of Kotlin stdlib 1.9.22 for all modules
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
+    
+            // Force specific AndroidX versions to avoid conflicts
+            force("androidx.collection:collection:1.4.2")
+            force("androidx.annotation:annotation:1.8.1")
+            force("androidx.core:core-ktx:1.8.0")
+            force("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
         }
     }
 """.trim()
@@ -243,16 +282,28 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
 """
 }
 
-private fun AndroidModuleTemplateBuilder.ktPlugin(): String {
+private fun AndroidModuleTemplateBuilder.androidPlugin(isToml: Boolean = false): String {
+    return if (data.useKts) androidPluginKts(isToml) else androidPluginGroovy()
+}
+
+private fun AndroidModuleTemplateBuilder.ktPlugin(isToml: Boolean = false): String {
     if (data.language != Kotlin) {
         return ""
     }
 
-    return if (data.useKts) ktPluginKts() else ktPluginGroovy()
+    return if (data.useKts) ktPluginKts(isToml) else ktPluginGroovy()
 }
 
-private fun ktPluginKts(): String {
-    return """kotlin("android") version "1.9.22" """
+private fun androidPluginKts(isToml: Boolean): String {
+    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "8.0.0" """
+}
+
+private fun androidPluginGroovy(): String {
+    return """id "com.android.application" version "8.0.0" """
+}
+
+private fun ktPluginKts(isToml: Boolean): String {
+    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "1.9.22" """
 }
 
 private fun ktPluginGroovy(): String {
