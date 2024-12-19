@@ -115,7 +115,7 @@ class IDEApplication : TermuxApplication() {
 
             //Start the local HTTP server for CoGo tooltips
             val localServerUtil = LocalServerUtil()
-            localServerUtil.startServer(8080)
+            localServerUtil.startServer(6174)
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())

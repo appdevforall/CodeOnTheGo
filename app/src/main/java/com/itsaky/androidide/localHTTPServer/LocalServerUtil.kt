@@ -17,9 +17,6 @@
 
 package com.itsaky.androidide.localHTTPServer
 
-import android.app.Application
-import android.content.Context
-import android.util.Log
 import android.util.Log.*
 import com.itsaky.androidide.app.IDEApplication
 import com.itsvks.layouteditor.utils.FileUtil
