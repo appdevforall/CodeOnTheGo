@@ -37,7 +37,7 @@ class LocalServerUtil() {
     var serverUp = false
     val context = IDEApplication.instance.applicationContext
 
-    public fun startServer(port: Int) {
+     fun startServer(port: Int) {
         try {
             httpServer = HttpServer.create(InetSocketAddress(port), 0)
             httpServer!!.executor = Executors.newCachedThreadPool()
@@ -51,12 +51,12 @@ class LocalServerUtil() {
         }
     }
 
-    public fun streamToString(inputStream: InputStream): String {
+     fun streamToString(inputStream: InputStream): String {
         val s = Scanner(inputStream).useDelimiter("\\A")
         return if (s.hasNext()) s.next() else ""
     }
 
-    public fun sendResponse(httpExchange: HttpExchange, responseText: String){
+     fun sendResponse(httpExchange: HttpExchange, responseText: String){
         httpExchange.sendResponseHeaders(200, responseText.length.toLong())
         val os = httpExchange.responseBody
         os.write(responseText.toByteArray())
@@ -64,7 +64,7 @@ class LocalServerUtil() {
     }
 
 
-    public fun stopServer() {
+     fun stopServer() {
         if (httpServer != null){
             httpServer!!.stop(0)
 //            serverTextView.text = getString(R.string.server_down)
@@ -86,7 +86,7 @@ class LocalServerUtil() {
         }
     }
 
-    public val messageHandler = HttpHandler { httpExchange ->
+     val messageHandler = HttpHandler { httpExchange ->
         run {
             when (httpExchange!!.requestMethod) {
                 "GET" -> {
