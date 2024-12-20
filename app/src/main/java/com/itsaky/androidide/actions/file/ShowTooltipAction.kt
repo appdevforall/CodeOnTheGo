@@ -43,14 +43,12 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
             activity?.getTooltipData(word)?.let { tooltipData ->
-                TooltipUtils.showIDETooltip(
+                TooltipUtils.showEditorTooltip(
                     context,
                     editor,
                     0,
-                    tooltipData.detail,
-                    tooltipData.summary,
-                    tooltipData.buttons
-                ) //{ it -> activity.openFAQActivity(it) } //JMT
+                    tooltipData,
+                ) { it -> activity.openFAQActivity(it) }
             }
         }
 
