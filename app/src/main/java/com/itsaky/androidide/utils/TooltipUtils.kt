@@ -20,6 +20,7 @@ package com.itsaky.androidide.utils
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
@@ -30,6 +31,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.PopupWindow
+import androidx.annotation.RequiresApi
 import androidx.fragment.app.FragmentTransaction
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.R
@@ -43,6 +45,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.lang.reflect.Method
 
 object TooltipUtils {
     private val mainActivity: MainActivity?
@@ -212,45 +215,45 @@ object TooltipUtils {
             // Set a theme-aware background, depending on your design
             popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-            if ((level == 0 && tooltip.detail.isBlank()) || level == 1) {
-                fab.hide()
-                if (tooltip.buttons.size > 0) {
-                    var buttonIndex = 0
-                    for (buttonPair: Pair<String, String> in tooltip.buttons) {
-                        val id = buttonId[buttonIndex++]
-                        val button = popupView.findViewById<Button>(id)
-                        button?.text = buttonPair.first
-                        button?.visibility = View.VISIBLE
-                        button?.tag = buttonPair.second
-                        button?.setOnClickListener(View.OnClickListener { view ->
-                            val btn = view as Button
-                            val url: String = btn.tag.toString()
-                            popupWindow.dismiss()
-                            block.invoke(url)
-                        })
-                    }
-                }
-            }
-
-            popupWindow.isOutsideTouchable = true
-            popupWindow.isFocusable = true
-
-            popupWindow.showAtLocation(editor, Gravity.CENTER, 0, 0)
-        }
-    }
-
-    suspend fun dumpDatabase(context: Context, database: IDETooltipDatabase) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val records =
-                IDETooltipDatabase.getDatabase(context).idetooltipDao().getTooltipItems()
-            withContext(Dispatchers.Main) {
-                for (item: IDETooltipItem in records) {
-                    Log.d(
-                        "DumpIDEDatabase",
-                        "tag = ${item.tooltipTag}\n\tdetail = ${item.detail}\n\tsummary = ${item.summary}"
-                    )
+        if ((level == 0 && tooltip.detail.isBlank()) || level == 1) {
+            fab.hide()
+            if (tooltip.buttons.size > 0) {
+                var buttonIndex = 0
+                for (buttonPair: Pair<String, String> in tooltip.buttons) {
+                    val id = buttonId[buttonIndex++]
+                    val button = popupView.findViewById<Button>(id)
+                    button?.text = buttonPair.first
+                    button?.visibility = View.VISIBLE
+                    button?.tag = buttonPair.second
+                    button?.setOnClickListener(View.OnClickListener { view ->
+                        val btn = view as Button
+                        val url: String = btn.tag.toString()
+                        popupWindow.dismiss()
+                        block.invoke(url)
+                    })
                 }
             }
         }
+
+        popupWindow.isOutsideTouchable = true
+        popupWindow.isFocusable = true
+
+        popupWindow.showAtLocation(editor, Gravity.CENTER, 0, 0)
     }
+}
+
+suspend fun dumpDatabase(context: Context, database: IDETooltipDatabase) {
+    CoroutineScope(Dispatchers.IO).launch {
+        val records =
+            IDETooltipDatabase.getDatabase(context).idetooltipDao().getTooltipItems()
+        withContext(Dispatchers.Main) {
+            for (item: IDETooltipItem in records) {
+                Log.d(
+                    "DumpIDEDatabase",
+                    "tag = ${item.tooltipTag}\n\tdetail = ${item.detail}\n\tsummary = ${item.summary}"
+                )
+            }
+        }
+    }
+}
 }
