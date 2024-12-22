@@ -148,7 +148,6 @@ object TooltipUtils {
 
         // Show the popup window
         popupWindow.isFocusable = true
-        popupWindow.showAsDropDown(view)
 
         // Optional: For dismissing the popup when clicking outside
         popupWindow.isOutsideTouchable = true
