@@ -54,7 +54,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="5dp"
-        android:backgroundTint="@color/cardview_light_background"
         android:contentDescription="@string/fab_more"
         android:text="More"
         app:layout_constraintBottom_toBottomOf="parent"
