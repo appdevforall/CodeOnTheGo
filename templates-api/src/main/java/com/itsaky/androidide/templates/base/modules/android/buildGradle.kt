@@ -88,7 +88,7 @@ android {
         ${if (!isComposeModule) "viewBinding = true" else ""}
         ${if (isComposeModule) "compose = true" else ""}
     }
-    ${if (isComposeModule) composeConfigKts() else ""}
+    ${composeConfigKts()}
 }
 ${ktJvmTarget()}
 ${dependencies()}
@@ -139,7 +139,7 @@ android {
         ${if (!isComposeModule) "viewBinding true" else ""}
         ${if (isComposeModule) "compose true" else ""}
     }
-    ${if (isComposeModule) composeConfigGroovy() else ""}
+    ${composeConfigGroovy()}
 }
 ${ktJvmTarget()}
 ${dependencies()}
@@ -208,7 +208,6 @@ fun composeConfigKts(): String = """
     packagingOptions {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
-            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
 
             // The part below is only needed for compose builds.
