@@ -4,6 +4,6 @@
 	branch = modular_root_main
 [submodule "CoGoTooltips"]
 	path = app/src/main/assets/CoGoTooltips
-	url = https://github.com/appdevforall/CoGoTooltips.git
+	url = https://github.com/CoGoAdmin/CoGoTooltips.git
 	branch=main
 
