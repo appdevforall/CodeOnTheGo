@@ -33,6 +33,7 @@ import android.widget.Button
 import android.widget.PopupWindow
 import androidx.annotation.RequiresApi
 import androidx.fragment.app.FragmentTransaction
+import com.android.aaptcompiler.Visibility
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -87,7 +88,7 @@ object TooltipUtils {
 
         // Inflate the PopupWindow layout
         val buttonId = listOf(R.id.button1, R.id.button2, R.id.button3)
-        val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
+        val fab = popupView.findViewById<Button>(R.id.fab)
         val tooltip = when (level) {
             0 -> summary
             1 -> "$summary<br>$detail"
@@ -126,7 +127,7 @@ object TooltipUtils {
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
         if ((level == 0 && detail.isBlank()) || level == 1) {
-            fab.hide()
+            fab.visibility = View.GONE
             if (buttons.size > 0) {
                 var buttonIndex = 0
                 for (buttonPair: Pair<String, String> in buttons) {
@@ -186,7 +187,7 @@ object TooltipUtils {
 
             // Inflate the PopupWindow layout
             val buttonId = listOf(R.id.button1, R.id.button2, R.id.button3)
-            val fab = popupView.findViewById<FloatingActionButton>(R.id.fab)
+            val fab = popupView.findViewById<Button>(R.id.fab)
             val tooltipText = when (level) {
                 0 -> tooltip.summary
                 1 -> tooltip.summary + "<br/>" + tooltip.detail
@@ -215,7 +216,7 @@ object TooltipUtils {
             popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
         if ((level == 0 && tooltip.detail.isBlank()) || level == 1) {
-            fab.hide()
+            fab.visibility = View.GONE
             if (tooltip.buttons.size > 0) {
                 var buttonIndex = 0
                 for (buttonPair: Pair<String, String> in tooltip.buttons) {

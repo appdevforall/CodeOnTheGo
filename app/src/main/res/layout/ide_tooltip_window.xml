@@ -49,17 +49,20 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <Button
         android:id="@+id/fab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="5dp"
-        android:contentDescription="@string/fab_more"
+        android:layout_margin="0dp"
+        android:tooltipText="Read More"
         android:text="More"
+        android:textColor="@color/black"
+        android:contentDescription="@string/fab_more"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/button3"
-        app:srcCompat="@drawable/ic_action_more" />
+        app:layout_constraintTop_toBottomOf="@+id/button3" />
+
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
