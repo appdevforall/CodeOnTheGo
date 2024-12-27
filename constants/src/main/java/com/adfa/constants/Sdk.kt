@@ -25,6 +25,7 @@ package com.adfa.constants
  * Keyword: [template-api, templateapi]
  * * Moved from template-api in case of a roor repo merge we have to manuall move changes here.
  */
+
 enum class Sdk(val codename: String, val version: String, val api: Int) {
   JellyBean("Jelly Bean", "4.1", 16),
   JellyBeanMR1("Jelly Bean", "4.2", 17),
