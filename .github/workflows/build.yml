@@ -71,11 +71,9 @@ jobs:
         run: |
           git submodule init
           git submodule update
-      - name: Create symbolic link for LayoutEditor and export SDK
-        run: |
+      - name: Create symbolic link for LayoutEditor
+        run:
           ln -s LayoutEditor layouteditor
-          export ANDROID_SDK_HOME=/home/yaturner/Android/Sdk
-          export ANDROID_HOME=/home/yaturner/Android/Sdk
       - name: Restore cache
         uses: actions/cache@v4
         with:
@@ -87,6 +85,8 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
+          echo "ANDROID_SDK_HOME=$HOME/Android/Sdk" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/Android/Sdk" >> $GITHUB_ENV
           build_type=${{ matrix.build_type }}
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
