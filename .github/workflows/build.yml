@@ -85,7 +85,6 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
-          echo "ANDROID_SDK_HOME=$HOME/Android/Sdk" >> $GITHUB_ENV
           echo "ANDROID_HOME=$HOME/Android/Sdk" >> $GITHUB_ENV
           build_type=${{ matrix.build_type }}
           ./gradlew :app:assemble${build_type^}
