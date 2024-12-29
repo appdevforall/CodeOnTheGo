@@ -51,7 +51,7 @@ jobs:
         build_type: ['debug']
     name: Build APK
     runs-on:
-        ubuntu-latest-l #large
+        self-hosted
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
