@@ -132,16 +132,14 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
       if (isToml) {
           tomlFile()
       }
-      println("hz istoml one $isToml")
 
       // gradlew
       // gradlew.bat
       // gradle/wrapper/gradle-wrapper.jar
       // gradle/wrapper/gradle-wrapper.properties
       gradleWrapper()
-      println("hz istoml two $isToml")
       gradleZip(isToml)
-      agpJar()
+      //agpJar()
       //localMavenRepo()
       gradleCaches()
 
