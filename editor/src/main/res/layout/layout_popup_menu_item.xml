@@ -21,7 +21,7 @@
   android:layout_width="48dp"
   android:layout_height="48dp"
   android:clickable="true"
-  android:drawablePadding="16dp"
+  android:drawablePadding="8dp"
   android:drawableTint="?attr/colorPrimary"
   android:focusable="true"
   android:gravity="start|center_vertical"
