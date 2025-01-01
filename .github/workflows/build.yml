@@ -74,18 +74,18 @@ jobs:
       - name: Create symbolic link for LayoutEditor
         run:
           ln -s LayoutEditor layouteditor
-      - name: Restore cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+#      - name: Restore cache
+#        uses: actions/cache@v4
+#        with:
+#          path: |
+#            ~/.gradle/caches
+#            ~/.gradle/wrapper
+#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+#          restore-keys: |
+#            ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
-          export ANDROID_HOME=/home/yaturner/Android/Sdk
+          export ANDROID_HOME=$HOME/Android/Sdk
           build_type=${{ matrix.build_type }}
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
