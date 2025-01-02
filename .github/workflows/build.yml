@@ -74,15 +74,25 @@ jobs:
       - name: Create symbolic link for LayoutEditor
         run:
           ln -s LayoutEditor layouteditor
-#      - name: Restore cache
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            ~/.gradle/caches
-#            ~/.gradle/wrapper
-#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-#          restore-keys: |
-#            ${{ runner.os }}-gradle-
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+             java-version: '17'
+             distribution: 'temurin'
+      - name: Set up Kotlin 1.8.0
+        uses: gradle/gradle-build-action@v4
+        with:
+         gradle-version: wrapper
+         arguments: -Dkotlin.version=1.8.0 build
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
           export ANDROID_HOME=$HOME/Android/Sdk
@@ -91,27 +101,27 @@ jobs:
       - name: Copy ${{ matrix.build_type }} APK
         run:
           cp app/build/outputs/apk/${{ matrix.build_type }}/CodeOnTheGo-*.apk ./
-#      - name: Upload arm64-v8a ${{ matrix.build_type }} APK
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: apk-arm64-v8a-${{ matrix.build_type }}
-#          path: app-arm64-v8a-${{ matrix.build_type }}.apk
-#      - name: Upload armeabi-v7a ${{ matrix.build_type }} APK
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: apk-armeabi-v7a-${{ matrix.build_type }}
-#          path: app-armeabi-v7a-${{ matrix.build_type }}.apk
-#      - name: Upload x86_64 ${{ matrix.build_type }} APK
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: apk-x86_64-${{ matrix.build_type }}
-#          path: app-x86_64-${{ matrix.build_type }}.apk
-#      - name: Upload ${{ matrix.build_type }} mappings
-#        if: ${{ matrix.build_type == 'release' }}
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: release-mappings
-#          path: '**/build/outputs/mapping'
+      - name: Upload arm64-v8a ${{ matrix.build_type }} APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-arm64-v8a-${{ matrix.build_type }}
+          path: app-arm64-v8a-${{ matrix.build_type }}.apk
+      - name: Upload armeabi-v7a ${{ matrix.build_type }} APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-armeabi-v7a-${{ matrix.build_type }}
+          path: app-armeabi-v7a-${{ matrix.build_type }}.apk
+      - name: Upload x86_64 ${{ matrix.build_type }} APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-x86_64-${{ matrix.build_type }}
+          path: app-x86_64-${{ matrix.build_type }}.apk
+      - name: Upload ${{ matrix.build_type }} mappings
+        if: ${{ matrix.build_type == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mappings
+          path: '**/build/outputs/mapping'
 
 #  run_unit_tests:
 #    name: Run unit tests
