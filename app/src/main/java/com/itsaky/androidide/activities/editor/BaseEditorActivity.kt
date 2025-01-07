@@ -313,7 +313,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
       return
     }
 
-    Snackbar.make(content.realContainer, string.msg_action_open_application, Snackbar.LENGTH_LONG)
+    Snackbar.make(content.realContainer, string.msg_action_open_application, Snackbar.LENGTH_INDEFINITE)
       .setAction(string.yes) { IntentUtils.launchApp(this, packageName) }.show()
   }
 
