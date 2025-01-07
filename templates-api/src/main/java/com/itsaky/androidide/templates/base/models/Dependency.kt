@@ -21,8 +21,22 @@ import com.itsaky.androidide.templates.base.models.DependencyConfiguration.Debug
 
 data class Dependency(val configuration: DependencyConfiguration,
                       val group: String, val artifact: String,
-                      val version: String?
+                      val version: String?, val tomlDependency: String? = null
 ) {
+
+  constructor(configuration: DependencyConfiguration, tomlDependency: String): this(configuration, "", "", null, tomlDependency)
+
+  fun tomlValue() : String {
+    return """
+      ${configuration.configName}($tomlDependency)
+    """.trimIndent()
+  }
+
+  fun tomlPlatformValue() : String {
+    return """
+      ${configuration.configName}(platform($tomlDependency))
+    """.trimIndent()
+  }
 
   fun value(): String {
     return """
@@ -90,44 +104,63 @@ data class Dependency(val configuration: DependencyConfiguration,
     @JvmStatic
     val Interpolator = parseDependency("androidx.interpolator:interpolator:1.0.0")
 
-    object Compose {
+    @JvmStatic
+    val Collection_Jvm = parseDependency("androidx.collection:collection-jvm:1.4.2")
+  }
 
-      @JvmStatic
-      val Core_Ktx = parseDependency("androidx.core:core-ktx:1.8.0")
+  object Compose {
 
-      @JvmStatic
-      val LifeCycle_Runtime_Ktx = parseDependency(
-        "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
+    @JvmStatic
+    val Core_Ktx = parseDependency("libs.androidx.core.ktx", isToml = true)
 
-      @JvmStatic
-      val Activity = parseDependency("androidx.activity:activity-compose:1.5.1")
+    @JvmStatic
+    val LifeCycle_Runtime_Ktx = parseDependency("libs.androidx.lifecycle.runtime.ktx", isToml = true)
 
-      @JvmStatic
-      val BOM = parseDependency("androidx.compose:compose-bom:2022.10.00",
-        isPlatform = true)
+    @JvmStatic
+    val Activity = parseDependency("libs.androidx.activity.compose", isToml = true)
 
-      @JvmStatic
-      val UI = parseDependency("androidx.compose.ui:ui")
+    @JvmStatic
+    val BOM = parseDependency("libs.androidx.compose.bom", isPlatform = true, isToml = true)
 
-      @JvmStatic
-      val UI_Graphics = parseDependency("androidx.compose.ui:ui-graphics")
+    @JvmStatic
+    val UI = parseDependency("libs.androidx.ui", isToml = true)
 
-      @JvmStatic
-      val UI_Tooling_Preview =
-        parseDependency("androidx.compose.ui:ui-tooling-preview")
+    @JvmStatic
+    val UI_Graphics = parseDependency("libs.androidx.ui.graphics", isToml = true)
 
-      @JvmStatic
-      val Material3 = parseDependency("androidx.compose.material3:material3")
+    @JvmStatic
+    val UI_Tooling_Preview =
+      parseDependency("libs.androidx.ui.tooling.preview", isToml = true)
 
-      @JvmStatic
-      val UI_Tooling = parseDependency("androidx.compose.ui:ui-tooling",
-        configuration = DebugImplementation)
+    @JvmStatic
+    val Material3 = parseDependency("libs.androidx.material3", isToml = true)
 
-      @JvmStatic
-      val UI_Test_Manifest =
-        parseDependency("androidx.compose.ui:ui-test-manifest",
-          configuration = DebugImplementation)
-    }
+    @JvmStatic
+    val UI_Tooling_Preview_Android = parseDependency("libs.androidx.ui.tooling.preview.android", isToml = true)
+
+    @JvmStatic
+    val UI_Tooling = parseDependency("libs.androidx.ui.tooling",
+      configuration = DebugImplementation, isToml = true)
+
+    @JvmStatic
+    val UI_Test_Manifest =
+      parseDependency("libs.androidx.ui.test.manifest",
+        configuration = DebugImplementation, isToml = true)
+
+    @JvmStatic
+    val Collection_Ktx = parseDependency("libs.collection.ktx", isToml = true)
+
+    @JvmStatic
+    val Kotlin_Stdlib = """
+    // Exclude older conflicting version from transitive dependencies
+    // Again this arises only when using a local maven repo. Most probably because it lacks flexibility of online one.
+    // We can run some gradle:app dependency commands to compare the results for online and offline maven repo later.
+    // Use Kotlin stdlib 1.9.22, and exclude old jdk7 and jdk8 versions
+    implementation(libs.kotlin.stdlib) {
+      exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
+      exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
+    }"""
+
   }
 
   object Google {

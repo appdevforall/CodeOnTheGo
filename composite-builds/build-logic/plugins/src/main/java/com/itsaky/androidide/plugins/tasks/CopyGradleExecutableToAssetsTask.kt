@@ -18,6 +18,7 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
+import com.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.adfa.constants.Sdk
@@ -46,16 +47,23 @@ abstract class CopyGradleExecutableToAssetsTask : DefaultTask() {
         }
 
         val destFile = outputDirectory.resolve(GRADLE_WRAPPER_FILE_NAME)
+        val destFileCompose = outputDirectory.resolve(COMPOSE_GRADLE_WRAPPER_FILE_NAME)
 
         if (destFile.exists()) {
+            destFile.delete()
+        }
+        if (destFileCompose.exists()){
             destFile.delete()
         }
 
         val sourceFilePath =
             this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + GRADLE_WRAPPER_FILE_NAME
+        val sourceFilePathCompose =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + COMPOSE_GRADLE_WRAPPER_FILE_NAME
 
         try {
             Files.copy(File(sourceFilePath), destFile)
+            Files.copy(File(sourceFilePathCompose), destFileCompose)
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }

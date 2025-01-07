@@ -21,6 +21,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
 import com.adfa.constants.COMPILE_SDK_VERSION
+import com.adfa.constants.COMPOSE_SDK_VERSION
 import com.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import com.adfa.constants.JAVA_SOURCE_VERSION
 import com.adfa.constants.JAVA_TARGET_VERSION
@@ -108,7 +109,7 @@ typealias TemplateRecipeFinalizer = RecipeExecutor.() -> Unit
  * @property useKts Whether to use Kotlin DSL for Gradle build scripts.
  */
 abstract class BaseTemplateData(val name: String, val projectDir: File, val language: Language,
-  val useKts: Boolean) : TemplateData() {
+  val useKts: Boolean, val useToml: Boolean = false) : TemplateData() {
 
   /**
    * Get the `build.gradle[.kts]` file for the project.
@@ -188,7 +189,7 @@ class ProjectVersionLocalData : ProjectVersionData(LOCAL_ANDROID_GRADLE_PLUGIN_V
  */
 data class ModuleVersionData(val minSdk: Sdk, val targetSdk: Sdk = TARGET_SDK_VERSION,
                              val compileSdk: Sdk = COMPILE_SDK_VERSION, val javaSource: String = JAVA_SOURCE_VERSION,
-                             val javaTarget: String = JAVA_TARGET_VERSION) {
+                             val javaTarget: String = JAVA_TARGET_VERSION, val composeSdk: Sdk = COMPOSE_SDK_VERSION) {
 
   /**
    * Get the Java source version string representation in the `JavaVersion.VERSION_${version}` format.
@@ -209,7 +210,7 @@ data class ModuleVersionData(val minSdk: Sdk, val targetSdk: Sdk = TARGET_SDK_VE
  * @property version The version information for this project.
  */
 class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVersionData,
-  language: Language, useKts: Boolean) : BaseTemplateData(name, projectDir, language, useKts)
+  language: Language, useKts: Boolean, useToml: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml)
 
 /**
  * Data for creating module projects.
@@ -217,11 +218,15 @@ class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVe
  * @property packageName The package name of the module.
  * @property type The type of module.
  * @property versions Version information for the module.
+ *
+ * @property useToml at this point is equals to isCompose / isComposeModule because toml is only used with
+ * compose project. But I would like to highlight separation of those two concepts here.
+ * So in future we would not get confused.
  */
 open class ModuleTemplateData(name: String, val appName: String?, val packageName: String,
   projectDir: File, val type: ModuleType, language: Language, useKts: Boolean = true, minSdk: Sdk,
-  val versions: ModuleVersionData = ModuleVersionData(minSdk)) :
-  BaseTemplateData(name, projectDir, language, useKts) {
+  val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
+  BaseTemplateData(name, projectDir, language, useKts, useToml) {
 
   private val srcDirs = mutableMapOf<SrcSet, File>()
 

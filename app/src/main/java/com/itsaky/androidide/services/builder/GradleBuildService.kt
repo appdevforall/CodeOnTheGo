@@ -25,6 +25,8 @@ import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
 import androidx.core.app.NotificationManagerCompat
+import com.adfa.constants.GRADLE_FOLDER_NAME
+import com.adfa.constants.TOML_FILE_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
@@ -372,7 +374,11 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
          * we will add more than 1 supported gradle versions.
          */
         val propertiesFile = files.first { it.name.contains("properties") }
-        propertiesFile.writeText(gradleWrapperPropsSrc())
+        val path = File(projectDir.absolutePath + File.separator +GRADLE_FOLDER_NAME +File.separator + TOML_FILE_NAME)
+        val isTomlProject = path.exists()
+        println("hz path $path")
+        println("hz build $isTomlProject")
+        propertiesFile.writeText(gradleWrapperPropsSrc(isTomlProject))
         return GradleWrapperCheckResult(true)
       }
     } catch (e: IOException) {
