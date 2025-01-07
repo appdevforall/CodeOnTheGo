@@ -38,6 +38,7 @@
 
 package jaxp.sun.org.apache.xerces.internal.impl;
 
+import jaxp.sun.org.apache.xpath.internal.operations.Bool;
 import jaxp.sun.xml.internal.stream.XMLBufferListener;
 import jaxp.sun.xml.internal.stream.XMLEntityStorage;
 import jaxp.sun.xml.internal.stream.XMLInputFactoryImpl;
@@ -617,22 +618,23 @@ public class XMLDocumentFragmentScannerImpl
 
         // other settings
         // fDocumentSystemId = null;
-        fNamespaces = ((Boolean)propertyManager.getProperty(XMLInputFactory.IS_NAMESPACE_AWARE)).booleanValue();
+        Boolean val = ((Boolean)propertyManager.getProperty(XMLInputFactory.IS_NAMESPACE_AWARE));
+        fNamespaces = (val != null) ? (boolean) val : false;
         fNotifyBuiltInRefs = false ;
 
         //fElementStack2.clear();
         //fReplaceEntityReferences = true;
         //fSupportExternalEntities = true;
         Boolean bo = (Boolean)propertyManager.getProperty(XMLInputFactoryImpl.IS_REPLACING_ENTITY_REFERENCES);
-        fReplaceEntityReferences = bo.booleanValue();
+        fReplaceEntityReferences = (bo != null) ? (boolean) bo : false;
         bo = (Boolean)propertyManager.getProperty(XMLInputFactoryImpl.IS_SUPPORTING_EXTERNAL_ENTITIES);
-        fSupportExternalEntities = bo.booleanValue();
+        fSupportExternalEntities = (bo != null) ? (boolean) bo : false;
         Boolean cdata = (Boolean)propertyManager.getProperty(Constants.ZEPHYR_PROPERTY_PREFIX + Constants.STAX_REPORT_CDATA_EVENT) ;
         if(cdata != null)
-            fReportCdataEvent = cdata.booleanValue() ;
+            fReportCdataEvent = (cdata != null) ? (boolean) cdata : false;
         Boolean coalesce = (Boolean)propertyManager.getProperty(XMLInputFactory.IS_COALESCING) ;
         if(coalesce != null)
-            fIsCoalesce = coalesce.booleanValue();
+            fIsCoalesce = (coalesce != null) ? (boolean) coalesce : false;
         fReportCdataEvent = fIsCoalesce ? false : (fReportCdataEvent && true) ;
         //if fIsCoalesce is set to true, set the value of fReplaceEntityReferences to true,
         //if fIsCoalesce is set to false, take the value of fReplaceEntityReferences as set by application
