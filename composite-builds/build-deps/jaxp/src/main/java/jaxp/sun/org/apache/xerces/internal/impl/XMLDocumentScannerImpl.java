@@ -294,10 +294,10 @@ public class XMLDocumentScannerImpl
         fDoctypeSystemId = null;
         fSeenDoctypeDecl = false;
         fNamespaceContext.reset();
-        fSupportDTD = ((Boolean)propertyManager.getProperty(XMLInputFactory.SUPPORT_DTD)).booleanValue();
+        fSupportDTD = ((boolean)propertyManager.getProperty(XMLInputFactory.SUPPORT_DTD));
 
         // xerces features
-        fLoadExternalDTD = !((Boolean)propertyManager.getProperty(Constants.ZEPHYR_PROPERTY_PREFIX + Constants.IGNORE_EXTERNAL_DTD)).booleanValue();
+        fLoadExternalDTD = !((boolean)propertyManager.getProperty(Constants.ZEPHYR_PROPERTY_PREFIX + Constants.IGNORE_EXTERNAL_DTD));
         setScannerState(XMLEvent.START_DOCUMENT);
         setDriver(fXMLDeclDriver);
         fSeenInternalSubset = false;

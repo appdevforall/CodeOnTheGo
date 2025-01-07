@@ -89,7 +89,8 @@ final class If extends Instruction {
         // element-available())
         Object result = _test.evaluateAtCompileTime();
         if (result != null && result instanceof Boolean) {
-            _ignore = !((Boolean) result).booleanValue();
+            boolean value = (result != null) ? (boolean) result : false;;
+            _ignore = !value;
         }
 
         parseChildren(parser);
