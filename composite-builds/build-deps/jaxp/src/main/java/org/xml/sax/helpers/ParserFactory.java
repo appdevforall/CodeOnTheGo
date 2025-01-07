@@ -140,7 +140,8 @@ public class ParserFactory {
         InstantiationException,
         ClassCastException
     {
-        return (Parser) NewInstance.newInstance(ss.getContextClassLoader().loadClass(className), ss.getContextClassLoader(), className);
+        return (Parser) NewInstance.newInstance (
+                ss.getContextClassLoader(), className);
     }
 
 }

@@ -197,6 +197,7 @@ fun composeConfigGroovy(): String = """
             force("androidx.annotation:annotation:1.8.1")
             force("androidx.core:core-ktx:1.8.0")
             force("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
+            force("androidx.collection:collection-ktx:1.4.2")
         }
     }
 """.trim()
@@ -251,6 +252,7 @@ fun composeConfigKts(): String = """
             force("androidx.annotation:annotation:1.8.1")
             force("androidx.core:core-ktx:1.8.0")
             force("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
+            force("androidx.collection:collection-ktx:1.4.2")
         }
     }
 """.trim()

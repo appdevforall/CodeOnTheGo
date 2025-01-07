@@ -103,6 +103,9 @@ data class Dependency(val configuration: DependencyConfiguration,
 
     @JvmStatic
     val Interpolator = parseDependency("androidx.interpolator:interpolator:1.0.0")
+
+    @JvmStatic
+    val Collection_Jvm = parseDependency("androidx.collection:collection-jvm:1.4.2")
   }
 
   object Compose {
