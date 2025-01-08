@@ -42,16 +42,21 @@ fun defaultDependency(group: String, artifact: String, version: String
 fun parseDependency(
   coordinates: String, configuration: DependencyConfiguration = Implementation,
   isPlatform: Boolean = false,
+  isToml:Boolean = false
 ): Dependency {
   val split = coordinates.split(':')
-  if (isPlatform) {
-    require(
-      split.size == 3) { "Maven coordinates must be in the form 'group:artifact:version'" }
-  } else {
-    require(
-      split.size in 2..3) { "Maven coordinates must be in the form 'group:artifact[:version]'" }
-  }
+  if (!isToml) {
+    if (isPlatform) {
+      require(
+        split.size == 3) { "Maven coordinates must be in the form 'group:artifact:version'" }
+    } else {
+      require(
+        split.size in 2..3) { "Maven coordinates must be in the form 'group:artifact[:version]'" }
+    }
 
-  val version = if (split.size == 3) split[2] else null
-  return Dependency(configuration, split[0], split[1], version)
+    val version = if (split.size == 3) split[2] else null
+    return Dependency(configuration, split[0], split[1], version)
+  } else {
+    return Dependency(configuration, coordinates)
+  }
 }

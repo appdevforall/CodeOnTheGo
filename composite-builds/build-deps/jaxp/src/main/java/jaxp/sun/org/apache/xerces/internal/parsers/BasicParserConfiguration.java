@@ -284,10 +284,8 @@ public abstract class BasicParserConfiguration
         if (recognizedFeatures != null) {
             for (int i = 0; i < recognizedFeatures.length; i++) {
                 String featureId = recognizedFeatures[i];
-                Boolean state = component.getFeatureDefault(featureId);
-                if (state != null) {
-                    super.setFeature(featureId, state.booleanValue());
-                }
+                boolean state = component.getFeatureDefault(featureId);
+                super.setFeature(featureId, state);
             }
         }
         if (recognizedProperties != null) {
