@@ -395,7 +395,7 @@ public class TransformerFactoryImpl
         }
         else if (name.equals(GENERATE_TRANSLET)) {
             if (value instanceof Boolean) {
-                _generateTranslet = ((Boolean) value).booleanValue();
+                _generateTranslet = (value != null) ? (boolean) value : false;
                 return;
             }
             else if (value instanceof String) {
@@ -405,7 +405,7 @@ public class TransformerFactoryImpl
         }
         else if (name.equals(AUTO_TRANSLET)) {
             if (value instanceof Boolean) {
-                _autoTranslet = ((Boolean) value).booleanValue();
+                _autoTranslet = (value != null) ? (boolean) value : false;
                 return;
             }
             else if (value instanceof String) {
@@ -415,7 +415,7 @@ public class TransformerFactoryImpl
         }
         else if (name.equals(USE_CLASSPATH)) {
             if (value instanceof Boolean) {
-                _useClasspath = ((Boolean) value).booleanValue();
+                _useClasspath = (value != null) ? (boolean) value : false;
                 return;
             }
             else if (value instanceof String) {
@@ -425,7 +425,7 @@ public class TransformerFactoryImpl
         }
         else if (name.equals(DEBUG)) {
             if (value instanceof Boolean) {
-                _debug = ((Boolean) value).booleanValue();
+                _debug = (value != null) ? (boolean) value : false;
                 return;
             }
             else if (value instanceof String) {
@@ -435,7 +435,7 @@ public class TransformerFactoryImpl
         }
         else if (name.equals(ENABLE_INLINING)) {
             if (value instanceof Boolean) {
-                _enableInlining = ((Boolean) value).booleanValue();
+                _enableInlining = (value != null) ? (boolean) value : false;
                 return;
             }
             else if (value instanceof String) {

@@ -578,7 +578,7 @@ public class DOMConfigurationImpl extends ParserConfigurationSettings
         // REVISIT: Recognizes DOM L3 default features only.
         //          Does not yet recognize Xerces features.
                 if(value instanceof Boolean){
-                        boolean state = ((Boolean)value).booleanValue();
+                        boolean state = (value != null) ? (boolean) value : false;
 
             if (name.equalsIgnoreCase(Constants.DOM_COMMENTS)) {
                 features = (short) (state ? features | COMMENTS : features & ~COMMENTS);
