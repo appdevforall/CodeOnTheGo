@@ -1734,7 +1734,7 @@ public class XSAttributeChecker {
         if (fPoolPos == 0 ||
             attrArray == null ||
             attrArray.length != ATTIDX_COUNT ||
-            ((Boolean)attrArray[ATTIDX_ISRETURNED]).booleanValue()) {
+            (attrArray[ATTIDX_ISRETURNED] != null) ? (boolean) attrArray[ATTIDX_ISRETURNED] : false) {
             return;
         }
 

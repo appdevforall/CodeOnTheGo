@@ -67,6 +67,7 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
                        minSdk: EnumParameter<Sdk> = minSdkParameter(),
                        language: EnumParameter<Language> = projectLanguageParameter(),
                        projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+                       isToml: Boolean = false,
                        crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
   return ProjectTemplateBuilder().apply {
@@ -101,7 +102,7 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
 
       this@apply._data = ProjectTemplateData(projectName.value,
         File(saveLocation.value, projectName.value), projectVersionData,
-        language = language.value, useKts = useKts.value)
+        language = language.value, useKts = useKts.value, useToml = isToml)
 
       if (data.projectDir.exists() && data.projectDir.listFiles()
           ?.isNotEmpty() == true
@@ -113,7 +114,7 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
         ModuleTemplateData(":app", appName = data.name, packageName.value,
           data.moduleNameToDir(":app"), type = AndroidApp,
           language = language.value, minSdk = minSdk.value,
-          useKts = data.useKts))
+          useKts = data.useKts, useToml = isToml))
     }
 
     // After the recipe is executed, finalize the project creation
@@ -128,14 +129,17 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
 
       // gradle.properties
       gradleProps()
+      if (isToml) {
+          tomlFile()
+      }
 
       // gradlew
       // gradlew.bat
       // gradle/wrapper/gradle-wrapper.jar
       // gradle/wrapper/gradle-wrapper.properties
       gradleWrapper()
-      gradleZip()
-      agpJar()
+      gradleZip(isToml)
+      //agpJar()
       //localMavenRepo()
       gradleCaches()
 
@@ -186,12 +190,17 @@ inline fun baseAndroidModule(isLibrary: Boolean = false,
     widgets(TextFieldWidget(packageName), SpinnerWidget(minSdk),
       SpinnerWidget(type), SpinnerWidget(language), CheckBoxWidget(useKts))
 
+
+    /**
+     * Currently useToml is equals to isComposeModule because only compose template uses toml.
+     * In the future, in case we will extend toml adoption, we will have to change this.
+     */
     preRecipe = commonPreRecipe {
       ModuleTemplateData(name = moduleName.value, appName = appName?.value,
         packageName = packageName.value,
         projectDir = requireProjectData().moduleNameToDir(moduleName.value),
         type = type.value, language = language.value, minSdk = minSdk.value,
-        useKts = useKts.value)
+        useKts = useKts.value, useToml = isComposeModule)
     }
     postRecipe = commonPostRecipe()
 
