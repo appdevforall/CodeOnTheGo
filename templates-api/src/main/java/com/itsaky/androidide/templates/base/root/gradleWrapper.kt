@@ -26,6 +26,6 @@ internal fun ProjectTemplateBuilder.gradleWrapperProps() {
     val wrapperPropsFile = File(data.projectDir, GRADLE_WRAPPER_PATH_SUFFIX + name)
     wrapperPropsFile.parentFile!!.mkdirs()
 
-    executor.save(gradleWrapperPropsSrc(), wrapperPropsFile)
+    executor.save(gradleWrapperPropsSrc(data.useToml), wrapperPropsFile)
 }
 

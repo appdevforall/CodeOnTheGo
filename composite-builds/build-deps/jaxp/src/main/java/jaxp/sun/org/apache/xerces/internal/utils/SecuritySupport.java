@@ -197,12 +197,13 @@ public final class SecuritySupport {
     }
 
     static boolean getFileExists(final File f) {
-        return ((Boolean)
+        Boolean val = ((Boolean)
                 AccessController.doPrivileged(new PrivilegedAction() {
                     public Object run() {
                         return f.exists() ? Boolean.TRUE : Boolean.FALSE;
                     }
-                })).booleanValue();
+                }));
+        return (val != null) ? (boolean) val : false;
     }
 
     static long getLastModified(final File f) {

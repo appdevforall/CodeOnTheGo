@@ -66,10 +66,10 @@ class AndroidProjectModelBuilder(initializationParams: InitializeProjectParams) 
     val variantDependencies = controller.getModelAndLog(module, VariantDependencies::class.java,
       ModelBuilderParameter::class.java) {
       it.variantName = configurationVariant
-      it.dontBuildRuntimeClasspath = false
-      it.dontBuildAndroidTestRuntimeClasspath = true
-      it.dontBuildTestFixtureRuntimeClasspath = true
-      it.dontBuildUnitTestRuntimeClasspath = true
+      //it.dontBuildRuntimeClasspath = false
+      //it.dontBuildAndroidTestRuntimeClasspath = false
+      //it.dontBuildTestFixtureRuntimeClasspath = false
+      //it.dontBuildUnitTestRuntimeClasspath = false
     }
 
     controller.findModel(module, ProjectSyncIssues::class.java)?.also { syncIssues ->
