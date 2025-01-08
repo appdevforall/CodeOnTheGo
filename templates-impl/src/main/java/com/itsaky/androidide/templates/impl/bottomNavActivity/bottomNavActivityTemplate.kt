@@ -73,12 +73,9 @@ fun AndroidModuleTemplateBuilder.bottomNavActivityProjectKt() {
         addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
         addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
         addDependency(Dependency.AndroidX.Collection_Jvm)
-        addCustomDependency("    // Exclude older conflicting version from transitive dependencies\n" +
-                    "    implementation(\"androidx.collection:collection-ktx:1.4.2\") {\n" +
-                    "        exclude(group = \"androidx.collection\", module = \"collection-ktx\")\n" +
-                    "        exclude(group = \"androidx.collection\", module = \"collection-jvm\") // If necessary\n" +
-                    "    }"
-        )
+        addCorrectCollectionKtxDependency()
+
+
 
         sources {
             writeKtSrc(
@@ -112,6 +109,25 @@ fun AndroidModuleTemplateBuilder.bottomNavActivityProjectKt() {
     }
 }
 
+private fun AndroidModuleTemplateBuilder.addCorrectCollectionKtxDependency() {
+    if (data.useKts) {
+        addCustomDependency(
+            "    // Exclude older conflicting version from transitive dependencies\n" +
+                    "    implementation(\"androidx.collection:collection-ktx:1.4.2\") {\n" +
+                    "        exclude(group = \"androidx.collection\", module = \"collection-ktx\")\n" +
+                    "        exclude(group = \"androidx.collection\", module = \"collection-jvm\") // If necessary\n" +
+                    "    }"
+        )
+    } else {
+        addCustomDependency(
+            "implementation(\"androidx.collection:collection-ktx:1.4.2\") {\n" +
+                    "    exclude group: \"androidx.collection\", module: \"collection-ktx\"\n" +
+                    "    exclude group: \"androidx.collection\", module: \"collection-jvm\"\n" +
+                    "}"
+        )
+    }
+}
+
 private fun AndroidModuleTemplateBuilder.bottomNavActivityProjectJava() {
     executor.apply {
         addDependency(Dependency.AndroidX.Navigation_Ui)
@@ -120,12 +136,7 @@ private fun AndroidModuleTemplateBuilder.bottomNavActivityProjectJava() {
         addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
         addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
         addDependency(Dependency.AndroidX.Collection_Jvm)
-        addCustomDependency("    // Exclude older conflicting version from transitive dependencies\n" +
-                "    implementation(\"androidx.collection:collection-ktx:1.4.2\") {\n" +
-                "        exclude(group = \"androidx.collection\", module = \"collection-ktx\")\n" +
-                "        exclude(group = \"androidx.collection\", module = \"collection-jvm\") // If necessary\n" +
-                "    }"
-        )
+        addCorrectCollectionKtxDependency()
 
         sources {
             writeJavaSrc(

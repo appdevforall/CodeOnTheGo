@@ -47,3 +47,24 @@ rootProject.name = "${data.name}"
 ${modules.joinToString(separator = ", ") { "include(\"${it.name}\")" }}    
   """.trim()
 }
+
+internal fun ProjectTemplateBuilder.settingsGroovyGradleSrcStr(): String {
+  return """
+pluginManagement {
+    repositories {
+        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST") }
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST") }
+    }
+}
+
+rootProject.name = "${data.name}"
+
+${modules.joinToString(separator = ", ") { "include(\"${it.name}\")" }}    
+  """.trim()
+}

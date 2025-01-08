@@ -39,6 +39,7 @@ import com.itsaky.androidide.templates.base.root.buildGradleSrcKtsToml
 import com.itsaky.androidide.templates.base.root.composeTomlFileSrc
 import com.itsaky.androidide.templates.base.root.gradleWrapperProps
 import com.itsaky.androidide.templates.base.root.settingsGradleSrcStr
+import com.itsaky.androidide.templates.base.root.settingsGroovyGradleSrcStr
 import com.itsaky.androidide.templates.base.util.optonallyKts
 import com.itsaky.androidide.utils.transferToStream
 import java.io.File
@@ -130,7 +131,7 @@ class ProjectTemplateBuilder :
      * Get the source for `settings.gradle[.kts]`.
      */
     fun settingsGradleSrc(): String {
-        return settingsGradleSrcStr()
+        return if (data.useKts) settingsGradleSrcStr() else settingsGroovyGradleSrcStr()
     }
 
     /**
