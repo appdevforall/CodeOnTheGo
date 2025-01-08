@@ -150,6 +150,9 @@ data class Dependency(val configuration: DependencyConfiguration,
     @JvmStatic
     val Collection_Ktx = parseDependency("libs.collection.ktx", isToml = true)
 
+    /**
+     * This is a compose dep, so it does not require java variant.
+     */
     @JvmStatic
     val Kotlin_Stdlib = """
     // Exclude older conflicting version from transitive dependencies
