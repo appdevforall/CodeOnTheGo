@@ -5,7 +5,6 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
-import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.util.archivesName
 import java.text.SimpleDateFormat
 import java.util.Date
 import kotlin.reflect.jvm.javaMethod
@@ -66,7 +65,6 @@ android {
   }
 
   installation {
-    installOptions.addAll(listOf("-timeout", "420000"))
     //installOptions("-timeout", "420000") // 5 minutes (in milliseconds)
   }
 }
@@ -214,6 +212,10 @@ dependencies {
   // This is to build the tooling-api-impl project before the app is built
   // So we always copy the latest JAR file to assets
   compileOnly(projects.subprojects.toolingApiImpl)
+
+  androidTestImplementation(libs.tests.kaspresso)
+  androidTestImplementation(libs.tests.junit.kts)
+  androidTestUtil(libs.tests.orchestrator)
 
   testImplementation(projects.testing.unit)
   testImplementation(libs.core.tests.anroidx.arch)
