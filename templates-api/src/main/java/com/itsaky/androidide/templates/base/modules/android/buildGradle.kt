@@ -308,5 +308,5 @@ private fun ktPluginKts(isToml: Boolean): String {
 }
 
 private fun ktPluginGroovy(): String {
-    return "id 'kotlin-android'"
+    return "id 'org.jetbrains.kotlin.android' version '1.9.22'"
 }
