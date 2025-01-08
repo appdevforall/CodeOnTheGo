@@ -580,7 +580,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     override suspend fun getTooltipData(word: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
-//            IDEApplication.tooltipDao.getTooltipWord(word)
           IDEApplication.idetooltipDao.getTooltip(word)
         }
     }
