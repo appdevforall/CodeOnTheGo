@@ -52,9 +52,9 @@ composite-jdt = { module = "com.itsaky.androidide.build:jdt" }
 composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" }
 
 # Room
-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room"}
-room-ktx = { module = "androidx.room:room-ktx", version.ref="room" }
-room-testing = { module = "androidx.room:room-testing", version.ref = "room"}
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 
 
 # AndroidIDE
@@ -68,7 +68,7 @@ androidide-ts-xml = { module = "com.itsaky.androidide.treesitter:tree-sitter-xml
 #Layout Editor
 #desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "bom" }
-textmate = { module =  "io.github.Rosemoe.sora-editor:language-textmate", version.ref = "bom" }
+textmate = { module = "io.github.Rosemoe.sora-editor:language-textmate", version.ref = "bom" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -81,8 +81,8 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-androidx-material3 = { group = "androidx.compose.material3", name = "material3",  version.ref = "material3"}
-material = { module = "com.google.android.material:material", name = "material", version.ref = "material"}
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+material = { module = "com.google.android.material:material", name = "material", version.ref = "material" }
 utilcodex = { module = "com.blankj:utilcodex", version.ref = "utilcodex" }
 zoomage = { module = "com.jsibbold:zoomage", version.ref = "zoomage" }
 
@@ -182,7 +182,7 @@ git-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version = "6.8.0.2023
 tests-junit = { module = "junit:junit", version = "4.13.2" }
 tests-junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 tests-junit-platformLauncher = { module = "org.junit.platform:junit-platform-launcher" }
-core-tests-anroidx-arch = {module = "androidx.arch.core:core-testing", version.ref = "anroidx-test-core" }
+core-tests-anroidx-arch = { module = "androidx.arch.core:core-testing", version.ref = "anroidx-test-core" }
 tests-google-truth = { module = "com.google.truth:truth", version = "1.4.1" }
 tests-robolectric = { module = "org.robolectric:robolectric", version = "4.11.1" }
 tests-androidx-test-core = { module = "androidx.test:core", version = "1.5.0" }
@@ -196,6 +196,9 @@ tests-androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator",
 tests-mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version = "5.2.1" }
 tests-mockk = { module = "io.mockk:mockk", version = "1.13.10" }
 tests-barista = { module = "com.adevinta.android:barista", version = "4.3.0" }
+tests-kaspresso = { module = "com.kaspersky.android-components:kaspresso", version = "1.5.5" }
+tests-orchestrator = { module = "androidx.test:orchestrator", version = "1.4.2" }
+tests-junit-kts = { module = "androidx.test.ext:junit-ktx", version = "1.2.1" }
 
 # Tooling
 tooling-builderModel = { module = "com.android.tools.build:builder-model", version.ref = "agp-tooling" }
