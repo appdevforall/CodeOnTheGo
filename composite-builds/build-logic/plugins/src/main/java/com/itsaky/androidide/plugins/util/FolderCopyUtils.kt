@@ -17,10 +17,13 @@
 
 package com.itsaky.androidide.plugins.util
 
+import org.gradle.api.GradleException
+import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import kotlin.io.path.Path
 
 class FolderCopyUtils {
 
@@ -44,6 +47,19 @@ class FolderCopyUtils {
                         )
                     }
                 }
+            }
+        }
+
+        fun copy(sourceFilePath: String, outputDirectory: File) {
+            if (!outputDirectory.exists()) {
+                outputDirectory.mkdirs()
+            }
+
+            try {
+                copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
+            } catch (e: IOException) {
+                println(e.message)
+                e.message?.let { throw GradleException(it) }
             }
         }
     }

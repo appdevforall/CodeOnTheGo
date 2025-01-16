@@ -17,9 +17,17 @@
 
 package com.itsaky.androidide.plugins
 
+import com.adfa.constants.ASSETS_COMMON_FOLDER
+import com.adfa.constants.BOOTSTRAP_SOURCE_FOLDER
+import com.adfa.constants.LOACL_GRADLE_8_0_0_CACHES_PATH
+import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.DownloadUtils
+import com.itsaky.androidide.plugins.util.FolderCopyUtils
+import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.internal.FileUtils
 import org.gradle.internal.os.OperatingSystem
 import java.io.File
 
@@ -59,11 +67,10 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
         val file = File(bootstrapOut, "bootstrap-${arch}.zip")
         file.parentFile.mkdirs()
 
-        DownloadUtils.doDownload(file = file,
-          remoteUrl = PACKAGES_DOWNLOAD_URL.format(BOOTSTRAP_PACKAGES_VERSION, arch),
-          expectedChecksum = sha256,
-          logger = logger
-        )
+        val sourceFilePath =
+          this.project.projectDir.parentFile.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + BOOTSTRAP_SOURCE_FOLDER
+
+        FolderCopyUtils.copy(sourceFilePath, bootstrapOut)
 
         return@map arch to file
       }.toMap()
