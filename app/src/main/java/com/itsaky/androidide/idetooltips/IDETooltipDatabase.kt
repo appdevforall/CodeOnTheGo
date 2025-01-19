@@ -63,6 +63,10 @@ abstract class IDETooltipDatabase : RoomDatabase() {
             val dao = db.idetooltipDao()
 
             val jsonString: String =  loadJsonFromAssets(context, "CoGoTooltips/misc/CoGoTooltips.json")
+            if(jsonString.isBlank()) {
+                Log.e("loadData", "loading tooltip database failed - " + "JSon file missing or empty")
+                return@launch
+            }
             val arrayObj: JSONArray = JSONArray(jsonString)
             try {
             for( index in 0 until arrayObj.length()) {
@@ -82,14 +86,15 @@ abstract class IDETooltipDatabase : RoomDatabase() {
                 dao.insert(item)
             }
 
-            val tooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
-            tooltipItemList.forEach { tooltipItem ->
+
+//            val tooltipItemList: List<IDETooltipItem> = dao.getTooltipItems()
+//            tooltipItemList.forEach { tooltipItem ->
 //                Log.d(
 //                    "TooltipRoomDatabase",
 //                    "after insert database - itemTag = ${tooltipItem.tooltipTag}, " +
 //                            "summary = ${tooltipItem.summary}, detail=${tooltipItem.detail}"
 //                )
-            }
+//            }
 
 
         } catch(e: Exception) {

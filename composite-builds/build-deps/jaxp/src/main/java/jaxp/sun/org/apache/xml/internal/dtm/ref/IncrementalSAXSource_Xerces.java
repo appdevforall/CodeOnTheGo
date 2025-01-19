@@ -376,7 +376,7 @@ public class IncrementalSAXSource_Xerces
                 {
                         Object[] parm={source};
                         Object ret=fParseSomeSetup.invoke(fIncrementalParser,parm);
-                        return ((Boolean)ret).booleanValue();
+                        return (ret != null) ? (boolean) ret : false;
                 }
         }
 //  Would null work???
@@ -389,13 +389,13 @@ public class IncrementalSAXSource_Xerces
                 // Take next parsing step, return false iff parsing complete:
                 if(fConfigSetInput!=null)
                 {
-                        Object ret=(Boolean)(fConfigParse.invoke(fPullParserConfig,parmsfalse));
-                        return ((Boolean)ret).booleanValue();
+                        Object ret= fConfigParse.invoke(fPullParserConfig,parmsfalse);
+                        return (ret != null) ? (boolean) ret : false;
                 }
                 else
                 {
                         Object ret=fParseSome.invoke(fIncrementalParser,noparms);
-                        return ((Boolean)ret).booleanValue();
+                        return (ret != null) ? (boolean) ret : false;
                 }
         }
 

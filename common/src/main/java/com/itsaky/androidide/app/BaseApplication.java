@@ -20,6 +20,7 @@ import android.app.Application;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
+
 import com.blankj.utilcode.util.ThrowableUtils;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import com.itsaky.androidide.common.R;
@@ -38,7 +39,8 @@ public class BaseApplication extends Application {
   public static final String TELEGRAM_GROUP_URL = "https://t.me/androidide_discussions";
   public static final String TELEGRAM_CHANNEL_URL = "https://t.me/AndroidIDEOfficial";
   public static final String SPONSOR_URL = BuildInfo.PROJECT_SITE + "/donate";
-  public static final String DOCS_URL = "https://docs.androidide.com";
+  //Do NOT use HTTPS:// for localhost, it is not supported ATM
+  public static final String DOCS_URL = "http://localhost:6174/android_asset/CoGoTooltips/html/help_top.html";
   public static final String CONTRIBUTOR_GUIDE_URL =
       BuildInfo.REPO_URL + "/blob/dev/CONTRIBUTING.md";
   public static final String EMAIL = "contact@androidide.com";
@@ -105,7 +107,7 @@ public class BaseApplication extends Application {
   }
 
   public void openUrl(String url) {
-    openUrl(url, null);
+      openUrl(url, null);
   }
 
   public void openTelegram(String url) {

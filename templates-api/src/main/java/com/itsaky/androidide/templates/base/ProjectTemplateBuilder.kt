@@ -18,11 +18,13 @@
 package com.itsaky.androidide.templates.base
 
 import com.adfa.constants.ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
+import com.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.GRADLE_FOLDER_NAME
 import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
 import com.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import com.adfa.constants.TOML_FILE_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.managers.ToolsManager
@@ -33,8 +35,11 @@ import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.base.root.buildGradleSrcGroovy
 import com.itsaky.androidide.templates.base.root.buildGradleSrcKts
+import com.itsaky.androidide.templates.base.root.buildGradleSrcKtsToml
+import com.itsaky.androidide.templates.base.root.composeTomlFileSrc
 import com.itsaky.androidide.templates.base.root.gradleWrapperProps
 import com.itsaky.androidide.templates.base.root.settingsGradleSrcStr
+import com.itsaky.androidide.templates.base.root.settingsGroovyGradleSrcStr
 import com.itsaky.androidide.templates.base.util.optonallyKts
 import com.itsaky.androidide.utils.transferToStream
 import java.io.File
@@ -97,7 +102,15 @@ class ProjectTemplateBuilder :
      * Get the source for `build.gradle[.kts]` files.
      */
     fun buildGradleSrc(): String {
-        return if (data.useKts) buildGradleSrcKts() else buildGradleSrcGroovy()
+        return if (data.useKts) {
+            if (data.useToml) {
+                buildGradleSrcKtsToml()
+            } else {
+                buildGradleSrcKts()
+            }
+        } else {
+            buildGradleSrcGroovy()
+        }
     }
 
     /**
@@ -118,7 +131,7 @@ class ProjectTemplateBuilder :
      * Get the source for `settings.gradle[.kts]`.
      */
     fun settingsGradleSrc(): String {
-        return settingsGradleSrcStr()
+        return if (data.useKts) settingsGradleSrcStr() else settingsGroovyGradleSrcStr()
     }
 
     /**
@@ -191,7 +204,10 @@ class ProjectTemplateBuilder :
     /**
      * Copies local gradle version from androidIDE to gradle folder inside the created project.
      */
-    fun gradleZip(gradleFileName: String = GRADLE_WRAPPER_FILE_NAME) {
+    fun gradleZip(isToml: Boolean = false) {
+        val gradleFileName = if (isToml) COMPOSE_GRADLE_WRAPPER_FILE_NAME else GRADLE_WRAPPER_FILE_NAME
+        println("hz gradle-file $gradleFileName")
+
         val result = ResourceUtils.copyFileFromAssets(
             File(ToolsManager.getCommonAsset(gradleFileName)).path,
             File(data.projectDir.absolutePath + File.separator + GRADLE_WRAPPER_PATH_SUFFIX + gradleFileName).path
@@ -221,6 +237,12 @@ class ProjectTemplateBuilder :
 
     fun gradleCaches() {
         executor.updateCaches()
+    }
+
+    fun tomlFile() {
+        val name = TOML_FILE_NAME
+        val tomlFileDest = File("${data.projectDir}${File.separator}$GRADLE_FOLDER_NAME", name)
+        executor.save(composeTomlFileSrc(), tomlFileDest)
     }
 
     override fun buildInternal(): ProjectTemplate {

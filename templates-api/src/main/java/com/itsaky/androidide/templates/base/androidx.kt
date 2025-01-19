@@ -27,18 +27,21 @@ fun AndroidModuleTemplateBuilder.baseAndroidXDependencies() {
   addDependency(Dependency.AndroidX.ConstraintLayout)
   addDependency(Dependency.Google.Material)
   addDependency(Dependency.AndroidX.Startup_Runtime)
+  addDependency(Dependency.AndroidX.Interpolator)
 }
 
 fun AndroidModuleTemplateBuilder.composeDependencies() {
-  addDependency(Dependency.AndroidX.Compose.Core_Ktx)
-  addDependency(Dependency.AndroidX.Compose.LifeCycle_Runtime_Ktx)
-  addDependency(Dependency.AndroidX.Compose.Activity)
+  addDependency(Dependency.Compose.BOM, isPlatform = true)
+  addDependency(Dependency.Compose.Material3)
+  addDependency(Dependency.Compose.UI_Tooling)
+  addDependency(Dependency.Compose.LifeCycle_Runtime_Ktx)
+  addDependency(Dependency.Compose.Activity)
+  addDependency(Dependency.Compose.UI_Graphics)
+  addDependency(Dependency.Compose.UI)
+  addDependency(Dependency.Compose.UI_Tooling_Preview)
+  addDependency(Dependency.Compose.Core_Ktx)
+  addDependency(Dependency.Compose.UI_Test_Manifest)
+  addDependency(Dependency.Compose.Collection_Ktx)
 
-  addDependency(dependency = Dependency.AndroidX.Compose.BOM, isPlatform = true)
-  addDependency(Dependency.AndroidX.Compose.UI)
-  addDependency(Dependency.AndroidX.Compose.UI_Graphics)
-  addDependency(Dependency.AndroidX.Compose.UI_Tooling_Preview)
-  addDependency(Dependency.AndroidX.Compose.Material3)
-  addDependency(Dependency.AndroidX.Compose.UI_Tooling)
-  addDependency(Dependency.AndroidX.Compose.UI_Test_Manifest)
+  addCustomDependency(Dependency.Compose.Kotlin_Stdlib)
 }

@@ -205,11 +205,12 @@ public final class SecuritySupport {
     }
 
     public static boolean getFileExists(final File f) {
-        return ((Boolean) AccessController.doPrivileged(new PrivilegedAction() {
-                    public Object run() {
-                        return f.exists() ? Boolean.TRUE : Boolean.FALSE;
-                    }
-                })).booleanValue();
+        Boolean val = (Boolean) (AccessController.doPrivileged(new PrivilegedAction() {
+            public Object run() {
+                return f.exists() ? Boolean.TRUE : Boolean.FALSE;
+            }
+        }));
+        return (val != null) ? (boolean) val : false;
     }
 
     static long getLastModified(final File f) {

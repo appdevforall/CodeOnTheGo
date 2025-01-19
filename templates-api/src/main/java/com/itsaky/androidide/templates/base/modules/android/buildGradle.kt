@@ -25,40 +25,45 @@ import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.dependencies
 
-private const val compose_kotlinCompilerExtensionVersion = "1.3.2"
+private const val compose_kotlinCompilerExtensionVersion = "1.5.10"
 
 private val AndroidModuleTemplateBuilder.androidPlugin: String
-  get() {
-    return if (data.type == ModuleType.AndroidLibrary) "com.android.library"
-    else "com.android.application"
-  }
+    get() {
+        return if (data.type == ModuleType.AndroidLibrary) "com.android.library"
+        else "com.android.application"
+    }
 
-fun AndroidModuleTemplateBuilder.buildGradleSrc(isComposeModule: Boolean
-): String {
-  return if (data.useKts) buildGradleSrcKts(
-    isComposeModule) else buildGradleSrcGroovy(isComposeModule)
+fun AndroidModuleTemplateBuilder.buildGradleSrc(isComposeModule: Boolean): String {
+    return if (data.useKts) buildGradleSrcKts(isComposeModule) else buildGradleSrcGroovy(
+        isComposeModule
+    )
 }
-//todo fix hardcoded buildToolsVersion version.
+
+/**
+ * At this point isComposeModule is equals to isToml. But in case we will extend toml support to
+ * not compose templates, we will have to change this.
+ */
 private fun AndroidModuleTemplateBuilder.buildGradleSrcKts(
-  isComposeModule: Boolean
+    isComposeModule: Boolean
 ): String {
-  return """
+    return """
 plugins {
-    id("$androidPlugin") version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
-    ${ktPlugin()}
+    ${androidPlugin(isComposeModule)}
+    ${ktPlugin(isComposeModule)}
 }
 
 android {
     namespace = "${data.packageName}"
-    compileSdk = ${data.versions.compileSdk.api}
+    compileSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api}
     // currently this is hardcodede to make it work but we should probably make it dependant on the
     // onboarding choice.
+    
     buildToolsVersion = "34.0.4" 
     
     defaultConfig {
         applicationId = "${data.packageName}"
         minSdk = ${data.versions.minSdk.api}
-        targetSdk = ${data.versions.targetSdk.api}
+        targetSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api} 
         versionCode = 1
         versionName = "1.0"
         
@@ -83,13 +88,7 @@ android {
         ${if (!isComposeModule) "viewBinding = true" else ""}
         ${if (isComposeModule) "compose = true" else ""}
     }
-    ${if(isComposeModule) composeConfigKts() else ""}
-    
-    packaging {
-        resources {
-            pickFirsts += "META-INF/kotlinx_coroutines_core.version"
-        }
-    }
+    ${composeConfigKts()}
 }
 ${ktJvmTarget()}
 ${dependencies()}
@@ -97,12 +96,12 @@ ${dependencies()}
 }
 
 private fun AndroidModuleTemplateBuilder.buildGradleSrcGroovy(
-  isComposeModule: Boolean
+    isComposeModule: Boolean
 ): String {
-  return """
+    return """
 plugins {
     id '$androidPlugin'
-    ${ktPlugin()}
+    ${ktPlugin(isComposeModule)}
 }
 
 android {
@@ -140,47 +139,134 @@ android {
         ${if (!isComposeModule) "viewBinding true" else ""}
         ${if (isComposeModule) "compose true" else ""}
     }
-    ${if(isComposeModule) composeConfigGroovy() else ""}
+    ${composeConfigGroovy()}
 }
 ${ktJvmTarget()}
 ${dependencies()}
 """
 }
 
-fun composeConfigGroovy(): String
-= """
+fun composeConfigGroovy(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion '$compose_kotlinCompilerExtensionVersion'
     }
     packagingOptions {
         resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+            resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
+            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
+
+            // The part below is only needed for compose builds.
+            // This packaging block is required to solve interdependency conflicts.
+            // They arise only when using local maven repo, so I suppose online repos have some way of solving such issues.
+
+            // Caused by: com.android.builder.merge.DuplicateRelativeFileException: 4 files found with path 'commonMain/default/linkdata/module' from inputs:
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\collection\collection\1.4.2\collection-1.4.2.jar
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\lifecycle\lifecycle-common\2.8.7\lifecycle-common-2.8.7.jar
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\annotation\annotation\1.8.1\annotation-1.8.1.jar
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\org\jetbrains\kotlinx\kotlinx-coroutines-core\1.7.3\kotlinx-coroutines-core-1.7.3.jar
+            // And some others.
+            resources.pickFirsts.add("nonJvmMain/default/linkdata/package_androidx/0_androidx.knm")
+            resources.pickFirsts.add("nonJvmMain/default/linkdata/root_package/0_.knm")
+            resources.pickFirsts.add("nonJvmMain/default/linkdata/module")
+
+            resources.pickFirsts.add("nativeMain/default/linkdata/root_package/0_.knm")
+            resources.pickFirsts.add("nativeMain/default/linkdata/module")
+
+            resources.pickFirsts.add("commonMain/default/linkdata/root_package/0_.knm")
+            resources.pickFirsts.add("commonMain/default/linkdata/module")
+            resources.pickFirsts.add("commonMain/default/linkdata/package_androidx/0_androidx.knm")
+
+            resources.pickFirsts.add("META-INF/kotlin-project-structure-metadata.json")
+
+            resources.merges.add("commonMain/default/manifest")
+            resources.merges.add("nonJvmMain/default/manifest")
+            resources.merges.add("nativeMain/default/manifest")
+        }
+    }
+    
+    configurations.all {
+        resolutionStrategy {
+            // Force the use of Kotlin stdlib 1.9.22 for all modules
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
+    
+            // Force specific AndroidX versions to avoid conflicts
+            force("androidx.collection:collection:1.4.2")
+            force("androidx.annotation:annotation:1.8.1")
+            force("androidx.core:core-ktx:1.8.0")
+            force("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
+            force("androidx.collection:collection-ktx:1.4.2")
         }
     }
 """.trim()
 
-fun composeConfigKts(): String
-  = """
+fun composeConfigKts(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion = "$compose_kotlinCompilerExtensionVersion"
     }
     packagingOptions {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+            resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
+
+            // The part below is only needed for compose builds.
+            // This packaging block is required to solve interdependency conflicts.
+            // They arise only when using local maven repo, so I suppose online repos have some way of solving such issues.
+
+            // Caused by: com.android.builder.merge.DuplicateRelativeFileException: 4 files found with path 'commonMain/default/linkdata/module' from inputs:
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\collection\collection\1.4.2\collection-1.4.2.jar
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\lifecycle\lifecycle-common\2.8.7\lifecycle-common-2.8.7.jar
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\androidx\annotation\annotation\1.8.1\annotation-1.8.1.jar
+            // - AndroidIDE\libs_source\gradle\localMvnRepository\org\jetbrains\kotlinx\kotlinx-coroutines-core\1.7.3\kotlinx-coroutines-core-1.7.3.jar
+            // And some others.
+            resources.pickFirsts.add("nonJvmMain/default/linkdata/package_androidx/0_androidx.knm")
+            resources.pickFirsts.add("nonJvmMain/default/linkdata/root_package/0_.knm")
+            resources.pickFirsts.add("nonJvmMain/default/linkdata/module")
+
+            resources.pickFirsts.add("nativeMain/default/linkdata/root_package/0_.knm")
+            resources.pickFirsts.add("nativeMain/default/linkdata/module")
+
+            resources.pickFirsts.add("commonMain/default/linkdata/root_package/0_.knm")
+            resources.pickFirsts.add("commonMain/default/linkdata/module")
+            resources.pickFirsts.add("commonMain/default/linkdata/package_androidx/0_androidx.knm")
+
+            resources.pickFirsts.add("META-INF/kotlin-project-structure-metadata.json")
+
+            resources.merges.add("commonMain/default/manifest")
+            resources.merges.add("nonJvmMain/default/manifest")
+            resources.merges.add("nativeMain/default/manifest")
+        }
+    }
+    
+    configurations.all {
+        resolutionStrategy {
+            // Force the use of Kotlin stdlib 1.9.22 for all modules
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
+    
+            // Force specific AndroidX versions to avoid conflicts
+            force("androidx.collection:collection:1.4.2")
+            force("androidx.annotation:annotation:1.8.1")
+            force("androidx.core:core-ktx:1.8.0")
+            force("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
+            force("androidx.collection:collection-ktx:1.4.2")
         }
     }
 """.trim()
 
 private fun ModuleTemplateBuilder.ktJvmTarget(): String {
-  if (data.language != Kotlin) {
-    return ""
-  }
+    if (data.language != Kotlin) {
+        return ""
+    }
 
-  return if (data.useKts) ktJvmTargetKts() else ktJvmTargetGroovy()
+    return if (data.useKts) ktJvmTargetKts() else ktJvmTargetGroovy()
 }
 
 private fun ModuleTemplateBuilder.ktJvmTargetKts(): String {
-  return """
+    return """
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     kotlinOptions.jvmTarget = "${data.versions.javaTarget}"
 }
@@ -188,7 +274,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 private fun ModuleTemplateBuilder.ktJvmTargetGroovy(): String {
-  return """
+    return """
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
   kotlinOptions {
     jvmTarget = "${data.versions.javaTarget}"
@@ -197,18 +283,30 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
 """
 }
 
-private fun AndroidModuleTemplateBuilder.ktPlugin(): String {
-  if (data.language != Kotlin) {
-    return ""
-  }
-
-  return if (data.useKts) ktPluginKts() else ktPluginGroovy()
+private fun AndroidModuleTemplateBuilder.androidPlugin(isToml: Boolean = false): String {
+    return if (data.useKts) androidPluginKts(isToml) else androidPluginGroovy()
 }
 
-private fun ktPluginKts(): String {
-  return """kotlin("android") version "1.9.22" """
+private fun AndroidModuleTemplateBuilder.ktPlugin(isToml: Boolean = false): String {
+    if (data.language != Kotlin) {
+        return ""
+    }
+
+    return if (data.useKts) ktPluginKts(isToml) else ktPluginGroovy()
+}
+
+private fun androidPluginKts(isToml: Boolean): String {
+    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "8.0.0" """
+}
+
+private fun androidPluginGroovy(): String {
+    return """id "com.android.application" version "8.0.0" """
+}
+
+private fun ktPluginKts(isToml: Boolean): String {
+    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "1.9.22" """
 }
 
 private fun ktPluginGroovy(): String {
-  return "id 'kotlin-android'"
+    return "id 'org.jetbrains.kotlin.android' version '1.9.22'"
 }
