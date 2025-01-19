@@ -215,7 +215,7 @@ public final class BasisLibrary {
             return ((Integer) obj).doubleValue();
         }
         else if (obj instanceof Boolean) {
-            return  ((Boolean) obj).booleanValue() ? 1.0 : 0.0;
+            return  ((obj != null) ? (boolean) obj : false) ? 1.0 : 0.0;
         }
         else if (obj instanceof String) {
             return stringToReal((String) obj);
@@ -257,7 +257,7 @@ public final class BasisLibrary {
             return ((Integer) obj).doubleValue() != 0;
         }
         else if (obj instanceof Boolean) {
-            return  ((Boolean) obj).booleanValue();
+            return  (obj != null) ? (boolean) obj : false;
         }
         else if (obj instanceof String) {
             return !((String) obj).equals(EMPTYSTRING);
@@ -817,7 +817,7 @@ public final class BasisLibrary {
 
             if (left instanceof DOM) {
                 if (right instanceof Boolean) {
-                    result = ((Boolean)right).booleanValue();
+                    result = (right != null) ? (boolean) right : false;
                     return result == (op == Operators.EQ);
                 }
 
@@ -855,7 +855,7 @@ public final class BasisLibrary {
                 result = compare(iter, temp, op, dom);
             }
             else if (right instanceof Boolean) {
-                boolean temp = ((Boolean)right).booleanValue();
+                boolean temp = (right != null) ? (boolean) right : false;
                 result = (iter.reset().next() != DTMAxisIterator.END) == temp;
             }
             else if (right instanceof DOM) {
@@ -1112,7 +1112,7 @@ public final class BasisLibrary {
      */
     public static boolean referenceToBoolean(Object obj) {
         if (obj instanceof Boolean) {
-            return ((Boolean) obj).booleanValue();
+            return (obj != null) ? (boolean) obj : false;
         }
         else {
             final String className = obj.getClass().getName();

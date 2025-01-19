@@ -482,7 +482,7 @@ public class JavaClass extends AccessFlags implements Cloneable, Node {
     }
 
     if(debug != null)
-      JavaClass.debug = new Boolean(debug).booleanValue();
+      JavaClass.debug = "true".equalsIgnoreCase(debug);
 
     if(sep != null)
       try {
