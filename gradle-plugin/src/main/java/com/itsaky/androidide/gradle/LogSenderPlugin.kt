@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit
  *
  * @author Akash Yadav
  */
+
 class LogSenderPlugin : Plugin<Project> {
 
   companion object {

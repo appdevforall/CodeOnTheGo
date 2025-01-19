@@ -37,22 +37,6 @@ internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
         id("com.android.library") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
     }
 
-
-    // This part is pointless. Plugin jars are not enough, there are dozens of supoprt libs
-    // that are required by the plugin.
-    //Java:
-    // Plugins are only retreived from gradle chache from androidide. For java nothng else worked for me.
-    //Kotlin:
-    // For kotlin I was able to gather all jars for the plugin and make it work.
-    //But we have to have a common cahce instead of 
-    
-    //buildscript {
-    //  dependencies {
-    //    classpath(files("$GRADLE_FOLDER_NAME${File.separator}$ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME"))
-    //    classpath(files("$GRADLE_FOLDER_NAME${File.separator}gradle-8.0.0.jar"))
-    //  }
-    //}
-
     tasks.register<Delete>("clean") {
         delete(rootProject.layout.buildDirectory)
     }
@@ -63,12 +47,25 @@ internal fun ProjectTemplateBuilder.buildGradleSrcGroovy(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
     plugins {
-        id 'com.android.application' version "${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}" apply false
-        id 'com.android.library' version "${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}" apply false
+        id 'com.android.application' version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION" apply false
+        id 'com.android.library' version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION" apply false
     }
 
     task clean(type: Delete) {
         delete rootProject.layout.buildDirectory
+    }
+  """.trimIndent()
+}
+
+internal fun ProjectTemplateBuilder.buildGradleSrcKtsToml(): String {
+  return """
+    plugins {
+        alias(libs.plugins.android.application) apply false
+        alias(libs.plugins.jetbrains.kotlin.android) apply false
+    }
+
+    tasks.register<Delete>("clean") {
+        delete(rootProject.layout.buildDirectory)
     }
   """.trimIndent()
 }
