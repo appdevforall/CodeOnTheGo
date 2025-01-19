@@ -30,88 +30,143 @@ import com.itsaky.androidide.templates.impl.baseProjectImpl
 import com.itsaky.androidide.templates.impl.templateAsset
 
 fun bottomNavActivityProject() = baseProjectImpl {
-  templateName = R.string.template_navigation_tabs
-  thumb = R.drawable.template_bottom_navigation_activity
-  defaultAppModule {
-    recipe = createRecipe {
-      sources {
-        writeMainActivity(this, ktSrc = ::bottomNavActivitySrcKt,
-          javaSrc = ::bottomNavActivitySrcJava)
-      }
+    templateName = R.string.template_navigation_tabs
+    thumb = R.drawable.template_bottom_navigation_activity
+    defaultAppModule {
+        recipe = createRecipe {
+            sources {
+                writeMainActivity(
+                    this, ktSrc = ::bottomNavActivitySrcKt,
+                    javaSrc = ::bottomNavActivitySrcJava
+                )
+            }
 
-      res {
-        copyAssetsRecursively(templateAsset("bottomNav", "res"), mainResDir())
+            res {
+                copyAssetsRecursively(templateAsset("bottomNav", "res"), mainResDir())
 
-        writeXmlResource("mobile_navigation", NAVIGATION,
-          source = ::bottomNavNavigationXmlSrc)
+                writeXmlResource(
+                    "mobile_navigation", NAVIGATION,
+                    source = ::bottomNavNavigationXmlSrc
+                )
 
-        putStringRes("title_home", "Home")
-        putStringRes("title_dashboard", "Dashboard")
-        putStringRes("title_notifications", "Notifications")
+                putStringRes("title_home", "Home")
+                putStringRes("title_dashboard", "Dashboard")
+                putStringRes("title_notifications", "Notifications")
 
-        emptyThemesAndColors(actionBar = true)
-      }
+                emptyThemesAndColors(actionBar = true)
+            }
 
-      if (data.language == Kotlin) {
-        bottomNavActivityProjectKt()
-      } else {
-        bottomNavActivityProjectJava()
-      }
+            if (data.language == Kotlin) {
+                bottomNavActivityProjectKt()
+            } else {
+                bottomNavActivityProjectJava()
+            }
+        }
     }
-  }
 }
 
 fun AndroidModuleTemplateBuilder.bottomNavActivityProjectKt() {
-  executor.apply {
-    addDependency(Dependency.AndroidX.Navigation_Ui_Ktx)
-    addDependency(Dependency.AndroidX.Navigation_Fragment_Ktx)
-    addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
-    addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
+    executor.apply {
+        addDependency(Dependency.AndroidX.Navigation_Ui_Ktx)
+        addDependency(Dependency.AndroidX.Navigation_Fragment_Ktx)
+        addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
+        addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
+        addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
+        addDependency(Dependency.AndroidX.Collection_Jvm)
+        addCorrectCollectionKtxDependency()
 
-    sources {
-      writeKtSrc("${data.packageName}.ui.dashboard", "DashboardFragment",
-        source = ::bottomNavFragmentDashSrcKt)
-      writeKtSrc("${data.packageName}.ui.dashboard", "DashboardViewModel",
-        source = ::bottomNavModelDashSrcKt)
 
-      writeKtSrc("${data.packageName}.ui.home", "HomeFragment",
-        source = ::bottomNavFragmentHomeSrcKt)
-      writeKtSrc("${data.packageName}.ui.home", "HomeViewModel",
-        source = ::bottomNavModelHomeSrcKt)
 
-      writeKtSrc("${data.packageName}.ui.notifications",
-        "NotificationsFragment", source = ::bottomNavFragmentNotificationsSrcKt)
-      writeKtSrc("${data.packageName}.ui.notifications",
-        "NotificationsViewModel", source = ::bottomNavModelNotificationsSrcKt)
+        sources {
+            writeKtSrc(
+                "${data.packageName}.ui.dashboard", "DashboardFragment",
+                source = ::bottomNavFragmentDashSrcKt
+            )
+            writeKtSrc(
+                "${data.packageName}.ui.dashboard", "DashboardViewModel",
+                source = ::bottomNavModelDashSrcKt
+            )
 
+            writeKtSrc(
+                "${data.packageName}.ui.home", "HomeFragment",
+                source = ::bottomNavFragmentHomeSrcKt
+            )
+            writeKtSrc(
+                "${data.packageName}.ui.home", "HomeViewModel",
+                source = ::bottomNavModelHomeSrcKt
+            )
+
+            writeKtSrc(
+                "${data.packageName}.ui.notifications",
+                "NotificationsFragment", source = ::bottomNavFragmentNotificationsSrcKt
+            )
+            writeKtSrc(
+                "${data.packageName}.ui.notifications",
+                "NotificationsViewModel", source = ::bottomNavModelNotificationsSrcKt
+            )
+
+        }
     }
-  }
+}
+
+private fun AndroidModuleTemplateBuilder.addCorrectCollectionKtxDependency() {
+    if (data.useKts) {
+        addCustomDependency(
+            "    // Exclude older conflicting version from transitive dependencies\n" +
+                    "    implementation(\"androidx.collection:collection-ktx:1.4.2\") {\n" +
+                    "        exclude(group = \"androidx.collection\", module = \"collection-ktx\")\n" +
+                    "        exclude(group = \"androidx.collection\", module = \"collection-jvm\") // If necessary\n" +
+                    "    }"
+        )
+    } else {
+        addCustomDependency(
+            "implementation(\"androidx.collection:collection-ktx:1.4.2\") {\n" +
+                    "    exclude group: \"androidx.collection\", module: \"collection-ktx\"\n" +
+                    "    exclude group: \"androidx.collection\", module: \"collection-jvm\"\n" +
+                    "}"
+        )
+    }
 }
 
 private fun AndroidModuleTemplateBuilder.bottomNavActivityProjectJava() {
-  executor.apply {
-    addDependency(Dependency.AndroidX.Navigation_Ui)
-    addDependency(Dependency.AndroidX.Navigation_Fragment)
-    addDependency(Dependency.AndroidX.LifeCycle_LiveData)
-    addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
+    executor.apply {
+        addDependency(Dependency.AndroidX.Navigation_Ui)
+        addDependency(Dependency.AndroidX.Navigation_Fragment)
+        addDependency(Dependency.AndroidX.LifeCycle_LiveData)
+        addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
+        addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
+        addDependency(Dependency.AndroidX.Collection_Jvm)
+        addCorrectCollectionKtxDependency()
 
-    sources {
-      writeJavaSrc("${data.packageName}.ui.dashboard", "DashboardFragment",
-        source = ::bottomNavFragmentDashSrcJava)
-      writeJavaSrc("${data.packageName}.ui.dashboard", "DashboardViewModel",
-        source = ::bottomNavModelDashSrcJava)
+        sources {
+            writeJavaSrc(
+                "${data.packageName}.ui.dashboard", "DashboardFragment",
+                source = ::bottomNavFragmentDashSrcJava
+            )
+            writeJavaSrc(
+                "${data.packageName}.ui.dashboard", "DashboardViewModel",
+                source = ::bottomNavModelDashSrcJava
+            )
 
-      writeJavaSrc("${data.packageName}.ui.home", "HomeFragment",
-        source = ::bottomNavFragmentHomeSrcJava)
-      writeJavaSrc("${data.packageName}.ui.home", "HomeViewModel",
-        source = ::bottomNavModelHomeSrcJava)
+            writeJavaSrc(
+                "${data.packageName}.ui.home", "HomeFragment",
+                source = ::bottomNavFragmentHomeSrcJava
+            )
+            writeJavaSrc(
+                "${data.packageName}.ui.home", "HomeViewModel",
+                source = ::bottomNavModelHomeSrcJava
+            )
 
-      writeJavaSrc("${data.packageName}.ui.notifications",
-        "NotificationsFragment",
-        source = ::bottomNavFragmentNotificationsSrcJava)
-      writeJavaSrc("${data.packageName}.ui.notifications",
-        "NotificationsViewModel", source = ::bottomNavModelNotificationsSrcJava)
+            writeJavaSrc(
+                "${data.packageName}.ui.notifications",
+                "NotificationsFragment",
+                source = ::bottomNavFragmentNotificationsSrcJava
+            )
+            writeJavaSrc(
+                "${data.packageName}.ui.notifications",
+                "NotificationsViewModel", source = ::bottomNavModelNotificationsSrcJava
+            )
 
+        }
     }
-  }
 }

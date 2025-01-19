@@ -194,7 +194,7 @@ public final class PUSH
    * @param value to be pushed
    */
   public PUSH(ConstantPoolGen cp, Boolean value) {
-    this(cp, value.booleanValue());
+    this(cp, (value != null) ? (boolean) value : false);
   }
 
   public final InstructionList getInstructionList() {

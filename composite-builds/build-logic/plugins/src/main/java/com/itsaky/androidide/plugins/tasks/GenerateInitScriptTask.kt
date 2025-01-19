@@ -85,9 +85,9 @@ abstract class GenerateInitScriptTask : DefaultTask() {
               google()
           }
 
-          dependencies {
-              classpath(files("$LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME"))
-          }
+          //dependencies {
+          //    classpath(files("$LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME"))
+          //}
       }
       
       //apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
