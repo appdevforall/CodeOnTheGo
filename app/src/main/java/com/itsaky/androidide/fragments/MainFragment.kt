@@ -25,7 +25,6 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -121,9 +120,12 @@ class MainFragment : BaseFragment() {
         }
 
         binding!!.actions.adapter = MainActionsListAdapter(this, actions)
-        binding!!.greetingText.setOnClickListener(View.OnClickListener {
-            TooltipUtils.showWebPage(requireContext(), "file:///android_asset/idetooltips/getstarted_top.html")
-        })
+        binding!!.greetingText.setOnClickListener {
+            TooltipUtils.showWebPage(
+                requireContext(),
+                "file:///android_asset/idetooltips/getstarted_top.html"
+            )
+        }
     }
 
     // this method will handle the onclick options click
@@ -135,7 +137,16 @@ class MainFragment : BaseFragment() {
             val item = dao.getTooltip(tag)
             val buttons = item.buttons
             withContext((Dispatchers.Main)) {
-                (context?.let { TooltipUtils.showIDETooltip(it, view!!, 0, item.detail, item.summary, buttons) })
+                (context?.let {
+                    TooltipUtils.showIDETooltip(
+                        it,
+                        view!!,
+                        0,
+                        item.detail,
+                        item.summary,
+                        buttons
+                    )
+                })
             }
         }
     }
