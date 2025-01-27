@@ -2,9 +2,8 @@
 
 set -eu
 
-# Command line parameters are ignored. Uncomment the next two lines to see them.
-# echo There are $# command line parameters. They are:
-# echo $@
+echo There are $# command line parameters. They are:
+echo $@
 
 arch=$(uname -m)
 install_dir=$HOME
