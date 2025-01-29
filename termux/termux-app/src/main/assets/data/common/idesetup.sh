@@ -30,6 +30,7 @@ elif [ "$arch" = "aarch64" ]; then
   arch="v8"
 
 else
+  echo "Unknown architecture. Info:" `uname -a`
   arch="armeabi"
 fi
 
