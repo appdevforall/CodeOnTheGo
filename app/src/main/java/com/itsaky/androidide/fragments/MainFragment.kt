@@ -81,7 +81,7 @@ class MainFragment : BaseFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val actions = MainScreenAction.all().also { actions ->
+        val actions = MainScreenAction.mainScreen().also { actions ->
             val onClick = { action: MainScreenAction, _: View ->
                 when (action.id) {
                     MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
@@ -93,8 +93,6 @@ class MainFragment : BaseFragment() {
                     )
 
                     MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
-                    MainScreenAction.ACTION_DONATE -> BaseApplication.getBaseInstance()
-                        .openDonationsPage()
 
                     MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
                 }
