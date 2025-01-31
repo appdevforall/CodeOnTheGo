@@ -79,8 +79,8 @@ tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
   val isLinux = os.contains("linux") || os.contains("nix") || os.contains("nux")
 
   // Update paths to reflect the correct locations for LayoutEditor
-  val sourcePath = "${rootDir}/LayoutEditor" // Path to your LayoutEditor module
-  val destinationPath = "${rootDir}/layouteditor" // Path where the link should be created
+  val sourcePath = "${rootDir}${File.separator}LayoutEditor" // Path to your LayoutEditor module
+  val destinationPath = "${rootDir}${File.separator}layouteditor" // Path where the link should be created
   val destinationFile = File(destinationPath)
 
   if (isLinux) {
