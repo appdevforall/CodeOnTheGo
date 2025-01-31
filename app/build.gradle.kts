@@ -5,8 +5,11 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 import kotlin.reflect.jvm.javaMethod
 
 plugins {
@@ -67,6 +70,41 @@ android {
   installation {
     //installOptions("-timeout", "420000") // 5 minutes (in milliseconds)
   }
+}
+
+// Task to create symbolic link on Linux only
+tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
+  // Check if the OS is Linux
+  val os: String = System.getProperty("os.name").lowercase(Locale.ENGLISH)
+  val isLinux = os.contains("linux") || os.contains("nix") || os.contains("nux")
+
+  // Update paths to reflect the correct locations for LayoutEditor
+  val sourcePath = "${rootDir}/LayoutEditor" // Path to your LayoutEditor module
+  val destinationPath = "${rootDir}/layouteditor" // Path where the link should be created
+  val destinationFile = File(destinationPath)
+
+  if (isLinux) {
+    // Check if the symbolic link already exists
+    if (destinationFile.exists() && Files.isSymbolicLink(Paths.get(destinationPath))) {
+      println("Symbolic link already exists: $destinationPath -> $sourcePath")
+    } else {
+      // Create symbolic link (force replace with -sf)
+      commandLine("ln", "-sf", sourcePath, destinationPath)
+
+      doLast {
+        println("Symbolic link created: $destinationPath -> $sourcePath")
+      }
+    }
+  } else {
+    doLast {
+      println("Skipping symbolic link creation: Not running on Linux.")
+    }
+  }
+}
+
+// Ensure the symbolic link task runs before preBuild
+tasks.named("preBuild").configure {
+  dependsOn("createSymbolicLinkForLayoutEditor")
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.packageName}.events.AppEventsIndex") } }
