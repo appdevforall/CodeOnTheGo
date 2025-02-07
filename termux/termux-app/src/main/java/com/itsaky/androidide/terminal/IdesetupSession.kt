@@ -74,7 +74,7 @@ class IdesetupSession private constructor(
     private fun writeIdesetupScript(context: Context, script: File): Boolean {
       context.assets.open(ToolsManager.getCommonAsset("idesetup.sh")).use {
         val error = FileUtils.writeTextToFile("idsetupScript", script.absolutePath,
-          StandardCharsets.UTF_8, it.readBytes().toString(StandardCharsets.UTF_8), false)
+          StandardCharsets.UTF_8, it.readBytes().toString(StandardCharsets.UTF_8).replace("\r\n", "\n"), false)
         if (error != null) {
           log.error("Failed to write idesetup script: {}", error.errorLogString)
           return false

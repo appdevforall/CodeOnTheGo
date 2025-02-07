@@ -87,6 +87,9 @@ const val V7_KEY = "v7"
 const val V8_KEY = "v8"
 const val ARM_KEY = "armeabi"
 
+//Bootstrap
+const val BOOTSTRAP_SOURCE_FOLDER = "bootstrap"
+
 // Termux
 const val LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME = "termux"
 val TERMUX_DEBS_PATH = "cache" + File.separator + "apt" + File.separator + "archives"
