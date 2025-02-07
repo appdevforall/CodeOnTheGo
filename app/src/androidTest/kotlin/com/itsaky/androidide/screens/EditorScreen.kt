@@ -10,4 +10,6 @@ object EditorScreen : KScreen<EditorScreen>() {
     override val viewClass: Class<*>? = null
 
     val firstBuildDialog = KAlertDialog()
+
+    val closeProjectDialog = KAlertDialog()
 }
