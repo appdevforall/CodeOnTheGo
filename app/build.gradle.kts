@@ -59,6 +59,14 @@ android {
     }
   }
 
+  android {
+    sourceSets {
+      getByName("androidTest") {
+        manifest.srcFile("src/androidTest/AndroidManifest.xml")
+      }
+    }
+  }
+
   lint {
     abortOnError = false
     disable.addAll(arrayOf("VectorPath", "NestedWeights", "ContentDescription", "SmallSp"))
@@ -91,7 +99,7 @@ desugaring {
 }
 
 dependencies {
-  //debugImplementation(libs.common.leakcanary)
+    //debugImplementation(libs.common.leakcanary)
 
   // Annotation processors
   kapt(libs.common.glide.ap)
