@@ -23,6 +23,7 @@ import com.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
 import com.adfa.constants.MANIFEST_FILE_NAME
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.google.common.io.Files
+import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copy
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -55,18 +56,6 @@ abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
         val manifestSourceFilePath =
             this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + MANIFEST_FILE_NAME
         Files.copy(File(manifestSourceFilePath), manifestOutputDirectory)
-    }
-
-    private fun copy(sourceFilePath: String, outputDirectory: File) {
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
-        } catch (e: IOException) {
-            e.message?.let { throw GradleException(it) }
-        }
     }
 
 }

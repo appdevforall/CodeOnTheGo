@@ -23,10 +23,8 @@ import com.adfa.constants.GRADLE_FOLDER_NAME
 import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
-import com.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import com.adfa.constants.TOML_FILE_NAME
 import com.blankj.utilcode.util.ResourceUtils
-import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.templates.ModuleTemplate
 import com.itsaky.androidide.templates.ModuleTemplateData
@@ -206,7 +204,6 @@ class ProjectTemplateBuilder :
      */
     fun gradleZip(isToml: Boolean = false) {
         val gradleFileName = if (isToml) COMPOSE_GRADLE_WRAPPER_FILE_NAME else GRADLE_WRAPPER_FILE_NAME
-        println("hz gradle-file $gradleFileName")
 
         val result = ResourceUtils.copyFileFromAssets(
             File(ToolsManager.getCommonAsset(gradleFileName)).path,
@@ -235,7 +232,7 @@ class ProjectTemplateBuilder :
         }
     }
 
-    fun gradleCaches() {
+    fun mavenCaches() {
         executor.updateCaches()
     }
 
