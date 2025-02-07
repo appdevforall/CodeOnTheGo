@@ -124,6 +124,9 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
 
   fun buildIdeSetupArguments(): Array<String> {
     val args = mutableListOf<String>()
+    // this is unused due to idesetup.sh changes
+    // I want to keep this as an example in case we will need termux bash scrip arguments in the future.
+
     args.setArgument(IdeSetupArgument.INSTALL_DIR, Environment.HOME.absolutePath)
     args.setArgument(IdeSetupArgument.SDK_VERSION,
       SdkVersion.fromDisplayName(content.sdkVersion.text).version)
