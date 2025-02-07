@@ -53,6 +53,8 @@ import com.itsaky.androidide.templates.useKtsParameter
 import com.itsaky.androidide.utils.AndroidUtils
 import com.itsaky.androidide.utils.Environment
 import java.io.File
+import java.nio.file.Files
+import kotlin.io.path.Path
 
 typealias AndroidModuleTemplateConfigurator = AndroidModuleTemplateBuilder.() -> Unit
 
@@ -61,95 +63,103 @@ typealias AndroidModuleTemplateConfigurator = AndroidModuleTemplateBuilder.() ->
  *
  * @param block Function to configure the template.
  */
-inline fun baseProject(projectName: StringParameter = projectNameParameter(),
-                       packageName: StringParameter = packageNameParameter(),
-                       useKts: BooleanParameter = useKtsParameter(),
-                       minSdk: EnumParameter<Sdk> = minSdkParameter(),
-                       language: EnumParameter<Language> = projectLanguageParameter(),
-                       projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
-                       isToml: Boolean = false,
-                       crossinline block: ProjectTemplateBuilder.() -> Unit
+inline fun baseProject(
+    projectName: StringParameter = projectNameParameter(),
+    packageName: StringParameter = packageNameParameter(),
+    useKts: BooleanParameter = useKtsParameter(),
+    minSdk: EnumParameter<Sdk> = minSdkParameter(),
+    language: EnumParameter<Language> = projectLanguageParameter(),
+    projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+    isToml: Boolean = false,
+    crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {
-  return ProjectTemplateBuilder().apply {
+    return ProjectTemplateBuilder().apply {
 
-    // When project name is changed, change the package name accordingly
-    projectName.observe { name ->
-      val newPackage =
-        AndroidUtils.appNameToPackageName(name.value, packageName.value)
-      packageName.setValue(newPackage)
-    }
+        // When project name is changed, change the package name accordingly
+        projectName.observe { name ->
+            val newPackage =
+                AndroidUtils.appNameToPackageName(name.value, packageName.value)
+            packageName.setValue(newPackage)
+        }
 
-    Environment.mkdirIfNotExits(Environment.PROJECTS_DIR)
+        Environment.mkdirIfNotExits(Environment.PROJECTS_DIR)
 
-    val saveLocation = stringParameter {
-      name = R.string.wizard_save_location
-      default = Environment.PROJECTS_DIR.absolutePath
-      endIcon = { R.drawable.ic_folder }
-      constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
-    }
+        val saveLocation = stringParameter {
+            name = R.string.wizard_save_location
+            default = Environment.PROJECTS_DIR.absolutePath
+            endIcon = { R.drawable.ic_folder }
+            constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
+        }
 
-    projectName.doBeforeCreateView {
-      it.setValue(getNewProjectName(saveLocation.value, projectName.value))
-    }
+        projectName.doBeforeCreateView {
+            it.setValue(getNewProjectName(saveLocation.value, projectName.value))
+        }
 
-    widgets(TextFieldWidget(projectName), TextFieldWidget(packageName),
-      TextFieldWidget(saveLocation), SpinnerWidget(language),
-      SpinnerWidget(minSdk), CheckBoxWidget(useKts))
+        widgets(
+            TextFieldWidget(projectName), TextFieldWidget(packageName),
+            TextFieldWidget(saveLocation), SpinnerWidget(language),
+            SpinnerWidget(minSdk), CheckBoxWidget(useKts)
+        )
 
-    // Setup the required properties before executing the recipe
-    preRecipe = {
-      this@apply._executor = this
+        // Setup the required properties before executing the recipe
+        preRecipe = {
+            this@apply._executor = this
 
-      this@apply._data = ProjectTemplateData(projectName.value,
-        File(saveLocation.value, projectName.value), projectVersionData,
-        language = language.value, useKts = useKts.value, useToml = isToml)
+            this@apply._data = ProjectTemplateData(
+                projectName.value,
+                File(saveLocation.value, projectName.value), projectVersionData,
+                language = language.value, useKts = useKts.value, useToml = isToml
+            )
 
-      if (data.projectDir.exists() && data.projectDir.listFiles()
-          ?.isNotEmpty() == true
-      ) {
-        throw IllegalArgumentException("Project directory already exists")
-      }
+            if (data.projectDir.exists() && data.projectDir.listFiles()
+                    ?.isNotEmpty() == true
+            ) {
+                throw IllegalArgumentException("Project directory already exists")
+            }
 
-      setDefaultModuleData(
-        ModuleTemplateData(":app", appName = data.name, packageName.value,
-          data.moduleNameToDir(":app"), type = AndroidApp,
-          language = language.value, minSdk = minSdk.value,
-          useKts = data.useKts, useToml = isToml))
-    }
+            setDefaultModuleData(
+                ModuleTemplateData(
+                    ":app", appName = data.name, packageName.value,
+                    data.moduleNameToDir(":app"), type = AndroidApp,
+                    language = language.value, minSdk = minSdk.value,
+                    useKts = data.useKts, useToml = isToml
+                )
+            )
+        }
 
-    // After the recipe is executed, finalize the project creation
-    // In this phase, we write the build scripts as they may need additional data based on the previous recipe
-    // For example, writing settings.gradle[.kts] needs to know the name of the modules so that those can be includedl
-    postRecipe = {
-      // build.gradle[.kts]
-      buildGradle()
+        // After the recipe is executed, finalize the project creation
+        // In this phase, we write the build scripts as they may need additional data based on the previous recipe
+        // For example, writing settings.gradle[.kts] needs to know the name of the modules so that those can be includedl
+        postRecipe = {
+            // build.gradle[.kts]
+            buildGradle()
 
-      // settings.gradle[.kts]
-      settingsGradle()
+            // settings.gradle[.kts]
+            settingsGradle()
 
-      // gradle.properties
-      gradleProps()
-      if (isToml) {
-          tomlFile()
-      }
+            // gradle.properties
+            gradleProps()
+            if (isToml) {
+                tomlFile()
+            }
 
-      // gradlew
-      // gradlew.bat
-      // gradle/wrapper/gradle-wrapper.jar
-      // gradle/wrapper/gradle-wrapper.properties
-      gradleWrapper()
-      gradleZip(isToml)
-      //agpJar()
-      //localMavenRepo()
-      gradleCaches()
+            // gradlew
+            // gradlew.bat
+            // gradle/wrapper/gradle-wrapper.jar
+            // gradle/wrapper/gradle-wrapper.properties
+            gradleWrapper()
+            gradleZip(isToml)
+            //agpJar()
+            //localMavenRepo()
+            mavenCaches()
 
-      // .gitignore
-      gitignore()
-    }
+            // .gitignore
+            gitignore()
+        }
 
-    block()
+        block()
 
-  }.build() as ProjectTemplate
+    }.build() as ProjectTemplate
 }
 
 /**
@@ -157,55 +167,60 @@ inline fun baseProject(projectName: StringParameter = projectNameParameter(),
  *
  * @param block The module configurator.
  */
-inline fun baseAndroidModule(isLibrary: Boolean = false,
-  crossinline block: AndroidModuleTemplateConfigurator
+inline fun baseAndroidModule(
+    isLibrary: Boolean = false,
+    crossinline block: AndroidModuleTemplateConfigurator
 ): ModuleTemplate {
-  return AndroidModuleTemplateBuilder().apply {
+    return AndroidModuleTemplateBuilder().apply {
 
-    val appName = if (isLibrary) null else projectNameParameter()
-    val language = projectLanguageParameter()
-    val minSdk = minSdkParameter()
-    val packageName = packageNameParameter()
-    val useKts = useKtsParameter()
+        val appName = if (isLibrary) null else projectNameParameter()
+        val language = projectLanguageParameter()
+        val minSdk = minSdkParameter()
+        val packageName = packageNameParameter()
+        val useKts = useKtsParameter()
 
-    val moduleName = stringParameter {
-      name = R.string.wizard_module_name
-      default = ":app"
-      constraints = listOf(NONEMPTY, MODULE_NAME)
-    }
+        val moduleName = stringParameter {
+            name = R.string.wizard_module_name
+            default = ":app"
+            constraints = listOf(NONEMPTY, MODULE_NAME)
+        }
 
-    val type = enumParameter<ModuleType> {
-      name = R.string.wizard_module_type
-      default = AndroidLibrary
-      startIcon = { R.drawable.ic_android }
-      displayName = ModuleType::typeName
-    }
+        val type = enumParameter<ModuleType> {
+            name = R.string.wizard_module_type
+            default = AndroidLibrary
+            startIcon = { R.drawable.ic_android }
+            displayName = ModuleType::typeName
+        }
 
-    widgets(TextFieldWidget(moduleName))
+        widgets(TextFieldWidget(moduleName))
 
-    appName?.let {
-      widgets(TextFieldWidget(it))
-    }
+        appName?.let {
+            widgets(TextFieldWidget(it))
+        }
 
-    widgets(TextFieldWidget(packageName), SpinnerWidget(minSdk),
-      SpinnerWidget(type), SpinnerWidget(language), CheckBoxWidget(useKts))
+        widgets(
+            TextFieldWidget(packageName), SpinnerWidget(minSdk),
+            SpinnerWidget(type), SpinnerWidget(language), CheckBoxWidget(useKts)
+        )
 
 
-    /**
-     * Currently useToml is equals to isComposeModule because only compose template uses toml.
-     * In the future, in case we will extend toml adoption, we will have to change this.
-     */
-    preRecipe = commonPreRecipe {
-      ModuleTemplateData(name = moduleName.value, appName = appName?.value,
-        packageName = packageName.value,
-        projectDir = requireProjectData().moduleNameToDir(moduleName.value),
-        type = type.value, language = language.value, minSdk = minSdk.value,
-        useKts = useKts.value, useToml = isComposeModule)
-    }
-    postRecipe = commonPostRecipe()
+        /**
+         * Currently useToml is equals to isComposeModule because only compose template uses toml.
+         * In the future, in case we will extend toml adoption, we will have to change this.
+         */
+        preRecipe = commonPreRecipe {
+            ModuleTemplateData(
+                name = moduleName.value, appName = appName?.value,
+                packageName = packageName.value,
+                projectDir = requireProjectData().moduleNameToDir(moduleName.value),
+                type = type.value, language = language.value, minSdk = minSdk.value,
+                useKts = useKts.value, useToml = isComposeModule
+            )
+        }
+        postRecipe = commonPostRecipe()
 
-    block()
-  }.build() as ModuleTemplate
+        block()
+    }.build() as ModuleTemplate
 }
 
 /**
@@ -215,9 +230,10 @@ inline fun baseAndroidModule(isLibrary: Boolean = false,
  * @param configurator The configurator to configure the template.
  * @return The [FileTemplate].
  */
-inline fun <R : FileTemplateRecipeResult> baseFile(dir: File,
-  crossinline configurator: FileTemplateBuilder<R>.() -> Unit
+inline fun <R : FileTemplateRecipeResult> baseFile(
+    dir: File,
+    crossinline configurator: FileTemplateBuilder<R>.() -> Unit
 ): FileTemplate<R> {
-  return FileTemplateBuilder<R>(dir).apply(configurator)
-    .build() as FileTemplate<R>
+    return FileTemplateBuilder<R>(dir).apply(configurator)
+        .build() as FileTemplate<R>
 }
