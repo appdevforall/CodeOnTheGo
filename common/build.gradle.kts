@@ -37,6 +37,7 @@ dependencies {
     api(projects.resources)
     api(projects.subprojects.flashbar)
     api(projects.constants)
+    implementation(libs.monitor)
 
     testImplementation(libs.tests.junit)
     testImplementation(libs.tests.google.truth)
