@@ -17,10 +17,7 @@
 
 package com.itsaky.androidide.adapters
 
-import android.view.ContextMenu
 import android.view.LayoutInflater
-import android.view.View
-import android.view.View.OnCreateContextMenuListener
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.LayoutMainActionItemBinding

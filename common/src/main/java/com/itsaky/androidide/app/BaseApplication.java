@@ -21,6 +21,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 
+import androidx.test.platform.app.InstrumentationRegistry;
 import com.blankj.utilcode.util.ThrowableUtils;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import com.itsaky.androidide.common.R;
@@ -60,7 +61,7 @@ public class BaseApplication extends Application {
     mPrefsManager = new PreferenceManager(this);
     JavaCharacter.initMap();
 
-    if (!VMUtils.isJvm()) {
+    if (!VMUtils.isJvm()|| isInstrumentedTest()) {
       ToolsManager.init(this, null);
     }
   }
@@ -132,6 +133,15 @@ public class BaseApplication extends Application {
       } else {
         FlashbarUtilsKt.flashError(th.getMessage());
       }
+    }
+  }
+
+  private boolean isInstrumentedTest() {
+    try {
+      InstrumentationRegistry.getInstrumentation();
+      return true;
+    } catch (IllegalStateException e) {
+      return false;
     }
   }
 }
