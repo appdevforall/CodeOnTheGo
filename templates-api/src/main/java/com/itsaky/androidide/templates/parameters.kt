@@ -389,8 +389,11 @@ inline fun projectLanguageParameter(
   default = Java
   displayName = Language::lang
   startIcon = {
-    if (it.value == Kotlin) R.drawable.ic_language_kotlin
-    else R.drawable.ic_language_java
+      if (it.value == Kotlin) {
+          R.drawable.ic_language_kotlin
+      } else {
+          R.drawable.ic_language_java
+      }
   }
 
   configure()
