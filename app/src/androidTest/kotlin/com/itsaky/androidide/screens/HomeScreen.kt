@@ -3,6 +3,7 @@ package com.itsaky.androidide.screens
 import android.view.View
 import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
+import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.recycler.KRecyclerItem
 import io.github.kakaocup.kakao.recycler.KRecyclerView
 import io.github.kakaocup.kakao.text.KButton
@@ -21,5 +22,19 @@ object HomeScreen : KScreen<HomeScreen>() {
     class ActionItem(matcher: Matcher<View>) : KRecyclerItem<ActionItem>(matcher) {
 
         val button = KButton(matcher) { withId(R.id.itemButton) }
+    }
+
+    fun TestContext<Unit>.clickCreateProject() {
+        step("Click create project") {
+            flakySafely(60000) {
+                HomeScreen {
+                    rvActions {
+                        childAt<ActionItem>(0) {
+                            click()
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -4,11 +4,11 @@ import androidx.test.ext.junit.rules.activityScenarioRule
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.scenarios.InitializationProjectAndCancelingBuildScenario
 import com.itsaky.androidide.scenarios.NavigateToMainScreenScenario
-import com.itsaky.androidide.screens.HomeScreen
-import com.itsaky.androidide.screens.ProjectSettingsScreen
-import com.itsaky.androidide.screens.TemplateScreen
+import com.itsaky.androidide.screens.HomeScreen.clickCreateProject
+import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
+import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
+import com.itsaky.androidide.screens.TemplateScreen.selectTemplate
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
-import io.github.kakaocup.kakao.spinner.KSpinnerItem
 import org.junit.Rule
 import org.junit.Test
 
@@ -23,47 +23,11 @@ class ProjectBuildTest : TestCase() {
             step("Initialize the app") {
                 scenario(NavigateToMainScreenScenario())
             }
-            step("Click create project") {
-                flakySafely(60000) {
-                    HomeScreen {
-                        rvActions {
-                            childAt<HomeScreen.ActionItem>(0) {
-                                click()
-                            }
-                        }
-                    }
-                }
-            }
+            clickCreateProject()
             step("Select the basic project") {
-                flakySafely(10000) {
-                    TemplateScreen {
-                        rvTemplates {
-                            childWith<TemplateScreen.TemplateItem> {
-                                withDescendant { withText(R.string.template_basic) }
-                            } perform { click() }
-                        }
-                    }
-                }
+                selectTemplate(R.string.template_basic)
             }
-            step("Select the java language") {
-                ProjectSettingsScreen {
-                    spinner {
-                        isVisible()
-                        open()
-
-                        childAt<KSpinnerItem>(0) {
-                            isVisible()
-                            hasText("Java")
-                            click()
-                        }
-                    }
-
-                    createProjectButton {
-                        isVisible()
-                        click()
-                    }
-                }
-            }
+            selectJavaLanguage()
             step("Initialization the project and cancelling the build") {
                 scenario(InitializationProjectAndCancelingBuildScenario())
             }
@@ -76,49 +40,45 @@ class ProjectBuildTest : TestCase() {
             step("Initialize the app") {
                 scenario(NavigateToMainScreenScenario())
             }
-            step("Click create project") {
-                flakySafely(60000) {
-                    HomeScreen {
-                        rvActions {
-                            childAt<HomeScreen.ActionItem>(0) {
-                                click()
-                            }
-                        }
-                    }
-                }
-            }
+            clickCreateProject()
             step("Select the basic project") {
-                flakySafely(10000) {
-                    TemplateScreen {
-                        rvTemplates {
-                            childWith<TemplateScreen.TemplateItem> {
-                                withDescendant { withText(R.string.template_basic) }
-                            } perform { click() }
-                        }
-                    }
-                }
+                selectTemplate(R.string.template_basic)
             }
-            step("Select the kotlin language") {
-                flakySafely {
-                    ProjectSettingsScreen {
-                        spinner {
-                            isVisible()
-                            open()
-
-                            childAt<KSpinnerItem>(1) {
-                                isVisible()
-                                hasText("Kotlin")
-                                click()
-                            }
-                        }
-
-                        createProjectButton {
-                            isVisible()
-                            click()
-                        }
-                    }
-                }
+            selectKotlinLanguage()
+            step("Initialization the project and cancelling the build") {
+                scenario(InitializationProjectAndCancelingBuildScenario())
             }
+        }
+    }
+
+    @Test
+    fun test_projectBuild_navigationDrawerProject_java() {
+        run {
+            step("Initialize the app") {
+                scenario(NavigateToMainScreenScenario())
+            }
+            clickCreateProject()
+            step("Select the navigation drawer project") {
+                selectTemplate(R.string.template_navigation_drawer)
+            }
+            selectJavaLanguage()
+            step("Initialization the project and cancelling the build") {
+                scenario(InitializationProjectAndCancelingBuildScenario())
+            }
+        }
+    }
+
+    @Test
+    fun test_projectBuild_navigationDrawerProject_kotlin() {
+        run {
+            step("Initialize the app") {
+                scenario(NavigateToMainScreenScenario())
+            }
+            clickCreateProject()
+            step("Select the navigation drawer project") {
+                selectTemplate(R.string.template_navigation_drawer)
+            }
+            selectKotlinLanguage()
             step("Initialization the project and cancelling the build") {
                 scenario(InitializationProjectAndCancelingBuildScenario())
             }
