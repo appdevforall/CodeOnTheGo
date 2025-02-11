@@ -1,4 +1,4 @@
-package com.itsaky.androidide
+package com.itsaky.androidide.scenarios
 
 import com.itsaky.androidide.screens.InstallToolsScreen
 import com.itsaky.androidide.screens.OnboardingScreen
