@@ -80,7 +80,7 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the navigation drawer project") {
+            step("Select the bottom navigation project") {
                 selectTemplate(R.string.template_navigation_tabs)
             }
             selectJavaLanguage()
@@ -94,8 +94,36 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the navigation drawer project") {
+            step("Select the bottom navigation project") {
                 selectTemplate(R.string.template_navigation_tabs)
+            }
+            selectKotlinLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
+    fun test_projectBuild_tabbedActivityProject_java() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            step("Select the tabbed activity project") {
+                selectTemplate(R.string.template_tabs)
+            }
+            selectJavaLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
+    fun test_projectBuild_tabbedActivityProject_kotlin() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            step("Select the tabbed activity project") {
+                selectTemplate(R.string.template_tabs)
             }
             selectKotlinLanguage()
             clickCreateProjectProjectSettings()
