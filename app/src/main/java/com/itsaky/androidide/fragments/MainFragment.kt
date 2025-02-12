@@ -3,8 +3,6 @@ package com.itsaky.androidide.fragments
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -68,8 +66,6 @@ class MainFragment : BaseFragment() {
         // There are no request codes
     }
 
-    private val handler: Handler = Handler(Looper.getMainLooper())
-
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -117,7 +113,7 @@ class MainFragment : BaseFragment() {
             }
         }
 
-        binding!!.actions.adapter = MainActionsListAdapter(this, actions)
+        binding!!.actions.adapter = MainActionsListAdapter(actions)
         binding!!.greetingText.setOnClickListener {
             TooltipUtils.showWebPage(
                 requireContext(),
