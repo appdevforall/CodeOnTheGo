@@ -36,11 +36,6 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
                         click()
                     }
                 }
-
-                createProjectButton {
-                    isVisible()
-                    click()
-                }
             }
         }
     }
@@ -59,12 +54,16 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
                             click()
                         }
                     }
-
-                    createProjectButton {
-                        isVisible()
-                        click()
-                    }
                 }
+            }
+        }
+    }
+
+    fun TestContext<Unit>.clickCreateProjectProjectSettings() {
+        step("Click create project on the Settings Page") {
+            createProjectButton {
+                isVisible()
+                click()
             }
         }
     }

@@ -21,7 +21,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
-import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.models.MainScreenAction
 
 /**
@@ -31,33 +30,33 @@ import com.itsaky.androidide.models.MainScreenAction
  */
 class MainActionsListAdapter
 @JvmOverloads
-constructor(val mainFragment : MainFragment, val actions: List<MainScreenAction> = emptyList()) :
-  RecyclerView.Adapter<MainActionsListAdapter.VH>() {
-  inner class VH(val binding: LayoutMainActionItemBinding) : RecyclerView.ViewHolder(binding.root)
+constructor(val actions: List<MainScreenAction> = emptyList()) :
+    RecyclerView.Adapter<MainActionsListAdapter.VH>() {
+    inner class VH(val binding: LayoutMainActionItemBinding) : RecyclerView.ViewHolder(binding.root)
 
-  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-    VH(LayoutMainActionItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
+        VH(LayoutMainActionItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
 
-  override fun getItemCount(): Int = actions.size
+    override fun getItemCount(): Int = actions.size
 
-  fun getAction(index: Int) = actions[index]
-  
-  override fun onBindViewHolder(holder: VH, position: Int) {
-    val action = getAction(index = position)
-    val binding = holder.binding
-    val button = binding.root
+    fun getAction(index: Int) = actions[index]
 
-    binding.root.apply {
-      setText(action.text)
-      setIconResource(action.icon)
-      setOnClickListener {
-        action.onClick?.invoke(action, it)
-      }
-      setOnLongClickListener {
-        action.onLongClick?.invoke(action, it)
-        true
-      }
-      action.view = button
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val action = getAction(index = position)
+        val binding = holder.binding
+        val button = binding.root
+
+        binding.root.apply {
+            setText(action.text)
+            setIconResource(action.icon)
+            setOnClickListener {
+                action.onClick?.invoke(action, it)
+            }
+            setOnLongClickListener {
+                action.onLongClick?.invoke(action, it)
+                true
+            }
+            action.view = button
+        }
     }
-  }
 }

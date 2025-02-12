@@ -24,7 +24,7 @@ object HomeScreen : KScreen<HomeScreen>() {
         val button = KButton(matcher) { withId(R.id.itemButton) }
     }
 
-    fun TestContext<Unit>.clickCreateProject() {
+    fun TestContext<Unit>.clickCreateProjectHomeScreen() {
         step("Click create project") {
             flakySafely(60000) {
                 HomeScreen {
