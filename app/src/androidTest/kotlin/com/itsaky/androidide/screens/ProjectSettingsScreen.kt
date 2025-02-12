@@ -2,6 +2,7 @@ package com.itsaky.androidide.screens
 
 import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
+import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.spinner.KSpinner
 import io.github.kakaocup.kakao.spinner.KSpinnerItem
 import io.github.kakaocup.kakao.text.KButton
@@ -21,4 +22,50 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
         builder = { withHint("Project Language") },
         itemTypeBuilder = { itemType(::KSpinnerItem) }
     )
+
+    fun TestContext<Unit>.selectJavaLanguage() {
+        step("Select the java language") {
+            ProjectSettingsScreen {
+                spinner {
+                    isVisible()
+                    open()
+
+                    childAt<KSpinnerItem>(0) {
+                        isVisible()
+                        hasText("Java")
+                        click()
+                    }
+                }
+
+                createProjectButton {
+                    isVisible()
+                    click()
+                }
+            }
+        }
+    }
+
+    fun TestContext<Unit>.selectKotlinLanguage() {
+        step("Select the kotlin language") {
+            flakySafely {
+                ProjectSettingsScreen {
+                    spinner {
+                        isVisible()
+                        open()
+
+                        childAt<KSpinnerItem>(1) {
+                            isVisible()
+                            hasText("Kotlin")
+                            click()
+                        }
+                    }
+
+                    createProjectButton {
+                        isVisible()
+                        click()
+                    }
+                }
+            }
+        }
+    }
 }
