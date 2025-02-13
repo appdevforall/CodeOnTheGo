@@ -131,6 +131,34 @@ class ProjectBuildTest : TestCase() {
         }
     }
 
+    @Test
+    fun test_projectBuild_noAndroidXProject_java() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            step("Select the no AndroidX project") {
+                selectTemplate(R.string.template_no_AndroidX)
+            }
+            selectJavaLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
+    fun test_projectBuild_noAndroidXProject_kotlin() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            step("Select the no AndroidX project") {
+                selectTemplate(R.string.template_no_AndroidX)
+            }
+            selectKotlinLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
     private fun TestContext<Unit>.navigateToMainScreen() {
         step("Initialize the app and navigate to the Main Screen") {
             scenario(NavigateToMainScreenScenario())
