@@ -62,6 +62,7 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.common.kotlin)
+    implementation(libs.jackson.module)
 
     testImplementation(projects.testing.lsp)
 }

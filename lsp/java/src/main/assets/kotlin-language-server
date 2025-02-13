@@ -1,0 +1,42 @@
+#!/bin/sh
+
+set -e
+
+
+if [ -z "$APP_HOME" ]; then
+    echo "ERROR: APP_HOME is not set. Exiting."
+    exit 1
+fi
+echo "APP_HOME set to: $APP_HOME"
+
+if [ -z "$JAVA_HOME" ]; then
+    echo "ERROR: JAVA_HOME is not set!"
+    exit 1
+fi
+
+if [ ! -x "$JAVA_HOME/bin/java" ]; then
+    echo "ERROR: JAVA_HOME is incorrect or Java binary not found!"
+    exit 1
+fi
+
+JAVACMD="$JAVA_HOME/bin/java"
+echo "Java Command: $JAVACMD"
+
+CLASSPATH=$(find "$APP_HOME" -name "*.jar" | tr '\n' ':')
+
+if [ -z "$CLASSPATH" ]; then
+    echo "ERROR: No JAR files found in $APP_HOME!"
+    exit 1
+fi
+
+echo "Computed CLASSPATH: $CLASSPATH"
+
+DEFAULT_JVM_OPTS="-DkotlinLanguageServer.version=1.3.13"
+
+echo "Launching Kotlin Language Server with:"
+echo "   🔹 JAVA_HOME: $JAVA_HOME"
+echo "   🔹 JAVA CMD: $JAVACMD"
+echo "   🔹 CLASSPATH: $CLASSPATH"
+echo "   🔹 MAIN CLASS: org.javacs.kt.MainKt"
+
+exec "$JAVACMD" $DEFAULT_JVM_OPTS -classpath "$CLASSPATH" org.javacs.kt.MainKt "$@"
