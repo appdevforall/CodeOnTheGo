@@ -20,13 +20,44 @@ class ProjectBuildTest : TestCase() {
     val activityRule = activityScenarioRule<SplashActivity>()
 
     @Test
+    fun test_projectBuild_emptyProject_java() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            selectProjectTemplate(
+                "Select the empty project",
+                R.string.template_empty
+            )
+            selectJavaLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
+    fun test_projectBuild_emptyProject_kotlin() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            selectProjectTemplate(
+                "Select the empty project",
+                R.string.template_empty
+            )
+            selectKotlinLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
     fun test_projectBuild_baseProject_java() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the basic project") {
-                selectTemplate(R.string.template_basic)
-            }
+            selectProjectTemplate(
+                "Select the basic project",
+                R.string.template_basic
+            )
             selectJavaLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -38,9 +69,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the basic project") {
-                selectTemplate(R.string.template_basic)
-            }
+            selectProjectTemplate(
+                "Select the basic project",
+                R.string.template_basic
+            )
             selectKotlinLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -52,9 +84,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the navigation drawer project") {
-                selectTemplate(R.string.template_navigation_drawer)
-            }
+            selectProjectTemplate(
+                "Select the navigation drawer project",
+                R.string.template_navigation_drawer
+            )
             selectJavaLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -66,9 +99,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the navigation drawer project") {
-                selectTemplate(R.string.template_navigation_drawer)
-            }
+            selectProjectTemplate(
+                "Select the navigation drawer project",
+                R.string.template_navigation_drawer
+            )
             selectKotlinLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -80,9 +114,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the bottom navigation project") {
-                selectTemplate(R.string.template_navigation_tabs)
-            }
+            selectProjectTemplate(
+                "Select the bottom navigation project",
+                R.string.template_navigation_tabs
+            )
             selectJavaLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -94,9 +129,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the bottom navigation project") {
-                selectTemplate(R.string.template_navigation_tabs)
-            }
+            selectProjectTemplate(
+                "Select the bottom navigation project",
+                R.string.template_navigation_tabs
+            )
             selectKotlinLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -108,9 +144,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the tabbed activity project") {
-                selectTemplate(R.string.template_tabs)
-            }
+            selectProjectTemplate(
+                "Select the tabbed activity project",
+                R.string.template_tabs
+            )
             selectJavaLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -122,9 +159,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the tabbed activity project") {
-                selectTemplate(R.string.template_tabs)
-            }
+            selectProjectTemplate(
+                "Select the tabbed activity project",
+                R.string.template_tabs
+            )
             selectKotlinLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -136,9 +174,10 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the no AndroidX project") {
-                selectTemplate(R.string.template_no_AndroidX)
-            }
+            selectProjectTemplate(
+                "Select the no AndroidX project",
+                R.string.template_no_AndroidX
+            )
             selectJavaLanguage()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
@@ -150,10 +189,25 @@ class ProjectBuildTest : TestCase() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
-            step("Select the no AndroidX project") {
-                selectTemplate(R.string.template_no_AndroidX)
-            }
+            selectProjectTemplate(
+                "Select the no AndroidX project",
+                R.string.template_no_AndroidX
+            )
             selectKotlinLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
+    fun test_projectBuild_composeProject() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            selectProjectTemplate(
+                "Select the no Compose project",
+                R.string.template_compose
+            )
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -162,6 +216,12 @@ class ProjectBuildTest : TestCase() {
     private fun TestContext<Unit>.navigateToMainScreen() {
         step("Initialize the app and navigate to the Main Screen") {
             scenario(NavigateToMainScreenScenario())
+        }
+    }
+
+    private fun TestContext<Unit>.selectProjectTemplate(stepTitle: String, templateResId: Int) {
+        step(stepTitle) {
+            selectTemplate(templateResId)
         }
     }
 
