@@ -20,6 +20,34 @@ class ProjectBuildTest : TestCase() {
     val activityRule = activityScenarioRule<SplashActivity>()
 
     @Test
+    fun test_projectBuild_emptyProject_java() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            step("Select the empty project") {
+                selectTemplate(R.string.template_empty)
+            }
+            selectJavaLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
+    fun test_projectBuild_emptyProject_kotlin() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            step("Select the empty project") {
+                selectTemplate(R.string.template_empty)
+            }
+            selectKotlinLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
     fun test_projectBuild_baseProject_java() {
         run {
             navigateToMainScreen()
@@ -154,6 +182,19 @@ class ProjectBuildTest : TestCase() {
                 selectTemplate(R.string.template_no_AndroidX)
             }
             selectKotlinLanguage()
+            clickCreateProjectProjectSettings()
+            initializeProjectAndCancelBuild()
+        }
+    }
+
+    @Test
+    fun test_projectBuild_composeProject() {
+        run {
+            navigateToMainScreen()
+            clickCreateProjectHomeScreen()
+            step("Select the no Compose project") {
+                selectTemplate(R.string.template_compose)
+            }
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
