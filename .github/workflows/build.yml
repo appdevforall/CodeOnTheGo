@@ -40,11 +40,8 @@ env:
   # Build configuration
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
-  ANDROID_HOME: '/Users/yaturner/Android/Sdk'
-  ANDROID_SDK_ROOT: '/Users/yaturner/Android/Sdk'
-
-  BUILD_IS_RELEASE: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/**' }}
-  ReleaseAndroidIDE: ${{ github.ref == 'refs/heads/main' }}
+#  BUILD_IS_RELEASE: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/**' }}
+#  ReleaseAndroidIDE: ${{ github.ref == 'refs/heads/main' }}
 
 jobs:
   build_apk:
@@ -65,22 +62,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: |
-         set "ANDROID_HOME=C:\Users\yaturner\Android\Sdk"
-         set PATH="$PATH;%ANDROID_HOME%\platform-tools;%ANDROID_HOME%\tools"
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
-#      - name: Setup Android SDK
-#        uses:
-#          android-actions/setup-android@v3
-#        with:
-#          android-version: "35"
-#      - run: |
-#          set ANDROID_HOME C:\Users\yaturner\Android\Sdk
-#          echo "Android SDK root: $ANDROID_HOME"
       - name: Initialize submodules
         run: |
           git submodule init
@@ -96,9 +82,8 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
-##JMT          build_type=${{ matrix.build_type }}
-          set ANDROID_HOME C:\Users\yaturner\Android\Sdk
-#          echo "Android SDK root: $ANDROID_HOME"
+          export ANDROID_HOME=$HOME/Android/Sdk
+          build_type=${{ matrix.build_type }}
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
         run:
