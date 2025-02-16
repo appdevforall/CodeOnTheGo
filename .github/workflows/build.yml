@@ -69,6 +69,9 @@ jobs:
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
+      - name: Setup Android SDK
+        uses:
+          android-actions/setup-android@v3
       - name: Initialize submodules
         run: |
           git submodule init
