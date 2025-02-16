@@ -41,7 +41,7 @@ env:
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
   ANDROID_HOME: '/Users/yaturner/Android/Sdk'
-  ANDROID_sdk_root: '/Users/yaturner/Android/Sdk'
+  ANDROID_SDK_ROOT: '/Users/yaturner/Android/Sdk'
 
   BUILD_IS_RELEASE: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/**' }}
   ReleaseAndroidIDE: ${{ github.ref == 'refs/heads/main' }}
@@ -70,11 +70,11 @@ jobs:
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
-      - name: Setup Android SDK
-        uses:
-          android-actions/setup-android@v3
-        with:
-          android-version: "35"
+#      - name: Setup Android SDK
+#        uses:
+#          android-actions/setup-android@v3
+#        with:
+#          android-version: "35"
       - run: |
            echo "Android SDK root: $ANDROID_SDK_ROOT"
       - name: Initialize submodules
