@@ -77,7 +77,7 @@ jobs:
 #          android-version: "35"
       - run: |
           set ANDROID_HOME C:\Users\yaturner\Android\Sdk
-          echo "Android SDK root: $ANDROID_SDK_ROOT"
+          echo "Android SDK root: $ANDROID_HOME"
       - name: Initialize submodules
         run: |
           git submodule init
@@ -92,8 +92,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
-        run:
+        run: |
 ##JMT          build_type=${{ matrix.build_type }}
+          set ANDROID_HOME C:\Users\yaturner\Android\Sdk
+          echo "Android SDK root: $ANDROID_HOME"
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
         run:
