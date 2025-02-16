@@ -65,6 +65,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - run: |
+         set "ANDROID_HOME=C:\Users\yaturner\Android\Sdk"
+         set PATH="$PATH;%ANDROID_HOME%\platform-tools;%ANDROID_HOME%\tools"
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
