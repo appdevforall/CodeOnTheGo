@@ -83,7 +83,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
-        run: |
+        run:
           build_type=${{ matrix.build_type }}
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
