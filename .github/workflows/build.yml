@@ -95,7 +95,7 @@ jobs:
         run: |
 ##JMT          build_type=${{ matrix.build_type }}
           set ANDROID_HOME C:\Users\yaturner\Android\Sdk
-          echo "Android SDK root: $ANDROID_HOME"
+#          echo "Android SDK root: $ANDROID_HOME"
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
         run:
