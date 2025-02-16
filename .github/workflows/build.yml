@@ -78,9 +78,9 @@ jobs:
 #          android-actions/setup-android@v3
 #        with:
 #          android-version: "35"
-      - run: |
-          set ANDROID_HOME C:\Users\yaturner\Android\Sdk
-          echo "Android SDK root: $ANDROID_HOME"
+#      - run: |
+#          set ANDROID_HOME C:\Users\yaturner\Android\Sdk
+#          echo "Android SDK root: $ANDROID_HOME"
       - name: Initialize submodules
         run: |
           git submodule init
