@@ -74,8 +74,9 @@ jobs:
         uses:
           android-actions/setup-android@v3
         with:
-          android-sdk-version: "35"
-
+          android-version: "35"
+      - run: |
+           echo "Android SDK root: $ANDROID_SDK_ROOT"
       - name: Initialize submodules
         run: |
           git submodule init
