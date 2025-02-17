@@ -144,9 +144,15 @@ class KotlinLanguageServer : ILanguageServer {
                 val inputStream =
                     this::class.java.classLoader?.getResourceAsStream("assets/$KOTLIN_LANGUAGE_SERVER_FILE_NAME")
                         ?: throw RuntimeException("LSP asset not found in APK!")
+                // Convert inputStream to a string
+                val content = inputStream.bufferedReader().use { it.readText() }
+
+                // Replace "\r\n" with "\n"
+                val updatedContent = content.replace("\r\n", "\n")
+                val updatesStream = updatedContent.byteInputStream()
 
                 Files.copy(
-                    inputStream,
+                    updatesStream,
                     extractedLspFile.toPath(),
                     StandardCopyOption.REPLACE_EXISTING
                 )
