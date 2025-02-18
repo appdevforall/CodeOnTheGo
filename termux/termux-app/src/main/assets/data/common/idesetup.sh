@@ -18,6 +18,7 @@ echo Cache is ${cache_dir}
 echo JAVA_HOME is ${jdk_dir}
 echo Properties will be in ${props}
 echo Supported abis ${supported_abis}
+echo Current arch ${arch}
 
 if [ "$arch" = "armv7l" ]; then
   arch="v7"
