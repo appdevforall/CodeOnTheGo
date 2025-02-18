@@ -37,8 +37,9 @@ fi
 
 mkdir -p "$install_dir"
 
-apt update
-apt upgrade -y
+# removed to avoid repo signing issues. Most probably AndroidIDE repo sigh has expired.
+#apt update
+#apt upgrade -y
 
 dpkg -i ${cache_dir}/${arch}/*.deb
 for abi in "${supported_abis[@]}"
