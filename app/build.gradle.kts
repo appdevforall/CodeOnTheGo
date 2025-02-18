@@ -73,7 +73,7 @@ android {
 }
 
 // Task to create symbolic link on Linux only
-tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
+tasks.register("createSymbolicLinkForLayoutEditor") {
   // Check if the OS is Linux
   val os: String = System.getProperty("os.name").lowercase(Locale.ENGLISH)
   println("OS name: $os")
@@ -87,7 +87,7 @@ tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
 
   println("source: $sourcePath | destination: $destinationPath")
 
-  if (isLinux == true) {
+  if (os.contains("linux") || os.contains("nix") || os.contains("nux")) {
     // Check if the symbolic link already exists
     if (destinationFile.exists() && Files.isSymbolicLink(destinationPath)) {
       doLast {
@@ -96,7 +96,6 @@ tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
     } else {
       // Create symbolic link (force replace with -sf)
       println("Creating symlink")
-      commandLine("ln", "-s", sourcePath, destinationPath)
       Files.createSymbolicLink(destinationPath, sourcePath)
 
       doLast {
