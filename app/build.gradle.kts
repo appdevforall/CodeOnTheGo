@@ -76,25 +76,28 @@ android {
 tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
   // Check if the OS is Linux
   val os: String = System.getProperty("os.name").lowercase(Locale.ENGLISH)
-  println(os)
+  println("OS name: $os")
   val isLinux = os.contains("linux") || os.contains("nix") || os.contains("nux")
-  println(isLinux)
+  println("isLinux: $isLinux")
 
   // Update paths to reflect the correct locations for LayoutEditor
-  val sourcePath = "${rootDir}${File.separator}LayoutEditor" // Path to your LayoutEditor module
-  val destinationPath = "${rootDir}${File.separator}layouteditor" // Path where the link should be created
-  val destinationFile = File(destinationPath)
+  val sourcePath: java.nio.file.Path = Paths.get(rootDir.absolutePath, "LayoutEditor")
+  val destinationPath: java.nio.file.Path = Paths.get(rootDir.absolutePath, "layouteditor")
+  val destinationFile = destinationPath.toFile()
 
   println("source: $sourcePath | destination: $destinationPath")
 
-  if (isLinux) {
+  if (isLinux == true) {
     // Check if the symbolic link already exists
-    if (destinationFile.exists() && Files.isSymbolicLink(Paths.get(destinationPath))) {
-      println("Symbolic link already exists: $destinationPath -> $sourcePath")
+    if (destinationFile.exists() && Files.isSymbolicLink(destinationPath)) {
+      doLast {
+        println("Symbolic link already exists: $destinationPath -> $sourcePath")
+      }
     } else {
       // Create symbolic link (force replace with -sf)
       println("Creating symlink")
       commandLine("ln", "-s", sourcePath, destinationPath)
+      Files.createSymbolicLink(destinationPath, sourcePath)
 
       doLast {
         println("doLast: Symbolic link created: $destinationPath -> $sourcePath")
