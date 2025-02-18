@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.base
 
+import com.adfa.constants.LOACL_MAVEN_CACHES_DEST
 import com.adfa.constants.Sdk
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
@@ -150,7 +151,6 @@ inline fun baseProject(
             gradleWrapper()
             gradleZip(isToml)
             //agpJar()
-            //localMavenRepo()
             mavenCaches()
 
             // .gitignore
