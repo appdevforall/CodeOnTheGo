@@ -6,17 +6,18 @@ import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
+import com.itsaky.androidide.screens.ProjectSettingsScreen.uncheckeKotlinScript
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Rule
 import org.junit.Test
 
-class ProjectBuildTest : TestCase() {
+class ProjectBuildTestWithGroovyGradle : TestCase() {
 
     @get:Rule
     val activityRule = activityScenarioRule<SplashActivity>()
 
     @Test
-    fun test_projectBuild_emptyProject_java() {
+    fun test_projectBuild_emptyProject_java_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -25,13 +26,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_empty
             )
             selectJavaLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_emptyProject_kotlin() {
+    fun test_projectBuild_emptyProject_kotlin_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -40,13 +42,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_empty
             )
             selectKotlinLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_baseProject_java() {
+    fun test_projectBuild_baseProject_java_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -55,13 +58,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_basic
             )
             selectJavaLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_baseProject_kotlin() {
+    fun test_projectBuild_baseProject_kotlin_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -70,13 +74,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_basic
             )
             selectKotlinLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_navigationDrawerProject_java() {
+    fun test_projectBuild_navigationDrawerProject_java_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -85,13 +90,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_navigation_drawer
             )
             selectJavaLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_navigationDrawerProject_kotlin() {
+    fun test_projectBuild_navigationDrawerProject_kotlin_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -100,13 +106,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_navigation_drawer
             )
             selectKotlinLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_bottomNavigationProject_java() {
+    fun test_projectBuild_bottomNavigationProject_java_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -115,13 +122,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_navigation_tabs
             )
             selectJavaLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_bottomNavigationProject_kotlin() {
+    fun test_projectBuild_bottomNavigationProject_kotlin_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -130,13 +138,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_navigation_tabs
             )
             selectKotlinLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_tabbedActivityProject_java() {
+    fun test_projectBuild_tabbedActivityProject_java_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -145,13 +154,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_tabs
             )
             selectJavaLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_tabbedActivityProject_kotlin() {
+    fun test_projectBuild_tabbedActivityProject_kotlin_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -160,13 +170,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_tabs
             )
             selectKotlinLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_noAndroidXProject_java() {
+    fun test_projectBuild_noAndroidXProject_java_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -175,13 +186,14 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_no_AndroidX
             )
             selectJavaLanguage()
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
     }
 
     @Test
-    fun test_projectBuild_noAndroidXProject_kotlin() {
+    fun test_projectBuild_noAndroidXProject_kotlin_groovyGradle() {
         run {
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
@@ -190,20 +202,7 @@ class ProjectBuildTest : TestCase() {
                 R.string.template_no_AndroidX
             )
             selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
-        }
-    }
-
-    @Test
-    fun test_projectBuild_composeProject() {
-        run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the no Compose project",
-                R.string.template_compose
-            )
+            uncheckeKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }

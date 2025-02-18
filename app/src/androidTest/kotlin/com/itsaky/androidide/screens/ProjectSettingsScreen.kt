@@ -3,6 +3,7 @@ package com.itsaky.androidide.screens
 import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import io.github.kakaocup.kakao.check.KCheckBox
 import io.github.kakaocup.kakao.spinner.KSpinner
 import io.github.kakaocup.kakao.spinner.KSpinnerItem
 import io.github.kakaocup.kakao.text.KButton
@@ -22,6 +23,10 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
         builder = { withHint("Project Language") },
         itemTypeBuilder = { itemType(::KSpinnerItem) }
     )
+
+    val kotlinScriptText = KCheckBox {
+        withText(R.string.msg_use_kts)
+    }
 
     fun TestContext<Unit>.selectJavaLanguage() {
         step("Select the java language") {
@@ -64,6 +69,14 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
             createProjectButton {
                 isVisible()
                 click()
+            }
+        }
+    }
+
+    fun TestContext<Unit>.uncheckeKotlinScript() {
+        step("Unselect Kotlin Script for Gradle") {
+            kotlinScriptText {
+                setChecked(false)
             }
         }
     }
