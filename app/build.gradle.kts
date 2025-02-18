@@ -76,12 +76,16 @@ android {
 tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
   // Check if the OS is Linux
   val os: String = System.getProperty("os.name").lowercase(Locale.ENGLISH)
+  println(os)
   val isLinux = os.contains("linux") || os.contains("nix") || os.contains("nux")
+  println(isLinux)
 
   // Update paths to reflect the correct locations for LayoutEditor
   val sourcePath = "${rootDir}${File.separator}LayoutEditor" // Path to your LayoutEditor module
   val destinationPath = "${rootDir}${File.separator}layouteditor" // Path where the link should be created
   val destinationFile = File(destinationPath)
+
+  println("source: $sourcePath | destination: $destinationPath")
 
   if (isLinux) {
     // Check if the symbolic link already exists
@@ -89,10 +93,11 @@ tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
       println("Symbolic link already exists: $destinationPath -> $sourcePath")
     } else {
       // Create symbolic link (force replace with -sf)
+      println("Creating symlink")
       commandLine("ln", "-sf", sourcePath, destinationPath)
 
       doLast {
-        println("Symbolic link created: $destinationPath -> $sourcePath")
+        println("doLast: Symbolic link created: $destinationPath -> $sourcePath")
       }
     }
   } else {
