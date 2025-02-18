@@ -94,7 +94,7 @@ tasks.register<Exec>("createSymbolicLinkForLayoutEditor") {
     } else {
       // Create symbolic link (force replace with -sf)
       println("Creating symlink")
-      commandLine("ln", "-sf", sourcePath, destinationPath)
+      commandLine("ln", "-s", sourcePath, destinationPath)
 
       doLast {
         println("doLast: Symbolic link created: $destinationPath -> $sourcePath")
