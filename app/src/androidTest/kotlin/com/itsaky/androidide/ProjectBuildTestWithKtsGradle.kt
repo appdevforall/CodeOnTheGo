@@ -10,7 +10,7 @@ import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Rule
 import org.junit.Test
 
-class ProjectBuildTest : TestCase() {
+class ProjectBuildTestWithKtsGradle : TestCase() {
 
     @get:Rule
     val activityRule = activityScenarioRule<SplashActivity>()
