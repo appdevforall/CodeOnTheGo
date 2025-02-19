@@ -17,13 +17,16 @@
 
 package com.itsaky.androidide.localHTTPServer
 
+import android.content.Context
+import android.util.Log
 import android.util.Log.*
 import com.itsaky.androidide.app.IDEApplication
-import com.itsvks.layouteditor.utils.FileUtil
+import com.itsaky.androidide.utils.FileUtil
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.net.InetSocketAddress
@@ -78,8 +81,11 @@ class LocalServerUtil() {
             // Get request method
             when (exchange!!.requestMethod) {
                 "GET" -> {
-                    ////Log.d("HTTPRequest", exchange.requestURI.toString())
-                    val responseText = FileUtil.readFromAsset("CoGoTooltips/html/help_top.html", context)
+                    Log.d("HTTPRequest", exchange.requestURI.toString())
+                    val words = exchange.requestURI.toString().split("/")
+                    val text = words.slice(2..<words.size)
+                    val content = text.joinToString(separator = "/")
+                    val responseText = readFromAsset("CoGoTooltips/html/" + content, context)
                     sendResponse(exchange, responseText)
                 }
             }
@@ -105,5 +111,41 @@ class LocalServerUtil() {
                 }
             }
         }
+    }
+
+    /**
+     * Reads from an asset file and returns its content as a String.
+     *
+     * @param path The path to the asset file
+     * @param ctx The context from which the asset should be read
+     * @return The content of the asset file as a String
+     */
+    fun readFromAsset(path: String?, ctx: Context): String {
+        try {
+            // Get the input stream from the asset
+            val inputStream = ctx.assets.open(path!!)
+
+            // Create a byte array output stream to store the read bytes
+            val outputStream = ByteArrayOutputStream()
+
+            // Create a buffer of 1024 bytes
+            val _buf = ByteArray(1024)
+            var i: Int
+
+            // Read the bytes from the input stream, write them to the output stream and close the streams
+            while ((inputStream.read(_buf).also { i = it }) != -1) {
+                outputStream.write(_buf, 0, i)
+            }
+            outputStream.close()
+            inputStream.close()
+
+            // Return the content of the output stream as a String
+            return outputStream.toString()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // If an exception occurred, return an empty String
+        return ""
     }
 }

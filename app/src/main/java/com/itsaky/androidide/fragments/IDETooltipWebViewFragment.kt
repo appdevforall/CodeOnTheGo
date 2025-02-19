@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.fragments
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -36,6 +37,7 @@ class IDETooltipWebviewFragment : Fragment() {
     private lateinit var webView: WebView
     private lateinit var website : String
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -84,18 +86,17 @@ class IDETooltipWebviewFragment : Fragment() {
         }
 
         // Set up WebChromeClient to support JavaScript
-//        webView.webChromeClient = WebChromeClient()
-        webView.canGoBack()
-        webView.canGoForward()
-        webView.settings.allowFileAccessFromFileURLs
-        webView.settings.allowFileAccess
-        webView.settings.allowUniversalAccessFromFileURLs
+        webView.webChromeClient = WebChromeClient()
+        webView.settings.allowFileAccessFromFileURLs = true
+        webView.settings.allowFileAccess = true
+        webView.settings.allowUniversalAccessFromFileURLs = true
+        // Enable JavaScript if needed
+        webView.settings.javaScriptEnabled = true
+        webView.settings.allowContentAccess = true
         webView.scrollBarStyle = WebView.SCROLLBARS_OUTSIDE_OVERLAY
         webView.scrollBarDefaultDelayBeforeFade = 1000
 
 
-        // Enable JavaScript if needed
-        webView.settings.javaScriptEnabled = true
 
         // Load the HTML file from the assets folder
         webView.loadUrl(website)
