@@ -2,19 +2,15 @@ package com.itsaky.androidide
 
 import androidx.test.ext.junit.rules.activityScenarioRule
 import com.itsaky.androidide.activities.SplashActivity
-import com.itsaky.androidide.scenarios.InitializationProjectAndCancelingBuildScenario
-import com.itsaky.androidide.scenarios.NavigateToMainScreenScenario
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
-import com.itsaky.androidide.screens.TemplateScreen.selectTemplate
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
-import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.junit.Rule
 import org.junit.Test
 
-class ProjectBuildTest : TestCase() {
+class ProjectBuildTestWithKtsGradle : TestCase() {
 
     @get:Rule
     val activityRule = activityScenarioRule<SplashActivity>()
@@ -210,24 +206,6 @@ class ProjectBuildTest : TestCase() {
             )
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
-        }
-    }
-
-    private fun TestContext<Unit>.navigateToMainScreen() {
-        step("Initialize the app and navigate to the Main Screen") {
-            scenario(NavigateToMainScreenScenario())
-        }
-    }
-
-    private fun TestContext<Unit>.selectProjectTemplate(stepTitle: String, templateResId: Int) {
-        step(stepTitle) {
-            selectTemplate(templateResId)
-        }
-    }
-
-    private fun TestContext<Unit>.initializeProjectAndCancelBuild() {
-        step("Initialization the project and cancelling the build") {
-            scenario(InitializationProjectAndCancelingBuildScenario())
         }
     }
 }
