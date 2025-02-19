@@ -68,10 +68,10 @@ class IDETooltipWebviewFragment : Fragment() {
         website = arguments?.getString(/* key = */ MainFragment.KEY_TOOLTIP_URL).toString()
 
         // Inflate the layout for this fragment
-        val view = inflater.inflate(R.layout.fragment_idetooltipwebview, container, false)
+        val view = inflater.inflate(R.layout.ide_tooltip_window, container, false)
 
         // Initialize the WebView
-        webView = view.findViewById(R.id.IDETooltipWebView)
+        webView = view.findViewById(R.id.webview)
 
         // Set a WebViewClient to handle loading pages
         webView.webViewClient = object : WebViewClient() {
