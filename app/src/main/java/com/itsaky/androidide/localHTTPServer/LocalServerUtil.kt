@@ -31,6 +31,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.InetSocketAddress
 import java.util.Scanner
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors
 
 class LocalServerUtil() {
@@ -55,16 +56,22 @@ class LocalServerUtil() {
     }
 
      fun streamToString(inputStream: InputStream): String {
-        val s = Scanner(inputStream).useDelimiter("\\A")
-        return if (s.hasNext()) s.next() else ""
-    }
+         val s = Scanner(inputStream).useDelimiter("\\A")
+         return if (s.hasNext()) s.next() else ""
+     }
 
      fun sendResponse(httpExchange: HttpExchange, responseText: String){
-        httpExchange.sendResponseHeaders(200, responseText.length.toLong())
-        val os = httpExchange.responseBody
-        os.write(responseText.toByteArray())
-        os.close()
-    }
+         //val respByteArrayU16 = responseText.toByteArray()
+         //val responseTextU8 = String(respByteArrayU16, Charsets.UTF_8)
+         //val respByteArray = responseTextU8.toByteArray()
+
+         val respByteArray = responseText.encodeToByteArray()
+         httpExchange.getResponseHeaders().put("Content-Type", listOf("text/html; charset=utf-8"))
+         httpExchange.sendResponseHeaders(200, respByteArray.size.toLong())
+         val os = httpExchange.responseBody
+         os.write(respByteArray)
+         os.close()
+     }
 
 
      fun stopServer() {
@@ -83,7 +90,7 @@ class LocalServerUtil() {
                 "GET" -> {
                     Log.d("HTTPRequest", exchange.requestURI.toString())
                     val words = exchange.requestURI.toString().split("/")
-                    val text = words.slice(2..<words.size)
+                    val text = words.slice(1..<words.size)
                     val content = text.joinToString(separator = "/")
                     val responseText = readFromAsset("CoGoTooltips/html/" + content, context)
                     sendResponse(exchange, responseText)
