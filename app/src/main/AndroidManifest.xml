@@ -35,6 +35,7 @@
     android:largeHeap="true"
     android:name=".app.IDEApplication"
     android:preserveLegacyExternalStorage="true"
+    android:usesCleartextTraffic="true"
     android:requestLegacyExternalStorage="true"
     android:resizeableActivity="false"
     android:supportsRtl="true"
