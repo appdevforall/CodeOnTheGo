@@ -60,19 +60,35 @@ class LocalServerUtil() {
          return if (s.hasNext()) s.next() else ""
      }
 
-     fun sendResponse(httpExchange: HttpExchange, responseText: String){
-         //val respByteArrayU16 = responseText.toByteArray()
-         //val responseTextU8 = String(respByteArrayU16, Charsets.UTF_8)
-         //val respByteArray = responseTextU8.toByteArray()
+    private fun sendTextResponse(httpExchange: HttpExchange, responseText: String,
+                         contentType: String){
+        //val respByteArrayU16 = responseText.toByteArray()
+        //val responseTextU8 = String(respByteArrayU16, Charsets.UTF_8)
+        //val respByteArray = responseTextU8.toByteArray()
 
-         val respByteArray = responseText.encodeToByteArray()
-         httpExchange.getResponseHeaders().put("Content-Type", listOf("text/html; charset=utf-8"))
-         httpExchange.sendResponseHeaders(200, respByteArray.size.toLong())
-         val os = httpExchange.responseBody
-         os.write(respByteArray)
-         os.close()
-     }
+        // Encode response text as UTF-8 and convert to ByteArray
+        val respByteArray = responseText.encodeToByteArray()
+        httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
+        httpExchange.sendResponseHeaders(200, respByteArray.size.toLong())
 
+        val os = httpExchange.responseBody
+        os.write(respByteArray)
+        os.close()
+    }
+
+    fun sendBinaryResponse(httpExchange: HttpExchange, responseData: ByteArray,
+                         contentType: String) {
+        //val respByteArrayU16 = responseText.toByteArray()
+        //val responseTextU8 = String(respByteArrayU16, Charsets.UTF_8)
+        //val respByteArray = responseTextU8.toByteArray()
+
+        httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
+        httpExchange.sendResponseHeaders(200, responseData.size.toLong())
+
+        val os = httpExchange.responseBody
+        os.write(responseData)
+        os.close()
+    }
 
      fun stopServer() {
         if (httpServer != null){
@@ -89,22 +105,56 @@ class LocalServerUtil() {
             when (exchange!!.requestMethod) {
                 "GET" -> {
                     Log.d("HTTPRequest", exchange.requestURI.toString())
-                    val words = exchange.requestURI.toString().split("/")
-                    val text = words.slice(1..<words.size)
-                    val content = text.joinToString(separator = "/")
-                    val responseText = readFromAsset("CoGoTooltips/html/" + content, context)
-                    sendResponse(exchange, responseText)
+                    val splitPath = exchange.requestURI.toString().split("/")
+
+                    // Extract file extension for content typing
+                    val basename = splitPath[splitPath.size - 1]
+                    val splitBasename = basename.split(".")
+                    val extension = splitBasename[splitBasename.size - 1]
+
+                    // Process text and binary data requests separately
+                    var isText = false
+                    var contentType = ""
+
+                    // Extesion to content type maps should be stored somewhere
+                    // properly. Refactor this.
+
+                    if (extension == "css") {
+                        contentType = "text/css"
+                        isText = true
+                    } else if (extension == "png") {
+                        contentType = "image/png"
+                    } else if (extension == "gif") {
+                        contentType = "image/gif"
+                    } else if (extension == "js") {
+                        contentType = "text/javascript"
+                        isText = true
+                    } else {
+                        contentType = "text/html; charset=utf-8"
+                        isText = true
+                    }
+
+                    val slicedSplitPath = splitPath.slice(1..splitPath.size - 1)
+                    val fileURI = slicedSplitPath.joinToString(separator = "/")
+
+                    if (isText) {
+                        val responseContent = readFromAsset("CoGoTooltips/html/" + fileURI, context)
+                        sendTextResponse(exchange, responseContent, contentType)
+                    } else {
+                        val responseContent = readFromBinaryAsset("CoGoTooltips/html/" + fileURI, context)
+                        sendBinaryResponse(exchange, responseContent, contentType)
+                    }
                 }
             }
         }
     }
 
-     val messageHandler = HttpHandler { httpExchange ->
+    val messageHandler = HttpHandler { httpExchange ->
         run {
             when (httpExchange!!.requestMethod) {
                 "GET" -> {
                     // Get all messages
-                    sendResponse(httpExchange, "Would be all messages stringified json")
+                    sendTextResponse(httpExchange, "Would be all messages stringified json", "text/html; charset=utf-8")
                 }
                 "POST" -> {
                     val inputStream = httpExchange.requestBody
@@ -114,7 +164,7 @@ class LocalServerUtil() {
                     // save message to database
 
                     //for testing
-                    sendResponse(httpExchange, jsonBody.toString())
+                    sendTextResponse(httpExchange, jsonBody.toString(), "text/html; charset=utf-8")
                 }
             }
         }
@@ -154,5 +204,41 @@ class LocalServerUtil() {
 
         // If an exception occurred, return an empty String
         return ""
+    }
+
+    /**
+     * Reads from an asset file and returns its content as a ByteArray.
+     *
+     * @param path The path to the asset file
+     * @param ctx The context from which the asset should be read
+     * @return The content of the asset file as a String
+     */
+    fun readFromBinaryAsset(path: String?, ctx: Context): ByteArray {
+        try {
+            // Get the input stream from the asset
+            val inputStream = ctx.assets.open(path!!)
+
+            // Create a byte array output stream to store the read bytes
+            val outputStream = ByteArrayOutputStream()
+
+            // Create a buffer of 1024 bytes
+            val _buf = ByteArray(1024)
+            var i: Int
+
+            // Read the bytes from the input stream, write them to the output stream and close the streams
+            while ((inputStream.read(_buf).also { i = it }) != -1) {
+                outputStream.write(_buf, 0, i)
+            }
+            outputStream.close()
+            inputStream.close()
+
+            // Return the content of the output stream as a String
+            return outputStream.toByteArray()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // If an exception occurred, return an empty ByteArray
+        return byteArrayOf()
     }
 }
