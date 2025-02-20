@@ -3,15 +3,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/_blue_wave_dark_colorOnBackground"
-    android:padding="25sp"
-    android:layout_margin="25sp">
+    android:padding="5sp"
+    android:layout_margin="5sp">
 
     <WebView
         android:id="@+id/IDETooltipWebView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="25sp"
+        android:padding="5sp"
         android:background="@color/_blue_wave_dark_colorBackground"
-        android:layout_margin="25sp"
+        android:layout_margin="5sp"
         android:clipToPadding="true"/>
 </RelativeLayout>
