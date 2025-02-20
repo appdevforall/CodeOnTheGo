@@ -60,12 +60,8 @@ class LocalServerUtil() {
          return if (s.hasNext()) s.next() else ""
      }
 
-    private fun sendTextResponse(httpExchange: HttpExchange, responseText: String,
+    fun sendTextResponse(httpExchange: HttpExchange, responseText: String,
                          contentType: String){
-        //val respByteArrayU16 = responseText.toByteArray()
-        //val responseTextU8 = String(respByteArrayU16, Charsets.UTF_8)
-        //val respByteArray = responseTextU8.toByteArray()
-
         // Encode response text as UTF-8 and convert to ByteArray
         val respByteArray = responseText.encodeToByteArray()
         httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
@@ -78,10 +74,6 @@ class LocalServerUtil() {
 
     fun sendBinaryResponse(httpExchange: HttpExchange, responseData: ByteArray,
                          contentType: String) {
-        //val respByteArrayU16 = responseText.toByteArray()
-        //val responseTextU8 = String(respByteArrayU16, Charsets.UTF_8)
-        //val respByteArray = responseTextU8.toByteArray()
-
         httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
         httpExchange.sendResponseHeaders(200, responseData.size.toLong())
 
@@ -105,20 +97,31 @@ class LocalServerUtil() {
             when (exchange!!.requestMethod) {
                 "GET" -> {
                     Log.d("HTTPRequest", exchange.requestURI.toString())
-                    val splitPath = exchange.requestURI.toString().split("/")
 
-                    // Extract file extension for content typing
+                    // Chop off query params so they're not included in the file URI
+                    // that we actually read from. Content is static so these
+                    // parameters only matter for client-side behavior.
+                    val querySplitPath = exchange.requestURI.toString().split("?")
+                    val rawFilePath = querySplitPath[0]
+
+                    // Get path components
+                    val splitPath = rawFilePath.split("/")
+
+                    // Extract file extension for content type header
                     val basename = splitPath[splitPath.size - 1]
-                    val splitBasename = basename.split(".")
-                    val extension = splitBasename[splitBasename.size - 1]
+                    val dotSplitBasename = basename.split(".")
+                    val extension = dotSplitBasename[dotSplitBasename.size - 1]
+
+                    // Get actual file URI with respect to document root
+                    val slicedSplitPath = splitPath.slice(1..splitPath.size - 1)
+                    val fileURI = slicedSplitPath.joinToString(separator = "/")
 
                     // Process text and binary data requests separately
                     var isText = false
                     var contentType = ""
 
-                    // Extesion to content type maps should be stored somewhere
+                    // Extension to content type maps should be stored somewhere
                     // properly. Refactor this.
-
                     if (extension == "css") {
                         contentType = "text/css"
                         isText = true
@@ -134,9 +137,7 @@ class LocalServerUtil() {
                         isText = true
                     }
 
-                    val slicedSplitPath = splitPath.slice(1..splitPath.size - 1)
-                    val fileURI = slicedSplitPath.joinToString(separator = "/")
-
+                    // Process text and binary documents separately
                     if (isText) {
                         val responseContent = readFromAsset("CoGoTooltips/html/" + fileURI, context)
                         sendTextResponse(exchange, responseContent, contentType)
