@@ -1,6 +1,7 @@
 package com.itsaky.androidide
 
 import androidx.test.ext.junit.rules.activityScenarioRule
+import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
@@ -8,6 +9,7 @@ import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.uncheckeKotlinScript
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 
@@ -15,6 +17,11 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
 
     @get:Rule
     val activityRule = activityScenarioRule<SplashActivity>()
+
+    @After
+    fun cleanUp() {
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
+    }
 
     @Test
     fun test_projectBuild_emptyProject_java_groovyGradle() {
