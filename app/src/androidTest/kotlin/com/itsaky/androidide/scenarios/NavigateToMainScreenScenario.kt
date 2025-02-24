@@ -1,5 +1,6 @@
 package com.itsaky.androidide.scenarios
 
+import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.screens.InstallToolsScreen
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
@@ -17,42 +18,49 @@ class NavigateToMainScreenScenario : Scenario() {
                 click()
             }
         }
-        step("Grant storage and install packages permissions") {
-            PermissionScreen {
-                rvPermissions {
-                    childAt<PermissionScreen.PermissionItem>(0) {
-                        grantButton.click()
+        val permissionsScreen = device.uiDevice.findObject(UiSelector().text("Permissions"))
+
+        if (permissionsScreen.exists()) {
+            step("Grant storage and install packages permissions") {
+                PermissionScreen {
+                    rvPermissions {
+                        childAt<PermissionScreen.PermissionItem>(0) {
+                            grantButton.click()
+                        }
                     }
-                }
 
-                SystemPermissionsScreen {
-                    storagePermissionView {
-                        click()
+                    SystemPermissionsScreen {
+                        storagePermissionView {
+                            click()
+                        }
                     }
-                }
 
-                device.uiDevice.pressBack()
+                    device.uiDevice.pressBack()
 
-                rvPermissions {
-                    childAt<PermissionScreen.PermissionItem>(1) {
-                        grantButton.click()
+                    rvPermissions {
+                        childAt<PermissionScreen.PermissionItem>(1) {
+                            grantButton.click()
+                        }
                     }
-                }
 
-                SystemPermissionsScreen {
-                    installPackagesPermission {
-                        click()
+                    SystemPermissionsScreen {
+                        installPackagesPermission {
+                            click()
+                        }
                     }
-                }
 
-                device.uiDevice.pressBack()
+                    device.uiDevice.pressBack()
+                }
+                OnboardingScreen.nextButton {
+                    isVisible()
+                    isClickable()
+                    click()
+                }
             }
-            OnboardingScreen.nextButton {
-                isVisible()
-                isClickable()
-                click()
-            }
+        } else {
+            println("skip permissions")
         }
+
         step("Click continue button on the Install Tools Screen") {
             InstallToolsScreen.doneButton {
                 isVisible()

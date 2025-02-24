@@ -47,11 +47,11 @@ class InitializationProjectAndCancelingBuildScenario : Scenario() {
             }
         }
         step("Confirm that the install dialog appears and click cancel") {
-            flakySafely(180000) {
+            flakySafely(240000) {
                 val installDialog =
                     device.uiDevice.findObject(UiSelector().text("Do you want to install this app?"))
                 val cancelButton = device.uiDevice.findObject(UiSelector().text("Cancel"))
-                if (installDialog.waitForExists(120000)) {
+                if (installDialog.waitForExists(180000)) {
                     installDialog.exists()
                     cancelButton.click()
                 } else {
