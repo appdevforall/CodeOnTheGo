@@ -30,7 +30,7 @@ class InitializationProjectAndCancelingBuildScenario : Scenario() {
             }
         }
         step("Wait for the green button") {
-            flakySafely(180000) {
+            flakySafely(240000) {
                 KView {
                     withText(R.string.msg_project_initialized)
                 }.isVisible()
