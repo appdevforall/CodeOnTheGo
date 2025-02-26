@@ -20,6 +20,7 @@ package com.itsaky.androidide.lsp.java.providers.completion
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.api.describeSnippet
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.edits.ClassImportEditHandler
 import com.itsaky.androidide.lsp.java.models.JavaCompletionItem
@@ -80,7 +81,7 @@ import java.nio.file.Path
 abstract class IJavaCompletionProvider(
   protected val cursor: Long,
   completingFile: Path,
-  compiler: JavaCompilerService,
+  compiler: CompilerProvider,
   settings: IServerSettings,
 ) : BaseJavaServiceProvider(completingFile, compiler, settings) {
   protected lateinit var filePackage: String

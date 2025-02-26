@@ -322,7 +322,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
-    registerLanguageServers()
+    registerLanguageServers(this)
 
     if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
       ProjectManagerImpl.getInstance().projectPath = savedInstanceState.getString(

@@ -19,6 +19,8 @@ package com.itsaky.androidide.lsp.java.compiler;
 
 import com.itsaky.androidide.lsp.java.models.CompilationRequest;
 import com.itsaky.androidide.lsp.java.parser.ParseTask;
+import com.itsaky.androidide.projects.api.ModuleProject;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -27,40 +29,44 @@ import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+
 import jdkx.tools.JavaFileObject;
+import openjdk.tools.sjavac.Module;
 
 public interface CompilerProvider {
-  Path NOT_FOUND = Paths.get("");
+    Path NOT_FOUND = Paths.get("");
 
-  TreeSet<String> publicTopLevelTypes();
+    ModuleProject getModuleInstance();
 
-  TreeSet<String> packagePrivateTopLevelTypes(String packageName);
+    TreeSet<String> publicTopLevelTypes();
 
-  Optional<JavaFileObject> findAnywhere(String className);
+    TreeSet<String> packagePrivateTopLevelTypes(String packageName);
 
-  Path findTypeDeclaration(String className);
+    Optional<JavaFileObject> findAnywhere(String className);
 
-  Path[] findTypeReferences(String className);
+    Path findTypeDeclaration(String className);
 
-  Path[] findMemberReferences(String className, String memberName);
+    Path[] findTypeReferences(String className);
 
-  default List<String> findQualifiedNames(String simpleName) {
-    return findQualifiedNames(simpleName, false);
-  }
+    Path[] findMemberReferences(String className, String memberName);
 
-  List<String> findQualifiedNames(String simpleName, boolean onlyOne);
+    default List<String> findQualifiedNames(String simpleName) {
+        return findQualifiedNames(simpleName, false);
+    }
 
-  ParseTask parse(Path file);
+    List<String> findQualifiedNames(String simpleName, boolean onlyOne);
 
-  ParseTask parse(JavaFileObject file);
+    ParseTask parse(Path file);
 
-  default SynchronizedTask compile(Path... files) {
-    return compile(Arrays.stream(files).map(SourceFileObject::new).collect(Collectors.toList()));
-  }
+    ParseTask parse(JavaFileObject file);
 
-  default SynchronizedTask compile(Collection<? extends JavaFileObject> sources) {
-    return compile(new CompilationRequest(sources));
-  }
+    default SynchronizedTask compile(Path... files) {
+        return compile(Arrays.stream(files).map(SourceFileObject::new).collect(Collectors.toList()));
+    }
 
-  SynchronizedTask compile(CompilationRequest request);
+    default SynchronizedTask compile(Collection<? extends JavaFileObject> sources) {
+        return compile(new CompilationRequest(sources));
+    }
+
+    SynchronizedTask compile(CompilationRequest request);
 }

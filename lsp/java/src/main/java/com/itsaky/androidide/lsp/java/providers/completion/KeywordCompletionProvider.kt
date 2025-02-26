@@ -19,6 +19,7 @@ package com.itsaky.androidide.lsp.java.providers.completion
 
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -39,7 +40,7 @@ import java.nio.file.Path
 class KeywordCompletionProvider(
   completingFile: Path,
   cursor: Long,
-  compiler: JavaCompilerService,
+  compiler: CompilerProvider,
   settings: IServerSettings
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
 

@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.java.providers.definition
 
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.utils.FindHelper
 import com.itsaky.androidide.models.Location
@@ -35,7 +36,7 @@ import java.nio.file.Path
 class LocalDefinitionProvider(
   position: Position,
   completingFile: Path,
-  compiler: JavaCompilerService,
+  compiler: CompilerProvider,
   settings: IServerSettings, cancelChecker: ICancelChecker,
 ) : IJavaDefinitionProvider(position, completingFile, compiler, settings, cancelChecker) {
 

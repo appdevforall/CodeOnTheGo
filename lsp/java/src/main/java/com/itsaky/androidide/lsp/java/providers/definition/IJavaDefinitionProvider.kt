@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.java.providers.definition
 
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.providers.BaseJavaServiceProvider
 import com.itsaky.androidide.lsp.java.providers.DefinitionProvider
@@ -37,7 +38,7 @@ import java.nio.file.Path
 abstract class IJavaDefinitionProvider(
   protected val position: Position,
   completingFile: Path,
-  compiler: JavaCompilerService,
+  compiler: CompilerProvider,
   settings: IServerSettings,
   cancelChecker: ICancelChecker
 ) : BaseJavaServiceProvider(completingFile, compiler, settings), ICancelChecker by cancelChecker {

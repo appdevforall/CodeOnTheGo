@@ -64,5 +64,7 @@ dependencies {
     implementation(libs.common.kotlin)
     implementation(libs.jackson.module)
 
+    implementation(libs.kotlin.compiler.embeddable)
+
     testImplementation(projects.testing.lsp)
 }

@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.editor.ui
 
+import AndroidKotlinLanguageServer
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
@@ -316,6 +317,11 @@ open class EditorActionsMenu(val editor: IDEEditor) :
       XMLLanguageServer::class.java,
       ILanguageServerRegistry.getDefault().getServer(XMLLanguageServer.SERVER_ID)
           as? XMLLanguageServer?
+    )
+    data.put(
+      AndroidKotlinLanguageServer::class.java,
+      ILanguageServerRegistry.getDefault().getServer(AndroidKotlinLanguageServer.SERVER_ID)
+          as? AndroidKotlinLanguageServer?
     )
     return data
   }

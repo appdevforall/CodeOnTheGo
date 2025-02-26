@@ -19,6 +19,7 @@ package com.itsaky.androidide.lsp.java.providers.completion
 
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.providers.CompletionProvider
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -39,7 +40,7 @@ import java.util.Objects
 class ClassNamesCompletionProvider(
   completingFile: Path,
   cursor: Long,
-  compiler: JavaCompilerService,
+  compiler: CompilerProvider,
   settings: IServerSettings,
   val root: CompilationUnitTree,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {

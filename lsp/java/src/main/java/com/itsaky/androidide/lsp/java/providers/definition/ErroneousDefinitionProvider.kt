@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.java.providers.definition
 
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.compiler.SourceFileObject
 import com.itsaky.androidide.lsp.java.providers.DefinitionProvider
@@ -41,7 +42,7 @@ import java.nio.file.Paths
 class ErroneousDefinitionProvider(
   position: Position,
   completingFile: Path,
-  compiler: JavaCompilerService,
+  compiler: CompilerProvider,
   settings: IServerSettings, cancelChecker: ICancelChecker,
 ) : IJavaDefinitionProvider(position, completingFile, compiler, settings, cancelChecker) {
 

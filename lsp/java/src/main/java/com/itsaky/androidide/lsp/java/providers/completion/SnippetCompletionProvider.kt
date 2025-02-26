@@ -19,6 +19,7 @@ package com.itsaky.androidide.lsp.java.providers.completion
 
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetRepository
 import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetScope
@@ -42,7 +43,7 @@ import java.nio.file.Path
 class SnippetCompletionProvider(
   cursor: Long,
   completingFile: Path,
-  compiler: JavaCompilerService,
+  compiler: CompilerProvider,
   settings: IServerSettings
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
 

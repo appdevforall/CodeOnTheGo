@@ -137,6 +137,11 @@ public class JavaCompilerService implements CompilerProvider {
   }
 
   @Override
+  public ModuleProject getModuleInstance() {
+    return  module;
+  }
+
+  @Override
   public TreeSet<String> publicTopLevelTypes() {
     TreeSet<String> all = new TreeSet<>();
     List<SourceClassTrie.SourceNode> sourceClasses =

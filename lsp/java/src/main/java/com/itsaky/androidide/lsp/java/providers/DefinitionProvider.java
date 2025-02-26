@@ -20,6 +20,7 @@ package com.itsaky.androidide.lsp.java.providers;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import com.itsaky.androidide.lsp.api.IServerSettings;
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider;
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService;
 import com.itsaky.androidide.lsp.java.compiler.SynchronizedTask;
 import com.itsaky.androidide.lsp.java.providers.definition.ErroneousDefinitionProvider;
@@ -49,13 +50,13 @@ public class DefinitionProvider extends CancelableServiceProvider {
 
   public static final List<Location> NOT_SUPPORTED = Collections.emptyList();
   private static final Logger LOG = LoggerFactory.getLogger(DefinitionProvider.class);
-  private final JavaCompilerService compiler;
+  private final CompilerProvider compiler;
   private final IServerSettings settings;
   private Path file;
   private Position position;
   private int line, column;
 
-  public DefinitionProvider(JavaCompilerService compiler, IServerSettings settings,
+  public DefinitionProvider(CompilerProvider compiler, IServerSettings settings,
       ICancelChecker cancelChecker) {
     super(cancelChecker);
     this.compiler = compiler;

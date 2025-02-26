@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.ui
 
+import AndroidKotlinLanguageServer
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -39,7 +40,6 @@ import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
-import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.preferences.internal.EditorPreferences
@@ -325,7 +325,7 @@ class CodeEditorView(
     val serverID: String = when (file.extension) {
       "java" -> JavaLanguageServer.SERVER_ID
       "xml" -> XMLLanguageServer.SERVER_ID
-      "kt" -> KotlinLanguageServer.SERVER_ID
+      "kt" -> AndroidKotlinLanguageServer.SERVER_ID
       else -> return null
     }
 

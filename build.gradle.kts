@@ -48,6 +48,12 @@ subprojects {
   FDroidConfig.load(project)
 
   afterEvaluate {
+    extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
+      packagingOptions{
+        resources.excludes.add("kotlin/**")
+        resources.pickFirsts.add("kotlin/**")
+      }
+    }
     apply { plugin(AndroidIDEPlugin::class.java) }
   }
 

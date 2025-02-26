@@ -19,6 +19,7 @@ package com.itsaky.androidide.lsp.java.providers
 
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.java.compiler.CompilerProvider
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.progress.ICancelChecker
 import java.nio.file.Path
@@ -30,7 +31,7 @@ import java.nio.file.Path
  */
 abstract class BaseJavaServiceProvider(
   protected val file: Path,
-  protected val compiler: JavaCompilerService,
+  protected val compiler: CompilerProvider,
   protected val settings: IServerSettings
 ) {
 

@@ -107,7 +107,7 @@ class ImportCompletionProvider(
 
     abortIfCancelled()
     abortCompletionIfCancelled()
-    val module = compiler.module
+    val module = compiler.moduleInstance
     if (module == null) {
       legacyImportPathCompletion(partial, names, list)
       return CompletionResult(list)
