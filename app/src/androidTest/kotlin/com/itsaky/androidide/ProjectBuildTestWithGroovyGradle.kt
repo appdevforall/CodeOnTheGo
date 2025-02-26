@@ -7,7 +7,7 @@ import com.itsaky.androidide.screens.HomeScreen.clickCreateProjectHomeScreen
 import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectProjectSettings
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
-import com.itsaky.androidide.screens.ProjectSettingsScreen.uncheckeKotlinScript
+import com.itsaky.androidide.screens.ProjectSettingsScreen.uncheckKotlinScript
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.After
 import org.junit.Rule
@@ -33,7 +33,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_empty
             )
             selectJavaLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -49,7 +49,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_empty
             )
             selectKotlinLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -65,7 +65,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_basic
             )
             selectJavaLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -81,7 +81,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_basic
             )
             selectKotlinLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -97,7 +97,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_navigation_drawer
             )
             selectJavaLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -113,7 +113,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_navigation_drawer
             )
             selectKotlinLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -129,7 +129,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_navigation_tabs
             )
             selectJavaLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -145,7 +145,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_navigation_tabs
             )
             selectKotlinLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -161,7 +161,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_tabs
             )
             selectJavaLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -177,7 +177,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_tabs
             )
             selectKotlinLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -193,7 +193,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_no_AndroidX
             )
             selectJavaLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }
@@ -209,7 +209,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
                 R.string.template_no_AndroidX
             )
             selectKotlinLanguage()
-            uncheckeKotlinScript()
+            uncheckKotlinScript()
             clickCreateProjectProjectSettings()
             initializeProjectAndCancelBuild()
         }

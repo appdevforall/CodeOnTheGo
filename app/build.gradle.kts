@@ -40,6 +40,13 @@ android {
   defaultConfig {
     applicationId = BuildConfig.packageName
     vectorDrawables.useSupportLibrary = true
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+  }
+
+  testOptions {
+    execution = "ANDROIDX_TEST_ORCHESTRATOR"
   }
 
   androidResources {
@@ -262,6 +269,8 @@ dependencies {
   testImplementation(projects.testing.unit)
   testImplementation(libs.core.tests.anroidx.arch)
   androidTestImplementation(projects.testing.android)
+
+  androidTestImplementation(libs.tests.androidx.test.runner)
 }
 
 //sentry {
