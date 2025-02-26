@@ -40,6 +40,9 @@ android {
   defaultConfig {
     applicationId = BuildConfig.packageName
     vectorDrawables.useSupportLibrary = true
+    val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
+    val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
+    versionName = "CodeOnTheGo-${buildTypeName}${date}"
   }
 
   androidResources {
