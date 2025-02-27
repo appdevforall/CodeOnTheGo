@@ -9,5 +9,6 @@ import org.junit.runners.Suite
     PermissionsScreenTest::class,
     ProjectBuildTestWithGroovyGradle::class,
     ProjectBuildTestWithKtsGradle::class,
+    CleanupTest::class
 )
 class OrderedTestSuite
