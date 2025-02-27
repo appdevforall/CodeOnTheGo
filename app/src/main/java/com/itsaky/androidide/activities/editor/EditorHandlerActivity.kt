@@ -56,7 +56,6 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.roomData.tooltips.Tooltip
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
@@ -578,9 +577,9 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         startActivity(intent)
     }
 
-    override suspend fun getTooltipData(word: String): IDETooltipItem? {
+    override suspend fun getTooltipData(category: String, word: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
-          IDEApplication.idetooltipDao.getTooltip(word)
+          IDEApplication.idetooltipDao.getTooltip(category, word)
         }
     }
 

@@ -128,7 +128,7 @@ class MainFragment : BaseFragment() {
         val tag = action.id.toString()
         CoroutineScope(Dispatchers.IO).launch {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
-            val item = dao.getTooltip(tag)
+            val item = dao.getTooltip("ui", tag)
             val buttons = item.buttons
             withContext((Dispatchers.Main)) {
                 (context?.let {
@@ -175,7 +175,7 @@ class MainFragment : BaseFragment() {
                         feedbackIntent.type = "text/plain"
                         feedbackIntent.putExtra(
                             Intent.EXTRA_EMAIL,
-                            arrayOf("feedback@appdevforall.com")
+                            arrayOf("feedback@appdevforall.org")
                         )
                         feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
                         feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())

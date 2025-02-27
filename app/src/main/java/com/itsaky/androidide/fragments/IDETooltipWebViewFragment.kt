@@ -110,6 +110,7 @@ class IDETooltipWebviewFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         // Clean up the WebView in Fragment
+        //TODO JMT this throws Application attempted to call on a destroyed webView
         webView.clearHistory()
         webView.loadUrl("about:blank")
         webView.destroy()

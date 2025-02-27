@@ -27,11 +27,11 @@ interface IDETooltipDao {
   @Query("SELECT * FROM ide_tooltip_table ORDER BY tooltipTag ASC")
   fun getTooltipItems(): List<IDETooltipItem>
 
-  @Query("SELECT tooltipSummary FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
-  fun getSummary(tooltipTag : String) : String
+  @Query("SELECT tooltipSummary FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag AND tooltipCategory == :tooltipCategory")
+  fun getSummary(tooltipCategory: String, tooltipTag : String) : String
 
-  @Query("SELECT tooltipDetail FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
-  fun getDetail(tooltipTag : String) : String
+  @Query("SELECT tooltipDetail FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag AND tooltipCategory == :tooltipCategory")
+  fun getDetail(tooltipCategory: String, tooltipTag : String) : String
 
   //@Query("SELECT tooltipButtons FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
   //fun getButtons(tooltipTag: String) : ArrayList<Pair<String, String>>
@@ -39,8 +39,8 @@ interface IDETooltipDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(IDETooltipItem: IDETooltipItem)
 
-  @Query("SELECT * FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
-  suspend fun getTooltip(tooltipTag: String) : IDETooltipItem
+  @Query("SELECT * FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag AND tooltipCategory == :tooltipCategory")
+  suspend fun getTooltip(tooltipCategory: String, tooltipTag: String) : IDETooltipItem
 
   @Query("DELETE FROM ide_tooltip_table")
   suspend fun deleteAll()
