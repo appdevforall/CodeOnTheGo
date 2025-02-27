@@ -1,4 +1,4 @@
-package com.itsaky.androidide
+package com.itsaky.androidide.helper
 
 import com.itsaky.androidide.scenarios.InitializationProjectAndCancelingBuildScenario
 import com.itsaky.androidide.scenarios.NavigateToMainScreenScenario
