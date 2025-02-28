@@ -73,7 +73,7 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
         }
     }
 
-    fun TestContext<Unit>.uncheckeKotlinScript() {
+    fun TestContext<Unit>.uncheckKotlinScript() {
         step("Unselect Kotlin Script for Gradle") {
             kotlinScriptText {
                 setChecked(false)
