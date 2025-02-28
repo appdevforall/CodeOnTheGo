@@ -2,11 +2,13 @@ package com.itsaky.androidide
 
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.rules.activityScenarioRule
+import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.screens.SystemPermissionsScreen
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -15,6 +17,11 @@ class PermissionsScreenTest : TestCase() {
 
     @get:Rule
     val activityRule = activityScenarioRule<SplashActivity>()
+
+    @After
+    fun cleanUp() {
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
+    }
 
     @Test
     fun test_permissionsScreen_greenCheckMarksAppearCorrectly() = run {
