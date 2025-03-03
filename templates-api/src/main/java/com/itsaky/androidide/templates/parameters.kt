@@ -19,6 +19,7 @@ package com.itsaky.androidide.templates
 
 import android.view.View
 import androidx.annotation.StringRes
+import androidx.annotation.StyleableRes
 import com.adfa.constants.Sdk
 import com.itsaky.androidide.templates.Language.Java
 import com.itsaky.androidide.templates.Language.Kotlin
@@ -284,6 +285,9 @@ abstract class TextFieldParameter<T>(@StringRes name: Int,
   val endIcon: ((TextFieldParameter<T>) -> Int)?,
   val onStartIconClick: View.OnClickListener?,
   val onEndIconClick: View.OnClickListener?,
+  val inputType: Int?,
+  @StyleableRes val imeOptions: Int?,
+  val maxLines: Int?,
   constraints: List<ParameterConstraint>
 ) : Parameter<T>(name, description, default, constraints)
 
@@ -291,7 +295,10 @@ abstract class TextFieldParameterBuilder<T>(
   var startIcon: ((TextFieldParameter<T>) -> Int)? = null,
   var endIcon: ((TextFieldParameter<T>) -> Int)? = null,
   var onStartIconClick: View.OnClickListener? = null,
-  var onEndIconClick: View.OnClickListener? = null
+  var onEndIconClick: View.OnClickListener? = null,
+  var inputType: Int? = null,
+  var imeOptions: Int? = null,
+  var maxLines: Int? = null
 ) : ParameterBuilder<T>()
 
 class StringParameter(@StringRes name: Int, @StringRes description: Int?,
@@ -300,17 +307,29 @@ class StringParameter(@StringRes name: Int, @StringRes description: Int?,
   endIcon: ((TextFieldParameter<String>) -> Int)?,
   onStartIconClick: View.OnClickListener?,
   onEndIconClick: View.OnClickListener?,
+  inputType: Int? = null,
+  @StyleableRes imeOptions: Int? = null,
+  maxLines: Int? = null,
   constraints: List<ParameterConstraint>
 ) : TextFieldParameter<String>(name, description, default, startIcon, endIcon,
-  onStartIconClick, onEndIconClick, constraints)
+  onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, constraints)
 
 class StringParameterBuilder : TextFieldParameterBuilder<String>() {
 
   override fun build(): StringParameter {
-    return StringParameter(name = name!!, description = description,
-      default = default!!, startIcon = startIcon, endIcon = endIcon,
-      onStartIconClick = onStartIconClick, onEndIconClick = onEndIconClick,
-      constraints = constraints)
+    return StringParameter(
+      name = name!!,
+      description = description,
+      default = default!!,
+      startIcon = startIcon,
+      endIcon = endIcon,
+      onStartIconClick = onStartIconClick,
+      onEndIconClick = onEndIconClick,
+      inputType = inputType,
+      imeOptions = imeOptions,
+      maxLines = maxLines,
+      constraints = constraints
+    )
   }
 }
 
@@ -324,7 +343,7 @@ class EnumParameter<T : Enum<*>>(@StringRes name: Int,
   val displayName: ((T) -> String)? = null,
   val filter: ((T) -> Boolean)? = null
 ) : TextFieldParameter<T>(name, description, default, startIcon, endIcon,
-  onStartIconClick, onEndIconClick, constraints) {
+  onStartIconClick, onEndIconClick, null, null, null, constraints) {
 
   /**
    * Get the display name for this [EnumParameter].
@@ -368,7 +387,9 @@ inline fun projectNameParameter(crossinline configure: StringParameterBuilder.()
     default = "My Application"
     startIcon = { R.drawable.ic_android }
     constraints = listOf(NONEMPTY)
-
+    inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+    maxLines = 1
     configure()
   }
 
@@ -378,7 +399,9 @@ inline fun packageNameParameter(crossinline configure: StringParameterBuilder.()
     default = "com.example.myapplication"
     startIcon = { R.drawable.ic_package }
     constraints = listOf(NONEMPTY, PACKAGE)
-
+    inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+    maxLines = 1
     configure()
   }
 

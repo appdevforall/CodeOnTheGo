@@ -90,6 +90,9 @@ inline fun baseProject(
             default = Environment.PROJECTS_DIR.absolutePath
             endIcon = { R.drawable.ic_folder }
             constraints = listOf(NONEMPTY, DIRECTORY, EXISTS)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            maxLines = 1
         }
 
         projectName.doBeforeCreateView {
@@ -183,6 +186,9 @@ inline fun baseAndroidModule(
             name = R.string.wizard_module_name
             default = ":app"
             constraints = listOf(NONEMPTY, MODULE_NAME)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            maxLines = 1
         }
 
         val type = enumParameter<ModuleType> {
