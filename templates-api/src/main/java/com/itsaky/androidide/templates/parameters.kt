@@ -388,7 +388,7 @@ inline fun projectNameParameter(crossinline configure: StringParameterBuilder.()
     startIcon = { R.drawable.ic_android }
     constraints = listOf(NONEMPTY)
     inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
     maxLines = 1
     configure()
   }
@@ -400,7 +400,7 @@ inline fun packageNameParameter(crossinline configure: StringParameterBuilder.()
     startIcon = { R.drawable.ic_package }
     constraints = listOf(NONEMPTY, PACKAGE)
     inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
     maxLines = 1
     configure()
   }
