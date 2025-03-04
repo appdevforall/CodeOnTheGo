@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper nu este disponibil!\nSe instalează unul implicit. Gradle v7.4 va fi descărcat dacă este necesar.</string>
   <string name="run">Rulare</string>
   <!-- Project -->
-  <string name="title_first_build">Prima compilație</string>
-  <string name="msg_first_build">Aceasta este prima dată când ați instalat AndroidIDE. Prima construcție necesită de obicei timp, deoarece Gradle descarcă toate dependențele și pluginurile. Acest proces poate dura aproximativ 10–15 minute. Dar asta depinde în totalitate de conexiunea dvs. la rețea.\n\nVă rugăm să aveți răbdare …</string>
+  <string name="title_first_build">Configurarea noului proiect</string>
+  <string name="msg_first_build">Code on the Go configurează fișierele și directoarele noului tău proiect. Te rugăm să ai răbdare!\n\nCând configurarea se va termina, \"Proiect inițializat\" va apărea în partea de jos a ecranului.</string>
   <string name="create_project">Creați proiect</string>
   <string name="minimum_sdk">SDK minim</string>
   <string name="new_project">Proiect nou</string>

@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper kullanılabilir değil!\nVarsayılan bir tanesi indiriliyor. Gradle v7.4 eğer gerekliyse indirilecek.</string>
   <string name="run">Çalıştır</string>
   <!-- Project -->
-  <string name="title_first_build">İlk İnşa</string>
-  <string name="msg_first_build">Bu AndroidIDE\'yi yüklendikten sonra ilk inşa. İlk inşa bağımlılıkları ve eklentileri yükler bu yüzden biraz zaman alabilir. Bu işlem 10-15 dakika sürer. Ama genellikle internetine bağlı.\n\nLütfen sabırlı olun…</string>
+  <string name="title_first_build">Yeni projenizin kurulumu</string>
+  <string name="msg_first_build">Code on the Go, AndroidIDE\'yı yükledikten sonra ilk inşa sürecinde, projenizin dosya ve dizinlerini ayarlıyor. Bu işlem yaklaşık 10-15 dakika sürebilir, lütfen sabırlı olun!\n\nKurulum tamamlandığında, ekranın altında \"Proje başlatıldı\" mesajı görüntülenecektir.</string>
   <string name="create_project">Proje oluştur</string>
   <string name="minimum_sdk">En düşük SDK</string>
   <string name="new_project">Yeni proje</string>
