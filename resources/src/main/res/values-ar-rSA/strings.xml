@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">عذرا، Gradle wrapwrapper غير متوفر!\nجاري تثبيت واحدة افتراضية. سيتم تنزيل Gradle v7.4 إذا لزم الأمر.</string>
   <string name="run">تشغيل</string>
   <!-- Project -->
-  <string name="title_first_build">أول بناء</string>
-  <string name="msg_first_build">هذه هي المرة الأولى التي يتم فيها البناء بعد تثبيت AndroidIDE. يستغرق البناء الأول عادة وقتاً بينما يقوم تنزيل Gradle بتحميل جميع التبعيات والإضافات. قد تستغرق هذه العملية حوالي 10 - 15 دقيقة. لكن هذا يعتمد كلياً على اتصال الشبكة الخاصة بك.\n\nالرجاء التحلي بالصبر…</string>
+  <string name="title_first_build">إعداد مشروعك الجديد</string>
+  <string name="msg_first_build">Code on the Go يقوم بإعداد ملفات ومجلدات مشروعك الجديد. يرجى التحلي بالصبر!\n\nعندما ينتهي الإعداد، سيتم عرض \"تم تهيئة المشروع\" في أسفل الشاشة.</string>
   <string name="create_project">إنشاء مشروع</string>
   <string name="minimum_sdk">الحد الأدنى من SDK</string>
   <string name="new_project">مشروع جديد</string>

@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper tidak tersedia!\nMenginstal Gradle bawaan. Gradle v7.4 akan diunduh jika diperlukan.</string>
   <string name="run">Jalankan</string>
   <!-- Project -->
-  <string name="title_first_build">Build Pertama</string>
-  <string name="msg_first_build">Ini adalah build pertama setelah anda memasang AndroidIDE. Build pertama biasanya memakan waktu selama Gradle mengunduh semua dependensi dan plugin. Proses ini diperkirakan sekitar 10&#8211;15 menit. Tetapi ini bergantung pada kecepatan koneksi internet anda.\n\nMohon bersabar &#8230;</string>
+  <string name="title_first_build">Menyiapkan proyek baru</string>
+  <string name="msg_first_build">Code on the Go sedang menyiapkan file dan direktori proyek baru Anda. Harap bersabar!\n\nSetelah penyiapan selesai, \"Proyek diinisialisasi\" akan ditampilkan di bagian bawah layar.</string>
   <string name="create_project">Buat proyek</string>
   <string name="minimum_sdk">Minimum SDK</string>
   <string name="new_project">Proyek baru</string>
