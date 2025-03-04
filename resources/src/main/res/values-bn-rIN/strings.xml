@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper উপলব্ধ নেই!\nডিফল্ট একটি ইনস্টল করা হচ্ছে। প্রয়োজনে Gradle v7.4 ডাউনলোড করা হবে।</string>
   <string name="run">চালান</string>
   <!-- Project -->
-  <string name="title_first_build">প্রথম বিল্ড</string>
-  <string name="msg_first_build">আপনি AndroidIDE ইনস্টল করার পর এটিই প্রথমবার বিল্ড। প্রথম বিল্ডে সাধারণত সময় লাগে কারণ Gradle সমস্ত ডিপেনডেন্সি এবং প্লাগইন ডাউনলোড করে। এই প্রক্রিয়াটি প্রায় 10-15 মিনিট সময় নিতে পারে। কিন্তু এটি সম্পূর্ণরূপে আপনার নেটওয়ার্ক সংযোগের উপর নির্ভর করে।\n\nদয়া করে ধৈর্য ধরুন।…</string>
+  <string name="title_first_build">আপনার নতুন প্রকল্প সেট আপ হচ্ছে</string>
+  <string name="msg_first_build">Code on the Go আপনার নতুন প্রকল্পের ফাইল এবং ডিরেক্টরিগুলি সেট আপ করছে। অনুগ্রহ করে ধৈর্য ধরুন!\n\nসেটআপ সম্পন্ন হলে, স্ক্রিনের নিচে প\"্রকল্প শুরু করা হয়েছে\" প্রদর্শিত হবে।</string>
   <string name="create_project">প্রকল্প তৈরি করুন</string>
   <string name="minimum_sdk">সর্বনিম্ন SDK</string>
   <string name="new_project">নতুন প্রকল্প</string>

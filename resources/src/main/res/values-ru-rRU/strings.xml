@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper недоступен!\nУстановка версии Gradle по умолчанию. Gradle v7.4 будет скачан, если это необходимо.</string>
   <string name="run">Запустить</string>
   <!-- Project -->
-  <string name="title_first_build">Первая сборка</string>
-  <string name="msg_first_build">Это первая сборка после установки AndroidIDE. Первая сборка обычно занимает больше времени, так как Gradle скачивает все зависимости и плагины. Этот процесс может занять 10–15 минут, в зависимости от производительности вашего устройства.\n\nПожалуйста, подождите&#8230;</string>
+  <string name="title_first_build">Настройка вашего нового проекта</string>
+  <string name="msg_first_build">Code on the Go настраивает файлы и каталоги вашего нового проекта. Пожалуйста, наберитесь терпения!\n\nКогда настройка завершится, в нижней части экрана будет отображено \"Проект инициализирован\".</string>
   <string name="create_project">Создать проект</string>
   <string name="minimum_sdk">Минимальный SDK</string>
   <string name="new_project">Новый проект</string>
