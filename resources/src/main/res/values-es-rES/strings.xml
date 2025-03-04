@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">¡Gradle Wrapper no está disponible!\nInstale uno predeterminado. Gradle v7.4 se descargará si es necesario</string>
   <string name="run">Run</string>
   <!-- Project -->
-  <string name="title_first_build">Primera compilación</string>
-  <string name="msg_first_build">Esta es la primera compilación después de instalar AndroidIDE. La primera compilación normalmente toma tiempo mientras Gradle descarga todas las dependencias y plugins. Este proceso puede tardar entre 10 y 15 minutos. Pero depende totalmente de su conexión de red.\n\nPor favor, sea paciente…</string>
+  <string name="title_first_build">Puesta en marcha de tu nuevo proyecto</string>
+  <string name="msg_first_build">Code on the Go está configurando los archivos y directorios de tu nuevo proyecto. Por favor, ten paciencia!\n\nCuando finalice la configuración, aparecerá \"Proyecto inicializado\" en la parte inferior de la pantalla.</string>
   <string name="create_project">Crear proyecto</string>
   <string name="minimum_sdk">SDK mínimo</string>
   <string name="new_project">Nuevo proyecto</string>
