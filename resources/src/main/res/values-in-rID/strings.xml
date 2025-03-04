@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-  <!-- AndroidIDE -->
+  <!-- Code on the Go -->
   <string name="copy" tools:override="true">Salin</string>
   <string name="terminal_more">Lagi…</string>
   <string name="text_to_search">Teks untuk mencari</string>
   <string name="about_option_email">Email</string>
   <string name="about_option_website">Situs Web</string>
-  <string name="about_footer">AndroidIDE %1$s untuk %2$s</string>
+  <string name="about_footer">Code on the Go %1$s untuk %2$s</string>
   <string name="about_subtitle">Simpel, sebuah IDE untuk Android</string>
   <string name="msg_get_package_failed">Gagal mengekstrak nama paket!</string>
-  <string name="msg_need_help">Jika anda mengalami masalah ketika menggunakan AndroidIDE atau dengan pembuatan Aplikasi Android, anda dapat bergabung ke Grup Telegram dan bertanya disana.\n\nAnda juga dapat mengirim saran pada Email kami.</string>
+  <string name="msg_need_help">Jika anda mengalami masalah ketika menggunakan Code on the Go atau dengan pembuatan Aplikasi Android, anda dapat bergabung ke Grup Telegram dan bertanya disana.\n\nAnda juga dapat mengirim saran pada Email kami.</string>
   <string name="need_help">Butuh Bantuan?</string>
   <string name="ide_preferences">Preferensi IDE</string>
   <string name="discussions_on_telegram">Diskusi di Telegram</string>
@@ -37,7 +37,7 @@
   <string name="please_wait">Mohon tunggu sebentar &#8230;</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">Perangkat Tidak Didukung</string>
-  <string name="msg_unsupported_device">Anda menggunakan %1$s varian AndroidIDE pada perangkat khusus %2$s. Konfigurasi ini tidak didukung. Silakan instal varian %2$s AndroidIDE.</string>
+  <string name="msg_unsupported_device">Anda menggunakan %1$s varian Code on the Go pada perangkat khusus %2$s. Konfigurasi ini tidak didukung. Silakan instal varian %2$s Code on the Go.</string>
   <string name="title_clear_output">Bersihkan hasil</string>
   <string name="build_output">Hasil Build</string>
   <string name="quick_run_debug">Quick run</string>
@@ -137,7 +137,7 @@
   <string name="redo">Redo</string>
   <!-- Preferences -->
   <string name="title_change_text_size">Ukuran huruf editor</string>
-  <string name="idepref_about_title">Tentang AndroidIDE</string>
+  <string name="idepref_about_title">Tentang Code on the Go</string>
   <string name="idepref_build_clearCache_title">Bersihkan cache Gradle</string>
   <string name="idepref_build_clearCache_summary">Membersihkan direktori cache Gradle. ini akan menghapus semua dependensi yang telah diunduh oleh Gradle. File yang diperlukan akan diunduh kembali pada build berikutnya.</string>
   <string name="idepref_build_customgradlecommands_title">Penambahan perintah Gradle</string>
@@ -175,7 +175,7 @@
   <string name="msg_generate_xml_failed">Gagal untuk menghasilkan kode XML</string>
   <string name="title_generating_xml">Hasilkan kode XML</string>
   <string name="msg_swipe_up">Geser ke atas untuk hasil build, log dan lainnya.</string>
-  <string name="msg_ide_crashed">AndroidIDE crash</string>
+  <string name="msg_ide_crashed">Code on the Go crash</string>
   <string name="msg_report_crash">Mohon buka isu di github dengan menyertakan stacktrace :</string>
   <string name="msg_crash_report_hint">Klik tombol dibawah untuk menyalin log dan membuka halaman isu.</string>
   <string name="msg_copy_report_action">Salin dan laporkan</string>
@@ -242,11 +242,11 @@
   <string name="idepref_buildnrun_summary">Konfigurasikan build Gradle.</string>
   <string name="configure">Konfigurasikan</string>
   <string name="about">Tentang</string>
-  <string name="idepref_github_summary">AndroidIDE adalah sumber terbuka!</string>
+  <string name="idepref_github_summary">Code on the Go adalah sumber terbuka!</string>
   <string name="idepref_channel_summary">Berlangganan untuk pembaruan terbaru.</string>
   <string name="idepref_group_summary">Diskusikan fitur, bug, dan peningkatan di sini.</string>
   <string name="idepref_changelog_summary">Apa yang baru di versi ini?</string>
-  <string name="idepref_about_summary">Lebih lanjut tentang AndroidIDE.</string>
+  <string name="idepref_about_summary">Lebih lanjut tentang Code on the Go.</string>
   <string name="idepref_general_summary">Konfigurasi IDE umum.</string>
   <string name="idepref_editor_summary">Konfigurasikan editornya.</string>
   <string name="idepref_xml_trimFinalNewLine_title">Potong baris baru terakhir</string>
@@ -285,7 +285,7 @@
   <string name="idepref_customFont_summary">Jika diaktifkan, file di \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" akan digunakan sebagai font Editor.</string>
   <string name="msg_installing_apk">Menginstal APK...</string>
   <string name="msg_action_open_application">Apakah Anda ingin membuka aplikasi?</string>
-  <string name="title_gradle_service_notification_channel">Layanan Build Gradle AndroidIDE</string>
+  <string name="title_gradle_service_notification_channel">Layanan Build Gradle Code on the Go</string>
   <string name="msg_hex_color_code">Kode warna Hex</string>
   <string name="msg_color_picker_pick">Pilih</string>
   <string name="msg_chmod_exec">Mengatur perijinan eksekusi…</string>
@@ -356,7 +356,7 @@
   <string name="uiMode_dark">Dark</string>
   <string name="uiMode_system">Ikuti sistem</string>
   <string name="idepref_general_themeSelector_title">Tema</string>
-  <string name="idepref_general_themeSelector_summary">Pilih tema untuk AndroidIDE (memerlukan restart).</string>
+  <string name="idepref_general_themeSelector_summary">Pilih tema untuk Code on the Go (memerlukan restart).</string>
   <string name="idepref_general_projectConfig">Konfigurasi proyek</string>
   <string name="msg_app_launch_failed">Peluncuran gagal. Instal aplikasinya terlebih dahulu.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostik diaktifkan</string>
@@ -374,7 +374,7 @@
   <string name="msg_no_unresolved_classes">Tidak ditemukan nama kelas yang belum terselesaikan</string>
   <string name="title_class_chooser">%1$s yang mana?</string>
   <string name="permlab_bind_logger_service">ikat ke layanan log</string>
-  <string name="permdesc_bind_logger_service">Mengizinkan aplikasi ini mengikat ke layanan logging AndroidIDE. Izin ini diperlukan untuk AndroidIDE untuk membaca log aplikasi ini.</string>
+  <string name="permdesc_bind_logger_service">Mengizinkan aplikasi ini mengikat ke layanan logging Code on the Go. Izin ini diperlukan untuk Code on the Go untuk membaca log aplikasi ini.</string>
   <string name="wizard_module_name">Nama modul</string>
   <string name="wizard_module_type">Jenis modul</string>
   <string name="msg_invalid_module_name">Nama modul Gradle tidak valid</string>
@@ -387,8 +387,8 @@
   <string name="msg_invalid_project_details">Detail proyek tidak valid</string>
   <string name="msg_use_kts">Gunakan Skrip Kotlin (.kts) untuk file Build Gradle</string>
   <string name="title_privacy">Privasi</string>
-  <string name="title_androidide_statistics">Statistik AndroidIDE</string>
-  <string name="msg_androidide_statistics">Bantu kami menyempurnakan AndroidIDE dengan menyediakan statistik anonim. Kami mengumpulkan informasi dasar tentang perangkat Anda hanya untuk statistik basis pengguna. Data pasti yang dibagikan dapat dilihat di preferensi. Data Anda aman dan tidak dibagikan dengan layanan pihak ketiga. Anda dapat menyisih kapan saja di preferensi.</string>
+  <string name="title_androidide_statistics">Statistik Code on the Go</string>
+  <string name="msg_androidide_statistics">Bantu kami menyempurnakan Code on the Go dengan menyediakan statistik anonim. Kami mengumpulkan informasi dasar tentang perangkat Anda hanya untuk statistik basis pengguna. Data pasti yang dibagikan dapat dilihat di preferensi. Data Anda aman dan tidak dibagikan dengan layanan pihak ketiga. Anda dapat menyisih kapan saja di preferensi.</string>
   <string name="summary_anonymous_usage_stats">Statistik penggunaan anonim</string>
   <string name="idepref_stats_optIn_title">Koleksi statistik</string>
   <string name="idepref_stats_optIn_summary">Izinkan metrik penginstalan dan statistik perangkat dikumpulkan (sepenuhnya anonim).</string>
@@ -401,10 +401,10 @@
   <string name="title_android_version">Versi Android</string>
   <string name="btn_opt_in">Pendaftaran</string>
   <string name="title_developer_options">Opsi pengembang</string>
-  <string name="idepref_devOptions_summary">Opsi eksperimental/debug untuk AndroidIDE</string>
+  <string name="idepref_devOptions_summary">Opsi eksperimental/debug untuk Code on the Go</string>
   <string name="idepref_group_debugging">Men-debug</string>
   <string name="idepref_devOptions_dumpLogs_title">Dump log</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Dump log AndroidIDE ke $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Dump log Code on the Go ke $HOME/.androidide/logs</string>
   <string name="msg_emptyview_applogs">Jalankan varian debug aplikasi Anda untuk melihat lognya di sini.</string>
   <string name="msg_logsender_disabled">LogSender dinonaktifkan. Anda dapat mengaktifkannya di preferensi.</string>
   <string name="msg_emptyview_idelogs">Log dari IDE ditampilkan di sini.</string>
@@ -412,7 +412,7 @@
   <string name="msg_emptyview_buildoutput">"Buat aplikasi atau jalankan tugas untuk melihat hasil pembuatannya di sini. "</string>
   <string name="msg_codeaction_failed">Gagal melakukan tindakan kode</string>
   <string name="idepref_devOptions_enableLogsender_title">Aktifkan LogSender</string>
-  <string name="idepref_devOptions_enableLogsender_summary">Saat dinonaktifkan, log dari aplikasi tidak akan ditampilkan di AndroidIDE</string>
+  <string name="idepref_devOptions_enableLogsender_summary">Saat dinonaktifkan, log dari aplikasi tidak akan ditampilkan di Code on the Go</string>
   <string name="title_build_variants">Bangun varian</string>
   <string name="title_apply">Terapkan</string>
   <string name="title_discard">Buang</string>
@@ -430,14 +430,14 @@
   <string name="msg_launch_failure_no_app_module">Tidak dapat menjalankan aplikasi. Tidak ada modul aplikasi yang ditemukan di proyek.</string>
   <string name="title_launch_app">Luncurkan aplikasi</string>
   <string name="title_experiment_flavor">Eksperimental</string>
-  <string name="msg_experimental_flavor">Anda menggunakan %1$s varian AndroidIDE di perangkat %2$s. Konfigurasi ini mungkin berfungsi, namun akan mengakibatkan penurunan kinerja dan kemungkinan kerentanan keamanan. Harap hindari penggunaan konfigurasi ini bila memungkinkan.</string>
+  <string name="msg_experimental_flavor">Anda menggunakan %1$s varian Code on the Go di perangkat %2$s. Konfigurasi ini mungkin berfungsi, namun akan mengakibatkan penurunan kinerja dan kemungkinan kerentanan keamanan. Harap hindari penggunaan konfigurasi ini bila memungkinkan.</string>
   <string name="idepref_editor_pinLineNumbers_title">Sematkan nomor baris</string>
   <string name="idepref_editor_pinLineNumbers_summary">Apakah editor harus menyematkan panel nomor baris saat digulir secara horizontal.</string>
   <string name="theme_blue_wave">Blue Wave</string>
   <string name="theme_sunny_glow">Sunny Glow</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">Bahasa</string>
-  <string name="idepref_general_localeSelector_summary">Pilih bahasa untuk AndroidIDE.</string>
+  <string name="idepref_general_localeSelector_summary">Pilih bahasa untuk Code on the Go.</string>
   <string name="locale_system_default">Bawaan Sistem</string>
   <string name="msg_project_dir_inaccessible">Direktori proyek tidak dapat diakses</string>
   <string name="msg_file_is_not_dir">File yang dipilih bukan direktori</string>
@@ -454,7 +454,7 @@
   <string name="permission_desc_install_packages">Izinkan pemasangan APK yang dibuat dengan IDE Android.</string>
   <string name="permission_title_install_packages">Instal paket</string>
   <string name="onboarding_title_permissions">Izin</string>
-  <string name="onboarding_subtitle_permissions">AndroidIDE memerlukan izin berikut</string>
+  <string name="onboarding_subtitle_permissions">Code on the Go memerlukan izin berikut</string>
   <string name="msg_grant_permissions">Harap berikan izin untuk melanjutkan.</string>
   <string name="msg_no_internet">Sepertinya Anda sedang offline. Periksa koneksi internet Anda.</string>
   <string name="msg_connected_to_cellular">Perhatian! Anda menggunakan data seluler.</string>
@@ -477,7 +477,7 @@
   <string name="title_crowdin_translators">Penerjemah Crowdin</string>
   <string name="title_misc">Lain-lain</string>
   <string name="title_contribute">Menyumbang</string>
-  <string name="summary_contribute">Ini bukan hanya sebuah IDE, ini adalah sebuah komunitas. Kontribusikan kode, ide, dan semangat ke AndroidIDE.</string>
+  <string name="summary_contribute">Ini bukan hanya sebuah IDE, ini adalah sebuah komunitas. Kontribusikan kode, ide, dan semangat ke Code on the Go.</string>
   <string name="msg_app_unavailable_for_intent">Tidak ada aplikasi yang tersedia untuk menangani maksud.</string>
   <string name="title_open_source_licenses">Lisensi sumber terbuka</string>
   <string name="summary_open_source_licenses">Lihat lisensi sumber terbuka.</string>
