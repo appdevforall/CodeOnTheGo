@@ -109,7 +109,6 @@ class PermissionsScreenTest : TestCase() {
                 device.uiDevice.pressBack()
             }
         }
-
         step("Confirm that all menu items don't have allow text") {
             PermissionScreen {
                 rvPermissions {
