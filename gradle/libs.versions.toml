@@ -4,14 +4,14 @@ agp-tooling = "8.4.2"
 gradle-tooling = "8.6"
 junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
-kotlin = "1.9.22"
+kotlin = "2.0.21"
 kotlin-coroutines = "1.8.0"
 tree-sitter = "4.3.1"
 editor = "0.23.5"
 glide = "4.16.0"
 androidx-vectordrawable = "1.2.0"
 androidx-navigation = "2.7.7"
-ksp = "1.9.22-1.0.17"
+ksp = "2.0.21-1.0.25"
 antlr4 = "4.13.1"
 androidx-work = "2.10.0"
 androidx-espresso = "3.5.1"
@@ -133,7 +133,7 @@ androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version
 androidx-vectors = { module = "androidx.vectordrawable:vectordrawable", version.ref = "androidx-vectordrawable" }
 androidx-animated_vectors = { module = "androidx.vectordrawable:vectordrawable-animated", version.ref = "androidx-vectordrawable" }
 androidx-core = { module = "androidx.core:core", version = "1.13.1" }
-androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.13.1" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.15.0" }
 androidx-fragment_ktx = { module = "androidx.fragment:fragment-ktx", version = "1.6.2" }
 androidx-libDesugaring = { module = "com.android.tools:desugar_jdk_libs", version = "2.0.4" }
 androidx-splashscreen = { module = "androidx.core:core-splashscreen", version = "1.0.1" }
