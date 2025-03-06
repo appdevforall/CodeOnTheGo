@@ -146,7 +146,6 @@ object TooltipUtils {
             }
         }
 
-
         // Show the popup window
         popupWindow.isFocusable = true
 
