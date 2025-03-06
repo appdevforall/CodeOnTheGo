@@ -40,9 +40,13 @@ android {
   defaultConfig {
     applicationId = BuildConfig.packageName
     vectorDrawables.useSupportLibrary = true
-    val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
-    val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
-    versionName = "CodeOnTheGo-${buildTypeName}${date}"
+
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+  }
+
+  testOptions {
+    execution = "ANDROIDX_TEST_ORCHESTRATOR"
   }
 
   androidResources {
@@ -265,6 +269,8 @@ dependencies {
   testImplementation(projects.testing.unit)
   testImplementation(libs.core.tests.anroidx.arch)
   androidTestImplementation(projects.testing.android)
+
+  androidTestImplementation(libs.tests.androidx.test.runner)
 }
 
 //sentry {
