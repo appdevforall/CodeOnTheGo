@@ -71,12 +71,6 @@ jobs:
         run: |
           git submodule init
           git submodule update --remote
-      - name: Symlink for Linux only
-        run: |
-          if: runner.os != 'Windows'
-          shell: bash
-          run: |
-          ln -s LayoutEditor layouteditor
       - name: Restore cache
         uses: actions/cache@v4
         with:
