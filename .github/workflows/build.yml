@@ -47,11 +47,11 @@ jobs:
   build_apk:
     strategy:
       matrix:
-#        build_type: ['debug', 'release']
-        build_type: ['debug']
+        #        build_type: ['debug', 'release']
+        build_type: [ 'debug' ]
     name: Build APK
     runs-on:
-        self-hosted
+      self-hosted
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -71,6 +71,11 @@ jobs:
         run: |
           git submodule init
           git submodule update --remote
+      - name: Symlink for Linux only
+        run: |
+          if: runner.os != 'Windows'
+          shell: bash
+          run: |
           ln -s LayoutEditor layouteditor
       - name: Restore cache
         uses: actions/cache@v4
