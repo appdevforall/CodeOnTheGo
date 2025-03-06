@@ -58,6 +58,9 @@ class MainFragment : BaseFragment() {
 
         private val log = LoggerFactory.getLogger(MainFragment::class.java)
         const val KEY_TOOLTIP_URL = "tooltip_url"
+        const val DEFAULT_DETAIL_MESSAGE =  "Specific help isn't available for this item. Tap here to explore more documentation."
+        const val DEFAULT_SUMMARY_MESSAGE = "General Help"
+        val DEFAULT_BUTTONS = arrayListOf(Pair("Learn more", "~/help_top.html"))
     }
 
     private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
@@ -129,16 +132,16 @@ class MainFragment : BaseFragment() {
         CoroutineScope(Dispatchers.IO).launch {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
             val item = dao.getTooltip(tag)
-            val buttons = item.buttons
+            val buttons = item?.buttons?: arrayListOf()
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipUtils.showIDETooltip(
                         it,
                         view!!,
                         0,
-                        item.detail,
-                        item.summary,
-                        buttons
+                        item?.detail?: DEFAULT_DETAIL_MESSAGE,
+                        item?.summary?: DEFAULT_SUMMARY_MESSAGE,
+                        item?.buttons?: DEFAULT_BUTTONS
                     )
                 })
             }

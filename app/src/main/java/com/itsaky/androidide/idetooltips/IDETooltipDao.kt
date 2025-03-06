@@ -40,7 +40,7 @@ interface IDETooltipDao {
   suspend fun insert(IDETooltipItem: IDETooltipItem)
 
   @Query("SELECT * FROM ide_tooltip_table WHERE tooltipTag == :tooltipTag")
-  suspend fun getTooltip(tooltipTag: String) : IDETooltipItem
+  suspend fun getTooltip(tooltipTag: String) : IDETooltipItem?
 
   @Query("DELETE FROM ide_tooltip_table")
   suspend fun deleteAll()
