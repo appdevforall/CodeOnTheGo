@@ -696,7 +696,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     editorActivityScope.launch {
       val files = editorViewModel.getOpenedFiles()
       val dupliCount = mutableMapOf<String, Int>()
-      val names = MutableIntObjectMap<Pair<String, Int>>() // e: file:///Users/john/Documents/CodeOnTheGo/app/src/main/java/com/itsaky/androidide/activities/editor/EditorHandlerActivity.kt:699:52 This annotation is not applicable to target 'type usage'.
+      val names = MutableIntObjectMap<Pair<String, Int>>()
       val nameBuilder = UniqueNameBuilder<File>("", File.separator)
 
       files.forEach {
