@@ -29,7 +29,9 @@ object HomeScreen : KScreen<HomeScreen>() {
             flakySafely(60000) {
                 HomeScreen {
                     rvActions {
-                        childAt<ActionItem>(0) {
+                        scrollTo(0)
+                        childWith<ActionItem> { withText("Create project") } perform {
+                            isDisplayed()
                             click()
                         }
                     }
