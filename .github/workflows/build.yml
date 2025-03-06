@@ -82,7 +82,7 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
-          export ANDROID_HOME=$HOME/Android/Sdk
+#          export ANDROID_HOME=$HOME/Android/Sdk
           build_type=${{ matrix.build_type }}
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
