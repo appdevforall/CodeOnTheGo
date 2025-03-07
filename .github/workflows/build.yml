@@ -85,9 +85,9 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
-          set ANDROID_HOME=/Users/yaturner/AppData/Local/Android/Sdk
-          build_type=${{ matrix.build_type }}
-          ./gradlew :app:assemble${build_type^}
+          set ANDROID_HOME=C:/Users/yaturner/AppData/Local/Android/Sdk
+          ./gradlew :app:assembleDebug
+
       - name: Copy ${{ matrix.build_type }} APK
         run:
           cp app/build/outputs/apk/${{ matrix.build_type }}/CodeOnTheGo-*.apk ./
