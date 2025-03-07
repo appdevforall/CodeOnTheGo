@@ -47,11 +47,11 @@ jobs:
   build_apk:
     strategy:
       matrix:
-        #        build_type: ['debug', 'release']
-        build_type: [ 'debug' ]
+#        build_type: ['debug', 'release']
+        build_type: ['debug']
     name: Build APK
     runs-on:
-      self-hosted
+        self-hosted
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -82,6 +82,7 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
+          set ANDROID_HOME=/Users/yaturner/AppData/Local/Android/Sdk
           build_type=${{ matrix.build_type }}
           ./gradlew :app:assemble${build_type^}
       - name: Copy ${{ matrix.build_type }} APK
