@@ -3,6 +3,7 @@
 
   <!--  other colors-->
   <color name="primaryColor">#121212</color>
+  <color name="primaryBackground">#ffffff</color>
   <color name="primaryIconColor">#ffffff</color>
   <color name="rippleHighlightColor">#85121212</color>
 
