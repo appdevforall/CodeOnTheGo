@@ -113,41 +113,41 @@ jobs:
           name: release-mappings
           path: '**/build/outputs/mapping'
 
-#  run_unit_tests:
-#    name: Run unit tests
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: ${{ env.BUILD_JAVA_VERSION }}
-#          distribution: ${{ env.BUILD_JAVA_DIST }}
-#      - name: Change Gradle wrapper permissions
-#        run: chmod +x ./gradlew
-#      - name: Restore cache
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            ~/.gradle/caches
-#            ~/.gradle/wrapper
-#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-#          restore-keys: |
-#            ${{ runner.os }}-gradle-
-#      - name: Run unit tests
-#        run: ./gradlew runTestsInCI --continue
-#        env:
-#          ANDROIDIDE_TEST: true
-#      - name: Upload test reports
-#        if: ${{ always() }}
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: test-results-unit-tests
-#          path: '**/build/reports/tests/'
-#
+  run_unit_tests:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.BUILD_JAVA_VERSION }}
+          distribution: ${{ env.BUILD_JAVA_DIST }}
+      - name: Change Gradle wrapper permissions
+        run: chmod +x ./gradlew
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Run unit tests
+        run: ./gradlew app:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
+        env:
+          ANDROIDIDE_TEST: true
+      - name: Upload test reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit-tests
+          path: '**/build/reports/tests/'
+
 #  run_tooling_api_tests:
 #    name: Build and test Tooling API
 #    runs-on: ubuntu-latest
