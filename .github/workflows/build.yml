@@ -123,7 +123,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Configure Git safe directory
-        run: git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
+        run: |
+          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
+          git config --global core.longpaths true
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -146,7 +148,7 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Run unit tests
         run:
-          ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
+          ./gradlew app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite"
         env:
           ANDROIDIDE_TEST: true
       - name: Upload test reports
