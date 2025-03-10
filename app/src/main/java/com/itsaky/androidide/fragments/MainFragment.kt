@@ -133,16 +133,18 @@ class MainFragment : BaseFragment() {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
             val item = dao.getTooltip(tag)
             withContext(Dispatchers.Main) {
-                (context?.let {
+                context?.let { context ->
                     TooltipUtils.showIDETooltip(
-                        it,
+                        context,
                         view!!,
                         0,
-                        item?.detail?: DEFAULT_DETAIL_MESSAGE,
-                        item?.summary?: DEFAULT_SUMMARY_MESSAGE,
-                        item?.buttons?: DEFAULT_BUTTONS
-                    )
-                })
+                        item?.detail ?: DEFAULT_DETAIL_MESSAGE,
+                        item?.summary ?: DEFAULT_SUMMARY_MESSAGE,
+                        item?.buttons ?: DEFAULT_BUTTONS
+                    ) { url ->
+                        TooltipUtils.showWebPage(context, url)
+                    }
+                }
             }
         }
     }
