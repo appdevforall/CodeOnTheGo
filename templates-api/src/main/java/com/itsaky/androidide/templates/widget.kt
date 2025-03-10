@@ -17,6 +17,9 @@
 
 package com.itsaky.androidide.templates
 
+import android.graphics.Color
+import android.view.View
+
 /**
  * Represents an UI element.
  *
@@ -31,7 +34,11 @@ interface Widget<T> {
  * Widget for the given [parameter].
  */
 sealed class ParameterWidget<T>(val parameter: Parameter<T>) : Widget<T> {
-
+  init {
+    if (this is View) {
+      this.setBackgroundColor(Color.WHITE) // Cambia el fondo a blanco
+    }
+  }
   override fun release() {
     parameter.release()
   }
