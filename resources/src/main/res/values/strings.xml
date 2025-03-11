@@ -22,6 +22,7 @@
   <string name="reset">Reset</string>
   <string name="app_logs">App Logs</string>
   <string name="ide_logs">IDE Logs</string>
+  <string name="default_tooltip">General information about this feature.</string>
 
   <!-- Git -->
   <string name="commit_message">Commit message</string>
