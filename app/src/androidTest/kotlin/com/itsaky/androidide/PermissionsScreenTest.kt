@@ -75,7 +75,7 @@ class PermissionsScreenTest : TestCase() {
                 }
             }
         }
-        step("Grant permissions") {
+        step("Grant Storage Permissions") {
             PermissionScreen {
                 rvPermissions {
                     childAt<PermissionScreen.PermissionItem>(0) {
@@ -90,7 +90,10 @@ class PermissionsScreenTest : TestCase() {
                 }
 
                 device.uiDevice.pressBack()
-
+            }
+        }
+        step("Grant Install Packages Permissions") {
+            PermissionScreen {
                 rvPermissions {
                     childAt<PermissionScreen.PermissionItem>(1) {
                         grantButton.click()
