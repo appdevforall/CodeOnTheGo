@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build and test
 
 on:
   push:
@@ -13,10 +13,11 @@ on:
       - '**.md'
       - 'fastlane/**'
       - '.github/workflows/crowdin_contributors.yml'
-  workflow_dispatch:
+  workflow_dispatch: { }
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
   IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
   IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
@@ -24,45 +25,44 @@ env:
   IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
   IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
   IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+
   ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
   ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
   ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
+
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
 
 jobs:
   build_apk:
     name: Build APK
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 60
-    strategy:
-      matrix:
-        build_type: [ "debug" ]
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
-
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      - name: Configure Git safe directory
+        run: |
+          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
+          git config --global core.longpaths true
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
-
       - name: Initialize submodules
         run: |
           git submodule init
           git submodule update --remote
-
-      - name: Restore Gradle cache
+      - name: Restore cache
         uses: actions/cache@v4
         with:
           path: |
@@ -71,47 +71,36 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-
-      - name: Set Android SDK path
-        run: echo "ANDROID_HOME=$HOME/Android/Sdk" >> $GITHUB_ENV
-
-      - name: Assemble ${{ matrix.build_type }} APK
-        run: ./gradlew :app:assembleDebug
-
-      - name: Copy APK to workspace
-        run: cp app/build/outputs/apk/${{ matrix.build_type }}/CodeOnTheGo-*.apk ./
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-${{ matrix.build_type }}
-          path: CodeOnTheGo-*.apk
+      - name: Assemble debug APK
+        run: |
+          set ANDROID_HOME=C:/Users/yaturner/AppData/Local/Android/Sdk
+          ./gradlew :app:assembleDebug
 
   run_unit_tests:
-    name: Run Unit Tests
-    runs-on: ubuntu-latest
+    name: Run unit tests
+    runs-on: self-hosted
     needs: build_apk
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      - name: Configure Git safe directory
+        run: |
+          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
+          git config --global core.longpaths true
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
-
-      - name: Make Gradle wrapper executable
+      - name: Change Gradle wrapper permissions
         run: chmod +x ./gradlew
-
       - name: Initialize submodules
         run: |
           git submodule init
           git submodule update --remote
-
-      - name: Restore Gradle cache
+      - name: Restore cache
         uses: actions/cache@v4
         with:
           path: |
@@ -120,13 +109,11 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-
-      - name: Run Unit Tests
+      - name: Run unit tests
         run: ./gradlew app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite"
         env:
           ANDROIDIDE_TEST: true
-
-      - name: Upload Test Reports
+      - name: Upload test reports
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
