@@ -7,6 +7,5 @@
   <color name="teal_700">#FF018786</color>
   <color name="black">#FF000000</color>
   <color name="white">#FFFFFFFF</color>
-  <!-- res/values/colors.xml -->
-  <color name="text_color_primary">#000000</color>  <!-- Default black for light theme -->
-</resources>
+  <!-- res/values-night/colors.xml -->
+  <color name="text_color_primary">#FFFFFF</color>  <!-- Default white for dark theme --></resources>
