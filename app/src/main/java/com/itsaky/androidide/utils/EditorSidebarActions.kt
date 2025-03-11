@@ -173,7 +173,7 @@ internal object EditorSidebarActions {
           controller: NavController,
           destination: NavDestination,
           arguments: Bundle?
-        ) {
+        ) { 
           val railView = railRef.get()
           if (railView == null) {
             controller.removeOnDestinationChangedListener(this)
