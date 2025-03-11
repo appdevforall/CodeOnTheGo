@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-  <!-- AndroidIDE -->
+  <!-- Code on the Go -->
   <string name="copy" tools:override="true">অনুকরন</string>
   <string name="terminal_more">আরও…</string>
   <string name="text_to_search">অনুসন্ধান করার জন্য পাঠ্য</string>
   <string name="about_option_email">ইমেল</string>
   <string name="about_option_website">ওয়েবসাইট</string>
-  <string name="about_footer">%2$s এর জন্য AndroidIDE %1$s</string>
+  <string name="about_footer">%2$s এর জন্য Code on the Go %1$s</string>
   <string name="about_subtitle">সহজভাবে, Android এর জন্য একটি IDE</string>
   <string name="msg_get_package_failed">প্যাকেজের নাম বের করতে ব্যর্থ!</string>
-  <string name="msg_need_help">আপনি যদি AndroidIDE ব্যবহার করার সময় বা অ্যান্ড্রয়েড অ্যাপস তৈরি করার সময় সমস্যার সম্মুখীন হন, তাহলে আপনি টেলিগ্রাম গ্রুপে যোগ দিতে পারেন সেখানে সাহায্য চাইতে পারেন।\n\nআপনি আমাদের ইমেলে পরামর্শও পাঠাতে পারেন।</string>
+  <string name="msg_need_help">আপনি যদি Code on the Go ব্যবহার করার সময় বা অ্যান্ড্রয়েড অ্যাপস তৈরি করার সময় সমস্যার সম্মুখীন হন, তাহলে আপনি টেলিগ্রাম গ্রুপে যোগ দিতে পারেন সেখানে সাহায্য চাইতে পারেন।\n\nআপনি আমাদের ইমেলে পরামর্শও পাঠাতে পারেন।</string>
   <string name="need_help">সাহায্য প্রয়োজন?</string>
   <string name="ide_preferences">IDE-এর পছন্দ</string>
   <string name="discussions_on_telegram">টেলিগ্রামে আলোচনা</string>
@@ -37,7 +37,7 @@
   <string name="please_wait">অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন…</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">ডিভাইস সমর্থিত নয়</string>
-  <string name="msg_unsupported_device">আপনি শুধুমাত্র %2$s ডিভাইসে AndroidIDE-এর %1$s ভেরিয়েন্ট ব্যবহার করছেন। এই কনফিগারেশন সমর্থিত নয়. অনুগ্রহ করে AndroidIDE-এর %2$s ভেরিয়েন্ট ইনস্টল করুন।</string>
+  <string name="msg_unsupported_device">আপনি শুধুমাত্র %2$s ডিভাইসে Code on the Go-এর %1$s ভেরিয়েন্ট ব্যবহার করছেন। এই কনফিগারেশন সমর্থিত নয়. অনুগ্রহ করে Code on the Go-এর %2$s ভেরিয়েন্ট ইনস্টল করুন।</string>
   <string name="title_clear_output">আউটপুট পরিস্কার করুন</string>
   <string name="build_output">বিল্ড আউটপুট</string>
   <string name="quick_run_debug">দ্রুত চালান</string>
@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper উপলব্ধ নেই!\nডিফল্ট একটি ইনস্টল করা হচ্ছে। প্রয়োজনে Gradle v7.4 ডাউনলোড করা হবে।</string>
   <string name="run">চালান</string>
   <!-- Project -->
-  <string name="title_first_build">প্রথম বিল্ড</string>
-  <string name="msg_first_build">আপনি AndroidIDE ইনস্টল করার পর এটিই প্রথমবার বিল্ড। প্রথম বিল্ডে সাধারণত সময় লাগে কারণ Gradle সমস্ত ডিপেনডেন্সি এবং প্লাগইন ডাউনলোড করে। এই প্রক্রিয়াটি প্রায় 10-15 মিনিট সময় নিতে পারে। কিন্তু এটি সম্পূর্ণরূপে আপনার নেটওয়ার্ক সংযোগের উপর নির্ভর করে।\n\nদয়া করে ধৈর্য ধরুন।…</string>
+  <string name="title_first_build">আপনার নতুন প্রকল্প সেট আপ হচ্ছে</string>
+  <string name="msg_first_build">Code on the Go আপনার নতুন প্রকল্পের ফাইল এবং ডিরেক্টরিগুলি সেট আপ করছে। অনুগ্রহ করে ধৈর্য ধরুন!\n\nসেটআপ সম্পন্ন হলে, স্ক্রিনের নিচে প\"্রকল্প শুরু করা হয়েছে\" প্রদর্শিত হবে।</string>
   <string name="create_project">প্রকল্প তৈরি করুন</string>
   <string name="minimum_sdk">সর্বনিম্ন SDK</string>
   <string name="new_project">নতুন প্রকল্প</string>
@@ -138,7 +138,7 @@
   <string name="redo">রিডু</string>
   <!-- Preferences -->
   <string name="title_change_text_size">এডিটর ফন্ট সাইজ</string>
-  <string name="idepref_about_title">AndroidIDE সম্পর্কে</string>
+  <string name="idepref_about_title">Code on the Go সম্পর্কে</string>
   <string name="idepref_build_clearCache_title">Gradle ক্যাশে সাফ করুন</string>
   <string name="idepref_build_clearCache_summary">Gradle ক্যাশে ডিরেক্টরি সাফ করুন। এটি Gradle দ্বারা ডাউনলোড করা সমস্ত নির্ভরতা মুছে ফেলবে। পরবর্তী বিল্ডে প্রয়োজনীয় ফাইলগুলি আবার ডাউনলোড করা হবে৷</string>
   <string name="idepref_build_customgradlecommands_title">অতিরিক্ত গ্রেডেল কমান্ড</string>
@@ -176,7 +176,7 @@
   <string name="msg_generate_xml_failed">XML কোড তৈরি করতে ব্যর্থ</string>
   <string name="title_generating_xml">XML কোড তৈরি করা হচ্ছে</string>
   <string name="msg_swipe_up">বিল্ড আউটপুট, লগ এবং আরও অনেক কিছুর জন্য উপরে সোয়াইপ করুন।</string>
-  <string name="msg_ide_crashed">AndroidIDE ক্র্যাশ হয়েছে</string>
+  <string name="msg_ide_crashed">Code on the Go ক্র্যাশ হয়েছে</string>
   <string name="msg_report_crash">অনুগ্রহ করে গিটহাবে নিম্নলিখিত স্ট্যাকট্রেস সহ একটি সমস্যা খুলুন :</string>
   <string name="msg_crash_report_hint">লগ কপি করতে এবং সমস্যা পৃষ্ঠা খুলতে নীচের বোতামে ক্লিক করুন৷</string>
   <string name="msg_copy_report_action">কপি করুন এবং রিপোর্ট করুন</string>
@@ -243,11 +243,11 @@
   <string name="idepref_buildnrun_summary">Gradle বিল্ড কনফিগার করুন।</string>
   <string name="configure">কনফিগার করুন</string>
   <string name="about">সম্বন্ধে</string>
-  <string name="idepref_github_summary">AndroidIDE হল ওপেন সোর্স!</string>
+  <string name="idepref_github_summary">Code on the Go হল ওপেন সোর্স!</string>
   <string name="idepref_channel_summary">সাম্প্রতিক আপডেটের জন্য সাবস্ক্রাইব করুন।</string>
   <string name="idepref_group_summary">এখানে বৈশিষ্ট্য, বাগ এবং উন্নতি নিয়ে আলোচনা করুন৷</string>
   <string name="idepref_changelog_summary">এই সংস্করণে নতুন কি আছে?</string>
-  <string name="idepref_about_summary">AndroidIDE সম্পর্কে আরো কিছু।</string>
+  <string name="idepref_about_summary">Code on the Go সম্পর্কে আরো কিছু।</string>
   <string name="idepref_general_summary">সাধারণ IDE কনফিগারেশন।</string>
   <string name="idepref_editor_summary">সম্পাদক কনফিগার করুন৷</string>
   <string name="idepref_xml_trimFinalNewLine_title">চূড়ান্ত নতুন লাইন বাদ দিন</string>
@@ -286,7 +286,7 @@
   <string name="idepref_customFont_summary">সক্রিয় থাকলে, \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" ফাইলটিকে এডিটর-এর ফন্ট হিসেবে ব্যবহার করা হবে।</string>
   <string name="msg_installing_apk">APK ইনস্টল করা হচ্ছে...</string>
   <string name="msg_action_open_application">তুমি কি অ্যাপ্লিকেশনটি খুলতে চাও?</string>
-  <string name="title_gradle_service_notification_channel">AndroidIDE Gradle build পরিষেবা</string>
+  <string name="title_gradle_service_notification_channel">Code on the Go Gradle build পরিষেবা</string>
   <string name="msg_hex_color_code">হেক্স কালার কোড</string>
   <string name="msg_color_picker_pick">বেছে নিন</string>
   <string name="msg_chmod_exec">নির্বাহযোগ্য অনুমতি গুলি  সেট করা হচ্ছে…</string>
@@ -357,7 +357,7 @@
   <string name="uiMode_dark">ডার্ক</string>
   <string name="uiMode_system">সিস্টেম কে অনুসরন করুন</string>
   <string name="idepref_general_themeSelector_title">থিম</string>
-  <string name="idepref_general_themeSelector_summary">AndroidIDE এর জন্য একটি থিম নির্বাচন করুন (Restart প্রয়োজন)।</string>
+  <string name="idepref_general_themeSelector_summary">Code on the Go এর জন্য একটি থিম নির্বাচন করুন (Restart প্রয়োজন)।</string>
   <string name="idepref_general_projectConfig">প্রকল্প কনফিগারেশন</string>
   <string name="msg_app_launch_failed">লঞ্চ ব্যর্থ হয়েছে, প্রথমে অ্যাপ্লিকেশনটি ইনস্টল করুন।</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostics সক্রিয়</string>
@@ -375,7 +375,7 @@
   <string name="msg_no_unresolved_classes">কোনো অমীমাংসিত ক্লাসের নাম পাওয়া যায়নি</string>
   <string name="title_class_chooser">কোন %1$sটি?</string>
   <string name="permlab_bind_logger_service">লগ সার্ভিসে আবদ্ধ করুন</string>
-  <string name="permdesc_bind_logger_service">এই অ্যাপ্লিকেশানটিকে AndroidIDE-এর লগিং পরিষেবার সাথে আবদ্ধ হওয়ার অনুমতি দেয়৷ এই অ্যাপ্লিকেশনটির লগ পড়ার জন্য AndroidIDE-এর এই অনুমতি প্রয়োজন৷</string>
+  <string name="permdesc_bind_logger_service">এই অ্যাপ্লিকেশানটিকে Code on the Go-এর লগিং পরিষেবার সাথে আবদ্ধ হওয়ার অনুমতি দেয়৷ এই অ্যাপ্লিকেশনটির লগ পড়ার জন্য Code on the Go-এর এই অনুমতি প্রয়োজন৷</string>
   <string name="wizard_module_name">মডিউলের নাম</string>
   <string name="wizard_module_type">মডিউল এর প্রকার</string>
   <string name="msg_invalid_module_name">অবৈধ Gradle মডিউল নাম</string>
@@ -388,8 +388,8 @@
   <string name="msg_invalid_project_details">প্রকল্পের বিবরণ অবৈধ</string>
   <string name="msg_use_kts">Gradle বিল্ড ফাইলের জন্য Kotlin Script (.kts) ব্যবহার করুন</string>
   <string name="title_privacy">গোপনীয়তা</string>
-  <string name="title_androidide_statistics">AndroidIDE পরিসংখ্যান</string>
-  <string name="msg_androidide_statistics">পরিসংখ্যান প্রদান করে AndroidIDE উন্নত করতে আমাদের সাহায্য করুন। আমরা শুধুমাত্র ব্যবহারকারীর ভিত্তি পরিসংখ্যানের জন্য আপনার ডিভাইস সম্পর্কে প্রাথমিক তথ্য সংগ্রহ করি। ভাগ করা সঠিক ডেটা settings এ দেখা যেতে পারে।</string>
+  <string name="title_androidide_statistics">Code on the Go পরিসংখ্যান</string>
+  <string name="msg_androidide_statistics">পরিসংখ্যান প্রদান করে Code on the Go উন্নত করতে আমাদের সাহায্য করুন। আমরা শুধুমাত্র ব্যবহারকারীর ভিত্তি পরিসংখ্যানের জন্য আপনার ডিভাইস সম্পর্কে প্রাথমিক তথ্য সংগ্রহ করি। ভাগ করা সঠিক ডেটা settings এ দেখা যেতে পারে।</string>
   <string name="summary_anonymous_usage_stats">নামহীন ব্যবহার পরিসংখ্যান</string>
   <string name="idepref_stats_optIn_title">পরিসংখ্যান সংগ্রহ</string>
   <string name="idepref_stats_optIn_summary">ইনস্টলেশন মেট্রিক্স এবং ডিভাইস পরিসংখ্যান সংগ্রহ করার অনুমতি দিন (সম্পূর্ণ অজ্ঞাতপরিচয়)।</string>
@@ -402,10 +402,10 @@
   <string name="title_android_version">অ্যান্ড্রয়েড ভার্সন</string>
   <string name="btn_opt_in">বাছাই করুন</string>
   <string name="title_developer_options">বিকাশকারী অপশনগুলি</string>
-  <string name="idepref_devOptions_summary">AndroidIDE-এর জন্য পরীক্ষামূলক/ডিবাগিং অপশনগুলি</string>
+  <string name="idepref_devOptions_summary">Code on the Go-এর জন্য পরীক্ষামূলক/ডিবাগিং অপশনগুলি</string>
   <string name="idepref_group_debugging">ডিবাগিং</string>
   <string name="idepref_devOptions_dumpLogs_title">ডাম্প লগ</string>
-  <string name="idepref_devOptions_dumpLogs_summary">AndroidIDE লগ ডাম্প করুন $HOME/.androidide/logs এ</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go লগ ডাম্প করুন $HOME/.androidide/logs এ</string>
   <string name="msg_emptyview_applogs">এখানে লগগুলি দেখার জন্য আপনার অ্যাপ্লিকেশনটির ডিবাগ ভ্যারিয়েন্ট টি রান করুন৷</string>
   <string name="msg_logsender_disabled">LogSender নিষ্ক্রিয় করা হয়েছে। আপনি Preferences-এ গিয়ে এটিকে সক্রিয় করতে পারেন।</string>
   <string name="msg_emptyview_idelogs">IDE লগস্ এখানে দেখানো হয়.</string>
@@ -413,7 +413,7 @@
   <string name="msg_emptyview_buildoutput">"এখানে বিল্ড আউটপুট দেখতে অ্যাপ্লিকেশনটি তৈরি করুন বা একটি টাস্ক চালান। "</string>
   <string name="msg_codeaction_failed">কোড ক্রিয়া সম্পাদন করতে ব্যর্থ হয়েছে৷</string>
   <string name="idepref_devOptions_enableLogsender_title">LogSender সক্রিয় করুন</string>
-  <string name="idepref_devOptions_enableLogsender_summary">নিষ্ক্রিয় করা হলে, অ্যাপ্লিকেশান থেকে লগগুলি AndroidIDE-এ দেখানো হবে না৷</string>
+  <string name="idepref_devOptions_enableLogsender_summary">নিষ্ক্রিয় করা হলে, অ্যাপ্লিকেশান থেকে লগগুলি Code on the Go-এ দেখানো হবে না৷</string>
   <string name="title_build_variants">বিল্ড ভ্যারিয়েন্ট</string>
   <string name="title_apply">প্রয়োগ করুন</string>
   <string name="title_discard">খারিজ করুন</string>
@@ -431,14 +431,14 @@
   <string name="msg_launch_failure_no_app_module">অ্যাপ্লিকেশন চালানো যাবে না। প্রকল্পে কোনো অ্যাপ্লিকেশন মডিউল পাওয়া যায়নি।</string>
   <string name="title_launch_app">অ্যাপ্লিকেশন চালু করুন</string>
   <string name="title_experiment_flavor">পরীক্ষামূলক</string>
-  <string name="msg_experimental_flavor">আপনি একটি %2$s ডিভাইসে AndroidIDE-এর %1$s ভেরিয়েন্ট ব্যবহার করছেন। এই কনফিগারেশন কাজ করতে পারে, কিন্তু এর ফলে কর্মক্ষমতা কমে যাবে এবং সম্ভাব্য নিরাপত্তা সমস্যা দেখা দেবে। যখনই সম্ভব এই কনফিগারেশন ব্যবহার করা এড়িয়ে চলুন।</string>
+  <string name="msg_experimental_flavor">আপনি একটি %2$s ডিভাইসে Code on the Go-এর %1$s ভেরিয়েন্ট ব্যবহার করছেন। এই কনফিগারেশন কাজ করতে পারে, কিন্তু এর ফলে কর্মক্ষমতা কমে যাবে এবং সম্ভাব্য নিরাপত্তা সমস্যা দেখা দেবে। যখনই সম্ভব এই কনফিগারেশন ব্যবহার করা এড়িয়ে চলুন।</string>
   <string name="idepref_editor_pinLineNumbers_title">লাইন নম্বর পিন করে রাখুন</string>
   <string name="idepref_editor_pinLineNumbers_summary">অনুভূমিকভাবে স্ক্রোল করার সময় এডিটর-এর লাইন নম্বর প্যানেল পিন করা উচিত কিনা।</string>
   <string name="theme_blue_wave">নীল তরঙ্গ</string>
   <string name="theme_sunny_glow">সানি গ্লো</string>
   <string name="theme_material_you">মেটেরিয়াল ইউ</string>
   <string name="idepref_general_localeSelector_title">ভাষা</string>
-  <string name="idepref_general_localeSelector_summary">AndroidIDE-এর জন্য একটি ভাষা নির্বাচন করুন।.</string>
+  <string name="idepref_general_localeSelector_summary">Code on the Go-এর জন্য একটি ভাষা নির্বাচন করুন।.</string>
   <string name="locale_system_default">সিস্টেমের ডিফল্ট</string>
   <string name="msg_project_dir_inaccessible">প্রকল্প ডিরেক্টরি প্রবেশযোগ্য নয়</string>
   <string name="msg_file_is_not_dir">নির্বাচিত ফাইলটি একটি ডিরেক্টরি নয়</string>
@@ -452,10 +452,10 @@
   <string name="title_grant">প্রদান করুন</string>
   <string name="permission_title_storage">স্টোরেজ</string>
   <string name="permission_desc_storage">প্রজেক্ট ফাইলে কাজ করার জন্য প্রয়োজনীয়।</string>
-  <string name="permission_desc_install_packages">AndroidIDE দিয়ে তৈরি অ্যাপ ইনস্টল করার অনুমতি দিন।</string>
+  <string name="permission_desc_install_packages">Code on the Go দিয়ে তৈরি অ্যাপ ইনস্টল করার অনুমতি দিন।</string>
   <string name="permission_title_install_packages">প্যাকেজ ইনস্টল করুন</string>
   <string name="onboarding_title_permissions">অনুমতি</string>
-  <string name="onboarding_subtitle_permissions">AndroidIDE-এর নিম্নলিখিত অনুমতিগুলির প্রয়োজন৷</string>
+  <string name="onboarding_subtitle_permissions">Code on the Go-এর নিম্নলিখিত অনুমতিগুলির প্রয়োজন৷</string>
   <string name="msg_grant_permissions">এগিয়ে যাওয়ার জন্য অনুগ্রহ করে অনুমতি দিন।</string>
   <string name="msg_no_internet">মনে হচ্ছে আপনি অফলাইনে আছেন। আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন।</string>
   <string name="msg_connected_to_cellular">সতর্ক হোন! আপনি সেলুলার ডেটা ব্যবহার করছেন।</string>
@@ -478,7 +478,7 @@
   <string name="title_crowdin_translators">ক্রাউডিন অনুবাদকেরা</string>
   <string name="title_misc">বিবিধ</string>
   <string name="title_contribute">অবদান করুন</string>
-  <string name="summary_contribute">এটি শুধুমাত্র একটি IDE নয়, এটি একটি কমিউনিটি। AndroidIDE-এ কোড, ধারনা এবং আবেগ অবদান করুন।</string>
+  <string name="summary_contribute">এটি শুধুমাত্র একটি IDE নয়, এটি একটি কমিউনিটি। Code on the Go-এ কোড, ধারনা এবং আবেগ অবদান করুন।</string>
   <string name="msg_app_unavailable_for_intent">Intent গ্রহন করার জন্য কোনো অ্যাপ্লিকেশন উপলব্ধ নেই৷</string>
   <string name="title_open_source_licenses">ওপেন সোর্স লাইসেন্সগুলি</string>
   <string name="summary_open_source_licenses">ওপেন সোর্স লাইসেন্সগুলি দেখুন।</string>
