@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-  <!-- AndroidIDE -->
+  <!-- Code on the Go -->
   <string name="copy" tools:override="true">Copiar</string>
   <string name="terminal_more">Mais…</string>
   <string name="text_to_search">Texto a pesquisar</string>
   <string name="about_option_email">E-mail</string>
   <string name="about_option_website">Site</string>
-  <string name="about_footer">AndroidIDE %1$s para %2$s</string>
+  <string name="about_footer">Code on the Go %1$s para %2$s</string>
   <string name="about_subtitle">Simplesmente, uma IDE para Android</string>
   <string name="msg_get_package_failed">Falha ao extrair o nome do pacote!</string>
-  <string name="msg_need_help">Se você estiver enfrentando problemas durante o uso do AndroidIDE ou com a construção de aplicativos Android, você pode se juntar ao Grupo do Telegram para pedir ajuda lá.\n\nVocê também pode enviar sugestões em nosso e-mail.</string>
+  <string name="msg_need_help">Se você estiver enfrentando problemas durante o uso do Code on the Go ou com a construção de aplicativos Android, você pode se juntar ao Grupo do Telegram para pedir ajuda lá.\n\nVocê também pode enviar sugestões em nosso e-mail.</string>
   <string name="need_help">Precisa de ajuda?</string>
   <string name="ide_preferences">Configurações da IDE</string>
   <string name="discussions_on_telegram">Discussões no Telegram</string>
@@ -37,7 +37,7 @@
   <string name="please_wait">Por favor aguarde um momento …</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">Dispositivo não suportado</string>
-  <string name="msg_unsupported_device">Você está usando a variante %1$s do AndroidIDE em um dispositivo %2$s. Esta configuração não é suportada. Por favor, instale a variante %2$s do AndroidIDE.</string>
+  <string name="msg_unsupported_device">Você está usando a variante %1$s do Code on the Go em um dispositivo %2$s. Esta configuração não é suportada. Por favor, instale a variante %2$s do Code on the Go.</string>
   <string name="title_clear_output">Limpar logs</string>
   <string name="build_output">Saída de compilação</string>
   <string name="quick_run_debug">Executar</string>
@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper não está disponível!\nInstalando um padrão. Gradle v7.4 será baixado se necessário.</string>
   <string name="run">Executar</string>
   <!-- Project -->
-  <string name="title_first_build">Primeira compilação</string>
-  <string name="msg_first_build">Esta é a primeira vez que se compila depois de instalar o AndroidIDE. A primeira compilação geralmente leva tempo, pois a Gradle baixa todas as dependências e plugins. Este processo pode demorar cerca de 10-15 minutos. Mas isto depende totalmente de sua conexão de rede.\n\nPor favor, seja paciente...</string>
+  <string name="title_first_build">Configuração do seu novo projeto</string>
+  <string name="msg_first_build">Code on the Go está configurando os arquivos e diretórios do seu novo projeto. Por favor, seja paciente!\n\nQuando a configuração terminar, \"Projeto inicializado\" será exibido na parte inferior da tela.</string>
   <string name="create_project">Criar projeto</string>
   <string name="minimum_sdk">SDK mínimo</string>
   <string name="new_project">Novo projeto</string>
@@ -137,7 +137,7 @@
   <string name="redo">Refazer</string>
   <!-- Preferences -->
   <string name="title_change_text_size">Tamanho da fonte do editor</string>
-  <string name="idepref_about_title">Sobre o AndroidIDE</string>
+  <string name="idepref_about_title">Sobre o Code on the Go</string>
   <string name="idepref_build_clearCache_title">Limpar caches do Gradle</string>
   <string name="idepref_build_clearCache_summary">Limpar o diretório de caches do Gradle. Isso excluirá todas as dependências baixadas pelo Gradle. Os arquivos necessários serão baixados novamente na próxima compilação.</string>
   <string name="idepref_build_customgradlecommands_title">Comandos adicionais do Gradle</string>
@@ -175,7 +175,7 @@
   <string name="msg_generate_xml_failed">Falha ao gerar código XML</string>
   <string name="title_generating_xml">Gerando código XML</string>
   <string name="msg_swipe_up">Deslize para cima para ver a saída de compilação, logs e mais.</string>
-  <string name="msg_ide_crashed">AndroidIDE parou</string>
+  <string name="msg_ide_crashed">Code on the Go parou</string>
   <string name="msg_report_crash">Abra um problema no github com o seguinte stacktrace:</string>
   <string name="msg_crash_report_hint">Clique no botão abaixo para copiar o registro e abrir a página de issues.</string>
   <string name="msg_copy_report_action">Copiar e relatar</string>
@@ -242,11 +242,11 @@
   <string name="idepref_buildnrun_summary">Configurar a compilação do Gradle.</string>
   <string name="configure">Configurações</string>
   <string name="about">Sobre</string>
-  <string name="idepref_github_summary">AndroidIDE é de código aberto!</string>
+  <string name="idepref_github_summary">Code on the Go é de código aberto!</string>
   <string name="idepref_channel_summary">Inscreva-se para receber as últimas atualizações.</string>
   <string name="idepref_group_summary">Discuta aqui recursos, bugs e melhorias.</string>
   <string name="idepref_changelog_summary">O que há de novo nesta versão?</string>
-  <string name="idepref_about_summary">Mais sobre o AndroidIDE.</string>
+  <string name="idepref_about_summary">Mais sobre o Code on the Go.</string>
   <string name="idepref_general_summary">Configurações gerais da IDE.</string>
   <string name="idepref_editor_summary">Configurações do editor.</string>
   <string name="idepref_xml_trimFinalNewLine_title">Retirar linha final</string>
@@ -285,7 +285,7 @@
   <string name="idepref_customFont_summary">Se ativado, o arquivo em \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" será usado como fonte do Editor.</string>
   <string name="msg_installing_apk">Instalando APK...</string>
   <string name="msg_action_open_application">Deseja abrir o aplicativo?</string>
-  <string name="title_gradle_service_notification_channel">Serviço de compilação Gradle do AndroidIDE</string>
+  <string name="title_gradle_service_notification_channel">Serviço de compilação Gradle do Code on the Go</string>
   <string name="msg_hex_color_code">Código de cores hexadecimais</string>
   <string name="msg_color_picker_pick">Escolha</string>
   <string name="msg_chmod_exec">Configurando permissões executáveis…</string>
@@ -356,7 +356,7 @@
   <string name="uiMode_dark">Escuro</string>
   <string name="uiMode_system">Seguir o sistema</string>
   <string name="idepref_general_themeSelector_title">Tema</string>
-  <string name="idepref_general_themeSelector_summary">Selecione um tema para o AndroidIDE (requer reinicialização).</string>
+  <string name="idepref_general_themeSelector_summary">Selecione um tema para o Code on the Go (requer reinicialização).</string>
   <string name="idepref_general_projectConfig">Configuração do projeto</string>
   <string name="msg_app_launch_failed">Falha ao iniciar. Instale o aplicativo primeiro.</string>
   <string name="idepref_java_diagnosticEnabled_title">Habilitar diagnósticos</string>
@@ -374,7 +374,7 @@
   <string name="msg_no_unresolved_classes">Não há nomes de classes não resolvidos</string>
   <string name="title_class_chooser">Qual %1$s?</string>
   <string name="permlab_bind_logger_service">vincular ao serviço de log</string>
-  <string name="permdesc_bind_logger_service">Permite que este aplicativo vincule ao serviço de log do AndroidIDE. Esta permissão é necessária para o AndroidIDE ler os logs deste aplicativo.</string>
+  <string name="permdesc_bind_logger_service">Permite que este aplicativo vincule ao serviço de log do Code on the Go. Esta permissão é necessária para o Code on the Go ler os logs deste aplicativo.</string>
   <string name="wizard_module_name">Nome do módulo</string>
   <string name="wizard_module_type">Tipo de módulo</string>
   <string name="msg_invalid_module_name">Nome do módulo Gradle inválido</string>
@@ -387,8 +387,8 @@
   <string name="msg_invalid_project_details">Detalhes do projeto inválidos</string>
   <string name="msg_use_kts">Use o Kotlin Script (.kts) para arquivos de compilação do Gradle</string>
   <string name="title_privacy">Privacidade</string>
-  <string name="title_androidide_statistics">Estatísticas do AndroidIDE</string>
-  <string name="msg_androidide_statistics">Ajude-nos a melhorar o AndroidIDE fornecendo estatísticas anônimas. Nós coletamos informações básicas do dispositivo apenas para estatísticas de base de usuários. Os dados exatos que são compartilhados podem ser vistos nas preferências. Seus dados são seguros e não são compartilhados com serviços de terceiros. Você pode optar por isso a qualquer momento nas preferências.</string>
+  <string name="title_androidide_statistics">Estatísticas do Code on the Go</string>
+  <string name="msg_androidide_statistics">Ajude-nos a melhorar o Code on the Go fornecendo estatísticas anônimas. Nós coletamos informações básicas do dispositivo apenas para estatísticas de base de usuários. Os dados exatos que são compartilhados podem ser vistos nas preferências. Seus dados são seguros e não são compartilhados com serviços de terceiros. Você pode optar por isso a qualquer momento nas preferências.</string>
   <string name="summary_anonymous_usage_stats">Estatísticas de uso anônimas</string>
   <string name="idepref_stats_optIn_title">Coleta de estatísticas</string>
   <string name="idepref_stats_optIn_summary">Permitir que as métricas de instalação e as estatísticas do dispositivo sejam coletadas (totalmente anônimas).</string>
@@ -401,10 +401,10 @@
   <string name="title_android_version">Versão do Android</string>
   <string name="btn_opt_in">Aceitar</string>
   <string name="title_developer_options">Opções do desenvolvedor</string>
-  <string name="idepref_devOptions_summary">Opções experimentais/de depuração para AndroidIDE</string>
+  <string name="idepref_devOptions_summary">Opções experimentais/de depuração para Code on the Go</string>
   <string name="idepref_group_debugging">Depuração</string>
   <string name="idepref_devOptions_dumpLogs_title">Despejar registros</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Despejar registros do AndroidIDE para $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Despejar registros do Code on the Go para $HOME/.androidide/logs</string>
   <string name="msg_emptyview_applogs">Execute a variante de depuração do seu aplicativo para ver os logs aqui.</string>
   <string name="msg_logsender_disabled">LogSender está desativado. Você pode ativá-lo nas configurações.</string>
   <string name="msg_emptyview_idelogs">Os logs da IDE são exibidos aqui.</string>
@@ -412,7 +412,7 @@
   <string name="msg_emptyview_buildoutput">"Construa o aplicativo ou execute uma tarefa para ver sua saída de compilação aqui. "</string>
   <string name="msg_codeaction_failed">Falha ao executar a ação de código</string>
   <string name="idepref_devOptions_enableLogsender_title">Ativar LogSender</string>
-  <string name="idepref_devOptions_enableLogsender_summary">Quando desativado, os logs do aplicativo não serão exibidos no AndroidIDE</string>
+  <string name="idepref_devOptions_enableLogsender_summary">Quando desativado, os logs do aplicativo não serão exibidos no Code on the Go</string>
   <string name="title_build_variants">Variantes de compilação</string>
   <string name="title_apply">Aplicar</string>
   <string name="title_discard">Descartar</string>
@@ -430,14 +430,14 @@
   <string name="msg_launch_failure_no_app_module">Não é possível executar a aplicação. Nenhum módulo de aplicativo encontrado no projeto.</string>
   <string name="title_launch_app">Iniciar aplicativo</string>
   <string name="title_experiment_flavor">Experimental</string>
-  <string name="msg_experimental_flavor">Você está usando a variante %1$s do AndroidIDE em um dispositivo %2$s. Esta configuração pode funcionar, mas resultará em desempenho reduzido e possíveis vulnerabilidades de segurança. Por favor, evite usar essa configuração sempre que possível.</string>
+  <string name="msg_experimental_flavor">Você está usando a variante %1$s do Code on the Go em um dispositivo %2$s. Esta configuração pode funcionar, mas resultará em desempenho reduzido e possíveis vulnerabilidades de segurança. Por favor, evite usar essa configuração sempre que possível.</string>
   <string name="idepref_editor_pinLineNumbers_title">Fixar linha de números</string>
   <string name="idepref_editor_pinLineNumbers_summary">Se o editor deve fixar o painel de linha de números quando rolado horizontalmente.</string>
   <string name="theme_blue_wave">Onda Azul</string>
   <string name="theme_sunny_glow">Sunny Glow</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">Idioma</string>
-  <string name="idepref_general_localeSelector_summary">Selecione um idioma para o AndroidIDE.</string>
+  <string name="idepref_general_localeSelector_summary">Selecione um idioma para o Code on the Go.</string>
   <string name="locale_system_default">Padrão do Sistema</string>
   <string name="msg_project_dir_inaccessible">Diretório de projeto não é acessível</string>
   <string name="msg_file_is_not_dir">Arquivo selecionado não é um diretório</string>
@@ -451,10 +451,10 @@
   <string name="title_grant">Conceder</string>
   <string name="permission_title_storage">Armazenamento</string>
   <string name="permission_desc_storage">Necessário para acessar os arquivos do projeto.</string>
-  <string name="permission_desc_install_packages">Permitir a instalação de APKs construídos com AndroidIDE.</string>
+  <string name="permission_desc_install_packages">Permitir a instalação de APKs construídos com Code on the Go.</string>
   <string name="permission_title_install_packages">Instalar pacotes</string>
   <string name="onboarding_title_permissions">Permissões</string>
-  <string name="onboarding_subtitle_permissions">AndroidIDE requer as seguintes permissões</string>
+  <string name="onboarding_subtitle_permissions">Code on the Go requer as seguintes permissões</string>
   <string name="msg_grant_permissions">Por favor, conceda as permissões para continuar.</string>
   <string name="msg_no_internet">Parece que você está offline. Verifique sua conexão com a internet.</string>
   <string name="msg_connected_to_cellular">Atenção! Você está usando dados móveis.</string>
@@ -477,7 +477,7 @@
   <string name="title_crowdin_translators">Tradutores do Crowdin</string>
   <string name="title_misc">Outros</string>
   <string name="title_contribute">Contribuir</string>
-  <string name="summary_contribute">Não é apenas um IDE, é uma comunidade. Contribua com código, ideias e paixão pelo AndroidIDE.</string>
+  <string name="summary_contribute">Não é apenas um IDE, é uma comunidade. Contribua com código, ideias e paixão pelo Code on the Go.</string>
   <string name="msg_app_unavailable_for_intent">Nenhum aplicativo disponível para lidar com a intenção.</string>
   <string name="title_open_source_licenses">Licenças de código aberto</string>
   <string name="summary_open_source_licenses">Ver licenças de código aberto.</string>
