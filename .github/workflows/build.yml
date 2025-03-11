@@ -17,51 +17,29 @@ on:
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
-  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
-  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
-  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
-  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
-  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
-  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
-
-  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
-  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
-  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
-
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
 
 jobs:
   build_apk:
     name: Build APK
-    runs-on: self-hosted
+    runs-on: ubuntu-latest  # Changed to GitHub-hosted runner
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Configure Git safe directory
-        run: |
-          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
-          git config --global core.longpaths true
+          submodules: recursive  # Proper submodule initialization
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
-      - name: Initialize submodules
-        run: |
-          git submodule init
-          git submodule update --remote
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
       - name: Restore cache
         uses: actions/cache@v4
         with:
@@ -72,47 +50,31 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
       - name: Assemble debug APK
-        run: |
-          set ANDROID_HOME=C:/Users/yaturner/AppData/Local/Android/Sdk
-          ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
   run_unit_tests:
     name: Run unit tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest  # Changed to GitHub-hosted runner
     needs: build_apk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - name: Configure Git safe directory
-        run: |
-          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
-          git config --global core.longpaths true
+          submodules: recursive
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
-      - name: Change Gradle wrapper permissions
-        run: chmod +x ./gradlew
-      - name: Initialize submodules
-        run: |
-          git submodule init
-          git submodule update --remote
-      - name: Restore cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
       - name: Run unit tests
         run: ./gradlew app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite"
         env:
           ANDROIDIDE_TEST: true
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
       - name: Upload test reports
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
