@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-  <!-- AndroidIDE -->
+  <!-- Code on the Go -->
   <string name="copy" tools:override="true">Kopyala</string>
   <string name="terminal_more">Daha…</string>
   <string name="text_to_search">Aranacak metin</string>
   <string name="about_option_email">Email</string>
   <string name="about_option_website">Web Sitesi</string>
-  <string name="about_footer">AndroidIDE %1$s %2$s-için</string>
+  <string name="about_footer">Code on the Go %1$s %2$s-için</string>
   <string name="about_subtitle">Basitçe, Android için bir IDE</string>
   <string name="msg_get_package_failed">Apk dosyası ayıklanamadı!</string>
-  <string name="msg_need_help">Eğer AndroidIDE\'yi kullanırken sorunlar yaşıyorsan veya uygulama inşa ederken, soeu sormak için Telegram Grubumuza katılabilirsin.\n\nVe yine öneriler için email gönderebilirsin.</string>
+  <string name="msg_need_help">Eğer Code on the Go\'yi kullanırken sorunlar yaşıyorsan veya uygulama inşa ederken, soeu sormak için Telegram Grubumuza katılabilirsin.\n\nVe yine öneriler için email gönderebilirsin.</string>
   <string name="need_help">Yardım mı lazım?</string>
   <string name="ide_preferences">IDE tercihleri</string>
   <string name="discussions_on_telegram">Telegram\'daki Tartışmalar</string>
@@ -37,7 +37,7 @@
   <string name="please_wait">1 dakika bekleyin…</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">Cihaz Desteklenmiyor</string>
-  <string name="msg_unsupported_device">Yalnızca %2$s\'lık bir cihazda AndroidIDE\'nin %1$s varyantını kullanıyorsunuz. Bu yapılandırma desteklenmiyor. Lütfen AndroidIDE\'nin %2$s varyantını yükleyin.</string>
+  <string name="msg_unsupported_device">Yalnızca %2$s\'lık bir cihazda Code on the Go\'nin %1$s varyantını kullanıyorsunuz. Bu yapılandırma desteklenmiyor. Lütfen Code on the Go\'nin %2$s varyantını yükleyin.</string>
   <string name="title_clear_output">Çıktıyı temizle</string>
   <string name="build_output">Yapım İşi Çıktısı</string>
   <string name="quick_run_debug">Hızlı başlat</string>
@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper kullanılabilir değil!\nVarsayılan bir tanesi indiriliyor. Gradle v7.4 eğer gerekliyse indirilecek.</string>
   <string name="run">Çalıştır</string>
   <!-- Project -->
-  <string name="title_first_build">İlk İnşa</string>
-  <string name="msg_first_build">Bu AndroidIDE\'yi yüklendikten sonra ilk inşa. İlk inşa bağımlılıkları ve eklentileri yükler bu yüzden biraz zaman alabilir. Bu işlem 10-15 dakika sürer. Ama genellikle internetine bağlı.\n\nLütfen sabırlı olun…</string>
+  <string name="title_first_build">Yeni projenizin kurulumu</string>
+  <string name="msg_first_build">Code on the Go, Code on the Go\'yı yükledikten sonra ilk inşa sürecinde, projenizin dosya ve dizinlerini ayarlıyor. Bu işlem yaklaşık 10-15 dakika sürebilir, lütfen sabırlı olun!\n\nKurulum tamamlandığında, ekranın altında \"Proje başlatıldı\" mesajı görüntülenecektir.</string>
   <string name="create_project">Proje oluştur</string>
   <string name="minimum_sdk">En düşük SDK</string>
   <string name="new_project">Yeni proje</string>
@@ -137,7 +137,7 @@
   <string name="redo">Yinele</string>
   <!-- Preferences -->
   <string name="title_change_text_size">Editör yazı tipi boyutu</string>
-  <string name="idepref_about_title">AndroidIDE Hakkında</string>
+  <string name="idepref_about_title">Code on the Go Hakkında</string>
   <string name="idepref_build_clearCache_title">Gradle çöplerini temizle</string>
   <string name="idepref_build_clearCache_summary">Gradle önbellek dizinini temizle. Bu, Gradle tarafından indirilen tüm bağımlılıkları siler. Gerekli dosyalar bir sonraki derlemede(build) tekrar indirilecektir.</string>
   <string name="idepref_build_customgradlecommands_title">Ek Gradle komutları</string>
@@ -175,7 +175,7 @@
   <string name="msg_generate_xml_failed">XML kodu oluşturulamadı</string>
   <string name="title_generating_xml">XML kodu oluşturuluyor</string>
   <string name="msg_swipe_up">İnşa çıktısı, günlükler ve daha fazlası için yukarı kaydırın.</string>
-  <string name="msg_ide_crashed">AndroidIDE çöktü</string>
+  <string name="msg_ide_crashed">Code on the Go çöktü</string>
   <string name="msg_report_crash">Lütfen aşağıdaki talimatları izleyerek Github\'da bir konu açın:</string>
   <string name="msg_crash_report_hint">Günlüğü kopyalamak ve sorunlar sayfasını açmak için aşağıdaki düğmeyi tıklayın.</string>
   <string name="msg_copy_report_action">Kopyala ve bildir</string>
@@ -242,11 +242,11 @@
   <string name="idepref_buildnrun_summary">Gradle inşasını yapılandırın.</string>
   <string name="configure">Yapılandır</string>
   <string name="about">Hakkında</string>
-  <string name="idepref_github_summary">AndroidIDE açık kaynaktır!</string>
+  <string name="idepref_github_summary">Code on the Go açık kaynaktır!</string>
   <string name="idepref_channel_summary">Son güncellemeler için abone olun.</string>
   <string name="idepref_group_summary">Özellikleri, sorunları ve iyileştirmeleri burada tartışın.</string>
   <string name="idepref_changelog_summary">Bu sürümde yeni ne var?</string>
-  <string name="idepref_about_summary">AndroidIDE hakkında daha fazlası.</string>
+  <string name="idepref_about_summary">Code on the Go hakkında daha fazlası.</string>
   <string name="idepref_general_summary">Genel IDE yapılandırması.</string>
   <string name="idepref_editor_summary">Düzenleyiciyi yapılandır.</string>
   <string name="idepref_xml_trimFinalNewLine_title">Sondaki yeni satırı kırp</string>
@@ -285,7 +285,7 @@
   <string name="idepref_customFont_summary">Eğer etkinleştirilmişse \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" konumundaki dosya Düzenleyici yazı tipi olarak kullanılacak.</string>
   <string name="msg_installing_apk">APK kuruluyor...</string>
   <string name="msg_action_open_application">Uygulamayı açmak ister misiniz?</string>
-  <string name="title_gradle_service_notification_channel">AndroidIDE Gradle inşa servisi</string>
+  <string name="title_gradle_service_notification_channel">Code on the Go Gradle inşa servisi</string>
   <string name="msg_hex_color_code">Onaltılık renk kodu</string>
   <string name="msg_color_picker_pick">Seç</string>
   <string name="msg_chmod_exec">Çalıştırılabilir izinleri ayarlanıyor…</string>
@@ -356,7 +356,7 @@
   <string name="uiMode_dark">Karanlık</string>
   <string name="uiMode_system">Sistemi takip et</string>
   <string name="idepref_general_themeSelector_title">Tema</string>
-  <string name="idepref_general_themeSelector_summary">AndroidIDE için bir tema seçin (yeniden başlatma gerekir).</string>
+  <string name="idepref_general_themeSelector_summary">Code on the Go için bir tema seçin (yeniden başlatma gerekir).</string>
   <string name="idepref_general_projectConfig">Proje yapılandırması</string>
   <string name="msg_app_launch_failed">Başlatma başarısız. Önce uygulamayı yükleyin.</string>
   <string name="idepref_java_diagnosticEnabled_title">Tanılamalar etkin</string>
@@ -374,7 +374,7 @@
   <string name="msg_no_unresolved_classes">Çözümlenmemiş sınıf adı bulunamadı</string>
   <string name="title_class_chooser">Hangi %1$s?</string>
   <string name="permlab_bind_logger_service">günlük servisine bağlan</string>
-  <string name="permdesc_bind_logger_service">Bu uygulamanın AndroidIDE içindeki günlük servisine bağlanmasını sağlar. Bu izin AndroidIDE\'nin bu uygulama için günlükleri okuyabilmesi için gereklidir.</string>
+  <string name="permdesc_bind_logger_service">Bu uygulamanın Code on the Go içindeki günlük servisine bağlanmasını sağlar. Bu izin Code on the Go\'nin bu uygulama için günlükleri okuyabilmesi için gereklidir.</string>
   <string name="wizard_module_name">Modül adı</string>
   <string name="wizard_module_type">Modül türü</string>
   <string name="msg_invalid_module_name">Geçersiz Gradle modülü adı</string>
@@ -387,8 +387,8 @@
   <string name="msg_invalid_project_details">Geçersiz proje detayları</string>
   <string name="msg_use_kts">Gradle inşa dosyaları için Kotlin Script (.kts) kullan</string>
   <string name="title_privacy">Gizlilik</string>
-  <string name="title_androidide_statistics">AndroidIDE İstatistikleri</string>
-  <string name="msg_androidide_statistics">AndroidIDE\'nin gelişmesine katkıda bulunmak amacıyla bize anonim istatistikler paylaşın. Sadece cihazınız hakkında kullanıcı tabanı istatistikleri topluyoruz. Paylaşılan veri seçenekler sekmesinden görüntülenebilir. Veriniz güvenlidir ve üçüncü parti servislerle paylaşılmaz. İstediğiniz an seçenekler üzerinden buna katılmayı kesebilirsiniz.</string>
+  <string name="title_androidide_statistics">Code on the Go İstatistikleri</string>
+  <string name="msg_androidide_statistics">Code on the Go\'nin gelişmesine katkıda bulunmak amacıyla bize anonim istatistikler paylaşın. Sadece cihazınız hakkında kullanıcı tabanı istatistikleri topluyoruz. Paylaşılan veri seçenekler sekmesinden görüntülenebilir. Veriniz güvenlidir ve üçüncü parti servislerle paylaşılmaz. İstediğiniz an seçenekler üzerinden buna katılmayı kesebilirsiniz.</string>
   <string name="summary_anonymous_usage_stats">Anonim kullanım istatistikleri</string>
   <string name="idepref_stats_optIn_title">İstatistik topla</string>
   <string name="idepref_stats_optIn_summary">Kurulum ölçümlerinin ve cihaz istatistiklerinin toplanmasına izin ver (tamamen anonimdir).</string>
@@ -401,10 +401,10 @@
   <string name="title_android_version">Android sürümü</string>
   <string name="btn_opt_in">Katıl</string>
   <string name="title_developer_options">Geliştirici seçenekleri</string>
-  <string name="idepref_devOptions_summary">AndroidIDE için deneysel/hata ayıklama seçenekleri</string>
+  <string name="idepref_devOptions_summary">Code on the Go için deneysel/hata ayıklama seçenekleri</string>
   <string name="idepref_group_debugging">Hata ayıklama</string>
   <string name="idepref_devOptions_dumpLogs_title">Günlükleri kaydet</string>
-  <string name="idepref_devOptions_dumpLogs_summary">$HOME/.androidide/logs içine AndroidIDE günlüklerini kaydet</string>
+  <string name="idepref_devOptions_dumpLogs_summary">$HOME/.androidide/logs içine Code on the Go günlüklerini kaydet</string>
   <string name="msg_emptyview_applogs">Uygulamanızın günlüklerini burada görüntülemek için debug varyantını çalıştırın.</string>
   <string name="msg_logsender_disabled">LogSender devre dışı. Ayarlardan etkinleştirebilirsiniz.</string>
   <string name="msg_emptyview_idelogs">IDE\'den günlükler burada görünür.</string>
@@ -412,7 +412,7 @@
   <string name="msg_emptyview_buildoutput">"İnşa çıktısını burada görmek için uygulamayı inşa edin ya da bir görev çalıştırın. "</string>
   <string name="msg_codeaction_failed">Kod eylemi gerçekleştirilemedi</string>
   <string name="idepref_devOptions_enableLogsender_title">LogSender\'ı Etkinleştir</string>
-  <string name="idepref_devOptions_enableLogsender_summary">Devre dışı bırakıldığında, uygulamalardan gelen loglar AndroidIDE de görüntülenmeyecek</string>
+  <string name="idepref_devOptions_enableLogsender_summary">Devre dışı bırakıldığında, uygulamalardan gelen loglar Code on the Go de görüntülenmeyecek</string>
   <string name="title_build_variants">İnşa türleri</string>
   <string name="title_apply">Uygula</string>
   <string name="title_discard">Vazgeç</string>
@@ -430,14 +430,14 @@
   <string name="msg_launch_failure_no_app_module">Uygulama çalıştırılamıyor. Projede hiçbir uygulama modülü bulunamadı.</string>
   <string name="title_launch_app">Uygulamayı aç</string>
   <string name="title_experiment_flavor">Deneysel</string>
-  <string name="msg_experimental_flavor">%2$s bir cihazda AndroidIDE\'nin %1$s varyantını kullanıyorsunuz. Bu yapılandırma işe yarayabilir, ancak düşük performansa ve olası güvenlik açıklarına neden olacaktır. Lütfen mümkün olduğunca bu yapılandırmayı kullanmaktan kaçının.</string>
+  <string name="msg_experimental_flavor">%2$s bir cihazda Code on the Go\'nin %1$s varyantını kullanıyorsunuz. Bu yapılandırma işe yarayabilir, ancak düşük performansa ve olası güvenlik açıklarına neden olacaktır. Lütfen mümkün olduğunca bu yapılandırmayı kullanmaktan kaçının.</string>
   <string name="idepref_editor_pinLineNumbers_title">Pin hat numaraları</string>
   <string name="idepref_editor_pinLineNumbers_summary">Düzenleyicinin yatay olarak kaydırıldığında satır numarası panelini sabitleyip sabitlemeyeceği.</string>
   <string name="theme_blue_wave">Mavi Dalga</string>
   <string name="theme_sunny_glow">Güneşli Parıltı</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">Dil</string>
-  <string name="idepref_general_localeSelector_summary">AndroidIDE için bir dil seç.</string>
+  <string name="idepref_general_localeSelector_summary">Code on the Go için bir dil seç.</string>
   <string name="locale_system_default">Sistem varsayılanı</string>
   <string name="msg_project_dir_inaccessible">Proje dizini erişilemez</string>
   <string name="msg_file_is_not_dir">Seçilen dosya bir dizin değil</string>
@@ -451,10 +451,10 @@
   <string name="title_grant">İzin ver</string>
   <string name="permission_title_storage">Depolama</string>
   <string name="permission_desc_storage">Proje dosyalarına erişim için gerekli.</string>
-  <string name="permission_desc_install_packages">AndroidIDE ile oluşturulmuş APK\'ların yüklenmesine izin ver.</string>
+  <string name="permission_desc_install_packages">Code on the Go ile oluşturulmuş APK\'ların yüklenmesine izin ver.</string>
   <string name="permission_title_install_packages">Paketleri yükle</string>
   <string name="onboarding_title_permissions">İzinler</string>
-  <string name="onboarding_subtitle_permissions">AndroidIDE aşağıdaki izinleri gerektiriyor</string>
+  <string name="onboarding_subtitle_permissions">Code on the Go aşağıdaki izinleri gerektiriyor</string>
   <string name="msg_grant_permissions">Lütfen devam etmek için izinleri verin.</string>
   <string name="msg_no_internet">Çevrimdışısın sanırım. İnternet bağlantınızı kontrol edin.</string>
   <string name="msg_connected_to_cellular">Dikkat! Hücresel veri kullanıyorsunuz.</string>
