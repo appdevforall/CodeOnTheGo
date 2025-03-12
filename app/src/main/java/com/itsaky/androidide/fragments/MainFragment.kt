@@ -2,6 +2,7 @@ package com.itsaky.androidide.fragments
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -20,6 +21,7 @@ import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.BaseIDEActivity
+import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
@@ -47,6 +49,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
+import com.itsaky.androidide.BuildConfig
 
 class MainFragment : BaseFragment() {
 
@@ -120,6 +123,10 @@ class MainFragment : BaseFragment() {
                 "file:///android_asset/idetooltips/getstarted_top.html"
             )
         }
+
+        binding!!.floatingActionButton?.setOnClickListener {
+            performFeedbackAction()
+        }
     }
 
     // this method will handle the onclick options click
@@ -145,7 +152,7 @@ class MainFragment : BaseFragment() {
         }
     }
 
-    private fun performFeedbackAction(action: MainScreenAction) {
+    private fun performFeedbackAction(/* action:  JMT MainScreenAction*/) {
         val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
         builder?.let { builder ->
             builder.setTitle("Alert!")
@@ -162,6 +169,10 @@ class MainFragment : BaseFragment() {
                             Exception().stackTrace.asList().toString().replace(",", "\n")
                         val sb = StringBuilder(resources.getString(R.string.feedback_message))
                         sb.append("\n\n\n")
+                        sb.append("Version: ")
+                        // "CodeOnTheGo-${buildTypeName}${date}
+                        sb.append(BuildConfig.VERSION_NAME.toString())
+                        sb.append("\n\n")
                         sb.append("-------------stack trace----------\n")
                         sb.append(stackTrace)
                         val feedbackIntent = Intent(Intent.ACTION_SEND)
