@@ -47,11 +47,11 @@ jobs:
   build_apk:
     strategy:
       matrix:
-        #        build_type: ['debug', 'release']
-        build_type: [ 'debug' ]
+#        build_type: ['debug', 'release']
+        build_type: ['debug']
     name: Build APK
     runs-on:
-      self-hosted
+        self-hosted
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -62,6 +62,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Configure Git safe directory
+        run: |
+          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
+          git config --global core.longpaths true
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -82,8 +86,9 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Assemble ${{ matrix.build_type }} APK
         run: |
-          build_type=${{ matrix.build_type }}
-          ./gradlew :app:assemble${build_type^}
+          set ANDROID_HOME=C:/Users/yaturner/AppData/Local/Android/Sdk
+          ./gradlew :app:assembleDebug
+
       - name: Copy ${{ matrix.build_type }} APK
         run:
           cp app/build/outputs/apk/${{ matrix.build_type }}/CodeOnTheGo-*.apk ./
@@ -109,41 +114,51 @@ jobs:
           name: release-mappings
           path: '**/build/outputs/mapping'
 
-#  run_unit_tests:
-#    name: Run unit tests
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: ${{ env.BUILD_JAVA_VERSION }}
-#          distribution: ${{ env.BUILD_JAVA_DIST }}
-#      - name: Change Gradle wrapper permissions
-#        run: chmod +x ./gradlew
-#      - name: Restore cache
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            ~/.gradle/caches
-#            ~/.gradle/wrapper
-#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-#          restore-keys: |
-#            ${{ runner.os }}-gradle-
-#      - name: Run unit tests
-#        run: ./gradlew runTestsInCI --continue
-#        env:
-#          ANDROIDIDE_TEST: true
-#      - name: Upload test reports
-#        if: ${{ always() }}
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: test-results-unit-tests
-#          path: '**/build/reports/tests/'
-#
+  run_unit_tests:
+    name: Run unit tests
+    runs-on: self-hosted
+    needs: "build_apk"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure Git safe directory
+        run: |
+          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
+          git config --global core.longpaths true
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.BUILD_JAVA_VERSION }}
+          distribution: ${{ env.BUILD_JAVA_DIST }}
+      - name: Change Gradle wrapper permissions
+        run: chmod +x ./gradlew
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Run unit tests
+        run:
+          ./gradlew app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite"
+        env:
+          ANDROIDIDE_TEST: true
+      - name: Upload test reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit-tests
+          path: '**/build/reports/tests/'
+
 #  run_tooling_api_tests:
 #    name: Build and test Tooling API
 #    runs-on: ubuntu-latest
