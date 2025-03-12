@@ -139,14 +139,13 @@ object TooltipUtils {
                         ConstraintLayout.LayoutParams.WRAP_CONTENT
                     ).apply {
                         startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                        // Position of the Webview
                         if (previousLinkView == null) {
-                            topToBottom = R.id.webview // First Webview
+                            topToBottom = R.id.webview
                         } else {
                             topToBottom = previousLinkView!!.id
                         }
                     }
-                    id = View.generateViewId() // ID for TextView
+                    id = View.generateViewId()
 
                     if (isLastLink) {
                         setPadding(28.dpToPx(context), 0, 0, 40)

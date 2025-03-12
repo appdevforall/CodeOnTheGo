@@ -36,7 +36,7 @@ interface Widget<T> {
 sealed class ParameterWidget<T>(val parameter: Parameter<T>) : Widget<T> {
   init {
     if (this is View) {
-      this.setBackgroundColor(Color.WHITE) // Cambia el fondo a blanco
+      this.setBackgroundColor(Color.WHITE)
     }
   }
   override fun release() {
