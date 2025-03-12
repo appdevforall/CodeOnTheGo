@@ -122,7 +122,6 @@ internal object EditorSidebarActions {
 
     registry.fillMenu(params)
 
-    // tooltip for every item in the rail
     rail.menu.forEach { item ->
       val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
       if (action != null) {
@@ -137,7 +136,7 @@ internal object EditorSidebarActions {
           ) { url ->
             TooltipUtils.showWebPage(context, url)
           }
-          true // Indicates for the long click is true
+          true
         }
       }
     }

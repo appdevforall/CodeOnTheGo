@@ -138,7 +138,6 @@ constructor(
           context.getString(R.string.ide_logs) -> context.getString(R.string.ide_logs)
           else -> context.getString(R.string.default_tooltip)
         }
-        // Show tooltip
         TooltipUtils.showIDETooltip(
           context,
           tabView,
@@ -150,7 +149,7 @@ constructor(
           TooltipUtils.showWebPage(context, url)
         }
 
-        true // Indicate that the long click was handled (outside of the call to showIDETooltip)
+        true
       }
     }
 
