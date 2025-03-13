@@ -37,12 +37,11 @@
     android:id="@+id/navigation"
     android:layout_width="56dp"
     android:layout_height="0dp"
-    app:headerLayout="@layout/layout_editor_sidebar_header"
     app:labelVisibilityMode="unlabeled"
     app:layout_constraintBottom_toBottomOf="parent"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent"
-    app:menuGravity="bottom" />
+    app:menuGravity="top" />
 
   <com.google.android.material.textview.MaterialTextView
     android:id="@+id/title"

@@ -229,6 +229,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
   protected abstract fun getOpenedFiles(): List<OpenedFile>
 
   internal abstract fun doConfirmProjectClose()
+  internal abstract fun doOpenHelp()
 
   protected open fun preDestroy() {
     _binding = null

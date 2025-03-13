@@ -44,6 +44,7 @@ import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
 import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
+import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
@@ -69,6 +70,7 @@ internal object EditorSidebarActions {
     registry.registerAction(TerminalSidebarAction(context, ++order))
     registry.registerAction(PreferencesSidebarAction(context, ++order))
     registry.registerAction(CloseProjectSidebarAction(context, ++order))
+    registry.registerAction(HelpSideBarAction(context, ++order))
   }
 
   @JvmStatic
