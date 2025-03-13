@@ -7,6 +7,7 @@ import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.recycler.KRecyclerItem
 import io.github.kakaocup.kakao.recycler.KRecyclerView
 import io.github.kakaocup.kakao.text.KButton
+import io.github.kakaocup.kakao.text.KTextView
 import org.hamcrest.Matcher
 
 object HomeScreen : KScreen<HomeScreen>() {
@@ -19,6 +20,10 @@ object HomeScreen : KScreen<HomeScreen>() {
         itemTypeBuilder = { itemType(::ActionItem) }
     )
 
+    val title = KTextView {
+        withId(R.id.getStarted)
+    }
+
     class ActionItem(matcher: Matcher<View>) : KRecyclerItem<ActionItem>(matcher) {
 
         val button = KButton(matcher) { withId(R.id.itemButton) }
@@ -28,8 +33,14 @@ object HomeScreen : KScreen<HomeScreen>() {
         step("Click create project") {
             flakySafely(60000) {
                 HomeScreen {
+                    title {
+                        isVisible()
+                        hasText(R.string.get_started)
+                    }
                     rvActions {
-                        childAt<ActionItem>(0) {
+                        scrollTo(0)
+                        childWith<ActionItem> { withText("Create project") } perform {
+                            isDisplayed()
                             click()
                         }
                     }
