@@ -72,11 +72,13 @@ abstract class IDETooltipDatabase : RoomDatabase() {
             for( index in 0 until arrayObj.length()) {
                 val jsonObj: JSONObject = arrayObj.get(index) as JSONObject
                 val tag = jsonObj.getString("tag")
+                val category = jsonObj.getString("category")
                 val summary = jsonObj.getString("summary")
                 val detail = jsonObj.getString("detail")
                 val buttonList = jsonObj.get("buttons") as JSONArray
                 val buttonsList = readJsonArrayOfArrays(context, buttonList)
                 val item = IDETooltipItem(
+                    tooltipCategory = category,
                     tooltipTag = tag,
                     summary = summary,
                     detail = detail,

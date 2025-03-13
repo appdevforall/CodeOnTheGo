@@ -20,7 +20,6 @@ package com.itsaky.androidide.interfaces
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
-import com.itsaky.androidide.roomData.tooltips.Tooltip
 import com.itsaky.androidide.ui.CodeEditorView
 import java.io.File
 
@@ -88,5 +87,5 @@ interface IEditorHandler {
   fun closeAll(runAfter: () -> Unit)
   fun closeOthers()
   fun openFAQActivity(htmlData: String)
-  suspend fun getTooltipData(word:String): IDETooltipItem?
+  suspend fun getTooltipData(word: String, word1: String): IDETooltipItem?
 }

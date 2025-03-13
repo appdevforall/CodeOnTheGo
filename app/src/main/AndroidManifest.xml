@@ -39,6 +39,7 @@
     android:resizeableActivity="false"
     android:supportsRtl="true"
     android:theme="@style/Theme.AndroidIDE"
+      android:usesCleartextTraffic="true"
     tools:ignore="DiscouragedApi,MediaCapabilities,UnusedAttribute"
     tools:replace="android:icon,android:name,android:allowBackup, android:supportsRtl, android:theme">
     <activity
