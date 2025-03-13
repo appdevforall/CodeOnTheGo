@@ -27,7 +27,7 @@ import com.itsaky.androidide.resources.R
 import kotlin.reflect.KClass
 
 /**
- * Sidebar action for closing the project.
+ * Sidebar action for opening the help section.
  *
  * @author Daniel Alome
  */
