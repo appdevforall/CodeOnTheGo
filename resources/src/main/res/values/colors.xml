@@ -19,4 +19,5 @@
 
   <color name="splash_bg">@android:color/white</color>
   <color name="splash_icon_tint">@android:color/black</color>
+  <color name="primary_blue">#233490</color>
 </resources>

@@ -17,10 +17,24 @@
 
 package com.itsaky.androidide.utils
 
+import android.app.Dialog
 import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
+import android.util.TypedValue
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import androidx.annotation.IdRes
+import androidx.core.content.ContextCompat
 import androidx.core.view.forEach
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
@@ -35,6 +49,7 @@ import com.google.android.material.navigation.NavigationBarMenuView
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
+import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
@@ -47,7 +62,9 @@ import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
 import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
+import com.itsaky.androidide.databinding.ContactDialogBinding
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
+import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 
 
@@ -57,165 +74,244 @@ import java.lang.ref.WeakReference
  *
  * @author Akash Yadav
  */
+
+object ContactDetails {
+    const val EMAIL_SUPPORT = "info@appdevforall.org"
+}
+
 internal object EditorSidebarActions {
 
-  @JvmStatic
-  fun registerActions(context: Context) {
-    val registry = ActionsRegistry.getInstance()
-    var order = -1
+    @JvmStatic
+    fun registerActions(context: Context) {
+        val registry = ActionsRegistry.getInstance()
+        var order = -1
 
-    @Suppress("KotlinConstantConditions")
-    registry.registerAction(FileTreeSidebarAction(context, ++order))
-    registry.registerAction(BuildVariantsSidebarAction(context, ++order))
-    registry.registerAction(TerminalSidebarAction(context, ++order))
-    registry.registerAction(PreferencesSidebarAction(context, ++order))
-    registry.registerAction(CloseProjectSidebarAction(context, ++order))
-    registry.registerAction(HelpSideBarAction(context, ++order))
-  }
-
-  @JvmStatic
-  fun setup(sidebarFragment: EditorSidebarFragment) {
-    val binding = sidebarFragment.getBinding() ?: return
-    val controller = binding.fragmentContainer.getFragment<NavHostFragment>().navController
-    val context = sidebarFragment.requireContext()
-    val rail = binding.navigation
-
-    val registry = ActionsRegistry.getInstance()
-    val actions = registry.getActions(ActionItem.Location.EDITOR_SIDEBAR)
-    if (actions.isEmpty()) {
-      return
+        @Suppress("KotlinConstantConditions")
+        registry.registerAction(FileTreeSidebarAction(context, ++order))
+        registry.registerAction(BuildVariantsSidebarAction(context, ++order))
+        registry.registerAction(TerminalSidebarAction(context, ++order))
+        registry.registerAction(PreferencesSidebarAction(context, ++order))
+        registry.registerAction(CloseProjectSidebarAction(context, ++order))
+        registry.registerAction(HelpSideBarAction(context, ++order))
     }
 
-    rail.background = (rail.background as MaterialShapeDrawable).apply {
-      shapeAppearanceModel = shapeAppearanceModel.roundedOnRight()
-    }
+    @JvmStatic
+    fun setup(sidebarFragment: EditorSidebarFragment) {
+        val binding = sidebarFragment.getBinding() ?: return
+        val controller = binding.fragmentContainer.getFragment<NavHostFragment>().navController
+        val context = sidebarFragment.requireContext()
+        val rail = binding.navigation
 
-    rail.menu.clear()
+        val emailSupport = binding.emailSupport
 
-    val data = ActionData()
-    data.put(Context::class.java, context) // needed for inflating the menu
-
-    val titleRef = WeakReference(binding.title)
-    val params = FillMenuParams(data, ActionItem.Location.EDITOR_SIDEBAR,
-      rail.menu) { actionsRegistry, action, item, actionsData ->
-
-      action as SidebarActionItem
-
-      if (action.fragmentClass == null) {
-        // this action does not show any fragment
-        // execute the action instead
-        (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
-        return@FillMenuParams true
-      }
-
-      return@FillMenuParams try {
-        controller.navigate(action.id, navOptions {
-          launchSingleTop = true
-          restoreState = true
-        })
-
-        // Return true only if the destination we've navigated to matches the MenuItem
-        val result = controller.currentDestination?.matchDestination(action.id) == true
-        if (result) {
-          item.isChecked = true
-          titleRef.get()?.text = item.title
-        }
-
-        result
-      } catch (e: IllegalArgumentException) {
-        false
-      }
-    }
-
-    registry.fillMenu(params)
-
-    controller.graph = controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
-      actions.forEach { (actionId, action) ->
-        if (action !is SidebarActionItem) {
-          throw IllegalStateException(
-            "Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
-                " must implement ${SidebarActionItem::class.java.simpleName}")
-        }
-
-        val fragment = action.fragmentClass ?: return@forEach
-
-        val builder = FragmentNavigatorDestinationBuilder(
-          provider[FragmentNavigator::class],
-          actionId,
-          fragment
-        )
-
-        builder.apply {
-          action.apply { buildNavigation() }
-        }
-
-        destination(builder)
-      }
-    }
-
-    val railRef = WeakReference(rail)
-    controller.addOnDestinationChangedListener(
-      object : NavController.OnDestinationChangedListener {
-        override fun onDestinationChanged(
-          controller: NavController,
-          destination: NavDestination,
-          arguments: Bundle?
-        ) {
-          val railView = railRef.get()
-          if (railView == null) {
-            controller.removeOnDestinationChangedListener(this)
+        val registry = ActionsRegistry.getInstance()
+        val actions = registry.getActions(ActionItem.Location.EDITOR_SIDEBAR)
+        if (actions.isEmpty()) {
             return
-          }
-          railView.menu.forEach { item ->
-            if (destination.matchDestination(item.itemId)) {
-              item.isChecked = true
-              titleRef.get()?.text = item.title
-            }
-          }
         }
-      })
-    // make sure the 'File tree' item is checked by default
-    rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
-      it.isChecked = true
-      binding.title.text = it.title
-    }
 
-    rail.viewTreeObserver.addOnPreDrawListener {
-      val railView = railRef.get()
-      if (railView != null) {
+        rail.background = (rail.background as MaterialShapeDrawable).apply {
+            shapeAppearanceModel = shapeAppearanceModel.roundedOnRight()
+        }
 
-        // set long click action to terminal action
-        // noinspection RestrictedApi
-        (railView.menuView as NavigationBarMenuView)
-          .findViewById<View>(TerminalSidebarAction.ID.hashCode())
-          ?.setOnLongClickListener {
-            TerminalSidebarAction.startTerminalActivity(data, true)
+        rail.menu.clear()
+
+        val data = ActionData()
+        data.put(Context::class.java, context) // needed for inflating the menu
+
+        val titleRef = WeakReference(binding.title)
+        val params = FillMenuParams(
+            data, ActionItem.Location.EDITOR_SIDEBAR,
+            rail.menu
+        ) { actionsRegistry, action, item, actionsData ->
+
+            action as SidebarActionItem
+
+            if (action.fragmentClass == null) {
+                // this action does not show any fragment
+                // execute the action instead
+                (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
+                return@FillMenuParams true
+            }
+
+            return@FillMenuParams try {
+                controller.navigate(action.id, navOptions {
+                    launchSingleTop = true
+                    restoreState = true
+                })
+
+                // Return true only if the destination we've navigated to matches the MenuItem
+                val result = controller.currentDestination?.matchDestination(action.id) == true
+                if (result) {
+                    item.isChecked = true
+                    titleRef.get()?.text = item.title
+                }
+
+                result
+            } catch (e: IllegalArgumentException) {
+                false
+            }
+        }
+
+        registry.fillMenu(params)
+
+        controller.graph = controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
+            actions.forEach { (actionId, action) ->
+                if (action !is SidebarActionItem) {
+                    throw IllegalStateException(
+                        "Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
+                                " must implement ${SidebarActionItem::class.java.simpleName}"
+                    )
+                }
+
+                val fragment = action.fragmentClass ?: return@forEach
+
+                val builder = FragmentNavigatorDestinationBuilder(
+                    provider[FragmentNavigator::class],
+                    actionId,
+                    fragment
+                )
+
+                builder.apply {
+                    action.apply { buildNavigation() }
+                }
+
+                destination(builder)
+            }
+        }
+
+        val railRef = WeakReference(rail)
+        controller.addOnDestinationChangedListener(
+            object : NavController.OnDestinationChangedListener {
+                override fun onDestinationChanged(
+                    controller: NavController,
+                    destination: NavDestination,
+                    arguments: Bundle?
+                ) {
+                    val railView = railRef.get()
+                    if (railView == null) {
+                        controller.removeOnDestinationChangedListener(this)
+                        return
+                    }
+                    railView.menu.forEach { item ->
+                        if (destination.matchDestination(item.itemId)) {
+                            item.isChecked = true
+                            titleRef.get()?.text = item.title
+                        }
+                    }
+                }
+            })
+        // make sure the 'File tree' item is checked by default
+        rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
+            it.isChecked = true
+            binding.title.text = it.title
+        }
+
+        rail.viewTreeObserver.addOnPreDrawListener {
+            val railView = railRef.get()
+            if (railView != null) {
+                // set long click action to terminal action
+                // noinspection RestrictedApi
+                (railView.menuView as NavigationBarMenuView)
+                    .findViewById<View>(TerminalSidebarAction.ID.hashCode())
+                    ?.setOnLongClickListener {
+                        TerminalSidebarAction.startTerminalActivity(data, true)
+                        true
+                    }
+            }
             true
-          }
-      }
-      true
+        }
+
+        emailSupport.setOnClickListener {
+            showContactDialog(sidebarFragment.requireContext())
+        }
     }
-  }
 
-  /**
-   * Determines whether the given `route` matches the NavDestination. This handles
-   * both the default case (the destination's route matches the given route) and the nested case where
-   * the given route is a parent/grandparent/etc of the destination.
-   */
-  @JvmStatic
-  internal fun NavDestination.matchDestination(route: String): Boolean =
-    hierarchy.any { it.route == route }
+    /**
+     * Determines whether the given `route` matches the NavDestination. This handles
+     * both the default case (the destination's route matches the given route) and the nested case where
+     * the given route is a parent/grandparent/etc of the destination.
+     */
+    @JvmStatic
+    internal fun NavDestination.matchDestination(route: String): Boolean =
+        hierarchy.any { it.route == route }
 
-  @JvmStatic
-  internal fun NavDestination.matchDestination(@IdRes destId: Int): Boolean =
-    hierarchy.any { it.id == destId }
+    @JvmStatic
+    internal fun NavDestination.matchDestination(@IdRes destId: Int): Boolean =
+        hierarchy.any { it.id == destId }
 
-  @JvmStatic
-  internal fun ShapeAppearanceModel.roundedOnRight(cornerSize: Float = 28f): ShapeAppearanceModel {
-    return toBuilder().run {
-      setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
-      setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
-      build()
+    @JvmStatic
+    internal fun ShapeAppearanceModel.roundedOnRight(cornerSize: Float = 28f): ShapeAppearanceModel {
+        return toBuilder().run {
+            setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
+            setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
+            build()
+        }
     }
-  }
+
+    private fun showContactDialog(context: Context) {
+        val dialog = Dialog(context)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
+        // Inflate the custom layout using view binding
+        val binding = ContactDialogBinding.inflate(LayoutInflater.from(context))
+        dialog.setContentView(binding.root)
+
+        // Calculate the desired external padding in pixels (32dp each side)
+        val metrics = context.resources.displayMetrics
+        val externalPadding = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, 16f, metrics
+        ).toInt()
+        val dialogWidth = metrics.widthPixels - 2 * externalPadding
+
+        // Set the dialog's dimensions: custom width to create padding on each side
+        dialog.window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        // Prepare the email intent for reuse
+        val emailIntent: () -> Unit = {
+            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("mailto:$EMAIL_SUPPORT?subject=Feedback about Code on the Go")
+            }
+            context.startActivity(intent)
+        }
+
+        // Apply a clickable span on tvDescription to remove underline and set blue color.
+        val email = EMAIL_SUPPORT
+        val text = binding.tvDescription.text.toString()
+        val start = text.indexOf(email)
+        if (start >= 0) {
+            val spannable = SpannableString(text)
+            val clickableSpan = object : ClickableSpan() {
+                override fun onClick(widget: View) {
+                    emailIntent()
+                }
+
+                override fun updateDrawState(ds: TextPaint) {
+                    ds.color = ContextCompat.getColor(context, R.color.primary_blue)
+                    ds.isUnderlineText = false // Remove underline
+                }
+            }
+            spannable.setSpan(
+                clickableSpan,
+                start,
+                start + email.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            binding.tvDescription.text = spannable
+            binding.tvDescription.movementMethod = LinkMovementMethod.getInstance()
+        }
+
+        // Set the whole dialog clickable (except the Close button) to open the email.
+        binding.root.setOnClickListener {
+            emailIntent()
+        }
+
+        // Close button action: dismiss the dialog.
+        binding.btnClose.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
 }

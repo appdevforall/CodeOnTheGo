@@ -99,4 +99,7 @@ Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
   <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen\nThank You\n</string>
   <string name="send_feedback">Send Feedback</string>
     <string name="fab_more">More</string>
+    <string name="msg_internet_access_required">Internet access is required.</string>
+    <string name="msg_contact_app_dev_title">Contact App Dev for All</string>
+    <string name="msg_contact_app_dev_description">To report issues, make suggestions, and ask questions, email us at info@appdevforall.org. Internet access is required.</string>
 </resources>
