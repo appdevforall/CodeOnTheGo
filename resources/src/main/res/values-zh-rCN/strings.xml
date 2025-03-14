@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-  <!-- AndroidIDE -->
+  <!-- Code on the Go -->
   <string name="copy" tools:override="true">复制</string>
   <string name="terminal_more">更多…</string>
   <string name="text_to_search">要搜索的文本</string>
   <string name="about_option_email">发电子邮件</string>
   <string name="about_option_website">网站</string>
-  <string name="about_footer">AndroidIDE %1$s (%2$s)</string>
+  <string name="about_footer">Code on the Go %1$s (%2$s)</string>
   <string name="about_subtitle">简而言之，一个适用于 Android 的 IDE</string>
   <string name="msg_get_package_failed">获取软件包名称失败！</string>
-  <string name="msg_need_help">如果您在使用 AndroidIDE 或构建 Android 应用时遇到问题，您可以加入 Telegram 群组寻求帮助。\n\n您也可以发送建议到我们的电子邮件地址。</string>
+  <string name="msg_need_help">如果您在使用 Code on the Go 或构建 Android 应用时遇到问题，您可以加入 Telegram 群组寻求帮助。\n\n您也可以发送建议到我们的电子邮件地址。</string>
   <string name="need_help">需要帮助？</string>
   <string name="ide_preferences">IDE 首选项</string>
   <string name="discussions_on_telegram">在 Telegram 上讨论</string>
@@ -37,7 +37,7 @@
   <string name="please_wait">请稍等片刻…</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">不兼容的设备</string>
-  <string name="msg_unsupported_device">您正在仅 %2$s 的设备上使用 AndroidIDE 的 %1$s 变体。此配置不兼容，请安装 AndroidIDE 的 %2$s 变体。</string>
+  <string name="msg_unsupported_device">您正在仅 %2$s 的设备上使用 Code on the Go 的 %1$s 变体。此配置不兼容，请安装 Code on the Go 的 %2$s 变体。</string>
   <string name="title_clear_output">清空输出</string>
   <string name="build_output">构建输出</string>
   <string name="quick_run_debug">快速运行</string>
@@ -47,8 +47,8 @@
   <string name="msg_installing_gradlew">Gradle Wrapper 不可用！\n正在安装默认的包装器。如有需要，将下载 Gradle v7.4。</string>
   <string name="run">运行</string>
   <!-- Project -->
-  <string name="title_first_build">首次构建</string>
-  <string name="msg_first_build">这是安装 AndroidIDE 后的首次构建。首次构建通常需要一些时间，因为 Gradle 要下载所有依赖项和插件。此过程可能需要 10-15 分钟，不过这完全取决于您的网络。\n\n请耐心等待…</string>
+  <string name="title_first_build">正在设置您的新项目</string>
+  <string name="msg_first_build">Code on the Go 正在设置您新项目的文件和目录。请耐心等待！\n\n设置完成后，屏幕底部将显示\"项目已初始化\"。</string>
   <string name="create_project">创建项目</string>
   <string name="minimum_sdk">最低 SDK 版本</string>
   <string name="new_project">新项目</string>
@@ -137,7 +137,7 @@
   <string name="redo">重做</string>
   <!-- Preferences -->
   <string name="title_change_text_size">编辑器字体大小</string>
-  <string name="idepref_about_title">关于 AndroidIDE</string>
+  <string name="idepref_about_title">关于 Code on the Go</string>
   <string name="idepref_build_clearCache_title">清除 Gradle 缓存</string>
   <string name="idepref_build_clearCache_summary">清除 Gradle 缓存目录。这将删除 Gradle 下载的所有依赖项，所需的文件将在下一次构建中重新下载。</string>
   <string name="idepref_build_customgradlecommands_title">Gradle 命令附加</string>
@@ -175,7 +175,7 @@
   <string name="msg_generate_xml_failed">XML 代码生成失败</string>
   <string name="title_generating_xml">生成 XML 代码</string>
   <string name="msg_swipe_up">上滑可查看构建输出、日志等。</string>
-  <string name="msg_ide_crashed">AndroidIDE 崩溃了</string>
+  <string name="msg_ide_crashed">Code on the Go 崩溃了</string>
   <string name="msg_report_crash">请使用以下堆栈跟踪在 Github 上打开一个 issue：</string>
   <string name="msg_crash_report_hint">单击下面的按钮以复制日志和打开 issues 页面。</string>
   <string name="msg_copy_report_action">复制并报告</string>
@@ -242,11 +242,11 @@
   <string name="idepref_buildnrun_summary">Gradle 构建配置。</string>
   <string name="configure">配置</string>
   <string name="about">关于</string>
-  <string name="idepref_github_summary">AndroidIDE 是开源的！</string>
+  <string name="idepref_github_summary">Code on the Go 是开源的！</string>
   <string name="idepref_channel_summary">订阅以获取最新更新</string>
   <string name="idepref_group_summary">在这里讨论功能、错误和改进。</string>
   <string name="idepref_changelog_summary">此版本有什么新内容?</string>
-  <string name="idepref_about_summary">有关 AndroidIDE 的更多信息。</string>
+  <string name="idepref_about_summary">有关 Code on the Go 的更多信息。</string>
   <string name="idepref_general_summary">常规 IDE 配置。</string>
   <string name="idepref_editor_summary">配置编辑器。</string>
   <string name="idepref_xml_trimFinalNewLine_title">删除末尾新行</string>
@@ -285,7 +285,7 @@
   <string name="idepref_customFont_summary">如果启用，文件“/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf”将用作编辑器字体。</string>
   <string name="msg_installing_apk">正在安装 APK …</string>
   <string name="msg_action_open_application">您想打开该应用吗？</string>
-  <string name="title_gradle_service_notification_channel">AndroidIDE Gradle 构建服务</string>
+  <string name="title_gradle_service_notification_channel">Code on the Go Gradle 构建服务</string>
   <string name="msg_hex_color_code">十六进制颜色代码</string>
   <string name="msg_color_picker_pick">选择</string>
   <string name="msg_chmod_exec">正在设置可执行权限…</string>
@@ -356,7 +356,7 @@
   <string name="uiMode_dark">深色</string>
   <string name="uiMode_system">跟随系统</string>
   <string name="idepref_general_themeSelector_title">主题</string>
-  <string name="idepref_general_themeSelector_summary">选择 AndroidIDE 主题（需要重启）。</string>
+  <string name="idepref_general_themeSelector_summary">选择 Code on the Go 主题（需要重启）。</string>
   <string name="idepref_general_projectConfig">项目配置</string>
   <string name="msg_app_launch_failed">启动失败，请先安装应用。</string>
   <string name="idepref_java_diagnosticEnabled_title">启用诊断</string>
@@ -374,7 +374,7 @@
   <string name="msg_no_unresolved_classes">找不到未解析的类名</string>
   <string name="title_class_chooser">哪个 %1$s？</string>
   <string name="permlab_bind_logger_service">绑定日志服务</string>
-  <string name="permdesc_bind_logger_service">允许该应用绑定到 AndroidIDE 的日志记录服务。 AndroidIDE 需要此权限才能读取该应用的日志。</string>
+  <string name="permdesc_bind_logger_service">允许该应用绑定到 Code on the Go 的日志记录服务。 Code on the Go 需要此权限才能读取该应用的日志。</string>
   <string name="wizard_module_name">模块名称</string>
   <string name="wizard_module_type">模块类型</string>
   <string name="msg_invalid_module_name">无效的 Gradle 模块名称</string>
@@ -387,8 +387,8 @@
   <string name="msg_invalid_project_details">项目信息无效</string>
   <string name="msg_use_kts">将 Kotlin 脚本 (.kts) 用于 Gradle build 文件</string>
   <string name="title_privacy">隐私</string>
-  <string name="title_androidide_statistics">AndroidIDE 统计</string>
-  <string name="msg_androidide_statistics">通过提供匿名统计信息帮助我们改进 AndroidIDE。 我们收集有关您设备的基本信息仅用于用户群统计。 可以在首选项中查看共享的确切数据。 您的数据是安全的，不会与第三方服务共享。 您可以随时在首选项中选择退出。</string>
+  <string name="title_androidide_statistics">Code on the Go 统计</string>
+  <string name="msg_androidide_statistics">通过提供匿名统计信息帮助我们改进 Code on the Go。 我们收集有关您设备的基本信息仅用于用户群统计。 可以在首选项中查看共享的确切数据。 您的数据是安全的，不会与第三方服务共享。 您可以随时在首选项中选择退出。</string>
   <string name="summary_anonymous_usage_stats">匿名使用统计</string>
   <string name="idepref_stats_optIn_title">统计数据收集</string>
   <string name="idepref_stats_optIn_summary">允许收集安装指标和设备统计信息（完全匿名）。</string>
@@ -401,10 +401,10 @@
   <string name="title_android_version">Android 版本</string>
   <string name="btn_opt_in">选择加入</string>
   <string name="title_developer_options">开发者选项</string>
-  <string name="idepref_devOptions_summary">AndroidIDE 的实验和调试选项</string>
+  <string name="idepref_devOptions_summary">Code on the Go 的实验和调试选项</string>
   <string name="idepref_group_debugging">调试</string>
   <string name="idepref_devOptions_dumpLogs_title">转储日志</string>
-  <string name="idepref_devOptions_dumpLogs_summary">将 AndroidIDE 日志转储到 $HOME/.androidide/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">将 Code on the Go 日志转储到 $HOME/.androidide/logs</string>
   <string name="msg_emptyview_applogs">运行应用的 debug 变体以在此处查看其日志。</string>
   <string name="msg_logsender_disabled">LogSender 已禁用。您可以在首选项中启用它。</string>
   <string name="msg_emptyview_idelogs">IDE 中的日志显示在这里。</string>
@@ -412,7 +412,7 @@
   <string name="msg_emptyview_buildoutput">"构建应用或运行任务以在此处查看其构建输出。"</string>
   <string name="msg_codeaction_failed">无法执行代码操作</string>
   <string name="idepref_devOptions_enableLogsender_title">启用 LogSender</string>
-  <string name="idepref_devOptions_enableLogsender_summary">禁用后，应用的日志将不会显示在 AndroidIDE 中</string>
+  <string name="idepref_devOptions_enableLogsender_summary">禁用后，应用的日志将不会显示在 Code on the Go 中</string>
   <string name="title_build_variants">构建变体</string>
   <string name="title_apply">应用</string>
   <string name="title_discard">放弃</string>
@@ -430,14 +430,14 @@
   <string name="msg_launch_failure_no_app_module">项目中未找到应用模块，无法运行应用。</string>
   <string name="title_launch_app">启动应用</string>
   <string name="title_experiment_flavor">实验性功能</string>
-  <string name="msg_experimental_flavor">您正在 %2$s 的设备上使用 AndroidIDE 的 %1$s 变体。此配置可能有效，但会使性能降低并可能导致安全漏洞。请尽可能避免使用此配置。</string>
+  <string name="msg_experimental_flavor">您正在 %2$s 的设备上使用 Code on the Go 的 %1$s 变体。此配置可能有效，但会使性能降低并可能导致安全漏洞。请尽可能避免使用此配置。</string>
   <string name="idepref_editor_pinLineNumbers_title">固定行号</string>
   <string name="idepref_editor_pinLineNumbers_summary">编辑器是否应在水平滚动时固定行号栏。</string>
   <string name="theme_blue_wave">蓝色波浪</string>
   <string name="theme_sunny_glow">阳光熠熠</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">语言</string>
-  <string name="idepref_general_localeSelector_summary">选择 AndroidIDE 的语言。</string>
+  <string name="idepref_general_localeSelector_summary">选择 Code on the Go 的语言。</string>
   <string name="locale_system_default">系统默认</string>
   <string name="msg_project_dir_inaccessible">无法访问项目目录</string>
   <string name="msg_file_is_not_dir">所选文件不是目录</string>
@@ -451,10 +451,10 @@
   <string name="title_grant">授权</string>
   <string name="permission_title_storage">存储</string>
   <string name="permission_desc_storage">需要访问项目文件。</string>
-  <string name="permission_desc_install_packages">允许 AndroidIDE 安装其构建的应用程序。</string>
+  <string name="permission_desc_install_packages">允许 Code on the Go 安装其构建的应用程序。</string>
   <string name="permission_title_install_packages">安装软件包</string>
   <string name="onboarding_title_permissions">权限</string>
-  <string name="onboarding_subtitle_permissions">AndroidIDE 需要以下权限</string>
+  <string name="onboarding_subtitle_permissions">Code on the Go 需要以下权限</string>
   <string name="msg_grant_permissions">请授予权限以继续。</string>
   <string name="msg_no_internet">您似乎已离线，检查您的互联网连接。</string>
   <string name="msg_connected_to_cellular">注意！您正在使用蜂窝移动数据。</string>
@@ -477,7 +477,7 @@
   <string name="title_crowdin_translators">Crowdin 翻译员</string>
   <string name="title_misc">杂项</string>
   <string name="title_contribute">贡献</string>
-  <string name="summary_contribute">它不仅仅是一个 IDE，更是一个社区。为 AndroidIDE 贡献代码、想法和热情。</string>
+  <string name="summary_contribute">它不仅仅是一个 IDE，更是一个社区。为 Code on the Go 贡献代码、想法和热情。</string>
   <string name="msg_app_unavailable_for_intent">没有可用于处理意图的应用。</string>
   <string name="title_open_source_licenses">开源许可</string>
   <string name="summary_open_source_licenses">查看开放源代码许可。</string>

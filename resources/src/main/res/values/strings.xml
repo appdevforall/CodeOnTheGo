@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-
-    <!-- AndroidIDE -->
+  
+    <!-- Common Strings -->
     <string name="copy" tools:override="true">Copy</string>
     <string name="terminal_more">More…</string>
     <string name="text_to_search">Text to search</string>
@@ -12,7 +12,7 @@
     <string name="about_footer">Code on the Go %1$s for %2$s</string>
     <string name="about_subtitle">Simply, an IDE for Android</string>
     <string name="msg_get_package_failed">Failed to extract package name!</string>
-    <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggesstions on our email.</string>
+    <string name="msg_need_help">If you're facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggestions on our email.</string>
     <string name="need_help">Need Help?</string>
     <string name="ide_preferences">IDE preferences</string>
     <string name="discussions_on_telegram">Discussions on Telegram</string>
@@ -64,7 +64,7 @@
     <string name="run">Run</string>
     <string name="gradle" translatable="false">Gradle</string>
 
-    <!-- Project -->
+<!-- Project -->
     <string name="title_first_build">First Build</string>
     <string name="msg_first_build">This is the first time build after you installed Code on the Go. First build usually takes time as Gradle installs all dependencies and plugins. This process may take about 10–15 minutes.\n\nPlease be patient …</string>
     <string name="create_project">Create a new project</string>
@@ -76,12 +76,13 @@
     <string name="title_confirm_open_project">Open last project?</string>
     <string name="msg_confirm_open_project">Do you want to open last opened project? Opened project was:\n%s</string>
     <string name="title_close_project">Close this project</string>
-    <string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist!</string>
+    <string name="msg_opened_project_does_not_exist">Last opened project doesn't exist!</string>
     <string name="msg_create_new_project">Create new project</string>
     <string name="msg_open_existing_project">Open a saved project</string>
     <string name="msg_delete_existing_project">Delete a saved project</string>
-    <string name="msg_delete_existing_project_failed">Failed to delete existing project </string>
+    <string name="msg_delete_existing_project_failed">Failed to delete existing project</string>
     <string name="title_confirm_project_close">Close project</string>
+
 
     <!-- Templates -->
     <string name="msg_confirm_project_close">Are you sure you want to close this project? All started Gradle daemons will be stopped after this project is closed.</string>
