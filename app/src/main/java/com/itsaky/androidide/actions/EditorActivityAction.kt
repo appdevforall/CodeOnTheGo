@@ -63,43 +63,4 @@ abstract class EditorActivityAction : ActionItem {
     actionScope.cancelIfActive("Action is being destroyed")
   }
 
-  /**
-   * Configura el tooltip personalizado para una vista.
-   * @param view La vista a la que se le asignará el tooltip.
-   */
-  fun setupTooltip(view: View) {
-    println("_______ Setting up tooltip for view: ${view.javaClass.simpleName}") // Mensaje de depuración
-    view.setOnLongClickListener {
-      println("_______ Long click detected") // Mensaje de depuración
-      TooltipUtils.showIDETooltip(
-        view.context,
-        view,
-        0,
-        label,
-        "More information about $label",
-        arrayListOf(Pair("Learn more", "~/help_top.html"))
-      ) { url ->
-        TooltipUtils.showWebPage(view.context, url)
-      }
-      true
-    }
-  }
-
-  /**
-   * Muestra el tooltip personalizado.
-   * @param view La vista en la que se mostrará el tooltip.
-   */
-  public fun showCustomTooltip(view: View) {
-    println("_______  long click")
-    TooltipUtils.showIDETooltip(
-      view.context,
-      view,
-      0,
-      label, // Usar el label de la acción como mensaje del tooltip
-      "More information about $label", // Descripción adicional
-      arrayListOf(Pair("Learn more", "~/help_top.html"))
-    ) { url ->
-      TooltipUtils.showWebPage(view.context, url)
-    }
-  }
 }
