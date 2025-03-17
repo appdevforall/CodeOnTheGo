@@ -19,7 +19,11 @@ package com.itsaky.androidide.fragments
 
 import android.content.Intent
 import android.os.Environment
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ClickableSpan
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.annotation.StringRes
 import androidx.core.provider.DocumentsContractCompat
 import androidx.core.provider.DocumentsContractCompat.buildDocumentUriUsingTree
 import androidx.core.provider.DocumentsContractCompat.getTreeDocumentId
@@ -100,6 +104,25 @@ open class BaseFragment @JvmOverloads constructor(contentLayoutId: Int = 0) :
         callback!!.onDirectoryPicked(dir)
       }
     }
+
+  protected fun appendClickableSpan(
+    sb: SpannableStringBuilder,
+    @StringRes textRes: Int,
+    span: ClickableSpan,
+  ) {
+    val str = getString(textRes)
+    val split = str.split("@@", limit = 3)
+    if (split.size != 3) {
+      // Not a valid format
+      sb.append(str)
+      sb.append('\n')
+      return
+    }
+    sb.append(split[0])
+    sb.append(split[1], span, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    sb.append(split[2])
+    sb.append('\n')
+  }
 
   protected fun pickDirectory(dirCallback: OnDirectoryPickedCallback?) {
     this.callback = dirCallback
