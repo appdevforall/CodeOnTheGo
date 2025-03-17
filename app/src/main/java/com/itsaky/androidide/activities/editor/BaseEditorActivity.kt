@@ -714,9 +714,15 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
       }
     }
+    val helpSpan: ClickableSpan = object : ClickableSpan() {
+      override fun onClick(widget: View) {
+      }
+    }
+
     val sb = SpannableStringBuilder()
     appendClickableSpan(sb, string.msg_drawer_for_files, filesSpan)
     appendClickableSpan(sb, string.msg_swipe_for_output, bottomSheetSpan)
+    appendClickableSpan(sb, string.msg_long_press_help, helpSpan)
     content.noEditorSummary.text = sb
   }
 
