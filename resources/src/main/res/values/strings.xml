@@ -99,7 +99,7 @@
   <string name="save">Save</string>
   <string name="menu_find">Find</string>
   <string name="menu_find_file">Find in file</string>
-  <string name="menu_find_project">Find in project</string>
+  <string name="menu_find_project">Find in Project</string>
   <string name="msg_search_modules">Search in modules</string>
   <string name="msg_no_modules">No modules found in project</string>
   <string name="hint_find_project_filter">Filter file extensions (optional)</string>
@@ -266,8 +266,9 @@
 
   <!--The text sorrounded with '@@' is spanned as clickable.-->
   <!--There must be exactly two '@@' sorrounding the text that should be clickable.-->
-  <string name="msg_drawer_for_files">Open the left drawer for @@files@@.</string>
-  <string name="msg_swipe_for_output">Swipe up for @@build output@@.</string>
+  <string name="msg_drawer_for_files">To view the file tree, build tools, and preferences, you can:\nTap the menu icon at the upper left\nTap the left side of the page\nSwipe from the left side of the page to the right.</string>
+  <string name="msg_swipe_for_output">To view build output, logs, diagnostics, and more, you can:\nTap the bottom of the page\nSwipe upward from the bottom of the page.</string>
+  <string name="msg_long_press_help">To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options. Click the ? icon on the left to view help.</string>
   <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
   <string name="idepref_editor_useSoftTabs_summary">Choose whether to use spaces instead of tab character (\\t).</string>
   <string name="btn_donate">Donate</string>
