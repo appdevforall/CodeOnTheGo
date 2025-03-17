@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">فتح مشروع موجود</string>
   <string name="title_confirm_project_close">إغلاق المشروع</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">هل أنت متأكد من رغبتك في إغلاق هذا المشروع؟ سيتم إيقاف جميع ديمونات Gradle التي بدأت بعد إغلاق هذا المشروع.</string>
+  <string name="msg_confirm_project_close">عند إغلاق المشروع، سيتم إوقف جميع مهام البناء وقد تفقد التغييرات غير المحفوظة في ملف المشروع. هل تريد حفظ الملفات قبل إغلاق المشروع؟</string>
   <string name="template_basic">المشروع الأساسي</string>
   <string name="template_empty">مشروع فارغ</string>
   <string name="template_navigation_drawer">مشروع درج التنقل</string>
