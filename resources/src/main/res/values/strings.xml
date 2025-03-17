@@ -85,7 +85,7 @@
   <string name="title_confirm_project_close">Close project</string>
 
   <!-- Templates -->
-  <string name="msg_confirm_project_close">Are you sure you want to close this project? All started Gradle daemons will be stopped after this project is closed.</string>
+  <string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
   <string name="template_basic">Basic Project</string>
   <string name="template_empty">Empty project</string>
   <string name="template_navigation_drawer">Navigation drawer project</string>

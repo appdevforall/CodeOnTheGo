@@ -697,8 +697,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     val builder = newMaterialDialogBuilder(this)
     builder.setTitle(string.title_confirm_project_close)
     builder.setMessage(string.msg_confirm_project_close)
-    builder.setNegativeButton(string.no, null)
-    builder.setPositiveButton(string.yes) { dialog, _ ->
+    builder.setNegativeButton("Cancel", null)
+    builder.setNeutralButton("Close without saving files", null)
+    builder.setPositiveButton("Save files and close project") { dialog, _ ->
       dialog.dismiss()
       closeProject(true)
     }

@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">Mevcut projeyi aç</string>
   <string name="title_confirm_project_close">Projeyi Kapat</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">Bu projeyi kapatmak istediğine emin misin? Tüm başlamış Gradle daemonlar proje kapandıktan sonra duracak.</string>
+  <string name="msg_confirm_project_close">Projeyi kapattığınızda, tüm derleme görevleri durdurulacak ve proje dosyanızdaki kaydedilmemiş değişiklikler kaybolabilir. Projeyi kapatmadan önce dosyaları kaydetmek istiyor musunuz?</string>
   <string name="template_basic">Temel proje</string>
   <string name="template_empty">Boş proje</string>
   <string name="template_navigation_drawer">Navigasyon drawer projesi</string>
