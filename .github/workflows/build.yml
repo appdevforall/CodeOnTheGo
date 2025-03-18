@@ -3,12 +3,12 @@ permissions:
   contents: read
   actions: write
 on:
-  push:
-    branches: [ "stage", "feature/**" ]
-    paths-ignore:
-      - '**.md'
-      - 'fastlane/**'
-      - '.github/workflows/crowdin_contributors.yml'
+#  push:
+#    branches: [ "stage", "feature/**" ]
+#    paths-ignore:
+#      - '**.md'
+#      - 'fastlane/**'
+#      - '.github/workflows/crowdin_contributors.yml'
   pull_request:
     branches: [ "stage", "feature/**" ]
     paths-ignore:
