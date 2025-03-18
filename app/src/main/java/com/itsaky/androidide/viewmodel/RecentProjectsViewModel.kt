@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -19,9 +20,6 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
     private val _projects = MutableLiveData<List<ProjectFile>>()
     val projects: LiveData<List<ProjectFile>> = _projects
 
-
-    private val _deleteProjectsEvent = MutableLiveData<List<String>>()
-    val deleteProjectsEvent: LiveData<List<String>> = _deleteProjectsEvent
 
     // Get the database and DAO instance
     private val recentProjectDao: RecentProjectDao =
@@ -43,12 +41,19 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun insertProjectFromFolder(name: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {
-            recentProjectDao.insert(
-                RecentProject(
-                    location = location, name = name, createdAt = Date().toString()
+            // Check if the project already exists
+            val existingProject = recentProjectDao.getProjectByName(name)
+            if (existingProject == null) {
+                recentProjectDao.insert(
+                    RecentProject(
+                        location = location,
+                        name = name,
+                        createdAt = Date().toString()
+                    )
                 )
-            )
+            }
         }
+
 
     fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
         recentProjectDao.deleteByName(name)
@@ -57,7 +62,18 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             val updatedList = currentList.filter { it.name != name }
             _projects.postValue(updatedList)
         }
+        loadProjects()
     }
+
+    fun updateProject(oldName: String, newName: String, location: String) =
+        viewModelScope.launch(Dispatchers.IO) {
+            recentProjectDao.updateNameAndLocation(
+                oldName = oldName,
+                newName = newName,
+                newLocation = location
+            )
+            loadProjects()
+        }
 
     fun deleteSelectedProjects(selectedNames: List<String>) =
         viewModelScope.launch(Dispatchers.IO) {
@@ -66,10 +82,5 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
             //  update the LiveData to remove the deleted projects
             _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
 
-            requestDeleteProjects(selectedNames)
         }
-
-    private fun requestDeleteProjects(projects: List<String>) {
-        _deleteProjectsEvent.value = projects
-    }
 }
