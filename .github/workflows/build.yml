@@ -3,12 +3,6 @@ permissions:
   contents: read
   actions: write
 on:
-  #  push:
-  #    branches: [ "stage", "feature/**" ]
-  #    paths-ignore:
-  #      - '**.md'
-  #      - 'fastlane/**'
-  #      - '.github/workflows/crowdin_contributors.yml'
   pull_request:
     branches: [ "stage", "feature/**" ]
     paths-ignore:
@@ -56,6 +50,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set Gradle Wrapper Version to 8.7
+        run: |
+          chmod +x gradlew
+          ./gradlew wrapper --gradle-version=8.7 --distribution-type=bin
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -73,17 +72,19 @@ jobs:
         run: |
           git submodule init
           git submodule update --remote
+
       - name: Restore Gradle Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+
       - name: Assemble Universal APK
-        run:  ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
 
       - name: Copy APK Artifact
         run: cp app/build/outputs/apk/debug/CodeOnTheGo-*.apk universal.apk
@@ -104,6 +105,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set Gradle Wrapper Version to 8.7
+        run: |
+          chmod +x gradlew
+          ./gradlew wrapper --gradle-version=8.7 --distribution-type=bin
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -123,9 +129,10 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+
       - name: Start Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
