@@ -91,7 +91,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Assemble Universal APK
-        run: ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew clean :app:assembleDebug --stacktrace
 
 #      - name: Copy APK Artifact
 #        run: cp app/build/outputs/apk/debug/CodeOnTheGo-*.apk universal.apk
