@@ -90,14 +90,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Configure Gradle for CI
+        run: |
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> gradle.properties
+          echo "org.gradle.daemon=false" >> gradle.properties
+          echo "org.gradle.parallel=true" >> gradle.properties
+          echo "kotlin.incremental=false" >> gradle.properties
+          echo "android.enableBuildCache=false" >> gradle.properties
+
       - name: Assemble Universal APK
-        run: ./gradlew clean :app:assembleDebug --stacktrace
+        run: ./gradlew --no-daemon clean :app:assembleDebug --stacktrace --info
 
 #      - name: Copy APK Artifact
-#        run: cp app/build/outputs/apk/debug/CodeOnTheGo-*.apk universal.apk
+#        if: success()
+#        run: |
+#          mkdir -p artifacts
+#          find app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} artifacts/universal.apk \;
 #
 #      - name: Upload APK Artifact
+#        if: success()
 #        uses: actions/upload-artifact@v4
 #        with:
 #          name: universal-apk
-#          path: universal.apk
+#          path: artifacts/universal.apk
+
+      - name: Upload crash logs if build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-logs
+          path: |
+            hs_err_pid*.log
+            ./**/hs_err_pid*.log
+            app/build/reports/
+            build/reports/
