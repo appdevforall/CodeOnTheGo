@@ -14,7 +14,7 @@ class DeleteProjectListAdapter(
     private val onSelectionChange: (Boolean) -> Unit
 ) : RecyclerView.Adapter<DeleteProjectListAdapter.ProjectViewHolder>() {
 
-    private val selectedProjects = mutableSetOf<String>()
+    private val selectedProjects = mutableSetOf<ProjectFile>()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProjectViewHolder {
         val binding =
@@ -28,7 +28,7 @@ class DeleteProjectListAdapter(
 
     override fun getItemCount(): Int = projects.size
 
-    fun getSelectedProjects(): List<String> = selectedProjects.toList()
+    fun getSelectedProjects(): List<ProjectFile> = selectedProjects.toList()
 
     fun updateProjects(newProjects: List<ProjectFile>) {
         projects = newProjects
@@ -44,11 +44,11 @@ class DeleteProjectListAdapter(
             binding.icon.text = project.name.take(2).uppercase()
 
             binding.checkbox.visibility = View.VISIBLE
-            binding.checkbox.isChecked = selectedProjects.contains(project.name)
+            binding.checkbox.isChecked = selectedProjects.contains(project)
 
             binding.checkbox.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked) selectedProjects.add(project.name) else selectedProjects.remove(
-                    project.name
+                if (isChecked) selectedProjects.add(project) else selectedProjects.remove(
+                    project
                 )
                 onSelectionChange(selectedProjects.isNotEmpty())
             }
