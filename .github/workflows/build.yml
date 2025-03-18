@@ -93,11 +93,11 @@ jobs:
       - name: Assemble Universal APK
         run: ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Copy APK Artifact
-        run: cp app/build/outputs/apk/debug/CodeOnTheGo-*.apk universal.apk
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: universal-apk
-          path: universal.apk
+#      - name: Copy APK Artifact
+#        run: cp app/build/outputs/apk/debug/CodeOnTheGo-*.apk universal.apk
+#
+#      - name: Upload APK Artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: universal-apk
+#          path: universal.apk
