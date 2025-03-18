@@ -73,6 +73,21 @@ jobs:
           git submodule init
           git submodule update --remote
 
+      # Fix for LayoutEditor directory case sensitivity
+      - name: Create symbolic link for LayoutEditor
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/LayoutEditor" ] && [ ! -d "$GITHUB_WORKSPACE/layouteditor" ]; then
+            ln -sf "$GITHUB_WORKSPACE/LayoutEditor" "$GITHUB_WORKSPACE/layouteditor"
+            echo "Created symbolic link: layouteditor -> LayoutEditor"
+          elif [ -d "$GITHUB_WORKSPACE/LayoutEditor" ] && [ -d "$GITHUB_WORKSPACE/layouteditor" ]; then
+            echo "Both directories exist, ensuring layouteditor is linked to LayoutEditor"
+            rm -rf "$GITHUB_WORKSPACE/layouteditor"
+            ln -sf "$GITHUB_WORKSPACE/LayoutEditor" "$GITHUB_WORKSPACE/layouteditor"
+          else
+            echo "LayoutEditor directory not found"
+            exit 1
+          fi
+
       - name: Restore Gradle Cache
         uses: actions/cache@v4
         with:
@@ -122,6 +137,21 @@ jobs:
           sdk-version: "30"
           build-tools-version: "30.0.3"
           components: "platform-tools, build-tools;30.0.3, platforms;android-30"
+
+      # Fix for LayoutEditor directory case sensitivity
+      - name: Create symbolic link for LayoutEditor
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/LayoutEditor" ] && [ ! -d "$GITHUB_WORKSPACE/layouteditor" ]; then
+            ln -sf "$GITHUB_WORKSPACE/LayoutEditor" "$GITHUB_WORKSPACE/layouteditor"
+            echo "Created symbolic link: layouteditor -> LayoutEditor"
+          elif [ -d "$GITHUB_WORKSPACE/LayoutEditor" ] && [ -d "$GITHUB_WORKSPACE/layouteditor" ]; then
+            echo "Both directories exist, ensuring layouteditor is linked to LayoutEditor"
+            rm -rf "$GITHUB_WORKSPACE/layouteditor"
+            ln -sf "$GITHUB_WORKSPACE/LayoutEditor" "$GITHUB_WORKSPACE/layouteditor"
+          else
+            echo "LayoutEditor directory not found"
+            exit 1
+          fi
 
       - name: Restore Gradle Cache
         uses: actions/cache@v4
