@@ -136,3 +136,6 @@ const val CONTENT_KEY = "CONTENT_KEY"
 
 // Toml
 const val TOML_FILE_NAME = "libs.versions.toml"
+
+//Email constant
+const val FEEDBACK_EMAIL = "feedback@appdevforall.com"

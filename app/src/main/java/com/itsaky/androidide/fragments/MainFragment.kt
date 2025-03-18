@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
+import com.adfa.constants.FEEDBACK_EMAIL
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -181,7 +182,7 @@ class MainFragment : BaseFragment() {
                         feedbackIntent.type = "text/plain"
                         feedbackIntent.putExtra(
                             Intent.EXTRA_EMAIL,
-                            arrayOf("feedback@appdevforall.com")
+                            arrayOf(FEEDBACK_EMAIL)
                         )
                         feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
                         feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
