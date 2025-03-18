@@ -12,20 +12,6 @@ import java.util.Date
 import java.util.Locale
 import kotlin.reflect.jvm.javaMethod
 
-configurations.all {
-    resolutionStrategy.dependencySubstitution.all {
-        val req = requested
-        if (req is ProjectComponentSelector) {
-            val projectPath = req.projectPath
-            if (projectPath == ":layouteditor:layouteditorApp") {
-                useTarget(project(":layouteditor:layouteditorApp"))
-            }
-        }
-    }
-}
-
-
-
 plugins {
     id("com.android.application")
     id("kotlin-android")
