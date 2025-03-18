@@ -2,21 +2,23 @@ package com.itsaky.androidide.fragments
 
 import android.os.Bundle
 import android.text.SpannableStringBuilder
-import android.text.method.LinkMovementMethod
+
 import android.text.style.ClickableSpan
+
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.GravityCompat
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
+
+
 import com.itsaky.androidide.activities.MainActivity
+import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import com.itsvks.layouteditor.adapters.RecentProjectsAdapter
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -53,8 +55,7 @@ class RecentProjectsFragment : BaseFragment() {
         // Lambda to handle directory picking: insert the project and open it.
         val handleDirectoryPick: (File) -> Unit = { file ->
             viewModel.insertProjectFromFolder(
-                name = file.name,
-                location = file.absolutePath
+                name = file.name, location = file.absolutePath
             )
             openProject(file)
         }
@@ -71,7 +72,10 @@ class RecentProjectsFragment : BaseFragment() {
                     },
                     onRemoveProjectClick = { project ->
                         viewModel.deleteProject(project.name)
-                    }
+                    },
+                    onFileRenamed = {
+                        viewModel.updateProject(it.oldName, it.newName, it.newPath)
+                    },
                 )
                 binding.listProjects.adapter = adapter
             }
@@ -110,6 +114,11 @@ class RecentProjectsFragment : BaseFragment() {
     private fun openProject(root: File) {
         (requireActivity() as MainActivity).openProject(root)
     }
+
+    private fun deleteProject(root: File) {
+        (requireActivity() as MainActivity).deleteProject(root)
+    }
+
 
     override fun onDestroyView() {
         super.onDestroyView()

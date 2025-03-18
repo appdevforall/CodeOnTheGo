@@ -1,12 +1,12 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
+
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
@@ -14,12 +14,11 @@ import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.DeleteProjectListAdapter
 import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
+import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
+
 import java.io.File
 
 class DeleteProjectFragment : BaseFragment() {
@@ -42,7 +41,6 @@ class DeleteProjectFragment : BaseFragment() {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
         observeProjects()
-        observeDeleteProjectsEvent()
         setupClickListeners()
     }
 
@@ -78,24 +76,6 @@ class DeleteProjectFragment : BaseFragment() {
         }
     }
 
-    private fun observeDeleteProjectsEvent() {
-        recentProjectsViewModel.deleteProjectsEvent.observe(viewLifecycleOwner) { files ->
-            if (!files.isNullOrEmpty()) {
-                binding.loader.isVisible = true
-                lifecycleScope.launch {
-                    try {
-                        files.map { path ->
-                            async(Dispatchers.IO) {
-                                deleteProject(File(path))
-                            }
-                        }.awaitAll()
-                    } finally {
-                        binding.loader.isVisible = false
-                    }
-                }
-            }
-        }
-    }
 
     private fun setupClickListeners() {
         binding.delete.setOnClickListener {
@@ -117,13 +97,22 @@ class DeleteProjectFragment : BaseFragment() {
     private fun showDeleteDialog() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(com.itsvks.layouteditor.R.string.delete_project)
-            .setMessage(com.itsvks.layouteditor.R.string.msg_delete_project)
+            .setMessage(R.string.msg_delete_selected_project)
             .setNegativeButton(com.itsvks.layouteditor.R.string.no) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(com.itsvks.layouteditor.R.string.yes) { _, _ ->
-                adapter?.let {
-                    // Map selected ProjectFile items to their names for deletion.
-                    recentProjectsViewModel.deleteSelectedProjects(
-                        it.getSelectedProjects().map { project -> project })
+                try {
+                    adapter?.getSelectedProjects().let { locations ->
+                        locations?.forEach {
+                            deleteProject(File(it.path))
+                        }
+                        val names = locations?.map { it.name }
+                        if (names != null) {
+                            recentProjectsViewModel.deleteSelectedProjects(names)
+                        }
+                        flashSuccess(R.string.deleted)
+                    }
+                } catch (e: Exception) {
+                    flashError(R.string.delete_failed)
                 }
             }
             .show()
