@@ -53,12 +53,12 @@ jobs:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v2
-        with:
-          sdk-version: "30"
-          build-tools-version: "30.0.3"
-          components: "platform-tools, build-tools;30.0.3, platforms;android-30"
+#      - name: Set up Android SDK
+#        uses: android-actions/setup-android@v2
+#        with:
+#          sdk-version: "30"
+#          build-tools-version: "30.0.3"
+#          components: "platform-tools, build-tools;30.0.3, platforms;android-30"
 
       - name: Initialize submodules
         run: |
@@ -90,37 +90,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Configure Gradle for CI
-        run: |
-          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> gradle.properties
-          echo "org.gradle.daemon=false" >> gradle.properties
-          echo "org.gradle.parallel=true" >> gradle.properties
-          echo "kotlin.incremental=false" >> gradle.properties
-          echo "android.enableBuildCache=false" >> gradle.properties
-
       - name: Assemble Universal APK
-        run: ./gradlew --no-daemon clean :app:assembleDebug --stacktrace --info
+        run: ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
 
 #      - name: Copy APK Artifact
-#        if: success()
-#        run: |
-#          mkdir -p artifacts
-#          find app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} artifacts/universal.apk \;
+#        run: cp app/build/outputs/apk/debug/CodeOnTheGo-*.apk universal.apk
 #
 #      - name: Upload APK Artifact
-#        if: success()
 #        uses: actions/upload-artifact@v4
 #        with:
 #          name: universal-apk
-#          path: artifacts/universal.apk
-
-      - name: Upload crash logs if build fails
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: crash-logs
-          path: |
-            hs_err_pid*.log
-            ./**/hs_err_pid*.log
-            app/build/reports/
-            build/reports/
+#          path: universal.apk
