@@ -16,7 +16,9 @@ class WelcomeScreenTest : TestCase() {
 
     @After
     fun cleanUp() {
-        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
+        // Wrap the reset-permissions command with '|| true' so that any failure doesn't propagate.
+        val command = "pm clear ${BuildConfig.APPLICATION_ID} && (pm reset-permissions ${BuildConfig.APPLICATION_ID} || true)"
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
     }
 
     @Test
