@@ -67,7 +67,9 @@ import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.eclipse.jgit.storage.file.WindowCacheStats.getOpenFiles
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
@@ -693,12 +695,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
   }
 
+
+
   private fun confirmProjectClose() {
     val builder = newMaterialDialogBuilder(this)
     builder.setTitle(string.title_confirm_project_close)
     builder.setMessage(string.msg_confirm_project_close)
-    builder.setNegativeButton("Cancel", null)
-    builder.setNeutralButton("Close without saving files", null)
+    builder.setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+    builder.setNeutralButton("Close without saving files") { dialog, _ ->
+      dialog.dismiss()
+      closeProject(false)
+    }
     builder.setPositiveButton("Save files and close project") { dialog, _ ->
       dialog.dismiss()
       closeProject(true)
