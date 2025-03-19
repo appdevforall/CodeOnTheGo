@@ -34,7 +34,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: ubuntu-latest
+    runs-on: macos-13
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -53,12 +53,12 @@ jobs:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
 
-#      - name: Set up Android SDK
-#        uses: android-actions/setup-android@v2
-#        with:
-#          sdk-version: "30"
-#          build-tools-version: "30.0.3"
-#          components: "platform-tools, build-tools;30.0.3, platforms;android-30"
+      #      - name: Set up Android SDK
+      #        uses: android-actions/setup-android@v2
+      #        with:
+      #          sdk-version: "30"
+      #          build-tools-version: "30.0.3"
+      #          components: "platform-tools, build-tools;30.0.3, platforms;android-30"
 
       - name: Initialize submodules
         run: |
