@@ -17,6 +17,7 @@ import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import java.io.File
@@ -68,7 +69,18 @@ class RecentProjectsFragment : BaseFragment() {
                     projects,
                     onProjectClick = { openProject(it) },
                     onOpenFileFromFolderClick = {
-                        pickDirectory { handleDirectoryPick(it) }
+                        pickDirectory {
+                            if (isValidProjectDirectory(it)) {
+                                handleDirectoryPick(it)
+                            } else {
+                                flashError(
+                                    msg = requireContext().getString(
+                                        R.string.project_directory_invalid,
+                                        it.name
+                                    )
+                                )
+                            }
+                        }
                     },
                     onRemoveProjectClick = { project ->
                         viewModel.deleteProject(project.name)
@@ -88,7 +100,18 @@ class RecentProjectsFragment : BaseFragment() {
             val sb = SpannableStringBuilder()
             val filesSpan: ClickableSpan = object : ClickableSpan() {
                 override fun onClick(widget: View) {
-                    pickDirectory { handleDirectoryPick(it) }
+                    pickDirectory {
+                        if (isValidProjectDirectory(it)) {
+                            handleDirectoryPick(it)
+                        } else {
+                            flashError(
+                                requireContext().getString(
+                                    R.string.project_directory_invalid,
+                                    it.name
+                                )
+                            )
+                        }
+                    }
                 }
             }
             appendClickableSpan(sb, R.string.msg_create_new_from_recent, filesSpan)
@@ -96,11 +119,29 @@ class RecentProjectsFragment : BaseFragment() {
 
             // Also set a click listener on the TextView itself.
             binding.tvCreateNewProject.setOnClickListener {
-                pickDirectory { handleDirectoryPick(it) }
+                pickDirectory {
+                    if (isValidProjectDirectory(it)) {
+                        handleDirectoryPick(it)
+                    } else {
+                        flashError(
+                            requireContext().getString(
+                                R.string.project_directory_invalid,
+                                it.name
+                            )
+                        )
+                    }
+                }
             }
         }
     }
 
+    fun isValidProjectDirectory(selectedDir: File): Boolean {
+        val appFolder = File(selectedDir, "app")
+        val buildGradleFile = File(appFolder, "build.gradle")
+        val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
+        return appFolder.exists() && appFolder.isDirectory &&
+                (buildGradleFile.exists() || buildGradleKtsFile.exists())
+    }
 
     private fun setupClickListeners() {
         binding.newProjectButton.setOnClickListener {
