@@ -47,18 +47,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Update lib_source from Google Drive
-        run: |
-          echo "Removing existing lib_source folder..."
-          rm -rf lib_source
-          echo "Installing gdown..."
-          pip install gdown
-          echo "Downloading lib_source zip from Google Drive..."
-          # Replace <ZIP_FILE_ID> with the actual file ID of your zip archive.
-          gdown --fuzzy "https://drive.google.com/uc?id=1O-oOP5_t3QlvnXGOC03w1SYakxrUi4Xk&confirm=t" -O lib_source.zip
-          echo "Unzipping lib_source.zip..."
-          unzip lib_source.zip -d lib_source
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
