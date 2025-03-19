@@ -91,12 +91,28 @@ jobs:
       - name: Extract branch folder name
         id: extract_branch
         run: |
-          # Remove "refs/heads/" and split by "/" to get the folder name (e.g. "ADFA-123")
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          FOLDER_NAME=${BRANCH_NAME#*/}
-          echo "Branch: $BRANCH_NAME"
-          echo "Folder Name: $FOLDER_NAME"
-          echo "FOLDER_NAME=$FOLDER_NAME" >> $GITHUB_ENV
+            # Use the head ref for PR events; otherwise, fallback to the branch name
+            if [ -n "$GITHUB_HEAD_REF" ]; then
+            BRANCH_NAME="$GITHUB_HEAD_REF"
+            else
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+            fi
+            echo "Branch: $BRANCH_NAME"
+            # Extract Jira ticket pattern (e.g. ADFA-123) from the branch name.
+            FOLDER_NAME=$(echo "$BRANCH_NAME" | grep -o -E '[A-Z]+-[0-9]+')
+            # Fallback if no ticket is found
+            if [ -z "$FOLDER_NAME" ]; then
+            FOLDER_NAME="$BRANCH_NAME"
+            fi
+            echo "Folder Name: $FOLDER_NAME"
+            echo "FOLDER_NAME=$FOLDER_NAME" >> $GITHUB_ENV
+
+      - name: Extract commit message
+        id: extract_commit_message
+        run: |
+            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+            echo "Commit Message: $COMMIT_MESSAGE"
+            echo "COMMIT_MESSAGE=$COMMIT_MESSAGE" >> $GITHUB_ENV
 
       - name: Install rclone
         run: |
@@ -148,8 +164,7 @@ jobs:
 
       - name: Slack Notification
         run: |
-          # Compose a Slack message with emojis and the download URL
-          MESSAGE=":tada: *Build Completed!* :rocket:\nDownload APK: ${DOWNLOAD_URL}\nJira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
+          MESSAGE=":tada: *Build Completed!* :rocket:\nDownload APK: ${DOWNLOAD_URL}\nJira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}\nCommit Message: ${COMMIT_MESSAGE}"
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\": \"${MESSAGE}\"}" \
             https://hooks.slack.com/services/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
