@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="10dp"
+    android:paddingVertical="4dp"
+    android:layout_marginHorizontal="38dp"
+    android:layout_marginBottom="40dp"
+    android:background="@drawable/snackbar_custom_background"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/snackbar_message"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="@string/msg_action_open_application"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:maxLines="1"
+        android:singleLine="true"
+        android:ellipsize="end"/>
+
+    <Button
+        android:id="@+id/snackbar_action_yes"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:padding="4dp"
+        android:layout_marginStart="8dp"
+        android:background="@android:color/transparent"
+        android:textColor="@color/lavender"
+        android:text="@string/yes"
+        android:textAllCaps="false"/>
+
+    <Button
+        android:id="@+id/snackbar_action_no"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:padding="4dp"
+        android:layout_marginStart="8dp"
+        android:background="@android:color/transparent"
+        android:textColor="@color/lavender"
+        android:text="@string/no"
+        android:textAllCaps="false"/>
+
+</LinearLayout>
