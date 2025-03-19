@@ -152,4 +152,4 @@ jobs:
           MESSAGE=":tada: *Build Completed!* :rocket:\nDownload APK: ${DOWNLOAD_URL}\nJira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\": \"${MESSAGE}\"}" \
-            https://hooks.slack.com/services/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
+            https://hooks.slack.com/services/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
