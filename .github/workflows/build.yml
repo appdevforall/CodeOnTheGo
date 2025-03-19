@@ -125,7 +125,8 @@ jobs:
               }
           EOF
           
-          rclone config create google-drive drive scope drive.file service_account_file gdrive-service-account.json
+          rclone config create google-drive drive scope drive service_account_file gdrive-service-account.json
+
 
       - name: Upload APK to Google Drive
         run: |
@@ -148,7 +149,7 @@ jobs:
       - name: Slack Notification
         run: |
           # Compose a Slack message with emojis and the download URL
-          MESSAGE=":tada: *Build Completed!* :rocket:\nDownload APK: ${DOWNLOAD_URL}\n Jira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
+          MESSAGE=":tada: *Build Completed!* :rocket:\nDownload APK: ${DOWNLOAD_URL}\nJira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\": \"${MESSAGE}\"}" \
             https://hooks.slack.com/services/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
