@@ -74,5 +74,5 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Assemble Universal APK
-        run: ./gradlew :assembleDebug
+        run: ./gradlew assembleDebug
       # Optionally, add steps to copy/upload APK artifact if needed.
