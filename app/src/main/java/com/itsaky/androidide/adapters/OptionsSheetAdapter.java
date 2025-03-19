@@ -25,6 +25,8 @@ import android.view.ViewGroup;
 import androidx.recyclerview.widget.RecyclerView;
 import com.itsaky.androidide.databinding.LayoutOptionssheetItemBinding;
 import com.itsaky.androidide.models.SheetOption;
+import com.itsaky.androidide.utils.AndroidUtils;
+
 import java.util.List;
 
 public class OptionsSheetAdapter extends RecyclerView.Adapter<OptionsSheetAdapter.VH> {
@@ -48,7 +50,7 @@ public class OptionsSheetAdapter extends RecyclerView.Adapter<OptionsSheetAdapte
     final LayoutOptionssheetItemBinding binding = p1.binding;
     final SheetOption option = options.get(p2);
 
-    binding.text.setText(option.title);
+    binding.text.setText(AndroidUtils.capitalizeWords(option.title));
     binding.icon.setImageDrawable(option.icon);
 
     binding

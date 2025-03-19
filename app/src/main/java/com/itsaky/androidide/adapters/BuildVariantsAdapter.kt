@@ -27,6 +27,7 @@ import com.itsaky.androidide.databinding.LayoutBuildVariantItemBinding
 import com.itsaky.androidide.tooling.api.IAndroidProject
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo.Companion.withSelection
+import com.itsaky.androidide.utils.AndroidUtils
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import java.util.Objects
 
@@ -64,6 +65,10 @@ class BuildVariantsAdapter(
 
       val viewModel = viewModel
 
+      val capitalizedVariants = variantInfo.buildVariants.map {
+        AndroidUtils.capitalizeWords(it)
+      }
+
       setAdapter(
         ArrayAdapter(binding.root.context, R.layout.support_simple_spinner_dropdown_item,
           variantInfo.buildVariants
@@ -76,7 +81,7 @@ class BuildVariantsAdapter(
       }
 
       this.listSelection = listSelection
-      setText(variantInfo.selectedVariant, false)
+      setText(AndroidUtils.capitalizeWords(variantInfo.selectedVariant), false)
 
       addTextChangedListener { editable ->
         // update the changed build variants map

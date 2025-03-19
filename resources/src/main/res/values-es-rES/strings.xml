@@ -333,7 +333,7 @@
   <string name="msg_constructor_available">Un constructor con los mismos tipos de parámetros ya está disponible</string>
   <string name="replace">Reemplazar</string>
   <string name="replaceAll">Reemplaza todo</string>
-  <string name="title_run_tasks">Run tasks</string>
+  <string name="title_run_tasks">Run Tasks</string>
   <string name="hint_search_tasks">Buscar tareas…</string>
   <string name="msg_err_select_tasks">Por favor, seleccione tareas a ejecutar</string>
   <string name="title_confirmation">Confirmación</string>

@@ -31,6 +31,8 @@ import com.itsaky.androidide.R;
 import com.itsaky.androidide.databinding.LayoutSymbolItemBinding;
 import com.itsaky.androidide.editor.ui.IDEEditor;
 import com.itsaky.androidide.models.Symbol;
+import com.itsaky.androidide.utils.AndroidUtils;
+
 import io.github.rosemoe.sora.widget.SelectionMovement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -98,7 +100,7 @@ public class SymbolInputAdapter extends RecyclerView.Adapter<SymbolInputAdapter.
   @Override
   public void onBindViewHolder(@NonNull VH holder, int position) {
     final Symbol symbol = symbols.get(position);
-    holder.binding.symbol.setText(symbol.getLabel());
+    holder.binding.symbol.setText(AndroidUtils.capitalizeWords(symbol.getLabel()));
     holder.binding.symbol.setTextColor(
             resolveAttr(holder.binding.symbol.getContext(), R.attr.colorOnSurface));
 

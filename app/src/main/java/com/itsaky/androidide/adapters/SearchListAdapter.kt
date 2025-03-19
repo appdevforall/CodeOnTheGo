@@ -29,6 +29,7 @@ import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.syntax.highlighters.JavaHighlighter
+import com.itsaky.androidide.utils.AndroidUtils
 import com.itsaky.androidide.utils.resolveAttr
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -55,7 +56,7 @@ class SearchListAdapter(
     val file = keys[p2]
     val matches = results[file] ?: listOf()
     val color = binding.icon.context.resolveAttr(R.attr.colorPrimary)
-    binding.title.text = file.name
+    binding.title.text = AndroidUtils.capitalizeWords(file.name)
     binding.icon.setImageResource(FileExtension.Factory.forFile(file).icon)
     binding.icon.setColorFilter(color, SRC_ATOP)
     binding.items.layoutManager = LinearLayoutManager(binding.items.context)

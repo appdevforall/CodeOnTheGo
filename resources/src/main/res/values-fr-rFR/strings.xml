@@ -334,7 +334,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_constructor_available">A constructor with same parameter types is already available</string>
   <string name="replace">Replace</string>
   <string name="replaceAll">Replace all</string>
-  <string name="title_run_tasks">Run tasks</string>
+  <string name="title_run_tasks">Run Tasks</string>
   <string name="hint_search_tasks">Search tasks…</string>
   <string name="msg_err_select_tasks">Please select tasks to run</string>
   <string name="title_confirmation">Confirmation</string>

@@ -28,6 +28,8 @@ import com.itsaky.androidide.interfaces.DiagnosticClickListener;
 import com.itsaky.androidide.lsp.models.DiagnosticItem;
 import com.itsaky.androidide.lsp.models.DiagnosticSeverity;
 import com.itsaky.androidide.resources.R;
+import com.itsaky.androidide.utils.AndroidUtils;
+
 import java.io.File;
 import java.util.List;
 import java.util.Objects;
@@ -65,7 +67,7 @@ public class DiagnosticItemAdapter extends RecyclerView.Adapter<DiagnosticItemAd
                 ? R.color.diagnostic_error
                 : R.color.diagnostic_warning),
         PorterDuff.Mode.SRC_ATOP);
-    binding.title.setText(diagnostic.getMessage());
+    binding.title.setText(AndroidUtils.capitalizeWords(diagnostic.getMessage()));
 
     binding
         .getRoot()

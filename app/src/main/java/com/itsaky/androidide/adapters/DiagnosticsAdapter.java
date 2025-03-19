@@ -26,6 +26,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.itsaky.androidide.databinding.LayoutDiagnosticGroupBinding;
 import com.itsaky.androidide.interfaces.DiagnosticClickListener;
 import com.itsaky.androidide.models.DiagnosticGroup;
+import com.itsaky.androidide.utils.AndroidUtils;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -52,7 +54,7 @@ public class DiagnosticsAdapter extends RecyclerView.Adapter<DiagnosticsAdapter.
     final LayoutDiagnosticGroupBinding binding = p1.binding;
 
     binding.info.icon.setImageResource(group.icon);
-    binding.info.title.setText(group.text);
+    binding.info.title.setText(AndroidUtils.capitalizeWords(group.text));
     binding.diagnostics.setLayoutManager(new LinearLayoutManager(binding.diagnostics.getContext()));
     binding.diagnostics.setAdapter(
         new DiagnosticItemAdapter(group.diagnostics, group.file, listener));

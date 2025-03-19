@@ -20,11 +20,13 @@ package com.itsaky.androidide.adapters
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateWidgetlistItemBinding
 import com.itsaky.androidide.templates.ITemplateWidgetViewProvider
 import com.itsaky.androidide.templates.Widget
+import com.itsaky.androidide.utils.AndroidUtils
 
 /**
  * A [RecyclerView.Adapter] that is used to show the widgets from templates.
@@ -53,6 +55,10 @@ class TemplateWidgetsListAdapter(private val widgets: List<Widget<*>>) :
       val viewProvider = ITemplateWidgetViewProvider.getInstance()
       val widget = widgets[position]
       val view = viewProvider.createView(root.context, widget)
+
+      if (view is TextView) {
+        view.text = AndroidUtils.capitalizeWords(view.text.toString())
+      }
 
       root.removeAllViews()
       root.addView(view,

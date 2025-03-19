@@ -7,56 +7,56 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class AndroidUtils {
-  /**
-   * The package is used to create a directory (eg:
-   * MyApplication/app/src/main/java/src/my/package/name) A windows directory path cannot be longer
-   * than 250 chars On unix/mac a directory name cannot be longer than 250 chars On all platforms,
-   * aapt fails with really cryptic errors if the package name is longer that ~200 chars Having a
-   * sane length for the package also seems a good thing
-   */
-  private static final int PACKAGE_LENGTH_LIMIT = 100;
+  public class AndroidUtils {
+    /**
+     * The package is used to create a directory (eg:
+     * MyApplication/app/src/main/java/src/my/package/name) A windows directory path cannot be longer
+     * than 250 chars On unix/mac a directory name cannot be longer than 250 chars On all platforms,
+     * aapt fails with really cryptic errors if the package name is longer that ~200 chars Having a
+     * sane length for the package also seems a good thing
+     */
+    private static final int PACKAGE_LENGTH_LIMIT = 100;
 
-  /**
-   * Checks if the given name is a valid Android application package (which has additional
-   * requirements beyond a normal Java package)
-   *
-   * @see #validateAndroidPackageName(String)
-   */
-  public static boolean isValidAndroidPackageName(@NotNull String name) {
-    return validateAndroidPackageName(name) == null;
-  }
-
-  /**
-   * Validates a potential package name and returns null if the package name is valid, and otherwise
-   * returns a description for why it is not valid.
-   *
-   * <p>Note that Android package names are more restrictive than general Java package names; we
-   * require at least two segments, limit the character set to [a-zA-Z0-9_] (Java allows any {@link
-   * Character#isLetter(char)} and require that each segment start with a letter (Java allows
-   * underscores at the beginning).
-   *
-   * <p>For details, see core/java/android/content/pm/PackageParser.java#validateName
-   *
-   * @param name the package name
-   * @return null if the package is valid as an Android package name, and otherwise a description
-   *     for why not
-   */
-  @Nullable
-  public static String validateAndroidPackageName(@NotNull String name) {
-    if (name.isEmpty()) {
-      return BaseApplication.getBaseInstance().getString(R.string.msg_empty_package);
+    /**
+     * Checks if the given name is a valid Android application package (which has additional
+     * requirements beyond a normal Java package)
+     *
+     * @see #validateAndroidPackageName(String)
+     */
+    public static boolean isValidAndroidPackageName(@NotNull String name) {
+      return validateAndroidPackageName(name) == null;
     }
 
-    String packageManagerCheck = validateName(name);
-    if (packageManagerCheck != null) {
-      return packageManagerCheck;
+    /**
+     * Validates a potential package name and returns null if the package name is valid, and otherwise
+     * returns a description for why it is not valid.
+     *
+     * <p>Note that Android package names are more restrictive than general Java package names; we
+     * require at least two segments, limit the character set to [a-zA-Z0-9_] (Java allows any {@link
+     * Character#isLetter(char)} and require that each segment start with a letter (Java allows
+     * underscores at the beginning).
+     *
+     * <p>For details, see core/java/android/content/pm/PackageParser.java#validateName
+     *
+     * @param name the package name
+     * @return null if the package is valid as an Android package name, and otherwise a description
+     *     for why not
+     */
+    @Nullable
+    public static String validateAndroidPackageName(@NotNull String name) {
+      if (name.isEmpty()) {
+        return BaseApplication.getBaseInstance().getString(R.string.msg_empty_package);
+      }
+
+      String packageManagerCheck = validateName(name);
+      if (packageManagerCheck != null) {
+        return packageManagerCheck;
+      }
+      if (!name.matches("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+[0-9a-z_]$")) {
+        return BaseApplication.getBaseInstance().getString(R.string.msg_package_is_not_valid);
+      }
+      return null;
     }
-    if (!name.matches("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+[0-9a-z_]$")) {
-      return BaseApplication.getBaseInstance().getString(R.string.msg_package_is_not_valid);
-    }
-    return null;
-  }
 
   // This method is a copy of android.content.pm.PackageParser#validateName with the
   // error messages tweaked
@@ -209,4 +209,24 @@ public class AndroidUtils {
     }
     return domain;
   }
+
+  /*--------------------------------------------------*/
+  public static String capitalizeWords(String text) {
+    if (text == null || text.isEmpty()) {
+      return text;
+    }
+
+    String[] words = text.toLowerCase().split(" ");
+    StringBuilder result = new StringBuilder();
+
+    for (String word : words) {
+      if (!word.isEmpty()) {
+        String capitalizedWord = word.substring(0, 1).toUpperCase() + word.substring(1);
+        result.append(capitalizedWord).append(" ");
+      }
+    }
+
+    return result.toString().trim();
+  }
+
 }
