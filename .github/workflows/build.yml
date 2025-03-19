@@ -106,13 +106,26 @@ jobs:
       #      - name: Configure rclone for Google Drive
       #        run: |
       #          rclone config create google-drive drive scope drive.file service_account_file <(echo '${{ secrets.GDRIVE_SERVICE_ACCOUNT }}')
+
       - name: Configure rclone for Google Drive
         run: |
-          rclone config create google-drive drive scope drive.file service_account_file <(echo '{
-                     "type": "service_account",
-                     "project_id": "switcher-891cc",
-                     "private_key_id": "ba00e96a5661214cc3b4f641791aa7c72250cc86",
-                     "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCbyI1A3XVBs8cM\n3UX+tHBroTsmhqyeroPeP4fweck4QNrm9+H6s9C6NZOl6ry1QV8MyguyZX5BL6KM\nzsvzR0chczpp4cbvK6/2moUkCGTUR4oslQUpS27L3y3QNajfZlK5hgBEfM8fxAOk\nwJoni1qR9qxZ3kMSGSdnWOj5G6mBnVQ6epzXlZPJ1l94be8DeRIEk/qDXXfwioTD\nyOia4DFYzLnBw+W0H2AdxzmuzLO4UF+MCutEV/WC/cnkOblsEXgHnga/rCRMxyGy\nk0ws0WajvVQVuUCL1IuY0aTi2EwyjLudF1wBlPkKUIOeOV2rSG/ycgUxGDVsyNeF\niQAYOqVHAgMBAAECggEAInZRWUIkiG5e4Geq7le4bvbyAOnWEhyFK4teZUJr0zf1\ntRatNSrGSAtGKHQvXuGhR1EDGWn+bik9imzNDXp9L9cv2vCJc6t0d9djEL+Snqtc\n09P7mlEHp64tklvsic83CbetI3mA0IQqUi4RbCIV3Sh2pELZD43k+6XdlA4ch4GQ\nHdb3v5e6E8iQnOmlExLF9CjrjacjuehKcKrRqRL0VU7cFVH0fQgqhw25RM/A6gZm\nJHlzE2a/YMi8RvFpMAwxabtYNOU5XyFm4t0kftdJMq4XCw3DSZGvIEMsuEmay6JF\nIVkbgAPDYE+c+Xfkk2UyY4YwCWsihB7CUOPLGhcG8QKBgQDJ8l3ooKmnjza1Za27\nfppUSWYuc8ca/SHe76/cb6G2j3De3bLXaGV0S2NNg82zQnf6Tn//uyzYG+KcpnI4\nRB/OpDagyQr4EuRHe9WbFDZRt5kxQZ040fc9cMqrQdTQXbWb0FF2dw4/6SGs8z3b\nKpQCGU9E8IKloNUf1dzyCiiK3QKBgQDFewR8KM4EQIKOv509SeV33Hc49oBWXRtf\nN2rU8BSJHrHSsc/5KO3grQ7FmCMrX0p++ELrl2dQQ9MCTb9PH7n6pmIsOAISr9xR\nnCFl3//V2Zz9VsL1jO0mSVL9zj8ltgbSUza/xPNdD8FNqTyYTggPMNAxF2LQnP7e\nkxCY86cUcwKBgQDJeOKVngwEHg3/pURRZTpE0sF9oIZId7gd+VSjAD/+qVZ7EgVF\ngGKPRlL414EV0T9vWne6w5s2s4M+s5QKbHSrLQtPF6O44OgcJQBzahPTLO9Jw+M9\n98PI6UlY2CGgC42OuKM9JAP0YPr21+mjSPRGr8d0yNoesblOvIdkdhwChQKBgDi0\n6YXJpdb8u0DIbxuBU75GdYnK5vFlzQ1beXbp9cumH8PzwVe31A73Qs2ksTysIVUy\nbuz9zfHzd+0qbCwJXTtHedteveGl1CsvHTwGxY0f7v+kYVlnfVXIKmetSN7IVU8i\nDA+nO4bWllh5p2fIyHGsP6xJHdvvqRQ6wMJa/PhXAoGBAIFY2L3FODN574vh6okM\njsKTxam0QOev/v0XSzMLGJWedmetESQ5V9KB7sbUhAw8A8OyNbWalEyvdp9ODeWy\nvAcU0gTPTzUxgpmz43qC5QCbauvMa/LEzAqBmgrMo4kfvUZ7Ijr851jtbvrCafny\n9lXxqDZ8aJOltOBLM0rhOm/V\n-----END PRIVATE KEY-----\n')
+          cat <<'EOF' > gdrive-service-account.json
+              {
+              "type": "service_account",
+              "project_id": "switcher-891cc",
+              "private_key_id": "ba00e96a5661214cc3b4f641791aa7c72250cc86",
+              "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCbyI1A3XVBs8cM\n3UX+tHBroTsmhqyeroPeP4fweck4QNrm9+H6s9C6NZOl6ry1QV8MyguyZX5BL6KM\nzsvzR0chczpp4cbvK6/2moUkCGTUR4oslQUpS27L3y3QNajfZlK5hgBEfM8fxAOk\nwJoni1qR9qxZ3kMSGSdnWOj5G6mBnVQ6epzXlZPJ1l94be8DeRIEk/qDXXfwioTD\nyOia4DFYzLnBw+W0H2AdxzmuzLO4UF+MCutEV/WC/cnkOblsEXgHnga/rCRMxyGy\nk0ws0WajvVQVuUCL1IuY0aTi2EwyjLudF1wBlPkKUIOeOV2rSG/ycgUxGDVsyNeF\niQAYOqVHAgMBAAECggEAInZRWUIkiG5e4Geq7le4bvbyAOnWEhyFK4teZUJr0zf1\ntRatNSrGSAtGKHQvXuGhR1EDGWn+bik9imzNDXp9L9cv2vCJc6t0d9djEL+Snqtc\n09P7mlEHp64tklvsic83CbetI3mA0IQqUi4RbCIV3Sh2pELZD43k+6XdlA4ch4GQ\nHdb3v5e6E8iQnOmlExLF9CjrjacjuehKcKrRqRL0VU7cFVH0fQgqhw25RM/A6gZm\nJHlzE2a/YMi8RvFpMAwxabtYNOU5XyFm4t0kftdJMq4XCw3DSZGvIEMsuEmay6JF\nIVkbgAPDYE+c+Xfkk2UyY4YwCWsihB7CUOPLGhcG8QKBgQDJ8l3ooKmnjza1Za27\nfppUSWYuc8ca/SHe76/cb6G2j3De3bLXaGV0S2NNg82zQnf6Tn//uyzYG+KcpnI4\nRB/OpDagyQr4EuRHe9WbFDZRt5kxQZ040fc9cMqrQdTQXbWb0FF2dw4/6SGs8z3b\nKpQCGU9E8IKloNUf1dzyCiiK3QKBgQDFewR8KM4EQIKOv509SeV33Hc49oBWXRtf\nN2rU8BSJHrHSsc/5KO3grQ7FmCMrX0p++ELrl2dQQ9MCTb9PH7n6pmIsOAISr9xR\nnCFl3//V2Zz9VsL1jO0mSVL9zj8ltgbSUza/xPNdD8FNqTyYTggPMNAxF2LQnP7e\nkxCY86cUcwKBgQDJeOKVngwEHg3/pURRZTpE0sF9oIZId7gd+VSjAD/+qVZ7EgVF\ngGKPRlL414EV0T9vWne6w5s2s4M+s5QKbHSrLQtPF6O44OgcJQBzahPTLO9Jw+M9\n98PI6UlY2CGgC42OuKM9JAP0YPr21+mjSPRGr8d0yNoesblOvIdkdhwChQKBgDi0\n6YXJpdb8u0DIbxuBU75GdYnK5vFlzQ1beXbp9cumH8PzwVe31A73Qs2ksTysIVUy\nbuz9zfHzd+0qbCwJXTtHedteveGl1CsvHTwGxY0f7v+kYVlnfVXIKmetSN7IVU8i\nDA+nO4bWllh5p2fIyHGsP6xJHdvvqRQ6wMJa/PhXAoGBAIFY2L3FODN574vh6okM\njsKTxam0QOev/v0XSzMLGJWedmetESQ5V9KB7sbUhAw8A8OyNbWalEyvdp9ODeWy\nvAcU0gTPTzUxgpmz43qC5QCbauvMa/LEzAqBmgrMo4kfvUZ7Ijr851jtbvrCafny\n9lXxqDZ8aJOltOBLM0rhOm/V\n-----END PRIVATE KEY-----\n",
+              "client_email": "googledrive@switcher-891cc.iam.gserviceaccount.com",
+              "client_id": "113785809152769600180",
+              "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+              "token_uri": "https://oauth2.googleapis.com/token",
+              "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+              "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/googledrive%40switcher-891cc.iam.gserviceaccount.com",
+              "universe_domain": "googleapis.com"
+              }
+          EOF
+          
+          rclone config create google-drive drive scope drive.file service_account_file gdrive-service-account.json
 
       - name: Upload APK to Google Drive
         run: |
