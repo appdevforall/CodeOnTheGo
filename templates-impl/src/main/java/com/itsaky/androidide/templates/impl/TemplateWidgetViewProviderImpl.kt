@@ -205,17 +205,34 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
       param.observe(observer)
     }.root
   }
+  private inline fun TextFieldParameter<*>.configureTextField(
+    context: Context,
+    root: TextInputLayout,
+    crossinline onTextChanged: (String) -> Unit = {}
+  ) {
+    configureTextFieldCommon(context, root, onTextChanged)
+  }
 
-  private inline fun TextFieldParameter<*>.configureTextField(context: Context,
-                                                       root: TextInputLayout,
-                                                       crossinline onTextChanged: (String) -> Unit = {}
+  private inline fun StringParameter.configureTextField(
+    context: Context,
+    root: TextInputLayout,
+    crossinline onTextChanged: (String) -> Unit = {}
+  ) {
+    inputType?.let { root.editText?.inputType = it }
+    imeOptions?.let { root.editText?.imeOptions = it }
+    maxLines?.let { root.editText?.maxLines = it }
+    (this as TextFieldParameter<*>).configureTextFieldCommon(context, root, onTextChanged)
+  }
+
+  private inline fun TextFieldParameter<*>.configureTextFieldCommon(
+    context: Context,
+    root: TextInputLayout,
+    crossinline onTextChanged: (String) -> Unit
   ) {
     root.setHint(name)
     resetStartAndEndIcons(context, root)
     root.editText!!.addTextChangedListener(object : SingleTextWatcher() {
-      override fun onTextChanged(s: CharSequence?, start: Int, before: Int,
-                                 count: Int
-      ) {
+      override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
         onTextChanged(s?.toString() ?: "")
       }
     })
