@@ -314,7 +314,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     Snackbar.make(content.realContainer, string.msg_action_open_application, Snackbar.LENGTH_INDEFINITE)
-      .setAction(string.yes) { IntentUtils.launchApp(this, packageName) }.show()
+      .setAction(string.no) { IntentUtils.launchApp(this, packageName) }.show()
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {

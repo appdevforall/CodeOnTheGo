@@ -61,53 +61,53 @@ import com.itsaky.androidide.actions.text.UndoAction
  */
   class EditorActivityActions {
 
-    companion object {
+   companion object {
 
-      @JvmStatic
-      fun register(context: Context) {
-        clear()
-        val registry = ActionsRegistry.getInstance()
-        var order = 0
+     @JvmStatic
+     fun register(context: Context) {
+       clear()
+       val registry = ActionsRegistry.getInstance()
+       var order = 0
 
-        // Toolbar actions
-        registry.registerAction(UndoAction(context, order++))
-        registry.registerAction(RedoAction(context, order++))
-        registry.registerAction(QuickRunWithCancellationAction(context, order++))
-        registry.registerAction(RunTasksAction(context, order++))
-        registry.registerAction(SaveFileAction(context, order++))
-        registry.registerAction(PreviewLayoutAction(context, order++))
-        registry.registerAction(FindActionMenu(context, order++))
-        registry.registerAction(ProjectSyncAction(context, order++))
-        registry.registerAction(ReloadColorSchemesAction(context, order++))
-        registry.registerAction(DisconnectLogSendersAction(context, order++))
-        registry.registerAction(LaunchAppAction(context, order++))
-        registry.registerAction(GitHubCommitAction(context, order++))
-        registry.registerAction(GitHubPushAction(context, order++))
-        registry.registerAction(GitHubFetchAction(context, order++))
-        registry.registerAction(GitHubPullAction(context, order++))
+       // Toolbar actions
+       registry.registerAction(UndoAction(context, order++))
+       registry.registerAction(RedoAction(context, order++))
+       registry.registerAction(QuickRunWithCancellationAction(context, order++))
+       registry.registerAction(RunTasksAction(context, order++))
+       registry.registerAction(SaveFileAction(context, order++))
+       registry.registerAction(PreviewLayoutAction(context, order++))
+       registry.registerAction(FindActionMenu(context, order++))
+       registry.registerAction(ProjectSyncAction(context, order++))
+       registry.registerAction(ReloadColorSchemesAction(context, order++))
+       registry.registerAction(DisconnectLogSendersAction(context, order++))
+       registry.registerAction(LaunchAppAction(context, order++))
+       registry.registerAction(GitHubCommitAction(context, order++))
+       registry.registerAction(GitHubPushAction(context, order++))
+       registry.registerAction(GitHubFetchAction(context, order++))
+       registry.registerAction(GitHubPullAction(context, order++))
 
-        // editor text actions
-        registry.registerAction(ExpandSelectionAction(context, order++))
-        registry.registerAction(SelectAllAction(context, order++))
-        registry.registerAction(LongSelectAction(context, order++))
-        registry.registerAction(CutAction(context, order++))
-        registry.registerAction(CopyAction(context, order++))
-        registry.registerAction(PasteAction(context, order++))
-        registry.registerAction(FormatCodeAction(context, order++))
-        registry.registerAction(ShowTooltipAction(context,order++))
+       // editor text actions
+       registry.registerAction(ExpandSelectionAction(context, order++))
+       registry.registerAction(SelectAllAction(context, order++))
+       registry.registerAction(LongSelectAction(context, order++))
+       registry.registerAction(CutAction(context, order++))
+       registry.registerAction(CopyAction(context, order++))
+       registry.registerAction(PasteAction(context, order++))
+       registry.registerAction(FormatCodeAction(context, order++))
+       registry.registerAction(ShowTooltipAction(context,order++))
 
-        // file tab actions
-        registry.registerAction(CloseFileAction(context, order++))
-        registry.registerAction(CloseOtherFilesAction(context, order++))
-        registry.registerAction(CloseAllFilesAction(context, order++))
+       // file tab actions
+       registry.registerAction(CloseFileAction(context, order++))
+       registry.registerAction(CloseOtherFilesAction(context, order++))
+       registry.registerAction(CloseAllFilesAction(context, order++))
 
-        // file tree actions
-        registry.registerAction(CopyPathAction(context, order++))
-        registry.registerAction(DeleteAction(context, order++))
-        registry.registerAction(NewFileAction(context, order++))
-        registry.registerAction(NewFolderAction(context, order++))
-        registry.registerAction(OpenWithAction(context, order++))
-        registry.registerAction(RenameAction(context, order++))
+       // file tree actions
+       registry.registerAction(CopyPathAction(context, order++))
+       registry.registerAction(DeleteAction(context, order++))
+       registry.registerAction(NewFileAction(context, order++))
+       registry.registerAction(NewFolderAction(context, order++))
+       registry.registerAction(OpenWithAction(context, order++))
+       registry.registerAction(RenameAction(context, order++))
       }
 
       @JvmStatic

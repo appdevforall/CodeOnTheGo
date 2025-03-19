@@ -116,7 +116,7 @@ constructor(
     const val CHILD_ACTION = 2
   }
 
-    private fun initialize(context: FragmentActivity) {
+  private fun initialize(context: FragmentActivity) {
 
       val mediator =
         TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
