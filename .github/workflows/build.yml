@@ -34,7 +34,6 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    # Using macOS-13 runner instead of Ubuntu
     runs-on: macos-13
     timeout-minutes: 60
     steps:
@@ -54,67 +53,12 @@ jobs:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
 
-      #      - name: Set up Android SDK
-      #        uses: android-actions/setup-android@v2
-      #        with:
-      #          sdk-version: "30"
-      #          build-tools-version: "30.0.3"
-      #          components: "platform-tools, build-tools;30.0.3, platforms;android-30"
-
       - name: Initialize submodules
         run: |
           git submodule init
           git submodule update --remote
 
-      # Fix for LayoutEditor directory case sensitivity
-      - name: Debug directory structure
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Contents of root directory:"
-          ls -la
-          echo "Looking for LayoutEditor directory:"
-          find . -name "LayoutEditor" -type d
-
-      - name: Create symbolic link for LayoutEditor
-        run: |
-          if [ -d "LayoutEditor" ]; then
-            echo "LayoutEditor directory found at root level"
-            # Remove existing layouteditor if it exists but is not a symlink
-            if [ -e "layouteditor" ] && [ ! -L "layouteditor" ]; then
-              echo "Removing existing non-symlink layouteditor directory"
-              rm -rf layouteditor
-            fi
-            # Create the symbolic link
-            if [ ! -e "layouteditor" ]; then
-              echo "Creating symbolic link: layouteditor -> LayoutEditor"
-              ln -sf "$(pwd)/LayoutEditor" "$(pwd)/layouteditor"
-            else
-              echo "Symbolic link already exists"
-            fi
-          elif [ -d "./LayoutEditor" ]; then
-            echo "LayoutEditor directory found at ./LayoutEditor"
-            # Remove existing layouteditor if it exists but is not a symlink
-            if [ -e "./layouteditor" ] && [ ! -L "./layouteditor" ]; then
-              echo "Removing existing non-symlink layouteditor directory"
-              rm -rf ./layouteditor
-            fi
-            # Create the symbolic link
-            if [ ! -e "./layouteditor" ]; then
-              echo "Creating symbolic link: ./layouteditor -> ./LayoutEditor"
-              ln -sf "$(pwd)/LayoutEditor" "$(pwd)/layouteditor"
-            else
-              echo "Symbolic link already exists"
-            fi
-          else
-            echo "LayoutEditor directory not found in expected locations"
-            echo "Searching for LayoutEditor directory in the workspace:"
-            find "$GITHUB_WORKSPACE" -name "LayoutEditor" -type d
-            exit 1
-          fi
-          
-          # Verify the symlink was created correctly
-          ls -la | grep layouteditor
-
+      # Note: The symbolic link is now handled by Gradle
       - name: Restore Gradle Cache
         uses: actions/cache@v4
         with:
@@ -126,23 +70,6 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Assemble Universal APK
-        run: |
-          # Enable more verbose output for debugging
-          ./gradlew clean :app:assembleDebug --info --no-daemon --stacktrace
-          
-          # If the build succeeds, print directory structure for verification
-          if [ $? -eq 0 ]; then
-            echo "Build successful. Checking directory structure:"
-            ls -la
-            echo "Looking for layouteditor symlink:"
-            ls -la | grep layouteditor
-          fi
+        run: ./gradlew clean :app:assembleDebug --no-daemon --stacktrace
 
-#      - name: Copy APK Artifact
-#        run: cp app/build/outputs/apk/debug/CodeOnTheGo-*.apk universal.apk
-#
-#      - name: Upload APK Artifact
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: universal-apk
-#          path: universal.apk
+      # Optionally, add steps to copy/upload APK artifact if needed.
