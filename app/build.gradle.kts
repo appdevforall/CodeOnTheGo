@@ -61,10 +61,12 @@ android {
     applicationVariants.all {
       outputs.all {
         val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
-        val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
+        val buildTypeName =
+          if (name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
         val newApkName = "CodeOnTheGo-${buildTypeName}${date}.apk"
 
-        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
+        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+          newApkName
       }
     }
   }
@@ -89,26 +91,29 @@ android {
 
 // Task to create symbolic link on Linux only
 tasks.register("createSymbolicLinkForLayoutEditor") {
-  // Check if the OS is Linux
   val os: String = System.getProperty("os.name").lowercase(Locale.ENGLISH)
-
-  // Update paths to reflect the correct locations for LayoutEditor
-  val sourcePath: java.nio.file.Path = Paths.get(rootDir.absolutePath, "LayoutEditor")
-  val destinationPath: java.nio.file.Path = Paths.get(rootDir.absolutePath, "layouteditor")
+  val sourcePath = Paths.get(rootDir.absolutePath, "LayoutEditor")
+  val destinationPath = Paths.get(rootDir.absolutePath, "layouteditor")
   val destinationFile = destinationPath.toFile()
 
-  if (os.contains("linux") || os.contains("nix") || os.contains("nux")) {
-    // Check if the symbolic link already exists
-    if (destinationFile.exists() && Files.isSymbolicLink(destinationPath)) {
-      doLast {
-        println("Symbolic link already exists: $destinationPath -> $sourcePath")
+  doLast {
+    if (os.contains("linux") || os.contains("nix") || os.contains("nux") || os.contains("mac")) {
+      if (destinationFile.exists()) {
+        if (Files.isSymbolicLink(destinationPath)) {
+          println("Symbolic link already exists: $destinationPath -> $sourcePath")
+        } else {
+          println("Warning: $destinationPath exists but is not a symbolic link")
+        }
+      } else {
+        try {
+          Files.createSymbolicLink(destinationPath, sourcePath)
+          println("Created symbolic link: $destinationPath -> $sourcePath")
+        } catch (e: Exception) {
+          println("Failed to create symbolic link: ${e.message}")
+        }
       }
     } else {
-      Files.createSymbolicLink(destinationPath, sourcePath)
-    }
-  } else {
-    doLast {
-      println("Skipping symbolic link creation: Not running on Linux.")
+      println("Skipping symbolic link creation: Not running on Linux/macOS.")
     }
   }
 }
@@ -140,7 +145,7 @@ desugaring {
 }
 
 dependencies {
-    //debugImplementation(libs.common.leakcanary)
+  //debugImplementation(libs.common.leakcanary)
 
   // Annotation processors
   kapt(libs.common.glide.ap)
@@ -148,7 +153,7 @@ dependencies {
   kapt(projects.annotationProcessors)
   kapt(libs.room.compiler)
 
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))    
+  implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 
   implementation(libs.common.editor)
   implementation(libs.common.utilcode)
