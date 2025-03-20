@@ -140,7 +140,7 @@
   <string name="idepref_about_title">Acerca de Code on the Go</string>
   <string name="idepref_build_clearCache_title">Limpiar caches de Gradle</string>
   <string name="idepref_build_clearCache_summary">Borrar el directorio de cachés de Gradle. Esto eliminará todas las dependencias descargadas por Gradle. Los archivos requeridos se descargarán de nuevo en la próxima compilación.</string>
-  <string name="idepref_build_customgradlecommands_title">Comandos de Gradle adicionales</string>
+  <string name="idepref_build_customgradlecommands_title">Banderas adicionales de Gradle</string>
   <string name="idepref_build_customgradlecommands_summary">Elija comandos adicionales que se agregarán al ejecutar cada tarea</string>
   <string name="idepref_editor_fontsize_title">Tamaño de fuente</string>
   <string name="idepref_editor_fontsize_summary">Tamaño de fuente del editor</string>
