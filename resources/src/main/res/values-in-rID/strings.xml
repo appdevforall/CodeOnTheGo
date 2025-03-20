@@ -140,7 +140,7 @@
   <string name="idepref_about_title">Tentang Code on the Go</string>
   <string name="idepref_build_clearCache_title">Bersihkan cache Gradle</string>
   <string name="idepref_build_clearCache_summary">Membersihkan direktori cache Gradle. ini akan menghapus semua dependensi yang telah diunduh oleh Gradle. File yang diperlukan akan diunduh kembali pada build berikutnya.</string>
-  <string name="idepref_build_customgradlecommands_title">Penambahan perintah Gradle</string>
+  <string name="idepref_build_customgradlecommands_title">Tambahan flag Gradle</string>
   <string name="idepref_build_customgradlecommands_summary">Pilih tambahan perintah yang akan ditambahkan ketika melaksanakan setiap task</string>
   <string name="idepref_editor_fontsize_title">Ukuran huruf</string>
   <string name="idepref_editor_fontsize_summary">Ukuran huruf pada editor</string>
