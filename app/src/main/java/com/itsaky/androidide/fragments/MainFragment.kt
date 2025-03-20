@@ -152,8 +152,8 @@ class MainFragment : BaseFragment() {
         }
     }
 
-    private fun performFeedbackAction(/* action:  JMT MainScreenAction*/) {
-        val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
+    private fun performFeedbackAction() {
+        val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.let { builder ->
             builder.setTitle("Alert!")
                 .setMessage(
@@ -165,23 +165,20 @@ class MainFragment : BaseFragment() {
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
-                        val stackTrace =
-                            Exception().stackTrace.asList().toString().replace(",", "\n")
-                        val sb = StringBuilder(resources.getString(R.string.feedback_message))
-                        sb.append("\n\n\n")
-                        sb.append("Version: ")
-                        // "CodeOnTheGo-${buildTypeName}${date}
-                        sb.append(BuildConfig.VERSION_NAME.toString())
-                        sb.append("\n\n")
-                        sb.append("-------------stack trace----------\n")
-                        sb.append(stackTrace)
+                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+
+                        val feedbackMessage = getString(
+                            R.string.feedback_message,
+                            BuildConfig.VERSION_NAME,
+                            stackTrace
+                        )
+
                         val feedbackIntent = Intent(Intent.ACTION_SEND)
                         val subject = MessageFormat.format(
                             resources.getString(R.string.feedback_subject),
                             "Main"
                         )
-                        /*To send an email you need to specify mailto: as URI using setData() method
-                               and data type will be to text/plain using setType() method*/
+
                         feedbackIntent.data = Uri.parse("mailto:")
                         feedbackIntent.type = "text/plain"
                         feedbackIntent.putExtra(
@@ -189,7 +186,8 @@ class MainFragment : BaseFragment() {
                             arrayOf("feedback@appdevforall.com")
                         )
                         feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())
+                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+
                         shareActivityResultLauncher.launch(feedbackIntent)
                         dialog.dismiss()
                     }
