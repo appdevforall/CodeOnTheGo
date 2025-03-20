@@ -34,7 +34,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: macos-13
+    runs-on: [self-hosted, CoGoBuildBox]
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -42,10 +42,26 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+      - name: Setup Git LFS
+        run: |
+          echo "Setting up Git LFS"
+          where git-lfs || (
+            echo "Installing Git LFS"
+            powershell -Command "Invoke-WebRequest -Uri https://github.com/git-lfs/git-lfs/releases/download/v3.4.1/git-lfs-windows-amd64-v3.4.1.zip -OutFile git-lfs.zip; Expand-Archive -Path git-lfs.zip -DestinationPath git-lfs; cd git-lfs; .\git-lfs-3.4.1\install.bat"
+          )
+          git lfs install
+        shell: cmd
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          lfs: true
+
+      - name: Pull Git LFS files
+        run: |
+          git lfs pull
+        shell: cmd
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -57,11 +73,12 @@ jobs:
         run: |
           git submodule init
           git submodule update --remote
+        shell: cmd
 
-      - name: Install CMake
-        run: |
-          brew update
-          brew install cmake
+#      - name: Ensure CMake is installed
+#        run: |
+#          where cmake || echo "CMake needs to be installed on the runner"
+#        shell: cmd
 
       - name: Restore Gradle Cache
         uses: actions/cache@v4
@@ -74,85 +91,97 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Assemble Universal APK
-        run: ./gradlew assembleDebug
+        run: .\gradlew.bat assembleDebug
+        shell: cmd
 
       - name: Extract branch folder name
         id: extract_branch
         run: |
-            # Use the head ref for PR events; otherwise, fallback to the branch name
-            if [ -n "$GITHUB_HEAD_REF" ]; then
-            BRANCH_NAME="$GITHUB_HEAD_REF"
-            else
-            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-            fi
-            echo "Branch: $BRANCH_NAME"
-            # Extract Jira ticket pattern (e.g. ADFA-123) from the branch name.
-            FOLDER_NAME=$(echo "$BRANCH_NAME" | grep -o -E '[A-Z]+-[0-9]+')
-            # Fallback if no ticket is found
-            if [ -z "$FOLDER_NAME" ]; then
-            FOLDER_NAME="$BRANCH_NAME"
-            fi
-            echo "Folder Name: $FOLDER_NAME"
-            echo "FOLDER_NAME=$FOLDER_NAME" >> $GITHUB_ENV
+          @echo off
+          rem Use the head ref for PR events; otherwise, fallback to the branch name
+          if defined GITHUB_HEAD_REF (
+            set "BRANCH_NAME=%GITHUB_HEAD_REF%"
+          ) else (
+            set "BRANCH_NAME=%GITHUB_REF:refs/heads/=%"
+          )
+          echo Branch: %BRANCH_NAME%
+          
+          rem Extract Jira ticket pattern using PowerShell
+          powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
+        shell: cmd
 
       - name: Extract commit message
         id: extract_commit_message
         run: |
-            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-            echo "Commit Message: $COMMIT_MESSAGE"
-            echo "COMMIT_MESSAGE=$COMMIT_MESSAGE" >> $GITHUB_ENV
+          for /f "tokens=*" %%a in ('git log -1 --pretty^=%%B') do (
+            set "COMMIT_MESSAGE=%%a"
+          )
+          echo Commit Message: %COMMIT_MESSAGE%
+          echo COMMIT_MESSAGE=%COMMIT_MESSAGE% >> %GITHUB_ENV%
+        shell: cmd
 
       - name: Install rclone
         run: |
-          brew install rclone
-
-      #        Todo: Ask Jim to configure the GDRIVE_SERVICE_ACCOUNT in github secret instead of hardcoding it
-      #      - name: Configure rclone for Google Drive
-      #        run: |
-      #          rclone config create google-drive drive scope drive.file service_account_file <(echo '${{ secrets.GDRIVE_SERVICE_ACCOUNT }}')
+          powershell -Command "if (-not (Get-Command rclone -ErrorAction SilentlyContinue)) { Write-Host 'Installing rclone...'; $url = 'https://downloads.rclone.org/rclone-current-windows-amd64.zip'; $output = 'rclone.zip'; Invoke-WebRequest -Uri $url -OutFile $output; Expand-Archive -Path $output -DestinationPath 'C:\rclone'; $env:PATH += ';C:\rclone\rclone-v*-windows-amd64'; [Environment]::SetEnvironmentVariable('PATH', $env:PATH, 'Machine'); } else { Write-Host 'rclone is already installed.' }"
+        shell: cmd
 
       - name: Configure rclone for Google Drive
         run: |
-          cat <<'EOF' > gdrive-service-account.json
-              {
-              "type": "service_account",
-              "project_id": "switcher-891cc",
-              "private_key_id": "ba00e96a5661214cc3b4f641791aa7c72250cc86",
-              "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCbyI1A3XVBs8cM\n3UX+tHBroTsmhqyeroPeP4fweck4QNrm9+H6s9C6NZOl6ry1QV8MyguyZX5BL6KM\nzsvzR0chczpp4cbvK6/2moUkCGTUR4oslQUpS27L3y3QNajfZlK5hgBEfM8fxAOk\nwJoni1qR9qxZ3kMSGSdnWOj5G6mBnVQ6epzXlZPJ1l94be8DeRIEk/qDXXfwioTD\nyOia4DFYzLnBw+W0H2AdxzmuzLO4UF+MCutEV/WC/cnkOblsEXgHnga/rCRMxyGy\nk0ws0WajvVQVuUCL1IuY0aTi2EwyjLudF1wBlPkKUIOeOV2rSG/ycgUxGDVsyNeF\niQAYOqVHAgMBAAECggEAInZRWUIkiG5e4Geq7le4bvbyAOnWEhyFK4teZUJr0zf1\ntRatNSrGSAtGKHQvXuGhR1EDGWn+bik9imzNDXp9L9cv2vCJc6t0d9djEL+Snqtc\n09P7mlEHp64tklvsic83CbetI3mA0IQqUi4RbCIV3Sh2pELZD43k+6XdlA4ch4GQ\nHdb3v5e6E8iQnOmlExLF9CjrjacjuehKcKrRqRL0VU7cFVH0fQgqhw25RM/A6gZm\nJHlzE2a/YMi8RvFpMAwxabtYNOU5XyFm4t0kftdJMq4XCw3DSZGvIEMsuEmay6JF\nIVkbgAPDYE+c+Xfkk2UyY4YwCWsihB7CUOPLGhcG8QKBgQDJ8l3ooKmnjza1Za27\nfppUSWYuc8ca/SHe76/cb6G2j3De3bLXaGV0S2NNg82zQnf6Tn//uyzYG+KcpnI4\nRB/OpDagyQr4EuRHe9WbFDZRt5kxQZ040fc9cMqrQdTQXbWb0FF2dw4/6SGs8z3b\nKpQCGU9E8IKloNUf1dzyCiiK3QKBgQDFewR8KM4EQIKOv509SeV33Hc49oBWXRtf\nN2rU8BSJHrHSsc/5KO3grQ7FmCMrX0p++ELrl2dQQ9MCTb9PH7n6pmIsOAISr9xR\nnCFl3//V2Zz9VsL1jO0mSVL9zj8ltgbSUza/xPNdD8FNqTyYTggPMNAxF2LQnP7e\nkxCY86cUcwKBgQDJeOKVngwEHg3/pURRZTpE0sF9oIZId7gd+VSjAD/+qVZ7EgVF\ngGKPRlL414EV0T9vWne6w5s2s4M+s5QKbHSrLQtPF6O44OgcJQBzahPTLO9Jw+M9\n98PI6UlY2CGgC42OuKM9JAP0YPr21+mjSPRGr8d0yNoesblOvIdkdhwChQKBgDi0\n6YXJpdb8u0DIbxuBU75GdYnK5vFlzQ1beXbp9cumH8PzwVe31A73Qs2ksTysIVUy\nbuz9zfHzd+0qbCwJXTtHedteveGl1CsvHTwGxY0f7v+kYVlnfVXIKmetSN7IVU8i\nDA+nO4bWllh5p2fIyHGsP6xJHdvvqRQ6wMJa/PhXAoGBAIFY2L3FODN574vh6okM\njsKTxam0QOev/v0XSzMLGJWedmetESQ5V9KB7sbUhAw8A8OyNbWalEyvdp9ODeWy\nvAcU0gTPTzUxgpmz43qC5QCbauvMa/LEzAqBmgrMo4kfvUZ7Ijr851jtbvrCafny\n9lXxqDZ8aJOltOBLM0rhOm/V\n-----END PRIVATE KEY-----\n",
-              "client_email": "googledrive@switcher-891cc.iam.gserviceaccount.com",
-              "client_id": "113785809152769600180",
-              "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-              "token_uri": "https://oauth2.googleapis.com/token",
-              "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-              "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/googledrive%40switcher-891cc.iam.gserviceaccount.com",
-              "universe_domain": "googleapis.com"
-              }
-          EOF
+          echo {^
+            "type": "service_account",^
+            "project_id": "switcher-891cc",^
+            "private_key_id": "ba00e96a5661214cc3b4f641791aa7c72250cc86",^
+            "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCbyI1A3XVBs8cM\n3UX+tHBroTsmhqyeroPeP4fweck4QNrm9+H6s9C6NZOl6ry1QV8MyguyZX5BL6KM\nzsvzR0chczpp4cbvK6/2moUkCGTUR4oslQUpS27L3y3QNajfZlK5hgBEfM8fxAOk\nwJoni1qR9qxZ3kMSGSdnWOj5G6mBnVQ6epzXlZPJ1l94be8DeRIEk/qDXXfwioTD\nyOia4DFYzLnBw+W0H2AdxzmuzLO4UF+MCutEV/WC/cnkOblsEXgHnga/rCRMxyGy\nk0ws0WajvVQVuUCL1IuY0aTi2EwyjLudF1wBlPkKUIOeOV2rSG/ycgUxGDVsyNeF\niQAYOqVHAgMBAAECggEAInZRWUIkiG5e4Geq7le4bvbyAOnWEhyFK4teZUJr0zf1\ntRatNSrGSAtGKHQvXuGhR1EDGWn+bik9imzNDXp9L9cv2vCJc6t0d9djEL+Snqtc\n09P7mlEHp64tklvsic83CbetI3mA0IQqUi4RbCIV3Sh2pELZD43k+6XdlA4ch4GQ\nHdb3v5e6E8iQnOmlExLF9CjrjacjuehKcKrRqRL0VU7cFVH0fQgqhw25RM/A6gZm\nJHlzE2a/YMi8RvFpMAwxabtYNOU5XyFm4t0kftdJMq4XCw3DSZGvIEMsuEmay6JF\nIVkbgAPDYE+c+Xfkk2UyY4YwCWsihB7CUOPLGhcG8QKBgQDJ8l3ooKmnjza1Za27\nfppUSWYuc8ca/SHe76/cb6G2j3De3bLXaGV0S2NNg82zQnf6Tn//uyzYG+KcpnI4\nRB/OpDagyQr4EuRHe9WbFDZRt5kxQZ040fc9cMqrQdTQXbWb0FF2dw4/6SGs8z3b\nKpQCGU9E8IKloNUf1dzyCiiK3QKBgQDFewR8KM4EQIKOv509SeV33Hc49oBWXRtf\nN2rU8BSJHrHSsc/5KO3grQ7FmCMrX0p++ELrl2dQQ9MCTb9PH7n6pmIsOAISr9xR\nnCFl3//V2Zz9VsL1jO0mSVL9zj8ltgbSUza/xPNdD8FNqTyYTggPMNAxF2LQnP7e\nkxCY86cUcwKBgQDJeOKVngwEHg3/pURRZTpE0sF9oIZId7gd+VSjAD/+qVZ7EgVF\ngGKPRlL414EV0T9vWne6w5s2s4M+s5QKbHSrLQtPF6O44OgcJQBzahPTLO9Jw+M9\n98PI6UlY2CGgC42OuKM9JAP0YPr21+mjSPRGr8d0yNoesblOvIdkdhwChQKBgDi0\n6YXJpdb8u0DIbxuBU75GdYnK5vFlzQ1beXbp9cumH8PzwVe31A73Qs2ksTysIVUy\nbuz9zfHzd+0qbCwJXTtHedteveGl1CsvHTwGxY0f7v+kYVlnfVXIKmetSN7IVU8i\nDA+nO4bWllh5p2fIyHGsP6xJHdvvqRQ6wMJa/PhXAoGBAIFY2L3FODN574vh6okM\njsKTxam0QOev/v0XSzMLGJWedmetESQ5V9KB7sbUhAw8A8OyNbWalEyvdp9ODeWy\nvAcU0gTPTzUxgpmz43qC5QCbauvMa/LEzAqBmgrMo4kfvUZ7Ijr851jtbvrCafny\n9lXxqDZ8aJOltOBLM0rhOm/V\n-----END PRIVATE KEY-----\n",^
+            "client_email": "googledrive@switcher-891cc.iam.gserviceaccount.com",^
+            "client_id": "113785809152769600180",^
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",^
+            "token_uri": "https://oauth2.googleapis.com/token",^
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",^
+            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/googledrive%%40switcher-891cc.iam.gserviceaccount.com",^
+            "universe_domain": "googleapis.com"^
+          } > gdrive-service-account.json
           
           rclone config create google-drive drive scope drive service_account_file gdrive-service-account.json
-
+        shell: cmd
 
       - name: Upload APK to Google Drive
         run: |
-          # Adjust the APK path if needed; here we assume the APK is named *-debug.apk
-          APK_PATH=$(find . -name "CodeOnTheGo-*.apk" | head -n 1)
-          echo "Found APK: $APK_PATH"
-          # Upload the APK to the folder named after the branch (e.g. "ADFA-123")
-          rclone copy "$APK_PATH" google-drive:"${FOLDER_NAME}" -v
+          @echo off
+          rem Find APK file using PowerShell
+          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk | Select-Object -First 1 -ExpandProperty FullName"') do (
+            set "APK_PATH=%%a"
+          )
+          echo Found APK: %APK_PATH%
+          
+          rem Upload to Google Drive folder
+          rclone copy "%APK_PATH%" google-drive:"%FOLDER_NAME%" -v
+        shell: cmd
 
       - name: Get APK Download URL
         id: get_apk_url
         run: |
-          # Construct the path and retrieve a public link for the uploaded APK.
-          APK_FILENAME=$(basename $(find . -name "CodeOnTheGo-*.apk" | head -n 1))
-          APK_PATH_IN_GDRIVE="${FOLDER_NAME}/${APK_FILENAME}"
-          DOWNLOAD_URL=$(rclone link google-drive:"$APK_PATH_IN_GDRIVE")
-          echo "APK Download URL: $DOWNLOAD_URL"
-          echo "DOWNLOAD_URL=$DOWNLOAD_URL" >> $GITHUB_ENV
+          @echo off
+          rem Get APK filename using PowerShell
+          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk | Select-Object -First 1 -ExpandProperty Name"') do (
+            set "APK_FILENAME=%%a"
+          )
+          
+          set "APK_PATH_IN_GDRIVE=%FOLDER_NAME%/%APK_FILENAME%"
+          
+          rem Get download link
+          for /f "tokens=*" %%a in ('rclone link google-drive:"%APK_PATH_IN_GDRIVE%"') do (
+            set "DOWNLOAD_URL=%%a"
+          )
+          
+          echo APK Download URL: %DOWNLOAD_URL%
+          echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
+        shell: cmd
 
       - name: Slack Notification
         run: |
-          MESSAGE=":tada: *Build Completed!* :rocket:\nDownload APK: ${DOWNLOAD_URL}\nJira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}\nCommit Message: ${COMMIT_MESSAGE}"
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\": \"${MESSAGE}\"}" \
-            https://hooks.slack.com/services/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
+          @echo off
+          rem Prepare message content and escape special characters
+          set "MESSAGE=:tada: *Build Completed!* :rocket:\nDownload APK: %DOWNLOAD_URL%\nJira Ticket: https://appdevforall.atlassian.net/browse/%FOLDER_NAME%\nCommit Message: %COMMIT_MESSAGE%"
+          
+          powershell -Command "$message = '%MESSAGE%'; $body = @{text = $message} | ConvertTo-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body $body -ContentType 'application/json'"
+        shell: cmd
