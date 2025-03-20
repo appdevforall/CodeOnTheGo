@@ -140,8 +140,8 @@
   <string name="idepref_about_title">Об Code on the Go</string>
   <string name="idepref_build_clearCache_title">Очистить кэш Gradle</string>
   <string name="idepref_build_clearCache_summary">Очистить директорию кэша Gradle. Это удалит все зависимости, скачанные Gradle. Необходимые файлы будут вновь скачаны при следующей сборке.</string>
-  <string name="idepref_build_customgradlecommands_title">Дополнительные команды Gradle</string>
-  <string name="idepref_build_customgradlecommands_summary">Выберите дополнительные команды, которые будут добавлены при выполнении каждого сценария</string>
+  <string name="idepref_build_customgradlecommands_title">Дополнительные флаги Gradle</string>
+  <string name="idepref_build_customgradlecommands_summary">Выберите дополнительные флаги Gradle, которые будут использоваться для выполнения каждой задачи.</string>
   <string name="idepref_editor_fontsize_title">Размер шрифта</string>
   <string name="idepref_editor_fontsize_summary">Размер шрифта редактора</string>
   <string name="idepref_editor_paintingflags_title">Визуализировать непечатаемые символы</string>
