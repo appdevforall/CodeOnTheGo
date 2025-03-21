@@ -1,6 +1,6 @@
 name: Build APK
 permissions:
-  contents: read
+  contents: write
   actions: write
 on:
   pull_request:
