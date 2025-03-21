@@ -21,7 +21,7 @@ class CustomSnackbar(private val context: Context, private val rootView: View) {
         actionFirst: (() -> Unit)? = null,
         actionSecondary: (() -> Unit)? = null
     ) {
-        snackbar = Snackbar.make(rootView, "", Snackbar.LENGTH_LONG)
+        snackbar = Snackbar.make(rootView, "", Snackbar.LENGTH_INDEFINITE)
 
         val snackbarView = snackbar?.view
         val inflater = LayoutInflater.from(context)
@@ -56,6 +56,17 @@ class CustomSnackbar(private val context: Context, private val rootView: View) {
             removeAllViews()
             addView(customView)
         }
+
+        snackbarView?.let { view ->
+            view.viewTreeObserver.addOnGlobalLayoutListener {
+                val offsetY = context.resources.getDimensionPixelSize(R.dimen.snackbar_offset_bottom)
+
+                view.translationY = -offsetY.toFloat()
+            }
+        }
+
+
+
         snackbar?.show()
     }
 
