@@ -88,5 +88,22 @@ gradlePlugin {
       description = "Gradle plugin for applying LogSender-specific configuration to projects that are built with AndroidIDE"
       tags.set(setOf("androidide", "logsender"))
     }
+
+    create("CogoCleanPlugin") {
+      id = "${BuildConfig.packageName}.cogoclean"
+      implementationClass = "${BuildConfig.packageName}.gradle.CogoCleanPlugin"
+      displayName = "Cogo Cleanup Gradle Plugin"
+      description = "Gradle plugin for cleaning project logs and caches"
+      tags.set(setOf("cogo", "cogoclean"))
+    }
+
   }
+}
+
+tasks.named<Jar>("jar") {
+  archiveBaseName.set("cogo-plugin")
+  archiveClassifier.set("") // Removes the default "all" classifier
+//  archiveVersion.set("1.0.0")
+  archiveVersion.set("")
+  //  archiveFileName .set("cogo-plugin-1.0.0.jar") // Specify your desired JAR name
 }
