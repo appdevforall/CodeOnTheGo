@@ -55,6 +55,8 @@ public final class Environment {
 
   public static File TOOLING_API_JAR;
 
+  public static File COGO_PLUGIN_JAR;
+
   public static File INIT_SCRIPT;
   public static File GRADLE_USER_HOME;
   public static File AAPT2;
@@ -74,6 +76,8 @@ public final class Environment {
     ANDROID_JAR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "android.jar"));
     TOOLING_API_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "tooling-api")),
         "tooling-api-all.jar");
+    COGO_PLUGIN_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "plugin")),
+            "cogo-plugin.jar");
     AAPT2 = new File(ANDROIDIDE_HOME, "aapt2");
     ANDROIDIDE_UI = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "ui"));
 

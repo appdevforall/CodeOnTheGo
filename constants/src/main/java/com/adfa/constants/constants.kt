@@ -19,6 +19,7 @@ package com.adfa.constants
 
 import java.io.File
 
+
 /**
  * @author Akash Yadav
  *
@@ -81,6 +82,11 @@ const val ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME =
  */
 const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME =
     "com.android.tools.build:gradle:${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
+
+// Cogo gradle plugin
+const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
+const val COGO_GRADLE_PLUGIN_JAR_NAME = "${COGO_GRADLE_PLUGIN_NAME}.jar"
+const val COGO_GRADLE_PLUGIN_PATH = "/data/data/com.itsaky.androidide/files/home/.androidide/plugin"
 
 //ABI
 const val V7_KEY = "v7"
