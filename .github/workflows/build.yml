@@ -105,7 +105,6 @@ jobs:
         id: extract_branch
         run: |
           @echo off
-          rem Use the head ref for PR events; otherwise, fallback to the branch name
           if defined GITHUB_HEAD_REF (
             set "BRANCH_NAME=%GITHUB_HEAD_REF%"
           ) else (
@@ -113,8 +112,7 @@ jobs:
           )
           echo Branch: %BRANCH_NAME%
           
-          rem Extract Jira ticket pattern using PowerShell
-          powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
+          powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
         shell: cmd
 
       - name: Install rclone
@@ -141,32 +139,41 @@ jobs:
       - name: Upload APK to Google Drive and Get Download Link
         id: upload_and_link
         run: |
-          # Find APK file using PowerShell
-          $apkPath = Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $apkPath) {
-              Write-Error "No APK file found"
+          # Focus search on known APK output directory
+          $apkDir = "app/build/outputs/apk"
+          if (-not (Test-Path $apkDir)) {
+              Write-Error "APK directory not found: $apkDir"
               exit 1
           }
+
+          # Search with error suppression
+          $apkPath = Get-ChildItem -Path $apkDir -Recurse -Filter CodeOnTheGo-*.apk -File -ErrorAction SilentlyContinue |
+                      Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $apkPath) {
+              Write-Error "No APK file found in $apkDir"
+              exit 1
+          }
+
           Write-Output "Found APK: $apkPath"
-          
+
           # Upload to Google Drive
           & $env:RCLONE_PATH copy $apkPath "google-drive:$env:FOLDER_NAME" -v
           if ($LASTEXITCODE -ne 0) {
               Write-Error "Error uploading APK to Google Drive"
               exit $LASTEXITCODE
           }
-          
-          # Get APK filename
+
+          # Get download link
           $apkFileName = Split-Path $apkPath -Leaf
           $apkPathInGDrive = "$env:FOLDER_NAME/$apkFileName"
-          
-          # Get download link
           $downloadUrl = & $env:RCLONE_PATH link "google-drive:$apkPathInGDrive"
+
           if ($LASTEXITCODE -ne 0) {
               Write-Error "Failed to get download link"
               exit $LASTEXITCODE
           }
-          
+
           Write-Output "APK Download URL: $downloadUrl"
           echo "DOWNLOAD_URL=$downloadUrl" >> $env:GITHUB_ENV
         shell: powershell
