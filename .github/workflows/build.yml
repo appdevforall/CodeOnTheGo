@@ -37,7 +37,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 60
     steps:
-      - name: Cancel previous runs
+      - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
@@ -52,15 +52,14 @@ jobs:
           git lfs install
         shell: cmd
 
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: true
 
-      - name: Pull Git LFS files
-        run: |
-          git lfs pull
+      - name: Pull Git LFS Files
+        run: git lfs pull
         shell: cmd
 
       - name: Set up JDK 17
@@ -69,7 +68,7 @@ jobs:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
 
-      - name: Initialize submodules
+      - name: Initialize Submodules
         run: |
           git submodule init
           git submodule update --remote
@@ -85,11 +84,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Assemble Universal APK
-        run: .\gradlew.bat assembleDebug
+      - name: Extract Commit Message
+        id: extract_commit_message
+        run: |
+          for /f "tokens=*" %%a in ('git log -1 --pretty=format:"%%B"') do (
+            set "COMMIT_MESSAGE=%%a"
+          )
+          echo Commit Message: %COMMIT_MESSAGE%
+          echo COMMIT_MESSAGE=%COMMIT_MESSAGE% >> %GITHUB_ENV%
         shell: cmd
 
-      - name: Extract branch folder name
+      - name: Assemble Universal APK
+        id: build_apk
+        run: |
+          .\gradlew.bat assembleDebug
+          if %errorlevel% neq 0 exit /b %errorlevel%
+        shell: cmd
+
+      - name: Extract Branch Information
         id: extract_branch
         run: |
           @echo off
@@ -103,16 +115,6 @@ jobs:
           
           rem Extract Jira ticket pattern using PowerShell
           powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
-        shell: cmd
-
-      - name: Extract commit message
-        id: extract_commit_message
-        run: |
-          for /f "tokens=*" %%a in ('git log -1 --pretty=format:"%%B"') do (
-            set "COMMIT_MESSAGE=%%a"
-          )
-          echo Commit Message: %COMMIT_MESSAGE%
-          echo COMMIT_MESSAGE=%COMMIT_MESSAGE% >> %GITHUB_ENV%
         shell: cmd
 
       - name: Install rclone
@@ -132,36 +134,42 @@ jobs:
         env:
           COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
         run: |
-          rem Use PowerShell to reliably write the multiline JSON secret to file
           powershell -Command "Set-Content -Path 'gdrive-service-account.json' -Value $env:COGO_SERVICE_ACCOUNT"
           "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
         shell: cmd
 
-      - name: Upload APK to Google Drive
+      - name: Upload APK to Google Drive and Get Download Link
+        id: upload_and_link
         run: |
           @echo off
-          rem Find APK file using PowerShell (limiting search to files)
+          rem Find APK file
           for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty FullName"') do (
             set "APK_PATH=%%a"
           )
+          
+          if not defined APK_PATH (
+            echo Error: No APK file found
+            exit /b 1
+          )
+          
           echo Found APK: %APK_PATH%
           
           rem Upload to Google Drive folder
           "%RCLONE_PATH%" copy "%APK_PATH%" google-drive:"%FOLDER_NAME%" -v
-        shell: cmd
-
-      - name: Get APK Download URL
-        id: get_apk_url
-        run: |
-          @echo off
-          rem Get APK filename using PowerShell (limiting search to files)
+          
+          if %errorlevel% neq 0 (
+            echo Error uploading APK to Google Drive
+            exit /b %errorlevel%
+          )
+          
+          rem Find APK filename
           for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty Name"') do (
             set "APK_FILENAME=%%a"
           )
           
           set "APK_PATH_IN_GDRIVE=%FOLDER_NAME%/%APK_FILENAME%"
           
-          rem Get download link with proper quoting
+          rem Get and set download link
           for /f "tokens=*" %%a in ('"%RCLONE_PATH%" link "google-drive:%APK_PATH_IN_GDRIVE%"') do (
             set "DOWNLOAD_URL=%%a"
           )
@@ -170,11 +178,29 @@ jobs:
           echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
         shell: cmd
 
-      - name: Slack Notification
-        run: |
-          @echo off
-          rem Prepare message content and escape special characters
-          set "MESSAGE=:tada: *Build Completed!* :rocket:\nDownload APK: %DOWNLOAD_URL%\nJira Ticket: https://appdevforall.atlassian.net/browse/%FOLDER_NAME%\nCommit Message: %COMMIT_MESSAGE%"
-          
-          powershell -Command "$message = '%MESSAGE%'; $body = @{text = $message} | ConvertTo-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body $body -ContentType 'application/json'"
-        shell: cmd
+#      - name: Slack Notification
+#        run: |
+#          @echo off
+#          rem Prepare dynamic message blocks
+#          set "TICKET_URL=https://appdevforall.atlassian.net/browse/%FOLDER_NAME%"
+#
+#          rem Ensure DOWNLOAD_URL has a fallback
+#          if not defined DOWNLOAD_URL (
+#            set "DOWNLOAD_URL=Download link unavailable"
+#          )
+#
+#          rem Create JSON payload with rich Slack message
+#          set "PAYLOAD={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":rocket: APK Build Completed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n%FOLDER_NAME%\"},{\"type\":\"mrkdwn\",\"text\":\"*Commit Message:*\n%COMMIT_MESSAGE:~0,100%\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Download Links:*\n• APK: %DOWNLOAD_URL%\n• Jira Ticket: %TICKET_URL%\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":information_source: Build completed successfully\"}]}]}"
+#
+#          rem Escape the payload for PowerShell
+#          powershell -Command "$payload = '%PAYLOAD%'; $body = $payload | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
+#        shell: cmd
+#
+#      - name: Failure Notification
+#        if: failure()
+#        run: |
+#          @echo off
+#          set "ERROR_MESSAGE={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":warning: Build Failed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Workflow:* ${{ github.job }}\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":x: Workflow encountered an error\"}]}]}"
+#
+#          powershell -Command "$message = '%ERROR_MESSAGE%'; $body = $message | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
+#        shell: cmd
