@@ -140,43 +140,86 @@ jobs:
 
       - name: Upload APK to Google Drive and Get Download Link
         id: upload_and_link
+        env:
+          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
         run: |
           @echo off
           rem Find APK file in the specific build output directory
           for /f "tokens=*" %%a in ('dir /s /b "app\build\outputs\apk\debug\CodeOnTheGo-*.apk"') do (
             set "APK_PATH=%%a"
           )
-          
+
           if not defined APK_PATH (
             echo Error: No APK file found
             exit /b 1
           )
-          
+
           echo Found APK: %APK_PATH%
-          
+
           rem Extract just the filename
           for %%F in ("%APK_PATH%") do set "APK_FILENAME=%%~nxF"
-          
+
           rem Upload to Google Drive folder
           "%RCLONE_PATH%" copy "%APK_PATH%" "google-drive:%FOLDER_NAME%" -v
-          
+
           if %errorlevel% neq 0 (
             echo Error uploading APK to Google Drive
-            exit /b %errorlevel%
+            exit /b 1
           )
-          
-          rem Generate shareable link using rclone
-          echo Generating public link...
-          
-          powershell -Command "& '%RCLONE_PATH%' link 'google-drive:%FOLDER_NAME%/%APK_FILENAME%'" > download_url.txt
-          
+
+          rem Generate shareable link using PowerShell and service account JWT
+          powershell -Command ^
+            "Add-Type -AssemblyName System.Web; ^
+            Add-Type -AssemblyName System.IdentityModel; ^
+            $serviceCreds = $env:COGO_SERVICE_ACCOUNT | ConvertFrom-Json; ^
+            $privateKey = [System.Security.Cryptography.RSA]::Create(); ^
+            $privateKey.ImportFromPem($serviceCreds.private_key); ^
+            $now = [System.DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); ^
+            $exp = $now + 3600; ^
+            $jwt_header = @{ alg = 'RS256'; typ = 'JWT' } | ConvertTo-Json -Compress; ^
+            $jwt_claims = @{ ^
+              iss = $serviceCreds.client_email; ^
+              sub = $serviceCreds.client_email; ^
+              aud = $serviceCreds.token_uri; ^
+              iat = $now; ^
+              exp = $exp; ^
+              scope = 'https://www.googleapis.com/auth/drive' ^
+            } | ConvertTo-Json -Compress; ^
+            $base64Header = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($jwt_header)).TrimEnd('=').Replace('+', '-').Replace('/', '_'); ^
+            $base64Claims = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($jwt_claims)).TrimEnd('=').Replace('+', '-').Replace('/', '_'); ^
+            $jwt_signature_input = $base64Header + '.' + $base64Claims; ^
+            $jwt_signature_bytes = [System.Text.Encoding]::UTF8.GetBytes($jwt_signature_input); ^
+            $signature = $privateKey.SignData($jwt_signature_bytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1); ^
+            $base64Signature = [Convert]::ToBase64String($signature).TrimEnd('=').Replace('+', '-').Replace('/', '_'); ^
+            $jwt = $jwt_signature_input + '.' + $base64Signature; ^
+            $tokenBody = @{ ^
+              grant_type = 'urn:ietf:params:oauth:grant-type:jwt-bearer'; ^
+              assertion = $jwt ^
+            }; ^
+            $tokenResponse = Invoke-RestMethod -Method Post -Uri $serviceCreds.token_uri -Body $tokenBody; ^
+            $accessToken = $tokenResponse.access_token; ^
+            $folderName = '%FOLDER_NAME%'; ^
+            $fileName = '%APK_FILENAME%'; ^
+            $searchUri = 'https://www.googleapis.com/drive/v3/files?q=' + [System.Web.HttpUtility]::UrlEncode('name = "' + $fileName + '" and "' + $folderName + '" in parents'); ^
+            $headers = @{ Authorization = 'Bearer ' + $accessToken }; ^
+            $searchResponse = Invoke-RestMethod -Method Get -Uri $searchUri -Headers $headers; ^
+            if ($searchResponse.files.Count -eq 0) { throw 'File not found' }; ^
+            $fileId = $searchResponse.files[0].id; ^
+            $permissionBody = @{ ^
+              role = 'reader'; ^
+              type = 'anyone' ^
+            } | ConvertTo-Json; ^
+            Invoke-RestMethod -Method Post -Uri ('https://www.googleapis.com/drive/v3/files/' + $fileId + '/permissions') -Headers $headers -Body $permissionBody -ContentType 'application/json'; ^
+            $directLink = 'https://drive.google.com/uc?id=' + $fileId; ^
+            Write-Output $directLink" > download_url.txt
+
           set /p DOWNLOAD_URL=<download_url.txt
-          
+
           if not defined DOWNLOAD_URL (
             echo Error: Could not generate download link
             exit /b 1
           )
-          
+
           echo APK Download URL: %DOWNLOAD_URL%
           echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
         shell: cmd
