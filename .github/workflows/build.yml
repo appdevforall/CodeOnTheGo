@@ -120,6 +120,18 @@ jobs:
           echo COMMIT_MESSAGE=%COMMIT_MESSAGE% >> %GITHUB_ENV%
         shell: cmd
 
+      - name: Install rclone
+        run: |
+          echo Installing rclone...
+          powershell -Command "Invoke-WebRequest -Uri 'https://downloads.rclone.org/rclone-current-windows-amd64.zip' -OutFile 'rclone.zip'"
+          powershell -Command "Expand-Archive -Path 'rclone.zip' -DestinationPath '.\\rclone'"
+          rem Find the extracted rclone directory (e.g. rclone-v1.XX.X-windows-amd64)
+          for /d %%i in (.\rclone\rclone-*-windows-amd64) do set "RCLONE_DIR=%%i"
+          echo RCLONE_DIR is %RCLONE_DIR%
+          rem Add the rclone directory to the PATH for subsequent steps
+          echo %CD%\%RCLONE_DIR% >> %GITHUB_PATH%
+        shell: cmd
+
       - name: Configure rclone for Google Drive
         env:
           COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
