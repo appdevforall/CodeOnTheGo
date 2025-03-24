@@ -75,11 +75,6 @@ jobs:
           git submodule update --remote
         shell: cmd
 
-      #      - name: Ensure CMake is installed
-      #        run: |
-      #          where cmake || echo "CMake needs to be installed on the runner"
-      #        shell: cmd
-
       - name: Restore Gradle Cache
         uses: actions/cache@v4
         with:
@@ -125,11 +120,12 @@ jobs:
           echo Installing rclone...
           powershell -Command "Invoke-WebRequest -Uri 'https://downloads.rclone.org/rclone-current-windows-amd64.zip' -OutFile 'rclone.zip'"
           powershell -Command "Expand-Archive -Path 'rclone.zip' -DestinationPath '.\\rclone'"
-          rem Find the extracted rclone directory (e.g. rclone-v1.XX.X-windows-amd64)
-          for /d %%i in (.\rclone\rclone-*-windows-amd64) do set "RCLONE_DIR=%%i"
+          for /d %%i in (.\rclone\rclone-*-windows-amd64) do (
+            set "RCLONE_DIR=%%i"
+          )
           echo RCLONE_DIR is %RCLONE_DIR%
-          rem Add the rclone directory to the PATH for subsequent steps
-          echo %CD%\%RCLONE_DIR% >> %GITHUB_PATH%
+          set "RCLONE_PATH=%CD%\%RCLONE_DIR%\rclone.exe"
+          echo RCLONE_PATH=%RCLONE_PATH% >> %GITHUB_ENV%
         shell: cmd
 
       - name: Configure rclone for Google Drive
@@ -137,7 +133,7 @@ jobs:
           COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
         run: |
           echo %COGO_SERVICE_ACCOUNT% > gdrive-service-account.json
-          rclone config create google-drive drive scope drive service_account_file gdrive-service-account.json
+          "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
         shell: cmd
 
       - name: Upload APK to Google Drive
@@ -150,7 +146,7 @@ jobs:
           echo Found APK: %APK_PATH%
           
           rem Upload to Google Drive folder
-          rclone copy "%APK_PATH%" google-drive:"%FOLDER_NAME%" -v
+          "%RCLONE_PATH%" copy "%APK_PATH%" google-drive:"%FOLDER_NAME%" -v
         shell: cmd
 
       - name: Get APK Download URL
@@ -165,7 +161,7 @@ jobs:
           set "APK_PATH_IN_GDRIVE=%FOLDER_NAME%/%APK_FILENAME%"
           
           rem Get download link
-          for /f "tokens=*" %%a in ('rclone link google-drive:"%APK_PATH_IN_GDRIVE%"') do (
+          for /f "tokens=*" %%a in ('"%RCLONE_PATH%" link google-drive:"%APK_PATH_IN_GDRIVE%"') do (
             set "DOWNLOAD_URL=%%a"
           )
           
