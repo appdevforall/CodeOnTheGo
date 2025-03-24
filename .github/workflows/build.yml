@@ -108,7 +108,7 @@ jobs:
       - name: Extract commit message
         id: extract_commit_message
         run: |
-          for /f "tokens=*" %%a in ('git log -1 --pretty^=%%B') do (
+          for /f "tokens=*" %%a in ('git log -1 --pretty=format:"%%B"') do (
             set "COMMIT_MESSAGE=%%a"
           )
           echo Commit Message: %COMMIT_MESSAGE%
@@ -140,8 +140,8 @@ jobs:
       - name: Upload APK to Google Drive
         run: |
           @echo off
-          rem Find APK file using PowerShell
-          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk | Select-Object -First 1 -ExpandProperty FullName"') do (
+          rem Find APK file using PowerShell (limiting search to files)
+          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty FullName"') do (
             set "APK_PATH=%%a"
           )
           echo Found APK: %APK_PATH%
@@ -154,15 +154,15 @@ jobs:
         id: get_apk_url
         run: |
           @echo off
-          rem Get APK filename using PowerShell
-          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk | Select-Object -First 1 -ExpandProperty Name"') do (
+          rem Get APK filename using PowerShell (limiting search to files)
+          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty Name"') do (
             set "APK_FILENAME=%%a"
           )
           
           set "APK_PATH_IN_GDRIVE=%FOLDER_NAME%/%APK_FILENAME%"
           
-          rem Get download link
-          for /f "tokens=*" %%a in ('"%RCLONE_PATH%" link google-drive:"%APK_PATH_IN_GDRIVE%"') do (
+          rem Get download link with proper quoting
+          for /f "tokens=*" %%a in ('"%RCLONE_PATH%" link "google-drive:%APK_PATH_IN_GDRIVE%"') do (
             set "DOWNLOAD_URL=%%a"
           )
           
