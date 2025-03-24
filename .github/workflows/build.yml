@@ -34,7 +34,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: [self-hosted, CoGoBuildBox]
+    runs-on: self-hosted
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
