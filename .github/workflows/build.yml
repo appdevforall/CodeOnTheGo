@@ -1,9 +1,7 @@
-name: Build APK and Upload to Google Drive
-
+name: Build APK
 permissions:
   contents: write
   actions: write
-
 on:
   pull_request:
     branches: [ "stage", "feature/**" ]
@@ -15,6 +13,21 @@ on:
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Signing info (if needed)
+  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  # Publishing credentials (if needed)
+  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
+  # Build configuration
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
 
@@ -99,45 +112,96 @@ jobs:
             set "BRANCH_NAME=%GITHUB_REF:refs/heads/=%"
           )
           echo Branch: %BRANCH_NAME%
+          
           rem Extract Jira ticket pattern using PowerShell
           powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
         shell: cmd
 
-      - name: Encode Service Account Credentials
-        id: encode_credentials
-        shell: powershell
-        env:
-            COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
+      - name: Install rclone
         run: |
-            $raw = $env:COGO_SERVICE_ACCOUNT
-            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($raw))
-            Write-Output "ENCODED_CREDENTIALS=$encoded" >> $env:GITHUB_ENV
+          echo Installing rclone...
+          powershell -Command "Invoke-WebRequest -Uri 'https://downloads.rclone.org/rclone-current-windows-amd64.zip' -OutFile 'rclone.zip'"
+          powershell -Command "Expand-Archive -Path 'rclone.zip' -DestinationPath '.\\rclone'"
+          for /d %%i in (.\rclone\rclone-*-windows-amd64) do (
+            set "RCLONE_DIR=%%i"
+          )
+          echo RCLONE_DIR is %RCLONE_DIR%
+          set "RCLONE_PATH=%CD%\%RCLONE_DIR%\rclone.exe"
+          echo RCLONE_PATH=%RCLONE_PATH% >> %GITHUB_ENV%
+        shell: cmd
 
-      - name: Upload APK to Google Drive
-        id: upload_to_gdrive
-        uses: adityak74/google-drive-upload-git-action@main
-        with:
-          credentials: ${{ env.ENCODED_CREDENTIALS }}
-          filename: "CodeOnTheGo-*.apk"  # Pattern to match your generated APK
-          folderId: "0AFM44iL5TELeUk9PVA"
-          name: "CodeOnTheGo.apk"             # The target file name
-          namePrefix: "${{ env.FOLDER_NAME }}/"  # Upload into FOLDER_NAME folder
-          overwrite: "true"
+      - name: Configure rclone for Google Drive
+        env:
+          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
+        run: |
+          powershell -Command "Set-Content -Path 'gdrive-service-account.json' -Value $env:COGO_SERVICE_ACCOUNT"
+          "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
+        shell: cmd
+
+      - name: Upload APK to Google Drive and Get Download Link
+        id: upload_and_link
+        run: |
+          @echo off
+          rem Find APK file in the specific build output directory
+          for /f "tokens=*" %%a in ('dir /s /b "app\build\outputs\apk\debug\CodeOnTheGo-*.apk"') do (
+            set "APK_PATH=%%a"
+          )
+          
+          if not defined APK_PATH (
+            echo Error: No APK file found
+            exit /b 1
+          )
+          
+          echo Found APK: %APK_PATH%
+          
+          rem Extract just the filename
+          for %%F in ("%APK_PATH%") do set "APK_FILENAME=%%~nxF"
+          
+          rem Upload to Google Drive folder
+          "%RCLONE_PATH%" copy "%APK_PATH%" "google-drive:%FOLDER_NAME%" -v
+          
+          if %errorlevel% neq 0 (
+            echo Error uploading APK to Google Drive
+            exit /b %errorlevel%
+          )
+          
+          rem Generate a shareable link using rclone backend
+          for /f "tokens=*" %%a in ('"%RCLONE_PATH%" config show google-drive') do set "DRIVE_CONFIG=%%a"
+          
+          echo Generating public link...
+          
+          rem Use PowerShell to generate a direct link (this might require adjusting based on your specific rclone setup)
+          powershell -Command "$driveConfig = '%DRIVE_CONFIG%'; $folderName = '%FOLDER_NAME%'; $apkFilename = '%APK_FILENAME%'; Write-Output \"https://drive.google.com/uc?id=$(rclone link \"google-drive:$folderName/$apkFilename\")\"" > download_url.txt
+          
+          set /p DOWNLOAD_URL=<download_url.txt
+          
+          echo APK Download URL: %DOWNLOAD_URL%
+          echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
+        shell: cmd
 
 #      - name: Slack Notification
 #        run: |
 #          @echo off
-#          rem Use the download_url output from the upload step
-#          set "DOWNLOAD_URL=${{ steps.upload_to_gdrive.outputs.download_url }}"
+#          rem Prepare dynamic message blocks
 #          set "TICKET_URL=https://appdevforall.atlassian.net/browse/%FOLDER_NAME%"
+#
+#          rem Ensure DOWNLOAD_URL has a fallback
+#          if not defined DOWNLOAD_URL (
+#            set "DOWNLOAD_URL=Download link unavailable"
+#          )
+#
+#          rem Create JSON payload with rich Slack message
 #          set "PAYLOAD={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":rocket: APK Build Completed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n%FOLDER_NAME%\"},{\"type\":\"mrkdwn\",\"text\":\"*Commit Message:*\n%COMMIT_MESSAGE:~0,100%\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Download Links:*\n• APK: %DOWNLOAD_URL%\n• Jira Ticket: %TICKET_URL%\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":information_source: Build completed successfully\"}]}]}"
+#
+#          rem Escape the payload for PowerShell
 #          powershell -Command "$payload = '%PAYLOAD%'; $body = $payload | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
 #        shell: cmd
-#
+
 #      - name: Failure Notification
 #        if: failure()
 #        run: |
 #          @echo off
 #          set "ERROR_MESSAGE={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":warning: Build Failed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Workflow:* ${{ github.job }}\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":x: Workflow encountered an error\"}]}]}"
+#
 #          powershell -Command "$message = '%ERROR_MESSAGE%'; $body = $message | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
 #        shell: cmd
