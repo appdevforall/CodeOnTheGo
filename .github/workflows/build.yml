@@ -106,9 +106,12 @@ jobs:
       - name: Encode Service Account Credentials
         id: encode_credentials
         shell: powershell
+        env:
+            COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
         run: |
-            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("${{ secrets.COGO_SERVICE_ACCOUNT }}"))
-            Write-Output "ENCODED_CREDENTIALS=$encoded" | Out-File -FilePath $env:GITHUB_ENV -Append
+            $raw = $env:COGO_SERVICE_ACCOUNT
+            $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($raw))
+            Write-Output "ENCODED_CREDENTIALS=$encoded" >> $env:GITHUB_ENV
 
       - name: Upload APK to Google Drive
         id: upload_to_gdrive
