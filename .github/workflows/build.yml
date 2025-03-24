@@ -141,42 +141,35 @@ jobs:
       - name: Upload APK to Google Drive and Get Download Link
         id: upload_and_link
         run: |
-          @echo off
-          rem Find APK file
-          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty FullName"') do (
-            set "APK_PATH=%%a"
-          )
+          # Find APK file using PowerShell
+          $apkPath = Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $apkPath) {
+              Write-Error "No APK file found"
+              exit 1
+          }
+          Write-Output "Found APK: $apkPath"
           
-          if not defined APK_PATH (
-            echo Error: No APK file found
-            exit /b 1
-          )
+          # Upload to Google Drive
+          & $env:RCLONE_PATH copy $apkPath "google-drive:$env:FOLDER_NAME" -v
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Error uploading APK to Google Drive"
+              exit $LASTEXITCODE
+          }
           
-          echo Found APK: %APK_PATH%
+          # Get APK filename
+          $apkFileName = Split-Path $apkPath -Leaf
+          $apkPathInGDrive = "$env:FOLDER_NAME/$apkFileName"
           
-          rem Upload to Google Drive folder
-          "%RCLONE_PATH%" copy "%APK_PATH%" google-drive:"%FOLDER_NAME%" -v
+          # Get download link
+          $downloadUrl = & $env:RCLONE_PATH link "google-drive:$apkPathInGDrive"
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to get download link"
+              exit $LASTEXITCODE
+          }
           
-          if %errorlevel% neq 0 (
-            echo Error uploading APK to Google Drive
-            exit /b %errorlevel%
-          )
-          
-          rem Find APK filename
-          for /f "tokens=*" %%a in ('powershell -Command "Get-ChildItem -Path . -Recurse -Filter CodeOnTheGo-*.apk -File | Select-Object -First 1 -ExpandProperty Name"') do (
-            set "APK_FILENAME=%%a"
-          )
-          
-          set "APK_PATH_IN_GDRIVE=%FOLDER_NAME%/%APK_FILENAME%"
-          
-          rem Get and set download link
-          for /f "tokens=*" %%a in ('"%RCLONE_PATH%" link "google-drive:%APK_PATH_IN_GDRIVE%"') do (
-            set "DOWNLOAD_URL=%%a"
-          )
-          
-          echo APK Download URL: %DOWNLOAD_URL%
-          echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
-        shell: cmd
+          Write-Output "APK Download URL: $downloadUrl"
+          echo "DOWNLOAD_URL=$downloadUrl" >> $env:GITHUB_ENV
+        shell: powershell
 
 #      - name: Slack Notification
 #        run: |
