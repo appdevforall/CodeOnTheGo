@@ -116,7 +116,7 @@ jobs:
         with:
           credentials: ${{ env.ENCODED_CREDENTIALS }}
           filename: "CodeOnTheGo-*.apk"  # Pattern to match your generated APK
-          folderId: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          folderId: "0AFM44iL5TELeUk9PVA"
           name: "CodeOnTheGo.apk"             # The target file name
           namePrefix: "${{ env.FOLDER_NAME }}/"  # Upload into FOLDER_NAME folder
           overwrite: "true"
