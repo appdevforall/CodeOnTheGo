@@ -165,15 +165,17 @@ jobs:
             exit /b %errorlevel%
           )
           
-          rem Generate a shareable link using rclone backend
-          for /f "tokens=*" %%a in ('"%RCLONE_PATH%" config show google-drive') do set "DRIVE_CONFIG=%%a"
-          
+          rem Generate shareable link using rclone
           echo Generating public link...
           
-          rem Use PowerShell to generate a direct link (this might require adjusting based on your specific rclone setup)
-          powershell -Command "$driveConfig = '%DRIVE_CONFIG%'; $folderName = '%FOLDER_NAME%'; $apkFilename = '%APK_FILENAME%'; Write-Output \"https://drive.google.com/uc?id=$(rclone link \"google-drive:$folderName/$apkFilename\")\"" > download_url.txt
+          powershell -Command "& '%RCLONE_PATH%' link 'google-drive:%FOLDER_NAME%/%APK_FILENAME%'" > download_url.txt
           
           set /p DOWNLOAD_URL=<download_url.txt
+          
+          if not defined DOWNLOAD_URL (
+            echo Error: Could not generate download link
+            exit /b 1
+          )
           
           echo APK Download URL: %DOWNLOAD_URL%
           echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
