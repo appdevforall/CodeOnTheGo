@@ -132,7 +132,8 @@ jobs:
         env:
           COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
         run: |
-          echo %COGO_SERVICE_ACCOUNT% > gdrive-service-account.json
+          rem Use PowerShell to reliably write the multiline JSON secret to file
+          powershell -Command "Set-Content -Path 'gdrive-service-account.json' -Value $env:COGO_SERVICE_ACCOUNT"
           "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
         shell: cmd
 
