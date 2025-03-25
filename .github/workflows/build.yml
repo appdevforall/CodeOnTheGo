@@ -1,15 +1,9 @@
-name: Build and test
-
+name: Build APK
+permissions:
+  contents: write
+  actions: write
 on:
-  push:
-#    branches: [ "stage", "dev", "main", "release/**", "feature/**" ]
-    branches: [ "stage", "feature/**" ]
-    paths-ignore:
-      - '**.md'
-      - 'fastlane/**'
-      - '.github/workflows/crowdin_contributors.yml'
   pull_request:
-#    branches: [ "stage", "dev", "release/**", "feature/**" ]
     branches: [ "stage", "feature/**" ]
     paths-ignore:
       - '**.md'
@@ -18,10 +12,8 @@ on:
   workflow_dispatch: { }
 
 env:
-  # Misc
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Signing info
+  # Signing info (if needed)
   IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
   IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
   IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
@@ -29,308 +21,163 @@ env:
   IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
   IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
   IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
-
-  # Publishing credentials
+  # Publishing credentials (if needed)
   ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
   ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
   ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
-
   # Build configuration
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
-#  BUILD_IS_RELEASE: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/**' }}
-#  ReleaseAndroidIDE: ${{ github.ref == 'refs/heads/main' }}
 
 jobs:
   build_apk:
-    strategy:
-      matrix:
-#        build_type: ['debug', 'release']
-        build_type: ['debug']
-    name: Build APK
-    runs-on:
-        self-hosted
+    name: Build Universal APK
+    runs-on: self-hosted
     timeout-minutes: 60
     steps:
-      - name: Cancel previous runs
+      - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
-      - name: Checkout
+
+      - name: Setup Git LFS
+        run: |
+          echo "Setting up Git LFS"
+          where git-lfs || (
+            echo "Installing Git LFS"
+            powershell -Command "Invoke-WebRequest -Uri https://github.com/git-lfs/git-lfs/releases/download/v3.4.1/git-lfs-windows-amd64-v3.4.1.zip -OutFile git-lfs.zip; Expand-Archive -Path git-lfs.zip -DestinationPath git-lfs; cd git-lfs; .\git-lfs-3.4.1\install.bat"
+          )
+          git lfs install
+        shell: cmd
+
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Configure Git safe directory
-        run: |
-          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
-          git config --global core.longpaths true
+          lfs: true
+
+      - name: Pull Git LFS Files
+        run: git lfs pull
+        shell: cmd
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
-      - name: Initialize submodules
+
+      - name: Initialize Submodules
         run: |
           git submodule init
           git submodule update --remote
-      - name: Restore cache
+        shell: cmd
+
+      - name: Restore Gradle Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-      - name: Assemble ${{ matrix.build_type }} APK
-        run: |
-          set ANDROID_HOME=C:/Users/yaturner/AppData/Local/Android/Sdk
-          ./gradlew :app:assembleDebug
 
-      - name: Copy ${{ matrix.build_type }} APK
-        run:
-          cp app/build/outputs/apk/${{ matrix.build_type }}/CodeOnTheGo-*.apk ./
-      - name: Upload arm64-v8a ${{ matrix.build_type }} APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-arm64-v8a-${{ matrix.build_type }}
-          path: app-arm64-v8a-${{ matrix.build_type }}.apk
-      - name: Upload armeabi-v7a ${{ matrix.build_type }} APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-armeabi-v7a-${{ matrix.build_type }}
-          path: app-armeabi-v7a-${{ matrix.build_type }}.apk
-      - name: Upload x86_64 ${{ matrix.build_type }} APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-x86_64-${{ matrix.build_type }}
-          path: app-x86_64-${{ matrix.build_type }}.apk
-      - name: Upload ${{ matrix.build_type }} mappings
-        if: ${{ matrix.build_type == 'release' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-mappings
-          path: '**/build/outputs/mapping'
+      - name: Extract Commit Message
+        id: extract_commit_message
+        run: |
+          for /f "tokens=*" %%a in ('git log -1 --pretty=format:"%%B"') do (
+            set "COMMIT_MESSAGE=%%a"
+          )
+          echo Commit Message: %COMMIT_MESSAGE%
+          echo COMMIT_MESSAGE=%COMMIT_MESSAGE% >> %GITHUB_ENV%
+        shell: cmd
 
-  run_unit_tests:
-    name: Run unit tests
-    runs-on: self-hosted
-    needs: "build_apk"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Configure Git safe directory
+      - name: Assemble Universal APK
+        id: build_apk
         run: |
-          git config --global --add safe.directory C:/Users/yaturner/actions-runner/_work/CodeOnTheGo/CodeOnTheGo
-          git config --global core.longpaths true
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.BUILD_JAVA_VERSION }}
-          distribution: ${{ env.BUILD_JAVA_DIST }}
-      - name: Change Gradle wrapper permissions
-        run: chmod +x ./gradlew
-      - name: Initialize submodules
+          .\gradlew.bat assembleDebug
+          if %errorlevel% neq 0 exit /b %errorlevel%
+        shell: cmd
+
+      - name: Extract Branch Information
+        id: extract_branch
         run: |
-          git submodule init
-          git submodule update --remote
-      - name: Restore cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      - name: Run unit tests
-        run:
-          ./gradlew app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite"
+          @echo off
+          rem Use the head ref for PR events; otherwise, fallback to the branch name
+          if defined GITHUB_HEAD_REF (
+            set "BRANCH_NAME=%GITHUB_HEAD_REF%"
+          ) else (
+            set "BRANCH_NAME=%GITHUB_REF:refs/heads/=%"
+          )
+          echo Branch: %BRANCH_NAME%
+          
+          rem Extract Jira ticket pattern using PowerShell
+          powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
+        shell: cmd
+
+      - name: Install rclone
+        run: |
+          echo Installing rclone...
+          powershell -Command "Invoke-WebRequest -Uri 'https://downloads.rclone.org/rclone-current-windows-amd64.zip' -OutFile 'rclone.zip'"
+          powershell -Command "Expand-Archive -Path 'rclone.zip' -DestinationPath '.\\rclone'"
+          for /d %%i in (.\rclone\rclone-*-windows-amd64) do (
+            set "RCLONE_DIR=%%i"
+          )
+          echo RCLONE_DIR is %RCLONE_DIR%
+          set "RCLONE_PATH=%CD%\%RCLONE_DIR%\rclone.exe"
+          echo RCLONE_PATH=%RCLONE_PATH% >> %GITHUB_ENV%
+        shell: cmd
+
+      - name: Configure rclone for Google Drive
         env:
-          ANDROIDIDE_TEST: true
-      - name: Upload test reports
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-unit-tests
-          path: '**/build/reports/tests/'
+          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
+        run: |
+          powershell -Command "Set-Content -Path 'gdrive-service-account.json' -Value $env:COGO_SERVICE_ACCOUNT"
+          "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
+        shell: cmd
 
-#  run_tooling_api_tests:
-#    name: Build and test Tooling API
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: ${{ env.BUILD_JAVA_VERSION }}
-#          distribution: ${{ env.BUILD_JAVA_DIST }}
-#      - name: Change Gradle wrapper permissions
-#        run: chmod +x ./gradlew
-#      - name: Restore cache
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            ~/.gradle/caches
-#            ~/.gradle/wrapper
-#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-#          restore-keys: |
-#            ${{ runner.os }}-gradle-
-#      - name: Run tooling API tests
-#        run: ./gradlew :subprojects:tooling-api-impl:build --continue
-#        env:
-#          ANDROIDIDE_TEST: true
-#          TEST_TOOLING_API_IMPL: true
-#      - name: Upload test reports
-#        if: ${{ always() }}
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: test-results-tooling-api-tests
-#          path: '**/build/reports/tests/'
-#
-#  run_connected_checks:
-#    name: Run connected checks
-#    runs-on: macos-latest
-#    if: false
-#    strategy:
-#      matrix:
-#        api-level: [ 26, 32 ]
-#        target: [ default ]
-#    steps:
-#      - name: Cancel previous runs
-#        uses: styfle/cancel-workflow-action@0.12.1
-#        with:
-#          access_token: ${{ github.token }}
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: ${{ env.BUILD_JAVA_VERSION }}
-#          distribution: ${{ env.BUILD_JAVA_DIST }}
-#      - name: Change Gradle wrapper permissions
-#        run: chmod +x ./gradlew
-#      - name: Restore cache
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            ~/.gradle/caches
-#            ~/.gradle/wrapper
-#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-#          restore-keys: |
-#            ${{ runner.os }}-gradle-
-#      - name: Run connected checks
-#        uses: reactivecircus/android-emulator-runner@v2
-#        with:
-#          api-level: ${{ matrix.api-level }}
-#          target: ${{ matrix.target }}
-#          arch: x86_64
-#          profile: Nexus 6
-#          script: ./gradlew connectedCheck
-#      - name: Upload test reports
-#        if: ${{ always() }}
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: test-results-android-tests-${{ matrix.api-level }}-${{ matrix.target }}
-#          path: '**/build/reports/androidTests/'
+      - name: Upload APK to Google Drive and Get Download Link
+        id: upload_and_link
+        env:
+          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
+        run: |
+          @echo off
+          rem Find APK file in the specific build output directory
+          for /f "tokens=*" %%a in ('dir /s /b "app\build\outputs\apk\debug\CodeOnTheGo-*.apk"') do (
+            set "APK_PATH=%%a"
+          )
+          if not defined APK_PATH (
+            echo Error: No APK file found
+            exit /b 1
+          )
+          echo Found APK: %APK_PATH%
+          rem Extract filename
+          for %%F in ("%APK_PATH%") do set "APK_FILENAME=%%~nxF"
+          rem Upload to Google Drive folder 
+          "%RCLONE_PATH%" copy "%APK_PATH%" "google-drive:%FOLDER_NAME%" -v
+          if %errorlevel% neq 0 (
+            echo Error uploading APK
+            exit /b 1
+          )
+          rem Generate a direct download link using full rclone obscure path
+          "%RCLONE_PATH%" link "google-drive:%FOLDER_NAME%/%APK_FILENAME%" > download_url.txt
+          set /p DOWNLOAD_URL=<download_url.txt
+          if not defined DOWNLOAD_URL (
+            echo Error: Could not generate download link
+            exit /b 1
+          )
+          echo APK Download URL: %DOWNLOAD_URL%
+          echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
+        shell: cmd
 
-#  publish:
-#    name: Publish release
-#    runs-on: ubuntu-latest
-##    needs: [ build_apk, run_unit_tests, run_tooling_api_tests ]
-#    needs: [ build_apk ]
-#    if: |
-#      always()
-#      && github.ref == 'refs/heads/main'
-#      && github.event_name != 'pull_request'
-#      && needs.build_apk.result == 'success'
-#      && needs.run_unit_tests.result == 'success'
-#      && needs.run_tooling_api_tests.result == 'success'
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: ${{ env.BUILD_JAVA_VERSION }}
-#          distribution: ${{ env.BUILD_JAVA_DIST }}
-#      - name: Download arm64-v8a APK
-#        uses: actions/download-artifact@v4
-#        with:
-#          name: apk-arm64-v8a-release
-#      - name: Download x86_64 APK
-#        uses: actions/download-artifact@v4
-#        with:
-#          name: apk-x86_64-release
-#      - name: Download armeabi-v7a APK
-#        uses: actions/download-artifact@v4
-#        with:
-#          name: apk-armeabi-v7a-release
-#      - name: Change Gradle wrapper permissions
-#        run: chmod +x ./gradlew
-#      - name: Restore cache
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            ~/.gradle/caches
-#            ~/.gradle/wrapper
-#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-#          restore-keys: |
-#            ${{ runner.os }}-gradle-
-#      - name: Generate checksums
-#        run: |
-#          mkdir -p build
-#
-#          md5sum *.apk > build/CHECKSUMS-md5.txt
-#          sha256sum *.apk > build/CHECKSUMS-sha256.txt
-#          sha512sum *.apk > build/CHECKSUMS-sha512.txt
-#
-#          find build -type f -name "CHECKSUMS*.txt" -exec echo {} \; -exec cat {} \; -exec echo "" \;
-#      - name: Publish release
-#        run: ./gradlew nyxMake nyxMark nyxPublish publish release --stacktrace
-#      - name: Archive Nyx state file
-#        uses: actions/upload-artifact@v4
-#        if: ${{ always() }}
-#        with:
-#          name: .nyx-state-${{ github.job }}.json
-#          path: build/nyx-state.json
-
-#  publish_snapshots:
-#    name: Publish package snapshots
-#    runs-on: ubuntu-latest
-#    needs: [ build_apk ]
-#    if: ${{ always() && github.ref != 'refs/heads/main' && github.event_name != 'pull_request' && needs.build_apk.result == 'success' }}
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0
-#      - name: Set up JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: ${{ env.BUILD_JAVA_VERSION }}
-#          distribution: ${{ env.BUILD_JAVA_DIST }}
-#      - name: Change Gradle wrapper permissions
-#        run: chmod +x ./gradlew
-#      - name: Restore cache
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            ~/.gradle/caches
-#            ~/.gradle/wrapper
-#          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-#          restore-keys: |
-#            ${{ runner.os }}-gradle-
-#      - name: Publish snapshots
-#        run: ./gradlew publishAllPublicationsToMavenCentralRepository --stacktrace
+      - name: Slack Notification
+        run: |
+          @echo off
+          rem Use the download_url output from the upload step
+          set "DOWNLOAD_URL=${{ steps.upload_to_gdrive.outputs.download_url }}"
+          set "TICKET_URL=https://appdevforall.atlassian.net/browse/%FOLDER_NAME%"
+          set "PAYLOAD={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":rocket: APK Build Completed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n%FOLDER_NAME%\"},{\"type\":\"mrkdwn\",\"text\":\"*Commit Message:*\n%COMMIT_MESSAGE:~0,100%\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Download Links:*\n• APK: %DOWNLOAD_URL%\n• Jira Ticket: %TICKET_URL%\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":information_source: Build completed successfully\"}]}]}"
+          powershell -Command "$payload = '%PAYLOAD%'; $body = $payload | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
+        shell: cmd
