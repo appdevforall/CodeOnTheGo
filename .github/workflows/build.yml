@@ -171,3 +171,13 @@ jobs:
           echo APK Download URL: %DOWNLOAD_URL%
           echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
         shell: cmd
+
+      - name: Slack Notification
+        run: |
+                @echo off
+                rem Use the download_url output from the upload step
+                set "DOWNLOAD_URL=${{ steps.upload_to_gdrive.outputs.download_url }}"
+                set "TICKET_URL=https://appdevforall.atlassian.net/browse/%FOLDER_NAME%"
+                set "PAYLOAD={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":rocket: APK Build Completed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n%FOLDER_NAME%\"},{\"type\":\"mrkdwn\",\"text\":\"*Commit Message:*\n%COMMIT_MESSAGE:~0,100%\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Download Links:*\n• APK: %DOWNLOAD_URL%\n• Jira Ticket: %TICKET_URL%\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":information_source: Build completed successfully\"}]}]}"
+                powershell -Command "$payload = '%PAYLOAD%'; $body = $payload | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
+              shell: cmd
