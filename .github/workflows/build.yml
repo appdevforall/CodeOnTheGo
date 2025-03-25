@@ -142,6 +142,8 @@ jobs:
         id: upload_and_link
         env:
           COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
+          DRIVE_IMPERSONATE: jimturner@appdevforall.org
+#          DRIVE_IMPERSONATE: ${{ secrets.DRIVE_IMPERSONATE }}
         run: |
           @echo off
           rem Find APK file in the specific build output directory
@@ -155,14 +157,14 @@ jobs:
           echo Found APK: %APK_PATH%
           rem Extract filename
           for %%F in ("%APK_PATH%") do set "APK_FILENAME=%%~nxF"
-          rem Upload to Google Drive folder 
-          "%RCLONE_PATH%" copy "%APK_PATH%" "google-drive:%FOLDER_NAME%" -v
+          rem Upload to Google Drive folder with impersonation
+          "%RCLONE_PATH%" copy "%APK_PATH%" "google-drive:%FOLDER_NAME%" --drive-impersonate %DRIVE_IMPERSONATE% -v
           if %errorlevel% neq 0 (
             echo Error uploading APK
             exit /b 1
           )
-          rem Generate a direct download link using full rclone obscure path
-          "%RCLONE_PATH%" link "google-drive:%FOLDER_NAME%/%APK_FILENAME%" > download_url.txt
+          rem Generate a direct download link using impersonation
+          "%RCLONE_PATH%" link "google-drive:%FOLDER_NAME%/%APK_FILENAME%" --drive-impersonate %DRIVE_IMPERSONATE% > download_url.txt
           set /p DOWNLOAD_URL=<download_url.txt
           if not defined DOWNLOAD_URL (
             echo Error: Could not generate download link
