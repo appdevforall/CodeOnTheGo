@@ -167,51 +167,113 @@ jobs:
             exit /b 1
           )
 
-          rem Generate shareable link using PowerShell and service account JWT
-          powershell -Command ^
-            "Add-Type -AssemblyName System.Web; ^
-            Add-Type -AssemblyName System.IdentityModel; ^
-            $serviceCreds = $env:COGO_SERVICE_ACCOUNT | ConvertFrom-Json; ^
-            $privateKey = [System.Security.Cryptography.RSA]::Create(); ^
-            $privateKey.ImportFromPem($serviceCreds.private_key); ^
-            $now = [System.DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); ^
-            $exp = $now + 3600; ^
-            $jwt_header = @{ alg = 'RS256'; typ = 'JWT' } | ConvertTo-Json -Compress; ^
-            $jwt_claims = @{ ^
-              iss = $serviceCreds.client_email; ^
-              sub = $serviceCreds.client_email; ^
-              aud = $serviceCreds.token_uri; ^
-              iat = $now; ^
-              exp = $exp; ^
-              scope = 'https://www.googleapis.com/auth/drive' ^
-            } | ConvertTo-Json -Compress; ^
-            $base64Header = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($jwt_header)).TrimEnd('=').Replace('+', '-').Replace('/', '_'); ^
-            $base64Claims = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($jwt_claims)).TrimEnd('=').Replace('+', '-').Replace('/', '_'); ^
-            $jwt_signature_input = $base64Header + '.' + $base64Claims; ^
-            $jwt_signature_bytes = [System.Text.Encoding]::UTF8.GetBytes($jwt_signature_input); ^
-            $signature = $privateKey.SignData($jwt_signature_bytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1); ^
-            $base64Signature = [Convert]::ToBase64String($signature).TrimEnd('=').Replace('+', '-').Replace('/', '_'); ^
-            $jwt = $jwt_signature_input + '.' + $base64Signature; ^
-            $tokenBody = @{ ^
-              grant_type = 'urn:ietf:params:oauth:grant-type:jwt-bearer'; ^
-              assertion = $jwt ^
-            }; ^
-            $tokenResponse = Invoke-RestMethod -Method Post -Uri $serviceCreds.token_uri -Body $tokenBody; ^
-            $accessToken = $tokenResponse.access_token; ^
-            $folderName = '%FOLDER_NAME%'; ^
-            $fileName = '%APK_FILENAME%'; ^
-            $searchUri = 'https://www.googleapis.com/drive/v3/files?q=' + [System.Web.HttpUtility]::UrlEncode('name = "' + $fileName + '" and "' + $folderName + '" in parents'); ^
-            $headers = @{ Authorization = 'Bearer ' + $accessToken }; ^
-            $searchResponse = Invoke-RestMethod -Method Get -Uri $searchUri -Headers $headers; ^
-            if ($searchResponse.files.Count -eq 0) { throw 'File not found' }; ^
-            $fileId = $searchResponse.files[0].id; ^
-            $permissionBody = @{ ^
-              role = 'reader'; ^
-              type = 'anyone' ^
-            } | ConvertTo-Json; ^
-            Invoke-RestMethod -Method Post -Uri ('https://www.googleapis.com/drive/v3/files/' + $fileId + '/permissions') -Headers $headers -Body $permissionBody -ContentType 'application/json'; ^
-            $directLink = 'https://drive.google.com/uc?id=' + $fileId; ^
-            Write-Output $directLink" > download_url.txt
+          rem Embedded PowerShell script for JWT and download link generation
+          powershell -Command "
+          # Ensure TLS 1.2 is used for web requests
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+          # Load required .NET assemblies more explicitly
+          Add-Type -AssemblyName 'System.Web'
+          Add-Type -AssemblyName 'System.Net.Http'
+
+          # Parse service account credentials
+          $serviceCreds = $env:COGO_SERVICE_ACCOUNT | ConvertFrom-Json
+
+          # Prepare JWT generation parameters
+          $now = [System.DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          $exp = $now + 3600
+
+          # Create JWT header
+          $jwt_header = @{
+              alg = 'RS256'
+              typ = 'JWT'
+          } | ConvertTo-Json -Compress
+
+          # Create JWT claims
+          $jwt_claims = @{
+              iss = $serviceCreds.client_email
+              sub = $serviceCreds.client_email
+              aud = $serviceCreds.token_uri
+              iat = $now
+              exp = $exp
+              scope = 'https://www.googleapis.com/auth/drive'
+          } | ConvertTo-Json -Compress
+
+          # Base64 encode header and claims
+          $base64Header = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($jwt_header)) `
+              .TrimEnd('=').Replace('+', '-').Replace('/', '_')
+          $base64Claims = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($jwt_claims)) `
+              .TrimEnd('=').Replace('+', '-').Replace('/', '_')
+
+          # Prepare signature input
+          $jwt_signature_input = \"$base64Header.$base64Claims\"
+
+          # Sign the JWT
+          $rsaProvider = [System.Security.Cryptography.RSA]::Create()
+          $rsaProvider.ImportFromPem($serviceCreds.private_key)
+          $signatureBytes = $rsaProvider.SignData(
+              [System.Text.Encoding]::UTF8.GetBytes($jwt_signature_input), 
+              [System.Security.Cryptography.HashAlgorithmName]::SHA256, 
+              [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
+          )
+          $base64Signature = [Convert]::ToBase64String($signatureBytes) `
+              .TrimEnd('=').Replace('+', '-').Replace('/', '_')
+
+          # Combine JWT components
+          $jwt = \"$jwt_signature_input.$base64Signature\"
+
+          # Prepare token request
+          $tokenBody = @{
+              grant_type = 'urn:ietf:params:oauth:grant-type:jwt-bearer'
+              assertion = $jwt
+          }
+
+          # Get access token
+          try {
+              $tokenResponse = Invoke-RestMethod -Method Post -Uri $serviceCreds.token_uri -Body $tokenBody
+              $accessToken = $tokenResponse.access_token
+
+              # Prepare file search
+              $folderName = $env:FOLDER_NAME
+              $fileName = '$APK_FILENAME'
+              $searchUri = \"https://www.googleapis.com/drive/v3/files?q=\" + 
+                  [System.Web.HttpUtility]::UrlEncode(\"name = '$fileName' and '$folderName' in parents\")
+
+              # Search for file
+              $headers = @{ Authorization = \"Bearer $accessToken\" }
+              $searchResponse = Invoke-RestMethod -Method Get -Uri $searchUri -Headers $headers
+
+              if ($searchResponse.files.Count -eq 0) {
+                  throw 'File not found in specified folder'
+              }
+
+              # Get file ID
+              $fileId = $searchResponse.files[0].id
+
+              # Set public read permission
+              $permissionBody = @{
+                  role = 'reader'
+                  type = 'anyone'
+              } | ConvertTo-Json
+
+              Invoke-RestMethod -Method Post `
+                  -Uri \"https://www.googleapis.com/drive/v3/files/$fileId/permissions\" `
+                  -Headers $headers `
+                  -Body $permissionBody `
+                  -ContentType 'application/json'
+
+              # Generate direct download link
+              $directLink = \"https://drive.google.com/uc?id=$fileId\"
+          
+              # Output the link
+              $directLink | Out-File download_url.txt
+              Write-Output \"Download link generated: $directLink\"
+          }
+          catch {
+              Write-Error \"Error occurred: $_\"
+              exit 1
+          }
+          "
 
           set /p DOWNLOAD_URL=<download_url.txt
 
@@ -223,30 +285,3 @@ jobs:
           echo APK Download URL: %DOWNLOAD_URL%
           echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
         shell: cmd
-
-#      - name: Slack Notification
-#        run: |
-#          @echo off
-#          rem Prepare dynamic message blocks
-#          set "TICKET_URL=https://appdevforall.atlassian.net/browse/%FOLDER_NAME%"
-#
-#          rem Ensure DOWNLOAD_URL has a fallback
-#          if not defined DOWNLOAD_URL (
-#            set "DOWNLOAD_URL=Download link unavailable"
-#          )
-#
-#          rem Create JSON payload with rich Slack message
-#          set "PAYLOAD={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":rocket: APK Build Completed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n%FOLDER_NAME%\"},{\"type\":\"mrkdwn\",\"text\":\"*Commit Message:*\n%COMMIT_MESSAGE:~0,100%\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Download Links:*\n• APK: %DOWNLOAD_URL%\n• Jira Ticket: %TICKET_URL%\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":information_source: Build completed successfully\"}]}]}"
-#
-#          rem Escape the payload for PowerShell
-#          powershell -Command "$payload = '%PAYLOAD%'; $body = $payload | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
-#        shell: cmd
-
-#      - name: Failure Notification
-#        if: failure()
-#        run: |
-#          @echo off
-#          set "ERROR_MESSAGE={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":warning: Build Failed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Workflow:* ${{ github.job }}\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":x: Workflow encountered an error\"}]}]}"
-#
-#          powershell -Command "$message = '%ERROR_MESSAGE%'; $body = $message | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
-#        shell: cmd
