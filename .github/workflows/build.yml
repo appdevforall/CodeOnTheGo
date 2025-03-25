@@ -138,6 +138,19 @@ jobs:
           "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
         shell: cmd
 
+      - name: Count APK files in Google Drive folder
+        run: |
+          echo Counting APK files in google-drive:%FOLDER_NAME%...
+          "%RCLONE_PATH%" lsf "google-drive:%FOLDER_NAME%" --include "*.apk" | find /c /v ""
+        shell: cmd
+
+      - name: Delete old APK files from Google Drive
+        run: |
+          echo Deleting old APK files from google-drive:%FOLDER_NAME%...
+          "%RCLONE_PATH%" delete "google-drive:%FOLDER_NAME%" --include "*.apk" -v
+        shell: cmd
+
+
       - name: Upload APK to Google Drive and Get Download Link
         id: upload_and_link
         env:
