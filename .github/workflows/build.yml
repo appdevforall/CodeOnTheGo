@@ -130,18 +130,12 @@ jobs:
           echo RCLONE_PATH=%RCLONE_PATH% >> %GITHUB_ENV%
         shell: cmd
 
-#      - name: Configure rclone for Google Drive
-#        env:
-#          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
-#        run: |
-#          powershell -Command "Set-Content -Path 'gdrive-service-account.json' -Value $env:COGO_SERVICE_ACCOUNT"
-#          "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
-#        shell: cmd
-
       - name: Configure rclone for Google Drive
+        env:
+          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
         run: |
-          powershell -Command "Invoke-WebRequest -Uri 'https://jsonblob.com/api/jsonBlob/1354004779097055232' -OutFile 'gdrive-service-account.json'"
-          "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json --drive-root-folder-id 1zONu0Twkc0GigMta9xqtFov-6hGNqSKz
+          powershell -Command "Set-Content -Path 'gdrive-service-account.json' -Value $env:COGO_SERVICE_ACCOUNT"
+          "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
         shell: cmd
 
       - name: Upload APK to Google Drive and Get Download Link
