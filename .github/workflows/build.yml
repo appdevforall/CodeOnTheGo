@@ -148,30 +148,26 @@ jobs:
           for /f "tokens=*" %%a in ('dir /s /b "app\build\outputs\apk\debug\CodeOnTheGo-*.apk"') do (
             set "APK_PATH=%%a"
           )
-          
           if not defined APK_PATH (
             echo Error: No APK file found
             exit /b 1
           )
-          
           echo Found APK: %APK_PATH%
-          
-          rem Upload to Google Drive folder and get shareable link
+          rem Extract filename
+          for %%F in ("%APK_PATH%") do set "APK_FILENAME=%%~nxF"
+          rem Upload to Google Drive folder 
           "%RCLONE_PATH%" copy "%APK_PATH%" "google-drive:%FOLDER_NAME%" -v
-          "%RCLONE_PATH%" link "google-drive:%FOLDER_NAME%/$(basename "%APK_PATH%")" > download_url.txt
-          
           if %errorlevel% neq 0 (
-            echo Error uploading APK or getting link
+            echo Error uploading APK
             exit /b 1
           )
-          
+          rem Generate a direct download link using full rclone obscure path
+          "%RCLONE_PATH%" link "google-drive:%FOLDER_NAME%/%APK_FILENAME%" > download_url.txt
           set /p DOWNLOAD_URL=<download_url.txt
-          
           if not defined DOWNLOAD_URL (
             echo Error: Could not generate download link
             exit /b 1
           )
-          
           echo APK Download URL: %DOWNLOAD_URL%
           echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
         shell: cmd
