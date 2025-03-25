@@ -147,7 +147,7 @@ jobs:
       - name: Delete old APK files from Google Drive
         run: |
           echo Deleting old APK files from google-drive:%FOLDER_NAME%...
-          "%RCLONE_PATH%" delete "google-drive:%FOLDER_NAME%" --include "*.apk" -v
+          "%RCLONE_PATH%" delete "google-drive:%FOLDER_NAME%" --include "*.apk" --drive-use-trash=false -v
         shell: cmd
 
 
