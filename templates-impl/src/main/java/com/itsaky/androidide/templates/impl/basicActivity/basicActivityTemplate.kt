@@ -29,34 +29,35 @@ import com.itsaky.androidide.templates.impl.base.writeMainActivity
 import com.itsaky.androidide.templates.impl.baseProjectImpl
 
 fun basicActivityProject(): ProjectTemplate {
-  return baseProjectImpl {
-    templateName = R.string.template_basic
-    thumb = R.drawable.template_basic_activity
-    defaultAppModule {
-      recipe = createRecipe {
-        sources {
-          writeBasicActivitySrc(this)
-        }
+    return baseProjectImpl {
+        templateName = R.string.template_basic
+        thumb = R.drawable.template_basic_activity
+        defaultAppModule {
+            recipe = createRecipe {
+                sources {
+                    writeBasicActivitySrc(this)
+                }
 
-        res {
-          writeBasicActivityLayout()
-          emptyThemesAndColors()
+                res {
+                    writeBasicActivityLayout()
+                    emptyThemesAndColors()
+                }
+            }
         }
-      }
     }
-  }
 }
 
 private fun AndroidModuleTemplateBuilder.writeBasicActivitySrc(
-  writer: SourceWriter
+    writer: SourceWriter
 ) {
-  writeMainActivity(writer = writer, ktSrc = ::basicActivitySrcKt,
-    javaSrc = ::basicActivitySrcJava)
+    writeMainActivity(
+        writer = writer, ktSrc = ::basicActivitySrcKt,
+        javaSrc = ::basicActivitySrcJava
+    )
 }
 
 internal fun AndroidModuleTemplateBuilder.writeBasicActivityLayout() {
-  res.apply {
-    writeXmlResource("activity_main", LAYOUT, source = ::basicActivityLayout)
-    writeXmlResource("content_main", LAYOUT, source = ::basicActivityContent)
-  }
+    res.apply {
+        writeXmlResource("activity_main", LAYOUT, source = ::basicActivityLayout)
+    }
 }
