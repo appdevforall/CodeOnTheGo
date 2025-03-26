@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">Tema</string>
   <string name="idepref_general_themeSelector_summary">Code on the Go için bir tema seçin (yeniden başlatma gerekir).</string>
   <string name="idepref_general_projectConfig">Proje yapılandırması</string>
-  <string name="msg_app_launch_failed">Başlatma başarısız. Önce uygulamayı yükleyin.</string>
+  <string name="msg_app_launch_failed">Uygulamayı başlatabilmeniz için önce derlemeniz ve yüklemeniz gerekir.</string>
   <string name="idepref_java_diagnosticEnabled_title">Tanılamalar etkin</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(DENEYSEL) Java kaynak kodu dosyalarının hatalar için analiz edilip edilmeyeceğini seçin.</string>
   <string name="title_reload_color_schemes">Renk şemalarını yeniden yükle</string>
