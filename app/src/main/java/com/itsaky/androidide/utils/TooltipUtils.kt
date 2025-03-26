@@ -211,6 +211,7 @@ object TooltipUtils {
 
             infoButton.setOnClickListener {
                 popupWindow.dismiss()
+                onInfoButtonClicked(context, popupWindow, tooltip)
             }
 
 
