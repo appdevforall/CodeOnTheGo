@@ -359,7 +359,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_general_themeSelector_title">Thème</string>
   <string name="idepref_general_themeSelector_summary">Sélectionner un thème pour Code on the Go (redémarrage de l\'application nécessaire).</string>
   <string name="idepref_general_projectConfig">Project configuration</string>
-  <string name="msg_app_launch_failed">Erreur de lancement. Installez l\'application d\'abord.</string>
+  <string name="msg_app_launch_failed">Vous devez compiler et installer lapplication avant de pouvoir la lancer.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostics enabled</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EXPERIMENTAL) Whether the Java source files should be analyzed for errors or not.</string>
   <string name="title_reload_color_schemes">Reload color schemes</string>
