@@ -68,7 +68,8 @@ public class EmptyView extends RelativeLayout {
     text.setGravity(Gravity.CENTER);
 
     LayoutParams params = new LayoutParams(-2, -2);
-    params.addRule(CENTER_IN_PARENT);
+    params.addRule(CENTER_HORIZONTAL);
+    params.addRule(ALIGN_PARENT_TOP);
 
     addView(text, params);
   }
