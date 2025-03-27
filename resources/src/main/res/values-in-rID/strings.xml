@@ -227,7 +227,7 @@
   <string name="err_invalid_data_by_intent">Intent mengembalikan data yang tidak valid</string>
   <string name="msg_select_from_primary_storage">Pilih direktori dari penyimpanan utama</string>
   <string name="err_authority_not_allowed">Otoritas \'%s\' tidak diizinkan</string>
-  <string name="idepref_useIcu_title">Gunakan ICU lib</string>
+  <string name="idepref_useIcu_title">Gunakan pustaka ICU</string>
   <string name="idepref_useIcu_summary">Gunakan perpustakaan ICU untuk menggunakan ambil tepi kata untuk pemilihan kata ketuk dua kali dan tekan lama.</string>
   <!--The text sorrounded with '@@' is spanned as clickable.-->
   <!--There must be exactly two '@@' sorrounding the text that should be clickable.-->
