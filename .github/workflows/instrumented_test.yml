@@ -1,4 +1,4 @@
-name: Windows Instrumented Tests with Git LFS
+name: Instrumented Tests
 
 on:
   push:
@@ -14,7 +14,7 @@ env:
 
 jobs:
   run_instrumented_tests:
-    name: Run Instrumented Tests on Windows
+    name: Run Instrumented Tests
     runs-on: self-hosted
     steps:
       - name: Cancel previous runs
