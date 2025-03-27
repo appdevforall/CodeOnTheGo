@@ -39,7 +39,7 @@ jobs:
           git submodule update --remote
         shell: bash
 
-      - name: Install Git LFS and pull large files
+      - name: Install Git LFS
         run: |
           git lfs install
           git lfs pull
