@@ -1,4 +1,4 @@
-name:  Instrumented Tests
+name: Instrumented Tests
 permissions:
   contents: write
   actions: write
@@ -10,7 +10,6 @@ on:
   workflow_dispatch: { }
 
 env:
-  # Build configuration
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
 
@@ -19,33 +18,36 @@ jobs:
     name: Run Instrumented Tests
     runs-on: self-hosted
     steps:
-      - name: Cancel previous runs
+      - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
-      - name: Checkout code
+      - name: Setup Git LFS
+        run: |
+          echo Setting up Git LFS
+          where git-lfs || (
+            echo Installing Git LFS
+            powershell -Command "Invoke-WebRequest -Uri https://github.com/git-lfs/git-lfs/releases/download/v3.4.1/git-lfs-windows-amd64-v3.4.1.zip -OutFile git-lfs.zip; Expand-Archive -Path git-lfs.zip -DestinationPath git-lfs; cd git-lfs; .\git-lfs-3.4.1\install.bat"
+          )
+          git lfs install
+        shell: cmd
+
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          lfs: true
 
-      - name: Configure Git safe directory
-        run: |
-          git config --global --add safe.directory ${{ github.workspace }}
-          git config --global core.longpaths true
-        shell: bash
+      - name: Pull Git LFS Files
+        run: git lfs pull
+        shell: cmd
 
-      - name: Initialize submodules
+      - name: Initialize Submodules
         run: |
           git submodule init
           git submodule update --remote
-        shell: bash
-
-      - name: Install Git LFS
-        run: |
-          git lfs install
-          git lfs pull
-        shell: bash
+        shell: cmd
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -53,26 +55,13 @@ jobs:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK components
-        run: |
-          sdkmanager.bat "platform-tools" "emulator" "system-images;android-30;google_apis;x86_64" "platforms;android-30" "build-tools;30.0.3"
-        shell: cmd
-
-      - name: Set ANDROID_HOME environment variable
-        run: |
-          echo "ANDROID_HOME=$env:ANDROID_SDK_ROOT" >> $env:GITHUB_ENV
-        shell: pwsh
-
       - name: Restore Gradle Cache
         uses: actions/cache@v4
         with:
           path: |
-            %USERPROFILE%\.gradle\caches
-            %USERPROFILE%\.gradle\wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -84,7 +73,16 @@ jobs:
       - name: Start Android Emulator
         run: |
           start /b emulator.bat -avd test_avd -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          powershell -Command "& {$startTime = Get-Date; while (!(adb shell getprop sys.boot_completed 2>&1 | Select-String '1')) { if ((New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds -gt 300) { Write-Host 'Emulator boot timed out'; exit 1 } Start-Sleep -Seconds 5; Write-Host 'Waiting for emulator to boot...' }}"
+          powershell -Command "& {
+            $startTime = Get-Date;
+            while (!(adb shell getprop sys.boot_completed 2>&1 | Select-String '1')) {
+              if ((New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds -gt 300) {
+                Write-Host 'Emulator boot timed out'; exit 1
+              }
+              Start-Sleep -Seconds 5;
+              Write-Host 'Waiting for emulator to boot...'
+            }
+          }"
         shell: cmd
 
       - name: Run Instrumented Tests
