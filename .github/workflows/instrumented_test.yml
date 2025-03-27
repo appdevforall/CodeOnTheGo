@@ -12,6 +12,8 @@ on:
 env:
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
+  # Adjust the Android SDK path to your Windows setup
+  ANDROID_HOME: 'C:\Users\CoGoAdmin\AppData\Local\Android\Sdk'
 
 jobs:
   run_instrumented_tests:
@@ -59,11 +61,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
+            %USERPROFILE%\.gradle\caches
+            %USERPROFILE%\.gradle\wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+
+      - name: Add Android SDK Tools to PATH
+        run: |
+          echo Adding Android SDK tools to PATH...
+          setx PATH "%PATH%;%ANDROID_HOME%\cmdline-tools\latest\bin;%ANDROID_HOME%\emulator"
+          echo %PATH%
+        shell: cmd
 
       - name: Create AVD
         run: |
@@ -85,7 +94,7 @@ jobs:
           }"
         shell: cmd
 
-      - name: Run Instrumented Tests
+      - name: Run Instrumented Tests (Auto Install)
         run: |
           adb devices
           gradlew.bat app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
@@ -98,4 +107,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-instrumented
-          path: '**/build/reports/tests/'
+          path: '**\build\reports\tests\'
