@@ -1,4 +1,7 @@
 name: Instrumented Tests
+permissions:
+  contents: write
+  actions: write
 
 on:
   push:
