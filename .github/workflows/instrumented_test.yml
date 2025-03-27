@@ -1,7 +1,4 @@
-name: Instrumented Tests
-permissions:
-  contents: write
-  actions: write
+name:  Instrumented Tests
 
 on:
   push:
