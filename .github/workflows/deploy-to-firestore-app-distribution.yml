@@ -84,6 +84,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Create symbolic link for LayoutEditor
+        run: ln -s LayoutEditor layouteditor
+
       - name: Assemble Universal APK
         run: ./gradlew assembleDebug
 
