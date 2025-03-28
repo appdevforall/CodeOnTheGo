@@ -1,6 +1,6 @@
 name: Build APK
 permissions:
-  contents: read
+  contents: write
   actions: write
 on:
   pull_request:
@@ -34,18 +34,33 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: macos-13
+    runs-on: self-hosted
     timeout-minutes: 60
     steps:
-      - name: Cancel previous runs
+      - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
-      - name: Checkout code
+      - name: Setup Git LFS
+        run: |
+          echo "Setting up Git LFS"
+          where git-lfs || (
+            echo "Installing Git LFS"
+            powershell -Command "Invoke-WebRequest -Uri https://github.com/git-lfs/git-lfs/releases/download/v3.4.1/git-lfs-windows-amd64-v3.4.1.zip -OutFile git-lfs.zip; Expand-Archive -Path git-lfs.zip -DestinationPath git-lfs; cd git-lfs; .\git-lfs-3.4.1\install.bat"
+          )
+          git lfs install
+        shell: cmd
+
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          lfs: true
+
+      - name: Pull Git LFS Files
+        run: git lfs pull
+        shell: cmd
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -53,14 +68,12 @@ jobs:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
 
-      - name: Initialize submodules
+      - name: Initialize Submodules
         run: |
           git submodule init
           git submodule update --remote
-      - name: Install CMake
-        run: |
-          brew update
-          brew install cmake
+        shell: cmd
+
       - name: Restore Gradle Cache
         uses: actions/cache@v4
         with:
@@ -70,28 +83,99 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+      - name: Extract Commit Message
+        id: extract_commit_message
+        run: |
+          for /f "tokens=*" %%a in ('git log -1 --pretty=format:"%%B"') do (
+            set "COMMIT_MESSAGE=%%a"
+          )
+          echo Commit Message: %COMMIT_MESSAGE%
+          echo COMMIT_MESSAGE=%COMMIT_MESSAGE% >> %GITHUB_ENV%
+        shell: cmd
+
       - name: Assemble Universal APK
-        run: ./gradlew assembleDebug
-
-      - name: Download Firebase Service Account JSON using curl
-        id: download_service_account
+        id: build_apk
         run: |
-          curl -L "https://jsonblob.com/api/jsonBlob/1354004779097055232" -o firebase-service-account.json
-          json=$(tr -d '\n' < firebase-service-account.json)
-          echo "json=$json" >> $GITHUB_OUTPUT
+          .\gradlew.bat assembleDebug
+          if %errorlevel% neq 0 exit /b %errorlevel%
+        shell: cmd
 
-      - name: Upload APK to Firebase App Distribution
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: codeonthego-64a92
-          serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
-          groups: testers
-          file: app/build/outputs/apk/debug/CodeOnTheGo-*.apk
-          releaseNotes: "Commit Message: ${{ env.COMMIT_MESSAGE }}"
-      - name: Slack Notification
-        run: |
-          # Compose a Slack message with emojis and the download URL
-          MESSAGE=":tada: *Build Completed! And deployed to firebase!* :rocket:Jira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
-          curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\": \"${MESSAGE}\"}" \
-            https://hooks.slack.com/services/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
+#      - name: Extract Branch Information
+#        id: extract_branch
+#        run: |
+#          @echo off
+#          rem Use the head ref for PR events; otherwise, fallback to the branch name
+#          if defined GITHUB_HEAD_REF (
+#            set "BRANCH_NAME=%GITHUB_HEAD_REF%"
+#          ) else (
+#            set "BRANCH_NAME=%GITHUB_REF:refs/heads/=%"
+#          )
+#          echo Branch: %BRANCH_NAME%
+#
+#          rem Extract Jira ticket pattern using PowerShell
+#          powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
+#        shell: cmd
+#
+#      - name: Install rclone
+#        run: |
+#          echo Installing rclone...
+#          powershell -Command "Invoke-WebRequest -Uri 'https://downloads.rclone.org/rclone-current-windows-amd64.zip' -OutFile 'rclone.zip'"
+#          powershell -Command "Expand-Archive -Path 'rclone.zip' -DestinationPath '.\\rclone'"
+#          for /d %%i in (.\rclone\rclone-*-windows-amd64) do (
+#            set "RCLONE_DIR=%%i"
+#          )
+#          echo RCLONE_DIR is %RCLONE_DIR%
+#          set "RCLONE_PATH=%CD%\%RCLONE_DIR%\rclone.exe"
+#          echo RCLONE_PATH=%RCLONE_PATH% >> %GITHUB_ENV%
+#        shell: cmd
+#
+#      - name: Configure rclone for Google Drive
+#        env:
+#          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
+#        run: |
+#          powershell -Command "Set-Content -Path 'gdrive-service-account.json' -Value $env:COGO_SERVICE_ACCOUNT"
+#          "%RCLONE_PATH%" config create google-drive drive scope drive service_account_file gdrive-service-account.json
+#        shell: cmd
+#
+#      - name: Upload APK to Google Drive and Get Download Link
+#        id: upload_and_link
+#        env:
+#          COGO_SERVICE_ACCOUNT: ${{ secrets.COGO_SERVICE_ACCOUNT }}
+#        run: |
+#          @echo off
+#          rem Find APK file in the specific build output directory
+#          for /f "tokens=*" %%a in ('dir /s /b "app\build\outputs\apk\debug\CodeOnTheGo-*.apk"') do (
+#            set "APK_PATH=%%a"
+#          )
+#          if not defined APK_PATH (
+#            echo Error: No APK file found
+#            exit /b 1
+#          )
+#          echo Found APK: %APK_PATH%
+#          rem Extract filename
+#          for %%F in ("%APK_PATH%") do set "APK_FILENAME=%%~nxF"
+#          rem Upload to Google Drive folder
+#          "%RCLONE_PATH%" copy "%APK_PATH%" "google-drive:%FOLDER_NAME%" -v
+#          if %errorlevel% neq 0 (
+#            echo Error uploading APK
+#            exit /b 1
+#          )
+#          rem Generate a direct download link using full rclone obscure path
+#          "%RCLONE_PATH%" link "google-drive:%FOLDER_NAME%/%APK_FILENAME%" > download_url.txt
+#          set /p DOWNLOAD_URL=<download_url.txt
+#          if not defined DOWNLOAD_URL (
+#            echo Error: Could not generate download link
+#            exit /b 1
+#          )
+#          echo APK Download URL: %DOWNLOAD_URL%
+#          echo DOWNLOAD_URL=%DOWNLOAD_URL% >> %GITHUB_ENV%
+#        shell: cmd
+#
+#      - name: Slack Notification
+#        run: |
+#          @echo off
+#          rem Use outputs from previous steps
+#          set "TICKET_URL=https://appdevforall.atlassian.net/browse/%FOLDER_NAME%"
+#          set "PAYLOAD={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":rocket: APK Build Completed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n%FOLDER_NAME%\"},{\"type\":\"mrkdwn\",\"text\":\"*Commit Message:*\n%COMMIT_MESSAGE:~0,100%\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Download Links:*\nAPK: %DOWNLOAD_URL%\nJira Ticket: %TICKET_URL%\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":information_source: Build completed successfully\"}]}]}"
+#          powershell -Command "$payload = '%PAYLOAD%'; $body = $payload | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
+#        shell: cmd
