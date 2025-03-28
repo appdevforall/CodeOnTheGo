@@ -65,46 +65,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Prepare and Start Android Emulator
-        run: |
-          # Check if AVD exists
-          "%ANDROID_HOME%\emulator\emulator.exe" -list-avds | findstr /i "Pixel_4_API_30" > nul
-          if %errorlevel% neq 0 (
-              echo AVD Pixel_4_API_30 not found. Creating new AVD...
-          
-              # Ensure system image is installed
-              "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
-          
-              # Create AVD
-              "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager" create avd ^
-                  -n Pixel_4_API_30 ^
-                  -k "system-images;android-30;google_apis;x86_64" ^
-                  --device "pixel_4" ^
-                  -f
-          )
-          
-          # Start emulator
-          start "" "%ANDROID_HOME%\emulator\emulator.exe" ^
-              -avd Pixel_4_API_30 ^
-              -no-window ^
-              -no-audio ^
-              -no-snapshot-load
-          
-          # Wait for emulator to boot
-          "%ANDROID_HOME%\platform-tools\adb" wait-for-device
-          "%ANDROID_HOME%\platform-tools\adb" shell "while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;"
-        shell: cmd
-
-      - name: Run Instrumented Tests
-        run: |
-          # Verify devices are connected
-          "%ANDROID_HOME%\platform-tools\adb" devices
-          
-          # Run Android tests
-          gradlew.bat app:connectedAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
-        shell: cmd
-        env:
-          ANDROIDIDE_TEST: true
+      - name: Run Android Emulator and Instrumented Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: Pixel_4_API_30
+          emulator-options: "-no-window -no-audio -no-snapshot-load"
+          disable-animations: true
+          script: |
+            adb wait-for-device
+            gradlew.bat app:connectedAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
+          shell: cmd
+          env:
+            ANDROIDIDE_TEST: true
 
       - name: Upload Test Reports
         if: ${{ always() }}
