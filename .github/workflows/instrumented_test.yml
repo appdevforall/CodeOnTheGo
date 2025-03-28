@@ -56,7 +56,7 @@ jobs:
       - name: Run Instrumented Tests on Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          target: "android-30"
+          api-level: 30
           arch: "x86_64"
           script: |
             adb devices
