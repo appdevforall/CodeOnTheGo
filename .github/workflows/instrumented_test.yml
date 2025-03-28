@@ -69,46 +69,63 @@ jobs:
         run: |
           setlocal EnableDelayedExpansion
 
-          echo Checking existing emulators...
+          echo ==== Cleanup existing processes ====
           "%ANDROID_HOME%\platform-tools\adb" kill-server
-          "%ANDROID_HOME%\platform-tools\adb" start-server
-
-          set "AVD_NAME=Pixel_4_API_30"
-          
-          # Check if desired AVD exists
-          "%ANDROID_HOME%\emulator\emulator.exe" -list-avds | findstr /i "%AVD_NAME%" > nul
-          if %errorlevel% neq 0 (
-              echo Creating AVD %AVD_NAME%...
-              "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
-              echo no | "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager" create avd -n %AVD_NAME% -k "system-images;android-30;google_apis;x86_64" --device "pixel_4"
-          )
-
-          echo Killing existing emulator instances...
           taskkill /F /IM qemu-system-x86_64.exe /T > nul 2>&1 || true
 
-          echo Starting emulator %AVD_NAME%...
-          start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd %AVD_NAME% -no-window -no-audio -no-snapshot -accel on
+          echo ==== AVD Configuration ====
+          set "AVD_NAME=Pixel_4_API_30"
 
-          echo Waiting for device...
-          timeout /t 10 > nul
-          "%ANDROID_HOME%\platform-tools\adb" wait-for-device
-          
-          echo Checking boot status...
-          :loop
-          "%ANDROID_HOME%\platform-tools\adb" shell getprop sys.boot_completed | findstr /r /c:"1" > nul
-          if %errorlevel% neq 0 (
-              timeout /t 5 > nul
-              goto loop
+          "%ANDROID_HOME%\emulator\emulator.exe" -list-avds | findstr /i "%AVD_NAME%" > nul || (
+              echo Creating AVD %AVD_NAME%...
+              "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
+              echo no | "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager" create avd ^
+                -n %AVD_NAME% ^
+                -k "system-images;android-30;google_apis;x86_64" ^
+                --device "pixel_4"
           )
 
-          echo Emulator fully booted!
+          echo ==== Starting Emulator ====
+          start "AndroidEmulator" "%ANDROID_HOME%\emulator\emulator.exe" ^
+            -avd %AVD_NAME% ^
+            -no-window ^
+            -no-audio ^
+            -no-snapshot ^
+            -writable-system ^
+            -accel on
+
+          echo ==== Waiting for Device ====
+          ping 127.0.0.1 -n 10 > nul  # Wait 10 seconds instead of timeout
+          "%ANDROID_HOME%\platform-tools\adb" wait-for-device
+
+          echo ==== Final Boot Check ====
+          :boot_check
+          "%ANDROID_HOME%\platform-tools\adb" shell "getprop sys.boot_completed | tr -d '\r'" | findstr /x "1" > nul
+          if %errorlevel% neq 0 (
+              ping 127.0.0.1 -n 5 > nul
+              goto boot_check
+          )
+
+          echo ==== Post-Boot Validation ====
+          "%ANDROID_HOME%\platform-tools\adb" shell "pm list packages" > nul
+          "%ANDROID_HOME%\platform-tools\adb" root
+          "%ANDROID_HOME%\platform-tools\adb" remount
           "%ANDROID_HOME%\platform-tools\adb" devices
+
+          endlocal
         shell: cmd
 
       - name: Run Instrumented Tests
         run: |
+          echo ==== Device Verification ====
           "%ANDROID_HOME%\platform-tools\adb" devices
-          gradlew.bat app:connectedAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
+          echo ==== Test Execution ====
+          gradlew.bat app:connectedAndroidTest ^
+            "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" ^
+            "-Pandroid.serial=emulator-5554" ^
+            --stacktrace ^
+            --no-daemon ^
+            --console=plain
         shell: cmd
         env:
           ANDROIDIDE_TEST: true
