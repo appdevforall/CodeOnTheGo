@@ -1,23 +1,20 @@
 name: Instrumented Tests
 permissions:
   contents: write
-  actions: write
 on:
   push:
     branches: [ "stage", "feature/**" ]
   pull_request:
     branches: [ "stage", "feature/**" ]
-  workflow_dispatch: { }
+  workflow_dispatch:
 
 env:
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
-  # Adjust the Android SDK path to your Windows setup
   ANDROID_HOME: 'C:\Users\CoGoAdmin\AppData\Local\Android\Sdk'
 
 jobs:
   run_instrumented_tests:
-    name: Run Instrumented Tests
     runs-on: self-hosted
     steps:
       - name: Cancel Previous Runs
@@ -28,7 +25,7 @@ jobs:
       - name: Setup Git LFS
         run: |
           echo Setting up Git LFS
-          where git-lfs || (
+          where git-lfs || ( 
             echo Installing Git LFS
             powershell -Command "Invoke-WebRequest -Uri https://github.com/git-lfs/git-lfs/releases/download/v3.4.1/git-lfs-windows-amd64-v3.4.1.zip -OutFile git-lfs.zip; Expand-Archive -Path git-lfs.zip -DestinationPath git-lfs; cd git-lfs; .\git-lfs-3.4.1\install.bat"
           )
@@ -67,10 +64,43 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Run Instrumented Tests (Auto Install)
+      - name: Prepare and Start Android Emulator
         run: |
-          adb devices
-          gradlew.bat app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
+          # Check if AVD exists
+          "%ANDROID_HOME%\emulator\emulator.exe" -list-avds | findstr /i "Pixel_4_API_30" > nul
+          if %errorlevel% neq 0 (
+              echo AVD Pixel_4_API_30 not found. Creating new AVD...
+          
+              # Ensure system image is installed
+              "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
+          
+              # Create AVD
+              "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager" create avd ^
+                  -n Pixel_4_API_30 ^
+                  -k "system-images;android-30;google_apis;x86_64" ^
+                  --device "pixel_4" ^
+                  -f
+          )
+          
+          # Start emulator
+          start "" "%ANDROID_HOME%\emulator\emulator.exe" ^
+              -avd Pixel_4_API_30 ^
+              -no-window ^
+              -no-audio ^
+              -no-snapshot-load
+          
+          # Wait for emulator to boot
+          "%ANDROID_HOME%\platform-tools\adb" wait-for-device
+          "%ANDROID_HOME%\platform-tools\adb" shell "while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;"
+        shell: cmd
+
+      - name: Run Instrumented Tests
+        run: |
+          # Verify devices are connected
+          "%ANDROID_HOME%\platform-tools\adb" devices
+          
+          # Run Android tests
+          gradlew.bat app:connectedAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
         shell: cmd
         env:
           ANDROIDIDE_TEST: true
@@ -80,4 +110,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-instrumented
-          path: '**\build\reports\tests\'
+          path: '**/build/reports/tests/'
