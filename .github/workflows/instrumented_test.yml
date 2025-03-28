@@ -69,32 +69,40 @@ jobs:
         run: |
           setlocal EnableDelayedExpansion
 
-          echo Checking for existing AVDs...
-          set "AVD_NAME="
-          for /f "delims=" %%a in ('"%ANDROID_HOME%\emulator\emulator.exe" -list-avds') do (
-            set "AVD_NAME=%%a"
-            goto :have_avd
+          echo Checking existing emulators...
+          "%ANDROID_HOME%\platform-tools\adb" kill-server
+          "%ANDROID_HOME%\platform-tools\adb" start-server
+
+          set "AVD_NAME=Pixel_4_API_30"
+          
+          # Check if desired AVD exists
+          "%ANDROID_HOME%\emulator\emulator.exe" -list-avds | findstr /i "%AVD_NAME%" > nul
+          if %errorlevel% neq 0 (
+              echo Creating AVD %AVD_NAME%...
+              "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
+              echo no | "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager" create avd -n %AVD_NAME% -k "system-images;android-30;google_apis;x86_64" --device "pixel_4"
           )
 
-          :have_avd
-          if defined AVD_NAME (
-            echo Found existing AVD: !AVD_NAME!. Starting...
-          ) else (
-            echo No existing AVD found. Creating Pixel_4_API_30...
-            "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
-            "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager" create avd -n Pixel_4_API_30 -k "system-images;android-30;google_apis;x86_64" --device "pixel_4" -f
-            set "AVD_NAME=Pixel_4_API_30"
-          )
+          echo Killing existing emulator instances...
+          taskkill /F /IM qemu-system-x86_64.exe /T > nul 2>&1 || true
 
-          echo Starting emulator !AVD_NAME!...
-          start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd !AVD_NAME! -no-window -no-audio -no-snapshot-load
+          echo Starting emulator %AVD_NAME%...
+          start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd %AVD_NAME% -no-window -no-audio -no-snapshot -accel on
 
-          echo Waiting for emulator to boot...
+          echo Waiting for device...
+          timeout /t 10 > nul
           "%ANDROID_HOME%\platform-tools\adb" wait-for-device
-          "%ANDROID_HOME%\platform-tools\adb" shell "while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;"
+          
+          echo Checking boot status...
+          :loop
+          "%ANDROID_HOME%\platform-tools\adb" shell getprop sys.boot_completed | findstr /r /c:"1" > nul
+          if %errorlevel% neq 0 (
+              timeout /t 5 > nul
+              goto loop
+          )
 
-          endlocal
-          exit /b 0
+          echo Emulator fully booted!
+          "%ANDROID_HOME%\platform-tools\adb" devices
         shell: cmd
 
       - name: Run Instrumented Tests
