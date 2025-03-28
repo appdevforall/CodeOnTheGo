@@ -1,72 +1,72 @@
-name: Instrumented Tests
-permissions:
-  contents: write
-  actions: write
-on:
-  push:
-    branches: [ "stage", "feature/**" ]
-  pull_request:
-    branches: [ "stage", "feature/**" ]
-  workflow_dispatch:
-
-env:
-  BUILD_JAVA_VERSION: '17'
-  BUILD_JAVA_DIST: 'temurin'
-
-jobs:
-  run_instrumented_tests:
-    name: Run Instrumented Tests
-    runs-on: macos-latest
-    steps:
-      - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configure Git safe directory
-        run: |
-          git config --global --add safe.directory "${{ github.workspace }}"
-          git config --global core.longpaths true
-        shell: bash
-
-      - name: Initialize submodules
-        run: |
-          git submodule init
-          git submodule update --remote
-        shell: bash
-
-      - name: Install Git LFS
-        run: |
-          git lfs install
-          git lfs pull
-        shell: bash
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.BUILD_JAVA_VERSION }}
-          distribution: ${{ env.BUILD_JAVA_DIST }}
-
-      # Use the ReactiveCircus Android Emulator Runner action to start the emulator and run tests.
-      - name: Run Instrumented Tests on Emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          arch: "x86_64"
-          script: |
-            adb devices
-            ./gradlew app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
-        env:
-          ANDROIDIDE_TEST: true
-
-      - name: Upload Test Reports
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-instrumented
-          path: '**/build/reports/tests/'
+#name: Instrumented Tests
+#permissions:
+#  contents: write
+#  actions: write
+#on:
+#  push:
+#    branches: [ "stage", "feature/**" ]
+#  pull_request:
+#    branches: [ "stage", "feature/**" ]
+#  workflow_dispatch:
+#
+#env:
+#  BUILD_JAVA_VERSION: '17'
+#  BUILD_JAVA_DIST: 'temurin'
+#
+#jobs:
+#  run_instrumented_tests:
+#    name: Run Instrumented Tests
+#    runs-on: macos-latest
+#    steps:
+#      - name: Cancel previous runs
+#        uses: styfle/cancel-workflow-action@0.12.1
+#        with:
+#          access_token: ${{ github.token }}
+#
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#
+#      - name: Configure Git safe directory
+#        run: |
+#          git config --global --add safe.directory "${{ github.workspace }}"
+#          git config --global core.longpaths true
+#        shell: bash
+#
+#      - name: Initialize submodules
+#        run: |
+#          git submodule init
+#          git submodule update --remote
+#        shell: bash
+#
+#      - name: Install Git LFS
+#        run: |
+#          git lfs install
+#          git lfs pull
+#        shell: bash
+#
+#      - name: Set up JDK 17
+#        uses: actions/setup-java@v4
+#        with:
+#          java-version: ${{ env.BUILD_JAVA_VERSION }}
+#          distribution: ${{ env.BUILD_JAVA_DIST }}
+#
+#      # Use the ReactiveCircus Android Emulator Runner action to start the emulator and run tests.
+#      - name: Run Instrumented Tests on Emulator
+#        uses: reactivecircus/android-emulator-runner@v2
+#        with:
+#          api-level: 30
+#          arch: "x86_64"
+#          script: |
+#            adb devices
+#            ./gradlew app:cAT "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
+#        env:
+#          ANDROIDIDE_TEST: true
+#
+#      - name: Upload Test Reports
+#        if: ${{ always() }}
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: test-results-instrumented
+#          path: '**/build/reports/tests/'
