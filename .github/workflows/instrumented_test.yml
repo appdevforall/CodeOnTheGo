@@ -65,21 +65,45 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Run Android Emulator and Instrumented Tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          target: google_apis
-          arch: x86_64
-          profile: Pixel_4_API_30
-          emulator-options: "-no-window -no-audio -no-snapshot-load"
-          disable-animations: true
-          script: |
-            adb wait-for-device
-            gradlew.bat app:connectedAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
-          shell: cmd
-          env:
-            ANDROIDIDE_TEST: true
+      - name: Prepare and Start Android Emulator
+        run: |
+          setlocal EnableDelayedExpansion
+
+          echo Checking for existing AVDs...
+          set "AVD_NAME="
+          for /f "delims=" %%a in ('"%ANDROID_HOME%\emulator\emulator.exe" -list-avds') do (
+            set "AVD_NAME=%%a"
+            goto :have_avd
+          )
+
+          :have_avd
+          if defined AVD_NAME (
+            echo Found existing AVD: !AVD_NAME!. Starting...
+          ) else (
+            echo No existing AVD found. Creating Pixel_4_API_30...
+            "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
+            "%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager" create avd -n Pixel_4_API_30 -k "system-images;android-30;google_apis;x86_64" --device "pixel_4" -f
+            set "AVD_NAME=Pixel_4_API_30"
+          )
+
+          echo Starting emulator !AVD_NAME!...
+          start "" "%ANDROID_HOME%\emulator\emulator.exe" -avd !AVD_NAME! -no-window -no-audio -no-snapshot-load
+
+          echo Waiting for emulator to boot...
+          "%ANDROID_HOME%\platform-tools\adb" wait-for-device
+          "%ANDROID_HOME%\platform-tools\adb" shell "while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;"
+
+          endlocal
+          exit /b 0
+        shell: cmd
+
+      - name: Run Instrumented Tests
+        run: |
+          "%ANDROID_HOME%\platform-tools\adb" devices
+          gradlew.bat app:connectedAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" --stacktrace
+        shell: cmd
+        env:
+          ANDROIDIDE_TEST: true
 
       - name: Upload Test Reports
         if: ${{ always() }}
