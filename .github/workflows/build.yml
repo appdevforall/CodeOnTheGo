@@ -116,13 +116,17 @@ jobs:
           powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
         shell: cmd
 
-      - name: Download Firebase Service Account JSON
+      - name: Download Firebase Service Account JSON using curl (CMD)
         id: download_service_account
-        run: |
-          Invoke-WebRequest -Uri 'https://jsonblob.com/api/jsonBlob/1354004779097055232' -OutFile 'firebase-service-account.json'
-          $json = Get-Content -Raw -Path 'firebase-service-account.json'
-          echo "json=$json" >> $env:GITHUB_OUTPUT
         shell: cmd
+        run: |
+          curl -L "https://jsonblob.com/api/jsonBlob/1354004779097055232" -o firebase-service-account.json
+          setlocal EnableDelayedExpansion
+          set "json="
+          for /f "usebackq delims=" %%a in (`type firebase-service-account.json`) do (
+            set "json=!json!%%a"
+          )
+          echo json=!json!>> %GITHUB_OUTPUT%
 
       - name: Upload APK to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
