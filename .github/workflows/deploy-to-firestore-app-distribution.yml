@@ -93,7 +93,13 @@ jobs:
           curl -L "https://jsonblob.com/api/jsonBlob/1354004779097055232" -o firebase-service-account.json
           json=$(tr -d '\n' < firebase-service-account.json)
           echo "json=$json" >> $GITHUB_OUTPUT
-          
+
+      - name: Find APK file
+        id: find_apk
+        run: |
+          apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
+          echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
+          echo "Found APK at: $apk_path"
 
       - name: upload artifact to Firebase App Distribution
         uses: emertozd/Firebase-Distribution-Github-Action@v2
@@ -101,7 +107,7 @@ jobs:
             appId: codeonthego-64a92
             serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
             groups: testers
-            file: app/build/outputs/apk/debug/CodeOnTheGo-*.apk
+            file: ${{ steps.find_apk.outputs.APK_PATH }}
             releaseNotes: ${{ github.event.head_commit.message }}
 
       - name: Slack Notification
