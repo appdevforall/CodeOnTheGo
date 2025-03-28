@@ -118,11 +118,11 @@ jobs:
 
       - name: Download Firebase Service Account JSON
         id: download_service_account
-        shell: pwsh
         run: |
           Invoke-WebRequest -Uri 'https://jsonblob.com/api/jsonBlob/1354004779097055232' -OutFile 'firebase-service-account.json'
           $json = Get-Content -Raw -Path 'firebase-service-account.json'
           echo "json=$json" >> $env:GITHUB_OUTPUT
+        shell: cmd
 
       - name: Upload APK to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
