@@ -101,19 +101,26 @@ jobs:
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
           echo "Found APK at: $apk_path"
 
+      - name: Set branch name
+        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+
       - name: upload artifact to Firebase App Distribution
+        id: firebase_upload
         uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
-            appId: 1:25368176976:android:315a39620cdf0d587d6455
-            serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
-            groups: testers
-            file: ${{ steps.find_apk.outputs.APK_PATH }}
-            releaseNotes: ${{ github.event.head_commit.message }}
+          appId: 1:25368176976:android:315a39620cdf0d587d6455
+          serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
+          groups: testers
+          file: ${{ steps.find_apk.outputs.APK_PATH }}
+          releaseNotes: ${{ github.event.head_commit.message }}
 
       - name: Slack Notification
         run: |
-          # Compose a Slack message with emojis and the download URL
-          MESSAGE=":tada: *Build Completed!* :rocket:\nDownload APK: ${DOWNLOAD_URL}\nJira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
+          # Extract folder name: everything after the slash (e.g., feature/ADFA-XXX -> ADFA-XXX)
+          FOLDER_NAME=$(echo "$BRANCH_NAME" | cut -d'/' -f2)
+          MESSAGE="@here :tada: *Build Completed!* :rocket:
+          Download APK: ${{ steps.firebase_upload.outputs.release_url }}
+          Jira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\": \"${MESSAGE}\"}" \
             https://hooks.slack.com/services/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
