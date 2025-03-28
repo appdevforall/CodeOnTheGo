@@ -104,7 +104,7 @@ jobs:
       - name: upload artifact to Firebase App Distribution
         uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
-            appId: codeonthego-64a92
+            appId: 1:25368176976:android:315a39620cdf0d587d6455
             serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
             groups: testers
             file: ${{ steps.find_apk.outputs.APK_PATH }}
