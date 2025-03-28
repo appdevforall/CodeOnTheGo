@@ -34,7 +34,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: macos-13
+    runs-on: macos-13-large
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -93,15 +93,16 @@ jobs:
           curl -L "https://jsonblob.com/api/jsonBlob/1354004779097055232" -o firebase-service-account.json
           json=$(tr -d '\n' < firebase-service-account.json)
           echo "json=$json" >> $GITHUB_OUTPUT
+          
 
-      - name: Upload APK to Firebase App Distribution
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
+      - name: upload artifact to Firebase App Distribution
+        uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
-          appId: codeonthego-64a92
-          serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
-          groups: testers
-          file: app/build/outputs/apk/debug/CodeOnTheGo-*.apk
-          releaseNotes: "Commit Message: ${{ env.COMMIT_MESSAGE }}"
+            appId: codeonthego-64a92
+            serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
+            groups: testers
+            file: app/build/outputs/apk/debug/CodeOnTheGo-*.apk
+            releaseNotes: ${{ github.event.head_commit.message }}
 
       - name: Slack Notification
         run: |
