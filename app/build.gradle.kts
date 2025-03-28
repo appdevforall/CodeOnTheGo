@@ -97,7 +97,7 @@ tasks.register("createSymbolicLinkForLayoutEditor") {
   val destinationPath: java.nio.file.Path = Paths.get(rootDir.absolutePath, "layouteditor")
   val destinationFile = destinationPath.toFile()
 
-  if (os.contains("linux") || os.contains("nix") || os.contains("nux") || os.contains("mac")) {
+  if (os.contains("linux") || os.contains("nix") || os.contains("nux")) {
     // Check if the symbolic link already exists
     if (destinationFile.exists() && Files.isSymbolicLink(destinationPath)) {
       doLast {
