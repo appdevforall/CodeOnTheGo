@@ -13,6 +13,7 @@ env:
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
   ANDROID_HOME: 'C:\Users\CoGoAdmin\AppData\Local\Android\Sdk'
+  ANDROID_SERIAL: 'emulator-5554'
 
 jobs:
   run_instrumented_tests:
@@ -69,13 +70,13 @@ jobs:
         run: |
           setlocal EnableDelayedExpansion
 
-          echo ==== Cleanup existing processes ====
+          echo ==== Clean Environment Setup ====
           "%ANDROID_HOME%\platform-tools\adb" kill-server
           taskkill /F /IM qemu-system-x86_64.exe /T > nul 2>&1 || true
 
           echo ==== AVD Configuration ====
           set "AVD_NAME=Pixel_4_API_30"
-
+          
           "%ANDROID_HOME%\emulator\emulator.exe" -list-avds | findstr /i "%AVD_NAME%" > nul || (
               echo Creating AVD %AVD_NAME%...
               "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager" "system-images;android-30;google_apis;x86_64"
@@ -92,43 +93,63 @@ jobs:
             -no-audio ^
             -no-snapshot ^
             -writable-system ^
-            -accel on
+            -accel on ^
+            -ports 5554,5555
 
-          echo ==== Waiting for Device ====
-          ping 127.0.0.1 -n 10 > nul  # Wait 10 seconds instead of timeout
+          echo ==== Wait for Device Connection ====
+          ping 127.0.0.1 -n 10 > nul
+          "%ANDROID_HOME%\platform-tools\adb" connect localhost:5554
           "%ANDROID_HOME%\platform-tools\adb" wait-for-device
 
-          echo ==== Final Boot Check ====
-          :boot_check
-          "%ANDROID_HOME%\platform-tools\adb" shell "getprop sys.boot_completed | tr -d '\r'" | findstr /x "1" > nul
-          if %errorlevel% neq 0 (
+          echo ==== Extended Boot Validation ====
+          :boot_loop
+          "%ANDROID_HOME%\platform-tools\adb" shell "getprop sys.boot_completed | tr -d '\r'" | findstr /x "1" > nul || (
               ping 127.0.0.1 -n 5 > nul
-              goto boot_check
+              goto boot_loop
+          )
+          
+          echo ==== Service Readiness Check ====
+          :service_check
+          "%ANDROID_HOME%\platform-tools\adb" shell "service check package" | findstr "Service package: found" > nul || (
+              ping 127.0.0.1 -n 2 > nul
+              goto service_check
           )
 
-          echo ==== Post-Boot Validation ====
-          "%ANDROID_HOME%\platform-tools\adb" shell "pm list packages" > nul
+          echo ==== Final Device Preparation ====
           "%ANDROID_HOME%\platform-tools\adb" root
-          "%ANDROID_HOME%\platform-tools\adb" remount
-          "%ANDROID_HOME%\platform-tools\adb" devices
+          "%ANDROID_HOME%\platform-tools\adb" shell "settings put global window_animation_scale 0.0"
+          "%ANDROID_HOME%\platform-tools\adb" shell "settings put global transition_animation_scale 0.0"
+          "%ANDROID_HOME%\platform-tools\adb" shell "settings put global animator_duration_scale 0.0"
+          "%ANDROID_HOME%\platform-tools\adb" uninstall com.itsaky.androidide.test > nul 2>&1 || true
 
+          echo ==== Connection Verification ====
+          "%ANDROID_HOME%\platform-tools\adb" devices
+          "%ANDROID_HOME%\platform-tools\adb" shell "dumpsys window | grep mCurrentFocus"
+          
           endlocal
         shell: cmd
 
       - name: Run Instrumented Tests
         run: |
-          echo ==== Device Verification ====
+          echo ==== Environment Setup ====
+          set ANDROID_SERIAL=emulator-5554
           "%ANDROID_HOME%\platform-tools\adb" devices
+
           echo ==== Test Execution ====
           gradlew.bat app:connectedAndroidTest ^
             "-Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite" ^
-            "-Pandroid.serial=emulator-5554" ^
-            --stacktrace ^
-            --no-daemon ^
-            --console=plain
+            "--info" ^
+            "--stacktrace" ^
+            "--no-daemon" ^
+            "--console=plain" ^
+            -Dorg.gradle.workers.max=2
+          
+          echo ==== Post-Test Cleanup ====
+          "%ANDROID_HOME%\platform-tools\adb" emu kill
         shell: cmd
         env:
           ANDROIDIDE_TEST: true
+          GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
 
       - name: Upload Test Reports
         if: ${{ always() }}
