@@ -67,33 +67,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Add Android SDK Tools to PATH
-        run: |
-          echo Adding Android SDK tools to PATH...
-          setx PATH "%PATH%;%ANDROID_HOME%\cmdline-tools\latest\bin;%ANDROID_HOME%\emulator"
-          echo %PATH%
-        shell: cmd
-
-      - name: Create AVD
-        run: |
-          echo no | avdmanager.bat create avd -n test_avd -k "system-images;android-30;google_apis;x86_64" --force
-        shell: cmd
-
-      - name: Start Android Emulator
-        run: |
-          start /b emulator.bat -avd test_avd -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          powershell -Command "& {
-            $startTime = Get-Date;
-            while (!(adb shell getprop sys.boot_completed 2>&1 | Select-String '1')) {
-              if ((New-TimeSpan -Start $startTime -End (Get-Date)).TotalSeconds -gt 300) {
-                Write-Host 'Emulator boot timed out'; exit 1
-              }
-              Start-Sleep -Seconds 5;
-              Write-Host 'Waiting for emulator to boot...'
-            }
-          }"
-        shell: cmd
-
       - name: Run Instrumented Tests (Auto Install)
         run: |
           adb devices
