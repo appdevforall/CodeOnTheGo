@@ -34,7 +34,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: self-hosted
+    runs-on: macos-13
     timeout-minutes: 60
     steps:
       - name: Cancel Previous Runs
@@ -45,12 +45,13 @@ jobs:
       - name: Setup Git LFS
         run: |
           echo "Setting up Git LFS"
-          where git-lfs || (
+          if ! command -v git-lfs &> /dev/null; then
             echo "Installing Git LFS"
-            powershell -Command "Invoke-WebRequest -Uri https://github.com/git-lfs/git-lfs/releases/download/v3.4.1/git-lfs-windows-amd64-v3.4.1.zip -OutFile git-lfs.zip; Expand-Archive -Path git-lfs.zip -DestinationPath git-lfs; cd git-lfs; .\git-lfs-3.4.1\install.bat"
-          )
+            curl -L https://github.com/git-lfs/git-lfs/releases/download/v3.4.1/git-lfs-darwin-amd64-v3.4.1.tar.gz -o git-lfs.tar.gz
+            tar -xzf git-lfs.tar.gz
+            sudo ./git-lfs-3.4.1/git-lfs install
+          fi
           git lfs install
-        shell: cmd
 
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -60,7 +61,6 @@ jobs:
 
       - name: Pull Git LFS Files
         run: git lfs pull
-        shell: cmd
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -70,9 +70,7 @@ jobs:
 
       - name: Initialize Submodules
         run: |
-          git submodule init
-          git submodule update --remote
-        shell: cmd
+          git submodule update --init --remote
 
       - name: Restore Gradle Cache
         uses: actions/cache@v4
@@ -87,61 +85,88 @@ jobs:
       - name: Extract Commit Message
         id: extract_commit_message
         run: |
-          for /f "tokens=*" %%a in ('git log -1 --pretty=format:"%%B"') do (
-            set "COMMIT_MESSAGE=%%a"
-          )
-          echo Commit Message: %COMMIT_MESSAGE%
-          echo COMMIT_MESSAGE=%COMMIT_MESSAGE% >> %GITHUB_ENV%
-        shell: cmd
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          echo "Commit Message: $COMMIT_MESSAGE"
+          echo "COMMIT_MESSAGE=$COMMIT_MESSAGE" >> $GITHUB_ENV
 
       - name: Assemble Universal APK
         id: build_apk
         run: |
-          .\gradlew.bat assembleDebug
-          if %errorlevel% neq 0 exit /b %errorlevel%
-        shell: cmd
+          ./gradlew assembleDebug
 
       - name: Extract Branch Information
         id: extract_branch
         run: |
-          @echo off
-          rem Use the head ref for PR events; otherwise, fallback to the branch name
-          if defined GITHUB_HEAD_REF (
-            set "BRANCH_NAME=%GITHUB_HEAD_REF%"
-          ) else (
-            set "BRANCH_NAME=%GITHUB_REF:refs/heads/=%"
-          )
-          echo Branch: %BRANCH_NAME%
-          rem Extract Jira ticket pattern using PowerShell
-          powershell -Command "$branch = '%BRANCH_NAME%'; $match = [regex]::Match($branch, '[A-Z]+-[0-9]+'); if($match.Success) { $folder = $match.Value } else { $folder = '%BRANCH_NAME%' }; Write-Output \"Folder Name: $folder\"; \"FOLDER_NAME=$folder\" | Out-File -Append $env:GITHUB_ENV"
-        shell: cmd
+          if [ -n "$GITHUB_HEAD_REF" ]; then
+            BRANCH_NAME="$GITHUB_HEAD_REF"
+          else
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          fi
+          echo "Branch: $BRANCH_NAME"
+          FOLDER_NAME=$(echo "$BRANCH_NAME" | grep -oE '[A-Z]+-[0-9]+' || echo "$BRANCH_NAME")
+          echo "Folder Name: $FOLDER_NAME"
+          echo "FOLDER_NAME=$FOLDER_NAME" >> $GITHUB_ENV
 
-      - name: Download Firebase Service Account JSON using curl (CMD)
+      - name: Download Firebase Service Account JSON using curl
         id: download_service_account
-        shell: cmd
         run: |
           curl -L "https://jsonblob.com/api/jsonBlob/1354004779097055232" -o firebase-service-account.json
-          setlocal EnableDelayedExpansion
-          set "json="
-          for /f "usebackq delims=" %%a in (`type firebase-service-account.json`) do (
-            set "json=!json!%%a"
-          )
-          echo json=!json!>> %GITHUB_OUTPUT%
+          json=$(tr -d '\n' < firebase-service-account.json)
+          echo "json=$json" >> $GITHUB_OUTPUT
 
       - name: Upload APK to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
+          appId: codeonthego-64a92
           serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
           groups: testers
-          file: app\build\outputs\apk\debug\CodeOnTheGo-*.apk
+          file: app/build/outputs/apk/debug/CodeOnTheGo-*.apk
           releaseNotes: "Commit Message: ${{ env.COMMIT_MESSAGE }}"
 
       - name: Slack Notification
         run: |
-          @echo off
-          rem Use outputs from previous steps
-          set "TICKET_URL=https://appdevforall.atlassian.net/browse/%FOLDER_NAME%"
-          set "PAYLOAD={\"blocks\":[{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\":rocket: APK Build Completed\",\"emoji\":true}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Branch:*\n%FOLDER_NAME%\"},{\"type\":\"mrkdwn\",\"text\":\"*Commit Message:*\n%COMMIT_MESSAGE:~0,100%\"}]},{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Download Links:*\nAPK: Firebase Distribution\nJira Ticket: %TICKET_URL%\"}},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\":information_source: Build completed successfully\"}]}]}"
-          powershell -Command "$payload = '%PAYLOAD%'; $body = $payload | ConvertFrom-Json; Invoke-RestMethod -Uri 'https://hooks.slack.com/services/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' -Method Post -Body ($body | ConvertTo-Json -Depth 10) -ContentType 'application/json'"
-        shell: cmd
+          TICKET_URL="https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
+          PAYLOAD=$(cat <<EOF
+          {
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":rocket: APK Build Completed",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Branch:*\n${FOLDER_NAME}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Commit Message:*\n${COMMIT_MESSAGE:0:100}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Download Links:*\nAPK: Firebase Distribution\nJira Ticket: ${TICKET_URL}"
+                }
+              },
+              {
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": ":information_source: Build completed successfully"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF)
+curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" https://hooks.slack.com/services/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
