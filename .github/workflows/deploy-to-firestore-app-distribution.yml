@@ -1,4 +1,4 @@
-name: Build APK
+name: Build App for distribution
 permissions:
   contents: write
   actions: write
