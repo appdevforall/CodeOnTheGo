@@ -140,8 +140,8 @@
   <string name="idepref_about_title">Code on the Go Hakkında</string>
   <string name="idepref_build_clearCache_title">Gradle çöplerini temizle</string>
   <string name="idepref_build_clearCache_summary">Gradle önbellek dizinini temizle. Bu, Gradle tarafından indirilen tüm bağımlılıkları siler. Gerekli dosyalar bir sonraki derlemede(build) tekrar indirilecektir.</string>
-  <string name="idepref_build_customgradlecommands_title">Ek Gradle komutları</string>
-  <string name="idepref_build_customgradlecommands_summary">Her görevi yürütürken(execute) eklenecek ek komutları seçin</string>
+  <string name="idepref_build_customgradlecommands_title">Ek Gradle bayrakları</string>
+  <string name="idepref_build_customgradlecommands_summary">Her görevde kullanılacak ek Gradle bayraklarını seçin.</string>
   <string name="idepref_editor_fontsize_title">Font büyüklüğü</string>
   <string name="idepref_editor_fontsize_summary">Editörün font büyüklüğü</string>
   <string name="idepref_editor_paintingflags_title">Yazdırılamaz çizim bayrakları</string>
