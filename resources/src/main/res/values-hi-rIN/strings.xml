@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">थीम</string>
   <string name="idepref_general_themeSelector_summary">Code on the Go के लिए एक थीम चुनें (बदले जाने पर पुनः आरंभ करने की आवश्यकता है)।</string>
   <string name="idepref_general_projectConfig">प्रोजेक्ट कॉन्फ़िगरेशन</string>
-  <string name="msg_app_launch_failed">लांच विफल रहा. पहले एप्लिकेशन इंस्टॉल करें.</string>
+  <string name="msg_app_launch_failed">एप्लिकेशन को लॉन्च करने से पहले आपको इसे बिल्ड और इंस्टॉल करना होगा।</string>
   <string name="idepref_java_diagnosticEnabled_title">Java सोर्स कोड विश्लेषण सक्षम करें</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(प्रायोगिक) जावा स्रोत फ़ाइलों का गलतियों के लिए विश्लेषण किया जाना चाहिए या नहीं।</string>
   <string name="title_reload_color_schemes">कलर स्कीम्स को पुनः लोड करें</string>
