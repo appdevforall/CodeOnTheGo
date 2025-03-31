@@ -58,6 +58,7 @@ import com.itsaky.androidide.tasks.TaskExecutor.executeAsync
 import com.itsaky.androidide.tasks.TaskExecutor.executeAsyncProvideError
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
+import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -125,6 +126,32 @@ constructor(
     mediator.attach()
     binding.pager.isUserInputEnabled = false
     binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1 // Do not remove any views
+
+    for (i in 0 until binding.tabs.tabCount) {
+      val tab = binding.tabs.getTabAt(i) ?: continue
+      val tabView = tab.view
+
+      tabView.setOnLongClickListener {
+        val title = pagerAdapter.getTitle(i)
+        val tooltipMessage = when (title) {
+          context.getString(R.string.app_logs) -> context.getString(R.string.app_logs)
+          context.getString(R.string.ide_logs) -> context.getString(R.string.ide_logs)
+          else -> context.getString(R.string.default_tooltip)
+        }
+        TooltipUtils.showIDETooltip(
+          context,
+          tabView,
+          0,
+          tooltipMessage,
+          "More information about $title",
+          arrayListOf(Pair("Learn more", "~/help_top.html"))
+        ) { url ->
+          TooltipUtils.showWebPage(context, url)
+        }
+
+        true
+      }
+    }
 
     binding.tabs.addOnTabSelectedListener(
       object : OnTabSelectedListener {

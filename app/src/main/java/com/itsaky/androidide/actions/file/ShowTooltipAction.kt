@@ -43,15 +43,18 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
             activity?.getTooltipData(word)?.let { tooltipData ->
-                TooltipUtils.showEditorTooltip(
+                TooltipUtils.showIDETooltip(
                     context,
                     editor,
                     0,
-                    tooltipData,
-                ) { it -> activity.openFAQActivity(it) }
+                    tooltipData.detail,
+                    tooltipData.summary,
+                    tooltipData.buttons
+                ) { url ->
+                    activity.openFAQActivity(url)
+                }
             }
         }
-
         return true
     }
 
