@@ -27,7 +27,7 @@ plugins {
 subprojects {
   plugins.withId("com.android.library") {
     extensions.getByType(BaseExtension::class.java).apply {
-      compileSdkVersion(34)
+      compileSdkVersion(35)
 
       defaultConfig {
         minSdk = 26

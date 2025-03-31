@@ -88,6 +88,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
+import com.itsaky.androidide.ui.CustomSnackbar
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
@@ -313,8 +314,18 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
       return
     }
 
-    Snackbar.make(content.realContainer, string.msg_action_open_application, Snackbar.LENGTH_INDEFINITE)
-      .setAction(string.yes) { IntentUtils.launchApp(this, packageName) }.show()
+    val snackbar = CustomSnackbar(this, findViewById(android.R.id.content))
+    snackbar.show(
+      message = getString(R.string.msg_action_open_application),
+      textFirstAction = getString(R.string.yes),
+      textSecondaryAction = getString(R.string.no),
+      actionFirst = {
+        IntentUtils.launchApp(this, packageName)
+      },
+      actionSecondary = {
+        snackbar.dismiss()
+      }
+    )
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
