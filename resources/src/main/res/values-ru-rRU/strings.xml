@@ -140,8 +140,8 @@
   <string name="idepref_about_title">Об Code on the Go</string>
   <string name="idepref_build_clearCache_title">Очистить кэш Gradle</string>
   <string name="idepref_build_clearCache_summary">Очистить директорию кэша Gradle. Это удалит все зависимости, скачанные Gradle. Необходимые файлы будут вновь скачаны при следующей сборке.</string>
-  <string name="idepref_build_customgradlecommands_title">Дополнительные команды Gradle</string>
-  <string name="idepref_build_customgradlecommands_summary">Выберите дополнительные команды, которые будут добавлены при выполнении каждого сценария</string>
+  <string name="idepref_build_customgradlecommands_title">Дополнительные флаги Gradle</string>
+  <string name="idepref_build_customgradlecommands_summary">Выберите дополнительные флаги Gradle, которые будут использоваться для выполнения каждой задачи.</string>
   <string name="idepref_editor_fontsize_title">Размер шрифта</string>
   <string name="idepref_editor_fontsize_summary">Размер шрифта редактора</string>
   <string name="idepref_editor_paintingflags_title">Визуализировать непечатаемые символы</string>
@@ -359,7 +359,7 @@
   <string name="idepref_general_themeSelector_title">Тема</string>
   <string name="idepref_general_themeSelector_summary">Выберите тему оформления для Code on the Go (требуется перезапуск).</string>
   <string name="idepref_general_projectConfig">Настройки проекта</string>
-  <string name="msg_app_launch_failed">Ошибка запуска. Сначала установите приложение.</string>
+  <string name="msg_app_launch_failed">Вы должны собрать и установить приложение, прежде чем запустить его.</string>
   <string name="idepref_java_diagnosticEnabled_title">Активировать анализ</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(ЭКСПЕРЕМЕНТАЛЬНО) Анализировать исходные файлы Java на предмет ошибок.</string>
   <string name="title_reload_color_schemes">Перезагрузить цветовые схемы</string>

@@ -339,7 +339,7 @@ public final class TermuxConstants {
      */
 
     /** Termux app name */
-    public static final String TERMUX_APP_NAME = "AndroidIDE"; // Default: "Termux"
+    public static final String TERMUX_APP_NAME = "Code on the Go"; // Default: "Termux"
     /** Termux package name */
     public static final String TERMUX_PACKAGE_NAME = "com.itsaky.androidide"; // Default: "com.termux"
     /** Termux GitHub repo name */
