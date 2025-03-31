@@ -140,7 +140,7 @@
   <string name="idepref_about_title">Tentang Code on the Go</string>
   <string name="idepref_build_clearCache_title">Bersihkan cache Gradle</string>
   <string name="idepref_build_clearCache_summary">Membersihkan direktori cache Gradle. ini akan menghapus semua dependensi yang telah diunduh oleh Gradle. File yang diperlukan akan diunduh kembali pada build berikutnya.</string>
-  <string name="idepref_build_customgradlecommands_title">Penambahan perintah Gradle</string>
+  <string name="idepref_build_customgradlecommands_title">Tambahan flag Gradle</string>
   <string name="idepref_build_customgradlecommands_summary">Pilih tambahan perintah yang akan ditambahkan ketika melaksanakan setiap task</string>
   <string name="idepref_editor_fontsize_title">Ukuran huruf</string>
   <string name="idepref_editor_fontsize_summary">Ukuran huruf pada editor</string>
@@ -227,7 +227,7 @@
   <string name="err_invalid_data_by_intent">Intent mengembalikan data yang tidak valid</string>
   <string name="msg_select_from_primary_storage">Pilih direktori dari penyimpanan utama</string>
   <string name="err_authority_not_allowed">Otoritas \'%s\' tidak diizinkan</string>
-  <string name="idepref_useIcu_title">Gunakan ICU lib</string>
+  <string name="idepref_useIcu_title">Gunakan pustaka ICU</string>
   <string name="idepref_useIcu_summary">Gunakan perpustakaan ICU untuk menggunakan ambil tepi kata untuk pemilihan kata ketuk dua kali dan tekan lama.</string>
   <!--The text sorrounded with '@@' is spanned as clickable.-->
   <!--There must be exactly two '@@' sorrounding the text that should be clickable.-->
@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">Tema</string>
   <string name="idepref_general_themeSelector_summary">Pilih tema untuk Code on the Go (memerlukan restart).</string>
   <string name="idepref_general_projectConfig">Konfigurasi proyek</string>
-  <string name="msg_app_launch_failed">Peluncuran gagal. Instal aplikasinya terlebih dahulu.</string>
+  <string name="msg_app_launch_failed">Anda harus membangun dan menginstal aplikasi sebelum Anda dapat meluncurkannya.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostik diaktifkan</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EKSPERIMENTAL) Apakah file sumber Java harus dianalisis untuk kesalahan atau tidak.</string>
   <string name="title_reload_color_schemes">Muat ulang skema warna</string>
