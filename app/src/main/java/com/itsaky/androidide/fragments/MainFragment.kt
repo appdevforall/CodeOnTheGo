@@ -50,6 +50,7 @@ import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 
 class MainFragment : BaseFragment() {
 
@@ -136,14 +137,18 @@ class MainFragment : BaseFragment() {
         CoroutineScope(Dispatchers.IO).launch {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
             val item = dao.getTooltip(tag)
-            val buttons = item.buttons
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipUtils.showIDETooltip(
                         it,
                         view!!,
                         0,
-                        item
+                        IDETooltipItem(
+                            tooltipTag = item?.tooltipTag ?: "",
+                            detail = item?.detail ?: "",
+                            summary = item?.summary ?: "",
+                            buttons = item?.buttons ?: arrayListOf(),
+                        )
                     )
                 })
             }

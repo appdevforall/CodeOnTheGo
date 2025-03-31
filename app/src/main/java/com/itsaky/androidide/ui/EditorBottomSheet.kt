@@ -51,6 +51,7 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.TaskExecutor.CallbackWithError
@@ -142,12 +143,13 @@ constructor(
           context,
           tabView,
           0,
-          tooltipMessage,
-          "More information about $title",
-          arrayListOf(Pair("Learn more", "~/help_top.html"))
-        ) { url ->
-          TooltipUtils.showWebPage(context, url)
-        }
+          IDETooltipItem(
+            tooltipTag = tooltipMessage,
+            detail = tooltipMessage,
+            summary =  "More information about $title",
+            buttons = arrayListOf(Pair("Learn more", "~/help_top.html")),
+          ),
+        )
 
         true
       }
@@ -272,7 +274,7 @@ constructor(
     } else {
       0f
     }
-    
+
     val padding = insetBottom * paddingScale
     binding.headerContainer.apply {
       updateLayoutParams<ViewGroup.LayoutParams> {
