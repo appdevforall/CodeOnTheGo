@@ -143,9 +143,7 @@ class MainFragment : BaseFragment() {
                         it,
                         view!!,
                         0,
-                        item.detail,
-                        item.summary,
-                        buttons
+                        item
                     )
                 })
             }
