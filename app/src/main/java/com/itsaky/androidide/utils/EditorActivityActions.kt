@@ -43,6 +43,7 @@ import com.itsaky.androidide.actions.file.SaveFileAction
 import com.itsaky.androidide.actions.file.ShowTooltipAction
 import com.itsaky.androidide.actions.filetree.CopyPathAction
 import com.itsaky.androidide.actions.filetree.DeleteAction
+import com.itsaky.androidide.actions.filetree.HelpAction
 import com.itsaky.androidide.actions.filetree.NewFileAction
 import com.itsaky.androidide.actions.filetree.NewFolderAction
 import com.itsaky.androidide.actions.filetree.OpenWithAction
@@ -59,64 +60,73 @@ import com.itsaky.androidide.actions.text.UndoAction
  *
  * @author Akash Yadav
  */
-  class EditorActivityActions {
+class EditorActivityActions {
 
-    companion object {
+  companion object {
 
-      @JvmStatic
-      fun register(context: Context) {
-        clear()
-        val registry = ActionsRegistry.getInstance()
-        var order = 0
+    private const val ORDER_COPY_PATH = 100
+    private const val ORDER_DELETE = 200
+    private const val ORDER_NEW_FILE = 300
+    private const val ORDER_NEW_FOLDER = 400
+    private const val ORDER_OPEN_WITH = 500
+    private const val ORDER_RENAME = 600
+    private const val ORDER_HELP = 1000
 
-        // Toolbar actions
-        registry.registerAction(UndoAction(context, order++))
-        registry.registerAction(RedoAction(context, order++))
-        registry.registerAction(QuickRunWithCancellationAction(context, order++))
-        registry.registerAction(RunTasksAction(context, order++))
-        registry.registerAction(SaveFileAction(context, order++))
-        registry.registerAction(PreviewLayoutAction(context, order++))
-        registry.registerAction(FindActionMenu(context, order++))
-        registry.registerAction(ProjectSyncAction(context, order++))
-        registry.registerAction(ReloadColorSchemesAction(context, order++))
-        registry.registerAction(DisconnectLogSendersAction(context, order++))
-        registry.registerAction(LaunchAppAction(context, order++))
-        registry.registerAction(GitHubCommitAction(context, order++))
-        registry.registerAction(GitHubPushAction(context, order++))
-        registry.registerAction(GitHubFetchAction(context, order++))
-        registry.registerAction(GitHubPullAction(context, order++))
+    @JvmStatic
+    fun register(context: Context) {
+      clear()
+      val registry = ActionsRegistry.getInstance()
+      var order = 0
 
-        // editor text actions
-        registry.registerAction(ExpandSelectionAction(context, order++))
-        registry.registerAction(SelectAllAction(context, order++))
-        registry.registerAction(LongSelectAction(context, order++))
-        registry.registerAction(CutAction(context, order++))
-        registry.registerAction(CopyAction(context, order++))
-        registry.registerAction(PasteAction(context, order++))
-        registry.registerAction(FormatCodeAction(context, order++))
-        registry.registerAction(ShowTooltipAction(context,order++))
+      // Toolbar actions
+      registry.registerAction(UndoAction(context, order++))
+      registry.registerAction(RedoAction(context, order++))
+      registry.registerAction(QuickRunWithCancellationAction(context, order++))
+      registry.registerAction(RunTasksAction(context, order++))
+      registry.registerAction(SaveFileAction(context, order++))
+      registry.registerAction(PreviewLayoutAction(context, order++))
+      registry.registerAction(FindActionMenu(context, order++))
+      registry.registerAction(ProjectSyncAction(context, order++))
+      registry.registerAction(ReloadColorSchemesAction(context, order++))
+      registry.registerAction(DisconnectLogSendersAction(context, order++))
+      registry.registerAction(LaunchAppAction(context, order++))
+      registry.registerAction(GitHubCommitAction(context, order++))
+      registry.registerAction(GitHubPushAction(context, order++))
+      registry.registerAction(GitHubFetchAction(context, order++))
+      registry.registerAction(GitHubPullAction(context, order++))
 
-        // file tab actions
-        registry.registerAction(CloseFileAction(context, order++))
-        registry.registerAction(CloseOtherFilesAction(context, order++))
-        registry.registerAction(CloseAllFilesAction(context, order++))
+      // editor text actions
+      registry.registerAction(ExpandSelectionAction(context, order++))
+      registry.registerAction(SelectAllAction(context, order++))
+      registry.registerAction(LongSelectAction(context, order++))
+      registry.registerAction(CutAction(context, order++))
+      registry.registerAction(CopyAction(context, order++))
+      registry.registerAction(PasteAction(context, order++))
+      registry.registerAction(FormatCodeAction(context, order++))
+      registry.registerAction(ShowTooltipAction(context,order++))
 
-        // file tree actions
-        registry.registerAction(CopyPathAction(context, order++))
-        registry.registerAction(DeleteAction(context, order++))
-        registry.registerAction(NewFileAction(context, order++))
-        registry.registerAction(NewFolderAction(context, order++))
-        registry.registerAction(OpenWithAction(context, order++))
-        registry.registerAction(RenameAction(context, order++))
-      }
+      // file tab actions
+      registry.registerAction(CloseFileAction(context, order++))
+      registry.registerAction(CloseOtherFilesAction(context, order++))
+      registry.registerAction(CloseAllFilesAction(context, order++))
 
-      @JvmStatic
-      fun clear() {
-        // EDITOR_TEXT_ACTIONS should not be cleared as the language servers register actions there as
-        // well
-        val locations = arrayOf(EDITOR_TOOLBAR, EDITOR_FILE_TABS, EDITOR_FILE_TREE)
-        val registry = ActionsRegistry.getInstance()
-        locations.forEach(registry::clearActions)
-      }
+      // file tree actions
+      registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
+      registry.registerAction(DeleteAction(context, ORDER_DELETE))
+      registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
+      registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
+      registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
+      registry.registerAction(RenameAction(context, ORDER_RENAME))
+      registry.registerAction(HelpAction(context, ORDER_HELP))
+    }
+
+    @JvmStatic
+    fun clear() {
+      // EDITOR_TEXT_ACTIONS should not be cleared as the language servers register actions there as
+      // well
+      val locations = arrayOf(EDITOR_TOOLBAR, EDITOR_FILE_TABS, EDITOR_FILE_TREE)
+      val registry = ActionsRegistry.getInstance()
+      locations.forEach(registry::clearActions)
     }
   }
+}
