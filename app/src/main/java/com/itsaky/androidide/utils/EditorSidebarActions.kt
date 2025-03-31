@@ -91,17 +91,13 @@ internal object EditorSidebarActions {
     rail.menu.clear()
 
     val data = ActionData()
-    data.put(Context::class.java, context) // needed for inflating the menu
+    data.put(Context::class.java, context)
 
     val titleRef = WeakReference(binding.title)
-    val params = FillMenuParams(data, ActionItem.Location.EDITOR_SIDEBAR,
-      rail.menu) { actionsRegistry, action, item, actionsData ->
-
+    val params = FillMenuParams(data, ActionItem.Location.EDITOR_SIDEBAR, rail.menu) { actionsRegistry, action, item, actionsData ->
       action as SidebarActionItem
 
       if (action.fragmentClass == null) {
-        // this action does not show any fragment
-        // execute the action instead
         (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
         return@FillMenuParams true
       }
@@ -112,7 +108,6 @@ internal object EditorSidebarActions {
           restoreState = true
         })
 
-        // Return true only if the destination we've navigated to matches the MenuItem
         val result = controller.currentDestination?.matchDestination(action.id) == true
         if (result) {
           item.isChecked = true
@@ -127,12 +122,31 @@ internal object EditorSidebarActions {
 
     registry.fillMenu(params)
 
+    rail.menu.forEach { item ->
+      val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
+      if (action != null) {
+        rail.findViewById<View>(item.itemId)?.setOnLongClickListener {
+          TooltipUtils.showIDETooltip(
+            context,
+            rail,
+            0,
+            action.label,
+            "Much information about ${action.label}",
+            arrayListOf(Pair("Learn more", "~/help_top.html"))
+          ) { url ->
+            TooltipUtils.showWebPage(context, url)
+          }
+          true
+        }
+      }
+    }
+
     controller.graph = controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
       actions.forEach { (actionId, action) ->
         if (action !is SidebarActionItem) {
           throw IllegalStateException(
             "Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
-                " must implement ${SidebarActionItem::class.java.simpleName}")
+                    " must implement ${SidebarActionItem::class.java.simpleName}")
         }
 
         val fragment = action.fragmentClass ?: return@forEach
@@ -158,7 +172,7 @@ internal object EditorSidebarActions {
           controller: NavController,
           destination: NavDestination,
           arguments: Bundle?
-        ) {
+        ) { 
           val railView = railRef.get()
           if (railView == null) {
             controller.removeOnDestinationChangedListener(this)
@@ -172,7 +186,7 @@ internal object EditorSidebarActions {
           }
         }
       })
-    // make sure the 'File tree' item is checked by default
+
     rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
       it.isChecked = true
       binding.title.text = it.title
@@ -181,11 +195,7 @@ internal object EditorSidebarActions {
     rail.viewTreeObserver.addOnPreDrawListener {
       val railView = railRef.get()
       if (railView != null) {
-
-        // set long click action to terminal action
-        // noinspection RestrictedApi
-        (railView.menuView as NavigationBarMenuView)
-          .findViewById<View>(TerminalSidebarAction.ID.hashCode())
+        railView.findViewById<View>(TerminalSidebarAction.ID.hashCode())
           ?.setOnLongClickListener {
             TerminalSidebarAction.startTerminalActivity(data, true)
             true

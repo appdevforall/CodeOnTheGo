@@ -22,7 +22,10 @@ import static com.itsaky.androidide.utils.ResourceUtilsKt.resolveAttr;
 import android.annotation.SuppressLint;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.TooltipCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import com.itsaky.androidide.R;
 import com.itsaky.androidide.databinding.LayoutSymbolItemBinding;
@@ -30,7 +33,9 @@ import com.itsaky.androidide.editor.ui.IDEEditor;
 import com.itsaky.androidide.models.Symbol;
 import io.github.rosemoe.sora.widget.SelectionMovement;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class SymbolInputAdapter extends RecyclerView.Adapter<SymbolInputAdapter.VH> {
@@ -95,9 +100,24 @@ public class SymbolInputAdapter extends RecyclerView.Adapter<SymbolInputAdapter.
     final Symbol symbol = symbols.get(position);
     holder.binding.symbol.setText(symbol.getLabel());
     holder.binding.symbol.setTextColor(
-        resolveAttr(holder.binding.symbol.getContext(), R.attr.colorOnSurface));
-    holder.binding.symbol.setOnClickListener(
-        __ -> insertSymbol(symbol.getCommit(), symbol.getOffset()));
+            resolveAttr(holder.binding.symbol.getContext(), R.attr.colorOnSurface));
+
+    String description = symbol.getDescription();
+
+    if (!description.isEmpty()) {
+      TooltipCompat.setTooltipText(holder.binding.symbol, description);
+    }
+
+    holder.binding.symbol.setOnClickListener(view ->
+            insertSymbol(symbol.getCommit(), symbol.getOffset())
+    );
+
+    holder.binding.symbol.setOnLongClickListener(view -> {
+      if (!description.isEmpty()) {
+        Toast.makeText(view.getContext(), description, Toast.LENGTH_SHORT).show();
+      }
+      return true;
+    });
   }
 
   @Override
