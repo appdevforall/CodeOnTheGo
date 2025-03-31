@@ -140,7 +140,7 @@
   <string name="idepref_about_title">Sobre o Code on the Go</string>
   <string name="idepref_build_clearCache_title">Limpar caches do Gradle</string>
   <string name="idepref_build_clearCache_summary">Limpar o diretório de caches do Gradle. Isso excluirá todas as dependências baixadas pelo Gradle. Os arquivos necessários serão baixados novamente na próxima compilação.</string>
-  <string name="idepref_build_customgradlecommands_title">Comandos adicionais do Gradle</string>
+  <string name="idepref_build_customgradlecommands_title">Flags adicionais do Gradle</string>
   <string name="idepref_build_customgradlecommands_summary">Escolha comandos adicionais que serão adicionados durante a execução de cada tarefa</string>
   <string name="idepref_editor_fontsize_title">Tamanho da fonte</string>
   <string name="idepref_editor_fontsize_summary">Tamanho da fonte do editor</string>
@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">Tema</string>
   <string name="idepref_general_themeSelector_summary">Selecione um tema para o Code on the Go (requer reinicialização).</string>
   <string name="idepref_general_projectConfig">Configuração do projeto</string>
-  <string name="msg_app_launch_failed">Falha ao iniciar. Instale o aplicativo primeiro.</string>
+  <string name="msg_app_launch_failed">Você deve compilar e instalar o aplicativo antes de poder iniciá-lo.</string>
   <string name="idepref_java_diagnosticEnabled_title">Habilitar diagnósticos</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EXPERIMENTAL) Os arquivos de código-fonte Java serão analisados para detecção de erros.</string>
   <string name="title_reload_color_schemes">Recarregar esquema de cores</string>

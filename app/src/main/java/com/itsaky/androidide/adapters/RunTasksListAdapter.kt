@@ -24,6 +24,7 @@ import com.itsaky.androidide.adapters.RunTasksListAdapter.VH
 import com.itsaky.androidide.databinding.LayoutRunTaskItemBinding
 import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.tooling.api.models.GradleTask
+import com.itsaky.androidide.utils.AndroidUtils
 
 /**
  * Adapter for showing tasks list in [RunTaskDialogFragment]
@@ -50,8 +51,8 @@ constructor(
     val task = data.data
 
     binding.check.isChecked = data.isChecked
-    binding.taskPath.text = task.path
-    binding.taskDesc.text = task.description
+    binding.taskPath.text = AndroidUtils.capitalizeWords(task.path)
+    binding.taskDesc.text = AndroidUtils.capitalizeWords(task.description)
 
     binding.root.setOnClickListener {
       data.isChecked = !data.isChecked

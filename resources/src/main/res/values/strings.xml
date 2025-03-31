@@ -170,8 +170,8 @@
   <string name="idepref_about_title">About Code on the Go</string>
   <string name="idepref_build_clearCache_title">Clear Gradle caches</string>
   <string name="idepref_build_clearCache_summary">Clear Gradle caches directory. This will delete all dependencies downloaded by Gradle. Required files will be downloaded again in next build.</string>
-  <string name="idepref_build_customgradlecommands_title">Additional Gradle commands</string>
-  <string name="idepref_build_customgradlecommands_summary">Choose additional commands that will be added while executing every task</string>
+  <string name="idepref_build_customgradlecommands_title">Additional Gradle flags</string>
+  <string name="idepref_build_customgradlecommands_summary">Choose additional Gradle flags to execute with every task.</string>
   <string name="idepref_editor_fontsize_title">Font size</string>
   <string name="idepref_editor_fontsize_summary">Font size of the editor</string>
   <string name="idepref_editor_paintingflags_title">Non-printable painting flags</string>
@@ -264,7 +264,7 @@
   <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
   <string name="msg_select_from_primary_storage">Select a directory from primary storage</string>
   <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
-  <string name="idepref_useIcu_title">Use ICU lib</string>
+  <string name="idepref_useIcu_title">Use ICU library</string>
   <string name="idepref_useIcu_summary">Use ICU library to use retrive word edges for double-tap and long-press word selection.</string>
 
   <!--The text sorrounded with '@@' is spanned as clickable.-->
@@ -450,7 +450,7 @@
   <string name="idepref_general_themeSelector_title">Theme</string>
   <string name="idepref_general_themeSelector_summary">Select a theme for Code on the Go (requires restart).</string>
   <string name="idepref_general_projectConfig">Project configuration</string>
-  <string name="msg_app_launch_failed">Launch failed. Install the application first.</string>
+  <string name="msg_app_launch_failed">You must build and install the app before you can launch it.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostics enabled</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EXPERIMENTAL) Whether the Java source files should be analyzed for errors or not.</string>
   <string name="title_reload_color_schemes">Reload color schemes</string>

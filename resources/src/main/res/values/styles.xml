@@ -34,6 +34,7 @@
   </style>
 
   <style name="Theme.AndroidIDE" parent="Theme.AndroidIDE.Styled">
+    <item name="android:background">@color/white</item>
     <!-- Left drawer. -->
     <item name="buttonBarButtonStyle">@style/TermuxActivity.Drawer.ButtonBarStyle.Light</item>
     <item name="termuxActivityDrawerBackground">@android:color/white</item>
@@ -59,7 +60,7 @@
 
   <style name="AppTheme.Splash" parent="Theme.SplashScreen">
     <item name="windowSplashScreenBackground">@color/splash_bg</item>
-    <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_animated</item>
+    <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
     <item name="windowSplashScreenAnimationDuration">200</item>
     <item name="postSplashScreenTheme">@style/Theme.AndroidIDE</item>XZ
   </style>

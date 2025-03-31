@@ -139,8 +139,8 @@
   <string name="idepref_about_title">关于 Code on the Go</string>
   <string name="idepref_build_clearCache_title">清除 Gradle 缓存</string>
   <string name="idepref_build_clearCache_summary">清除 Gradle 缓存目录。这将删除 Gradle 下载的所有依赖项，所需的文件将在下一次构建中重新下载。</string>
-  <string name="idepref_build_customgradlecommands_title">Gradle 命令附加</string>
-  <string name="idepref_build_customgradlecommands_summary">选择执行每个任务时将添加的其他命令</string>
+  <string name="idepref_build_customgradlecommands_title">Gradle 附加标志</string>
+  <string name="idepref_build_customgradlecommands_summary">选择在执行每个任务时使用的额外 Gradle 标志。</string>
   <string name="idepref_editor_fontsize_title">字体大小</string>
   <string name="idepref_editor_fontsize_summary">编辑器的字体大小</string>
   <string name="idepref_editor_paintingflags_title">绘制不可打印字符标志</string>
@@ -357,7 +357,7 @@
   <string name="idepref_general_themeSelector_title">主题</string>
   <string name="idepref_general_themeSelector_summary">选择 Code on the Go 主题（需要重启）。</string>
   <string name="idepref_general_projectConfig">项目配置</string>
-  <string name="msg_app_launch_failed">启动失败，请先安装应用。</string>
+  <string name="msg_app_launch_failed">在启动应用之前，必须先构建并安装该应用。</string>
   <string name="idepref_java_diagnosticEnabled_title">启用诊断</string>
   <string name="idepref_java_diagnosticsEnabled_summary">（实验性）是否应该分析 Java 源文件的错误。</string>
   <string name="title_reload_color_schemes">重载配色方案</string>
