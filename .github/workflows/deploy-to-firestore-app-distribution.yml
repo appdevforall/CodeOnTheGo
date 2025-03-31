@@ -104,6 +104,13 @@ jobs:
       - name: Set branch name
         run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
+      # New step: Extract Jira Ticket link from branch name (assumes branch name in format feature/TICKET)
+      - name: Extract Jira Ticket
+        id: extract_jira
+        run: |
+          FOLDER_NAME=$(echo "$BRANCH_NAME" | cut -d'/' -f2)
+          echo "JIRA_TICKET=https://appdevforall.atlassian.net/browse/${FOLDER_NAME}" >> $GITHUB_OUTPUT
+
       - name: upload artifact to Firebase App Distribution
         id: firebase_upload
         uses: emertozd/Firebase-Distribution-Github-Action@v2
@@ -112,7 +119,7 @@ jobs:
           serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
           groups: testers
           file: ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: ${{ github.event.head_commit.message }}
+          releaseNotes: ${{ github.event.head_commit.message }}&#10;${{ steps.extract_jira.outputs.JIRA_TICKET }}
 
       - name: Slack Notification
         run: |
