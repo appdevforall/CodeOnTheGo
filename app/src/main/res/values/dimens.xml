@@ -21,4 +21,5 @@
 
   <dimen name="tooltip_padding">8dp</dimen>
   <dimen name="faq_bottom_padding">24dp</dimen>
+  <dimen name="snackbar_offset_bottom">28dp</dimen>
 </resources>

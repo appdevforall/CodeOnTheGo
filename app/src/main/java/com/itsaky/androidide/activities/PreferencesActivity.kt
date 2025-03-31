@@ -65,6 +65,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
   }
 
   override fun onApplySystemBarInsets(insets: Insets) {
+    val binding = _binding ?: return
     val toolbar: View = binding.toolbar
     toolbar.setPadding(
       toolbar.paddingLeft + insets.left,

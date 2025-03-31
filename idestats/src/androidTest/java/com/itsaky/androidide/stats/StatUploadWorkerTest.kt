@@ -75,6 +75,6 @@ class StatUploadWorkerTest {
     testDriver.setPeriodDelayMet(request.id)
 
     val workInfo = workManager.getWorkInfoById(request.id).get()
-    assertThat(workInfo.state).isEqualTo(WorkInfo.State.ENQUEUED)
+    assertThat(workInfo?.state).isEqualTo(WorkInfo.State.ENQUEUED)
   }
 }

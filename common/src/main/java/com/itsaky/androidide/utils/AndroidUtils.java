@@ -209,4 +209,22 @@ public class AndroidUtils {
     }
     return domain;
   }
+
+  public static String capitalizeWords(String text) {
+    if (text == null || text.isEmpty()) {
+      return text;
+    }
+
+    String[] words = text.toLowerCase().split(" ");
+    StringBuilder result = new StringBuilder();
+
+    for (String word : words) {
+      if (!word.isEmpty()) {
+        String capitalizedWord = word.substring(0, 1).toUpperCase() + word.substring(1);
+        result.append(capitalizedWord).append(" ");
+      }
+    }
+
+    return result.toString().trim();
+  }
 }
