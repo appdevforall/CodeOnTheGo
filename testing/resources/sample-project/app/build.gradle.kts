@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.itsaky.androidide.template.Java.kts"
-    compileSdk = 33
+    compileSdk = 35
     
     defaultConfig {
         applicationId = "com.itsaky.androidide.template.Java.kts"
