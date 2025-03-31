@@ -27,6 +27,7 @@ import com.google.android.material.shape.CornerFamily
 import com.itsaky.androidide.adapters.TemplateListAdapter.ViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateListItemBinding
 import com.itsaky.androidide.templates.Template
+import com.itsaky.androidide.utils.AndroidUtils
 
 /**
  * [RecyclerView.Adapter] for showing templates in a [RecyclerView].
@@ -62,7 +63,8 @@ class TemplateListAdapter(
         root.visibility = View.INVISIBLE
         return@apply
       }
-      templateName.setText(template.templateName)
+      val originalText = templateName.context.getString(template.templateName)
+      templateName.text = AndroidUtils.capitalizeWords(originalText)
       templateIcon.setImageResource(template.thumb)
       templateIcon.shapeAppearanceModel =
         templateIcon.shapeAppearanceModel.toBuilder()
