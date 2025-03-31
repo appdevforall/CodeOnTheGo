@@ -141,8 +141,8 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_about_title">À propos de Code on the Go</string>
   <string name="idepref_build_clearCache_title">Nettoyer le cache de Gradle</string>
   <string name="idepref_build_clearCache_summary">Nettoyer le cache des dossiers de Gradle. Cela supprimera toutes les dépendances téléchargées Gradle. les fichiers nécessaires seront retélechargées à la prochaine compilation.</string>
-  <string name="idepref_build_customgradlecommands_title">Commandes gradle supplémentaires</string>
-  <string name="idepref_build_customgradlecommands_summary">Choisissez des commandes supplémentaire qui seront ajouter lors des prochaines exécutions de tâches</string>
+  <string name="idepref_build_customgradlecommands_title">Drapeaux Gradle supplémentaires</string>
+  <string name="idepref_build_customgradlecommands_summary">Choisissez des commandes supplémentaires qui seront ajoutées lors de </string>
   <string name="idepref_editor_fontsize_title">Taille des caractères</string>
   <string name="idepref_editor_fontsize_summary">Taille des caractères de l\'éditeur</string>
   <string name="idepref_editor_paintingflags_title">Non-printable painting flags </string>

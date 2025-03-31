@@ -140,7 +140,7 @@
   <string name="idepref_about_title">Code on the Go के बारे में</string>
   <string name="idepref_build_clearCache_title">क्लियर ग्रेडल कैश</string>
   <string name="idepref_build_clearCache_summary">ग्रेडल कैश डायरेक्ट्री साफ़ करें। यह ग्रेडल द्वारा डाउनलोड की गई सभी डिपेंडेंसीज को हटा देगा। आवश्यक फ़ाइलें अगले निर्माण में फिर से डाउनलोड की जाएंगी।</string>
-  <string name="idepref_build_customgradlecommands_title">अतिरिक्त ग्रेडल कमांड्स</string>
+  <string name="idepref_build_customgradlecommands_title">अतिरिक्त Gradle फ्लैग्स</string>
   <string name="idepref_build_customgradlecommands_summary">अतिरिक्त कमांड्स चुनें जो प्रत्येक कार्य को निष्पादित करते समय जोड़े जाएंगे</string>
   <string name="idepref_editor_fontsize_title">फॉन्ट साइज</string>
   <string name="idepref_editor_fontsize_summary">एडिटर का फ़ॉन्ट साइज</string>

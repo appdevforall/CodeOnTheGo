@@ -142,8 +142,7 @@
   <string name="idepref_build_clearCache_title">Gradle ক্যাশে সাফ করুন</string>
   <string name="idepref_build_clearCache_summary">Gradle ক্যাশে ডিরেক্টরি সাফ করুন। এটি Gradle দ্বারা ডাউনলোড করা সমস্ত নির্ভরতা মুছে ফেলবে। পরবর্তী বিল্ডে প্রয়োজনীয় ফাইলগুলি আবার ডাউনলোড করা হবে৷</string>
   <string name="idepref_build_customgradlecommands_title">অতিরিক্ত গ্রেডেল কমান্ড</string>
-  <string name="idepref_build_customgradlecommands_summary">অতিরিক্ত কমান্ড নির্বাচন করুন যা প্রতিটি কাজ সম্পাদন করার সময় যোগ করা হবে</string>
-  <string name="idepref_editor_fontsize_title">ফন্টের আকার</string>
+  <string name="idepref_build_customgradlecommands_summary">অতিরিক্ত কমান্ড নির্বাচন করুন যা প্রতিটি কাজ সম্পাদন করার সময় যোগ করা হবে</string>  <string name="idepref_editor_fontsize_title">ফন্টের আকার</string>
   <string name="idepref_editor_fontsize_summary">সম্পাদকের ফন্টের আকার</string>
   <string name="idepref_editor_paintingflags_title">অমুদ্রণযোগ্য অক্ষরগুলি</string>
   <string name="idepref_editor_paintingflags_summary">এডিটর দ্বারা কোন অমুদ্রণযোগ্য অক্ষরগুলি আঁকা উচিত তা চয়ন করুন</string>
