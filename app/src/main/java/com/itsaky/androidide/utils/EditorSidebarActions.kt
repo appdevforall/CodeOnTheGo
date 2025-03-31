@@ -47,6 +47,7 @@ import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import java.lang.ref.WeakReference
 
 
@@ -130,12 +131,13 @@ internal object EditorSidebarActions {
             context,
             rail,
             0,
-            action.label,
-            "Much information about ${action.label}",
-            arrayListOf(Pair("Learn more", "~/help_top.html"))
-          ) { url ->
-            TooltipUtils.showWebPage(context, url)
-          }
+            IDETooltipItem(
+              tooltipTag = action.label,
+              detail = action.label,
+              summary = "Much information about ${action.label}",
+              buttons = arrayListOf(Pair("Learn more", "~/help_top.html"))
+            )
+          )
           true
         }
       }
