@@ -38,7 +38,9 @@ import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
+import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
@@ -47,201 +49,201 @@ import java.io.File
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
-  private val viewModel by viewModels<MainViewModel>()
-  private var _binding: ActivityMainBinding? = null
+    private val viewModel by viewModels<MainViewModel>()
+    private var _binding: ActivityMainBinding? = null
 
-  companion object {
-    private var instance: MainActivity? = null
+    companion object {
+        private var instance: MainActivity? = null
 
-    // This method will be used to get access to MainActivity instance
-    fun getInstance(): MainActivity? {
-      return instance
+        // This method will be used to get access to MainActivity instance
+        fun getInstance(): MainActivity? {
+            return instance
+        }
     }
-  }
 
-  private val onBackPressedCallback = object : OnBackPressedCallback(true) {
-    override fun handleOnBackPressed() {
-      viewModel.apply {
+    private val onBackPressedCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            viewModel.apply {
 
-        // Ignore back press if project creating is in progress
-        if (creatingProject.value == true) {
-          return@apply
+                // Ignore back press if project creating is in progress
+                if (creatingProject.value == true) {
+                    return@apply
+                }
+
+                val newScreen = when (currentScreen.value) {
+                    SCREEN_TEMPLATE_DETAILS -> SCREEN_TEMPLATE_LIST
+                    SCREEN_TEMPLATE_LIST -> SCREEN_MAIN
+                    else -> SCREEN_MAIN
+                }
+
+                if (currentScreen.value != newScreen) {
+                    setScreen(newScreen)
+                }
+            }
+        }
+    }
+
+    private val binding: ActivityMainBinding
+        get() = checkNotNull(_binding)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        openLastProject()
+
+        viewModel.currentScreen.observe(this) { screen ->
+            if (screen == -1) {
+                return@observe
+            }
+
+            onScreenChanged(screen)
+            onBackPressedCallback.isEnabled = screen != SCREEN_MAIN
         }
 
-        val newScreen = when (currentScreen.value) {
-          SCREEN_TEMPLATE_DETAILS -> SCREEN_TEMPLATE_LIST
-          SCREEN_TEMPLATE_LIST -> SCREEN_MAIN
-          else -> SCREEN_MAIN
+        // Data in a ViewModel is kept between activity rebuilds on
+        // configuration changes (i.e. screen rotation)
+        // * previous == -1 and current == -1 -> this is an initial instantiation of the activity
+        if (viewModel.currentScreen.value == -1 && viewModel.previousScreen == -1) {
+            viewModel.setScreen(SCREEN_MAIN)
+        } else {
+            onScreenChanged(viewModel.currentScreen.value)
         }
 
-        if (currentScreen.value != newScreen) {
-          setScreen(newScreen)
+        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+        instance = this
+    }
+
+    override fun onApplySystemBarInsets(insets: Insets) {
+        binding.fragmentContainersParent.setPadding(
+            insets.left, 0, insets.right, insets.bottom
+        )
+    }
+
+    private fun onScreenChanged(screen: Int?) {
+        val previous = viewModel.previousScreen
+        if (previous != -1) {
+            // template list -> template details
+            // ------- OR -------
+            // template details -> template list
+            val setAxisToX =
+                (previous == SCREEN_TEMPLATE_LIST || previous == SCREEN_TEMPLATE_DETAILS) && (screen == SCREEN_TEMPLATE_LIST || screen == SCREEN_TEMPLATE_DETAILS)
+
+            val axis = if (setAxisToX) {
+                MaterialSharedAxis.X
+            } else {
+                MaterialSharedAxis.Y
+            }
+
+            val isForward = (screen ?: 0) - previous == 1
+
+            val transition = MaterialSharedAxis(axis, isForward)
+            transition.doOnEnd {
+                viewModel.isTransitionInProgress = false
+                onBackPressedCallback.isEnabled = viewModel.currentScreen.value != SCREEN_MAIN
+            }
+
+            viewModel.isTransitionInProgress = true
+            TransitionManager.beginDelayedTransition(binding.root, transition)
         }
-      }
-    }
-  }
 
-  private val binding: ActivityMainBinding
-    get() = checkNotNull(_binding)
+        val currentFragment = when (screen) {
+            SCREEN_MAIN -> binding.main
+            SCREEN_TEMPLATE_LIST -> binding.templateList
+            SCREEN_TEMPLATE_DETAILS -> binding.templateDetails
+            TOOLTIPS_WEB_VIEW -> binding.tooltipWebView
+            SCREEN_SAVED_PROJECTS -> binding.savedProjectsView
+            SCREEN_DELETE_PROJECTS -> binding.deleteProjectsView
+            else -> throw IllegalArgumentException("Invalid screen id: '$screen'")
+        }
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-
-    //Thread.setDefaultUncaughtExceptionHandler { t: Thread?, e: Throwable ->
-    //  try {
-    //    Sentry.captureException(e)
-    //  } catch (ex: Exception) {
-    //    ex.printStackTrace()
-    //  }
-    //}
-
-    openLastProject()
-
-    viewModel.currentScreen.observe(this) { screen ->
-      if (screen == -1) {
-        return@observe
-      }
-
-      onScreenChanged(screen)
-      onBackPressedCallback.isEnabled = screen != SCREEN_MAIN
+        for (fragment in arrayOf(
+            binding.main,
+            binding.templateList,
+            binding.templateDetails,
+            binding.tooltipWebView,
+            binding.savedProjectsView,
+            binding.deleteProjectsView,
+        )) {
+            fragment.isVisible = fragment == currentFragment
+        }
     }
 
-    // Data in a ViewModel is kept between activity rebuilds on
-    // configuration changes (i.e. screen rotation)
-    // * previous == -1 and current == -1 -> this is an initial instantiation of the activity
-    if (viewModel.currentScreen.value == -1 && viewModel.previousScreen == -1) {
-      viewModel.setScreen(SCREEN_MAIN)
-    } else {
-      onScreenChanged(viewModel.currentScreen.value)
+    override fun bindLayout(): View {
+        _binding = ActivityMainBinding.inflate(layoutInflater)
+        return binding.root
     }
 
-    onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-    instance = this
-  }
-
-  override fun onApplySystemBarInsets(insets: Insets) {
-    binding.fragmentContainersParent.setPadding(
-      insets.left,
-      0,
-      insets.right,
-      insets.bottom
-    )
-  }
-
-  private fun onScreenChanged(screen: Int?) {
-    val previous = viewModel.previousScreen
-    if (previous != -1) {
-      // template list -> template details
-      // ------- OR -------
-      // template details -> template list
-      val setAxisToX =
-        (previous == SCREEN_TEMPLATE_LIST || previous == SCREEN_TEMPLATE_DETAILS) && (screen == SCREEN_TEMPLATE_LIST || screen == SCREEN_TEMPLATE_DETAILS)
-
-      val axis = if (setAxisToX) {
-        MaterialSharedAxis.X
-      } else {
-        MaterialSharedAxis.Y
-      }
-
-      val isForward = (screen ?: 0) - previous == 1
-
-      val transition = MaterialSharedAxis(axis, isForward)
-      transition.doOnEnd {
-        viewModel.isTransitionInProgress = false
-        onBackPressedCallback.isEnabled = viewModel.currentScreen.value != SCREEN_MAIN
-      }
-
-      viewModel.isTransitionInProgress = true
-      TransitionManager.beginDelayedTransition(binding.root, transition)
+    private fun openLastProject() {
+        binding.root.post { tryOpenLastProject() }
     }
 
-    val currentFragment = when (screen) {
-      SCREEN_MAIN -> binding.main
-      SCREEN_TEMPLATE_LIST -> binding.templateList
-      SCREEN_TEMPLATE_DETAILS -> binding.templateDetails
-      TOOLTIPS_WEB_VIEW -> binding.tooltipWebView
-      else -> throw IllegalArgumentException("Invalid screen id: '$screen'")
+    private fun tryOpenLastProject() {
+        if (!GeneralPreferences.autoOpenProjects) {
+            return
+        }
+
+        val openedProject = GeneralPreferences.lastOpenedProject
+        if (GeneralPreferences.NO_OPENED_PROJECT == openedProject) {
+            return
+        }
+
+        if (TextUtils.isEmpty(openedProject)) {
+            app
+            flashInfo(string.msg_opened_project_does_not_exist)
+            return
+        }
+
+        val project = File(openedProject)
+        if (!project.exists()) {
+            flashInfo(string.msg_opened_project_does_not_exist)
+            return
+        }
+
+        if (GeneralPreferences.confirmProjectOpen) {
+            askProjectOpenPermission(project)
+            return
+        }
+
+        openProject(project)
     }
 
-    for (fragment in arrayOf(binding.main, binding.templateList, binding.templateDetails, binding.tooltipWebView)) {
-      fragment.isVisible = fragment == currentFragment
-    }
-  }
-
-  override fun bindLayout(): View {
-    _binding = ActivityMainBinding.inflate(layoutInflater)
-    return binding.root
-  }
-
-  private fun openLastProject() {
-    binding.root.post { tryOpenLastProject() }
-  }
-
-  private fun tryOpenLastProject() {
-    if (!GeneralPreferences.autoOpenProjects) {
-      return
+    private fun askProjectOpenPermission(root: File) {
+        val builder = DialogUtils.newMaterialDialogBuilder(this)
+        builder.setTitle(string.title_confirm_open_project)
+        builder.setMessage(getString(string.msg_confirm_open_project, root.absolutePath))
+        builder.setCancelable(false)
+        builder.setPositiveButton(string.yes) { _, _ -> openProject(root) }
+        builder.setNegativeButton(string.no, null)
+        builder.show()
     }
 
-    val openedProject = GeneralPreferences.lastOpenedProject
-    if (GeneralPreferences.NO_OPENED_PROJECT == openedProject) {
-      return
+    internal fun openProject(root: File) {
+        ProjectManagerImpl.getInstance().projectPath = root.absolutePath
+        startActivity(Intent(this, EditorActivityKt::class.java))
     }
 
-    if (TextUtils.isEmpty(openedProject)) {
-      app
-      flashInfo(string.msg_opened_project_does_not_exist)
-      return
+    internal fun deleteProject(root: File) {
+        ProjectManagerImpl.getInstance().projectPath = root.absolutePath
+        try {
+            val directory = File(ProjectManagerImpl.getInstance().projectPath)
+            val parentDir = directory.parent
+            deleteRecursive(directory)
+        } catch (e: Exception) {
+            flashInfo(string.msg_delete_existing_project_failed)
+        }
     }
 
-    val project = File(openedProject)
-    if (!project.exists()) {
-      flashInfo(string.msg_opened_project_does_not_exist)
-      return
+    fun deleteRecursive(fileOrDirectory: File) {
+        if (fileOrDirectory.isDirectory) for (child in fileOrDirectory.listFiles()) deleteRecursive(
+            child
+        )
+
+        fileOrDirectory.delete()
     }
 
-    if (GeneralPreferences.confirmProjectOpen) {
-      askProjectOpenPermission(project)
-      return
+    override fun onDestroy() {
+        ITemplateProvider.getInstance().release()
+        super.onDestroy()
+        _binding = null
     }
-
-    openProject(project)
-  }
-
-  private fun askProjectOpenPermission(root: File) {
-    val builder = DialogUtils.newMaterialDialogBuilder(this)
-    builder.setTitle(string.title_confirm_open_project)
-    builder.setMessage(getString(string.msg_confirm_open_project, root.absolutePath))
-    builder.setCancelable(false)
-    builder.setPositiveButton(string.yes) { _, _ -> openProject(root) }
-    builder.setNegativeButton(string.no, null)
-    builder.show()
-  }
-
-  internal fun openProject(root: File) {
-    ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-    startActivity(Intent(this, EditorActivityKt::class.java))
-  }
-
-  internal fun deleteProject(root: File) {
-    ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-    try {
-      val directory = File(ProjectManagerImpl.getInstance().projectPath)
-      val parentDir = directory.parent
-      deleteRecursive(directory)
-    } catch (e:Exception) {
-      flashInfo(string.msg_delete_existing_project_failed)
-    }
-  }
-
-  fun deleteRecursive(fileOrDirectory: File) {
-    if (fileOrDirectory.isDirectory) for (child in fileOrDirectory.listFiles()) deleteRecursive(child)
-
-    fileOrDirectory.delete()
-  }
-
-  override fun onDestroy() {
-    ITemplateProvider.getInstance().release()
-    super.onDestroy()
-    _binding = null
-  }
 }
