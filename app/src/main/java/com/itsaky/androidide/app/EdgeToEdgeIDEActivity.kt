@@ -18,13 +18,16 @@
 package com.itsaky.androidide.app
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.os.PersistableBundle
+import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import androidx.annotation.CallSuper
 import androidx.core.graphics.Insets
 import androidx.core.view.OnApplyWindowInsetsListener
@@ -44,129 +47,138 @@ import org.slf4j.LoggerFactory
  */
 abstract class EdgeToEdgeIDEActivity : IDEActivity() {
 
-  /**
-   * Whether edge-to-edge should be applied to the activity.
-   */
-  protected open var edgeToEdgeEnabled = true
+    /**
+     * Whether edge-to-edge should be applied to the activity.
+     */
+    protected open var edgeToEdgeEnabled = true
 
-  /**
-   * Whether the decor view padding should be updated to match the system bars in landscape orientation.
-   */
-  protected open var eteUpdateDecorViewPaddingInLandscape = true
+    /**
+     * Whether the decor view padding should be updated to match the system bars in landscape orientation.
+     */
+    protected open var eteUpdateDecorViewPaddingInLandscape = true
 
-  /**
-   * Style for the status bar.
-   */
-  protected open val statusBarStyle = EdgeToEdgeUtils.DEFAULT_STATUS_BAR_STYLE!!
+    /**
+     * Style for the status bar.
+     */
+    protected open val statusBarStyle = EdgeToEdgeUtils.DEFAULT_STATUS_BAR_STYLE!!
 
-  /**
-   * Style for the navigation bar.
-   */
-  protected open val navigationBarStyle = EdgeToEdgeUtils.DEFAULT_NAVIGATION_BAR_STYLE!!
+    /**
+     * Style for the navigation bar.
+     */
+    protected open val navigationBarStyle = EdgeToEdgeUtils.DEFAULT_NAVIGATION_BAR_STYLE!!
 
-  /**
-   * Original padding of the window's decor view.
-   */
-  protected open var decorViewPadding: Rect? = null
+    /**
+     * Original padding of the window's decor view.
+     */
+    protected open var decorViewPadding: Rect? = null
 
-  /**
-   * Last window insets.
-   */
-  protected open var systemBarInsets: Insets? = null
+    /**
+     * Last window insets.
+     */
+    protected open var systemBarInsets: Insets? = null
 
-  override var enableSystemBarTheming: Boolean
-    get() = false
-    set(@Suppress("UNUSED_PARAMETER") value) {
-      throw UnsupportedOperationException("Use edgeToEdgeEnabled and systemBarStyles instead")
+    override var enableSystemBarTheming: Boolean
+        get() = false
+        set(@Suppress("UNUSED_PARAMETER") value) {
+            throw UnsupportedOperationException("Use edgeToEdgeEnabled and systemBarStyles instead")
+        }
+
+    private val log = LoggerFactory.getLogger(EdgeToEdgeIDEActivity::class.java)
+
+    @SuppressLint("WrongConstant")
+    private val onApplyWindowInsetsListener = OnApplyWindowInsetsListener { view, insets ->
+        onApplyWindowInsets(insets)
+        if (!eteUpdateDecorViewPaddingInLandscape ||
+            view.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
+        ) {
+            decorViewPadding?.also { p ->
+                // when switching from landscape to portrait, restore the original padding
+                view.setPadding(p.left, p.top, p.right, p.bottom)
+            }
+            return@OnApplyWindowInsetsListener insets
+        }
+
+        if (decorViewPadding == null) {
+            Rect().apply {
+                left = view.paddingLeft
+                top = view.paddingTop
+                right = view.paddingRight
+                bottom = view.paddingBottom
+            }.also { paddings ->
+                decorViewPadding = paddings
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val systemBarInsets = insets.getInsets(WindowInsets.Type.systemBars())
+            view.setPadding(
+                systemBarInsets.left,
+                0,
+                systemBarInsets.right,
+                systemBarInsets.bottom
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            view.setPadding(
+                insets.stableInsetLeft,
+                0,
+                insets.stableInsetRight,
+                insets.stableInsetBottom
+            )
+        }
+
+        insets
     }
 
-  private val log = LoggerFactory.getLogger(EdgeToEdgeIDEActivity::class.java)
-
-  @SuppressLint("WrongConstant")
-  private val onApplyWindowInsetsListener = OnApplyWindowInsetsListener { v, insets ->
-    onApplyWindowInsets(insets)
-    if (!eteUpdateDecorViewPaddingInLandscape ||
-      v.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
-    ) {
-      decorViewPadding?.also { p ->
-        // when switching from landscape to portrait, restore the original padding
-        v.setPadding(p.left, p.top, p.right, p.bottom)
-      }
-      return@OnApplyWindowInsetsListener insets
+    override fun onCreate(savedInstanceState: Bundle?) {
+        applyEdgeToEdge()
+        super.onCreate(savedInstanceState)
     }
 
-    if (decorViewPadding == null) {
-      Rect().apply {
-        left = v.paddingLeft
-        top = v.paddingTop
-        right = v.paddingRight
-        bottom = v.paddingBottom
-      }.also { paddings ->
-        decorViewPadding = paddings
-      }
+    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
+        applyEdgeToEdge()
+        super.onCreate(savedInstanceState, persistentState)
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-      val systemBarInsets = insets.getInsets(WindowInsets.Type.systemBars())
-      v.setPadding(
-        systemBarInsets.left,
-        0,
-        systemBarInsets.right,
-        systemBarInsets.bottom
-      )
-    } else {
-      @Suppress("DEPRECATION")
-      v.setPadding(
-        insets.stableInsetLeft,
-        0,
-        insets.stableInsetRight,
-        insets.stableInsetBottom
-      )
+    @SuppressLint("RestrictedApi")
+    private fun applyEdgeToEdge() {
+        this.window!!.apply {
+            addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+            @Suppress("DEPRECATION")
+            clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+        }
+
+        EdgeToEdgeUtils.applyEdgeToEdge(this, this.statusBarStyle, this.navigationBarStyle)
+
+        ViewCompat.setOnApplyWindowInsetsListener(
+            this.window.decorView,
+            this.onApplyWindowInsetsListener
+        )
+
+        this.window.decorView.doOnAttach { onApplySystemBarInsets(getSystemBarInsets(it)) }
     }
 
-    insets
-  }
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    applyEdgeToEdge()
-    super.onCreate(savedInstanceState)
-  }
-
-  override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
-    applyEdgeToEdge()
-    super.onCreate(savedInstanceState, persistentState)
-  }
-
-  @SuppressLint("RestrictedApi")
-  private fun applyEdgeToEdge() {
-    this.window!!.apply {
-      addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-      @Suppress("DEPRECATION")
-      clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+    /**
+     * Called when the window insets change.
+     *
+     * @param insets The window insets. These insets are not expected to be consumed.
+     */
+    @CallSuper
+    protected open fun onApplyWindowInsets(insets: WindowInsetsCompat) {
+        this.systemBarInsets = getSystemBarInsets(insets)
     }
 
-    EdgeToEdgeUtils.applyEdgeToEdge(this, this.statusBarStyle, this.navigationBarStyle)
+    /**
+     * Called with the system bar insets when the decor view is attached to the window.
+     */
+    protected open fun onApplySystemBarInsets(insets: Insets) {}
 
-    ViewCompat.setOnApplyWindowInsetsListener(
-      this.window.decorView,
-      this.onApplyWindowInsetsListener
-    )
-
-    this.window.decorView.doOnAttach { onApplySystemBarInsets(getSystemBarInsets(it)) }
-  }
-
-  /**
-   * Called when the window insets change.
-   *
-   * @param insets The window insets. These insets are not expected to be consumed.
-   */
-  @CallSuper
-  protected open fun onApplyWindowInsets(insets: WindowInsetsCompat) {
-    this.systemBarInsets = getSystemBarInsets(insets)
-  }
-
-  /**
-   * Called with the system bar insets when the decor view is attached to the window.
-   */
-  protected open fun onApplySystemBarInsets(insets: Insets) {}
+    fun closeKeyboard() {
+        // Get the current focused view; if none, create a new one so that we have a valid window token
+        val view = currentFocus ?: View(this)
+        // Retrieve the input method manager service
+        val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        // Request to hide the keyboard from the window
+        inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+    }
 }
