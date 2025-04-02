@@ -22,6 +22,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
 import com.itsaky.androidide.models.MainScreenAction
+import com.itsaky.androidide.utils.AndroidUtils
 
 /**
  * Adapter for the actions available on the main screen.
@@ -47,7 +48,8 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
         val button = binding.root
 
         binding.root.apply {
-            setText(action.text)
+            val originalText = context.getString(action.text)
+            setText(AndroidUtils.capitalizeWords(originalText))
             setIconResource(action.icon)
             setOnClickListener {
                 action.onClick?.invoke(action, it)

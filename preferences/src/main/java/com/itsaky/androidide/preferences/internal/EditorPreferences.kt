@@ -130,7 +130,7 @@ object EditorPreferences {
     }
 
   var useIcu: Boolean
-    get() = prefManager.getBoolean(USE_ICU, false)
+    get() = prefManager.getBoolean(USE_ICU, true)
     set(value) {
       prefManager.putBoolean(USE_ICU, value)
     }
