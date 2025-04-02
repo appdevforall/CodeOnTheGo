@@ -22,7 +22,7 @@ import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 fun ProjectTemplateBuilder.composeTomlFileSrc() = """
 [versions]
 agp = "8.0.0"
-kotlin = "1.9.22"
+kotlin = "2.0.21"
 coreKtx = "1.8.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
