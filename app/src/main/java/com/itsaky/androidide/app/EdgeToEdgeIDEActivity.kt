@@ -86,24 +86,24 @@ abstract class EdgeToEdgeIDEActivity : IDEActivity() {
     private val log = LoggerFactory.getLogger(EdgeToEdgeIDEActivity::class.java)
 
     @SuppressLint("WrongConstant")
-    private val onApplyWindowInsetsListener = OnApplyWindowInsetsListener { v, insets ->
+    private val onApplyWindowInsetsListener = OnApplyWindowInsetsListener { view, insets ->
         onApplyWindowInsets(insets)
         if (!eteUpdateDecorViewPaddingInLandscape ||
-            v.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
+            view.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
         ) {
             decorViewPadding?.also { p ->
                 // when switching from landscape to portrait, restore the original padding
-                v.setPadding(p.left, p.top, p.right, p.bottom)
+                view.setPadding(p.left, p.top, p.right, p.bottom)
             }
             return@OnApplyWindowInsetsListener insets
         }
 
         if (decorViewPadding == null) {
             Rect().apply {
-                left = v.paddingLeft
-                top = v.paddingTop
-                right = v.paddingRight
-                bottom = v.paddingBottom
+                left = view.paddingLeft
+                top = view.paddingTop
+                right = view.paddingRight
+                bottom = view.paddingBottom
             }.also { paddings ->
                 decorViewPadding = paddings
             }
@@ -111,7 +111,7 @@ abstract class EdgeToEdgeIDEActivity : IDEActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val systemBarInsets = insets.getInsets(WindowInsets.Type.systemBars())
-            v.setPadding(
+            view.setPadding(
                 systemBarInsets.left,
                 0,
                 systemBarInsets.right,
@@ -119,7 +119,7 @@ abstract class EdgeToEdgeIDEActivity : IDEActivity() {
             )
         } else {
             @Suppress("DEPRECATION")
-            v.setPadding(
+            view.setPadding(
                 insets.stableInsetLeft,
                 0,
                 insets.stableInsetRight,
@@ -177,8 +177,8 @@ abstract class EdgeToEdgeIDEActivity : IDEActivity() {
         // Get the current focused view; if none, create a new one so that we have a valid window token
         val view = currentFocus ?: View(this)
         // Retrieve the input method manager service
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         // Request to hide the keyboard from the window
-        imm.hideSoftInputFromWindow(view.windowToken, 0)
+        inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
     }
 }
