@@ -4,6 +4,7 @@
   <!--  other colors-->
   <color name="primaryColor">#121212</color>
   <color name="primaryIconColor">#ffffff</color>
+  <color name="white_standard">#FEFCFF</color>
   <color name="rippleHighlightColor">#85121212</color>
 
   <color name="color_success">@color/green_500</color>
