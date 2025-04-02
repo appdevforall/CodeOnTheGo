@@ -117,8 +117,7 @@ class RecentProjectsAdapter(
                     day % 10 == 3 -> "rd"
                     else -> "th"
                 }
-                val outputFormat = SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault())
-                outputFormat.format(date)
+                SimpleDateFormat("d'$suffix', MMMM yyyy", Locale.getDefault()).format(date)
             } catch (e: Exception) {
                 dateString.take(5)
             }

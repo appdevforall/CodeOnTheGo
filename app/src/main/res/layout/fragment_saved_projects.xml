@@ -43,7 +43,7 @@
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:gravity="center"
-            android:padding="8dp"
+            android:padding="@dimen/cornerLow"
             android:text="@string/msg_no_recent_projects"
             android:textSize="22sp" />
 
