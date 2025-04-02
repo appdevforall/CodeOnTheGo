@@ -43,6 +43,7 @@ import com.itsaky.androidide.actions.file.SaveFileAction
 import com.itsaky.androidide.actions.file.ShowTooltipAction
 import com.itsaky.androidide.actions.filetree.CopyPathAction
 import com.itsaky.androidide.actions.filetree.DeleteAction
+import com.itsaky.androidide.actions.filetree.HelpAction
 import com.itsaky.androidide.actions.filetree.NewFileAction
 import com.itsaky.androidide.actions.filetree.NewFolderAction
 import com.itsaky.androidide.actions.filetree.OpenWithAction
@@ -62,6 +63,14 @@ import com.itsaky.androidide.actions.text.UndoAction
 class EditorActivityActions {
 
   companion object {
+
+    private const val ORDER_COPY_PATH = 100
+    private const val ORDER_DELETE = 200
+    private const val ORDER_NEW_FILE = 300
+    private const val ORDER_NEW_FOLDER = 400
+    private const val ORDER_OPEN_WITH = 500
+    private const val ORDER_RENAME = 600
+    private const val ORDER_HELP = 1000
 
     @JvmStatic
     fun register(context: Context) {
@@ -102,12 +111,13 @@ class EditorActivityActions {
       registry.registerAction(CloseAllFilesAction(context, order++))
 
       // file tree actions
-      registry.registerAction(CopyPathAction(context, order++))
-      registry.registerAction(DeleteAction(context, order++))
-      registry.registerAction(NewFileAction(context, order++))
-      registry.registerAction(NewFolderAction(context, order++))
-      registry.registerAction(OpenWithAction(context, order++))
-      registry.registerAction(RenameAction(context, order++))
+      registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
+      registry.registerAction(DeleteAction(context, ORDER_DELETE))
+      registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
+      registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
+      registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
+      registry.registerAction(RenameAction(context, ORDER_RENAME))
+      registry.registerAction(HelpAction(context, ORDER_HELP))
     }
 
     @JvmStatic

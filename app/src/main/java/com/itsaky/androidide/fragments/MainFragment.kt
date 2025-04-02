@@ -51,6 +51,7 @@ import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 
 class MainFragment : BaseFragment() {
 
@@ -84,7 +85,7 @@ class MainFragment : BaseFragment() {
             val onClick = { action: MainScreenAction, _: View ->
                 when (action.id) {
                     MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
-                    MainScreenAction.ACTION_OPEN_PROJECT -> pickDirectory()
+                    MainScreenAction.ACTION_OPEN_PROJECT -> showViewSavedProjects()
                     MainScreenAction.ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
                     MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
                     MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
@@ -137,14 +138,18 @@ class MainFragment : BaseFragment() {
         CoroutineScope(Dispatchers.IO).launch {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
             val item = dao.getTooltip(tag)
-            val buttons = item.buttons
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipUtils.showIDETooltip(
                         it,
                         view!!,
                         0,
-                        item
+                        IDETooltipItem(
+                            tooltipTag = item?.tooltipTag ?: "",
+                            detail = item?.detail ?: "",
+                            summary = item?.summary ?: "",
+                            buttons = item?.buttons ?: arrayListOf(),
+                        )
                     )
                 })
             }
@@ -206,19 +211,19 @@ class MainFragment : BaseFragment() {
     }
 
     private fun pickDirectoryForDeletion() {
-        pickDirectory(this::deleteProject)
+        viewModel.setScreen(MainViewModel.SCREEN_DELETE_PROJECTS)
     }
 
     private fun showCreateProject() {
         viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
     }
 
-    fun openProject(root: File) {
-        (requireActivity() as MainActivity).openProject(root)
+    private fun showViewSavedProjects() {
+        viewModel.setScreen(MainViewModel.SCREEN_SAVED_PROJECTS)
     }
 
-    fun deleteProject(root: File) {
-        (requireActivity() as MainActivity).deleteProject(root)
+    fun openProject(root: File) {
+        (requireActivity() as MainActivity).openProject(root)
     }
 
     private fun cloneGitRepo() {
