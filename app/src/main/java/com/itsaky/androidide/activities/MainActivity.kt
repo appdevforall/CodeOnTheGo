@@ -88,15 +88,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        //Thread.setDefaultUncaughtExceptionHandler { t: Thread?, e: Throwable ->
-        //  try {
-        //    Sentry.captureException(e)
-        //  } catch (ex: Exception) {
-        //    ex.printStackTrace()
-        //  }
-        //}
-
+        
         openLastProject()
 
         viewModel.currentScreen.observe(this) { screen ->
