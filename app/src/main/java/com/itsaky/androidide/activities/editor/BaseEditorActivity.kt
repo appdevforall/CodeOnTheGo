@@ -724,10 +724,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
             }
         }
-        val sb = SpannableStringBuilder()
-        appendClickableSpan(sb, string.msg_drawer_for_files, filesSpan)
-        appendClickableSpan(sb, string.msg_swipe_for_output, bottomSheetSpan)
-        content.noEditorSummary.text = sb
+        val spannableStringBuilder = SpannableStringBuilder()
+        appendClickableSpan(spannableStringBuilder, string.msg_drawer_for_files, filesSpan)
+        appendClickableSpan(spannableStringBuilder, string.msg_swipe_for_output, bottomSheetSpan)
+        content.noEditorSummary.text = spannableStringBuilder
     }
 
     private fun appendClickableSpan(
