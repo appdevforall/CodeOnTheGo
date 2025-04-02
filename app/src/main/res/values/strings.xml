@@ -16,13 +16,13 @@
   -->
 
 <resources>
-  <!--  Required by F-Droid-->
-  <string name="app_name" translatable="false">Code on the Go</string>
-  <string name="file">File</string>
-  <string name="run">Run</string>
-  <string name="actions">Actions</string>
-  <string name="help">Help</string>
-  <string name="code">1\tpackage com.appdevforall.sequendo\n
+    <!--  Required by F-Droid-->
+    <string name="app_name" translatable="false">Code on the Go</string>
+    <string name="file">File</string>
+    <string name="run">Run</string>
+    <string name="actions">Actions</string>
+    <string name="help">Help</string>
+    <string name="code">1\tpackage com.appdevforall.sequendo\n
 2\t\n
 3\t\n
 4\timport android.content.Context\n
@@ -88,17 +88,26 @@
     }\n
 }
 </string>
-  <string name="debugger">2024-02-01 10:10:37: Launching app on \'samsung SM-N986U\'./n
+    <string name="debugger">2024-02-01 10:10:37: Launching app on \'samsung SM-N986U\'./n
 Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.appdevforall.sequendo/.MainActivity }\n
 \n
 Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
 </string>
-  <string name="feedback_warning">Sending feedback will create and send a private email to feedback,appdevforall.com,
+    <string name="feedback_warning">Sending feedback will create and send a private email to feedback,appdevforall.com,
     if you feel that this would be an unsafe action, then click &lt;b>&lt;i>Cancel&lt;/i>&lt;/b>, otherwise click &lt;b>&lt;i>Ok&lt;/i>&lt;/b> to proceed</string>
-  <string name="feedback_subject">Feedback for {0} Screen</string>
-  <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen\nThank You\n</string>
-  <string name="send_feedback">Send Feedback</string>
+    <string name="feedback_subject">Feedback for {0} Screen</string>
+    <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen\nThank You\n</string>
+    <string name="send_feedback">Send Feedback</string>
     <string name="fab_more">More</string>
+    <string name="msg_recent_projects">Recent Projects</string>
+    <string name="msg_create_new_from_recent">Click the New project button to create a new project or\n@@open from a folder@@</string>
+    <string name="msg_no_recent_projects">You don\'t have any recent projects</string>
+    <string name="date">Date</string>
+    <string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
+    <string name="open_from_folder">Open from folder</string>
+    <string name="msg_delete_selected_project">Are you sure want to delete the selected project? This action cannot be undone.</string>
+
+
     <string name="msg_internet_access_required">Internet access is required.</string>
     <string name="msg_contact_app_dev_title">Contact App Dev for All</string>
     <string name="msg_contact_app_dev_description">To report issues, make suggestions, and ask questions, email us at info@appdevforall.org. Internet access is required.</string>

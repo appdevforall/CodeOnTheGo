@@ -32,54 +32,56 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class MainViewModel : ViewModel() {
 
-  companion object {
+    companion object {
 
-    // The values assigned to these variables reflect the order in which the screens are presented
-    // to the user. A screen with a lower value is displayed before a screen with a higher value.
-    // For example, SCREEN_MAIN is the first screen visible to the user, followed by SCREEN_TEMPLATE_LIST,
-    // and then SCREEN_TEMPLATE_DETAILS.
-    //
-    // These values are used as unique identifiers for the screens as well as for determining whether
-    // the screen change transition should be forward or backward.
-    const val SCREEN_MAIN = 0
-    const val SCREEN_TEMPLATE_LIST = 1
-    const val SCREEN_TEMPLATE_DETAILS = 2
-    const val TOOLTIPS_WEB_VIEW = 3
-  }
-
-  private val _currentScreen = MutableLiveData(-1)
-  private val _previousScreen = AtomicInteger(-1)
-  private val _isTransitionInProgress = MutableLiveData(false)
-
-  internal val template = MutableLiveData<Template<*>>(null)
-  internal val creatingProject = MutableLiveData(false)
-
-  val currentScreen: LiveData<Int> = _currentScreen
-
-  val previousScreen: Int
-    get() = _previousScreen.get()
-
-  var isTransitionInProgress: Boolean
-    get() = _isTransitionInProgress.value ?: false
-    set(value) {
-      _isTransitionInProgress.value = value
+        // The values assigned to these variables reflect the order in which the screens are presented
+        // to the user. A screen with a lower value is displayed before a screen with a higher value.
+        // For example, SCREEN_MAIN is the first screen visible to the user, followed by SCREEN_TEMPLATE_LIST,
+        // and then SCREEN_TEMPLATE_DETAILS.
+        //
+        // These values are used as unique identifiers for the screens as well as for determining whether
+        // the screen change transition should be forward or backward.
+        const val SCREEN_MAIN = 0
+        const val SCREEN_TEMPLATE_LIST = 1
+        const val SCREEN_TEMPLATE_DETAILS = 2
+        const val TOOLTIPS_WEB_VIEW = 3
+        const val SCREEN_SAVED_PROJECTS = 4
+        const val SCREEN_DELETE_PROJECTS = 5
     }
 
-  fun setScreen(screen: Int) {
-    _previousScreen.set(_currentScreen.value ?: SCREEN_MAIN)
-    _currentScreen.value = screen
-  }
+    private val _currentScreen = MutableLiveData(-1)
+    private val _previousScreen = AtomicInteger(-1)
+    private val _isTransitionInProgress = MutableLiveData(false)
 
-  fun postTransition(owner: LifecycleOwner, action: Runnable) {
-    if (isTransitionInProgress) {
-      _isTransitionInProgress.observe(owner, object : Observer<Boolean> {
-        override fun onChanged(t: Boolean) {
-          _isTransitionInProgress.removeObserver(this)
-          action.run()
+    internal val template = MutableLiveData<Template<*>>(null)
+    internal val creatingProject = MutableLiveData(false)
+
+    val currentScreen: LiveData<Int> = _currentScreen
+
+    val previousScreen: Int
+        get() = _previousScreen.get()
+
+    var isTransitionInProgress: Boolean
+        get() = _isTransitionInProgress.value ?: false
+        set(value) {
+            _isTransitionInProgress.value = value
         }
-      })
-    } else {
-      action.run()
+
+    fun setScreen(screen: Int) {
+        _previousScreen.set(_currentScreen.value ?: SCREEN_MAIN)
+        _currentScreen.value = screen
     }
-  }
+
+    fun postTransition(owner: LifecycleOwner, action: Runnable) {
+        if (isTransitionInProgress) {
+            _isTransitionInProgress.observe(owner, object : Observer<Boolean> {
+                override fun onChanged(t: Boolean) {
+                    _isTransitionInProgress.removeObserver(this)
+                    action.run()
+                }
+            })
+        } else {
+            action.run()
+        }
+    }
 }

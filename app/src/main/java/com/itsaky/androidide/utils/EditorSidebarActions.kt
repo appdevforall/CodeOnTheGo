@@ -64,6 +64,7 @@ import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.databinding.ContactDialogBinding
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 
@@ -116,23 +117,17 @@ internal object EditorSidebarActions {
 
         rail.menu.clear()
 
-        val data = ActionData()
-        data.put(Context::class.java, context) // needed for inflating the menu
+    val data = ActionData()
+    data.put(Context::class.java, context)
 
-        val titleRef = WeakReference(binding.title)
-        val params = FillMenuParams(
-            data, ActionItem.Location.EDITOR_SIDEBAR,
-            rail.menu
-        ) { actionsRegistry, action, item, actionsData ->
+    val titleRef = WeakReference(binding.title)
+    val params = FillMenuParams(data, ActionItem.Location.EDITOR_SIDEBAR, rail.menu) { actionsRegistry, action, item, actionsData ->
+      action as SidebarActionItem
 
-            action as SidebarActionItem
-
-            if (action.fragmentClass == null) {
-                // this action does not show any fragment
-                // execute the action instead
-                (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
-                return@FillMenuParams true
-            }
+      if (action.fragmentClass == null) {
+        (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
+        return@FillMenuParams true
+      }
 
             return@FillMenuParams try {
                 controller.navigate(action.id, navOptions {
@@ -140,12 +135,11 @@ internal object EditorSidebarActions {
                     restoreState = true
                 })
 
-                // Return true only if the destination we've navigated to matches the MenuItem
-                val result = controller.currentDestination?.matchDestination(action.id) == true
-                if (result) {
-                    item.isChecked = true
-                    titleRef.get()?.text = item.title
-                }
+        val result = controller.currentDestination?.matchDestination(action.id) == true
+        if (result) {
+          item.isChecked = true
+          titleRef.get()?.text = item.title
+        }
 
                 result
             } catch (e: IllegalArgumentException) {
@@ -155,14 +149,33 @@ internal object EditorSidebarActions {
 
         registry.fillMenu(params)
 
-        controller.graph = controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
-            actions.forEach { (actionId, action) ->
-                if (action !is SidebarActionItem) {
-                    throw IllegalStateException(
-                        "Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
-                                " must implement ${SidebarActionItem::class.java.simpleName}"
-                    )
-                }
+    rail.menu.forEach { item ->
+      val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
+      if (action != null) {
+        rail.findViewById<View>(item.itemId)?.setOnLongClickListener {
+          TooltipUtils.showIDETooltip(
+            context,
+            rail,
+            0,
+            IDETooltipItem(
+              tooltipTag = action.label,
+              detail = action.label,
+              summary = "Much information about ${action.label}",
+              buttons = arrayListOf(Pair("Learn more", "~/help_top.html"))
+            )
+          )
+          true
+        }
+      }
+    }
+
+    controller.graph = controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
+      actions.forEach { (actionId, action) ->
+        if (action !is SidebarActionItem) {
+          throw IllegalStateException(
+            "Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
+                    " must implement ${SidebarActionItem::class.java.simpleName}")
+        }
 
                 val fragment = action.fragmentClass ?: return@forEach
 
@@ -180,52 +193,45 @@ internal object EditorSidebarActions {
             }
         }
 
-        val railRef = WeakReference(rail)
-        controller.addOnDestinationChangedListener(
-            object : NavController.OnDestinationChangedListener {
-                override fun onDestinationChanged(
-                    controller: NavController,
-                    destination: NavDestination,
-                    arguments: Bundle?
-                ) {
-                    val railView = railRef.get()
-                    if (railView == null) {
-                        controller.removeOnDestinationChangedListener(this)
-                        return
-                    }
-                    railView.menu.forEach { item ->
-                        if (destination.matchDestination(item.itemId)) {
-                            item.isChecked = true
-                            titleRef.get()?.text = item.title
-                        }
-                    }
-                }
-            })
-        // make sure the 'File tree' item is checked by default
-        rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
-            it.isChecked = true
-            binding.title.text = it.title
-        }
-
-        rail.viewTreeObserver.addOnPreDrawListener {
-            val railView = railRef.get()
-            if (railView != null) {
-                // set long click action to terminal action
-                // noinspection RestrictedApi
-                (railView.menuView as NavigationBarMenuView)
-                    .findViewById<View>(TerminalSidebarAction.ID.hashCode())
-                    ?.setOnLongClickListener {
-                        TerminalSidebarAction.startTerminalActivity(data, true)
-                        true
-                    }
+    val railRef = WeakReference(rail)
+    controller.addOnDestinationChangedListener(
+      object : NavController.OnDestinationChangedListener {
+        override fun onDestinationChanged(
+          controller: NavController,
+          destination: NavDestination,
+          arguments: Bundle?
+        ) {
+          val railView = railRef.get()
+          if (railView == null) {
+            controller.removeOnDestinationChangedListener(this)
+            return
+          }
+          railView.menu.forEach { item ->
+            if (destination.matchDestination(item.itemId)) {
+              item.isChecked = true
+              titleRef.get()?.text = item.title
             }
-            true
+          }
         }
+      })
 
-        emailSupport.setOnClickListener {
-            showContactDialog(sidebarFragment.requireContext())
-        }
+    rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
+      it.isChecked = true
+      binding.title.text = it.title
     }
+
+    rail.viewTreeObserver.addOnPreDrawListener {
+      val railView = railRef.get()
+      if (railView != null) {
+        railView.findViewById<View>(TerminalSidebarAction.ID.hashCode())
+          ?.setOnLongClickListener {
+            TerminalSidebarAction.startTerminalActivity(data, true)
+            true
+          }
+      }
+      true
+    }
+  }
 
     /**
      * Determines whether the given `route` matches the NavDestination. This handles
