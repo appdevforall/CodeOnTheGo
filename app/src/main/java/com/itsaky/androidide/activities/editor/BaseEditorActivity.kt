@@ -338,9 +338,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         registerLanguageServers()
 
         if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
-            ProjectManagerImpl.getInstance().projectPath = savedInstanceState.getString(
-                KEY_PROJECT_PATH
-            )!!
+            savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
+                ProjectManagerImpl.getInstance().projectPath = path
+            }
         }
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
