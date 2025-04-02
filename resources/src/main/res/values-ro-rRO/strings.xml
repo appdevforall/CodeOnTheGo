@@ -140,8 +140,8 @@
   <string name="idepref_about_title">Despre Code on the Go</string>
   <string name="idepref_build_clearCache_title">Curăță cache-ul Gradle</string>
   <string name="idepref_build_clearCache_summary">Goliți directorul cache Gradle. Acest lucru va șterge toate dependențele descărcate de Gradle. Fișierele necesare vor fi descărcate din nou la următoarea generare.</string>
-  <string name="idepref_build_customgradlecommands_title">Comenzi Gradle suplimentare</string>
-  <string name="idepref_build_customgradlecommands_summary">Alegeți comenzi suplimentare care vor fi adăugate în timpul executării fiecărei activități</string>
+  <string name="idepref_build_customgradlecommands_title">Flaguri Gradle suplimentare</string>
+  <string name="idepref_build_customgradlecommands_summary">Alegeți flag-uri suplimentare Gradle care vor fi aplicate la fiecare sarcină.</string>
   <string name="idepref_editor_fontsize_title">Dimensiunea fontului</string>
   <string name="idepref_editor_fontsize_summary">Dimensiunea fontului editorului</string>
   <string name="idepref_editor_paintingflags_title">Non-printable painting flags</string>
@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">Theme</string>
   <string name="idepref_general_themeSelector_summary">Select a theme for Code on the Go (requires restart).</string>
   <string name="idepref_general_projectConfig">Configurarea proiectului</string>
-  <string name="msg_app_launch_failed">Launch failed. Install the application first.</string>
+  <string name="msg_app_launch_failed">Trebuie să construiești și să instalezi aplicația înainte de a o lansa.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnosticarea activată</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EXPERIMENTAL) Dacă fișierele sursă Java ar trebui să fie analizate pentru erori sau nu.</string>
   <string name="title_reload_color_schemes">Reîncărcarea schemelor de culori</string>
