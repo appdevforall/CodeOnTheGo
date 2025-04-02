@@ -42,7 +42,6 @@ class GeneralPreferencesScreen(
   init {
     addPreference(InterfaceConfig())
     addPreference(ProjectConfig())
-    addPreference(TerminalConfig())
   }
 }
 
@@ -55,7 +54,6 @@ class InterfaceConfig(
 
   init {
     addPreference(UiMode())
-    addPreference(ThemeSelector())
     addPreference(LocaleSelector())
   }
 }
@@ -70,18 +68,6 @@ class ProjectConfig(
   init {
     addPreference(OpenLastProject())
     addPreference(ConfirmProjectOpen())
-  }
-}
-
-@Parcelize
-class TerminalConfig(
-  override val key: String = "idepref_general_terminal",
-  override val title: Int = R.string.title_terminal,
-  override val children: List<IPreference> = mutableListOf(),
-) : IPreferenceGroup() {
-
-  init {
-    addPreference(UseSytemShell())
   }
 }
 
@@ -118,39 +104,6 @@ class UiMode(
     position: Int
   ) {
     GeneralPreferences.uiMode = (entry?.data as? Int?) ?: AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-  }
-}
-
-@Parcelize
-class ThemeSelector(
-  override val key: String = GeneralPreferences.SELECTED_THEME,
-  override val title: Int = R.string.idepref_general_themeSelector_title,
-  override val summary: Int? = R.string.idepref_general_themeSelector_summary,
-  override val icon: Int? = R.drawable.ic_color_scheme
-) : SingleChoicePreference() {
-
-  @IgnoredOnParcel
-  private val themes = IDETheme.entries
-
-  override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
-    val context = preference.context
-    val currentTheme = IThemeManager.getInstance().getCurrentTheme()
-    return Array(themes.size) { index ->
-      val ideTheme = themes[index]
-      PreferenceChoices.Entry(
-        label = ContextCompat.getString(context, ideTheme.title),
-        _isChecked = currentTheme.name == ideTheme.name,
-        data = ideTheme
-      )
-    }
-  }
-
-  override fun onChoiceConfirmed(
-    preference: Preference,
-    entry: PreferenceChoices.Entry?,
-    position: Int
-  ) {
-    GeneralPreferences.selectedTheme = (entry?.data as? IDETheme?)?.name ?: IDETheme.DEFAULT.name
   }
 }
 
