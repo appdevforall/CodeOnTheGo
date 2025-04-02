@@ -13,7 +13,6 @@ on:
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Signing info (if needed)
   IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
   IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
   IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
@@ -21,13 +20,11 @@ env:
   IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
   IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
   IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
-  # Publishing credentials (if needed)
   ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
   ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
   ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
-  # Build configuration
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
 
@@ -47,16 +44,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Add Git LFS support
       - name: Install Git LFS
         run: |
           brew install git-lfs
           git lfs install
 
-      # Fetch Git LFS objects
       - name: Fetch Git LFS objects
-        run: |
-          git lfs pull
+        run: git lfs pull
 
       - name: Initialize submodules
         run: |
@@ -87,13 +81,6 @@ jobs:
       - name: Assemble Universal APK
         run: ./gradlew assembleDebug
 
-      - name: Download Firebase Service Account JSON using curl
-        id: download_service_account
-        run: |
-          curl -L "https://jsonblob.com/api/jsonBlob/1354004779097055232" -o firebase-service-account.json
-          json=$(tr -d '\n' < firebase-service-account.json)
-          echo "json=$json" >> $GITHUB_OUTPUT
-
       - name: Find APK file
         id: find_apk
         run: |
@@ -104,23 +91,27 @@ jobs:
       - name: Set branch name
         run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
+      - name: Extract Jira Ticket
+        id: extract_jira
+        run: |
+          FOLDER_NAME=$(echo "$BRANCH_NAME" | cut -d'/' -f2)
+          echo "JIRA_TICKET=https://appdevforall.atlassian.net/browse/${FOLDER_NAME}" >> $GITHUB_OUTPUT
+
       - name: upload artifact to Firebase App Distribution
         id: firebase_upload
         uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
-          appId: 1:25368176976:android:315a39620cdf0d587d6455
-          serviceCredentialsFileContent: ${{ steps.download_service_account.outputs.json }}
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
           groups: testers
           file: ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: ${{ github.event.head_commit.message }}
+          releaseNotes: ${{ steps.extract_jira.outputs.JIRA_TICKET }}
 
       - name: Slack Notification
         run: |
-          # Extract folder name: everything after the slash (e.g., feature/ADFA-XXX -> ADFA-XXX)
           FOLDER_NAME=$(echo "$BRANCH_NAME" | cut -d'/' -f2)
           MESSAGE="@here :tada: *Build Completed!* :rocket:
-          Download APK: ${{ steps.firebase_upload.outputs.release_url }}
           Jira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
           curl -X POST -H 'Content-type: application/json' \
             --data "{\"text\": \"${MESSAGE}\"}" \
-            https://hooks.slack.com/services/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
+            ${{ secrets.SLACK_WEBHOOK_URL }}
