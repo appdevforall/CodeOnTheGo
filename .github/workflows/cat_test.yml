@@ -3,12 +3,6 @@ permissions:
   contents: read
   actions: write
 on:
-  pull_request:
-    branches: [ "stage", "feature/**" ]
-    paths-ignore:
-      - '**.md'
-      - 'fastlane/**'
-      - '.github/workflows/crowdin_contributors.yml'
   workflow_dispatch:
 
 env:
@@ -80,7 +74,7 @@ jobs:
           profile: pixel_3
           avd-name: test
           force-avd-creation: false
-          emulator-options: -no-window -no-snapshot
+          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect
           disable-animations: true
           script: echo "Emulator is ready."
 
