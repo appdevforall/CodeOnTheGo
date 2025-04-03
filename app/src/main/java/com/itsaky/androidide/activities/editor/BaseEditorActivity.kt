@@ -230,8 +230,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     protected abstract fun doDismissSearchProgress()
 
     protected abstract fun getOpenedFiles(): List<OpenedFile>
-
     internal abstract fun doConfirmProjectClose()
+  internal abstract fun doOpenHelp()
 
     protected open fun preDestroy() {
         _binding = null
@@ -623,6 +623,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private fun handleUiDesignerResult(result: ActivityResult) {
+        if (this is EditorHandlerActivity) {
+            this.closeCurrentFile()
+        }
         if (result.resultCode != RESULT_OK || result.data == null) {
             log.warn(
                 "UI Designer returned invalid result: resultCode={}, data={}", result.resultCode,
@@ -645,10 +648,20 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private fun setupDrawers() {
-        val toggle = ActionBarDrawerToggle(
-            this, binding.editorDrawerLayout, content.editorToolbar,
-            string.app_name, string.app_name
-        )
+        val toggle = object : ActionBarDrawerToggle(
+            this,
+            binding.editorDrawerLayout,
+            content.editorToolbar,
+            string.app_name,
+            string.app_name
+        ) {
+            override fun onDrawerOpened(drawerView: View) {
+                super.onDrawerOpened(drawerView)
+                // Hide the keyboard when the drawer opens.
+                closeKeyboard()
+            }
+        }
+
 
         binding.editorDrawerLayout.addDrawerListener(toggle)
         toggle.syncState()
@@ -661,7 +674,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             }
         }
     }
-
 
     private fun onBuildStatusChanged() {
         log.debug(
@@ -731,10 +743,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
             }
         }
-        val spannableStringBuilder = SpannableStringBuilder()
-        appendClickableSpan(spannableStringBuilder, string.msg_drawer_for_files, filesSpan)
-        appendClickableSpan(spannableStringBuilder, string.msg_swipe_for_output, bottomSheetSpan)
-        content.noEditorSummary.text = spannableStringBuilder
+        val sb = SpannableStringBuilder()
+        appendClickableSpan(sb, string.msg_drawer_for_files, filesSpan)
+        appendClickableSpan(sb, string.msg_swipe_for_output, bottomSheetSpan)
+        content.noEditorSummary.text = sb
     }
 
     private fun appendClickableSpan(

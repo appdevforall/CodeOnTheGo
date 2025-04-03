@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">Vorhandenes Projekt &#xF6;ffnen</string>
   <string name="title_confirm_project_close">Projekt schlie&#xDF;en</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">M&#xF6;chten Sie dieses Projekt wirklich schlie&#xDF;en? Alle gestarteten Gradle-Daemons werden gestoppt, nachdem dieses Projekt geschlossen wurde.</string>
+  <string name="msg_confirm_project_close">Wenn Sie das Projekt schließen, werden alle Build-Tasks gestoppt, und nicht gespeicherte Änderungen an Ihrer Projektdatei gehen möglicherweise verloren. Möchten Sie die Dateien speichern, bevor Sie das Projekt schließen?</string>
   <string name="template_basic">Basis Projekt</string>
   <string name="template_empty">Leeres Projekt</string>
   <string name="template_navigation_drawer">Projekt mit NavigationDrawer</string>
