@@ -99,3 +99,6 @@ lint/tmp/
 
 # Sentry Config File
 sentry.properties
+
+#.DS_Store
+.DS_Store
