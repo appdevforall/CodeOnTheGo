@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">Deschide proiectul existent</string>
   <string name="title_confirm_project_close">Închide proiectul</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">Sigur doriți să închideți acest proiect? Toți demonii Gradle porniți vor fi opriți după ce acest proiect este închis.</string>
+  <string name="msg_confirm_project_close">Când închideți proiectul, toate sarcinile de build vor fi oprite și modificările nesalvate din fișierul proiectului dumneavoastră ar putea fi pierdute. Doriți să salvați fișierele înainte de a închide proiectul?</string>
   <string name="template_basic">Proiect de bază</string>
   <string name="template_empty">Proiect gol</string>
   <string name="template_navigation_drawer">Proiect de sertar de navigare</string>

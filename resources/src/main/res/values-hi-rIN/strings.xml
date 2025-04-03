@@ -63,8 +63,7 @@
   <string name="msg_open_existing_project">मौजूदा प्रोजेक्ट खोलें</string>
   <string name="title_confirm_project_close">प्रोजेक्ट बंद करें</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">क्या आप वाकई इस प्रोजेक्ट को बंद करना चाहते हैं? इस प्रोजेक्ट के बंद होने के बाद सभी शुरू किए गए ग्रेडल डेमॉन को रोक दिया जाएगा।</string>
-  <string name="template_basic">बुनियादी प्रोजेक्ट</string>
+  <string name="msg_confirm_project_close">जब आप प्रोजेक्ट को बंद करते हैं, तो सभी बिल्ड टास्क रोक दिए जाएंगे और आपकी प्रोजेक्ट फ़ाइल में अनसेव किए गए परिवर्तन खो सकते हैं। क्या आप प्रोजेक्ट को बंद करने से पहले फ़ाइलों को सहेजना चाहते हैं?</string>  <string name="template_basic">बुनियादी प्रोजेक्ट</string>
   <string name="template_empty">खाली प्रोजेक्ट</string>
   <string name="template_navigation_drawer">Navigation drawer प्रोजेक्ट</string>
   <string name="template_navigation_tabs">BottomNavigationView एक्टिविटी</string>
