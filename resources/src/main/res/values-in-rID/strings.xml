@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">Buka proyek</string>
   <string name="title_confirm_project_close">Tutup proyek</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">Anda yakin ingin menutup proyek ini? Semua Gradle daemon yang berjalan akan diberhentikan setelah proyek ini ditutup.</string>
+  <string name="msg_confirm_project_close">Ketika Anda menutup proyek, semua tugas build akan dihentikan dan perubahan yang belum disimpan pada file proyek Anda mungkin akan hilang. Apakah Anda ingin menyimpan file sebelum menutup proyek?</string>
   <string name="template_basic">Proyek Dasar</string>
   <string name="template_empty">Proyek Kosong</string>
   <string name="template_navigation_drawer">Proyek NavigationDrawer</string>
