@@ -28,6 +28,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.FloatRange
 import androidx.annotation.StringRes
+import androidx.core.graphics.toColorInt
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.flashbar.Flashbar.Gravity.TOP
@@ -77,29 +78,29 @@ fun Activity.flashMessage(@StringRes msg: Int, type: FlashType) {
 
 fun Activity.flashSuccess(msg: String?) {
   msg ?: return
-  flashbarBuilder().successIcon().message(msg).showOnUiThread()
+  flashbarBuilder(backgroundColor = getColor(R.color.background)).successIcon().message(msg).showOnUiThread() //TODO not declare so many times, try to find how to use it on the global theme as primary color
 }
 
 fun Activity.flashError(msg: String?) {
   msg ?: return
-  flashbarBuilder().errorIcon().message(msg).showOnUiThread()
+  flashbarBuilder(backgroundColor = getColor(R.color.background)).errorIcon().message(msg).showOnUiThread()
 }
 
 fun Activity.flashInfo(msg: String?) {
   msg ?: return
-  flashbarBuilder().infoIcon().message(msg).showOnUiThread()
+  flashbarBuilder(backgroundColor = getColor(R.color.background)).infoIcon().message(msg).showOnUiThread()
 }
 
 fun Activity.flashSuccess(@StringRes msg: Int) {
-  flashbarBuilder().successIcon().message(msg).showOnUiThread()
+  flashbarBuilder(backgroundColor = getColor(R.color.background)).successIcon().message(msg).showOnUiThread()
 }
 
 fun Activity.flashError(@StringRes msg: Int) {
-  flashbarBuilder().errorIcon().message(msg).showOnUiThread()
+  flashbarBuilder(backgroundColor = getColor(R.color.background)).errorIcon().message(msg).showOnUiThread()
 }
 
 fun Activity.flashInfo(@StringRes msg: Int) {
-  flashbarBuilder().infoIcon().message(msg).showOnUiThread()
+  flashbarBuilder(backgroundColor = getColor(R.color.background)).infoIcon().message(msg).showOnUiThread()
 }
 
 @JvmOverloads
