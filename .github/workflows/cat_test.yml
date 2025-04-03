@@ -4,9 +4,7 @@ permissions:
   actions: write
 on:
   pull_request:
-    branches:
-      - stage
-      - 'feature/**'
+    branches: [ "stage", "feature/**" ]
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
@@ -14,6 +12,7 @@ on:
   workflow_dispatch:
 
 env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
 
