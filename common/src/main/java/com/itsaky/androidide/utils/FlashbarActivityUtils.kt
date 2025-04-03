@@ -45,6 +45,38 @@ val COLOR_SUCCESS = Color.parseColor("#4CAF50")
 val COLOR_ERROR = Color.parseColor("#f44336")
 const val COLOR_INFO = Color.DKGRAY
 
+
+enum class IconType { SUCCESS, ERROR, INFO }
+
+private fun Flashbar.Builder.applyIcon(iconType: IconType): Flashbar.Builder {
+  return when (iconType) {
+    IconType.SUCCESS -> this.successIcon()
+    IconType.ERROR -> this.errorIcon()
+    IconType.INFO -> this.infoIcon()
+  }
+}
+
+private fun Activity.showFlashBar(
+  msg: Any?,
+  iconType: IconType,
+  backgroundColor: Int = getColor(R.color.background),
+  gravity: Flashbar.Gravity = Flashbar.Gravity.TOP,
+  duration: Long = Flashbar.DURATION_SHORT
+) {
+  when (msg) {
+    null -> return
+    is Int -> flashbarBuilder(gravity, duration, backgroundColor)
+      .applyIcon(iconType)
+      .message(msg)
+      .showOnUiThread()
+    is String -> this.flashbarBuilder(gravity, duration, backgroundColor)
+      .applyIcon(iconType)
+      .message(msg)
+      .showOnUiThread()
+    else -> throw IllegalArgumentException("Message must be String or Int resource")
+  }
+}
+
 @JvmOverloads
 fun Activity.flashbarBuilder(
   gravity: Flashbar.Gravity = TOP,
@@ -76,32 +108,13 @@ fun Activity.flashMessage(@StringRes msg: Int, type: FlashType) {
   }
 }
 
-fun Activity.flashSuccess(msg: String?) {
-  msg ?: return
-  flashbarBuilder(backgroundColor = getColor(R.color.background)).successIcon().message(msg).showOnUiThread() //TODO not declare so many times, try to find how to use it on the global theme as primary color
-}
+fun Activity.flashSuccess(msg: String?) = showFlashBar(msg, IconType.SUCCESS)
+fun Activity.flashError(msg: String?) = showFlashBar(msg, IconType.ERROR)
+fun Activity.flashInfo(msg: String?) = showFlashBar(msg, IconType.INFO)
 
-fun Activity.flashError(msg: String?) {
-  msg ?: return
-  flashbarBuilder(backgroundColor = getColor(R.color.background)).errorIcon().message(msg).showOnUiThread()
-}
-
-fun Activity.flashInfo(msg: String?) {
-  msg ?: return
-  flashbarBuilder(backgroundColor = getColor(R.color.background)).infoIcon().message(msg).showOnUiThread()
-}
-
-fun Activity.flashSuccess(@StringRes msg: Int) {
-  flashbarBuilder(backgroundColor = getColor(R.color.background)).successIcon().message(msg).showOnUiThread()
-}
-
-fun Activity.flashError(@StringRes msg: Int) {
-  flashbarBuilder(backgroundColor = getColor(R.color.background)).errorIcon().message(msg).showOnUiThread()
-}
-
-fun Activity.flashInfo(@StringRes msg: Int) {
-  flashbarBuilder(backgroundColor = getColor(R.color.background)).infoIcon().message(msg).showOnUiThread()
-}
+fun Activity.flashSuccess(@StringRes msg: Int) = showFlashBar(msg, IconType.SUCCESS)
+fun Activity.flashError(@StringRes msg: Int) = showFlashBar(msg, IconType.ERROR)
+fun Activity.flashInfo(@StringRes msg: Int) = showFlashBar(msg, IconType.INFO)
 
 @JvmOverloads
 fun <R : Any?> Activity.flashProgress(
