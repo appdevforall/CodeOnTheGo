@@ -64,7 +64,7 @@
   <string name="msg_open_existing_project">বিদ্যমান প্রকল্প খুলুন</string>
   <string name="title_confirm_project_close">প্রকল্পটি বন্ধ করুন</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">আপনি কি এই প্রকল্পটি বন্ধ করার বিষয়ে নিশ্চিত? এই প্রকল্পটি বন্ধ হওয়ার পরে সমস্ত শুরু হওয়া গ্রেডল ডেমন বন্ধ হয়ে যাবে৷</string>
+  <string name="msg_confirm_project_close">যখন আপনি প্রকল্পটি বন্ধ করবেন, সমস্ত বিল্ড টাস্ক বন্ধ হয়ে যাবে এবং আপনার প্রকল্প ফাইলে অসংরক্ষিত পরিবর্তনগুলি হারিয়ে যেতে পারে। আপনি কি প্রকল্পটি বন্ধ করার আগে ফাইলগুলি সংরক্ষণ করতে চান?</string>
   <string name="template_basic">মৌলিক প্রকল্প</string>
   <string name="template_empty">খালি প্রকল্প</string>
   <string name="template_navigation_drawer">নেভিগেশন ড্রয়ার প্রকল্প</string>
