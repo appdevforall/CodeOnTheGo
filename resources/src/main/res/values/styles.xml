@@ -34,7 +34,7 @@
   </style>
 
   <style name="Theme.AndroidIDE" parent="Theme.AndroidIDE.Styled">
-    <item name="android:background">@color/white</item>
+    <item name="android:colorPrimary">@color/background</item>
     <!-- Left drawer. -->
     <item name="buttonBarButtonStyle">@style/TermuxActivity.Drawer.ButtonBarStyle.Light</item>
     <item name="termuxActivityDrawerBackground">@android:color/white</item>
