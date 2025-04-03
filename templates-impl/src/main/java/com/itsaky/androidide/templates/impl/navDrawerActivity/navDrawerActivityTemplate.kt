@@ -47,8 +47,8 @@ fun navDrawerActivityProject() = baseProjectImpl {
 
         putStringRes("navigation_drawer_open", "Open navigation drawer")
         putStringRes("navigation_drawer_close", "Close navigation drawer")
-        putStringRes("nav_header_title", "AndroidIDE")
-        putStringRes("nav_header_subtitle", "contact@androidide.com")
+        putStringRes("nav_header_title", "Code on the Go")
+        putStringRes("nav_header_subtitle", "info@appdevforall.org")
         putStringRes("nav_header_desc", "Navigation header")
         putStringRes("action_settings", "Settings")
         putStringRes("menu_home", "Home")

@@ -44,7 +44,7 @@ public class BaseApplication extends Application {
   public static final String DOCS_URL = "http://localhost:6174/android_asset/CoGoTooltips/html/help_top.html";
   public static final String CONTRIBUTOR_GUIDE_URL =
       BuildInfo.REPO_URL + "/blob/dev/CONTRIBUTING.md";
-  public static final String EMAIL = "contact@androidide.com";
+  public static final String EMAIL = "info@appdevforall.org";
   private static BaseApplication instance;
   private PreferenceManager mPrefsManager;
 
