@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
+import com.adfa.constants.FEEDBACK_EMAIL
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -50,6 +51,7 @@ import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 
 class MainFragment : BaseFragment() {
 
@@ -83,7 +85,7 @@ class MainFragment : BaseFragment() {
             val onClick = { action: MainScreenAction, _: View ->
                 when (action.id) {
                     MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
-                    MainScreenAction.ACTION_OPEN_PROJECT -> pickDirectory()
+                    MainScreenAction.ACTION_OPEN_PROJECT -> showViewSavedProjects()
                     MainScreenAction.ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
                     MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
                     MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
@@ -136,24 +138,26 @@ class MainFragment : BaseFragment() {
         CoroutineScope(Dispatchers.IO).launch {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
             val item = dao.getTooltip(tag)
-            val buttons = item.buttons
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipUtils.showIDETooltip(
                         it,
                         view!!,
                         0,
-                        item.detail,
-                        item.summary,
-                        buttons
+                        IDETooltipItem(
+                            tooltipTag = item?.tooltipTag ?: "",
+                            detail = item?.detail ?: "",
+                            summary = item?.summary ?: "",
+                            buttons = item?.buttons ?: arrayListOf(),
+                        )
                     )
                 })
             }
         }
     }
 
-    private fun performFeedbackAction(/* action:  JMT MainScreenAction*/) {
-        val builder = context?.let { it1 -> DialogUtils.newMaterialDialogBuilder(it1) }
+    private fun performFeedbackAction() {
+        val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.let { builder ->
             builder.setTitle("Alert!")
                 .setMessage(
@@ -165,31 +169,29 @@ class MainFragment : BaseFragment() {
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
-                        val stackTrace =
-                            Exception().stackTrace.asList().toString().replace(",", "\n")
-                        val sb = StringBuilder(resources.getString(R.string.feedback_message))
-                        sb.append("\n\n\n")
-                        sb.append("Version: ")
-                        // "CodeOnTheGo-${buildTypeName}${date}
-                        sb.append(BuildConfig.VERSION_NAME.toString())
-                        sb.append("\n\n")
-                        sb.append("-------------stack trace----------\n")
-                        sb.append(stackTrace)
+                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+
+                        val feedbackMessage = getString(
+                            R.string.feedback_message,
+                            BuildConfig.VERSION_NAME,
+                            stackTrace
+                        )
+
                         val feedbackIntent = Intent(Intent.ACTION_SEND)
                         val subject = MessageFormat.format(
                             resources.getString(R.string.feedback_subject),
                             "Main"
                         )
-                        /*To send an email you need to specify mailto: as URI using setData() method
-                               and data type will be to text/plain using setType() method*/
+
                         feedbackIntent.data = Uri.parse("mailto:")
                         feedbackIntent.type = "text/plain"
                         feedbackIntent.putExtra(
                             Intent.EXTRA_EMAIL,
-                            arrayOf("feedback@appdevforall.com")
+                            arrayOf(FEEDBACK_EMAIL)
                         )
                         feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, sb.toString())
+                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+
                         shareActivityResultLauncher.launch(feedbackIntent)
                         dialog.dismiss()
                     }
@@ -209,19 +211,19 @@ class MainFragment : BaseFragment() {
     }
 
     private fun pickDirectoryForDeletion() {
-        pickDirectory(this::deleteProject)
+        viewModel.setScreen(MainViewModel.SCREEN_DELETE_PROJECTS)
     }
 
     private fun showCreateProject() {
         viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
     }
 
-    fun openProject(root: File) {
-        (requireActivity() as MainActivity).openProject(root)
+    private fun showViewSavedProjects() {
+        viewModel.setScreen(MainViewModel.SCREEN_SAVED_PROJECTS)
     }
 
-    fun deleteProject(root: File) {
-        (requireActivity() as MainActivity).deleteProject(root)
+    fun openProject(root: File) {
+        (requireActivity() as MainActivity).openProject(root)
     }
 
     private fun cloneGitRepo() {

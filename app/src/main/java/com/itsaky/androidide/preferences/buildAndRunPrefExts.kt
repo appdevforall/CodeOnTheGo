@@ -72,7 +72,6 @@ private class GradleOptions(
 
   init {
     addPreference(GradleCommands())
-    addPreference(GradleDistrubution())
     addPreference(GradleJDKVersionPreference())
     addPreference(GradleClearCache())
   }
@@ -96,28 +95,6 @@ private class GradleCommands(
             "--build-cache" to ::isBuildCacheEnabled,
             "--offline" to ::isOfflineEnabled,
         )
-    }
-}
-
-@Parcelize
-private class GradleDistrubution(
-    override val key: String = CUSTOM_GRADLE_INSTALLATION,
-    override val title: Int = string.idepref_title_customGradleInstallation,
-    override val summary: Int? = string.idepref_msg_customGradleInstallation,
-    override val icon: Int? = drawable.ic_gradle,
-) : EditTextPreference() {
-
-    override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-        gradleInstallationDir = newValue as String? ?: ""
-        return true
-    }
-
-    override fun onConfigureTextInput(input: TextInputLayout) {
-        input.setStartIconDrawable(drawable.ic_gradle)
-        input.setHint(string.msg_gradle_installation_path)
-        input.helperText = input.context.getString(string.msg_gradle_installation_input_help)
-        input.isCounterEnabled = false
-        input.editText!!.setText(gradleInstallationDir)
     }
 }
 

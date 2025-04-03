@@ -28,7 +28,7 @@ import java.io.File
 
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.5.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.0.0"
-const val KOTLIN_VERSION = "1.9.22"
+const val KOTLIN_VERSION = "2.0.21"
 
 val TARGET_SDK_VERSION = Sdk.Tiramisu
 val COMPILE_SDK_VERSION = Sdk.Tiramisu
@@ -136,3 +136,11 @@ const val CONTENT_KEY = "CONTENT_KEY"
 
 // Toml
 const val TOML_FILE_NAME = "libs.versions.toml"
+
+//Email constant
+const val FEEDBACK_EMAIL = "feedback@appdevforall.com"
+
+
+// Help
+const val HELP_PAGE_URL =
+    "file:///android_asset/CoGoTooltips/html/cogohelp/index.html"

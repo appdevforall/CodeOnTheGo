@@ -24,7 +24,8 @@ package com.itsaky.androidide.models
 open class Symbol @JvmOverloads constructor(
   open val label: String,
   open val commit: String,
-  open val offset: Int = 1
+  open val offset: Int = 1,
+  open val description: String = label
 ) {
   @JvmOverloads
   constructor(both: String, offset: Int = 1) : this(both, both, offset)
@@ -36,6 +37,7 @@ open class Symbol @JvmOverloads constructor(
     if (label != other.label) return false
     if (commit != other.commit) return false
     if (offset != other.offset) return false
+    if (description != other.description) return false
 
     return true
   }
@@ -44,10 +46,11 @@ open class Symbol @JvmOverloads constructor(
     var result = label.hashCode()
     result = 31 * result + commit.hashCode()
     result = 31 * result + offset
+    result = 31 * result + description.hashCode()
     return result
   }
 
   override fun toString(): String {
-    return "Symbol(label='$label', commit='$commit', offset=$offset)"
+    return "Symbol(label='$label', commit='$commit', offset=$offset, description='$description')"
   }
 }

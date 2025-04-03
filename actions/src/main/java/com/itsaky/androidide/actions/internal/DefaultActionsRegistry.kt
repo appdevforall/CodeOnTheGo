@@ -45,7 +45,7 @@ import java.util.concurrent.ConcurrentHashMap
 @AutoService(ActionsRegistry::class)
 class DefaultActionsRegistry : ActionsRegistry() {
 
-  private val actions = ConcurrentHashMap<String, ConcurrentHashMap<String, ActionItem>>()
+  private val actions = ConcurrentHashMap<String, LinkedHashMap<String, ActionItem>>()
   private val listeners = HashSet<ActionExecListener>()
 
   private val actionsCoroutineScope = CoroutineScope(Dispatchers.Default) +
@@ -60,15 +60,12 @@ class DefaultActionsRegistry : ActionsRegistry() {
   }
 
   override fun getActions(location: ActionItem.Location): MutableMap<String, ActionItem> {
-    if (actions[location.id] == null) {
-      actions[location.id] = ConcurrentHashMap()
-    }
-
-    return actions[location.id]!!
+    return actions.getOrPut(location.id) { LinkedHashMap() }
   }
 
   override fun registerAction(action: ActionItem): Boolean {
     val actions = getActions(action.location)
+    actions.remove(action.id)
     actions[action.id] = action
     return true
   }
@@ -127,7 +124,9 @@ class DefaultActionsRegistry : ActionsRegistry() {
     val (data, location, menu, onClickListener) = params
     val actions = getActions(location)
 
-    for (action in actions.values) {
+    val sortedActions = actions.values.sortedWith(compareBy({ it.order }, { it.id }))
+
+    for (action in sortedActions) {
       action.prepare(data)
 
       if (!action.visible) {
