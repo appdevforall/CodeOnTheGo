@@ -17,8 +17,10 @@
 
 package com.itsaky.androidide.plugins.tasks
 
+import com.adfa.constants.COGO_GRADLE_PLUGIN_NAME
 import com.adfa.constants.GRADLE_FOLDER_NAME
 import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
+import com.adfa.constants.COGO_GRADLE_PLUGIN_PATH
 import com.itsaky.androidide.build.config.VersionUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
@@ -26,6 +28,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+
 
 /**
  * Keywords: [init.gradle, gradle, gradle plugin, initscript, 2.7.1, 8.5.1]
@@ -63,34 +66,39 @@ abstract class GenerateInitScriptTask : DefaultTask() {
       initscript {
           repositories {
               
-              // Always specify the snapshots repository first
-              maven {
-                  // Add snapshots repository for AndroidIDE CI builds
-                  url "${VersionUtils.SONATYPE_SNAPSHOTS_REPO}"
-              }
+              // Disabled references to external sources to prevent
+              // CoGo from going to the network
               
-              maven {
-                  // Add public repository for AndroidIDE release builds
-                  url "${VersionUtils.SONATYPE_PUBLIC_REPO}"
-              }
+              // // Always specify the snapshots repository first
+              // maven {
+              //     // Add snapshots repository for AndroidIDE CI builds
+              //     url "${VersionUtils.SONATYPE_SNAPSHOTS_REPO}"
+              // }
               
-              // This values is hardcoded in GenerateInitScriptTask
-              // It was taking way too much time to properly provide it with module dependencies.
-              // But we should invest more time into this later.
+              // maven {
+              //     // Add public repository for AndroidIDE release builds
+              //     url "${VersionUtils.SONATYPE_PUBLIC_REPO}"
+              // }
+              
               flatDir {
-                  dirs 'gradle' // Directory containing your local JAR
+                    // TODO: issue with dirs requiring two params to work
+                    //       when the first one is the only one required,
+                    //       second value is just a dummy value
+                    dirs "$COGO_GRADLE_PLUGIN_PATH", "plugin"
               }
               
-              mavenCentral()
-              google()
+              // mavenCentral()
+              // google()
           }
 
-          //dependencies {
+          dependencies {
           //    classpath(files("$LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME"))
-          //}
+              classpath  name: "$COGO_GRADLE_PLUGIN_NAME"
+          }
       }
       
-      //apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
+      // apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
+      apply plugin: com.itsaky.androidide.gradle.CogoCleanPlugin
     """
           .trimIndent()
       )
