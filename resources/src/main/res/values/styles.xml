@@ -104,6 +104,7 @@
     <item name="shapeAppearanceOverlay">@style/MaterialDialog.ShapeAppearance</item>
     <item name="android:windowEnterAnimation">@animator/dialog_in</item>
     <item name="android:windowExitAnimation">@animator/dialog_out</item>
+    <item name="android:background">@color/background</item>
   </style>
 
   <style name="MaterialDialog.ShapeAppearance" parent="">
