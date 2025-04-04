@@ -21,7 +21,7 @@
         <com.google.android.material.appbar.MaterialToolbar
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="@color/white"
+            android:background="@color/background"
             app:title="@string/app_name"
             app:titleCentered="true"
             app:titleTextAppearance="@style/TextAppearance.AndroidIDE.TitleLarge.Bold" />
@@ -32,7 +32,7 @@
         android:id="@+id/fragment_containers_parent"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@color/white"
+        android:background="@color/background"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
