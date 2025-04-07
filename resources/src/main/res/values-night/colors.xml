@@ -18,5 +18,4 @@
 <resources>
   <color name="splash_bg">@color/primaryColor</color>
   <color name="splash_icon_tint">@color/primaryIconColor</color>
-  <color name="background">#000000</color>
 </resources>
