@@ -32,7 +32,6 @@ internal class JavaCodeConfigurations(
 
   init {
     addPreference(GoogleCodeStyle())
-    addPreference(JavaDiagnosticsEnabled())
   }
 }
 
