@@ -55,6 +55,29 @@
 - [ ] Asset Studio (Drawable & Icon Maker)
 - [x] Git
 
+## 🔒 Git Pre-Commit Hook: Branch Name Enforcement
+
+This project enforces a strict branch naming policy using a Git pre-commit hook.
+
+### ✅ Allowed Branch Formats:
+- `ADFA-123` (3 to 5 digit number)
+- `feature/ADFA-123`
+- `bugfix/ADFA-12345`
+- `chore/ADFA-9999`
+- `anyprefix/ADFA-#####`
+
+### 🛠 Setup
+
+#### Mac/Linux:
+```bash
+sh ./scripts/install-git-hooks.sh
+````
+
+#### Windows
+```bash
+scripts\install-git-hooks.bat
+```
+
 ## Installation
 
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.svg"

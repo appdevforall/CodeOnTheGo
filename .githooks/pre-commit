@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# Get the current branch name
+branch_name=$(git rev-parse --abbrev-ref HEAD)
+
+# Validate branch name: ADFA-<3 to 5 digits> optionally prefixed with anything/
+case "$branch_name" in
+  ADFA-[0-9][0-9][0-9] | \
+  ADFA-[0-9][0-9][0-9][0-9] | \
+  ADFA-[0-9][0-9][0-9][0-9][0-9] | \
+  */ADFA-[0-9][0-9][0-9] | \
+  */ADFA-[0-9][0-9][0-9][0-9] | \
+  */ADFA-[0-9][0-9][0-9][0-9][0-9])
+    ;;
+  *)
+    echo "❌ Error: Branch name '$branch_name' does not conform to the naming policy."
+    echo ""
+    echo "✅ Allowed formats:"
+    echo "  - ADFA-123"
+    echo "  - ADFA-1234"
+    echo "  - ADFA-12345"
+    echo "  - feature/ADFA-123"
+    echo "  - bugfix/ADFA-9999"
+    echo "  - anyprefix/ADFA-12345"
+    exit 1
+    ;;
+esac
+
+exit 0
