@@ -74,16 +74,12 @@ private class CommonConfigurations(
   init {
     addPreference(TextSize())
     addPreference(TabSize())
-    addPreference(ColorSchemePreference())
     addPreference(NonPrintablePaintingFlags())
-    addPreference(FontLigatures())
-    addPreference(UseCustomFont())
     addPreference(UseSoftTab())
     addPreference(WordWrap())
     addPreference(UseMagnifier())
     addPreference(UseICU())
     addPreference(AutoSave())
-    addPreference(VisibiblePasswordFlag())
     addPreference(DeleteEmptyLines())
     addPreference(DeleteTabs())
     addPreference(StickyScrollEnabled())
@@ -130,15 +126,6 @@ private class TextSize(
 }
 
 @Parcelize
-private class FontLigatures(
-  override val key: String = FONT_LIGATURES,
-  override val title: Int = string.idepref_editor_ligatures_title,
-  override val summary: Int? = string.idepref_editor_ligatures_summary,
-  override val icon: Int? = drawable.ic_font_ligatures,
-) : SwitchPreference(setValue = EditorPreferences::fontLigatures::set,
-  getValue = EditorPreferences::fontLigatures::get)
-
-@Parcelize
 private class UseSoftTab(
   override val key: String = USE_SOFT_TAB,
   override val title: Int = string.idepref_editor_useSoftTabs_title,
@@ -178,40 +165,6 @@ private class TabSize(
     position: Int
   ) {
     EditorPreferences.tabSize = (entry?.data as? Int?) ?: 4
-  }
-}
-
-@Parcelize
-private class ColorSchemePreference(
-  override val key: String = COLOR_SCHEME,
-  override val title: Int = R.string.idepref_editor_colorScheme,
-  override val summary: Int? = R.string.idepref_editor_colorScheme_summary,
-  override val icon: Int? = R.drawable.ic_color_scheme
-) : SingleChoicePreference() {
-
-  @IgnoredOnParcel
-  override val dialogCancellable = true
-
-  @IgnoredOnParcel
-  private val schemes = IDEColorSchemeProvider.list()
-
-  override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
-    val currentColorScheme = EditorPreferences.colorScheme
-    return Array(schemes.size) { index ->
-      PreferenceChoices.Entry(
-        schemes[index].name,
-        currentColorScheme == schemes[index].key,
-        schemes[index]
-      )
-    }
-  }
-
-  override fun onChoiceConfirmed(
-    preference: Preference,
-    entry: PreferenceChoices.Entry?,
-    position: Int
-  ) {
-    EditorPreferences.colorScheme = (entry?.data as? IDEColorScheme?)?.key ?: DEFAULT_COLOR_SCHEME
   }
 }
 
@@ -273,15 +226,6 @@ private class CompletionsMatchLower(
 )
 
 @Parcelize
-private class VisibiblePasswordFlag(
-  override val key: String = FLAG_PASSWORD,
-  override val title: Int = string.idepref_visiblePassword_title,
-  override val summary: Int? = string.idepref_visiblePassword_summary,
-  override val icon: Int? = drawable.ic_password_input,
-) : SwitchPreference(setValue = EditorPreferences::visiblePasswordFlag::set,
-  getValue = EditorPreferences::visiblePasswordFlag::get)
-
-@Parcelize
 private class UseICU(
   override val key: String = USE_ICU,
   override val title: Int = string.idepref_useIcu_title,
@@ -289,15 +233,6 @@ private class UseICU(
   override val icon: Int? = drawable.ic_expand_selection,
 ) : SwitchPreference(setValue = EditorPreferences::useIcu::set,
   getValue = EditorPreferences::useIcu::get)
-
-@Parcelize
-private class UseCustomFont(
-  override val key: String = USE_CUSTOM_FONT,
-  override val title: Int = string.idepref_customFont_title,
-  override val summary: Int? = string.idepref_customFont_summary,
-  override val icon: Int? = drawable.ic_custom_font,
-) : SwitchPreference(setValue = EditorPreferences::useCustomFont::set,
-  getValue = EditorPreferences::useCustomFont::get)
 
 @Parcelize
 private class DeleteEmptyLines(

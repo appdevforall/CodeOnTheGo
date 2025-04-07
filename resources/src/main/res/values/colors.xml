@@ -4,6 +4,8 @@
   <!--  other colors-->
   <color name="primaryColor">#121212</color>
   <color name="primaryIconColor">#ffffff</color>
+  <color name="background">#FFFFFF</color>
+  <color name="white_standard">#FEFCFF</color>
   <color name="rippleHighlightColor">#85121212</color>
 
   <color name="color_success">@color/green_500</color>
@@ -17,6 +19,9 @@
 
   <color name="color_picker_default_color">#f44336</color>
 
+  <color name="blue_273892">#273892</color>
+
   <color name="splash_bg">@android:color/white</color>
   <color name="splash_icon_tint">@android:color/black</color>
+  <color name="primary_blue">#233490</color>
 </resources>

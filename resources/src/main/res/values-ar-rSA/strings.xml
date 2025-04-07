@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">فتح مشروع موجود</string>
   <string name="title_confirm_project_close">إغلاق المشروع</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">هل أنت متأكد من رغبتك في إغلاق هذا المشروع؟ سيتم إيقاف جميع ديمونات Gradle التي بدأت بعد إغلاق هذا المشروع.</string>
+  <string name="msg_confirm_project_close">عند إغلاق المشروع، سيتم إوقف جميع مهام البناء وقد تفقد التغييرات غير المحفوظة في ملف المشروع. هل تريد حفظ الملفات قبل إغلاق المشروع؟</string>
   <string name="template_basic">المشروع الأساسي</string>
   <string name="template_empty">مشروع فارغ</string>
   <string name="template_navigation_drawer">مشروع درج التنقل</string>
@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">سمة</string>
   <string name="idepref_general_themeSelector_summary">اختر سمة لـ Code on the Go (تتطلب إعادة التشغيل).</string>
   <string name="idepref_general_projectConfig">تهيئة المشروع</string>
-  <string name="msg_app_launch_failed">فشل التشغيل. يجب تثبيت التطبيق أولاً.</string>
+  <string name="msg_app_launch_failed">يجب عليك بناء وتثبيت التطبيق قبل أن تتمكن من تشغيله.</string>
   <string name="idepref_java_diagnosticEnabled_title">التشخيصات مفعلة</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(تجريبي) ما إذا ينبغي تحليل ملفات مصدر جافا بحثا عن أخطاء أم لا.</string>
   <string name="title_reload_color_schemes">إعادة تحميل أنظمة الألوان</string>

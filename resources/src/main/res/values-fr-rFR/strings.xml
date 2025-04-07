@@ -64,7 +64,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_open_existing_project">Ouvrir un projet existant</string>
   <string name="title_confirm_project_close">Fermer le projet</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">Êtes vous sûres ? Tous les daemons seront arrêtés après la fermeture du projet.</string>
+  <string name="msg_confirm_project_close">Lorsque vous fermez le projet, toutes les tâches de construction seront arrêtées et les modifications non enregistrées dans votre fichier de projet pourraient être perdues. Voulez-vous enregistrer les fichiers avant de fermer le projet ?</string>
   <string name="template_basic">Projet simple</string>
   <string name="template_empty">Projet vide</string>
   <string name="template_navigation_drawer">Projet navigation drawer</string>
@@ -141,8 +141,8 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_about_title">À propos de Code on the Go</string>
   <string name="idepref_build_clearCache_title">Nettoyer le cache de Gradle</string>
   <string name="idepref_build_clearCache_summary">Nettoyer le cache des dossiers de Gradle. Cela supprimera toutes les dépendances téléchargées Gradle. les fichiers nécessaires seront retélechargées à la prochaine compilation.</string>
-  <string name="idepref_build_customgradlecommands_title">Commandes gradle supplémentaires</string>
-  <string name="idepref_build_customgradlecommands_summary">Choisissez des commandes supplémentaire qui seront ajouter lors des prochaines exécutions de tâches</string>
+  <string name="idepref_build_customgradlecommands_title">Drapeaux Gradle supplémentaires</string>
+  <string name="idepref_build_customgradlecommands_summary">Choisissez des commandes supplémentaires qui seront ajoutées lors de </string>
   <string name="idepref_editor_fontsize_title">Taille des caractères</string>
   <string name="idepref_editor_fontsize_summary">Taille des caractères de l\'éditeur</string>
   <string name="idepref_editor_paintingflags_title">Non-printable painting flags </string>
@@ -228,7 +228,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
   <string name="msg_select_from_primary_storage">Select a directory from primary storage</string>
   <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
-  <string name="idepref_useIcu_title">Use ICU lib</string>
+  <string name="idepref_useIcu_title">Utiliser la bibliothèque ICU</string>
   <string name="idepref_useIcu_summary">Use ICU library to use retrive word edges for double-tap and long-press word selection.</string>
   <!--The text sorrounded with '@@' is spanned as clickable.-->
   <!--There must be exactly two '@@' sorrounding the text that should be clickable.-->
@@ -359,7 +359,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_general_themeSelector_title">Thème</string>
   <string name="idepref_general_themeSelector_summary">Sélectionner un thème pour Code on the Go (redémarrage de l\'application nécessaire).</string>
   <string name="idepref_general_projectConfig">Project configuration</string>
-  <string name="msg_app_launch_failed">Erreur de lancement. Installez l\'application d\'abord.</string>
+  <string name="msg_app_launch_failed">Vous devez compiler et installer lapplication avant de pouvoir la lancer.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostics enabled</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EXPERIMENTAL) Whether the Java source files should be analyzed for errors or not.</string>
   <string name="title_reload_color_schemes">Reload color schemes</string>

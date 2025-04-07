@@ -696,7 +696,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     editorActivityScope.launch {
       val files = editorViewModel.getOpenedFiles()
       val dupliCount = mutableMapOf<String, Int>()
-      val names = MutableIntObjectMap<Pair<String, @DrawableRes Int>>()
+      val names = MutableIntObjectMap<Pair<String, Int>>()
       val nameBuilder = UniqueNameBuilder<File>("", File.separator)
 
       files.forEach {

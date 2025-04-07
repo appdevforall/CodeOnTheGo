@@ -64,7 +64,7 @@
   <string name="msg_open_existing_project">বিদ্যমান প্রকল্প খুলুন</string>
   <string name="title_confirm_project_close">প্রকল্পটি বন্ধ করুন</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">আপনি কি এই প্রকল্পটি বন্ধ করার বিষয়ে নিশ্চিত? এই প্রকল্পটি বন্ধ হওয়ার পরে সমস্ত শুরু হওয়া গ্রেডল ডেমন বন্ধ হয়ে যাবে৷</string>
+  <string name="msg_confirm_project_close">যখন আপনি প্রকল্পটি বন্ধ করবেন, সমস্ত বিল্ড টাস্ক বন্ধ হয়ে যাবে এবং আপনার প্রকল্প ফাইলে অসংরক্ষিত পরিবর্তনগুলি হারিয়ে যেতে পারে। আপনি কি প্রকল্পটি বন্ধ করার আগে ফাইলগুলি সংরক্ষণ করতে চান?</string>
   <string name="template_basic">মৌলিক প্রকল্প</string>
   <string name="template_empty">খালি প্রকল্প</string>
   <string name="template_navigation_drawer">নেভিগেশন ড্রয়ার প্রকল্প</string>
@@ -142,8 +142,7 @@
   <string name="idepref_build_clearCache_title">Gradle ক্যাশে সাফ করুন</string>
   <string name="idepref_build_clearCache_summary">Gradle ক্যাশে ডিরেক্টরি সাফ করুন। এটি Gradle দ্বারা ডাউনলোড করা সমস্ত নির্ভরতা মুছে ফেলবে। পরবর্তী বিল্ডে প্রয়োজনীয় ফাইলগুলি আবার ডাউনলোড করা হবে৷</string>
   <string name="idepref_build_customgradlecommands_title">অতিরিক্ত গ্রেডেল কমান্ড</string>
-  <string name="idepref_build_customgradlecommands_summary">অতিরিক্ত কমান্ড নির্বাচন করুন যা প্রতিটি কাজ সম্পাদন করার সময় যোগ করা হবে</string>
-  <string name="idepref_editor_fontsize_title">ফন্টের আকার</string>
+  <string name="idepref_build_customgradlecommands_summary">অতিরিক্ত কমান্ড নির্বাচন করুন যা প্রতিটি কাজ সম্পাদন করার সময় যোগ করা হবে</string>  <string name="idepref_editor_fontsize_title">ফন্টের আকার</string>
   <string name="idepref_editor_fontsize_summary">সম্পাদকের ফন্টের আকার</string>
   <string name="idepref_editor_paintingflags_title">অমুদ্রণযোগ্য অক্ষরগুলি</string>
   <string name="idepref_editor_paintingflags_summary">এডিটর দ্বারা কোন অমুদ্রণযোগ্য অক্ষরগুলি আঁকা উচিত তা চয়ন করুন</string>
@@ -228,7 +227,7 @@
   <string name="err_invalid_data_by_intent">ইন্টেন্ট অবৈধ ডেটা ফেরত দিয়েছে</string>
   <string name="msg_select_from_primary_storage">প্রাথমিক স্টোরেজ থেকে একটি ডিরেক্টরি নির্বাচন করুন</string>
   <string name="err_authority_not_allowed">কর্তৃপক্ষ \'%s\' অনুমোদিত নয়</string>
-  <string name="idepref_useIcu_title">ICU lib ব্যবহার করুন</string>
+  <string name="idepref_useIcu_title">ICU লাইব্রেরি ব্যবহার করুন</string>
   <string name="idepref_useIcu_summary">ডাবল-ট্যাপ এবং দীর্ঘক্ষণ চাপা শব্দ নির্বাচনের জন্য ICU লাইব্রেরি ব্যবহার করুন৷</string>
   <!--The text sorrounded with '@@' is spanned as clickable.-->
   <!--There must be exactly two '@@' sorrounding the text that should be clickable.-->
@@ -359,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">থিম</string>
   <string name="idepref_general_themeSelector_summary">Code on the Go এর জন্য একটি থিম নির্বাচন করুন (Restart প্রয়োজন)।</string>
   <string name="idepref_general_projectConfig">প্রকল্প কনফিগারেশন</string>
-  <string name="msg_app_launch_failed">লঞ্চ ব্যর্থ হয়েছে, প্রথমে অ্যাপ্লিকেশনটি ইনস্টল করুন।</string>
+  <string name="msg_app_launch_failed">আপনাকে অ্যাপটি চালু করার আগে এটি বিল্ড এবং ইনস্টল করতে হবে।</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostics সক্রিয়</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EXPERIMENTAL) জাভা সোর্স ফাইলগুলি ত্রুটির জন্য বিশ্লেষণ করা হোক অথবা নয়।</string>
   <string name="title_reload_color_schemes">Color Scheme পুনরায় লোড করুন</string>

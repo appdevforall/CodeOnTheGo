@@ -19,6 +19,7 @@ package com.adfa.constants
 
 import java.io.File
 
+
 /**
  * @author Akash Yadav
  *
@@ -28,7 +29,7 @@ import java.io.File
 
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.5.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.0.0"
-const val KOTLIN_VERSION = "1.9.22"
+const val KOTLIN_VERSION = "2.0.21"
 
 val TARGET_SDK_VERSION = Sdk.Tiramisu
 val COMPILE_SDK_VERSION = Sdk.Tiramisu
@@ -81,6 +82,11 @@ const val ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME =
  */
 const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME =
     "com.android.tools.build:gradle:${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
+
+// Cogo gradle plugin
+const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
+const val COGO_GRADLE_PLUGIN_JAR_NAME = "${COGO_GRADLE_PLUGIN_NAME}.jar"
+const val COGO_GRADLE_PLUGIN_PATH = "/data/data/com.itsaky.androidide/files/home/.androidide/plugin"
 
 //ABI
 const val V7_KEY = "v7"
@@ -136,3 +142,11 @@ const val CONTENT_KEY = "CONTENT_KEY"
 
 // Toml
 const val TOML_FILE_NAME = "libs.versions.toml"
+
+//Email constant
+const val FEEDBACK_EMAIL = "feedback@appdevforall.com"
+
+
+// Help
+const val HELP_PAGE_URL =
+    "file:///android_asset/CoGoTooltips/html/cogohelp/index.html"

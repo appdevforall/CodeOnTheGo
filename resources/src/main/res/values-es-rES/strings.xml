@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">Abrir un proyecto existente</string>
   <string name="title_confirm_project_close">Cerrar proyecto</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">¿Estás seguro de que quieres cerrar este proyecto? Todos loo Gradle deamons iniciados se detendrán después de cerrar este proyecto.</string>
+  <string name="msg_confirm_project_close">Cuando cierres el proyecto, todas las tareas de compilación se detendrán y los cambios no guardados en tu archivo de proyecto podrían perderse. ¿Deseas guardar los archivos antes de cerrar el proyecto?</string>
   <string name="template_basic">Proyecto básico</string>
   <string name="template_empty">Proyecto vacío</string>
   <string name="template_navigation_drawer">Proyecto con Navigation drawer</string>
@@ -140,7 +140,7 @@
   <string name="idepref_about_title">Acerca de Code on the Go</string>
   <string name="idepref_build_clearCache_title">Limpiar caches de Gradle</string>
   <string name="idepref_build_clearCache_summary">Borrar el directorio de cachés de Gradle. Esto eliminará todas las dependencias descargadas por Gradle. Los archivos requeridos se descargarán de nuevo en la próxima compilación.</string>
-  <string name="idepref_build_customgradlecommands_title">Comandos de Gradle adicionales</string>
+  <string name="idepref_build_customgradlecommands_title">Banderas adicionales de Gradle</string>
   <string name="idepref_build_customgradlecommands_summary">Elija comandos adicionales que se agregarán al ejecutar cada tarea</string>
   <string name="idepref_editor_fontsize_title">Tamaño de fuente</string>
   <string name="idepref_editor_fontsize_summary">Tamaño de fuente del editor</string>
@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">Theme</string>
   <string name="idepref_general_themeSelector_summary">Select a theme for Code on the Go (requires restart).</string>
   <string name="idepref_general_projectConfig">Project configuration</string>
-  <string name="msg_app_launch_failed">Launch failed. Install the application first.</string>
+  <string name="msg_app_launch_failed">Debes compilar e instalar la aplicación antes de poder iniciarla.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnósticos habilitados</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EXPERIMENTAL) Whether the Java source files should be analyzed for errors or not.</string>
   <string name="title_reload_color_schemes">Recargar esquemas de color</string>

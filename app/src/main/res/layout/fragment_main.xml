@@ -8,7 +8,6 @@
   android:layout_height="match_parent"
   app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior">
 
-
   <com.google.android.material.imageview.ShapeableImageView
       android:id="@+id/main_image"
     android:layout_width="50dp"

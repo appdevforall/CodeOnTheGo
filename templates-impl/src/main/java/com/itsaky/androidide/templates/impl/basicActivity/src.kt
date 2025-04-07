@@ -101,7 +101,7 @@ internal fun basicActivityLayout() = """
         
     ${materialAppBar().indentToLevel(1)}
     
-    <include layout="@layout/content_main"/>
+    ${baseLayoutContentMain().indentToLevel(1)}
 
     ${materialFab().indentToLevel(1)}
 
