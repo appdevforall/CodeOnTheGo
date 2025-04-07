@@ -176,10 +176,6 @@ object TooltipUtils {
             "Color attribute not found in theme"
         )
 
-        Log.d("ThemeColor", "Resolved ?attr/colorSurface: #${Integer.toHexString(colorSurface)}")
-
-        val formattedTextColorHex = colorSurface
-
         val styledHtml = """
         <!DOCTYPE html>
         <html>
@@ -190,7 +186,7 @@ object TooltipUtils {
                     margin: 0; 
                     padding: 10px; 
                     word-wrap: break-word;
-                    color: $formattedTextColorHex;
+                    color: $colorSurface;
                 }
             </style>
         </head>
