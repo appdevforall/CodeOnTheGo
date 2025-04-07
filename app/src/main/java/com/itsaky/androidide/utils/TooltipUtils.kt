@@ -33,6 +33,7 @@ import android.widget.ImageButton
 import android.widget.PopupWindow
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentTransaction
+import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.fragments.IDETooltipWebviewFragment
@@ -169,8 +170,15 @@ object TooltipUtils {
             else -> ""
         }
 
-        val targetTextColorInt = ContextCompat.getColor(context, R.color.background_inverted)
-        val formattedTextColorHex = String.format("#%06X", 0xFFFFFF and targetTextColorInt)
+        val colorSurface: Int = MaterialColors.getColor(
+            context,
+            com.google.android.material.R.attr.colorSurfaceInverse,
+            "Color attribute not found in theme"
+        )
+
+        Log.d("ThemeColor", "Resolved ?attr/colorSurface: #${Integer.toHexString(colorSurface)}")
+
+        val formattedTextColorHex = colorSurface
 
         val styledHtml = """
         <!DOCTYPE html>
