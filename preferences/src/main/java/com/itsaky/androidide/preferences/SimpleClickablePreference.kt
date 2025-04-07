@@ -18,6 +18,7 @@
 package com.itsaky.androidide.preferences
 
 import androidx.preference.Preference
+import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 
 /**
@@ -33,6 +34,7 @@ constructor(
   override val title: Int,
   override val summary: Int? = null,
   override val icon: Int? = null,
+  @IgnoredOnParcel // The prefs do not refresh so the parcelizable object is not required, remove this and update the prefs building
   private val onClick: ((Preference) -> Boolean)? = { false }
 ) : SimplePreference() {
 
