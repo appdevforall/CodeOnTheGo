@@ -72,7 +72,6 @@ private class GradleOptions(
 
   init {
     addPreference(GradleCommands())
-    addPreference(GradleJDKVersionPreference())
     addPreference(GradleClearCache())
   }
 }
