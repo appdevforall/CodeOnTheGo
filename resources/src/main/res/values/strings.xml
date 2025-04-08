@@ -94,6 +94,7 @@
   <string name="template_navigation_drawer">Navigation drawer project</string>
   <string name="template_compose" translatable="false">Jetpack Compose</string>
   <string name="template_navigation_tabs">Bottom Navigation Activity</string>
+  <string name="template_responsive_views_activity">Responsive Views Activity</string>
   <string name="template_tabs">Tabbed Activity</string>
   <string name="template_no_activity">No Activity</string>
   <string name="template_no_AndroidX">No AndroidX</string>

@@ -106,10 +106,11 @@ constructor(
             createProject,
             openProject,
             deleteProject,
-            cloneGitRepository,
-            openTerminal,
-            preferences,
-            donate,
+//JMT removed for MVP
+//            cloneGitRepository,
+//            openTerminal,
+//            preferences,
+//            donate,
             docs
         )
 
