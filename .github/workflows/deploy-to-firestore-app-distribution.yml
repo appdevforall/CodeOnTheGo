@@ -77,7 +77,7 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Assemble Universal APK
-        run: ./gradlew assembleDebug --build-cache --parallel -x lint -x lintVitalRelease --no-daemon
+        run:  ./gradlew :app:assembleDebug
 
       - name: Find APK file
         id: find_apk
