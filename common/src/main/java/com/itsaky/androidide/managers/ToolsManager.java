@@ -40,6 +40,7 @@ import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 public class ToolsManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(ToolsManager.class);
@@ -64,6 +65,7 @@ public class ToolsManager {
       writeNoMediaFile();
       extractAapt2();
       extractToolingApi();
+      extractCogoPlugin();
       extractAndroidJar();
       extractColorScheme(app);
       writeInitScript();
@@ -220,6 +222,15 @@ public class ToolsManager {
 
     ResourceUtils.copyFileFromAssets(getCommonAsset("tooling-api-all.jar"),
         Environment.TOOLING_API_JAR.getAbsolutePath());
+  }
+
+  private static void extractCogoPlugin() {
+    if (Environment.COGO_PLUGIN_JAR.exists()) {
+      FileUtils.delete(Environment.COGO_PLUGIN_JAR);
+    }
+
+    ResourceUtils.copyFileFromAssets(getCommonAsset("cogo-plugin.jar"),
+            Environment.COGO_PLUGIN_JAR.getAbsolutePath());
   }
 
   private static void writeInitScript() {
