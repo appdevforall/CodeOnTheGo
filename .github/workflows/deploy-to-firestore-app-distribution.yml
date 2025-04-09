@@ -47,14 +47,12 @@ jobs:
       - name: Configure Git LFS - Selective pull
         run: |
           git lfs install
-          git config lfs.fetchinclude "app/**" # Only pull LFS objects in app directory
           git lfs pull
 
       - name: Initialize submodules
         run: |
           git submodule init
-          git submodule update --depth=1 --remote # Use shallow clone for submodules
-
+          git submodule update --remote
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -65,7 +63,6 @@ jobs:
       - name: Install CMake
         run: |
           brew install cmake || true # Continue even if it's already installed
-
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
@@ -78,7 +75,6 @@ jobs:
           key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
-
       - name: Setup Gradle optimization
         run: |
           mkdir -p ~/.gradle
@@ -86,7 +82,6 @@ jobs:
           echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
           echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
           echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
-
       - name: Assemble Universal APK
         run: ./gradlew assembleDebug --build-cache --parallel -x lint -x lintVitalRelease --no-daemon
 
@@ -96,7 +91,6 @@ jobs:
           apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
           echo "Found APK at: $apk_path"
-
       - name: Set branch name
         run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
@@ -119,7 +113,6 @@ jobs:
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           fi
-
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
@@ -136,7 +129,6 @@ jobs:
           
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
-
       - name: Upload artifact to Firebase App Distribution
         id: firebase_upload
         uses: emertozd/Firebase-Distribution-Github-Action@v2
