@@ -31,7 +31,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: macos-13
+    runs-on: macos-latest-large # Using the larger runner for faster builds
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -44,42 +44,51 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Git LFS
+      - name: Configure Git LFS - Selective pull
         run: |
-          brew install git-lfs
           git lfs install
-
-      - name: Fetch Git LFS objects
-        run: git lfs pull
+          git config lfs.fetchinclude "app/**" # Only pull LFS objects in app directory
+          git lfs pull
 
       - name: Initialize submodules
         run: |
           git submodule init
-          git submodule update --remote
+          git submodule update --depth=1 --remote # Use shallow clone for submodules
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.BUILD_JAVA_VERSION }}
           distribution: ${{ env.BUILD_JAVA_DIST }}
+          cache: 'gradle' # Built-in Gradle caching
 
       - name: Install CMake
         run: |
-          brew update
-          brew install cmake
+          brew install cmake || true # Continue even if it's already installed
 
-      - name: Restore Gradle Cache
+      - name: Cache Dependencies
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-*
+            ~/.gradle/caches/transforms-*
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
+            ~/.android/build-cache
+          key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-gradle-deps-
+
+      - name: Setup Gradle optimization
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
+          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
+          echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
 
       - name: Assemble Universal APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --build-cache --parallel -x lint -x lintVitalRelease --no-daemon
 
       - name: Find APK file
         id: find_apk
@@ -91,13 +100,44 @@ jobs:
       - name: Set branch name
         run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
+      - name: Get PR and Commit Information
+        id: pr_info
+        run: |
+          PR_NUMBER=$(echo $GITHUB_REF | sed -n 's/refs\/pull\/\([0-9]*\)\/merge/\1/p')
+          if [ -n "$PR_NUMBER" ]; then
+            PR_INFO=$(gh pr view $PR_NUMBER --json title,author,body,url)
+            COMMIT_MSG=$(echo "$PR_INFO" | jq -r '.title')
+            PR_AUTHOR=$(echo "$PR_INFO" | jq -r '.author.login')
+            PR_URL=$(echo "$PR_INFO" | jq -r '.url')
+            echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
+            echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
+          else
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+          fi
+
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
-          FOLDER_NAME=$(echo "$BRANCH_NAME" | cut -d'/' -f2)
-          echo "JIRA_TICKET=https://appdevforall.atlassian.net/browse/${FOLDER_NAME}" >> $GITHUB_OUTPUT
+          # Use regex to extract JIRA ticket in format ADFA-XXX
+          JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+          
+          # If JIRA ticket was found, set the URL, otherwise set as N/A
+          if [ -n "$JIRA_TICKET" ]; then
+            JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
+          else
+            JIRA_TICKET="N/A"
+            JIRA_URL="#"
+          fi
+          
+          echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
+          echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-      - name: upload artifact to Firebase App Distribution
+      - name: Upload artifact to Firebase App Distribution
         id: firebase_upload
         uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
@@ -105,13 +145,72 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
           groups: testers
           file: ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: ${{ steps.extract_jira.outputs.JIRA_TICKET }}
+          releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
 
-      - name: Slack Notification
+      - name: Send Rich Slack Notification
         run: |
-          FOLDER_NAME=$(echo "$BRANCH_NAME" | cut -d'/' -f2)
-          MESSAGE="@here :tada: *Build Completed!* :rocket:
-          Jira Ticket: https://appdevforall.atlassian.net/browse/${FOLDER_NAME}"
+          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
+          JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
+          FIREBASE_LINK="${{ steps.firebase_upload.outputs.firebaseConsoleUri }}"
+          PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
+          
+          # Create a rich Slack message using blocks
+          payload=$(cat <<EOF
+          {
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "🚀 New Build Available",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Branch:* \`$BRANCH_NAME\`\n*Jira Ticket:* <$JIRA_URL|$JIRA_TICKET>"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Commit:* ${{ steps.pr_info.outputs.COMMIT_MSG }}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*👤 Author:* @$PR_AUTHOR"
+                },
+                "accessory": {
+                  "type": "button",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "Download APK",
+                    "emoji": true
+                  },
+                  "url": "$FIREBASE_LINK",
+                  "action_id": "button-action"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "👉 @here Please review and test this build."
+                }
+              },
+              {
+                "type": "divider"
+              }
+            ]
+          }
+          EOF
+          )
+          
           curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\": \"${MESSAGE}\"}" \
-            ${{ secrets.SLACK_WEBHOOK_URL }}
+            --data "$payload" \ https://hooks.slack.com/services/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
