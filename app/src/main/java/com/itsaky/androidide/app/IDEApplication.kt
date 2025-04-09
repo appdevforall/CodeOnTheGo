@@ -51,7 +51,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.roomData.tooltips.TooltipDao
-import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
+//import com.itsaky.androidide.roomData.tooltips.TooltipRoomDatabase
 import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TreeSitter
@@ -137,7 +137,7 @@ class IDEApplication : TermuxApplication() {
             IDEColorSchemeProvider.init()
         }
 
-        tooltipDao = TooltipRoomDatabase.getDatabase(this, applicationScope).tooltipDao()
+//        tooltipDao = TooltipRoomDatabase.getDatabase(this, applicationScope).tooltipDao()
         idetooltipDao = IDETooltipDatabase.getDatabase(this).idetooltipDao()
 
         //Trigger a lightweight database access to force initialization
