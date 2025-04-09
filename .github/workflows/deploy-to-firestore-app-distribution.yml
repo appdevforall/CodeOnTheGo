@@ -75,13 +75,7 @@ jobs:
           key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
-      - name: Setup Gradle optimization
-        run: |
-          mkdir -p ~/.gradle
-          echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
-          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
-          echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+
       - name: Assemble Universal APK
         run: ./gradlew assembleDebug --build-cache --parallel -x lint -x lintVitalRelease --no-daemon
 
