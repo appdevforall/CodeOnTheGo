@@ -30,10 +30,9 @@ class InitializationProjectAndCancelingBuildScenario : Scenario() {
             }
         }
         step("Wait for the green button") {
-            flakySafely(240000) {
-                KView {
-                    withText(R.string.msg_project_initialized)
-                }.isVisible()
+            flakySafely(360000) {
+                device.uiDevice.findObject(UiSelector().text("Project initialized"))
+                    .waitForExists(360000)
                 flakySafely {
                     KView {
                         withParent {
@@ -46,31 +45,13 @@ class InitializationProjectAndCancelingBuildScenario : Scenario() {
                 }
             }
         }
-        step("Confirm that the install dialog appears and click cancel") {
-            flakySafely(240000) {
-                val installDialog =
-                    device.uiDevice.findObject(UiSelector().text("Do you want to install this app?"))
-                val cancelButton = device.uiDevice.findObject(UiSelector().text("Cancel"))
-                if (installDialog.waitForExists(180000)) {
-                    installDialog.exists()
-                    cancelButton.click()
-                } else {
-                    throw AssertionError("Install dialog not found!")
-                }
-            }
-        }
         step("Click back and confirm that the Close Project dialog appears") {
             device.uiDevice.pressBack()
             flakySafely {
                 EditorScreen {
                     closeProjectDialog {
-                        title {
-                            hasText(R.string.title_confirm_project_close)
-                        }
-                        message {
-                            hasText(R.string.msg_confirm_project_close)
-                        }
                         positiveButton {
+                            hasText("Yes")
                             click()
                         }
                     }

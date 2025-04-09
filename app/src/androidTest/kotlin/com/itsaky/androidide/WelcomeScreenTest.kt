@@ -21,6 +21,10 @@ class WelcomeScreenTest : TestCase() {
 
     @Test
     fun test_welcomeScreen_itemsAppearCorrectly() {
+        // The SplashActivity immediately starts OnboardingActivity and finishes itself
+        // This might cause a race condition, so we need to wait for OnboardingActivity to be fully shown
+        Thread.sleep(1000) // Wait for activity transitions to complete
+
         OnboardingScreen {
             greetingTitle.isVisible()
             greetingSubtitle.isVisible()

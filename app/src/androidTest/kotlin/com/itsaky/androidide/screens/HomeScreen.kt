@@ -39,7 +39,7 @@ object HomeScreen : KScreen<HomeScreen>() {
                     }
                     rvActions {
                         scrollTo(0)
-                        childWith<ActionItem> { withText("Create project") } perform {
+                        childWith<ActionItem> { withText("Create Project") } perform {
                             isDisplayed()
                             click()
                         }
