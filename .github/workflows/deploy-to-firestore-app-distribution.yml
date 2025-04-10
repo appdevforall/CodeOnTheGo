@@ -72,6 +72,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
+
+      - name: Create symbolic link for LayoutEditor (Linux only)
+        run: |
+          SOURCE_PATH="$GITHUB_WORKSPACE/LayoutEditor"
+          DEST_PATH="$GITHUB_WORKSPACE/layouteditor"
+
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            if [ -L "$DEST_PATH" ]; then
+              echo "Symbolic link already exists: $DEST_PATH"
+            elif [ -e "$DEST_PATH" ]; then
+              echo "Destination path already exists but is not a symlink. Please check manually."
+              exit 1
+            else
+              ln -s "$SOURCE_PATH" "$DEST_PATH"
+              echo "Symbolic link created: $DEST_PATH -> $SOURCE_PATH"
+            fi
+          else
+            echo "Skipping symbolic link creation: Not running on Linux."
+          fi
+
       - name: Assemble Universal APK
         run:  ./gradlew :app:assembleDebug
 
