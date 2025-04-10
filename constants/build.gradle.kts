@@ -2,7 +2,7 @@ import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
     id("java")
-    kotlin("jvm") version "2.0.21"
+    kotlin("jvm") version "1.9.22"
 }
 
 /**
