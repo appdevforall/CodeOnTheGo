@@ -339,7 +339,7 @@ public final class TermuxConstants {
      */
 
     /** Termux app name */
-    public static final String TERMUX_APP_NAME = "AndroidIDE"; // Default: "Termux"
+    public static final String TERMUX_APP_NAME = "Code on the Go"; // Default: "Termux"
     /** Termux package name */
     public static final String TERMUX_PACKAGE_NAME = "com.itsaky.androidide"; // Default: "com.termux"
     /** Termux GitHub repo name */
@@ -412,7 +412,7 @@ public final class TermuxConstants {
 
 
     /** Termux support email url */
-    public static final String TERMUX_SUPPORT_EMAIL_URL = "contact@androidide.com"; // Default: "support@termux.dev"
+    public static final String TERMUX_SUPPORT_EMAIL_URL = "info@appdevforall.org"; // Default: "info@appdevforall.org"
 
     /** Termux support email mailto url */
     public static final String TERMUX_SUPPORT_EMAIL_MAILTO_URL = "mailto:" + TERMUX_SUPPORT_EMAIL_URL; // Default: "mailto:support@termux.dev"

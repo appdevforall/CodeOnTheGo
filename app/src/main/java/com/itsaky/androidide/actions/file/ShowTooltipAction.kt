@@ -23,6 +23,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.utils.TooltipUtils
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
@@ -52,11 +53,15 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
                     context,
                     editor,
                     0,
-                    tooltipData,
-                ) { it -> activity.openFAQActivity(it) }
+                    IDETooltipItem(
+                        tooltipTag = tooltipData.tooltipTag,
+                        detail = tooltipData.detail,
+                        summary = tooltipData.summary,
+                        buttons = tooltipData.buttons,
+                    ),
+                )
             }
         }
-
         return true
     }
 

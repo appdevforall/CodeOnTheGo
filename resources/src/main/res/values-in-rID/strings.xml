@@ -63,7 +63,7 @@
   <string name="msg_open_existing_project">Buka proyek</string>
   <string name="title_confirm_project_close">Tutup proyek</string>
   <!-- Templates -->
-  <string name="msg_confirm_project_close">Anda yakin ingin menutup proyek ini? Semua Gradle daemon yang berjalan akan diberhentikan setelah proyek ini ditutup.</string>
+  <string name="msg_confirm_project_close">Ketika Anda menutup proyek, semua tugas build akan dihentikan dan perubahan yang belum disimpan pada file proyek Anda mungkin akan hilang. Apakah Anda ingin menyimpan file sebelum menutup proyek?</string>
   <string name="template_basic">Proyek Dasar</string>
   <string name="template_empty">Proyek Kosong</string>
   <string name="template_navigation_drawer">Proyek NavigationDrawer</string>
@@ -140,7 +140,7 @@
   <string name="idepref_about_title">Tentang Code on the Go</string>
   <string name="idepref_build_clearCache_title">Bersihkan cache Gradle</string>
   <string name="idepref_build_clearCache_summary">Membersihkan direktori cache Gradle. ini akan menghapus semua dependensi yang telah diunduh oleh Gradle. File yang diperlukan akan diunduh kembali pada build berikutnya.</string>
-  <string name="idepref_build_customgradlecommands_title">Penambahan perintah Gradle</string>
+  <string name="idepref_build_customgradlecommands_title">Tambahan flag Gradle</string>
   <string name="idepref_build_customgradlecommands_summary">Pilih tambahan perintah yang akan ditambahkan ketika melaksanakan setiap task</string>
   <string name="idepref_editor_fontsize_title">Ukuran huruf</string>
   <string name="idepref_editor_fontsize_summary">Ukuran huruf pada editor</string>
@@ -358,7 +358,7 @@
   <string name="idepref_general_themeSelector_title">Tema</string>
   <string name="idepref_general_themeSelector_summary">Pilih tema untuk Code on the Go (memerlukan restart).</string>
   <string name="idepref_general_projectConfig">Konfigurasi proyek</string>
-  <string name="msg_app_launch_failed">Peluncuran gagal. Instal aplikasinya terlebih dahulu.</string>
+  <string name="msg_app_launch_failed">Anda harus membangun dan menginstal aplikasi sebelum Anda dapat meluncurkannya.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostik diaktifkan</string>
   <string name="idepref_java_diagnosticsEnabled_summary">(EKSPERIMENTAL) Apakah file sumber Java harus dianalisis untuk kesalahan atau tidak.</string>
   <string name="title_reload_color_schemes">Muat ulang skema warna</string>

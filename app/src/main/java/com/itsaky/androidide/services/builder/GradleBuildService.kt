@@ -164,7 +164,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     val launch = packageManager.getLaunchIntentForPackage(BuildConfig.APPLICATION_ID)
     val intent = PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT)
     val builder = Notification.Builder(this, BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE)
-      .setSmallIcon(R.drawable.ic_launcher_notification).setTicker(ticker)
+      .setSmallIcon(R.drawable.ic_launcher_fg_vector).setTicker(ticker)
       .setWhen(System.currentTimeMillis()).setContentTitle(title).setContentText(message)
       .setContentIntent(intent)
 

@@ -158,7 +158,7 @@ public class IDEDocumentsProvider extends DocumentsProvider {
     LOG.debug("queryRoots() before all add, 6");
     row.add(Root.COLUMN_AVAILABLE_BYTES, BASE_DIR.getFreeSpace());
     LOG.debug("queryRoots() before all add, 7");
-    row.add(Root.COLUMN_ICON, R.mipmap.ic_launcher);
+    row.add(Root.COLUMN_ICON, R.drawable.ic_launcher_foreground);
     LOG.debug("queryRoots() before all add");
     return result;
   }

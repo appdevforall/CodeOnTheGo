@@ -158,7 +158,7 @@ data class Dependency(val configuration: DependencyConfiguration,
     // Exclude older conflicting version from transitive dependencies
     // Again this arises only when using a local maven repo. Most probably because it lacks flexibility of online one.
     // We can run some gradle:app dependency commands to compare the results for online and offline maven repo later.
-    // Use Kotlin stdlib 1.9.22, and exclude old jdk7 and jdk8 versions
+    // Use Kotlin stdlib 2.0.21, and exclude old jdk7 and jdk8 versions
     implementation(libs.kotlin.stdlib) {
       exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
       exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")

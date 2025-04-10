@@ -119,6 +119,22 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         variant.sources.assets?.addGeneratedSourceDirectory(copyToolingApiJar,
           AddFileToAssetsTask::outputDirectory)
 
+        // cogo-plugin jar copier
+        val copyCogoPluginJar = tasks.register("copy${variantNameCapitalized}CogoPluginJar",
+          AddFileToAssetsTask::class.java) {
+          val cogopluginApi = rootProject.findProject(":gradle-plugin")!!
+          dependsOn(cogopluginApi.tasks.getByName("assemble"))
+
+          val cogopluginApiJar = cogopluginApi.layout.buildDirectory.file("libs/cogo-plugin.jar")
+
+          inputFile.set(cogopluginApiJar)
+          baseAssetsPath.set("data/common")
+        }
+
+        variant.sources.assets?.addGeneratedSourceDirectory(copyCogoPluginJar,
+          AddFileToAssetsTask::outputDirectory)
+
+
         // Local gradle zip copier
         variant.sources.assets?.addGeneratedSourceDirectory(gradleExecutableToAssetsTaskProvider,
           CopyGradleExecutableToAssetsTask::outputDirectory)
