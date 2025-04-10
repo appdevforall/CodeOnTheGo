@@ -31,7 +31,8 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: ubuntu-latest-large
+    runs-on: macos-latest-large # Using the larger runner for faster builds
+    timeout-minutes: 60
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
@@ -47,7 +48,6 @@ jobs:
         run: |
           git lfs install
           git lfs pull
-
       - name: Initialize submodules
         run: |
           git submodule init
@@ -59,6 +59,9 @@ jobs:
           distribution: ${{ env.BUILD_JAVA_DIST }}
           cache: 'gradle' # Built-in Gradle caching
 
+      - name: Install CMake
+        run: |
+          brew install cmake || true # Continue even if it's already installed
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
@@ -71,27 +74,6 @@ jobs:
           key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
-
-
-      - name: Create symbolic link for LayoutEditor (Linux only)
-        run: |
-          SOURCE_PATH="$GITHUB_WORKSPACE/LayoutEditor"
-          DEST_PATH="$GITHUB_WORKSPACE/layouteditor"
-
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            if [ -L "$DEST_PATH" ]; then
-              echo "Symbolic link already exists: $DEST_PATH"
-            elif [ -e "$DEST_PATH" ]; then
-              echo "Destination path already exists but is not a symlink. Please check manually."
-              exit 1
-            else
-              ln -s "$SOURCE_PATH" "$DEST_PATH"
-              echo "Symbolic link created: $DEST_PATH -> $SOURCE_PATH"
-            fi
-          else
-            echo "Skipping symbolic link creation: Not running on Linux."
-          fi
-
       - name: Assemble Universal APK
         run:  ./gradlew :app:assembleDebug
 
@@ -113,7 +95,6 @@ jobs:
             COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
             PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
             PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
-
             echo "PR_NUMBER=$(jq -r '.pull_request.number' "$EVENT_PATH")" >> $GITHUB_OUTPUT
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
@@ -125,7 +106,6 @@ jobs:
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           fi
-
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
@@ -144,7 +124,7 @@ jobs:
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
       - name: Upload artifact to Firebase App Distribution
         id: firebase_upload
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
@@ -152,18 +132,31 @@ jobs:
           file: ${{ steps.find_apk.outputs.APK_PATH }}
           releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
 
-      - name: Display Firebase URLs
+
+      - name: Extract Firebase Console URL
+        id: extract_urls
         run: |
-          # Display available output URLs directly
-          echo "Firebase Console URL: ${{ steps.firebase_upload.outputs.TESTING_URI }}"
+          # Capture URLs from the Firebase output
+          FIREBASE_CONSOLE_URL=$(grep -o 'https://console.firebase.google.com/project/[^"]*' <<< "${{ steps.firebase_upload.outputs.FIREBASE_OUTPUT }}" || echo "")
+          FIREBASE_TESTING_URL=$(grep -o 'https://appdistribution.firebase.google.com/testerapps/[^"]*' <<< "${{ steps.firebase_upload.outputs.FIREBASE_OUTPUT }}" || echo "")
+          FIREBASE_DOWNLOAD_URL=$(grep -o 'https://firebaseappdistribution.googleapis.com/app-binary-downloads/[^"]*' <<< "${{ steps.firebase_upload.outputs.FIREBASE_OUTPUT }}" || echo "")
           
+          # Set environment variables for later use
+          echo "FIREBASE_CONSOLE_URL=$FIREBASE_CONSOLE_URL" >> $GITHUB_ENV
+          echo "FIREBASE_DISTRIBUTION_URL=$FIREBASE_TESTING_URL" >> $GITHUB_ENV
+          echo "FIREBASE_DOWNLOAD_URL=$FIREBASE_DOWNLOAD_URL" >> $GITHUB_ENV
+          
+          # Display extracted URLs for debugging
+          echo "Firebase Console URL: $FIREBASE_CONSOLE_URL"
+          echo "Firebase Testing URL: $FIREBASE_TESTING_URL"
+          echo "Firebase Download URL: $FIREBASE_DOWNLOAD_URL"
 
       - name: Send Rich Slack Notification
         run: |
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
           FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          FIREBASE_DISTRIBUTION_URL="${{ steps.firebase_upload.outputs.TESTING_URI }}"
+          FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
           FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           
