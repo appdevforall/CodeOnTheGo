@@ -136,8 +136,10 @@ jobs:
           file: ${{ steps.find_apk.outputs.APK_PATH }}
           releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
 
-      - name: Echo Firebase Distribution outputs
-        run: echo "${{ toJson(steps.firebase_upload.outputs) }}"
+      - name: Display Firebase Console URL
+        run:
+          echo ${{ steps.firebase_upload.outputs }}
+
 
 
       - name: Send Rich Slack Notification
