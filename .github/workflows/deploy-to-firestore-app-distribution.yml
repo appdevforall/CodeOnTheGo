@@ -134,13 +134,13 @@ jobs:
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
-#          groups: testers
+          groups: testers
           file: ${{ steps.find_apk.outputs.APK_PATH }}
           releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
 
       - name: Send Rich Slack Notification
         env:
-          SLACK_WEBHOOK: https://hooks.slack.com/services/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
+          SLACK_WEBHOOK: {{secrets.SLACK_WEBHOOK_URL}}
         run: |
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
@@ -173,7 +173,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Jira Ticket:* $JIRA_URL"
+                  "text": "*Jira Ticket:* '"$JIRA_URL"'"
                 }
               },
               {
