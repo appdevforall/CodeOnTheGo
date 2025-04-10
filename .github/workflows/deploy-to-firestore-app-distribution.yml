@@ -78,7 +78,7 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
 
       - name: Find APK file
         id: find_apk
