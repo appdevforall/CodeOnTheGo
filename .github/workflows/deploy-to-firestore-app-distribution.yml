@@ -201,4 +201,4 @@ jobs:
           EOF
           )
           
-          curl -X POST -H 'Content-type: application/json' --data "$payload" https://hooks.slack.com/services/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
+          curl -X POST -H 'Content-type: application/json' --data "$payload" https://hooks.slack.com/services/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
