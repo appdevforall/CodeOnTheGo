@@ -214,4 +214,4 @@ jobs:
           
           curl -X POST -H "Content-Type: application/json" \
                --data "$payload" \
-               "https://hooks.slack.com/services/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"
+               "https://hooks.slack.com/services/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"
