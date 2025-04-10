@@ -140,7 +140,7 @@ jobs:
 
       - name: Send Rich Slack Notification
         env:
-          SLACK_WEBHOOK: {{secrets.SLACK_WEBHOOK_URL}}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
@@ -158,7 +158,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": " New Build Available",
+                  "text": ":rocket: New Build Available",
                   "emoji": true
                 }
               },
