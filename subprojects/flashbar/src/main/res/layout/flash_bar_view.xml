@@ -7,7 +7,7 @@
     android:clickable="true"
     android:fitsSystemWindows="true"
     android:focusable="true"
-    app:cardBackgroundColor="?attr/colorPrimaryInverse"
+    app:cardBackgroundColor="?attr/colorPrimaryContainer"
     app:cardElevation="@dimen/fb_card_elevation"
     app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Material3.Corner.Bottom">
 
