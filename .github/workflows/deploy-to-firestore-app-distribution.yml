@@ -140,7 +140,7 @@ jobs:
         run: |
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          FIREBASE_LINK="${{ steps.firebase_upload.outputs.TESTING_URI }}"
+          FIREBASE_LINK="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URI }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           
           # Create a rich Slack message using blocks
