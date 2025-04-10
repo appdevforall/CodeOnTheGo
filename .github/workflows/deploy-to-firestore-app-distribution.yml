@@ -173,7 +173,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Jira Ticket:* <'"$JIRA_URL"'|'"$JIRA_TICKET"'>"
+                  "text": "*Jira Ticket:* $JIRA_URL"
                 }
               },
               {
