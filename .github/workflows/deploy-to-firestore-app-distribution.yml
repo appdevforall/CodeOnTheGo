@@ -136,17 +136,28 @@ jobs:
           file: ${{ steps.find_apk.outputs.APK_PATH }}
           releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
 
-      - name: Display Firebase Console URL
-        run:
-          echo ${{ steps.firebase_upload.outputs }}
-
-
+      - name: Display Firebase URLs
+        run: |
+          # Display available output URLs directly
+          echo "Firebase Console URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URI }}"
+          echo "Firebase Distribution URL: ${{ steps.firebase_upload.outputs.FIREBASE_DISTRIBUTION_URI }}"
+          echo "Firebase Download URL: ${{ steps.firebase_upload.outputs.FIREBASE_DOWNLOAD_URI }}"
+          
+          # Create a file with all the output information for debugging
+          echo "${{ toJSON(steps.firebase_upload.outputs) }}" > firebase_outputs.json
+          
+          # Set URLs for use in Slack notification
+          echo "FIREBASE_CONSOLE_URL=${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URI }}" >> $GITHUB_ENV
+          echo "FIREBASE_DISTRIBUTION_URL=${{ steps.firebase_upload.outputs.FIREBASE_DISTRIBUTION_URI }}" >> $GITHUB_ENV
+          echo "FIREBASE_DOWNLOAD_URL=${{ steps.firebase_upload.outputs.FIREBASE_DOWNLOAD_URI }}" >> $GITHUB_ENV
 
       - name: Send Rich Slack Notification
         run: |
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          FIREBASE_LINK="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URI }}"
+          FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
+          FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           
           # Create a rich Slack message using blocks
@@ -195,8 +206,15 @@ jobs:
                     "text": "Download APK",
                     "emoji": true
                   },
-                  "url": "$FIREBASE_LINK",
+                  "url": "$FIREBASE_DISTRIBUTION_URL",
                   "action_id": "button-action"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Firebase Links:*\n• <$FIREBASE_CONSOLE_URL|Firebase Console>\n• <$FIREBASE_DISTRIBUTION_URL|Distribution Link>\n• <$FIREBASE_DOWNLOAD_URL|Direct Download Link>"
                 }
               },
               {
