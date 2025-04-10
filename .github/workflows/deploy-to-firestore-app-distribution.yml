@@ -31,8 +31,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: ubuntu-latest-large # Using the larger runner for faster builds
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
