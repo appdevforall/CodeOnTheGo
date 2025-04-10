@@ -20,7 +20,6 @@ package com.itsaky.androidide.interfaces
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
-import com.itsaky.androidide.roomData.tooltips.Tooltip
 import com.itsaky.androidide.ui.CodeEditorView
 import java.io.File
 
