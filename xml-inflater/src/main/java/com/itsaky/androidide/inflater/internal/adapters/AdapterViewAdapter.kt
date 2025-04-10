@@ -30,36 +30,27 @@ import com.itsaky.androidide.inflater.internal.ViewGroupImpl
  */
 abstract class AdapterViewAdapter<T : AdapterView<*>> : ViewGroupAdapter<T>() {
 
-    companion object {
-        const val ADAPTER_DEFAULT_ITEM_COUNT = 3
+  companion object {
+    const val ADAPTER_DEFAULT_ITEM_COUNT = 3
+  }
+
+  override fun applyBasic(view: IView) {
+    super.applyBasic(view)
+    (view.view as AdapterView<*>).adapter = newSimpleAdapter(view.view.context)
+    if (view is ViewGroupImpl) {
+      view.childrenModifiable = false
     }
+  }
 
-    override fun applyBasic(view: IView) {
-        super.applyBasic(view)
+  protected open fun newSimpleAdapter(ctx: Context): ArrayAdapter<String> {
+    return newSimpleAdapter(ctx, newAdapterItems(ADAPTER_DEFAULT_ITEM_COUNT))
+  }
 
-        val adapter = newSimpleAdapter(view.view.context)
+  protected open fun newSimpleAdapter(ctx: Context, items: Array<String>): ArrayAdapter<String> {
+    return ArrayAdapter<String>(ctx, layout.simple_list_item_1, items)
+  }
 
-        when(view.view) {
-            is AdapterView<*> -> {
-                @Suppress("UNCHECKED_CAST")
-                (view.view as AdapterView<android.widget.Adapter>).adapter = adapter
-            }
-        }
-
-        if(view is ViewGroupImpl) {
-            view.childrenModifiable = false
-        }
-    }
-
-    protected open fun newSimpleAdapter(ctx: Context): ArrayAdapter<String> {
-        return newSimpleAdapter(ctx, newAdapterItems(ADAPTER_DEFAULT_ITEM_COUNT))
-    }
-
-    protected open fun newSimpleAdapter(ctx: Context, items: Array<String>): ArrayAdapter<String> {
-        return ArrayAdapter(ctx, layout.simple_list_item_1, items)
-    }
-
-    protected open fun newAdapterItems(size: Int): Array<String> {
-        return Array(size) { "Item $it" }
-    }
+  protected open fun newAdapterItems(size: Int): Array<String> {
+    return Array(size) { "Item $it" }
+  }
 }
