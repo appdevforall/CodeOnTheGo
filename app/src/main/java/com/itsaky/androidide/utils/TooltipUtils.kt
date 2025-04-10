@@ -170,12 +170,17 @@ object TooltipUtils {
             else -> ""
         }
 
-        val colorSurface: Int = MaterialColors.getColor(
+        val textColor = MaterialColors.getColor(
             context,
-            com.google.android.material.R.attr.colorSurfaceInverse,
+            com.google.android.material.R.attr.colorOnSurface,
             "Color attribute not found in theme"
         )
 
+        fun Int.toHexColor(): String {
+            return String.format("#%06X", 0xFFFFFF and this)
+        }
+
+        val hexColor = textColor.toHexColor()
         val styledHtml = """
         <!DOCTYPE html>
         <html>
@@ -186,7 +191,7 @@ object TooltipUtils {
                     margin: 0; 
                     padding: 10px; 
                     word-wrap: break-word;
-                    color: $colorSurface;
+                    color: $hexColor;
                 }
             </style>
         </head>
