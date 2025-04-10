@@ -59,9 +59,6 @@ jobs:
           distribution: ${{ env.BUILD_JAVA_DIST }}
           cache: 'gradle' # Built-in Gradle caching
 
-      - name: Install CMake
-        run: |
-          brew install cmake || true # Continue even if it's already installed
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
@@ -75,7 +72,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
       - name: Assemble Universal APK
-        run:  ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug
 
       - name: Find APK file
         id: find_apk
@@ -122,6 +119,7 @@ jobs:
           
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
+
       - name: Upload artifact to Firebase App Distribution
         id: firebase_upload
         uses: emertozd/Firebase-Distribution-Github-Action@v2
@@ -132,24 +130,6 @@ jobs:
           file: ${{ steps.find_apk.outputs.APK_PATH }}
           releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
 
-
-      - name: Extract Firebase Console URL
-        id: extract_urls
-        run: |
-          # Capture URLs from the Firebase output
-          FIREBASE_CONSOLE_URL=$(grep -o 'https://console.firebase.google.com/project/[^"]*' <<< "${{ steps.firebase_upload.outputs.FIREBASE_OUTPUT }}" || echo "")
-          FIREBASE_TESTING_URL=$(grep -o 'https://appdistribution.firebase.google.com/testerapps/[^"]*' <<< "${{ steps.firebase_upload.outputs.FIREBASE_OUTPUT }}" || echo "")
-          FIREBASE_DOWNLOAD_URL=$(grep -o 'https://firebaseappdistribution.googleapis.com/app-binary-downloads/[^"]*' <<< "${{ steps.firebase_upload.outputs.FIREBASE_OUTPUT }}" || echo "")
-          
-          # Set environment variables for later use
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_CONSOLE_URL" >> $GITHUB_ENV
-          echo "FIREBASE_DISTRIBUTION_URL=$FIREBASE_TESTING_URL" >> $GITHUB_ENV
-          echo "FIREBASE_DOWNLOAD_URL=$FIREBASE_DOWNLOAD_URL" >> $GITHUB_ENV
-          
-          # Display extracted URLs for debugging
-          echo "Firebase Console URL: $FIREBASE_CONSOLE_URL"
-          echo "Firebase Testing URL: $FIREBASE_TESTING_URL"
-          echo "Firebase Download URL: $FIREBASE_DOWNLOAD_URL"
 
       - name: Send Rich Slack Notification
         run: |
@@ -206,15 +186,8 @@ jobs:
                     "text": "Download APK",
                     "emoji": true
                   },
-                  "url": "$FIREBASE_DISTRIBUTION_URL",
+                  "url": "https://console.firebase.google.com/project/codeonthego-64a92/appdistribution",
                   "action_id": "button-action"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Firebase Links:*\n• <$FIREBASE_CONSOLE_URL|Firebase Console>\n• <$FIREBASE_DISTRIBUTION_URL|Distribution Link>\n• <$FIREBASE_DOWNLOAD_URL|Direct Download Link>"
                 }
               },
               {
