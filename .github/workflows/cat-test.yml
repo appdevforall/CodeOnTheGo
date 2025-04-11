@@ -20,7 +20,7 @@ env:
 jobs:
   run_ui_tests:
     name: Run UI Tests with cAT
-    runs-on: macos-13
+    runs-on: macos-
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs

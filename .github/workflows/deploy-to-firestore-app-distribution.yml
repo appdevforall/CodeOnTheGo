@@ -31,11 +31,11 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: macos-13
+    runs-on: macos-latest-large
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.12.1
+        uses: style/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
