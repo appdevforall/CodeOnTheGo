@@ -28,7 +28,6 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.CUSTOM_GRADLE
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_CLEAR_CACHE
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_COMMANDS
 import com.itsaky.androidide.preferences.internal.BuildPreferences.LAUNCH_APP_AFTER_INSTALL
-import com.itsaky.androidide.preferences.internal.BuildPreferences.PREF_JAVA_HOME
 import com.itsaky.androidide.preferences.internal.BuildPreferences.gradleInstallationDir
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isBuildCacheEnabled
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isDebugEnabled
@@ -37,7 +36,6 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.isOfflineEnab
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isScanEnabled
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isStacktraceEnabled
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isWarningModeAllEnabled
-import com.itsaky.androidide.preferences.internal.BuildPreferences.javaHome
 import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfterInstall
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
@@ -150,48 +148,3 @@ private class LaunchAppAfterInstall(
     override val icon: Int? = drawable.ic_open_external
 ) :
   SwitchPreference(setValue = ::launchAppAfterInstall::set, getValue = ::launchAppAfterInstall::get)
-
-@Parcelize
-class GradleJDKVersionPreference(
-  override val key: String = PREF_JAVA_HOME,
-  override val title: Int = R.string.idepref_jdkVersion_title,
-  override val icon: Int? = R.drawable.ic_language_java,
-) : SingleChoicePreference() {
-
-  override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
-    val distributions = IJdkDistributionProvider.getInstance().installedDistributions
-    check(distributions.isNotEmpty()) {
-      "No JDK installations are available."
-    }
-
-    return distributions.map { dist ->
-      PreferenceChoices.Entry(dist.javaVersion, javaHome == dist.javaHome, dist)
-    }.toTypedArray()
-  }
-
-  override fun onChoiceConfirmed(
-    preference: Preference,
-    entry: PreferenceChoices.Entry?,
-    position: Int
-  ) {
-    super.onChoiceConfirmed(preference, entry, position)
-    javaHome = (entry?.data as? JdkDistribution?)?.javaHome ?: ""
-    updatePreference(preference)
-  }
-
-  override fun onCreatePreference(context: Context): Preference {
-    return super.onCreatePreference(context).also { preference ->
-      updatePreference(preference)
-    }
-  }
-
-  private fun updatePreference(preference: Preference) {
-    val jdkDistProvider = IJdkDistributionProvider.getInstance()
-    val javaVersion = jdkDistProvider.forJavaHome(javaHome)?.javaVersion
-      ?: "<unknown>"
-
-    preference.summary = preference.context.getString(R.string.idepref_jdkVersion_summary,
-      javaVersion)
-    preference.isEnabled = jdkDistProvider.installedDistributions.size > 1
-  }
-}
