@@ -41,7 +41,7 @@
   <color name="_blue_wave_light_colorOnErrorContainer">#ff410e0b</color>
   <color name="_blue_wave_light_colorBackground">#fffefbff</color>
   <color name="_blue_wave_light_colorOnBackground">#ff1b1b1f</color>
-  <color name="_blue_wave_light_colorSurface">#fffefbff</color>
+  <color name="_blue_wave_light_colorSurface">@color/white</color>
   <color name="_blue_wave_light_colorSurfaceInverse">#ff303034</color>
   <color name="_blue_wave_light_colorSurfaceVariant">#ffe1e2ec</color>
   <color name="_blue_wave_light_colorOnSurface">#ff1b1b1f</color>
@@ -110,7 +110,7 @@
   <color name="_blue_wave_dark_colorOnErrorContainer">#fff9dedc</color>
   <color name="_blue_wave_dark_colorBackground">#ff1b1b1f</color>
   <color name="_blue_wave_dark_colorOnBackground">#ffe4e2e6</color>
-  <color name="_blue_wave_dark_colorSurface">#ff1b1b1f</color>
+  <color name="_blue_wave_dark_colorSurface">@color/black</color>
   <color name="_blue_wave_dark_colorSurfaceInverse">#ffe4e2e6</color>
   <color name="_blue_wave_dark_colorSurfaceVariant">#ff44464f</color>
   <color name="_blue_wave_dark_colorOnSurface">#ffe4e2e6</color>
