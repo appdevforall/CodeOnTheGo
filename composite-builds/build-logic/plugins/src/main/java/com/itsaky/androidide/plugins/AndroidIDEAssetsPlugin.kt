@@ -123,19 +123,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         val copyCogoPluginJar = tasks.register("copy${variantNameCapitalized}CogoPluginJar",
           AddFileToAssetsTask::class.java) {
           val cogopluginApi = rootProject.findProject(":gradle-plugin")!!
-
-          // Safely check if the task exists before depending on it
-          // Tries 'assemble', falls back to 'build', then 'jar'.
-          cogopluginApi.tasks.findByName("assemble")?.let {
-              dependsOn(it)
-          } ?: run {
-              // Alternative tasks if assemble doesn't exist
-              cogopluginApi.tasks.findByName("build")?.let {
-                  dependsOn(it)
-              } ?: cogopluginApi.tasks.findByName("jar")?.let {
-                  dependsOn(it)
-              }
-          }
+          dependsOn(cogopluginApi.tasks.getByName("assemble"))
 
           val cogopluginApiJar = cogopluginApi.layout.buildDirectory.file("libs/cogo-plugin.jar")
 
