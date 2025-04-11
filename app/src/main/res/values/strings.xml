@@ -114,4 +114,5 @@ Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
     <string name="code_on_the_go">Code on the Go</string>
     <string name="msg_no_internet_no_problem">No computer? No Internet?\nNo problem.</string>
     <string name="offline_message">Offline</string>
+    <string name="more_label">More</string>
 </resources>
