@@ -24,10 +24,19 @@ package com.itsaky.androidide.preferences.internal
 object JavaPreferences {
 
   const val GOOGLE_CODE_STYLE = "idepref_editor_java_googleCodeStyle"
+  const val JAVA_DIAGNOSTICS_ENABLED = "idepref_editor_java_diagnosticsEnabled"
 
   var googleCodeStyle: Boolean
     get() = prefManager.getBoolean(GOOGLE_CODE_STYLE, false)
     set(value) {
       prefManager.putBoolean(GOOGLE_CODE_STYLE, value)
     }
+
+  /** Whether diagnostics are enabled for the Java source files. */
+  var isJavaDiagnosticsEnabled: Boolean
+    get() = prefManager.getBoolean(JAVA_DIAGNOSTICS_ENABLED, true)
+    set(value) {
+      prefManager.putBoolean(JAVA_DIAGNOSTICS_ENABLED, value)
+    }
+
 }
