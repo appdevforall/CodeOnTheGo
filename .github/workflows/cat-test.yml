@@ -3,7 +3,14 @@ permissions:
   contents: read
   actions: write
 on:
-  workflow_dispatch:
+  pull_request:
+    branches: [ "stage", "feature/**" ]
+    paths-ignore:
+      - '**.md'
+      - 'fastlane/**'
+      - '.github/workflows/crowdin_contributors.yml'
+      - '.github/workflows/deploy-to-firestore-app-distribution.yml'
+  workflow_dispatch: { }
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
