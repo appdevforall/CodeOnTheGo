@@ -17,7 +17,7 @@
 
 plugins {
     id("java")
-    kotlin("jvm") version "2.0.21"
+    kotlin("jvm") version "1.9.22"
 }
 subprojects {
     plugins.withId("java-library") {
