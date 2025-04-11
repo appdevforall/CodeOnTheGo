@@ -52,7 +52,7 @@
         android:gravity="center"
         android:textColor="@color/blue_273892"
         android:textSize="@dimen/_16sp"
-        android:text="@string/offline_message"
+        android:text="@string/msg_no_internet_no_problem"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/title" />
