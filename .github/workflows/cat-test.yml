@@ -54,32 +54,11 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-
-      - name: Assemble Debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Find APK file
-        id: find_apk
-        run: |
-          apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
-          echo "APK_PATH=$apk_path" >> $GITHUB_ENV
-          echo "Found APK at: $apk_path"
-
-      - name: Start Android Emulator
+            
+      - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 30
           target: google_apis
           arch: x86_64
-          profile: pixel_3
-          avd-name: test
-          force-avd-creation: false
-          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect
-          disable-animations: true
-          script: echo "Emulator is ready."
-
-      - name: Install APK on Emulator
-        run: adb install $APK_PATH
-
-      - name: Run cAT Test
-        run: ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
+          script: ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
