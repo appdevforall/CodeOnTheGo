@@ -187,10 +187,10 @@ fun composeConfigGroovy(): String = """
     
     configurations.all {
         resolutionStrategy {
-            // Force the use of Kotlin stdlib 2.0.21 for all modules
-            force("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
+            // Force the use of Kotlin stdlib 1.9.22 for all modules
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
     
             // Force specific AndroidX versions to avoid conflicts
             force("androidx.collection:collection:1.4.2")
@@ -242,10 +242,10 @@ fun composeConfigKts(): String = """
     
     configurations.all {
         resolutionStrategy {
-            // Force the use of Kotlin stdlib 2.0.21 for all modules
-            force("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
+            // Force the use of Kotlin stdlib 1.9.22 for all modules
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
     
             // Force specific AndroidX versions to avoid conflicts
             force("androidx.collection:collection:1.4.2")
@@ -304,9 +304,9 @@ private fun androidPluginGroovy(): String {
 }
 
 private fun ktPluginKts(isToml: Boolean): String {
-    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "2.0.21" """
+    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "1.9.22" """
 }
 
 private fun ktPluginGroovy(): String {
-    return "id 'org.jetbrains.kotlin.android' version '2.0.21'"
+    return "id 'org.jetbrains.kotlin.android' version '1.9.22'"
 }

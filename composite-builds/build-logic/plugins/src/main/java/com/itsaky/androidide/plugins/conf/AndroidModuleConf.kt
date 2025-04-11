@@ -27,6 +27,7 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.FDroidConfig
 import com.itsaky.androidide.build.config.isFDroidBuild
 import com.itsaky.androidide.build.config.projectVersionCode
+import com.itsaky.androidide.build.config.simpleVersionName
 import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
 import org.gradle.api.Project
 import org.gradle.api.artifacts.MinimalExternalModuleDependency
@@ -45,91 +46,94 @@ internal val flavorsAbis = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" 
 private val disableCoreLibDesugaringForModules = arrayOf(":logsender", ":logger")
 
 fun Project.configureAndroidModule(
-  coreLibDesugDep: Provider<MinimalExternalModuleDependency>
+    coreLibDesugDep: Provider<MinimalExternalModuleDependency>
 ) {
-  assert(
-    plugins.hasPlugin("com.android.application") || plugins.hasPlugin("com.android.library")) {
-    "${javaClass.simpleName} can only be applied to Android projects"
-  }
-
-  val androidJar = extensions.getByType(AndroidComponentsExtension::class.java)
-    .getAndroidJar(assertExists = true)
-  val frameworkStubsJar = findProject(":subprojects:framework-stubs")!!.file("libs/android.jar")
-    .also { it.parentFile.mkdirs() }
-
-  if (!(frameworkStubsJar.exists() && frameworkStubsJar.isFile)) {
-    androidJar.copyTo(frameworkStubsJar)
-  }
-
-  extensions.getByType(CommonExtension::class.java).run {
-    lint {
-      checkDependencies = true
+    assert(
+        plugins.hasPlugin("com.android.application") || plugins.hasPlugin("com.android.library")
+    ) {
+        "${javaClass.simpleName} can only be applied to Android projects"
     }
 
-    packaging {
-      resources {
-        excludes.addAll(
-          arrayOf(
-            "META-INF/CHANGES",
-            "META-INF/README.md",
-            "META-INF/LICENSE-notice.md"
-          )
-        )
-        pickFirsts.addAll(
-          arrayOf(
-            "META-INF/eclipse.inf",
-            "META-INF/LICENSE.md",
-            "META-INF/AL2.0",
-            "META-INF/LGPL2.1",
-            "META-INF/INDEX.LIST",
-            "about_files/LICENSE-2.0.txt",
-            "plugin.xml",
-            "plugin.properties",
-            "about.mappings",
-            "about.properties",
-            "about.ini",
-            "modeling32.png"
-          )
-        )
-      }
-    }
-  }
+    val androidJar = extensions.getByType(AndroidComponentsExtension::class.java)
+        .getAndroidJar(assertExists = true)
+    val frameworkStubsJar = findProject(":subprojects:framework-stubs")!!.file("libs/android.jar")
+        .also { it.parentFile.mkdirs() }
 
-  extensions.getByType(BaseExtension::class.java).run {
-    compileSdkVersion(BuildConfig.compileSdk)
-
-    defaultConfig {
-      minSdk = BuildConfig.minSdk
-      targetSdk = BuildConfig.targetSdk
-      versionCode = projectVersionCode
-      versionName = rootProject.version.toString()
-
-      // required
-      multiDexEnabled = true
-
-      testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    if (!(frameworkStubsJar.exists() && frameworkStubsJar.isFile)) {
+        androidJar.copyTo(frameworkStubsJar)
     }
 
-    compileOptions {
-      sourceCompatibility = BuildConfig.javaVersion
-      targetCompatibility = BuildConfig.javaVersion
-    }
-
-    configureCoreLibDesugaring(this, coreLibDesugDep)
-
-    if (":app" == project.path) {
-      packagingOptions {
-        jniLibs {
-          useLegacyPackaging = true
+    extensions.getByType(CommonExtension::class.java).run {
+        lint {
+            checkDependencies = true
         }
-      }
 
-      flavorsAbis.forEach { (abi, _) ->
-        // the common defaultConfig, not the flavor-specific
-        defaultConfig.buildConfigField("String",
-          "ABI_${abi.replace('-', '_').uppercase()}",
-          "\"${abi}\"")
-      }
+        packaging {
+            resources {
+                excludes.addAll(
+                    arrayOf(
+                        "META-INF/CHANGES",
+                        "META-INF/README.md",
+                        "META-INF/LICENSE-notice.md"
+                    )
+                )
+                pickFirsts.addAll(
+                    arrayOf(
+                        "META-INF/eclipse.inf",
+                        "META-INF/LICENSE.md",
+                        "META-INF/AL2.0",
+                        "META-INF/LGPL2.1",
+                        "META-INF/INDEX.LIST",
+                        "about_files/LICENSE-2.0.txt",
+                        "plugin.xml",
+                        "plugin.properties",
+                        "about.mappings",
+                        "about.properties",
+                        "about.ini",
+                        "modeling32.png"
+                    )
+                )
+            }
+        }
+    }
+
+    extensions.getByType(BaseExtension::class.java).run {
+        compileSdkVersion(BuildConfig.compileSdk)
+
+        defaultConfig {
+            minSdk = BuildConfig.minSdk
+            targetSdk = BuildConfig.targetSdk
+            versionCode = projectVersionCode
+            versionName = rootProject.simpleVersionName
+
+            // required
+            multiDexEnabled = true
+
+            testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
+
+        compileOptions {
+            sourceCompatibility = BuildConfig.javaVersion
+            targetCompatibility = BuildConfig.javaVersion
+        }
+
+        configureCoreLibDesugaring(this, coreLibDesugDep)
+
+        if (":app" == project.path) {
+            packagingOptions {
+                jniLibs {
+                    useLegacyPackaging = true
+                }
+            }
+
+            flavorsAbis.forEach { (abi, _) ->
+                // the common defaultConfig, not the flavor-specific
+                defaultConfig.buildConfigField(
+                    "String",
+                    "ABI_${abi.replace('-', '_').uppercase()}",
+                    "\"${abi}\""
+                )
+            }
 
 //      splits {
 //        abi {
@@ -144,58 +148,64 @@ fun Project.configureAndroidModule(
 //        }
 //      }
 
-      extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
-        onVariants { variant ->
-          variant.outputs.forEach { output ->
+            extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
+                onVariants { variant ->
+                    variant.outputs.forEach { output ->
 
-            // version code increment
-            val verCodeIncr = flavorsAbis[output.getFilter(
-              FilterConfiguration.FilterType.ABI)?.identifier]
-              ?: 10000
+                        // version code increment
+                        val verCodeIncr = flavorsAbis[output.getFilter(
+                            FilterConfiguration.FilterType.ABI
+                        )?.identifier]
+                            ?: 10000
 
-            output.versionCode.set(100 * projectVersionCode + verCodeIncr)
-          }
+                        output.versionCode.set(100 * projectVersionCode + verCodeIncr)
+                    }
+                }
+            }
+        } else {
+            defaultConfig {
+                ndk {
+                    abiFilters.clear()
+                    abiFilters += flavorsAbis.keys
+                }
+            }
         }
-      }
-    } else {
-      defaultConfig {
-        ndk {
-          abiFilters.clear()
-          abiFilters += flavorsAbis.keys
+
+        buildTypes.getByName("debug") { isMinifyEnabled = false }
+        buildTypes.getByName("release") {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
-      }
+
+        // development build type
+        // similar to 'release', but disables proguard/r8
+        // this build type can be used to gain release-like performance at runtime
+        // the build are faster for this build type as compared to 'release'
+        buildTypes.register("dev") {
+            initWith(buildTypes.getByName("release"))
+
+            isMinifyEnabled = false
+        }
+
+        testOptions { unitTests.isIncludeAndroidResources = true }
+
+        buildFeatures.viewBinding = true
+        buildFeatures.buildConfig = true
     }
-
-    buildTypes.getByName("debug") { isMinifyEnabled = false }
-    buildTypes.getByName("release") {
-      isMinifyEnabled = true
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-    }
-
-    // development build type
-    // similar to 'release', but disables proguard/r8
-    // this build type can be used to gain release-like performance at runtime
-    // the build are faster for this build type as compared to 'release'
-    buildTypes.register("dev") {
-      initWith(buildTypes.getByName("release"))
-
-      isMinifyEnabled = false
-    }
-
-    testOptions { unitTests.isIncludeAndroidResources = true }
-
-    buildFeatures.viewBinding = true
-    buildFeatures.buildConfig = true
-  }
 }
 
-private fun Project.configureCoreLibDesugaring(baseExtension: BaseExtension,
-  coreLibDesugDep: Provider<MinimalExternalModuleDependency>) {
-  val coreLibDesugaringEnabled = project.path !in disableCoreLibDesugaringForModules
+private fun Project.configureCoreLibDesugaring(
+    baseExtension: BaseExtension,
+    coreLibDesugDep: Provider<MinimalExternalModuleDependency>
+) {
+    val coreLibDesugaringEnabled = project.path !in disableCoreLibDesugaringForModules
 
-  baseExtension.compileOptions.isCoreLibraryDesugaringEnabled = coreLibDesugaringEnabled
+    baseExtension.compileOptions.isCoreLibraryDesugaringEnabled = coreLibDesugaringEnabled
 
-  if (coreLibDesugaringEnabled) {
-    project.dependencies.add("coreLibraryDesugaring", coreLibDesugDep)
-  }
+    if (coreLibDesugaringEnabled) {
+        project.dependencies.add("coreLibraryDesugaring", coreLibDesugDep)
+    }
 }
