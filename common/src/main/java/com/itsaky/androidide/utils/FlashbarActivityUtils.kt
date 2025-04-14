@@ -22,14 +22,15 @@ import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.PorterDuff.Mode.SRC_ATOP
 import android.os.Looper
+import android.util.Log
 import android.widget.ImageView.ScaleType
 import android.widget.ImageView.ScaleType.FIT_CENTER
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.FloatRange
 import androidx.annotation.StringRes
-import androidx.core.graphics.toColorInt
 import com.blankj.utilcode.util.ThreadUtils
+import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.flashbar.Flashbar.Gravity.TOP
 import com.itsaky.androidide.resources.R
@@ -49,63 +50,62 @@ const val COLOR_INFO = Color.DKGRAY
 enum class IconType { SUCCESS, ERROR, INFO }
 
 private fun Flashbar.Builder.applyIcon(iconType: IconType): Flashbar.Builder {
-  return when (iconType) {
-    IconType.SUCCESS -> this.successIcon()
-    IconType.ERROR -> this.errorIcon()
-    IconType.INFO -> this.infoIcon()
-  }
+    return when(iconType) {
+        IconType.SUCCESS -> this.successIcon()
+        IconType.ERROR   -> this.errorIcon()
+        IconType.INFO    -> this.infoIcon()
+    }
 }
 
 private fun Activity.showFlashBar(
-  msg: Any?,
-  iconType: IconType,
-  backgroundColor: Int = getColor(R.color.background),
-  gravity: Flashbar.Gravity = Flashbar.Gravity.TOP,
-  duration: Long = Flashbar.DURATION_SHORT
+    msg: Any?,
+    iconType: IconType,
+    gravity: Flashbar.Gravity = Flashbar.Gravity.TOP,
+    duration: Long = Flashbar.DURATION_SHORT
 ) {
-  when (msg) {
-    null -> return
-    is Int -> flashbarBuilder(gravity, duration, backgroundColor)
-      .applyIcon(iconType)
-      .message(msg)
-      .showOnUiThread()
-    is String -> this.flashbarBuilder(gravity, duration, backgroundColor)
-      .applyIcon(iconType)
-      .message(msg)
-      .showOnUiThread()
-    else -> throw IllegalArgumentException("Message must be String or Int resource")
-  }
+    when(msg) {
+        null      -> return
+        is Int    -> flashbarBuilder(gravity, duration)
+            .applyIcon(iconType)
+            .message(msg)
+            .showOnUiThread()
+        is String -> this.flashbarBuilder(gravity, duration)
+            .applyIcon(iconType)
+            .message(msg)
+            .showOnUiThread()
+        else      -> throw IllegalArgumentException("Message must be String or Int resource")
+    }
 }
 
 @JvmOverloads
 fun Activity.flashbarBuilder(
-  gravity: Flashbar.Gravity = TOP,
-  duration: Long = DURATION_SHORT,
-  backgroundColor: Int = resolveAttr(R.attr.colorPrimaryContainer),
-  messageColor: Int = resolveAttr(R.attr.colorOnPrimaryContainer)
+    gravity: Flashbar.Gravity = TOP,
+    duration: Long = DURATION_SHORT,
+    backgroundColor: Int = resolveAttr(R.attr.colorPrimaryContainer),
+    messageColor: Int = resolveAttr(R.attr.colorOnPrimaryContainer)
 ): Flashbar.Builder {
-  return Flashbar.Builder(this)
-    .gravity(gravity)
-    .duration(duration)
-    .backgroundColor(backgroundColor)
-    .messageColor(messageColor)
+    return Flashbar.Builder(this)
+        .gravity(gravity)
+        .duration(duration)
+        .backgroundColor(backgroundColor)
+        .messageColor(messageColor)
 }
 
 fun Activity.flashMessage(msg: String?, type: FlashType) {
-  msg ?: return
-  when (type) {
-    ERROR -> flashError(msg)
-    INFO -> flashInfo(msg)
-    SUCCESS -> flashSuccess(msg)
-  }
+    msg ?: return
+    when(type) {
+        ERROR   -> flashError(msg)
+        INFO    -> flashInfo(msg)
+        SUCCESS -> flashSuccess(msg)
+    }
 }
 
 fun Activity.flashMessage(@StringRes msg: Int, type: FlashType) {
-  when (type) {
-    ERROR -> flashError(msg)
-    INFO -> flashInfo(msg)
-    SUCCESS -> flashSuccess(msg)
-  }
+    when(type) {
+        ERROR   -> flashError(msg)
+        INFO    -> flashInfo(msg)
+        SUCCESS -> flashSuccess(msg)
+    }
 }
 
 fun Activity.flashSuccess(msg: String?) = showFlashBar(msg, IconType.SUCCESS)
@@ -118,54 +118,54 @@ fun Activity.flashInfo(@StringRes msg: Int) = showFlashBar(msg, IconType.INFO)
 
 @JvmOverloads
 fun <R : Any?> Activity.flashProgress(
-  configure: (Flashbar.Builder.() -> Unit)? = null,
-  action: (Flashbar) -> R
-) : R {
-  val builder = flashbarBuilder(gravity = TOP, duration = DURATION_INDEFINITE)
-    .showProgress(Flashbar.ProgressPosition.LEFT)
+    configure: (Flashbar.Builder.() -> Unit)? = null,
+    action: (Flashbar) -> R
+): R {
+    val builder = flashbarBuilder(gravity = TOP, duration = DURATION_INDEFINITE)
+        .showProgress(Flashbar.ProgressPosition.LEFT)
 
-  configure?.invoke(builder)
+    configure?.invoke(builder)
 
-  val flashbar = builder.build()
-  flashbar.show()
+    val flashbar = builder.build()
+    flashbar.show()
 
-  return action(flashbar)
+    return action(flashbar)
 }
 
 fun Flashbar.Builder.showOnUiThread() {
-  build().showOnUiThread()
+    build().showOnUiThread()
 }
 
 fun Flashbar.showOnUiThread() {
-  if (Looper.myLooper() == Looper.getMainLooper()) {
-    show()
-  } else {
-    ThreadUtils.runOnUiThread { show() }
-  }
+    if(Looper.myLooper() == Looper.getMainLooper()) {
+        show()
+    } else {
+        ThreadUtils.runOnUiThread { show() }
+    }
 }
 
 fun Flashbar.Builder.successIcon(): Flashbar.Builder {
-  return withIcon(R.drawable.ic_ok, colorFilter = COLOR_SUCCESS)
+    return withIcon(R.drawable.ic_ok, colorFilter = COLOR_SUCCESS)
 }
 
 fun Flashbar.Builder.errorIcon(): Flashbar.Builder {
-  return withIcon(R.drawable.ic_error, colorFilter = COLOR_ERROR)
+    return withIcon(R.drawable.ic_error, colorFilter = COLOR_ERROR)
 }
 
 fun Flashbar.Builder.infoIcon(): Flashbar.Builder {
-  return withIcon(R.drawable.ic_info, colorFilter = COLOR_INFO)
+    return withIcon(R.drawable.ic_info, colorFilter = COLOR_INFO)
 }
 
 fun Flashbar.Builder.withIcon(
-  @DrawableRes icon: Int,
-  @FloatRange(from = 0.0, to = 1.0) scale: Float = 1.0f,
-  @ColorInt colorFilter: Int = -1,
-  colorFilterMode: PorterDuff.Mode = SRC_ATOP,
-  scaleType: ScaleType = FIT_CENTER
+    @DrawableRes icon: Int,
+    @FloatRange(from = 0.0, to = 1.0) scale: Float = 1.0f,
+    @ColorInt colorFilter: Int = -1,
+    colorFilterMode: PorterDuff.Mode = SRC_ATOP,
+    scaleType: ScaleType = FIT_CENTER
 ): Flashbar.Builder {
-  return showIcon(scale = scale, scaleType = scaleType).icon(icon).also {
-    if (colorFilter != -1) {
-      iconColorFilter(colorFilter, colorFilterMode)
+    return showIcon(scale = scale, scaleType = scaleType).icon(icon).also {
+        if(colorFilter != -1) {
+            iconColorFilter(colorFilter, colorFilterMode)
+        }
     }
-  }
 }
