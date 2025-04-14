@@ -79,9 +79,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 CopyGradleExecutableToAssetsTask::class.java
             )
 
-            //val gradleAndroidPluginToAssetsTaskProvider = tasks.register(COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME,
-            //  CopyGradleAndroidExceutableToAssetsTask::class.java)
-
             val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
 
             val gradleCachesToAssetsTaskProvider = tasks.register(
@@ -188,10 +185,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     gradleExecutableToAssetsTaskProvider,
                     CopyGradleExecutableToAssetsTask::outputDirectory
                 )
-
-                // Local gradle android plugin copier
-                //variant.sources.assets?.addGeneratedSourceDirectory(gradleAndroidPluginToAssetsTaskProvider,
-                //  CopyGradleAndroidExceutableToAssetsTask::outputDirectory)
 
                 // Local termux libs copier
                 variant.sources.assets?.addGeneratedSourceDirectory(
