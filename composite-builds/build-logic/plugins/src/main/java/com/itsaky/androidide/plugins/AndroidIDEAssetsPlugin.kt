@@ -52,110 +52,166 @@ import org.gradle.configurationcache.extensions.capitalized
  */
 class AndroidIDEAssetsPlugin : Plugin<Project> {
 
-  override fun apply(target: Project) {
-    target.run {
-      val wrapperGeneratorTaskProvider = tasks.register("generateGradleWrapper",
-        GradleWrapperGeneratorTask::class.java)
+    override fun apply(target: Project) {
+        // Ensure :gradle-plugin project is configured before this project proceeds
+        target.evaluationDependsOn(":gradle-plugin")
+        target.run {
+            val wrapperGeneratorTaskProvider = tasks.register(
+                "generateGradleWrapper",
+                GradleWrapperGeneratorTask::class.java
+            )
 
-      val androidComponentsExtension = extensions.getByType(
-        ApplicationAndroidComponentsExtension::class.java)
+            val androidComponentsExtension = extensions.getByType(
+                ApplicationAndroidComponentsExtension::class.java
+            )
 
-      val setupAapt2TaskTaskProvider = tasks.register("setupAapt2", SetupAapt2Task::class.java)
+            val setupAapt2TaskTaskProvider = tasks.register("setupAapt2", SetupAapt2Task::class.java)
 
-      val addAndroidJarTaskProvider = tasks.register("addAndroidJarToAssets",
-        AddAndroidJarToAssetsTask::class.java) {
-        androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
-      }
+            val addAndroidJarTaskProvider = tasks.register(
+                "addAndroidJarToAssets",
+                AddAndroidJarToAssetsTask::class.java
+            ) {
+                androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
+            }
 
-      val gradleExecutableToAssetsTaskProvider = tasks.register(COPY_GRADLE_EXECUTABLE_TASK_NAME,
-        CopyGradleExecutableToAssetsTask::class.java)
+            val gradleExecutableToAssetsTaskProvider = tasks.register(
+                COPY_GRADLE_EXECUTABLE_TASK_NAME,
+                CopyGradleExecutableToAssetsTask::class.java
+            )
 
-      //val gradleAndroidPluginToAssetsTaskProvider = tasks.register(COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME,
-      //  CopyGradleAndroidExceutableToAssetsTask::class.java)
+            //val gradleAndroidPluginToAssetsTaskProvider = tasks.register(COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME,
+            //  CopyGradleAndroidExceutableToAssetsTask::class.java)
 
-      val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
+            val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
 
-      val gradleCachesToAssetsTaskProvider = tasks.register(COPY_GRADLE_CAHCES_TO_ASSETS,
-        CopyGradleCachesToAssetsTask::class.java)
+            val gradleCachesToAssetsTaskProvider = tasks.register(
+                COPY_GRADLE_CAHCES_TO_ASSETS,
+                CopyGradleCachesToAssetsTask::class.java
+            )
 
-      val androidSdkToAssetsTaskProvider = tasks.register(COPY_ANDROID_SDK_TO_ASSETS,
-        CopySdkToAssetsTask::class.java)
+            val androidSdkToAssetsTaskProvider = tasks.register(
+                COPY_ANDROID_SDK_TO_ASSETS,
+                CopySdkToAssetsTask::class.java
+            )
 
-      androidComponentsExtension.onVariants { variant ->
+            androidComponentsExtension.onVariants { variant ->
 
-        val variantNameCapitalized = variant.name.capitalized()
+                val variantNameCapitalized = variant.name.capitalized()
 
-        variant.sources.jniLibs?.addGeneratedSourceDirectory(setupAapt2TaskTaskProvider,
-          SetupAapt2Task::outputDirectory)
+                variant.sources.jniLibs?.addGeneratedSourceDirectory(
+                    setupAapt2TaskTaskProvider,
+                    SetupAapt2Task::outputDirectory
+                )
 
-        variant.sources.assets?.addGeneratedSourceDirectory(wrapperGeneratorTaskProvider,
-          GradleWrapperGeneratorTask::outputDirectory)
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    wrapperGeneratorTaskProvider,
+                    GradleWrapperGeneratorTask::outputDirectory
+                )
 
-        variant.sources.assets?.addGeneratedSourceDirectory(addAndroidJarTaskProvider,
-          AddAndroidJarToAssetsTask::outputDirectory)
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    addAndroidJarTaskProvider,
+                    AddAndroidJarToAssetsTask::outputDirectory
+                )
 
-        // Init script generator
-        val generateInitScript = tasks.register("generate${variantNameCapitalized}InitScript",
-          GenerateInitScriptTask::class.java) {
-          mavenGroupId.set(BuildConfig.packageName)
-          downloadVersion.set(this@run.downloadVersion)
+                // Init script generator
+                val generateInitScript = tasks.register(
+                    "generate${variantNameCapitalized}InitScript",
+                    GenerateInitScriptTask::class.java
+                ) {
+                    mavenGroupId.set(BuildConfig.packageName)
+                    downloadVersion.set(this@run.downloadVersion)
+                }
+
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    generateInitScript,
+                    GenerateInitScriptTask::outputDir
+                )
+
+                // Tooling API JAR copier
+                val copyToolingApiJar = tasks.register(
+                    "copy${variantNameCapitalized}ToolingApiJar",
+                    AddFileToAssetsTask::class.java
+                ) {
+                    val toolingApi = rootProject.findProject(":subprojects:tooling-api-impl")!!
+                    dependsOn(toolingApi.tasks.getByName("copyJar"))
+
+                    val toolingApiJar = toolingApi.layout.buildDirectory.file("libs/tooling-api-all.jar")
+
+                    inputFile.set(toolingApiJar)
+                    baseAssetsPath.set("data/common")
+                }
+
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    copyToolingApiJar,
+                    AddFileToAssetsTask::outputDirectory
+                )
+
+                val copyCogoPluginJar = tasks.register(
+                    "copy${variantNameCapitalized}CogoPluginJar",
+                    AddFileToAssetsTask::class.java
+                ) {
+
+                    val cogopluginApi = rootProject.findProject(":gradle-plugin")
+                    if(cogopluginApi == null) {
+                        // Fail the build if :gradle-plugin is essential
+                        throw IllegalStateException("Required project ':gradle-plugin' not found.")
+                    } else {
+                        try {
+                            val jarTaskProvider = cogopluginApi.tasks.named("jar", org.gradle.api.tasks.bundling.Jar::class.java)
+
+                            // Depend on the task provider. Gradle ensures it runs.
+                            dependsOn(jarTaskProvider)
+
+                            inputFile.set(jarTaskProvider.flatMap { it.archiveFile })
+                        } catch(e: org.gradle.api.UnknownTaskException) {
+                            throw IllegalStateException("Could not find required task '${cogopluginApi.path}:jar'.", e)
+                        }
+
+                        baseAssetsPath.set("data/common")
+                        this.doFirst {
+                            val resolvedInputFile = inputFile.get().asFile
+                            if(!resolvedInputFile.exists()) {
+                                throw org.gradle.api.tasks.StopExecutionException("Input file ${resolvedInputFile.absolutePath} does not exist at execution time!")
+                            }
+                        }
+                    }
+                }
+
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    copyCogoPluginJar,
+                    AddFileToAssetsTask::outputDirectory
+                )
+
+
+                // Local gradle zip copier
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    gradleExecutableToAssetsTaskProvider,
+                    CopyGradleExecutableToAssetsTask::outputDirectory
+                )
+
+                // Local gradle android plugin copier
+                //variant.sources.assets?.addGeneratedSourceDirectory(gradleAndroidPluginToAssetsTaskProvider,
+                //  CopyGradleAndroidExceutableToAssetsTask::outputDirectory)
+
+                // Local termux libs copier
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    gradleTermuxLibsToAssetsTaskProvider,
+                    CopyTermuxCacheAndManifestTask::outputDirectory
+                )
+
+                // Local gradle caches copier
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    gradleCachesToAssetsTaskProvider,
+                    CopyGradleCachesToAssetsTask::outputDirectory
+                )
+
+                // Local android sdk version copier
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    androidSdkToAssetsTaskProvider,
+                    CopySdkToAssetsTask::outputDirectory
+                )
+            }
         }
-
-        variant.sources.assets?.addGeneratedSourceDirectory(generateInitScript,
-          GenerateInitScriptTask::outputDir)
-
-        // Tooling API JAR copier
-        val copyToolingApiJar = tasks.register("copy${variantNameCapitalized}ToolingApiJar",
-          AddFileToAssetsTask::class.java) {
-          val toolingApi = rootProject.findProject(":subprojects:tooling-api-impl")!!
-          dependsOn(toolingApi.tasks.getByName("copyJar"))
-
-          val toolingApiJar = toolingApi.layout.buildDirectory.file("libs/tooling-api-all.jar")
-
-          inputFile.set(toolingApiJar)
-          baseAssetsPath.set("data/common")
-        }
-
-        variant.sources.assets?.addGeneratedSourceDirectory(copyToolingApiJar,
-          AddFileToAssetsTask::outputDirectory)
-
-        // cogo-plugin jar copier
-        val copyCogoPluginJar = tasks.register("copy${variantNameCapitalized}CogoPluginJar",
-          AddFileToAssetsTask::class.java) {
-          val cogopluginApi = rootProject.findProject(":gradle-plugin")!!
-          dependsOn(cogopluginApi.tasks.getByName("assemble"))
-
-          val cogopluginApiJar = cogopluginApi.layout.buildDirectory.file("libs/cogo-plugin.jar")
-
-          inputFile.set(cogopluginApiJar)
-          baseAssetsPath.set("data/common")
-        }
-
-        variant.sources.assets?.addGeneratedSourceDirectory(copyCogoPluginJar,
-          AddFileToAssetsTask::outputDirectory)
-
-
-        // Local gradle zip copier
-        variant.sources.assets?.addGeneratedSourceDirectory(gradleExecutableToAssetsTaskProvider,
-          CopyGradleExecutableToAssetsTask::outputDirectory)
-
-        // Local gradle android plugin copier
-        //variant.sources.assets?.addGeneratedSourceDirectory(gradleAndroidPluginToAssetsTaskProvider,
-        //  CopyGradleAndroidExceutableToAssetsTask::outputDirectory)
-
-        // Local termux libs copier
-        variant.sources.assets?.addGeneratedSourceDirectory(gradleTermuxLibsToAssetsTaskProvider,
-          CopyTermuxCacheAndManifestTask::outputDirectory)
-
-        // Local gradle caches copier
-        variant.sources.assets?.addGeneratedSourceDirectory(gradleCachesToAssetsTaskProvider,
-          CopyGradleCachesToAssetsTask::outputDirectory)
-
-        // Local android sdk version copier
-        variant.sources.assets?.addGeneratedSourceDirectory(androidSdkToAssetsTaskProvider,
-          CopySdkToAssetsTask::outputDirectory)
-      }
     }
-  }
 }
 
