@@ -736,37 +736,45 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun setupNoEditorView() {
         content.noEditorSummary.movementMethod = LinkMovementMethod()
-        val sb = SpannableStringBuilder().apply {
-            val indentParent = 24
-            val indentChild = 48
+        val sb = SpannableStringBuilder()
+        val indentParent = 80
+        val indentChild = 140
 
-            fun appendHierarchicalText(textRes: Int) {
-                val text = getString(textRes)
-                val spannable = SpannableString(text).apply {
-                    text.split("\n").forEachIndexed { index, line ->
-                        val start = text.indexOf(line)
-                        val end = start + line.length
-                        when {
-                            line.trimStart().startsWith(".") ->
-                                setSpan(LeadingMarginSpan.Standard(indentParent, indentParent), start, end, 0)
-                            line.trimStart().startsWith("-") ->
-                                setSpan(LeadingMarginSpan.Standard(indentChild, indentChild), start, end, 0)
-                        }
-                    }
+        fun appendHierarchicalText(textRes: Int) {
+            val text = getString(textRes)
+            text.split("\n").forEach { line ->
+                val trimmed = line.trimStart()
+
+                val margin = when {
+                    trimmed.startsWith("-") -> indentChild
+                    trimmed.startsWith("•") -> indentParent
+                    else -> 0
                 }
-                append(spannable)
-            }
 
-            appendHierarchicalText(R.string.msg_drawer_for_files)
-            append("\n\n")
-            appendHierarchicalText(R.string.msg_swipe_for_output)
-            append("\n\n")
-            appendHierarchicalText(R.string.msg_help_hint)
+                val spannable = SpannableString("$trimmed\n")
+
+                if (margin > 0) {
+                    spannable.setSpan(
+                        LeadingMarginSpan.Standard(margin, margin),
+                        0, spannable.length,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+
+                sb.append(spannable)
+            }
         }
 
+        appendHierarchicalText(R.string.msg_drawer_for_files)
+        sb.append("\n")
+        appendHierarchicalText(R.string.msg_swipe_for_output)
+        sb.append("\n")
+        appendHierarchicalText(R.string.msg_help_hint)
+
         content.noEditorSummary.text = sb
-        content.noEditorSummary.textAlignment = View.TEXT_ALIGNMENT_TEXT_START
     }
+
+
 
     private fun appendClickableSpan(
         sb: SpannableStringBuilder,
