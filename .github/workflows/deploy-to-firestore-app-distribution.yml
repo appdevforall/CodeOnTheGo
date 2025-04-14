@@ -34,7 +34,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: macos-latest-large # Using the larger runner for faster builds
+    runs-on: macos-13
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
