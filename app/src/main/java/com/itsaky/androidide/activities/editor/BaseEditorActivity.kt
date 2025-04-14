@@ -23,11 +23,14 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Process
+import android.text.Spannable
+import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
+import android.text.style.LeadingMarginSpan
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -733,20 +736,36 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun setupNoEditorView() {
         content.noEditorSummary.movementMethod = LinkMovementMethod()
-        val filesSpan: ClickableSpan = object : ClickableSpan() {
-            override fun onClick(widget: View) {
-                binding.root.openDrawer(GravityCompat.START)
+        val sb = SpannableStringBuilder().apply {
+            val indentParent = 24
+            val indentChild = 48
+
+            fun appendHierarchicalText(textRes: Int) {
+                val text = getString(textRes)
+                val spannable = SpannableString(text).apply {
+                    text.split("\n").forEachIndexed { index, line ->
+                        val start = text.indexOf(line)
+                        val end = start + line.length
+                        when {
+                            line.trimStart().startsWith(".") ->
+                                setSpan(LeadingMarginSpan.Standard(indentParent, indentParent), start, end, 0)
+                            line.trimStart().startsWith("-") ->
+                                setSpan(LeadingMarginSpan.Standard(indentChild, indentChild), start, end, 0)
+                        }
+                    }
+                }
+                append(spannable)
             }
+
+            appendHierarchicalText(R.string.msg_drawer_for_files)
+            append("\n\n")
+            appendHierarchicalText(R.string.msg_swipe_for_output)
+            append("\n\n")
+            appendHierarchicalText(R.string.msg_help_hint)
         }
-        val bottomSheetSpan: ClickableSpan = object : ClickableSpan() {
-            override fun onClick(widget: View) {
-                editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
-            }
-        }
-        val sb = SpannableStringBuilder()
-        appendClickableSpan(sb, string.msg_drawer_for_files, filesSpan)
-        appendClickableSpan(sb, string.msg_swipe_for_output, bottomSheetSpan)
+
         content.noEditorSummary.text = sb
+        content.noEditorSummary.textAlignment = View.TEXT_ALIGNMENT_TEXT_START
     }
 
     private fun appendClickableSpan(
