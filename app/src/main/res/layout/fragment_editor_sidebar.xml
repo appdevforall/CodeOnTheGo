@@ -20,7 +20,7 @@
   xmlns:tools="http://schemas.android.com/tools"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
-  android:background="@color/white_standard">
+  android:background="?attr/colorSurface">
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragment_container"
@@ -35,7 +35,7 @@
 
   <com.google.android.material.navigationrail.NavigationRailView
     android:id="@+id/navigation"
-    android:background="@color/background"
+    android:background="?attr/colorSurface"
     android:layout_width="56dp"
     android:layout_height="0dp"
     app:headerLayout="@layout/layout_editor_sidebar_header"

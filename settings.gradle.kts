@@ -83,7 +83,6 @@ buildscript {
 
   }
   dependencies {
-    classpath("com.mooltiverse.oss.nyx:gradle:2.5.2")
     classpath("org.bouncycastle:bcutil-jdk18on:1.78.1")
   }
 }
@@ -98,10 +97,6 @@ if (FDroidConfig.hasRead && FDroidConfig.isFDroidBuild) {
       ?: throw IllegalArgumentException("Invalid version '${FDroidConfig.fDroidVersionName}. Version name must have semantic version format.'")
 
     project.setProperty("version", simpleVersion)
-  }
-} else {
-  apply {
-    plugin("com.mooltiverse.oss.nyx")
   }
 }
 
