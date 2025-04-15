@@ -24,8 +24,6 @@ import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.models.JdkDistribution
-import com.itsaky.androidide.preferences.internal.BuildPreferences.CUSTOM_GRADLE_INSTALLATION
-import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_CLEAR_CACHE
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_COMMANDS
 import com.itsaky.androidide.preferences.internal.BuildPreferences.LAUNCH_APP_AFTER_INSTALL
 import com.itsaky.androidide.preferences.internal.BuildPreferences.PREF_JAVA_HOME
@@ -41,12 +39,7 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.javaHome
 import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfterInstall
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.tasks.executeAsync
-import com.itsaky.androidide.utils.Environment.GRADLE_USER_HOME
-import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.parcelize.Parcelize
-import java.io.File
 import kotlin.reflect.KMutableProperty0
 
 @Parcelize
@@ -73,7 +66,6 @@ private class GradleOptions(
   init {
     addPreference(GradleCommands())
     addPreference(GradleJDKVersionPreference())
-    addPreference(GradleClearCache())
   }
 }
 
@@ -98,38 +90,6 @@ private class GradleCommands(
     }
 }
 
-@Parcelize
-private class GradleClearCache(
-    override val key: String = GRADLE_CLEAR_CACHE,
-    override val title: Int = string.idepref_build_clearCache_title,
-    override val summary: Int? = string.idepref_build_clearCache_summary,
-    override val icon: Int? = drawable.ic_delete,
-    override val dialogMessage: Int? = string.msg_clear_cache
-) : DialogPreference() {
-
-    override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
-        super.onConfigureDialog(preference, dialog)
-        dialog.setPositiveButton(string.yes) { dlg, _ ->
-            dlg.dismiss()
-            executeAsync(callable = this::deleteCaches) {
-                if (it == true) {
-                    flashSuccess(string.deleted)
-                } else {
-                    flashError(string.delete_failed)
-                }
-            }
-        }
-        dialog.setNegativeButton(string.no) { dlg, _ -> dlg.dismiss() }
-    }
-
-    private fun deleteCaches(): Boolean {
-        val caches = File(GRADLE_USER_HOME, "caches")
-        if (caches.exists()) {
-            return caches.deleteRecursively()
-        }
-        return false
-    }
-}
 
 @Parcelize
 private class RunOptions(
