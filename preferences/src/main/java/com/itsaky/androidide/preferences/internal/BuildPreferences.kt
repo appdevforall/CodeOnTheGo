@@ -35,7 +35,6 @@ object BuildPreferences {
   const val GRADLE_CLEAR_CACHE = "idepref_build_gradleClearCache"
   const val CUSTOM_GRADLE_INSTALLATION = "idepref_build_customGradleInstallation"
   const val LAUNCH_APP_AFTER_INSTALL = "ide.build.run.launchAppAfterInstall"
-  const val PREF_JAVA_HOME = "ide.build.javaHome"
 
   /** Switch for Gradle `--debug` option. */
   var isDebugEnabled: Boolean
@@ -100,14 +99,5 @@ object BuildPreferences {
     get() = prefManager.getBoolean(LAUNCH_APP_AFTER_INSTALL, false)
     set(value) {
       prefManager.putBoolean(LAUNCH_APP_AFTER_INSTALL, value)
-    }
-
-  /**
-   * The selected Java installation.
-   */
-  var javaHome: String
-    get() = prefManager.getString(PREF_JAVA_HOME, "")
-    set(value) {
-      prefManager.putString(PREF_JAVA_HOME, value)
     }
 }
