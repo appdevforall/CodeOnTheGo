@@ -31,8 +31,9 @@ elif [ "$arch" = "aarch64" ]; then
   arch="v8"
 
 else
+  ### TODO JMT per DS change default to V7 and delete armeabi 15Apr2025
   echo "Unknown architecture. Info:" `uname -a`
-  arch="armeabi"
+  arch="v7"
 fi
 
 mkdir -p "$install_dir"
