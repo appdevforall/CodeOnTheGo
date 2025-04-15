@@ -17,18 +17,12 @@
 
 package com.itsaky.androidide.preferences
 
-import android.content.Context
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
-import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
-import com.itsaky.androidide.models.JdkDistribution
-import com.itsaky.androidide.preferences.internal.BuildPreferences.CUSTOM_GRADLE_INSTALLATION
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_CLEAR_CACHE
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_COMMANDS
 import com.itsaky.androidide.preferences.internal.BuildPreferences.LAUNCH_APP_AFTER_INSTALL
-import com.itsaky.androidide.preferences.internal.BuildPreferences.gradleInstallationDir
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isBuildCacheEnabled
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isDebugEnabled
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isInfoEnabled

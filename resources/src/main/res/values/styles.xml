@@ -34,7 +34,6 @@
   </style>
 
   <style name="Theme.AndroidIDE" parent="Theme.AndroidIDE.Styled">
-    <item name="android:colorPrimary">@color/background</item>
     <!-- Left drawer. -->
     <item name="buttonBarButtonStyle">@style/TermuxActivity.Drawer.ButtonBarStyle.Light</item>
     <item name="termuxActivityDrawerBackground">@android:color/white</item>
@@ -104,6 +103,7 @@
     <item name="shapeAppearanceOverlay">@style/MaterialDialog.ShapeAppearance</item>
     <item name="android:windowEnterAnimation">@animator/dialog_in</item>
     <item name="android:windowExitAnimation">@animator/dialog_out</item>
+    <item name="android:background">?attr/colorSurface</item>
   </style>
 
   <style name="MaterialDialog.ShapeAppearance" parent="">
