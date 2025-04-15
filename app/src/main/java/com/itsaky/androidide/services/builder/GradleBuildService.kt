@@ -32,6 +32,7 @@ import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R.*
 import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.jdwp.JdwpDebugger
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
@@ -50,6 +51,9 @@ import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_INJECT
+import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_LIBDIR
+import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_OPTIONS
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
@@ -290,8 +294,14 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 
     // Override AAPT2 binary
     // The one downloaded from Maven is not built for Android
-    extraArgs.add("-Pandroid.aapt2FromMavenOverride=" + Environment.AAPT2.absolutePath)
+    extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
     extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
+    extraArgs.add("-P${PROP_JDWP_INJECT}=${JdwpDebugger.JDWP_ENABLED}")
+    if (JdwpDebugger.JDWP_ENABLED) {
+      extraArgs.add("-P${PROP_JDWP_LIBDIR}=${Environment.JDWP_LIB_DIR.absolutePath}")
+      extraArgs.add("-P${PROP_JDWP_OPTIONS}=${JdwpDebugger.JDWP_OPTIONS}")
+    }
+
     if (BuildPreferences.isStacktraceEnabled) {
       extraArgs.add("--stacktrace")
     }

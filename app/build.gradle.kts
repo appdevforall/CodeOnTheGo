@@ -216,6 +216,7 @@ dependencies {
   implementation(projects.idestats)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
+  implementation(projects.subprojects.libjdwp)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)

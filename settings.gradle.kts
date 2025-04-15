@@ -17,9 +17,6 @@
 
 @file:Suppress("UnstableApiUsage")
 
-include(":constants")
-
-
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -110,6 +107,7 @@ include(
   ":app",
   ":build-info",
   ":common",
+  ":constants",
   ":editor",
   ":editor-api",
   ":editor-treesitter",
@@ -141,6 +139,7 @@ include(
   ":subprojects:flashbar",
   ":subprojects:framework-stubs",
   ":subprojects:javac-services",
+  ":subprojects:libjdwp",
   ":subprojects:projects",
   ":subprojects:tooling-api",
   ":subprojects:tooling-api-events",

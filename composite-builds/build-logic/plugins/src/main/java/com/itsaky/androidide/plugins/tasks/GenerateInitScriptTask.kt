@@ -97,8 +97,8 @@ abstract class GenerateInitScriptTask : DefaultTask() {
           }
       }
       
-      // apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
-      apply plugin: com.itsaky.androidide.gradle.CogoCleanPlugin
+      apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
+      // apply plugin: com.itsaky.androidide.gradle.CogoCleanPlugin
     """
           .trimIndent()
       )
