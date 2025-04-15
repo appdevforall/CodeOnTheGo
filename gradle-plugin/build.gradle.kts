@@ -20,9 +20,8 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.ProjectConfig
 
 plugins {
-  id("java-gradle-plugin")
   id("org.jetbrains.kotlin.jvm")
-  id("com.vanniktech.maven.publish.base")
+  id("java-gradle-plugin")
 }
 
 description = "Gradle Plugin for projects that are built with AndroidIDE"
@@ -88,15 +87,6 @@ gradlePlugin {
       description = "Gradle plugin for applying LogSender-specific configuration to projects that are built with AndroidIDE"
       tags.set(setOf("androidide", "logsender"))
     }
-
-    create("CogoCleanPlugin") {
-      id = "${BuildConfig.packageName}.cogoclean"
-      implementationClass = "${BuildConfig.packageName}.gradle.CogoCleanPlugin"
-      displayName = "Cogo Cleanup Gradle Plugin"
-      description = "Gradle plugin for cleaning project logs and caches"
-      tags.set(setOf("cogo", "cogoclean"))
-    }
-
   }
 }
 

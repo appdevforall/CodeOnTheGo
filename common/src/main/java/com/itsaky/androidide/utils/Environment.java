@@ -46,6 +46,7 @@ public final class Environment {
   public static File TMP_DIR;
   public static File BIN_DIR;
   public static File LIB_DIR;
+  public static File JDWP_LIB_DIR;
   public static File PROJECTS_DIR;
 
   /**
@@ -72,6 +73,7 @@ public final class Environment {
     TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
     BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
     LIB_DIR = mkdirIfNotExits(new File(PREFIX, "lib"));
+    JDWP_LIB_DIR = mkdirIfNotExits(new File(LIB_DIR, "oj-libjdwp"));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
     ANDROID_JAR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "android.jar"));
     TOOLING_API_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "tooling-api")),
