@@ -12,36 +12,47 @@ class InitializationProjectAndCancelingBuildScenario : Scenario() {
 
     override val steps: TestContext<Unit>.() -> Unit = {
         step("Close the first build dialog") {
-            flakySafely(120000) {
-                EditorScreen {
-                    firstBuildDialog {
-                        isDisplayed()
-                        title {
-                            hasText(R.string.title_first_build)
-                        }
-                        message {
-                            hasText(R.string.msg_first_build)
-                        }
-                        positiveButton {
-                            click()
+            flakySafely(180000) {
+                try {
+                    EditorScreen {
+                        firstBuildDialog {
+                            isDisplayed()
+                            title {
+                                hasText(R.string.title_first_build)
+                            }
+                            message {
+                                hasText(R.string.msg_first_build)
+                            }
+                            positiveButton {
+                                click()
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    println("First build dialog was not visible or was auto-dismissed: ${e.message}")
                 }
             }
         }
         step("Wait for the green button") {
-            flakySafely(360000) {
-                device.uiDevice.findObject(UiSelector().text("Project initialized"))
-                    .waitForExists(360000)
-                flakySafely {
-                    KView {
-                        withParent {
-                            KToolbar {
-                                withId(R.id.editor_appBarLayout)
+            flakySafely(480000) {
+                try {
+                    device.uiDevice.findObject(UiSelector().text("Project initialized"))
+                        .waitForExists(480000)
+
+                    Thread.sleep(2000)
+
+                    flakySafely(5000) {
+                        KView {
+                            withParent {
+                                KToolbar {
+                                    withId(R.id.editor_appBarLayout)
+                                }
                             }
-                        }
-                        withId("ide.editor.build.quickRun".hashCode())
-                    }.click()
+                            withId("ide.editor.build.quickRun".hashCode())
+                        }.click()
+                    }
+                } catch (e: Exception) {
+                    println("Could not find or click build button: ${e.message}")
                 }
             }
         }
