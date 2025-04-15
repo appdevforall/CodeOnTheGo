@@ -53,7 +53,7 @@
         android:layout_marginStart="32dp"
         android:layout_marginEnd="32dp"
         android:gravity="center"
-        android:text="@string/offline_message"
+        android:text="@string/msg_no_internet_no_problem"
         android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
         android:textColor="@color/blue_273892"
         app:layout_constraintEnd_toEndOf="@id/title"
