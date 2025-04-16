@@ -46,7 +46,7 @@ public class JavaServerSettings extends PrefBasedServerSettings {
 
   @Override
   public boolean diagnosticsEnabled() {
-    return !VMUtils.isJvm();
+    return true;
   }
 
   public JavaFormatterOptions getFormatterOptions() {
