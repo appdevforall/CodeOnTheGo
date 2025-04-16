@@ -209,7 +209,7 @@ class JavaLanguageServer : ILanguageServer {
   }
 
   override suspend fun analyze(file: Path): DiagnosticResult {
-    if (!DocumentUtils.isJavaFile(file)) {
+    if (!settings.diagnosticsEnabled() || !DocumentUtils.isJavaFile(file)) {
       return DiagnosticResult.NO_UPDATE
     }
 
