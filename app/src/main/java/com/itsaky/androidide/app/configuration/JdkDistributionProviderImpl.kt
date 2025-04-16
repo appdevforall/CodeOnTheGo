@@ -45,26 +45,19 @@ class JdkDistributionProviderImpl : IJdkDistributionProvider {
     _installedDistributions = doLoadDistributions()
   }
 
-  private fun doLoadDistributions(): List<JdkDistribution> {
-    return JdkUtils.findJavaInstallations().also { distributions ->
-      val systemJavaHome = System.getenv("JAVA_HOME")?.let { File(it) }
-      var selectedJavaHome = systemJavaHome
+    private fun doLoadDistributions(): List<JdkDistribution> {
+        return JdkUtils.findJavaInstallations().also { distributions ->
+            if(distributions.isEmpty()) {
+                return emptyList()
+            }
+            var selectedJavaHome = findDefaultDistribution(distributions)?.javaHome?.let { File(it) }
+                ?: distributions.first().javaHome.let { File(it) }
 
-      // If no JAVA_HOME set or invalid, use first available JDK
-      if (selectedJavaHome == null || !isValidJavaHome(selectedJavaHome)) {
-        if (distributions.isNotEmpty()) {
-          selectedJavaHome = findDefaultDistribution(distributions)?.javaHome?.let { File(it) }
-            ?: distributions.firstOrNull()?.javaHome?.let { File(it) }
+            log.debug("Setting Environment.JAVA_HOME to {}", selectedJavaHome.absolutePath)
+            Environment.JAVA_HOME = selectedJavaHome
+            Environment.JAVA = selectedJavaHome.resolve("bin/java")
         }
-      }
-
-      selectedJavaHome?.let { home ->
-        log.debug("Setting Environment.JAVA_HOME to {}", home.absolutePath)
-        Environment.JAVA_HOME = home
-        Environment.JAVA = home.resolve("bin/java")
-      }
     }
-  }
 
   private fun findDefaultDistribution(distributions: List<JdkDistribution>): JdkDistribution? {
     return distributions.find {
