@@ -67,6 +67,7 @@ import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
+import androidx.core.net.toUri
 
 
 /**
@@ -77,7 +78,7 @@ import java.lang.ref.WeakReference
  */
 
 object ContactDetails {
-    const val EMAIL_SUPPORT = "info@appdevforall.org"
+    const val EMAIL_SUPPORT = "feedback@appdevforall.org"
 }
 
 internal object EditorSidebarActions {
@@ -286,7 +287,7 @@ internal object EditorSidebarActions {
         // Prepare the email intent for reuse
         val emailIntent: () -> Unit = {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
-                data = Uri.parse("mailto:$EMAIL_SUPPORT?subject=Feedback about Code on the Go")
+                data = "mailto:$EMAIL_SUPPORT?subject=Feedback about Code on the Go".toUri()
             }
             context.startActivity(intent)
         }
@@ -322,6 +323,10 @@ internal object EditorSidebarActions {
             emailIntent()
         }
 
+        // When the send email button is clicked:
+        binding.btnSendEmail.setOnClickListener {
+            emailIntent()
+        }
         // Close button action: dismiss the dialog.
         binding.btnClose.setOnClickListener {
             dialog.dismiss()
