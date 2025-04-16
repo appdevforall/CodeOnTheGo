@@ -18,20 +18,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.06" />
 
-    <ImageButton
-        android:id="@+id/icon_info"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:src="@drawable/ic_info"
-        android:tint="@android:color/black"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:clickable="true"
-        android:focusable="true"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_margin="4dp"
-        tools:ignore="UseAppTint" />
-
     <Button
         android:id="@+id/button1"
         android:layout_width="wrap_content"
@@ -68,7 +54,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="0dp"
         android:tooltipText="Read More"
-        android:text="More"
+        android:text="@string/more_label"
         android:textColor="@color/black"
         android:contentDescription="@string/fab_more"
         app:layout_constraintBottom_toBottomOf="parent"
