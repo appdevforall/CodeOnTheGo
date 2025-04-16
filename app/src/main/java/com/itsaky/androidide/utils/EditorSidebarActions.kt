@@ -225,18 +225,6 @@ internal object EditorSidebarActions {
             it.isChecked = true
             binding.title.text = it.title
         }
-
-        rail.viewTreeObserver.addOnPreDrawListener {
-            val railView = railRef.get()
-            if (railView != null) {
-                railView.findViewById<View>(TerminalSidebarAction.ID.hashCode())
-                    ?.setOnLongClickListener {
-                        TerminalSidebarAction.startTerminalActivity(data, true)
-                        true
-                    }
-            }
-            true
-        }
     }
 
     /**
