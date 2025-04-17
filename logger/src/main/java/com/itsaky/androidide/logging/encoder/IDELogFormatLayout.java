@@ -17,54 +17,16 @@
 
 package com.itsaky.androidide.logging.encoder;
 
-import ch.qos.logback.classic.pattern.Abbreviator;
-import ch.qos.logback.classic.pattern.ClassNameOnlyAbbreviator;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.LayoutBase;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import ch.qos.logback.classic.PatternLayout;
 
 /**
  * Log layout for AndroidIDE.
  *
  * @author Akash Yadav
  */
-public class IDELogFormatLayout extends LayoutBase<ILoggingEvent> {
-
-  private final Abbreviator loggerNameAbbreviator = new ClassNameOnlyAbbreviator();
-  private boolean omitMessage = false;
-
-  public void setOmitMessage(boolean omitMessage) {
-    this.omitMessage = omitMessage;
-  }
-
-  public boolean isOmitMessage() {
-    return omitMessage;
-  }
-
-  @Override
-  public String doLayout(ILoggingEvent event) {
-    final SimpleDateFormat format = new SimpleDateFormat("dd-MM HH:mm:ss.SSS", Locale.ROOT);
-    final var date = format.format(new Date(event.getTimeStamp()));
-
-    final var builder = new StringBuilder();
-    builder.append(date);
-    builder.append(' ');
-    builder.append(String.format(Locale.ROOT, "%5s", event.getLevel().levelStr));
-    builder.append(' ');
-    builder.append("[");
-    builder.append(event.getThreadName());
-    builder.append("]");
-    builder.append(' ');
-    builder.append(loggerNameAbbreviator.abbreviate(event.getLoggerName()));
-    builder.append(": ");
-
-    if (!isOmitMessage()) {
-      builder.append(event.getFormattedMessage());
-      builder.append(System.lineSeparator());
-    }
-
-    return builder.toString();
+public class IDELogFormatLayout extends PatternLayout {
+  public IDELogFormatLayout(boolean omitMessage) {
+    super();
+    setPattern("%d{dd-MM HH:mm:ss.SS} %5level [%thread] %logger:" + (omitMessage ? "" : " %msg") + "%n");
   }
 }
