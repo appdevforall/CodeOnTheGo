@@ -60,6 +60,12 @@ android {
     
     buildToolsVersion = "34.0.4" 
     
+    // disable linter
+    lintOptions {
+        isCheckReleaseBuilds = false
+    }
+    
+    
     defaultConfig {
         applicationId = "${data.packageName}"
         minSdk = ${data.versions.minSdk.api}
@@ -110,6 +116,11 @@ android {
     // currently this is hardcodede to make it work but we should probably make it dependant on the
     // onboarding choice.
     buildToolsVersion = "34.0.4"
+    
+    // disable linter
+    lintOptions {
+        checkReleaseBuilds  false
+    }
     
     defaultConfig {
         applicationId "${data.packageName}"
