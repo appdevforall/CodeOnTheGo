@@ -14,12 +14,14 @@
 package com.itsaky.androidide.logging;
 
 import android.util.Log;
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.UnsynchronizedAppenderBase;
+
 import com.itsaky.androidide.logging.encoder.IDELogFormatEncoder;
 import com.itsaky.androidide.logging.utils.LogUtils;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.Context;
+import ch.qos.logback.core.UnsynchronizedAppenderBase;
 
 /**
  * An appender that wraps the native Android logging mechanism (<i>logcat</i>); redirects all
@@ -65,6 +67,20 @@ public class LogcatAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
     }
 
     super.start();
+
+    this.encoder.start();
+  }
+
+  @Override
+  public void setContext(Context context) {
+    super.setContext(context);
+    getEncoder().start();
+  }
+
+  @Override
+  public void stop() {
+    super.stop();
+    getEncoder().stop();
   }
 
   @Override

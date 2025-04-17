@@ -36,11 +36,10 @@ class LifecycleAwareAppender @JvmOverloads constructor(
 ) : AppenderBase<ILoggingEvent>(), LifecycleEventObserver {
 
   private var currentState: Lifecycle.State? = null
-  private val logLayout = IDELogFormatLayout()
+  private val logLayout = IDELogFormatLayout(true)
 
   init {
     setName("LifecycleAwareAppender")
-    logLayout.isOmitMessage = true
   }
 
   fun attachTo(lifecycleOwner: LifecycleOwner) = attachTo(lifecycleOwner.lifecycle)
