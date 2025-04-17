@@ -17,18 +17,36 @@
 
 package com.itsaky.androidide.logging.encoder;
 
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.encoder.LayoutWrappingEncoder;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.core.Context;
 
 /**
  * Encoder to format the log events in AndroidIDE.
  *
  * @author Akash Yadav
  */
-public class IDELogFormatEncoder extends LayoutWrappingEncoder<ILoggingEvent> {
+public class IDELogFormatEncoder extends PatternLayoutEncoder {
 
   public IDELogFormatEncoder() {
     super();
-    setLayout(new IDELogFormatLayout());
+    setLayout(new IDELogFormatLayout(false));
+  }
+
+  @Override
+  public void setContext(Context context) {
+    super.setContext(context);
+    getLayout().setContext(context);
+  }
+
+  @Override
+  public void start() {
+    super.start();
+    getLayout().start();
+  }
+
+  @Override
+  public void stop() {
+    super.stop();
+    getLayout().stop();
   }
 }
