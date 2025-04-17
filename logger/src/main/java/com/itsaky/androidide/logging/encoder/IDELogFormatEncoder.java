@@ -18,7 +18,6 @@
 package com.itsaky.androidide.logging.encoder;
 
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.core.Context;
 
 /**
  * Encoder to format the log events in AndroidIDE.
@@ -28,25 +27,11 @@ import ch.qos.logback.core.Context;
 public class IDELogFormatEncoder extends PatternLayoutEncoder {
 
   public IDELogFormatEncoder() {
+    this(false);
+  }
+
+  public IDELogFormatEncoder(boolean omitMessage) {
     super();
-    setLayout(new IDELogFormatLayout(false));
-  }
-
-  @Override
-  public void setContext(Context context) {
-    super.setContext(context);
-    getLayout().setContext(context);
-  }
-
-  @Override
-  public void start() {
-    super.start();
-    getLayout().start();
-  }
-
-  @Override
-  public void stop() {
-    super.stop();
-    getLayout().stop();
+    setPattern("%d{dd-MM HH:mm:ss.SS} %5level [%thread] %logger{23}:" + (omitMessage ? "" : " %msg") + "%n");
   }
 }
