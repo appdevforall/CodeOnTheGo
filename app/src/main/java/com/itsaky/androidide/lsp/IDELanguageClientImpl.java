@@ -24,6 +24,7 @@ import static com.itsaky.androidide.resources.R.string;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
 import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity;
@@ -49,8 +50,10 @@ import com.itsaky.androidide.ui.CodeEditorView;
 import com.itsaky.androidide.utils.FlashbarActivityUtilsKt;
 import com.itsaky.androidide.utils.FlashbarUtilsKt;
 import com.itsaky.androidide.utils.LSPUtils;
-import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer;
-import io.github.rosemoe.sora.text.Content;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,9 +65,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+
+import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer;
+import io.github.rosemoe.sora.text.Content;
 import kotlin.Unit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * AndroidIDE specific implementation of the LanguageClient
@@ -76,6 +80,8 @@ public class IDELanguageClientImpl implements ILanguageClient {
   protected static final Logger LOG = LoggerFactory.getLogger(IDELanguageClientImpl.class);
   private static IDELanguageClientImpl mInstance;
   private final Map<File, List<DiagnosticItem>> diagnostics = new HashMap<>();
+
+  protected final IDEDebugClientImpl debugClient = IDEDebugClientImpl.INSTANCE;
   protected EditorHandlerActivity activity;
 
   private IDELanguageClientImpl(EditorHandlerActivity provider) {
@@ -113,6 +119,11 @@ public class IDELanguageClientImpl implements ILanguageClient {
 
   public static boolean isInitialized() {
     return mInstance != null;
+  }
+
+  @Override
+  public IDEDebugClientImpl getDebugClient() {
+    return debugClient;
   }
 
   @Override

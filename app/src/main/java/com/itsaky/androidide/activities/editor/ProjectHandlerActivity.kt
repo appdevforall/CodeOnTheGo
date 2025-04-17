@@ -25,7 +25,6 @@ import android.widget.CheckBox
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
-import androidx.lifecycle.lifecycleScope
 import com.adfa.constants.CONTENT_KEY
 import com.adfa.constants.HELP_PAGE_URL
 import com.blankj.utilcode.util.SizeUtils
@@ -38,7 +37,6 @@ import com.itsaky.androidide.fragments.sheets.ProgressSheet
 import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
 import com.itsaky.androidide.handlers.LspHandler.destroyLanguageServers
-import com.itsaky.androidide.jdwp.JdwpDebugger
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
@@ -75,7 +73,6 @@ import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
-import kotlin.time.Duration.Companion.seconds
 
 /** @author Akash Yadav */
 @Suppress("MemberVisibilityCanBePrivate")
@@ -129,11 +126,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        lifecycleScope.launch {
-            // Start listening for JDWP connections, waiting indefinitely
-            JdwpDebugger.startListening(timeout = 0.seconds)
-        }
 
         savedInstanceState?.let {
             this.shouldInitialize = it.getBoolean(STATE_KEY_SHOULD_INITIALIZE, true)
