@@ -45,44 +45,28 @@ class JdkDistributionProviderImpl : IJdkDistributionProvider {
     _installedDistributions = doLoadDistributions()
   }
 
-  private fun doLoadDistributions(): List<JdkDistribution> {
-    return JdkUtils.findJavaInstallations().also { distributions ->
+    private fun doLoadDistributions(): List<JdkDistribution> {
+        return JdkUtils.findJavaInstallations().also { distributions ->
+            if(distributions.isEmpty()) {
+                return emptyList()
+            }
+            var selectedJavaHome = findDefaultDistribution(distributions)?.javaHome?.let { File(it) }
+                ?: distributions.first().javaHome.let { File(it) }
 
-      // set the default value for the 'javaHome' preference
-      if (BuildPreferences.javaHome.isBlank() && distributions.isNotEmpty()) {
-        var defaultDist = distributions.find {
-          it.javaVersion.startsWith(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
+            log.debug("Setting Environment.JAVA_HOME to {}", selectedJavaHome.absolutePath)
+            Environment.JAVA_HOME = selectedJavaHome
+            Environment.JAVA = selectedJavaHome.resolve("bin/java")
         }
-
-        if (defaultDist == null) {
-          // if JDK 17 is not installed, use the first available installation
-          defaultDist = distributions[0]
-        }
-
-        BuildPreferences.javaHome = defaultDist.javaHome
-      }
-
-      val home = File(BuildPreferences.javaHome)
-      val java = File(home, "bin/java")
-
-      // the previously selected JDK distribution does not exist
-      // check if we have other distributions installed
-      if (!home.exists() || !java.exists() || !java.isFile) {
-        if (distributions.isNotEmpty()) {
-          log.warn(
-            "Previously selected java.home does not exists! Falling back to ${distributions[0]}...")
-          BuildPreferences.javaHome = distributions[0].javaHome
-        }
-      }
-
-      if (!java.canExecute()) {
-        java.setExecutable(true)
-      }
-
-      log.debug("Setting Environment.JAVA_HOME to {}", BuildPreferences.javaHome)
-
-      Environment.JAVA_HOME = File(BuildPreferences.javaHome)
-      Environment.JAVA = Environment.JAVA_HOME.resolve("bin/java")
     }
+
+  private fun findDefaultDistribution(distributions: List<JdkDistribution>): JdkDistribution? {
+    return distributions.find {
+      it.javaVersion.startsWith(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
+    }
+  }
+
+  private fun isValidJavaHome(javaHome: File): Boolean {
+    val javaExec = javaHome.resolve("bin/java")
+    return javaHome.exists() && javaExec.exists() && javaExec.isFile && javaExec.canExecute()
   }
 }
