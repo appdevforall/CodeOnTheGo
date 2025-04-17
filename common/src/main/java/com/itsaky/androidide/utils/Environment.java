@@ -64,6 +64,8 @@ public final class Environment {
   public static File BASH_SHELL;
   public static File LOGIN_SHELL;
 
+  public static File GRADLE_DISTS;
+
   public static void init() {
     ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
     PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
@@ -90,6 +92,8 @@ public final class Environment {
     JAVA = new File(JAVA_HOME, "bin/java");
     BASH_SHELL = new File(BIN_DIR, "bash");
     LOGIN_SHELL = new File(BIN_DIR, "login");
+
+    GRADLE_DISTS = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "gradle-dists"));
 
     setExecutable(JAVA);
     setExecutable(BASH_SHELL);
