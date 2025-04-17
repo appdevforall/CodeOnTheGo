@@ -15,10 +15,12 @@ package com.itsaky.androidide.logging;
 
 import android.util.Log;
 
-import com.itsaky.androidide.logging.encoder.IDELogFormatEncoder;
 import com.itsaky.androidide.logging.utils.LogUtils;
 
 import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.PatternLayout;
+import ch.qos.logback.classic.pattern.Abbreviator;
+import ch.qos.logback.classic.pattern.ClassNameOnlyAbbreviator;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
@@ -41,12 +43,17 @@ import ch.qos.logback.core.UnsynchronizedAppenderBase;
  */
 public class LogcatAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
 
-  private IDELogFormatEncoder encoder = null;
+  private final Abbreviator classNameAbbreviator = new ClassNameOnlyAbbreviator();
+  private final PatternLayout messageLayout = new PatternLayout();
   private boolean checkLoggable = false;
 
   // AndroidIDE Changed: Appender is enabled only when running on Android.
   private boolean isAndroid = false;
   // AndroidIDE Changed
+
+  public LogcatAppender() {
+    this.messageLayout.setPattern("%msg%n");
+  }
 
   /**
    * Checks that required parameters are set, and if everything is in order, activates this
@@ -61,26 +68,20 @@ public class LogcatAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
       return;
     }
 
-    if ((this.encoder == null) || (this.encoder.getLayout() == null)) {
-      addError("No layout set for the appender named [" + name + "].");
-      return;
-    }
-
     super.start();
-
-    this.encoder.start();
+    this.messageLayout.start();
   }
 
   @Override
   public void setContext(Context context) {
     super.setContext(context);
-    getEncoder().start();
+    this.messageLayout.setContext(context);
   }
 
   @Override
   public void stop() {
     super.stop();
-    getEncoder().stop();
+    this.messageLayout.stop();
   }
 
   @Override
@@ -100,41 +101,37 @@ public class LogcatAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
       return;
     }
 
-    // format tag based on encoder layout; truncate if max length
-    // exceeded (only necessary for isLoggable(), which throws
-    // IllegalArgumentException)
-
-    String tag = LogUtils.processLogTag(event.getLoggerName());
+    String tag = this.classNameAbbreviator.abbreviate(event.getLoggerName());
 
     switch (event.getLevel().levelInt) {
       case Level.ALL_INT:
       case Level.TRACE_INT:
         if (!checkLoggable || Log.isLoggable(tag, Log.VERBOSE)) {
-          Log.v(tag, this.encoder.getLayout().doLayout(event));
+          Log.v(tag, this.messageLayout.doLayout(event));
         }
         break;
 
       case Level.DEBUG_INT:
         if (!checkLoggable || Log.isLoggable(tag, Log.DEBUG)) {
-          Log.d(tag, this.encoder.getLayout().doLayout(event));
+          Log.d(tag, this.messageLayout.doLayout(event));
         }
         break;
 
       case Level.INFO_INT:
         if (!checkLoggable || Log.isLoggable(tag, Log.INFO)) {
-          Log.i(tag, this.encoder.getLayout().doLayout(event));
+          Log.i(tag, this.messageLayout.doLayout(event));
         }
         break;
 
       case Level.WARN_INT:
         if (!checkLoggable || Log.isLoggable(tag, Log.WARN)) {
-          Log.w(tag, this.encoder.getLayout().doLayout(event));
+          Log.w(tag, this.messageLayout.doLayout(event));
         }
         break;
 
       case Level.ERROR_INT:
         if (!checkLoggable || Log.isLoggable(tag, Log.ERROR)) {
-          Log.e(tag, this.encoder.getLayout().doLayout(event));
+          Log.e(tag, this.messageLayout.doLayout(event));
         }
         break;
 
@@ -142,24 +139,6 @@ public class LogcatAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
       default:
         break;
     }
-  }
-
-  /**
-   * Gets the pattern-layout encoder for this appender's <i>logcat</i> message
-   *
-   * @return the pattern-layout encoder
-   */
-  public IDELogFormatEncoder getEncoder() {
-    return this.encoder;
-  }
-
-  /**
-   * Sets the pattern-layout encoder for this appender's <i>logcat</i> message
-   *
-   * @param encoder the pattern-layout encoder
-   */
-  public void setEncoder(IDELogFormatEncoder encoder) {
-    this.encoder = encoder;
   }
 
   /**
