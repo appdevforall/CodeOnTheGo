@@ -18,7 +18,7 @@
 package com.itsaky.androidide.plugins
 
 import com.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
-import com.adfa.constants.COPY_GRADLE_CAHCES_TO_ASSETS
+import com.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
 import com.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
 import com.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
@@ -75,7 +75,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
       val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
 
-      val gradleCachesToAssetsTaskProvider = tasks.register(COPY_GRADLE_CAHCES_TO_ASSETS,
+      val gradleCachesToAssetsTaskProvider = tasks.register(COPY_GRADLE_CACHES_TO_ASSETS,
         CopyGradleCachesToAssetsTask::class.java)
 
       val androidSdkToAssetsTaskProvider = tasks.register(COPY_ANDROID_SDK_TO_ASSETS,
@@ -120,19 +120,19 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
           AddFileToAssetsTask::outputDirectory)
 
         // cogo-plugin jar copier
-//        val copyCogoPluginJar = tasks.register("copy${variantNameCapitalized}CogoPluginJar",
-//          AddFileToAssetsTask::class.java) {
-//          val cogopluginApi = rootProject.findProject(":gradle-plugin")!!
-//          dependsOn(cogopluginApi.tasks.getByName("assemble"))
-//
-//          val cogopluginApiJar = cogopluginApi.layout.buildDirectory.file("libs/cogo-plugin.jar")
-//
-//          inputFile.set(cogopluginApiJar)
-//          baseAssetsPath.set("data/common")
-//        }
+        val copyCogoPluginJar = tasks.register("copy${variantNameCapitalized}CogoPluginJar",
+          AddFileToAssetsTask::class.java) {
+          val cogopluginApi = rootProject.findProject(":gradle-plugin")!!
+          dependsOn(cogopluginApi.tasks.getByName("jar"))
 
-//        variant.sources.assets?.addGeneratedSourceDirectory(copyCogoPluginJar,
-//          AddFileToAssetsTask::outputDirectory)
+          val cogopluginApiJar = cogopluginApi.layout.buildDirectory.file("libs/cogo-plugin.jar")
+
+          inputFile.set(cogopluginApiJar)
+          baseAssetsPath.set("data/common")
+        }
+
+        variant.sources.assets?.addGeneratedSourceDirectory(copyCogoPluginJar,
+          AddFileToAssetsTask::outputDirectory)
 
 
         // Local gradle zip copier

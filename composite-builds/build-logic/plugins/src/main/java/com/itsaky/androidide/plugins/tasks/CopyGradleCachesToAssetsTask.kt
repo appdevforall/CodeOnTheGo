@@ -18,7 +18,7 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOACL_GRADLE_8_0_0_CACHES_PATH
+import com.adfa.constants.LOCAL_GRADLE_8_0_0_CACHES_PATH
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
@@ -41,20 +41,20 @@ abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
 
     @TaskAction
     fun copyGradleCachesToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER + File.separator + LOACL_GRADLE_8_0_0_CACHES_PATH).asFile
+        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_GRADLE_8_0_0_CACHES_PATH).asFile
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
 
         /**
-         * Currently we are hardcoded to LOACL_SOURCE_AGP_8_0_0_CACHES, but we can add
+         * Currently we are hardcoded to LOCAL_SOURCE_AGP_8_0_0_CACHES, but we can add
          * an if statement that will change this based on whatever gradle version we choose
          * from the supported once.
          * Supported gradle versions are limited by the pregenerated cahces we have in libs_source
          * folder.
          */
         val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOACL_GRADLE_8_0_0_CACHES_PATH
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_GRADLE_8_0_0_CACHES_PATH
 
         try {
             copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
