@@ -40,7 +40,6 @@ import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 public class ToolsManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(ToolsManager.class);
@@ -66,6 +65,7 @@ public class ToolsManager {
       extractAapt2();
       extractToolingApi();
       extractCogoPlugin();
+      extractGradleDists();
       extractAndroidJar();
       extractColorScheme(app);
       writeInitScript();
@@ -186,8 +186,8 @@ public class ToolsManager {
    * @see ToolsManager getCommonAsset(String name)
    * @see ResourceUtils copyFileFromAssets
    * We have to put our files under data/common folder.  And add new postRecipe entry to templates
-   * @see ProjectTemplateBuilder
-   * @see base.kt
+   * @@see ProjectTemplateBuilder
+   * @@see base.kt
    * @param name - asset name
    * @return Full path to debug/compressed_assets/name
    */
@@ -231,6 +231,15 @@ public class ToolsManager {
 
     ResourceUtils.copyFileFromAssets(getCommonAsset("cogo-plugin.jar"),
             Environment.COGO_PLUGIN_JAR.getAbsolutePath());
+  }
+
+  private static void extractGradleDists() {
+
+    String[]  binToCopy = {"gradle-8.0-bin.zip", "gradle-8.7-bin.zip"};
+    for (String binFile : binToCopy) {
+      ResourceUtils.copyFileFromAssets(getCommonAsset(binFile),
+              Environment.GRADLE_DISTS.getAbsolutePath()+ File.separator + binFile);
+    }
   }
 
   private static void writeInitScript() {

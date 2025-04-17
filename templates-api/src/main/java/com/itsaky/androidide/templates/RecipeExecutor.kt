@@ -17,7 +17,7 @@
 
 package com.itsaky.androidide.templates
 
-import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
+import com.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
 import java.io.File
 import java.io.InputStream
 
@@ -84,6 +84,6 @@ interface RecipeExecutor {
      *
      * This appends missing files and does not replace existing files.
      */
-    fun updateCaches(sourcePath: String = LOACL_SOURCE_AGP_8_0_0_CACHES)
+    fun updateCaches(sourcePath: String = LOCAL_SOURCE_AGP_8_0_0_CACHES)
 
 }

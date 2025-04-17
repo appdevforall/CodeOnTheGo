@@ -53,7 +53,7 @@ abstract class CopyGradleExecutableToAssetsTask : DefaultTask() {
             destFile.delete()
         }
         if (destFileCompose.exists()){
-            destFile.delete()
+            destFileCompose.delete()
         }
 
         val sourceFilePath =
