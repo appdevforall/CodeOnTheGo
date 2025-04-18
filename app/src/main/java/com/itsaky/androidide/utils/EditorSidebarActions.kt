@@ -58,6 +58,7 @@ import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
+import com.itsaky.androidide.actions.sidebar.EmailSidebarAction
 import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
 import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
@@ -95,6 +96,7 @@ internal object EditorSidebarActions {
         registry.registerAction(PreferencesSidebarAction(context, ++order))
         registry.registerAction(CloseProjectSidebarAction(context, ++order))
         registry.registerAction(HelpSideBarAction(context, ++order))
+        registry.registerAction(EmailSidebarAction(context, ++order))
     }
 
     @JvmStatic
@@ -104,11 +106,6 @@ internal object EditorSidebarActions {
         val context = sidebarFragment.requireContext()
         val rail = binding.navigation
 
-        val emailSupportBtn = binding.emailSupport
-
-        emailSupportBtn.setOnClickListener {
-            showContactDialog(context)
-        }
 
         val registry = ActionsRegistry.getInstance()
         val actions = registry.getActions(ActionItem.Location.EDITOR_SIDEBAR)
@@ -229,18 +226,6 @@ internal object EditorSidebarActions {
             it.isChecked = true
             binding.title.text = it.title
         }
-
-        rail.viewTreeObserver.addOnPreDrawListener {
-            val railView = railRef.get()
-            if (railView != null) {
-                railView.findViewById<View>(TerminalSidebarAction.ID.hashCode())
-                    ?.setOnLongClickListener {
-                        TerminalSidebarAction.startTerminalActivity(data, true)
-                        true
-                    }
-            }
-            true
-        }
     }
 
     /**
@@ -265,7 +250,7 @@ internal object EditorSidebarActions {
         }
     }
 
-    private fun showContactDialog(context: Context) {
+    fun showContactDialog(context: Context) {
         val dialog = Dialog(context)
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
 
