@@ -32,7 +32,7 @@ elif [ "$arch" = "aarch64" ]; then
 
 else
   echo "Unknown architecture. Info:" `uname -a`
-  arch="armeabi"
+  arch="V7"
 fi
 
 mkdir -p "$install_dir"
