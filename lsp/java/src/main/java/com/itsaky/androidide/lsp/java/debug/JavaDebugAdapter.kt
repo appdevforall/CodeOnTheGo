@@ -1,12 +1,15 @@
 package com.itsaky.androidide.lsp.java.debug
 
 import androidx.annotation.WorkerThread
+import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.RemoteClientCapabilities
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
+import com.itsaky.androidide.lsp.debug.model.Source
+import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
@@ -64,7 +67,7 @@ data class ConnectedVm(
     val client: RemoteClient,
     val vm: VirtualMachine,
     val eventReader: Job
-): AutoCloseable {
+) : AutoCloseable {
 
     @WorkerThread
     override fun close() {
@@ -134,7 +137,30 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
          * to wait for a VM to connect.
          */
         const val CONNECTOR_TIMEOUT = "timeout"
+
+        /**
+         * Get the current instance of the [JavaDebugAdapter].
+         */
+        internal fun currentInstance(): JavaDebugAdapter? {
+            val lsp = ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
+            return (lsp as? JavaLanguageServer?)?.debugAdapter
+        }
+
+        /**
+         * Get the current instance of the [JavaDebugAdapter], or throw an [IllegalStateException] if
+         * the current instance is `null`.
+         */
+        internal inline fun requireInstance(
+            message: () -> String = {
+                "Unable to get current instance of JavaDebugAdapter"
+            }
+        ): JavaDebugAdapter = checkNotNull(currentInstance(), message)
     }
+
+    /**
+     * Get the connected VM.
+     */
+    fun vm() = this.vms.first().vm
 
     override fun connectDebugClient(client: IDebugClient) {
         val connector = vmm.listeningConnectors().firstOrNull() as? SocketListeningConnector?
@@ -149,7 +175,7 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
 
         logger.debug(
             "Starting JDWP listener. Arguments={}",
-            args.map { (key, value) -> "$key=$value" }.joinToString()
+            args.map { (_, value) -> "$value" }.joinToString()
         )
 
         this.listenerState = ListenerState(
@@ -165,13 +191,7 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
     @Synchronized
     private fun onConnectedToVm(vm: VirtualMachine) {
         if (vms.isNotEmpty()) {
-            // TODO: Add support for debugging multiple VMs
-            try {
-                vm.exit(0)
-            } finally {
-                // ignored
-            }
-
+            // TODO: Maybe add support for debugging multiple VMs?
             throw UnsupportedOperationException("Debugging multiple VMs is not supported yet")
         }
 
@@ -218,7 +238,7 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
         client: RemoteClient,
         vm: VirtualMachine,
         event: Event
-    ): Unit = when(event) {
+    ): Unit = when (event) {
         is ClassPrepareEvent -> enablePendingBreakpoints(client, vm, event)
         is VMDisconnectEvent -> onVmDisconnected(client, vm, event)
         is VMDeathEvent -> onVmDead(client, vm, event)
@@ -261,7 +281,19 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
     override suspend fun setBreakpoints(
         request: BreakpointRequest
     ): BreakpointResponse {
-        TODO("Not yet implemented")
+        val vm = vm()
+        val breakpoints = request.breakpoints
+            .groupBy { breakpoint ->
+                for (breakpointRequest in vm.eventRequestManager().breakpointRequests()) {
+
+                }
+            }
+
+        TODO()
+    }
+
+    private fun disableBreakpoints(source: Source) {
+        TODO()
     }
 
     override fun close() {
