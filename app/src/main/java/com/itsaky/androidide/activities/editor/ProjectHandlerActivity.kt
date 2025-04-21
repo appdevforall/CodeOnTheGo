@@ -724,13 +724,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val builder = newMaterialDialogBuilder(this)
         builder.setTitle(string.title_confirm_project_close)
         builder.setMessage(string.msg_confirm_project_close)
-        builder.setNegativeButton(string.no, null)
-        builder.setPositiveButton(string.yes) { dialog, _ ->
+
+        builder.setNegativeButton(string.cancel_project_text, null)
+
+        builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
+            dialog.dismiss()
+            closeProject(false)
+        }
+
+        builder.setPositiveButton("Save files and close project") { dialog, _ ->
             dialog.dismiss()
             closeProject(true)
         }
+
         builder.show()
     }
+
 
     private fun initLspClient() {
         if (!IDELanguageClientImpl.isInitialized()) {
