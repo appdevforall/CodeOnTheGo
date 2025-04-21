@@ -117,6 +117,7 @@ class JavaLanguageServer : ILanguageServer {
   }
 
   override fun shutdown() {
+    this.debugAdapter.close()
     JavaCompilerProvider.getInstance().destroy()
     SourceFileManager.clearCache()
     CacheFSInfoSingleton.clearCache()
