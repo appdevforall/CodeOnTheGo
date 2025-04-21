@@ -19,6 +19,9 @@
   <string name="reset">রিসেট করুন</string>
   <string name="app_logs">App লগ</string>
   <string name="ide_logs">IDE লগ</string>
+  <string name="cancel_project_text">বাতিল করুন</string>
+  <string name="close_without_saving">ফাইল সংরক্ষণ না করেই বন্ধ করুন</string>
+  <string name="save_and_close">ফাইল সংরক্ষণ করুন এবং প্রকল্প বন্ধ করুন</string>
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">শুরু করুন</string>
   <string name="msg_cannot_perform_fix">দ্রুত সমাধান করতে অক্ষম</string>

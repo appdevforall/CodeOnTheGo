@@ -29,6 +29,9 @@
   <string name="msg_finding_references">العثور على مراجع…</string>
   <string name="msg_finding_definition">العثور على تعريف…</string>
   <string name="msg_no_definition">التعريف غير موجود</string>
+  <string name="cancel_project_text">إلغاء</string>
+  <string name="close_without_saving">إغلاق بدون حفظ الملفات</string>
+  <string name="save_and_close">حفظ الملفات وإغلاق المشروع</string>
   <!-- Build Tools Installation -->
   <string name="msg_no_references">لم يتم العثور على مراجع</string>
   <string name="view_diags">التشخيصات</string>
