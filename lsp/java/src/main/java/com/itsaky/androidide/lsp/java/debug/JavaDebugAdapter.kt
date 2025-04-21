@@ -265,6 +265,13 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
     }
 
     override fun close() {
+        try {
+            listenerState?.stopListening()
+            listenerThread?.interrupt()
+        } catch (err: Throwable) {
+            logger.error("Unable to stop VM connection listener", err)
+        }
+
         while (vms.isNotEmpty()) {
             val vm = vms.first()
             try {
@@ -279,7 +286,8 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
 }
 
 class JDWPListenerThread(
-    private val listenerState: ListenerState, private val onConnect: (VirtualMachine) -> Unit
+    private val listenerState: ListenerState,
+    private val onConnect: (VirtualMachine) -> Unit
 ) : Thread("JDWPListenerThread") {
 
     companion object {
