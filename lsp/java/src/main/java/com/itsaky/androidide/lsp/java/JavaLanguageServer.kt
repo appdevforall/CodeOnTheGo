@@ -27,6 +27,7 @@ import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clea
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.internal.model.CachedCompletion
 import com.itsaky.androidide.lsp.java.actions.JavaCodeActionsMenu
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
@@ -96,7 +97,7 @@ class JavaLanguageServer : ILanguageServer {
 
   override val serverId: String = SERVER_ID
 
-  override val debugAdapter = JavaDebugAdapter()
+  override val debugAdapter: IDebugAdapter = JavaDebugAdapter()
 
   companion object {
 
@@ -117,7 +118,7 @@ class JavaLanguageServer : ILanguageServer {
   }
 
   override fun shutdown() {
-    this.debugAdapter.close()
+    (this.debugAdapter as? AutoCloseable?)?.close()
     JavaCompilerProvider.getInstance().destroy()
     SourceFileManager.clearCache()
     CacheFSInfoSingleton.clearCache()
