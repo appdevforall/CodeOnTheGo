@@ -22,3 +22,6 @@ fun VirtualMachine.isBreakpointInSource(br: BreakpointRequest, source: Source): 
     logger.warn("No source information for {}", br.location())
     false
 }
+
+fun VirtualMachine.isBreakpointLine(br: BreakpointRequest, line: Int): Boolean =
+    line == br.location().lineNumber(defaultStratum)

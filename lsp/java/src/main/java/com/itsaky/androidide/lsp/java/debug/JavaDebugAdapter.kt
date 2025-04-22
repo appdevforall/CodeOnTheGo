@@ -8,11 +8,11 @@ import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.RemoteClientCapabilities
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
+import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
+import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpec
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
-import com.itsaky.androidide.lsp.java.debug.spec.SourceReferenceTypeSpec
-import com.itsaky.androidide.lsp.java.debug.utils.isBreakpointInSource
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
@@ -31,7 +31,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.newFixedThreadPoolContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
-import kotlin.time.Duration.Companion.seconds
 
 data class ListenerState(
     val client: IDebugClient,
@@ -99,55 +98,11 @@ internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
         private val logger = LoggerFactory.getLogger(JavaDebugAdapter::class.java)
 
         /**
-         * Whether the debugger is enabled or not.
-         */
-        const val JDWP_ENABLED = true
-
-        /**
-         * The port on which the debugger will listen for connections.
-         */
-        const val DEFAULT_JDWP_PORT = 42233
-
-        /**
-         * The timeout duration for waiting for a VM to connect to the debugger. The default value
-         * is to wait indefinitely.
-         */
-        val DEFAULT_JDWP_TIMEOUT = 0.seconds
-
-        /**
-         * Options for configuring the JDWP agent in a VM.
-         */
-        val JDWP_OPTIONS_MAP = mapOf(
-            "suspend" to "n",
-            "server" to "n",
-            "transport" to "dt_socket",
-            "address" to DEFAULT_JDWP_PORT.toString(),
-            "logflags" to "0xfff",
-        )
-
-        /**
-         * [JDWP_OPTIONS_MAP] converted to a comma-separated string, as expected by the debugger
-         * agent.
-         */
-        val JDWP_OPTIONS = JDWP_OPTIONS_MAP.map { (key, value) -> "$key=$value" }.joinToString(",")
-
-        /**
-         * The argument provided to JDI [Connector][com.sun.jdi.connect.Connector] to provide the port to listen at.
-         */
-        const val CONNECTOR_PORT = "port"
-
-        /**
-         * The argument provided to JDI [Connector][com.sun.jdi.connect.Connector] to provide the timeout
-         * to wait for a VM to connect.
-         */
-        const val CONNECTOR_TIMEOUT = "timeout"
-
-        /**
          * Get the current instance of the [JavaDebugAdapter].
          */
         fun currentInstance(): JavaDebugAdapter? {
             val lsp = ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
-            return (lsp as? JavaLanguageServer?)?.debugAdapter
+            return ((lsp as? JavaLanguageServer?)?.debugAdapter as? JavaDebugAdapter?)
         }
 
         /**
@@ -176,8 +131,8 @@ internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
         }
 
         val args = connector.defaultArguments()
-        args[CONNECTOR_PORT]!!.setValue(DEFAULT_JDWP_PORT.toString())
-        args[CONNECTOR_TIMEOUT]!!.setValue(DEFAULT_JDWP_TIMEOUT.inWholeMilliseconds.toString())
+        args[JdwpOptions.CONNECTOR_PORT]!!.setValue(JdwpOptions.DEFAULT_JDWP_PORT.toString())
+        args[JdwpOptions.CONNECTOR_TIMEOUT]!!.setValue(JdwpOptions.DEFAULT_JDWP_TIMEOUT.inWholeMilliseconds.toString())
 
         logger.debug(
             "Starting JDWP listener. Arguments={}",
@@ -286,17 +241,37 @@ internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
     override suspend fun connectedRemoteClients(): Set<RemoteClient> =
         vms.map(ConnectedVm::client).toSet()
 
-    override suspend fun setBreakpoints(
+    override suspend fun addBreakpoints(
         request: BreakpointRequest
     ): BreakpointResponse {
         val vm = connVm()
 
-        request.breakpoints.forEach { br ->
-            val spec = vm.eventRequestSpecList.createBreakpoint(request.source, br.line)
+        for (br in request.breakpoints) {
+            val spec = when (br) {
+                is PositionalBreakpoint -> vm.eventRequestSpecList.createBreakpoint(
+                    request.source,
+                    br.line
+                )
+
+                is MethodBreakpoint -> vm.eventRequestSpecList.createBreakpoint(
+                    request.source,
+                    br.methodId,
+                    br.methodArgs
+                )
+
+                else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")
+            }
+
             resolveNow(vm, spec)
         }
 
         return BreakpointResponse(emptyList())
+    }
+
+    override suspend fun removeBreakpoints(
+        request: BreakpointRequest
+    ): BreakpointResponse {
+        TODO("Not yet implemented")
     }
 
     fun resolveNow(vm: ConnectedVm, spec: EventRequestSpec) {
