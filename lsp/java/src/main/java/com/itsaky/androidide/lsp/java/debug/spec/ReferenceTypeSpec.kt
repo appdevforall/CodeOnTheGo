@@ -12,7 +12,7 @@ interface ReferenceTypeSpec {
     /**
      * Whether this spec matches the given reference type.
      */
-    fun matches(refType: ReferenceType): Boolean
+    fun matches(vm: VirtualMachine, refType: ReferenceType): Boolean
 
     /**
      * Creates a [ClassPrepareRequest] for this spec.

@@ -2,23 +2,27 @@ package com.itsaky.androidide.lsp.java.debug.spec
 
 import com.itsaky.androidide.utils.StringUtil.isJavaIdentifier
 import com.sun.jdi.AbsentInformationException
+import com.sun.jdi.InvalidTypeException
 import com.sun.jdi.Location
 import com.sun.jdi.Method
 import com.sun.jdi.ReferenceType
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.request.EventRequest
+import com.sun.jdi.request.EventRequestManager
+
 
 sealed interface BreakpointData {
+    val threadFilter: ThreadReference?
     data class Global(
         val lineNumber: Int,
-        val threadFilter: ThreadReference?,
+        override val threadFilter: ThreadReference?,
     ) : BreakpointData
 
     data class Method(
         val methodID: String,
         val methodArgs: List<String>,
-        val threadFilter: ThreadReference?,
+        override val threadFilter: ThreadReference?,
     ) : BreakpointData
 }
 
@@ -57,9 +61,17 @@ internal class BreakpointSpec : EventRequestSpec {
 
     override fun resolveEventRequest(
         vm: VirtualMachine,
-        referenceType: ReferenceType
+        refType: ReferenceType
     ): EventRequest {
-        TODO("Not yet implemented")
+        val location = location(vm, refType) ?: throw InvalidTypeException()
+        val em: EventRequestManager = refType.virtualMachine().eventRequestManager()
+        val bp = em.createBreakpointRequest(location)
+        bp.setSuspendPolicy(suspendPolicy)
+        if (data.threadFilter != null) {
+            bp.addThreadFilter(data.threadFilter)
+        }
+        bp.enable()
+        return bp
     }
 
     @Throws(
@@ -75,8 +87,7 @@ internal class BreakpointSpec : EventRequestSpec {
             val method = findMatchingMethod(vm, refType, this.data as BreakpointData.Method)
             location = method?.location()
         } else {
-            // let AbsentInformationException be thrown
-            val locs: List<Location> = refType.locationsOfLine(lineNumber)
+            val locs = refType.locationsOfLine(lineNumber)
             if (locs.isEmpty()) {
                 throw LineNotFoundException()
             }

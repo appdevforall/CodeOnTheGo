@@ -24,10 +24,18 @@ interface IDebugAdapter {
     suspend fun connectedRemoteClients(): Set<RemoteClient>
 
     /**
-     * Set breakpoints in the source code.
+     * Add breakpoints in the source code.
      *
-     * @param request The request definition of the breakpoints to set.
-     * @return The response definition of the breakpoints set.
+     * @param request The request definition of the breakpoints to add.
+     * @return The response definition of the breakpoints add.
      */
-    suspend fun setBreakpoints(request: BreakpointRequest): BreakpointResponse
+    suspend fun addBreakpoints(request: BreakpointRequest): BreakpointResponse
+
+    /**
+     * Remove breakpoints in the source code.
+     *
+     * @param request The request definition of the breakpoints to remove.
+     * @return The response definition of the breakpoints remove.
+     */
+    suspend fun removeBreakpoints(request: BreakpointRequest): BreakpointResponse
 }

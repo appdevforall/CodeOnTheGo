@@ -81,4 +81,14 @@ internal class EventRequestSpecList(
         val refType = SourceReferenceTypeSpec(source)
         return BreakpointSpec(refType, lineNumber, threadFilter)
     }
+
+    fun createBreakpoint(
+        source: Source,
+        methodId: String,
+        methodArgs: List<String> = emptyList(),
+        threadFilter: ThreadReference? = null
+    ): BreakpointSpec {
+        val refType = SourceReferenceTypeSpec(source)
+        return BreakpointSpec(refType, methodId, methodArgs, threadFilter)
+    }
 }

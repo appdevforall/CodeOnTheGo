@@ -33,6 +33,7 @@ import com.itsaky.androidide.lsp.java.actions.JavaCodeActionsMenu
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.compiler.SourceFileManager
 import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
+import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.lsp.java.models.JavaServerSettings
 import com.itsaky.androidide.lsp.java.providers.CodeFormatProvider
 import com.itsaky.androidide.lsp.java.providers.CompletionProvider
@@ -131,7 +132,7 @@ class JavaLanguageServer : ILanguageServer {
     this.client = client
 
     val debugClient = client?.debugClient
-    if (JavaDebugAdapter.JDWP_ENABLED && debugClient != null) {
+    if (JdwpOptions.JDWP_ENABLED && debugClient != null) {
       this.debugAdapter.connectDebugClient(debugClient)
     }
   }

@@ -22,7 +22,7 @@ internal abstract class EventRequestSpec(
     /**
      * Resolve the [EventRequest] for this spec.
      */
-    abstract fun resolveEventRequest(vm: VirtualMachine, referenceType: ReferenceType): EventRequest
+    abstract fun resolveEventRequest(vm: VirtualMachine, refType: ReferenceType): EventRequest
 
     /**
      * Resolve the [EventRequest] for this spec.
@@ -39,7 +39,7 @@ internal abstract class EventRequestSpec(
             vm.eventRequestManager().deleteEventRequest(prepareRequest)
             this.prepareRequest = null
 
-            if (((this.refSpec as? ClassPatternReferenceTypeSpec?)?.isPattern == true)) {
+            if (((this.refSpec as? PatternReferenceTypeSpec?)?.isPattern == true)) {
                 // Class pattern event requests are never considered "resolved", since
                 // future class loads might also match.
                 // Create and enable a new ClassPrepareRequest to keep trying to resolve.
@@ -57,7 +57,7 @@ internal abstract class EventRequestSpec(
             vm.eventRequestManager().deleteEventRequest(this.resolved)
         }
 
-        val patternSpec = this.refSpec as? ClassPatternReferenceTypeSpec?
+        val patternSpec = this.refSpec as? PatternReferenceTypeSpec?
         if (patternSpec?.isPattern == true) {
             // This is a class pattern.  Track down and delete
             // all EventRequests matching this spec.
@@ -65,7 +65,7 @@ internal abstract class EventRequestSpec(
             // so that is all we need to examine.
             val deleteList = vm.eventRequestManager()
                 .exceptionRequests()
-                .filter { request -> patternSpec.matches(request.exception()) }
+                .filter { request -> patternSpec.matches(vm, request.exception()) }
 
             vm.eventRequestManager()
                 .deleteEventRequests(deleteList)
@@ -75,7 +75,7 @@ internal abstract class EventRequestSpec(
     @Throws(Exception::class)
     private fun resolveAgainstPreparedClasses(vm: VirtualMachine): EventRequest {
         for (refType in vm.allClasses()) {
-            if (refType.isPrepared && refSpec.matches(refType)) {
+            if (refType.isPrepared && refSpec.matches(vm, refType)) {
                 resolved = resolveEventRequest(vm, refType)
             }
         }
@@ -101,7 +101,7 @@ internal abstract class EventRequestSpec(
             }
         }
 
-        if (refSpec is ClassPatternReferenceTypeSpec) {
+        if (refSpec is PatternReferenceTypeSpec) {
             if (!refSpec.isUnique) {
                 // Class pattern event requests are never
                 // considered "resolved", since future class loads

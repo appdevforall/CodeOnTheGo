@@ -25,23 +25,63 @@ enum class SuspendPolicy {
  */
 data class BreakpointRequest(
     val source: Source,
-    val breakpoints: List<SourceBreakpoint>,
+    val breakpoints: List<BreakpointDefinition>,
 )
 
 /**
- * Defines a breakpoint in source code.
+ * Defines the response to a request to set breakpoints.
+ */
+interface BreakpointDefinition {
+
+    /**
+     * The condition to evaluate for the breakpoint.
+     */
+    val condition: String?
+        get() = null
+
+    /**
+     * The condition to evaluate when the breakpoint is hit.
+     */
+    val hitCondition: String?
+        get() = null
+
+    /**
+     * The message to log when the breakpoint is hit.
+     */
+    val logMessage: String?
+        get() = null
+}
+
+/**
+ * Defines a positional breakpoint in source code.
  *
- * @property source The source of the breakpoint.
  * @property line The line number of the breakpoint.
  * @property column The column number of the breakpoint.
  * @property condition The condition to evaluate for the breakpoint.
  * @property hitCondition The condition to evaluate when the breakpoint is hit.
  * @property logMessage The message to log when the breakpoint is hit.
  */
-data class SourceBreakpoint(
+data class PositionalBreakpoint(
     val line: Int,
     val column: Int = 0,
-    val condition: String? = null,
-    val hitCondition: String? = null,
-    val logMessage: String? = null,
-)
+    override val condition: String? = null,
+    override val hitCondition: String? = null,
+    override val logMessage: String? = null,
+): BreakpointDefinition
+
+/**
+ * Defines a method breakpoint in source code.
+ *
+ * @property methodId The ID of the method to breakpoint.
+ * @property methodArgs The arguments of the method to breakpoint.
+ * @property condition The condition to evaluate for the breakpoint.
+ * @property hitCondition The condition to evaluate when the breakpoint is hit.
+ * @property logMessage The message to log when the breakpoint is hit.
+ */
+data class MethodBreakpoint(
+    val methodId: String,
+    val methodArgs: List<String>,
+    override val condition: String? = null,
+    override val hitCondition: String? = null,
+    override val logMessage: String? = null,
+): BreakpointDefinition
