@@ -6,6 +6,7 @@ package com.itsaky.androidide.lsp.debug
  * @property name The name of the client.
  * @property version The version of the client.
  * @property capabilities The capabilities of the client.
+ * @property adapter The debug adapter to which this client is connected to.
  *
  * @author Akash Yadav
  */
@@ -13,6 +14,7 @@ data class RemoteClient(
     val name: String,
     val version: String,
     val capabilities: RemoteClientCapabilities,
+    val adapter: IDebugAdapter,
 )
 
 /**
