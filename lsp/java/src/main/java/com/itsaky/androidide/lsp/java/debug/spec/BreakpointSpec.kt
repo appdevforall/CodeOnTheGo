@@ -9,17 +9,16 @@ import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.request.EventRequest
 
-
 sealed interface BreakpointData {
     data class Global(
         val lineNumber: Int,
-        val threadFilter: ThreadReference,
+        val threadFilter: ThreadReference?,
     ) : BreakpointData
 
     data class Method(
         val methodID: String,
         val methodArgs: List<String>,
-        val threadFilter: ThreadReference,
+        val threadFilter: ThreadReference?,
     ) : BreakpointData
 }
 
@@ -39,9 +38,11 @@ internal class BreakpointSpec : EventRequestSpec {
     val lineNumber: Int
         get() = (data as? BreakpointData.Global?)?.lineNumber ?: 0
 
-    constructor(refSpec: ReferenceTypeSpec, lineNumber: Int, threadFilter: ThreadReference) : super(
-        refSpec
-    ) {
+    constructor(
+        refSpec: ReferenceTypeSpec,
+        lineNumber: Int,
+        threadFilter: ThreadReference?
+    ) : super(refSpec) {
         this.data = BreakpointData.Global(lineNumber, threadFilter)
     }
 
@@ -49,7 +50,7 @@ internal class BreakpointSpec : EventRequestSpec {
         refSpec: ReferenceTypeSpec,
         methodID: String,
         methodArgs: List<String>,
-        threadFilter: ThreadReference
+        threadFilter: ThreadReference?
     ) : super(refSpec) {
         this.data = BreakpointData.Method(methodID, methodArgs, threadFilter)
     }
