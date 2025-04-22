@@ -43,6 +43,14 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+    ndk {
+      // Include only v7 and v8
+      abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+    }
+
+    packaging {
+      resources.excludes.add("com/sun/jna/**")
+    }
   }
 
   testOptions {
@@ -273,6 +281,10 @@ dependencies {
   androidTestImplementation(libs.tests.androidx.test.runner)
 }
 
+configurations.all {
+  exclude(group = "com.sun.jna")
+}
+
 //sentry {
 //    org.set("appdevforall-inc-pb")
 //    projectName.set("android")
@@ -281,3 +293,4 @@ dependencies {
 //    // disable if you don't want to expose your sources
 //    includeSourceContext.set(true)
 //}
+
