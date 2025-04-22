@@ -19,7 +19,7 @@ class ClassPatternReferenceTypeSpec(
         checkClassName(stem)
     }
 
-    override fun matches(refType: ReferenceType): Boolean {
+    override fun matches(vm: VirtualMachine, refType: ReferenceType): Boolean {
         return when {
             candidate.startsWith("*") -> refType.name().endsWith(stem)
             candidate.endsWith("*") -> refType.name().startsWith(stem)

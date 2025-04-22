@@ -6,7 +6,7 @@ import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.Source
-import com.itsaky.androidide.lsp.debug.model.SourceBreakpoint
+import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,7 +21,7 @@ import kotlin.concurrent.write
  */
 data class DebugClientState(
     val clients: Set<RemoteClient>,
-    val breakpoints: Set<SourceBreakpoint>,
+    val breakpoints: Set<PositionalBreakpoint>,
 )
 
 /**
@@ -48,14 +48,14 @@ object IDEDebugClientImpl : IDebugClient {
         state = state.copy(clients = state.clients + client)
 
         clientScope.launch {
-            client.adapter.setBreakpoints(
+            client.adapter.addBreakpoints(
                 BreakpointRequest(
                     source = Source(
                         "DebuggingTarget.java",
                         "/storage/emulated/0/AndroidIDEProjects/My Application1/app/src/main/java/com/itsaky/debuggable/DebuggingTarget.java"
                     ),
                     breakpoints = listOf(
-                        SourceBreakpoint(
+                        PositionalBreakpoint(
                             line = 27,
                         )
                     )
