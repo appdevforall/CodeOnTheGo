@@ -58,6 +58,7 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_FOUND
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
+import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
@@ -69,12 +70,11 @@ import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.eclipse.jgit.storage.file.WindowCacheStats.getOpenFiles
 import java.io.File
-import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
+import kotlinx.coroutines.withContext
 
 /** @author Akash Yadav */
 @Suppress("MemberVisibilityCanBePrivate")
@@ -694,19 +694,24 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     private fun closeProject(manualFinish: Boolean) {
-        if (manualFinish) {
-            // if the user is manually closing the project,
-            // save the opened files cache
-            // this is needed because in this case, the opened files cache will be empty
-            // when onPause will be called.
-            saveOpenedFiles()
+        if (!manualFinish) {
+            editorActivityScope.launch {
+                for (i in 0 until editorViewModel.getOpenedFileCount()) {
+                    (content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
+                }
 
-            // reset the lastOpenedProject if the user explicitly chose to close the project
+                withContext(Dispatchers.Main) {
+                    closeProject(true)
+                }
+            }
+            return
+        }
+
+        if (manualFinish) {
+            saveOpenedFiles()
             GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
         }
 
-        // Make sure we close files
-        // This will make sure that file contents are not erased.
         doCloseAll {
             if (manualFinish) {
                 finish()
@@ -729,10 +734,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
             dialog.dismiss()
-            closeProject(false)
+
+            editorActivityScope.launch {
+                for (i in 0 until editorViewModel.getOpenedFileCount()) {
+                    (content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
+                }
+
+                withContext(Dispatchers.Main) {
+                    closeProject(true)
+                }
+            }
         }
 
-        builder.setPositiveButton("Save files and close project") { dialog, _ ->
+        builder.setPositiveButton(string.save_close_project) { dialog, _ ->
             dialog.dismiss()
             closeProject(true)
         }
