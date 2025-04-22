@@ -8,8 +8,11 @@ import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.RemoteClientCapabilities
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
-import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
+import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpec
+import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
+import com.itsaky.androidide.lsp.java.debug.spec.SourceReferenceTypeSpec
+import com.itsaky.androidide.lsp.java.debug.utils.isBreakpointInSource
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
@@ -63,10 +66,11 @@ data class ListenerState(
  * @property vm The connected VM.
  * @property eventReader The job that reads events from the VM.
  */
-data class ConnectedVm(
+internal data class ConnectedVm(
     val client: RemoteClient,
     val vm: VirtualMachine,
-    val eventReader: Job
+    val eventReader: Job,
+    val eventRequestSpecList: EventRequestSpecList,
 ) : AutoCloseable {
 
     @WorkerThread
@@ -79,7 +83,7 @@ data class ConnectedVm(
 /**
  * @author Akash Yadav
  */
-class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
+internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
 
     private val vmm = Bootstrap.virtualMachineManager()
     private val vms = CopyOnWriteArraySet<ConnectedVm>()
@@ -141,7 +145,7 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
         /**
          * Get the current instance of the [JavaDebugAdapter].
          */
-        internal fun currentInstance(): JavaDebugAdapter? {
+        fun currentInstance(): JavaDebugAdapter? {
             val lsp = ILanguageServerRegistry.getDefault().getServer(JavaLanguageServer.SERVER_ID)
             return (lsp as? JavaLanguageServer?)?.debugAdapter
         }
@@ -150,17 +154,19 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
          * Get the current instance of the [JavaDebugAdapter], or throw an [IllegalStateException] if
          * the current instance is `null`.
          */
-        internal inline fun requireInstance(
+        inline fun requireInstance(
             message: () -> String = {
                 "Unable to get current instance of JavaDebugAdapter"
             }
         ): JavaDebugAdapter = checkNotNull(currentInstance(), message)
     }
 
+    fun connVm() = this.vms.first()
+
     /**
      * Get the connected VM.
      */
-    fun vm() = this.vms.first().vm
+    fun vm() = connVm().vm
 
     override fun connectDebugClient(client: IDebugClient) {
         val connector = vmm.listeningConnectors().firstOrNull() as? SocketListeningConnector?
@@ -196,11 +202,12 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
         }
 
         val client = RemoteClient(
+            adapter = this,
             name = vm.name(),
             version = vm.version(),
             capabilities = RemoteClientCapabilities(
                 canSetBreakpoints = true
-            )
+            ),
         )
 
         logger.debug("Connected to VM: {}", client)
@@ -215,6 +222,7 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
             client = client,
             vm = vm,
             eventReader = eventReader,
+            eventRequestSpecList = EventRequestSpecList(vm)
         )
 
         this.vms.add(connectedVm)
@@ -281,19 +289,21 @@ class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
     override suspend fun setBreakpoints(
         request: BreakpointRequest
     ): BreakpointResponse {
-        val vm = vm()
-        val breakpoints = request.breakpoints
-            .groupBy { breakpoint ->
-                for (breakpointRequest in vm.eventRequestManager().breakpointRequests()) {
+        val vm = connVm()
 
-                }
-            }
+        request.breakpoints.forEach { br ->
+            val spec = vm.eventRequestSpecList.createBreakpoint(request.source, br.line)
+            resolveNow(vm, spec)
+        }
 
-        TODO()
+        return BreakpointResponse(emptyList())
     }
 
-    private fun disableBreakpoints(source: Source) {
-        TODO()
+    fun resolveNow(vm: ConnectedVm, spec: EventRequestSpec) {
+        val success = vm.eventRequestSpecList.addEagerlyResolve(spec)
+        if (success && !spec.isResolved) {
+            logger.info("Deferring: {}", spec)
+        }
     }
 
     override fun close() {

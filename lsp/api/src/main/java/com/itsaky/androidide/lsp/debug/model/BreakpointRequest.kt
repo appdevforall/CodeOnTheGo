@@ -24,6 +24,7 @@ enum class SuspendPolicy {
  * @author Akash Yadav
  */
 data class BreakpointRequest(
+    val source: Source,
     val breakpoints: List<SourceBreakpoint>,
 )
 
@@ -38,10 +39,9 @@ data class BreakpointRequest(
  * @property logMessage The message to log when the breakpoint is hit.
  */
 data class SourceBreakpoint(
-    val source: Source,
     val line: Int,
-    val column: Int,
-    val condition: String?,
-    val hitCondition: String?,
-    val logMessage: String?,
+    val column: Int = 0,
+    val condition: String? = null,
+    val hitCondition: String? = null,
+    val logMessage: String? = null,
 )

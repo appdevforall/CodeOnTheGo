@@ -4,7 +4,15 @@ import androidx.annotation.GuardedBy
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.StoppedEvent
+import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
+import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.SourceBreakpoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 
@@ -21,6 +29,9 @@ data class DebugClientState(
  */
 object IDEDebugClientImpl : IDebugClient {
 
+    @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
+    private val clientContext = newSingleThreadContext("IDEDebugClient")
+    private val clientScope = CoroutineScope(clientContext + SupervisorJob())
     private val stateGuard = ReentrantReadWriteLock()
 
     @GuardedBy("stateGuard")
@@ -35,6 +46,22 @@ object IDEDebugClientImpl : IDebugClient {
         }
 
         state = state.copy(clients = state.clients + client)
+
+        clientScope.launch {
+            client.adapter.setBreakpoints(
+                BreakpointRequest(
+                    source = Source(
+                        "DebuggingTarget.java",
+                        "/storage/emulated/0/AndroidIDEProjects/My Application1/app/src/main/java/com/itsaky/debuggable/DebuggingTarget.java"
+                    ),
+                    breakpoints = listOf(
+                        SourceBreakpoint(
+                            line = 27,
+                        )
+                    )
+                )
+            )
+        }
     }
 
     override fun onStop(event: StoppedEvent) {

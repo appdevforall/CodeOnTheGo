@@ -39,7 +39,7 @@ internal abstract class EventRequestSpec(
             vm.eventRequestManager().deleteEventRequest(prepareRequest)
             this.prepareRequest = null
 
-            if (((this.refSpec as? PatternReferenceTypeSpec?)?.isPattern == true)) {
+            if (((this.refSpec as? ClassPatternReferenceTypeSpec?)?.isPattern == true)) {
                 // Class pattern event requests are never considered "resolved", since
                 // future class loads might also match.
                 // Create and enable a new ClassPrepareRequest to keep trying to resolve.
@@ -57,7 +57,7 @@ internal abstract class EventRequestSpec(
             vm.eventRequestManager().deleteEventRequest(this.resolved)
         }
 
-        val patternSpec = this.refSpec as? PatternReferenceTypeSpec?
+        val patternSpec = this.refSpec as? ClassPatternReferenceTypeSpec?
         if (patternSpec?.isPattern == true) {
             // This is a class pattern.  Track down and delete
             // all EventRequests matching this spec.
@@ -101,7 +101,7 @@ internal abstract class EventRequestSpec(
             }
         }
 
-        if (refSpec is PatternReferenceTypeSpec) {
+        if (refSpec is ClassPatternReferenceTypeSpec) {
             if (!refSpec.isUnique) {
                 // Class pattern event requests are never
                 // considered "resolved", since future class loads
