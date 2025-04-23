@@ -13,6 +13,7 @@ import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpec
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
+import com.itsaky.androidide.lsp.java.debug.utils.events
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
@@ -186,13 +187,10 @@ internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
 
     @WorkerThread
     private fun processEvents(client: RemoteClient, vm: VirtualMachine) {
-        val queue = vm.eventQueue()
-        var eventSet = queue.remove()
-        while (eventSet != null) {
+        for (eventSet in vm.events()) {
             for (event in eventSet) {
                 processEvent(client, vm, event)
             }
-            eventSet = queue.remove()
         }
     }
 
