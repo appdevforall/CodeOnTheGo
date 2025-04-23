@@ -84,6 +84,8 @@
     <item name="colorOnSurfaceVariant">@color/_blue_wave_light_colorOnSurfaceVariant</item>
 
     <item name="colorOutline">@color/_blue_wave_light_colorOutline</item>
+
+    <item name="popupMenuBackground">@color/_blue_wave_light_colorSurface</item>
   </style>
 
   <!--========================================================-->
@@ -153,6 +155,8 @@
     <item name="colorOnSurfaceVariant">@color/_blue_wave_dark_colorOnSurfaceVariant</item>
 
     <item name="colorOutline">@color/_blue_wave_dark_colorOutline</item>
+
+    <item name="popupMenuBackground">@color/_blue_wave_dark_colorSurface</item>
   </style>
 
 </resources>
