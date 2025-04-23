@@ -8,7 +8,7 @@ on:
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
-      - '.github/workflows/crowdin_contributors.yml'
+
   workflow_dispatch: { }
 
 env:
@@ -34,7 +34,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
-    runs-on: macos-13
+    runs-on: self-hosted
     timeout-minutes: 60
     steps:
       - name: Cancel previous runs
@@ -81,6 +81,7 @@ jobs:
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
 
       - name: Find APK file
+        # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
           apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
