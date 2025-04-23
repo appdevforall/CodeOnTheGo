@@ -72,6 +72,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android SDK Platform 35
+        run: |
+          sdkmanager "platforms;android-35" || echo "Failed to install android-35, it might not be available yet."
+
       - name: Generate local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > ./app/local.properties
 
