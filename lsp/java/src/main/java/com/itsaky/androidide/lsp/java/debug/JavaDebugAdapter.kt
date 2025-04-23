@@ -13,23 +13,11 @@ import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpec
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
-import com.itsaky.androidide.lsp.java.debug.utils.events
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
 import com.sun.jdi.connect.TransportTimeoutException
-import com.sun.jdi.event.ClassPrepareEvent
-import com.sun.jdi.event.Event
-import com.sun.jdi.event.VMDeathEvent
-import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.tools.jdi.SocketListeningConnector
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.newFixedThreadPoolContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -66,16 +54,16 @@ data class ListenerState(
  * @property vm The connected VM.
  * @property eventReader The job that reads events from the VM.
  */
-internal data class ConnectedVm(
+internal data class VmConnection(
     val client: RemoteClient,
     val vm: VirtualMachine,
-    val eventReader: Job,
+    val eventHandler: EventHandler,
     val eventRequestSpecList: EventRequestSpecList,
 ) : AutoCloseable {
 
     @WorkerThread
     override fun close() {
-        eventReader.cancel(CancellationException("Closing VM"))
+        eventHandler.close()
         vm.exit(0)
     }
 }
@@ -83,14 +71,10 @@ internal data class ConnectedVm(
 /**
  * @author Akash Yadav
  */
-internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
+internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     private val vmm = Bootstrap.virtualMachineManager()
-    private val vms = CopyOnWriteArraySet<ConnectedVm>()
-
-    @OptIn(DelicateCoroutinesApi::class)
-    private val adapterContext = newFixedThreadPoolContext(2, "JavaDebugAdapter")
-    private val adapterScope = CoroutineScope(adapterContext)
+    private val vms = CopyOnWriteArraySet<VmConnection>()
 
     private var listenerThread: JDWPListenerThread? = null
     private var listenerState: ListenerState? = null
@@ -168,76 +152,27 @@ internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
 
         logger.debug("Connected to VM: {}", client)
 
-        val eventReader = adapterScope.launch {
-            while (isActive) {
-                processEvents(client, vm)
-            }
-        }
+        val eventRequestSpecList = EventRequestSpecList(vm)
+        val eventHandler = EventHandler(
+            vm = vm,
+            eventRequestSpecList = eventRequestSpecList,
+            stopOnVmStart = false,
+            consumer = this
+        )
 
-        val connectedVm = ConnectedVm(
+        val vmConnection = VmConnection(
             client = client,
             vm = vm,
-            eventReader = eventReader,
+            eventHandler = eventHandler,
             eventRequestSpecList = EventRequestSpecList(vm)
         )
 
-        this.vms.add(connectedVm)
+        this.vms.add(vmConnection)
         this.listenerState!!.client.onAttach(client)
     }
 
-    @WorkerThread
-    private fun processEvents(client: RemoteClient, vm: VirtualMachine) {
-        for (eventSet in vm.events()) {
-            for (event in eventSet) {
-                processEvent(client, vm, event)
-            }
-        }
-    }
-
-    @WorkerThread
-    private fun processEvent(
-        client: RemoteClient,
-        vm: VirtualMachine,
-        event: Event
-    ): Unit = when (event) {
-        is ClassPrepareEvent -> enablePendingBreakpoints(client, vm, event)
-        is VMDisconnectEvent -> onVmDisconnected(client, vm, event)
-        is VMDeathEvent -> onVmDead(client, vm, event)
-        else -> logger.debug("Unsupported event: {}", event)
-    }
-
-    @WorkerThread
-    private fun enablePendingBreakpoints(
-        client: RemoteClient,
-        vm: VirtualMachine,
-        event: ClassPrepareEvent
-    ) {
-        // TODO: add breakpoints which we have set in the past
-        //   Those breakpoints includes the ones whose class weren't aware of prior to this event
-    }
-
-    @WorkerThread
-    private fun onVmDisconnected(
-        client: RemoteClient,
-        vm: VirtualMachine,
-        event: VMDisconnectEvent
-    ) {
-        // TODO: We have been disconnected from the VM
-        //   Notify the debugger client
-    }
-
-    @WorkerThread
-    private fun onVmDead(
-        client: RemoteClient,
-        vm: VirtualMachine,
-        event: VMDeathEvent
-    ) {
-        // TODO: The VM has died
-        //   Notify the debugger client
-    }
-
     override suspend fun connectedRemoteClients(): Set<RemoteClient> =
-        vms.map(ConnectedVm::client).toSet()
+        vms.map(VmConnection::client).toSet()
 
     override suspend fun addBreakpoints(
         request: BreakpointRequest
@@ -272,7 +207,7 @@ internal class JavaDebugAdapter : IDebugAdapter, AutoCloseable {
         TODO("Not yet implemented")
     }
 
-    fun resolveNow(vm: ConnectedVm, spec: EventRequestSpec) {
+    fun resolveNow(vm: VmConnection, spec: EventRequestSpec) {
         val success = vm.eventRequestSpecList.addEagerlyResolve(spec)
         if (success && !spec.isResolved) {
             logger.info("Deferring: {}", spec)
