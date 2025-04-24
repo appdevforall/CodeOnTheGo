@@ -7,7 +7,11 @@ package com.itsaky.androidide.lsp.debug.model
  */
 data class BreakpointResponse(
     val breakpoints: List<Breakpoint>
-)
+) {
+    companion object {
+        val EMPTY = BreakpointResponse(emptyList())
+    }
+}
 
 /**
  * Defines a **created** breakpoint in source code.

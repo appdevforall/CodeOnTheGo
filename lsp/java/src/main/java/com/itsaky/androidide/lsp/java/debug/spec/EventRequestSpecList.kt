@@ -35,7 +35,7 @@ internal class EventRequestSpecList(
                 try {
                     val request = spec.resolve(vm, prepareEvent)
                     if (request != null) {
-                        logger.info("Set deferrred: {}", spec)
+                        logger.info("resolve: set (deferrred): {}", spec)
                     }
                 } catch (err: Exception) {
                     // TODO: Add something get specific error messages for these exceptions
@@ -53,7 +53,7 @@ internal class EventRequestSpecList(
             try {
                 val request = requestSpec.resolveEagerly(vm)
                 if (request != null) {
-                    logger.info("Set: {}", requestSpec)
+                    logger.info("resolveAll: set: {}", requestSpec)
                 }
             } catch (err: Exception) {
                 // ignored
@@ -65,7 +65,7 @@ internal class EventRequestSpecList(
         requestSpecs.add(spec)
         val request = spec.resolveEagerly(vm)
         if (request != null) {
-            logger.info("Set: {}", spec)
+            logger.info("resolveEager: set: {}", spec)
         }
         true
     } catch (err: Exception) {

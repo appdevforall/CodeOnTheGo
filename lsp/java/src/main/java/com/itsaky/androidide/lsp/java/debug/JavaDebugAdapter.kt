@@ -57,13 +57,21 @@ data class ListenerState(
 internal data class VmConnection(
     val client: RemoteClient,
     val vm: VirtualMachine,
-    val eventHandler: EventHandler,
-    val eventRequestSpecList: EventRequestSpecList,
+    val eventHandler: EventHandler? = null,
 ) : AutoCloseable {
+
+    val isHandlingEvents: Boolean
+        get() = eventHandler != null
+
+    /**
+     * The event request spec list for the VM.
+     */
+    val eventRequestSpecList: EventRequestSpecList?
+        get() = eventHandler?.eventRequestSpecList
 
     @WorkerThread
     override fun close() {
-        eventHandler.close()
+        eventHandler?.close()
         vm.dispose()
     }
 }
@@ -152,19 +160,21 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         logger.debug("Connected to VM: {}", client)
 
-        val eventRequestSpecList = EventRequestSpecList(vm)
-        val eventHandler = EventHandler(
-            vm = vm,
-            eventRequestSpecList = eventRequestSpecList,
-            stopOnVmStart = false,
-            consumer = this
-        )
+        val eventHandler = if (vm.canBeModified()) {
+            EventHandler(
+                vm = vm,
+                stopOnVmStart = false,
+                consumer = this
+            )
+        } else {
+            logger.warn("Not reading events from VM '{}' because it is read-only", vm.name())
+            null
+        }
 
         val vmConnection = VmConnection(
             client = client,
             vm = vm,
             eventHandler = eventHandler,
-            eventRequestSpecList = EventRequestSpecList(vm)
         )
 
         this.vms.add(vmConnection)
@@ -179,14 +189,21 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     ): BreakpointResponse {
         val vm = connVm()
 
+        if (!vm.isHandlingEvents) {
+            // we're not handling events from the VM
+            return BreakpointResponse.EMPTY
+        }
+
+        val specList = vm.eventRequestSpecList!!
+
         for (br in request.breakpoints) {
             val spec = when (br) {
-                is PositionalBreakpoint -> vm.eventRequestSpecList.createBreakpoint(
+                is PositionalBreakpoint -> specList.createBreakpoint(
                     request.source,
                     br.line
                 )
 
-                is MethodBreakpoint -> vm.eventRequestSpecList.createBreakpoint(
+                is MethodBreakpoint -> specList.createBreakpoint(
                     request.source,
                     br.methodId,
                     br.methodArgs
@@ -195,7 +212,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")
             }
 
-            resolveNow(vm, spec)
+            resolveNow(specList, spec)
         }
 
         return BreakpointResponse(emptyList())
@@ -207,8 +224,11 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         TODO("Not yet implemented")
     }
 
-    fun resolveNow(vm: VmConnection, spec: EventRequestSpec) {
-        val success = vm.eventRequestSpecList.addEagerlyResolve(spec)
+    fun resolveNow(
+        specList: EventRequestSpecList,
+        spec: EventRequestSpec
+    ) {
+        val success = specList.addEagerlyResolve(spec)
         if (success && !spec.isResolved) {
             logger.info("Deferring: {}", spec)
         }

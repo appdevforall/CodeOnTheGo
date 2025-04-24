@@ -37,10 +37,11 @@ import org.slf4j.LoggerFactory
  */
 internal class EventHandler(
     private val vm: VirtualMachine,
-    private val eventRequestSpecList: EventRequestSpecList,
     private val stopOnVmStart: Boolean,
     private val consumer: EventConsumer
 ): AutoCloseable {
+
+    internal val eventRequestSpecList = EventRequestSpecList(vm)
 
     @Volatile
     private var connected = true
