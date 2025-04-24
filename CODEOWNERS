@@ -1,6 +1,6 @@
 ./logsender/src/main/res/values/strings.xml @Documentation
 ./app/src/main/res/values/strings.xml @Documentation
-./resources/src/main/res/values-es-rES/strings.xml @Documentation
+./resources/src/main/res/values-es-rES/strings.xml @appdevforall/documentation
 ./resources/src/main/res/values-zh-rCN/strings.xml @Documentation
 ./resources/src/main/res/values-bn-rIN/strings.xml @Documentation
 ./resources/src/main/res/values-de-rDE/strings.xml @Documentation
