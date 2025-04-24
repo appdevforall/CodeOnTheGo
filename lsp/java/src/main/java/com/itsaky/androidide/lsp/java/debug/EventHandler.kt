@@ -39,7 +39,7 @@ internal class EventHandler(
     private val vm: VirtualMachine,
     private val stopOnVmStart: Boolean,
     private val consumer: EventConsumer
-): AutoCloseable {
+) : AutoCloseable {
 
     internal val eventRequestSpecList = EventRequestSpecList(vm)
 
@@ -69,9 +69,16 @@ internal class EventHandler(
                     val events = queue.remove()
                     var resumeVm = false
                     for (event in events.eventIterator()) {
-                        val resume = handleEvent(event)
-                        logger.info("Event: {}, resume={}", event, resume)
-                        resumeVm = resumeVm || resume
+                        logger.info("startListening: received event: {}", event)
+                        val stopForEvent = handleEvent(event)
+                        logger.info(
+                            "startListening: handled event: {}, resumeVm={}, stopForEvent={}",
+                            event,
+                            resumeVm,
+                            stopForEvent
+                        )
+
+                        resumeVm = resumeVm || !stopForEvent
                     }
 
                     if (resumeVm) {
@@ -79,6 +86,7 @@ internal class EventHandler(
                     } else if (events.suspendPolicy() == EventRequest.SUSPEND_ALL) {
                         // notify consumer that the VM has interrupted
                         // TODO: Get information about the current thread
+                        logger.info("startListening: VM interrupted")
                         consumer.vmInterrupted()
                     }
                 } catch (interupption: InterruptedException) {
@@ -89,9 +97,17 @@ internal class EventHandler(
             }
 
             completed = true
+            eventsJob = null
+            logger.info("EventHandler completed")
         }
     }
 
+    /**
+     * Handle the event.
+     *
+     * @param event The event to handle.
+     * @return `true` if the VM should be stopped, false otherwise.
+     */
     private fun handleEvent(event: Event): Boolean {
         consumer.receivedEvent(event)
 
@@ -111,35 +127,56 @@ internal class EventHandler(
         }
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun vmStartEvent(event: VMStartEvent): Boolean {
         consumer.vmStartEvent(event)
         return stopOnVmStart
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun breakpointEvent(event: BreakpointEvent): Boolean {
         consumer.breakpointEvent(event)
         return true
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun methodEntryEvent(event: MethodEntryEvent): Boolean {
         consumer.methodEntryEvent(event)
         return true
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun methodExitEvent(event: MethodExitEvent): Boolean {
         return consumer.methodExitEvent(event)
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun fieldWatchEvent(event: WatchpointEvent): Boolean {
         consumer.fieldWatchEvent(event)
         return true
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun stepEvent(event: StepEvent): Boolean {
         consumer.stepEvent(event)
         return true
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun classPrepareEvent(event: ClassPrepareEvent): Boolean {
         consumer.classPrepareEvent(event)
 
@@ -151,22 +188,35 @@ internal class EventHandler(
         }
     }
 
+
+    /**
+     * @see [handleEvent]
+     */
     private fun classUnloadEvent(event: ClassUnloadEvent): Boolean {
         consumer.classUnloadEvent(event)
         return false
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun exceptionEvent(event: ExceptionEvent): Boolean {
         consumer.exceptionEvent(event)
         return true
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun threadStartEvent(event: ThreadStartEvent): Boolean {
         // TODO: Add thread tracker
         consumer.threadStartEvent(event)
         return false
     }
 
+    /**
+     * @see [handleEvent]
+     */
     private fun threadDeathEvent(event: ThreadDeathEvent): Boolean {
         // TODO: Remove thread tracker
         consumer.threadDeathEvent(event)
@@ -236,5 +286,6 @@ internal class EventHandler(
     override fun close() {
         connected = false
         eventsJob?.cancel(CancellationException("EventHandler closed"))
+        eventsJob = null
     }
 }
