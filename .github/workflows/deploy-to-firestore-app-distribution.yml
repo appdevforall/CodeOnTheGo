@@ -257,8 +257,3 @@ jobs:
           
           # Send notification
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
-
-      # Cleanup stale workspace and Android build cache
-      - name: Cleanup runner disk
-        if: always()
-        run: sudo -E /usr/local/bin/runner-cleanup.sh
