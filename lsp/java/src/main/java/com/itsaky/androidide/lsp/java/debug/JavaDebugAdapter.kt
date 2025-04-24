@@ -64,7 +64,7 @@ internal data class VmConnection(
     @WorkerThread
     override fun close() {
         eventHandler.close()
-        vm.exit(0)
+        vm.dispose()
     }
 }
 
@@ -227,7 +227,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             try {
                 vm.close()
             } catch (err: Throwable) {
-                logger.error("Failed to exit VM '{}'", vm.client.name, err)
+                logger.error("Failed to disconnect from VM '{}'", vm.client.name, err)
             } finally {
                 vms.remove(vm)
             }
