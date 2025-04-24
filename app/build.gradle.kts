@@ -43,10 +43,6 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
-    ndk {
-      // Include only v7 and v8
-      abiFilters += listOf("armeabi-v7a", "arm64-v8a")
-    }
 
     packaging {
       resources.excludes.add("com/sun/jna/**")

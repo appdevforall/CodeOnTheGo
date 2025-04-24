@@ -162,13 +162,13 @@ fun Project.configureAndroidModule(
                     }
                 }
             }
-        } else {
-            defaultConfig {
-                ndk {
-                    abiFilters.clear()
-                    abiFilters += flavorsAbis.keys
-                }
-            }
+        }
+
+        defaultConfig {
+             ndk {
+                 abiFilters.clear()
+                 abiFilters += (flavorsAbis.keys - "x86_64")
+             }
         }
 
         buildTypes.getByName("debug") { isMinifyEnabled = false }
