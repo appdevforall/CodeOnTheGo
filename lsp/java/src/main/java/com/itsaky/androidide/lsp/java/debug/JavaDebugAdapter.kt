@@ -69,6 +69,13 @@ internal data class VmConnection(
     val eventRequestSpecList: EventRequestSpecList?
         get() = eventHandler?.eventRequestSpecList
 
+    /**
+     * Start listening for events from the VM.
+     */
+    fun startEventHandler() {
+        eventHandler?.startListening()
+    }
+
     @WorkerThread
     override fun close() {
         eventHandler?.close()
@@ -177,6 +184,9 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             eventHandler = eventHandler,
         )
 
+        // Start listening for events
+        vmConnection.startEventHandler()
+
         this.vms.add(vmConnection)
         this.listenerState!!.client.onAttach(client)
     }
@@ -221,7 +231,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     override suspend fun removeBreakpoints(
         request: BreakpointRequest
     ): BreakpointResponse {
-        TODO("Not yet implemented")
+        TODO("Find breakpoints using the request param here and remove them using EventRequestSpecList")
     }
 
     fun resolveNow(
