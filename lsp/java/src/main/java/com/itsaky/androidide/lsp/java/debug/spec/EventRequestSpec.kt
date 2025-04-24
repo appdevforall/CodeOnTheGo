@@ -59,7 +59,7 @@ internal abstract class EventRequestSpec(
 
         val patternSpec = this.refSpec as? PatternReferenceTypeSpec?
         if (patternSpec?.isPattern == true) {
-            // This is a class pattern.  Track down and delete
+            // This is a pattern.  Track down and delete
             // all EventRequests matching this spec.
             // Note: Class patterns apply only to ExceptionRequests,
             // so that is all we need to examine.
