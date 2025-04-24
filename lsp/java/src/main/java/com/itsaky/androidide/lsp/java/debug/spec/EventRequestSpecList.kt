@@ -30,7 +30,9 @@ internal class EventRequestSpecList(
         var failure = false
         synchronized(requestSpecs) {
             for (spec in requestSpecs) {
-                if (spec.isResolved) continue
+                if (spec.isResolved) {
+                    continue
+                }
 
                 try {
                     val request = spec.resolve(vm, prepareEvent)
