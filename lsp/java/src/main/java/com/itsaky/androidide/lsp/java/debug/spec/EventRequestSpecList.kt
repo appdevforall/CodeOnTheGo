@@ -73,6 +73,36 @@ internal class EventRequestSpecList(
         false
     }
 
+    /**
+     * Delete a request spec from the spec list.
+     *
+     * @param spec The request spec to delete.
+     * @return `true` if the spec was deleted, `false` otherwise.
+     */
+    fun delete(spec: EventRequestSpec): Boolean {
+        synchronized(requestSpecs) {
+            val inx = requestSpecs.indexOf(spec)
+            if (inx != -1) {
+                val toRemove = requestSpecs[inx]
+                toRemove.remove(vm)
+                requestSpecs.removeAt(inx)
+                return true
+            } else {
+                return false
+            }
+        }
+    }
+
+    /**
+     * Get a list of all the event request specs.
+     */
+    fun eventRequestSpecs(): List<EventRequestSpec> {
+        // We need to make a copy to avoid synchronization problems
+        synchronized(requestSpecs) {
+            return ArrayList(requestSpecs)
+        }
+    }
+
     fun createBreakpoint(
         source: Source,
         lineNumber: Int,
