@@ -694,24 +694,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     private fun closeProject(manualFinish: Boolean) {
-        if (!manualFinish) {
-            editorActivityScope.launch {
-                for (i in 0 until editorViewModel.getOpenedFileCount()) {
-                    (content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
-                }
-
-                withContext(Dispatchers.Main) {
-                    closeProject(true)
-                }
-            }
-            return
-        }
-
         if (manualFinish) {
+            // if the user is manually closing the project,
+            // save the opened files cache
+            // this is needed because in this case, the opened files cache will be empty
+            // when onPause will be called.
             saveOpenedFiles()
+
+            // reset the lastOpenedProject if the user explicitly chose to close the project
             GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
         }
 
+        // Make sure we close files
+        // This will make sure that file contents are not erased.
         doCloseAll {
             if (manualFinish) {
                 finish()
