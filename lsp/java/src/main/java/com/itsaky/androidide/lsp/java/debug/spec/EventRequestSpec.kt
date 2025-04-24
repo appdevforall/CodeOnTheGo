@@ -36,7 +36,8 @@ internal abstract class EventRequestSpec(
             this.resolved = resolved
 
             this.prepareRequest!!.disable()
-            vm.eventRequestManager().deleteEventRequest(prepareRequest)
+            vm.eventRequestManager()
+                .deleteEventRequest(prepareRequest)
             this.prepareRequest = null
 
             if (((this.refSpec as? PatternReferenceTypeSpec?)?.isPattern == true)) {
@@ -92,7 +93,11 @@ internal abstract class EventRequestSpec(
             prepareRequest!!.enable()
 
             // Try to resolve in case the class is already loaded.
-            resolveAgainstPreparedClasses(vm)
+            // TODO: The vm.allClasses() method takes some time
+            //     As a result, the VM is suspend for noticeable delays
+            //     We need to see if we can defer this, or maybe remove this?
+            // resolveAgainstPreparedClasses(vm)
+
             if (resolved != null) {
                 prepareRequest!!.disable()
                 vm.eventRequestManager()
