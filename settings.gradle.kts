@@ -157,13 +157,14 @@ include(
   ":testing:lsp",
   ":testing:tooling",
   ":testing:unit",
-  ":layouteditor:app",
+  ":layouteditor:layouteditor-app",
   ":layouteditor:vectormaster",
   ":constants"
 )
 
-project(":layouteditor:app").name = "layouteditor-app"
-project(":layouteditor:vectormaster").name = "vectormaster"
+val layoutEditorDir = rootDir.resolve("LayoutEditor")
+project(":layouteditor:layouteditor-app").projectDir = layoutEditorDir.resolve("app")
+project(":layouteditor:vectormaster").projectDir = layoutEditorDir.resolve("vectormaster")
 
 object FDroidConfig {
 
