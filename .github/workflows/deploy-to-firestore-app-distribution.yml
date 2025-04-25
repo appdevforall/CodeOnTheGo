@@ -66,8 +66,14 @@ jobs:
           distribution: ${{ env.BUILD_JAVA_DIST }}
           cache: 'gradle' # Built-in Gradle caching
 
-      - name: Generate local.properties
-        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Platform 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Cache Dependencies
         uses: actions/cache@v4
