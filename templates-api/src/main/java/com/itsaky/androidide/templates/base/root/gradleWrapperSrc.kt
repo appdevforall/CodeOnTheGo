@@ -19,13 +19,14 @@ package com.itsaky.androidide.templates.base.root
 
 import com.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
+import com.adfa.constants.GRADLE_DISTS
 
 fun gradleWrapperPropsSrc(isToml: Boolean): String {
     val gradleVersion = if(isToml) COMPOSE_GRADLE_WRAPPER_FILE_NAME else GRADLE_WRAPPER_FILE_NAME
     return """
     distributionBase=GRADLE_USER_HOME
     distributionPath=wrapper/dists
-    distributionUrl=${gradleVersion}
+    distributionUrl=file:${GRADLE_DISTS}/${gradleVersion}
     networkTimeout=10000
     zipStoreBase=GRADLE_USER_HOME
     zipStorePath=wrapper/dists
