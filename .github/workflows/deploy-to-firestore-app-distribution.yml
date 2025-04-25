@@ -66,6 +66,9 @@ jobs:
           distribution: ${{ env.BUILD_JAVA_DIST }}
           cache: 'gradle' # Built-in Gradle caching
 
+      - name: Generate local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
