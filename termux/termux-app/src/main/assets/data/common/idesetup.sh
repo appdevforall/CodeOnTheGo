@@ -31,8 +31,8 @@ elif [ "$arch" = "aarch64" ]; then
   arch="v8"
 
 else
-  echo "Unknown architecture. Info:" `uname -a`
-  arch="armeabi"
+  echo "Unknown architecture. Assuming v7 compatible. Info:" `uname -a`
+  arch="v7"
 fi
 
 mkdir -p "$install_dir"
