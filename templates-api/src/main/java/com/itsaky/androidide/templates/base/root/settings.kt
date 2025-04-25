@@ -17,8 +17,8 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.adfa.constants.LOACL_MAVEN_CACHES_DEST
-import com.adfa.constants.LOCAL_MAVEN_REPO_FROLDER_DEST
+import com.adfa.constants.LOCAL_MAVEN_CACHES_DEST
+import com.adfa.constants.LOCAL_MAVEN_REPO_FOLDER_DEST
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 /**
@@ -31,14 +31,14 @@ internal fun ProjectTemplateBuilder.settingsGradleSrcStr(): String {
   return """
 pluginManagement {
   repositories {
-    maven(uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST"))
+    maven(uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"))
   }
 }
 
 dependencyResolutionManagement {
   repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
   repositories {
-    maven(uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST"))
+    maven(uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"))
   }
 }
 
@@ -52,14 +52,14 @@ internal fun ProjectTemplateBuilder.settingsGroovyGradleSrcStr(): String {
   return """
 pluginManagement {
     repositories {
-        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST") }
+        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST") }
     }
 }
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOACL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FROLDER_DEST") }
+        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST") }
     }
 }
 

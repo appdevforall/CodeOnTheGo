@@ -76,10 +76,12 @@ abstract class GradleWrapperGeneratorTask : DefaultTask() {
       stagingDir.walk(direction = FileWalkDirection.TOP_DOWN)
         .filter { it.isFile }
         .forEach { file ->
-          val entry = ZipEntry(file.relativeTo(stagingDir).path)
-          zipOut.putNextEntry(entry)
-          file.inputStream().buffered().use { fileInStream ->
-            fileInStream.transferTo(zipOut)
+          if (file.name != "gradlew.bat") {
+            val entry = ZipEntry(file.relativeTo(stagingDir).path)
+            zipOut.putNextEntry(entry)
+            file.inputStream().buffered().use { fileInStream ->
+              fileInStream.transferTo(zipOut)
+            }
           }
         }
 
