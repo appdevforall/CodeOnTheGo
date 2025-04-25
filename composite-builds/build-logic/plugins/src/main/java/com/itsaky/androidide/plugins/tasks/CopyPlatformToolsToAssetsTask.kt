@@ -18,7 +18,7 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_PALTFORM_TOOLS
+import com.adfa.constants.LOCAL_PLATFORM_TOOLS
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
@@ -41,9 +41,9 @@ abstract class CopyPlatformToolsToAssetsTask : DefaultTask() {
     @TaskAction
     fun copyPlatformToolsToAssets() {
         val outputDirectory = this.outputDirectory.get()
-            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_PALTFORM_TOOLS).asFile
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_PLATFORM_TOOLS).asFile
         val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_PALTFORM_TOOLS
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_PLATFORM_TOOLS
         copy(sourceFilePath, outputDirectory)
     }
 
