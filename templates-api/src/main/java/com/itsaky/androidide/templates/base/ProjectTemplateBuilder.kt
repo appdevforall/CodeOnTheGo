@@ -157,7 +157,7 @@ class ProjectTemplateBuilder :
             executor.openAsset(ToolsManager.getCommonAsset("gradle-wrapper.zip")).buffered()
         ).use { zipIn ->
             val entriesToCopy =
-                arrayOf("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar")
+                arrayOf("gradlew", "gradle/wrapper/gradle-wrapper.jar")
 
             var zipEntry: ZipEntry? = zipIn.nextEntry
             while (zipEntry != null) {
@@ -176,17 +176,11 @@ class ProjectTemplateBuilder :
 
 
             val gradlew = File(data.projectDir, "gradlew")
-            val gradlewBat = File(data.projectDir, "${gradlew.name}.bat")
 
             check(gradlew.exists()) {
                 "'$gradlew' does not exist!"
             }
-            check(gradlewBat.exists()) {
-                "'$gradlew' does not exist!"
-            }
 
-            gradlew.setExecutable(true)
-            gradlewBat.setExecutable(true)
         }
         gradleWrapperProps()
     }
@@ -212,7 +206,6 @@ class ProjectTemplateBuilder :
         if (!result) {
             println("Gradle files copy failed + ${this.javaClass}")
         }
-
     }
 
     fun agpJar(

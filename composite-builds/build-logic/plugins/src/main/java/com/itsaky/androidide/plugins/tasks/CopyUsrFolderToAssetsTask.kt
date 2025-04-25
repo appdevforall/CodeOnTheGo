@@ -19,7 +19,7 @@ package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.LOCAL_SOURCE_USR_FOLDER
 import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_PALTFORM_TOOLS
+import com.adfa.constants.LOCAL_PLATFORM_TOOLS
 import com.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
