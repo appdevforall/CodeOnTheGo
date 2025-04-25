@@ -5,7 +5,7 @@ import android.widget.Button
 import android.widget.TextView
 import com.itsaky.androidide.R
 
-class BasicDialogController(
+class CustomDialogController(
     private val context: Context,
     private val listener: BasicDialogListener
 ) {
