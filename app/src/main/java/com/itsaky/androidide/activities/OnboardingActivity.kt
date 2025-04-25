@@ -29,8 +29,8 @@ import androidx.fragment.app.Fragment
 import com.adfa.constants.ANDROID_SDK_ZIP
 import com.adfa.constants.DESTINATION_ANDROID_SDK
 import com.adfa.constants.HOME_PATH
-import com.adfa.constants.LOACL_MAVEN_CACHES_DEST
-import com.adfa.constants.LOACL_SOURCE_AGP_8_0_0_CACHES
+import com.adfa.constants.LOCAL_MAVEN_CACHES_DEST
+import com.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
 import com.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import com.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
@@ -277,7 +277,7 @@ class OnboardingActivity : AppIntro2() {
 
     private fun copyMavenLocalRepoFiles() {
         val outputDirectory =
-            File(application.filesDir.path + File.separator + LOACL_MAVEN_CACHES_DEST)
+            File(application.filesDir.path + File.separator + LOCAL_MAVEN_CACHES_DEST)
         val mavenZipFile =
             File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
         if (!outputDirectory.exists()) {
@@ -286,7 +286,7 @@ class OnboardingActivity : AppIntro2() {
 
         try {
             ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOACL_SOURCE_AGP_8_0_0_CACHES),
+                ToolsManager.getCommonAsset(LOCAL_SOURCE_AGP_8_0_0_CACHES),
                 outputDirectory.path
             )
 
