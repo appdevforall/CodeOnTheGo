@@ -34,15 +34,8 @@ class WelcomeScreenTest : TestCase() {
             val dumpDir = context.cacheDir
             val dumpFile = File(dumpDir, "view_dump_BeforeCheck_${System.currentTimeMillis()}.xml")
 
-            Log.d(
-                "WelcomeScreenTest", "Attempting UI Automator dump to: ${dumpFile.absolutePath}"
-            )
             try {
                 device.uiDevice.dumpWindowHierarchy(dumpFile)
-                Log.i(
-                    "WelcomeScreenTest",
-                    "Dump successful. Retrieve with: adb pull ${dumpFile.absolutePath}"
-                )
             } catch (e: IOException) {
                 Log.e("WelcomeScreenTest", "Failed to execute UI Automator dump to file", e)
             } catch (e: Exception) {
@@ -75,7 +68,6 @@ class WelcomeScreenTest : TestCase() {
                         isClickable()
                     }
                 }
-                Log.d("WelcomeScreenTest", "All assertions passed.")
             } catch (e: Exception) {
                 Log.e("WelcomeScreenTest", "Assertion failed: ${e.message}", e)
 
