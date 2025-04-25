@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.activities.editor
 
+import BasicDialogController
 import android.content.Intent
 import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
@@ -319,17 +320,20 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             return
         }
 
-    val snackbar = CustomSnackbar(this, findViewById(android.R.id.content))
-    snackbar.show(
-      message = getString(R.string.msg_action_open_application),
-      textFirstAction = getString(R.string.yes),
-      textSecondaryAction = getString(R.string.no),
-      actionFirst = {
-        IntentUtils.launchApp(this, packageName)
-      },
-      actionSecondary = {
-        snackbar.dismiss()
-      }
+    var context = this
+    val customDialogBox = BasicDialogController(this, object : BasicDialogController.BasicDialogListener {
+        override fun onAction1() {
+            IntentUtils.launchApp(context, packageName)
+        }
+
+        override fun onAction2() { }
+    })
+
+    customDialogBox.showDialog(
+        title = getString(R.string.msg_action_open_title_application),
+        message = getString(R.string.msg_action_open_application),
+        action1Text = getString(R.string.yes),
+        action2Text = getString(R.string.no)
     )
   }
 
