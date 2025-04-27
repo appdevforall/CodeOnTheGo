@@ -52,7 +52,8 @@ const val GRADLE_FOLDER_NAME = "gradle"
 const val APG_SOURCE_FOLDER_NAME = "android_gradle_plugin"
 
 // GradleWrapper
-const val LOCAL_GRADLE_DISTRIBUTION_VERSION = "8.0"
+// used to be 8.0 before unification
+const val LOCAL_GRADLE_DISTRIBUTION_VERSION = "8.7"
 const val LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION = "8.7"
 const val GRADLE_VERSION = "gradle-${LOCAL_GRADLE_DISTRIBUTION_VERSION}"
 const val COMPOSE_GRADLE_VERSION = "gradle-${LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION}"
