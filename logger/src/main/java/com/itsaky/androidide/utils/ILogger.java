@@ -34,11 +34,8 @@
  */
 package com.itsaky.androidide.utils;
 
-import static com.itsaky.androidide.utils.LogUtils.preProcessLogTag;
-
 import com.itsaky.androidide.buildinfo.BuildInfo;
-import java.util.Map;
-import java.util.WeakHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +58,7 @@ public abstract class ILogger {
   protected boolean isEnabled = true;
 
   protected ILogger(String tag) {
-    TAG = preProcessLogTag(tag);
+    TAG = com.itsaky.androidide.logging.utils.LogUtils.processLogTag(tag);
   }
 
   /**
