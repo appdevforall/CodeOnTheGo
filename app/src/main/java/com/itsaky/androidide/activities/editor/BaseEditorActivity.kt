@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.activities.editor
 
-import CustomDialogController
 import android.content.Intent
 import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
@@ -318,22 +317,15 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             return
         }
 
-    var context = this
-    val customDialogBox = CustomDialogController(this, object : CustomDialogController.BasicDialogListener {
-        override fun onAction1() {
-            IntentUtils.launchApp(context, packageName)
-        }
+        val builder = newMaterialDialogBuilder(this)
+        builder.setTitle(string.msg_action_open_title_application)
+        builder.setMessage(string.msg_action_open_application)
+        builder.setPositiveButton(string.yes) { dialog, _ -> dialog.dismiss()
+        IntentUtils.launchApp(this, packageName) }
+        builder.setNegativeButton(string.no, null)
 
-        override fun onAction2() { }
-    })
-
-    customDialogBox.showDialog(
-        title = getString(R.string.msg_action_open_title_application),
-        message = getString(R.string.msg_action_open_application),
-        action1Text = getString(R.string.yes),
-        action2Text = getString(R.string.no)
-    )
-  }
+        builder.show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
