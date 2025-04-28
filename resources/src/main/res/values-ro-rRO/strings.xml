@@ -19,6 +19,9 @@
   <string name="reset">Resetare</string>
   <string name="app_logs">Log Aplicație</string>
   <string name="ide_logs">Log IDE</string>
+  <string name="cancel_project_text">Anulează</string>
+  <string name="close_without_saving">Închide fără a salva fișierele</string>
+  <string name="save_and_close">Salvează fișierele și închide proiectul</string>
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">Începe</string>
   <string name="msg_cannot_perform_fix">Nu se poate efectua remedierea rapidă</string>
