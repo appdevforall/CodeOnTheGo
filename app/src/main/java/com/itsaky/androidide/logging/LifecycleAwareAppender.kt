@@ -36,11 +36,10 @@ class LifecycleAwareAppender @JvmOverloads constructor(
 ) : AppenderBase<ILoggingEvent>(), LifecycleEventObserver {
 
   private var currentState: Lifecycle.State? = null
-  private val logLayout = IDELogFormatLayout()
+  private val logLayout = IDELogFormatLayout(true)
 
   init {
     setName("LifecycleAwareAppender")
-    logLayout.isOmitMessage = true
   }
 
   fun attachTo(lifecycleOwner: LifecycleOwner) = attachTo(lifecycleOwner.lifecycle)
@@ -86,7 +85,7 @@ class LifecycleAwareAppender @JvmOverloads constructor(
 
     // When rendering the logs in the GUI, we need to ensure that the message does not span multiple lines
     // if it does, we need to prefix the message with the layout header
-    val prefix = logLayout.doLayout(eventObject)
+    val prefix = logLayout.doLayout(eventObject).trim()
     eventObject.formattedMessage.split('\n').forEach {
       consumer?.invoke("$prefix $it")
     }
