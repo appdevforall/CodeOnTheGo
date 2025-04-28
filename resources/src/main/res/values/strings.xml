@@ -86,7 +86,7 @@
   <string name="cancel_project_text">Cancel</string>
   <string name="close_without_saving">Close without saving files</string>
   <string name="save_close_project">Save files and close project</string>
-
+  <string name="save_and_close">Save files and close project</string>
   <!-- Templates -->
   <string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
   <string name="template_basic">Basic Project</string>
