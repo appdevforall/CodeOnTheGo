@@ -22,45 +22,14 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
-import java.util.regex.Pattern;
 
 /**
  * Utility class for {@link ILogger}.
  *
  * @author Akash Yadav
  */
-public class LogUtils {
+public class StacktraceUtils {
   private static final String LINE_SEP = System.getProperty("line.separator");
-
-  /**
-   * @return <code>true</code> if the current platform is JVM, <code>false</code> otherwise.
-   */
-  public static boolean isJvm() {
-    try {
-      // If we're in a testing environment
-      Class.forName("org.junit.runners.JUnit4");
-      return true;
-    } catch (ClassNotFoundException e) {
-      // ignored
-    }
-
-    try {
-      Class.forName("android.content.Context");
-      return false;
-    } catch (ClassNotFoundException e) {
-      return true;
-    }
-  }
-
-  public static String preProcessLogTag(String tag) {
-    final var regex = "[^a-z-A-Z0-9_.]";
-    final var matcher = Pattern.compile(regex).matcher(tag);
-    if (matcher.find()) {
-      tag = tag.replaceAll(regex, "_");
-    }
-
-    return tag;
-  }
 
   public static String getFullStackTrace(Throwable throwable) {
     final List<Throwable> throwableList = new ArrayList<>();

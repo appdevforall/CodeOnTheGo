@@ -39,7 +39,7 @@ class IDELoggingConfigurator : ContextAwareBase(), Configurator {
     addInfo("Setting up logging configuration")
 
     val appender = LogcatAppender()
-    appender.encoder = IDELogFormatEncoder()
+    appender.context = context
     appender.start()
 
     val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)
