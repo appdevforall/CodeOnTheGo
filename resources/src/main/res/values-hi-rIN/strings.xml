@@ -130,6 +130,9 @@
   <string name="title_interface">इंटरफेस</string>
   <string name="classtype_enum">इनम</string>
   <string name="msg_failed_list_files">प्रोजेक्ट फ़ाइलें लिस्ट करने में विफल! </string>
+  <string name="cancel_project_text">रद्द करें</string>
+  <string name="close_without_saving">फ़ाइलों को सहेजे बिना बंद करें</string>
+  <string name="save_and_close">फ़ाइलें सहेजें और प्रोजेक्ट बंद करें</string>
   <!-- Code Editor -->
   <string name="open_with">बाहरी ऐप के साथ खोलें</string>
   <string name="undo">अनडू</string>
