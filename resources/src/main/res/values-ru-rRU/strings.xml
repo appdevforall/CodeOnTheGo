@@ -62,6 +62,7 @@
   <string name="msg_create_new_project">Создать проект</string>
   <string name="msg_open_existing_project">Открыть проект</string>
   <string name="title_confirm_project_close">Закрыть проект</string>
+
   <!-- Templates -->
   <string name="msg_confirm_project_close">Когда вы закрываете проект, все задачи сборки будут остановлены, и несохраненные изменения в вашем проекте могут быть потеряны. Хотите ли вы сохранить файлы перед закрытием проекта?</string>
   <string name="template_basic">Базовый проект</string>
@@ -340,6 +341,9 @@
   <string name="title_confirmation">Подтверждение</string>
   <string name="msg_tasks_to_run">Следующие задачи будут выполнены по порядку. Нажмите кнопку \'Запустить\' снова для подтверждения.\n\n%1$s</string>
   <string name="msg_loading_tasks">Загрузка задач...</string>
+  <string name="cancel_project_text">Отмена</string>
+  <string name="close_without_saving">Закрыть без сохранения файлов</string>
+  <string name="save_and_close">Сохранить файлы и закрыть проект</string>
   <!-- GIT -->
   <string name="git_clone">Клонировать</string>
   <string name="git_clone_repo">Клонировать репозиторий Git</string>
