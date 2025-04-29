@@ -83,10 +83,17 @@ const val ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME =
 const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME =
     "com.android.tools.build:gradle:${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
 
+// .androide folder
+const val ANDROIDIDE_PATH = "/data/data/com.itsaky.androidide/files/home/.androidide"
+
 // Cogo gradle plugin
 const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
 const val COGO_GRADLE_PLUGIN_JAR_NAME = "${COGO_GRADLE_PLUGIN_NAME}.jar"
-const val COGO_GRADLE_PLUGIN_PATH = "/data/data/com.itsaky.androidide/files/home/.androidide/plugin"
+const val COGO_GRADLE_PLUGIN_PATH = "${ANDROIDIDE_PATH}/plugin"
+
+// dists folder for gradle-<version>-bin.zip files
+const val GRADLE_DISTS = "${ANDROIDIDE_PATH}/gradle-dists"
+
 
 //ABI
 const val V7_KEY = "v7"
@@ -101,37 +108,37 @@ const val LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME = "termux"
 val TERMUX_DEBS_PATH = "cache" + File.separator + "apt" + File.separator + "archives"
 const val MANIFEST_FILE_NAME = "manifest.json"
 const val LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME = "var"
-const val DESTINATION_TERMUX_VAR_FOLER_PATH = "$USR/$LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME"
+const val DESTINATION_TERMUX_VAR_FOLDER_PATH = "$USR/$LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME"
 const val LOCAL_SOURCE_USR_FOLDER = USR
-const val DESSTINATION_USR_FOLDER = USR
+const val DESTINATION_USR_FOLDER = USR
 
 // Gradle Caches
-const val LOACL_GRADLE_8_0_0_CACHES_PATH = "gradle"
-const val LOACL_SOURCE_AGP_8_0_0_CACHES = "gradle"
+const val LOCAL_GRADLE_8_0_0_CACHES_PATH = "gradle"
+const val LOCAL_SOURCE_AGP_8_0_0_CACHES = "gradle"
 const val DEST_GRADLE_FOLDER_NAME = ".gradle"
 const val GRADLE_ZIP_FILE_NAME = "gradle.zip"
-const val GRADDLE_WRAPPER_PART_FILE_NAME = "wrapper.zip"
-val LOACL_AGP_8_0_0_CACHES_DEST = HOME_PATH + File.separator + DEST_GRADLE_FOLDER_NAME
-const val LOACL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
+const val GRADLE_WRAPPER_PART_FILE_NAME = "wrapper.zip"
+val LOCAL_AGP_8_0_0_CACHES_DEST = HOME_PATH + File.separator + DEST_GRADLE_FOLDER_NAME
+const val LOCAL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
 
 //Local maven repo
 const val LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME = "localMvnRepository.zip"
-val LOACL_MAVEN_CACHES_DEST = HOME_PATH + File.separator + "maven"
-const val LOCAL_MAVEN_REPO_FROLDER_DEST = "localMvnRepository"
+val LOCAL_MAVEN_CACHES_DEST = HOME_PATH + File.separator + "maven"
+const val LOCAL_MAVEN_REPO_FOLDER_DEST = "localMvnRepository"
 
 // SDK
 const val LOCAL_SOURCE_ANDROID_SDK = "androidsdk"
 const val DESTINATION_ANDROID_SDK = "${HOME_PATH}/${ANDROID_SDK_PATH}"
 
 // Platform Tools
-const val LOCAL_PALTFORM_TOOLS = "platformtools"
+const val LOCAL_PLATFORM_TOOLS = "platformtools"
 const val DESTINATION_PLATFORM_TOOLS = "${HOME_PATH}/${ANDROID_SDK_PATH}/platform-tools"
 
 // New tasks
 const val COPY_GRADLE_EXECUTABLE_TASK_NAME = "copyGradleExecutable"
 const val COPY_ANDROID_GRADLE_PLUGIN_EXECUTABLE_TASK_NAME = "copyAndroidGradlePluginExecutable"
 const val COPY_TERMUX_LIBS_TASK_NAME = "copyTermuxLibs"
-const val COPY_GRADLE_CAHCES_TO_ASSETS = "copyGradleCachesToAssets"
+const val COPY_GRADLE_CACHES_TO_ASSETS = "copyGradleCachesToAssets"
 const val COPY_ANDROID_SDK_TO_ASSETS = "copyAndroidSdkToAssets"
 const val COPY_PLATFORM_TOOLS_TO_ASSETS = "copyPlatfromToolsToAssets"
 const val COPY_USR_FOLDER_TO_ASSETS = "copyUsrFolderToAssets"

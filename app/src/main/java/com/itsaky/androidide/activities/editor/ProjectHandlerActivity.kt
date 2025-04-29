@@ -58,6 +58,7 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_FOUND
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
+import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
@@ -73,6 +74,7 @@ import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
+import kotlinx.coroutines.withContext
 
 /** @author Akash Yadav */
 @Suppress("MemberVisibilityCanBePrivate")
@@ -721,13 +723,31 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val builder = newMaterialDialogBuilder(this)
         builder.setTitle(string.title_confirm_project_close)
         builder.setMessage(string.msg_confirm_project_close)
-        builder.setNegativeButton(string.no, null)
-        builder.setPositiveButton(string.yes) { dialog, _ ->
+
+        builder.setNegativeButton(string.cancel_project_text, null)
+
+        builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
+            dialog.dismiss()
+
+            editorActivityScope.launch {
+                for (i in 0 until editorViewModel.getOpenedFileCount()) {
+                    (content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
+                }
+
+                withContext(Dispatchers.Main) {
+                    closeProject(true)
+                }
+            }
+        }
+
+        builder.setPositiveButton(string.save_close_project) { dialog, _ ->
             dialog.dismiss()
             closeProject(true)
         }
+
         builder.show()
     }
+
 
     private fun initLspClient() {
         if (!IDELanguageClientImpl.isInitialized()) {

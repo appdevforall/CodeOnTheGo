@@ -40,10 +40,11 @@ class ToolingLoggingConfigurator : ContextAwareBase(), Configurator {
     addInfo("Setting up logging configuration for tooling API")
 
     val stdErrAppender = JvmStdErrAppender()
-    stdErrAppender.encoder = IDELogFormatEncoder()
+    stdErrAppender.context = context
     stdErrAppender.start()
 
     val toolingApiAppender = ToolingApiAppender()
+    toolingApiAppender.context = context
     toolingApiAppender.start()
 
     val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)
