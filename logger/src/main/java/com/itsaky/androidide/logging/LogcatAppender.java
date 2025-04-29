@@ -52,7 +52,7 @@ public class LogcatAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
   // AndroidIDE Changed
 
   public LogcatAppender() {
-    this.messageLayout.setPattern("%msg%n");
+    this.messageLayout.setPattern(LogUtils.PATTERN_LAYOUT_MESSAGE_PATTERN);
   }
 
   /**
