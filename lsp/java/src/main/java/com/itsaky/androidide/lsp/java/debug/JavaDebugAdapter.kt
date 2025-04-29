@@ -11,13 +11,15 @@ import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
 import com.itsaky.androidide.lsp.debug.events.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
+import com.itsaky.androidide.lsp.debug.model.BreakpointResult
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
-import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpec
+import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
 import com.sun.jdi.Bootstrap
+import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
 import com.sun.jdi.connect.TransportTimeoutException
@@ -153,9 +155,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         )
 
         this._listenerState = ListenerState(
-            client = client,
-            connector = connector,
-            args = args
+            client = client, connector = connector, args = args
         )
 
         this.listenerThread = JDWPListenerThread(
@@ -184,9 +184,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         val eventHandler = if (vm.canBeModified()) {
             EventHandler(
-                vm = vm,
-                stopOnVmStart = false,
-                consumer = this
+                vm = vm, stopOnVmStart = false, consumer = this
             )
         } else {
             logger.warn("Not reading events from VM '{}' because it is read-only", vm.name())
@@ -220,43 +218,84 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         }
 
         val specList = vm.eventRequestSpecList!!
+        val allSpecs = specList.eventRequestSpecs()
+            .filterIsInstance<BreakpointSpec>()
+        return BreakpointResponse(request.breakpoints.map { br ->
 
-        for (br in request.breakpoints) {
-            val spec = when (br) {
-                is PositionalBreakpoint -> specList.createBreakpoint(
-                    request.source,
-                    br.line
-                )
+            var addSpec = false
+            var spec = allSpecs
+                .firstOrNull { spec ->
+                    spec.isSameAsDef(br)
+                }
 
-                is MethodBreakpoint -> specList.createBreakpoint(
-                    request.source,
-                    br.methodId,
-                    br.methodArgs
-                )
+            if (spec == null) {
+                addSpec = true
+                spec = when (br) {
+                    is PositionalBreakpoint -> specList.createBreakpoint(
+                        source = br.source,
+                        lineNumber = br.line
+                    )
 
-                else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")
+                    is MethodBreakpoint -> specList.createBreakpoint(
+                        br.source, br.methodId, br.methodArgs
+                    )
+
+                    else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")
+                }
             }
 
-            resolveNow(specList, spec)
-        }
+            var failure: Throwable? = null
+            val resolveSuccess = if (addSpec) {
+                // TODO: Maybe get the cause of the failure from this?
+                specList.addEagerlyResolve(spec)
+            } else {
+                try {
+                    spec.resolveEagerly(vm.vm)
+                    true
+                } catch (err: Throwable) {
+                    failure = err
+                    false
+                }
+            }
 
-        return BreakpointResponse(emptyList())
+            when {
+                resolveSuccess && spec.isResolved -> BreakpointResult.Added(br, false)
+                resolveSuccess && !spec.isResolved -> BreakpointResult.Added(br, true)
+                else -> BreakpointResult.Failure(br, failure)
+            }
+        })
     }
 
     override suspend fun removeBreakpoints(
         request: BreakpointRequest
     ): BreakpointResponse {
-        TODO("Find breakpoints using the request param here and remove them using EventRequestSpecList")
-    }
+        logger.debug("Received removeBreakpoints request: {}", request)
+        val vm = connVm()
 
-    private fun resolveNow(
-        specList: EventRequestSpecList,
-        spec: EventRequestSpec
-    ) {
-        val success = specList.addEagerlyResolve(spec)
-        if (success && !spec.isResolved) {
-            logger.info("Deferring: {}", spec)
+        if (!vm.isHandlingEvents) {
+            return BreakpointResponse.EMPTY
         }
+
+        val specList = vm.eventRequestSpecList!!
+        val allSpecs = specList.eventRequestSpecs()
+            .filterIsInstance<BreakpointSpec>()
+
+        return BreakpointResponse(
+            results = request.breakpoints.flatMap { br ->
+                allSpecs
+                    .filter { spec -> spec.isSameAsDef(br) }
+                    .map { spec ->
+                        try {
+                            spec.remove(vm.vm)
+                            logger.debug("Removed breakpoint: {}", spec)
+                            BreakpointResult.Removed(br)
+                        } catch (err: Throwable) {
+                            logger.error("Failed to remove breakpoint: {}", spec, err)
+                            BreakpointResult.Failure(br, err)
+                        }
+                    }
+            }
+        )
     }
 
     override fun breakpointEvent(e: BreakpointEvent) {
@@ -276,24 +315,11 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         val response = listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
-                remoteClient = vm.client,
-                descriptor = descriptor
+                remoteClient = vm.client, descriptor = descriptor
             )
         )
 
-        when (response.resumePolicy) {
-            ResumePolicy.SUSPEND -> {
-                logger.debug("ResumePolicy.SUSPEND -> keep suspended")
-            }
-            ResumePolicy.RESUME_THREAD -> {
-                logger.debug("ResumePolicy.RESUME_THREAD -> resume thread")
-                e.thread().resume()
-            }
-            ResumePolicy.RESUME_CLIENT -> {
-                logger.debug("ResumePolicy.RESUME_CLIENT -> resume client")
-                vm.vm.resume()
-            }
-        }
+        response.resumePolicy.doResume(vm.vm, e.thread())
     }
 
     override fun close() {
@@ -316,6 +342,31 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         }
     }
 
+    private fun ResumePolicy.doResume(
+        vm: VirtualMachine,
+        thread: ThreadReference? = null
+    ) = when (this) {
+        ResumePolicy.SUSPEND_THREAD -> {
+            logger.debug("ResumePolicy.SUSPEND_THREAD -> suspend thread")
+            checkNotNull(thread) { "Cannot suspend thread without a thread reference" }.suspend()
+        }
+
+        ResumePolicy.RESUME_THREAD -> {
+            logger.debug("ResumePolicy.RESUME_THREAD -> resume thread")
+            checkNotNull(thread) { "Cannot resume thread without a thread reference" }.resume()
+        }
+
+        ResumePolicy.SUSPEND_CLIENT -> {
+            logger.debug("ResumePolicy.SUSPEND -> keep suspended")
+            vm.suspend()
+        }
+
+        ResumePolicy.RESUME_CLIENT -> {
+            logger.debug("ResumePolicy.RESUME_CLIENT -> resume client")
+            vm.resume()
+        }
+    }
+
     private fun checkIsConnected() = check(vms.isNotEmpty()) {
         "No connected VMs"
     }
@@ -329,8 +380,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 }
 
 class JDWPListenerThread(
-    private val listenerState: ListenerState,
-    private val onConnect: (VirtualMachine) -> Unit
+    private val listenerState: ListenerState, private val onConnect: (VirtualMachine) -> Unit
 ) : Thread("JDWPListenerThread") {
 
     companion object {
