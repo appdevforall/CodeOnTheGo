@@ -2,8 +2,12 @@ package com.itsaky.androidide.lsp
 
 import androidx.annotation.GuardedBy
 import com.itsaky.androidide.lsp.debug.IDebugClient
+import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.StoppedEvent
+import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
+import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
+import com.itsaky.androidide.lsp.debug.events.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
@@ -13,6 +17,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
+import org.slf4j.LoggerFactory
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 
@@ -27,7 +32,9 @@ data class DebugClientState(
 /**
  * @author Akash Yadav
  */
-object IDEDebugClientImpl : IDebugClient {
+object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
+
+    private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
 
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val clientContext = newSingleThreadContext("IDEDebugClient")
@@ -40,7 +47,18 @@ object IDEDebugClientImpl : IDebugClient {
         breakpoints = mutableSetOf()
     )
 
+    override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
+        logger.debug("onBreakpointHit: {}", event)
+
+        return BreakpointHitResponse(
+            remoteClient = event.remoteClient,
+            resumePolicy = ResumePolicy.RESUME_CLIENT
+        )
+    }
+
     override fun onAttach(client: RemoteClient): Unit = stateGuard.write {
+        logger.debug("onAttach: client={}", client)
+
         check(client !in state.clients) {
             "Already attached to client"
         }
@@ -65,14 +83,17 @@ object IDEDebugClientImpl : IDebugClient {
     }
 
     override fun onStop(event: StoppedEvent) {
+        logger.debug("onStop: {}", event)
         // program has stopped execution for some reason
     }
 
     override fun onTerminate(client: RemoteClient) = stateGuard.write {
+        logger.debug("onTerminate: client={}", client)
         state = state.copy(clients = state.clients - client)
     }
 
     override fun onDeath(client: RemoteClient) = stateGuard.write {
+        logger.debug("onDeath: client={}", client)
         state = state.copy(clients = state.clients - client)
     }
 }

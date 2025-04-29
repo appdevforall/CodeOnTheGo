@@ -7,7 +7,7 @@ import com.itsaky.androidide.lsp.debug.events.StoppedEvent
  *
  * @author Akash Yadav
  */
-interface IDebugClient {
+interface IDebugClient : IDebugEventHandler {
 
     /**
      * Called when the application being debugged has been attached to the client.

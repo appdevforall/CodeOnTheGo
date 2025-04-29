@@ -238,7 +238,7 @@ internal class BreakpointSpec : EventRequestSpec {
         vm: VirtualMachine,
         refType: ReferenceType,
         data: BreakpointData.Method
-    ): Method? {
+    ): Method {
         // Normalize the argument string once before looping below.
         val argTypeNames: MutableList<String>?
         argTypeNames = ArrayList(data.methodArgs.size)
@@ -268,10 +268,6 @@ internal class BreakpointSpec : EventRequestSpec {
         }
 
         // Determine method for breakpoint
-        var method: Method? = null
-        method = // Name and signature match
-            exactMatch ?: throw NoSuchMethodException(data.methodID)
-
-        return method
+        return exactMatch ?: throw NoSuchMethodException(data.methodID)
     }
 }
