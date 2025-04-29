@@ -32,7 +32,6 @@ internal class JavaCodeConfigurations(
 
   init {
     addPreference(GoogleCodeStyle())
-    addPreference(JavaDiagnosticsEnabled())
   }
 }
 
@@ -45,15 +44,3 @@ private class GoogleCodeStyle(
   override val icon: Int? = drawable.ic_format_code,
 ) : SwitchPreference(getValue = JavaPreferences::googleCodeStyle::get,
   setValue = JavaPreferences::googleCodeStyle::set)
-
-@Parcelize
-private class JavaDiagnosticsEnabled(
-  override val key: String = JavaPreferences.JAVA_DIAGNOSTICS_ENABLED,
-  override val title: Int = R.string.idepref_java_diagnosticEnabled_title,
-  override val summary: Int? = R.string.idepref_java_diagnosticsEnabled_summary,
-  override val icon: Int? = drawable.ic_compilation_error
-) :
-  SwitchPreference(
-    getValue = JavaPreferences::isJavaDiagnosticsEnabled::get,
-    setValue = JavaPreferences::isJavaDiagnosticsEnabled::set
-  )

@@ -18,7 +18,7 @@
 package com.itsaky.androidide.plugins
 
 import com.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
-import com.adfa.constants.COPY_GRADLE_CAHCES_TO_ASSETS
+import com.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
 import com.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
 import com.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
@@ -82,7 +82,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
             val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
 
             val gradleCachesToAssetsTaskProvider = tasks.register(
-                COPY_GRADLE_CAHCES_TO_ASSETS,
+                COPY_GRADLE_CACHES_TO_ASSETS,
                 CopyGradleCachesToAssetsTask::class.java
             )
 

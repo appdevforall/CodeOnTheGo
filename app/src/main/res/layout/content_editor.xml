@@ -81,21 +81,23 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.4" />
+        app:layout_constraintVertical_bias="0.30" />
 
       <TextView
-        android:id="@+id/no_editor_summary"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:gravity="center"
-        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-        android:textColor="?attr/colorSecondaryVariant"
-        android:textSize="13sp"
-        app:layout_constraintEnd_toEndOf="@id/no_editor_title"
-        app:layout_constraintStart_toStartOf="@id/no_editor_title"
-        app:layout_constraintTop_toBottomOf="@+id/no_editor_title"
-        tools:text="Open right drawer for files\nSwipe from bottom for build output" />
+          android:id="@+id/no_editor_summary"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="16dp"
+          android:gravity="start"
+          android:textAlignment="viewStart"
+          android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+          android:textColor="?attr/colorSecondaryVariant"
+          android:textSize="13sp"
+          app:layout_constraintStart_toStartOf="parent"
+          app:layout_constraintEnd_toEndOf="parent"
+          app:layout_constraintTop_toBottomOf="@id/no_editor_title"
+          tools:text="Open right drawer for files\nSwipe from bottom for build output" />
+
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

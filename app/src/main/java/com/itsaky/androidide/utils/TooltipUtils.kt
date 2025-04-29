@@ -160,7 +160,6 @@ object TooltipUtils {
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
 
-        val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
         val fab = popupView.findViewById<Button>(R.id.fab) // Assuming Button styled like FAB
         val webView = popupView.findViewById<WebView>(R.id.webview)
 
@@ -200,10 +199,6 @@ object TooltipUtils {
         </body>
         </html>
         """.trimIndent()
-
-        infoButton.setOnClickListener {
-            onInfoButtonClicked(context, popupWindow, tooltipItem)
-        }
 
         fab.setOnClickListener {
             onFabClick(popupWindow)
@@ -254,31 +249,6 @@ object TooltipUtils {
         )
     }
 
-
-    /**
-     * Handles the click on the info icon in the tooltip.
-     */
-    private fun onInfoButtonClicked(context: Context, popupWindow: PopupWindow, tooltip: IDETooltipItem) {
-        popupWindow.dismiss()
-
-        val metadata = """
-        <b>Tooltip Debug Info</b><br/>
-        <b>ID:</b> ${tooltip.tooltipTag}<br/>
-        <b>Raw Summary:</b> ${android.text.Html.escapeHtml(tooltip.summary)}<br/>
-        <b>Raw Detail:</b> ${android.text.Html.escapeHtml(tooltip.detail)}<br/>
-        <b>Buttons:</b> ${tooltip.buttons.joinToString { "${it.first} → ${it.second}" }}<br/>
-        """.trimIndent()
-
-        val activityContext = mainActivity ?: context
-        androidx.appcompat.app.AlertDialog.Builder(activityContext)
-            .setTitle("Tooltip Debug Info")
-            .setMessage(android.text.Html.fromHtml(metadata, android.text.Html.FROM_HTML_MODE_LEGACY))
-            .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setCancelable(true) // Allow dismissing by tapping outside
-            .show()
-    }
 
     /**
      * Dumps tooltip database content to Logcat for debugging.
