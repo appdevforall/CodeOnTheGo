@@ -19,6 +19,9 @@
   <string name="reset">Redefinir</string>
   <string name="app_logs">Logs do aplicativo</string>
   <string name="ide_logs">Logs da IDE</string>
+  <string name="cancel_project_text">Cancelar</string>
+  <string name="close_without_saving">Fechar sem salvar os arquivos</string>
+  <string name="save_and_close">Salvar arquivos e fechar o projeto</string>
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">Vamos começar</string>
   <string name="msg_cannot_perform_fix">Não foi possível realizar a correção rápida</string>
