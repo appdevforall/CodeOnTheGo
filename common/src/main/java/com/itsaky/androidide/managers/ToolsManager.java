@@ -72,6 +72,7 @@ public class ToolsManager {
             extractAapt2();
             extractToolingApi();
             extractCogoPlugin();
+            extractGradleDists();
             extractAndroidJar();
             extractColorScheme(app);
             extractJdwp(app);
@@ -230,8 +231,6 @@ public class ToolsManager {
      * @see ToolsManager getCommonAsset(String name)
      * @see ResourceUtils copyFileFromAssets
      * We have to put our files under data/common folder.  And add new postRecipe entry to templates
-     * @see ProjectTemplateBuilder
-     * @see base.kt
      */
 
     @NonNull
@@ -273,6 +272,14 @@ public class ToolsManager {
 
         ResourceUtils.copyFileFromAssets(getCommonAsset("cogo-plugin.jar"),
                 Environment.COGO_PLUGIN_JAR.getAbsolutePath());
+    }
+
+    private static void extractGradleDists() {
+        String[] binToCopy = {"gradle-8.0-bin.zip", "gradle-8.7-bin.zip"};
+        for (String binFile : binToCopy) {
+            ResourceUtils.copyFileFromAssets(getCommonAsset(binFile),
+                    Environment.GRADLE_DISTS.getAbsolutePath() + File.separator + binFile);
+        }
     }
 
     private static void writeInitScript() {

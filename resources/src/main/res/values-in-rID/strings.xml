@@ -19,6 +19,9 @@
   <string name="reset">Setel ulang</string>
   <string name="app_logs">Log App</string>
   <string name="ide_logs">Log IDE</string>
+  <string name="cancel_project_text">Batal</string>
+  <string name="close_without_saving">Tutup tanpa menyimpan file</string>
+  <string name="save_and_close">Simpan file dan tutup proyek</string>
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">Memulai</string>
   <string name="msg_cannot_perform_fix">Tidak dapat menampilkan perbaikan cepat (QuickFix)</string>

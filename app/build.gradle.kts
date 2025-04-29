@@ -40,6 +40,10 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+
+    packaging {
+      resources.excludes.add("com/sun/jna/**")
+    }
   }
 
   testOptions {
@@ -240,6 +244,10 @@ dependencies {
   androidTestImplementation(libs.tests.androidx.test.runner)
 }
 
+configurations.all {
+  exclude(group = "com.sun.jna")
+}
+
 //sentry {
 //    org.set("appdevforall-inc-pb")
 //    projectName.set("android")
@@ -248,3 +256,4 @@ dependencies {
 //    // disable if you don't want to expose your sources
 //    includeSourceContext.set(true)
 //}
+

@@ -58,6 +58,7 @@ import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
+import com.itsaky.androidide.actions.sidebar.EmailSidebarAction
 import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
 import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
@@ -67,6 +68,7 @@ import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
+import androidx.core.net.toUri
 
 
 /**
@@ -77,7 +79,7 @@ import java.lang.ref.WeakReference
  */
 
 object ContactDetails {
-    const val EMAIL_SUPPORT = "info@appdevforall.org"
+    const val EMAIL_SUPPORT = "feedback@appdevforall.org"
 }
 
 internal object EditorSidebarActions {
@@ -94,6 +96,7 @@ internal object EditorSidebarActions {
         registry.registerAction(PreferencesSidebarAction(context, ++order))
         registry.registerAction(CloseProjectSidebarAction(context, ++order))
         registry.registerAction(HelpSideBarAction(context, ++order))
+        registry.registerAction(EmailSidebarAction(context, ++order))
     }
 
     @JvmStatic
@@ -103,11 +106,6 @@ internal object EditorSidebarActions {
         val context = sidebarFragment.requireContext()
         val rail = binding.navigation
 
-        val emailSupportBtn = binding.emailSupport
-
-        emailSupportBtn.setOnClickListener {
-            showContactDialog(context)
-        }
 
         val registry = ActionsRegistry.getInstance()
         val actions = registry.getActions(ActionItem.Location.EDITOR_SIDEBAR)
@@ -228,18 +226,6 @@ internal object EditorSidebarActions {
             it.isChecked = true
             binding.title.text = it.title
         }
-
-        rail.viewTreeObserver.addOnPreDrawListener {
-            val railView = railRef.get()
-            if (railView != null) {
-                railView.findViewById<View>(TerminalSidebarAction.ID.hashCode())
-                    ?.setOnLongClickListener {
-                        TerminalSidebarAction.startTerminalActivity(data, true)
-                        true
-                    }
-            }
-            true
-        }
     }
 
     /**
@@ -264,7 +250,7 @@ internal object EditorSidebarActions {
         }
     }
 
-    private fun showContactDialog(context: Context) {
+    fun showContactDialog(context: Context) {
         val dialog = Dialog(context)
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
 
@@ -286,7 +272,7 @@ internal object EditorSidebarActions {
         // Prepare the email intent for reuse
         val emailIntent: () -> Unit = {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
-                data = Uri.parse("mailto:$EMAIL_SUPPORT?subject=Feedback about Code on the Go")
+                data = "mailto:$EMAIL_SUPPORT?subject=Feedback about Code on the Go".toUri()
             }
             context.startActivity(intent)
         }
@@ -322,6 +308,10 @@ internal object EditorSidebarActions {
             emailIntent()
         }
 
+        // When the send email button is clicked:
+        binding.btnSendEmail.setOnClickListener {
+            emailIntent()
+        }
         // Close button action: dismiss the dialog.
         binding.btnClose.setOnClickListener {
             dialog.dismiss()

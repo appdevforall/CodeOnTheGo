@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.logging.encoder;
 
+import com.itsaky.androidide.logging.utils.LogUtils;
+
 import ch.qos.logback.classic.PatternLayout;
 
 /**
@@ -27,6 +29,6 @@ import ch.qos.logback.classic.PatternLayout;
 public class IDELogFormatLayout extends PatternLayout {
   public IDELogFormatLayout(boolean omitMessage) {
     super();
-    setPattern("%d{dd-MM HH:mm:ss.SS} %5level [%thread] %logger:" + (omitMessage ? "" : " %msg") + "%n");
+    setPattern(LogUtils.getPatternLayoutVerbosePattern(omitMessage));
   }
 }

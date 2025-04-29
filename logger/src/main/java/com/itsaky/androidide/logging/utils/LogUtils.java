@@ -17,38 +17,49 @@
 
 package com.itsaky.androidide.logging.utils;
 
+import com.itsaky.androidide.utils.LogTagUtils;
+
+import java.util.regex.Pattern;
+
 /**
  * @author Akash Yadav
  */
 public class LogUtils {
 
-  public static boolean isJvm() {
-    try {
-      // If we're in a testing environment
-      Class.forName("org.junit.runners.JUnit4");
-      return true;
-    } catch (ClassNotFoundException e) {
-      // ignored
+    public static final int MAX_TAG_LENGTH = 23;
+    public static final String PATTERN_LAYOUT_MESSAGE_PATTERN = "%msg%n";
+
+    public static boolean isJvm() {
+        try {
+            // If we're in a testing environment
+            Class.forName("org.junit.runners.JUnit4");
+            return true;
+        } catch (ClassNotFoundException e) {
+            // ignored
+        }
+
+        try {
+            Class.forName("android.content.Context");
+            return false;
+        } catch (ClassNotFoundException e) {
+            return true;
+        }
     }
 
-    try {
-      Class.forName("android.content.Context");
-      return false;
-    } catch (ClassNotFoundException e) {
-      return true;
-    }
-  }
+    public static String processLogTag(String tag) {
+        if (tag == null) {
+            return null;
+        }
 
-  public static final int MAX_TAG_LENGTH = 23;
-  public static String processLogTag(String tag) {
-    if (tag == null) {
-      return  null;
-    }
+        final var regex = "[^a-z-A-Z0-9_.]";
+        if (Pattern.compile(regex).matcher(tag).find()) {
+            tag = tag.replaceAll(regex, "_");
+        }
 
-    if (tag.length() > MAX_TAG_LENGTH) {
-      return tag.substring(0, MAX_TAG_LENGTH - 1) + "*";
+        return LogTagUtils.trimTagIfNeeded(tag, MAX_TAG_LENGTH);
     }
 
-    return tag;
-  }
+    public static String getPatternLayoutVerbosePattern(boolean omitMessage) {
+        return "%d{dd-MM HH:mm:ss.SS} %5level [%thread] %logger:" + (omitMessage ? "" : " %msg") + "%n";
+    }
 }
