@@ -8,9 +8,14 @@ package com.itsaky.androidide.lsp.debug.events
 enum class ResumePolicy {
 
     /**
+     * The thread should be suspended (or kept suspended if already suspended).
+     */
+    SUSPEND_THREAD,
+
+    /**
      * The client should be suspended (or kept suspened if already suspended).
      */
-    SUSPEND,
+    SUSPEND_CLIENT,
 
     /**
      * The thread should be resumed.
