@@ -320,10 +320,11 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         val builder = newMaterialDialogBuilder(this)
         builder.setTitle(string.msg_action_open_title_application)
         builder.setMessage(string.msg_action_open_application)
-        builder.setPositiveButton(string.yes) { dialog, _ -> dialog.dismiss()
-        IntentUtils.launchApp(this, packageName) }
+        builder.setPositiveButton(string.yes) { dialog, _ ->
+            dialog.dismiss()
+            IntentUtils.launchApp(this, packageName)
+        }
         builder.setNegativeButton(string.no, null)
-
         builder.show()
     }
 
