@@ -25,7 +25,7 @@ import com.itsaky.androidide.tooling.api.util.ToolingProps
 import com.itsaky.androidide.utils.AndroidPluginVersion
 import com.itsaky.androidide.utils.AndroidPluginVersion.Companion.MINIMUM_SUPPORTED
 import com.itsaky.androidide.utils.ILogger
-import com.itsaky.androidide.utils.LogUtils
+import com.itsaky.androidide.utils.StacktraceUtils
 import com.itsaky.androidide.utils.StopWatch
 import org.gradle.api.Action
 import org.gradle.tooling.BuildController
@@ -204,7 +204,7 @@ abstract class AbstractModelBuilder<P, R>(
       val sb = StringBuilder()
       for (msg in objects) {
         sb.append(if (msg is Throwable) "\n" else ILogger.MSG_SEPARATOR)
-        sb.append(if (msg is Throwable) LogUtils.getFullStackTrace(
+        sb.append(if (msg is Throwable) StacktraceUtils.getFullStackTrace(
           msg as Throwable?) else msg)
       }
       return sb.toString()
