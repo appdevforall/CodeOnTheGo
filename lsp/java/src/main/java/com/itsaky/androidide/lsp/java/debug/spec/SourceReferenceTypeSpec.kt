@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class SourceReferenceTypeSpec(
-    private val source: Source,
+    internal val source: Source,
 ) : ReferenceTypeSpec {
 
     companion object {

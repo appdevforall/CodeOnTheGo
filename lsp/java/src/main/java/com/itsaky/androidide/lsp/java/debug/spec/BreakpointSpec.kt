@@ -1,5 +1,9 @@
 package com.itsaky.androidide.lsp.java.debug.spec
 
+import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
+import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
+import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
+import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.utils.StringUtil.isJavaIdentifier
 import com.sun.jdi.AbsentInformationException
 import com.sun.jdi.InvalidTypeException
@@ -14,6 +18,7 @@ import com.sun.jdi.request.EventRequestManager
 
 sealed interface BreakpointData {
     val threadFilter: ThreadReference?
+
     data class Global(
         val lineNumber: Int,
         override val threadFilter: ThreadReference?,
@@ -59,6 +64,30 @@ internal class BreakpointSpec : EventRequestSpec {
         this.data = BreakpointData.Method(methodID, methodArgs, threadFilter)
     }
 
+    /**
+     * Check whether this spec matches the given breakpoint definition.
+     */
+    fun isSameAsDef(def: BreakpointDefinition): Boolean {
+        val sourceRef = this.refSpec as? SourceReferenceTypeSpec ?: return false
+        if (sourceRef.source != def.source) {
+            return false
+        }
+
+        return when (def) {
+            is PositionalBreakpoint -> (this.data as? BreakpointData.Global)?.let { global ->
+                global.lineNumber == def.line
+            } ?: false
+
+            is MethodBreakpoint -> {
+                (this.data as? BreakpointData.Method)?.let { mth ->
+                    mth.methodID == def.methodId && mth.methodArgs == def.methodArgs
+                } ?: false
+            }
+
+            else -> throw IllegalArgumentException("Unknown breakpoint type")
+        }
+    }
+
     override fun resolveEventRequest(
         vm: VirtualMachine,
         refType: ReferenceType
@@ -85,7 +114,7 @@ internal class BreakpointSpec : EventRequestSpec {
         val location: Location?
         if (isMethodBreakpoint) {
             val method = findMatchingMethod(vm, refType, this.data as BreakpointData.Method)
-            location = method?.location()
+            location = method.location()
         } else {
             val locs = refType.locationsOfLine(lineNumber)
             if (locs.isEmpty()) {

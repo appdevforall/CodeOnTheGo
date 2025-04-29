@@ -24,7 +24,6 @@ enum class SuspendPolicy {
  * @author Akash Yadav
  */
 data class BreakpointRequest(
-    val source: Source,
     val breakpoints: List<BreakpointDefinition>,
 )
 
@@ -32,6 +31,11 @@ data class BreakpointRequest(
  * Defines the response to a request to set breakpoints.
  */
 interface BreakpointDefinition {
+
+    /**
+     * The source file to set the breakpoint in.
+     */
+    val source: Source
 
     /**
      * The condition to evaluate for the breakpoint.
@@ -62,6 +66,7 @@ interface BreakpointDefinition {
  * @property logMessage The message to log when the breakpoint is hit.
  */
 data class PositionalBreakpoint(
+    override val source: Source,
     val line: Int,
     val column: Int = 0,
     override val condition: String? = null,
@@ -79,6 +84,7 @@ data class PositionalBreakpoint(
  * @property logMessage The message to log when the breakpoint is hit.
  */
 data class MethodBreakpoint(
+    override val source: Source,
     val methodId: String,
     val methodArgs: List<String>,
     override val condition: String? = null,

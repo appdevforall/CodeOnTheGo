@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp
 
 import androidx.annotation.GuardedBy
+import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
@@ -11,12 +12,14 @@ import com.itsaky.androidide.lsp.debug.events.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
+import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
@@ -47,8 +50,30 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         breakpoints = mutableSetOf()
     )
 
+    private val testBreakpoint = PositionalBreakpoint(
+        source = Source(
+            "DebuggingTarget.java",
+            "/storage/emulated/0/AndroidIDEProjects/My Application1/app/src/main/java/com/itsaky/debuggable/DebuggingTarget.java"
+        ),
+        line = 27,
+    )
+
+    private var hitCount = 0
     override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
         logger.debug("onBreakpointHit: {}", event)
+        ++hitCount
+
+        if (hitCount == 2) {
+            val server = ILanguageServerRegistry.getDefault()
+                .getServer(JavaLanguageServer.SERVER_ID) as JavaLanguageServer
+            runBlocking {
+                event.remoteClient.adapter.removeBreakpoints(
+                    BreakpointRequest(
+                        breakpoints = listOf(testBreakpoint)
+                    )
+                )
+            }
+        }
 
         return BreakpointHitResponse(
             remoteClient = event.remoteClient,
@@ -68,15 +93,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         clientScope.launch {
             client.adapter.addBreakpoints(
                 BreakpointRequest(
-                    source = Source(
-                        "DebuggingTarget.java",
-                        "/storage/emulated/0/AndroidIDEProjects/My Application1/app/src/main/java/com/itsaky/debuggable/DebuggingTarget.java"
-                    ),
-                    breakpoints = listOf(
-                        PositionalBreakpoint(
-                            line = 27,
-                        )
-                    )
+                    breakpoints = listOf(testBreakpoint)
                 )
             )
         }
