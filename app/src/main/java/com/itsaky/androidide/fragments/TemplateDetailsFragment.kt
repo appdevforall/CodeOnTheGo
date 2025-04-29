@@ -69,7 +69,6 @@ class TemplateDetailsFragment :
 
         viewModel.creatingProject.observe(viewLifecycleOwner) {
             TransitionManager.beginDelayedTransition(binding.root)
-            binding.progress.isVisible = it
             binding.finish.isEnabled = !it
             binding.previous.isEnabled = !it
         }
