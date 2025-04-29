@@ -17,29 +17,38 @@
 
 package com.itsaky.androidide.logging;
 
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.UnsynchronizedAppenderBase;
-import ch.qos.logback.core.encoder.Encoder;
-import com.itsaky.androidide.logging.encoder.ThreadTimeEncoder;
+import com.itsaky.androidide.logging.encoder.IDELogFormatLayout;
+
 import java.io.IOException;
-import java.util.Objects;
+
+import ch.qos.logback.classic.PatternLayout;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.Context;
+import ch.qos.logback.core.UnsynchronizedAppenderBase;
 
 /**
  * @author Akash Yadav
  */
 public class StdErrAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
 
-  private Encoder<ILoggingEvent> encoder = null;
+  private final PatternLayout layout = new IDELogFormatLayout(false);
 
   @Override
   public void start() {
-    if (encoder == null) {
-      addWarn("No encoder set for the appender named [" + name
-          + "]. Falling back to ThreadTimeEncoder.");
-      encoder = new ThreadTimeEncoder();
-    }
-
     super.start();
+    layout.start();
+  }
+
+  @Override
+  public void setContext(Context context) {
+    super.setContext(context);
+    layout.setContext(context);
+  }
+
+  @Override
+  public void stop() {
+    super.stop();
+    layout.stop();
   }
 
   @Override
@@ -48,33 +57,11 @@ public class StdErrAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
       return;
     }
 
-    Objects.requireNonNull(encoder, "Encoder must not be null");
-    byte[] bytes = encoder.encode(eventObject);
+    final var bytes = layout.doLayout(eventObject).getBytes();
     try {
       System.err.write(bytes);
     } catch (IOException e) {
       addError("Failed to write to stderr", e);
     }
-  }
-
-  /**
-   * Set the encoder for this appender.
-   *
-   * @param encoder The encoder.
-   */
-  public void setEncoder(
-      Encoder<ILoggingEvent> encoder
-  ) {
-    this.encoder = encoder;
-  }
-
-
-  /**
-   * Get the encoder for this appender.
-   *
-   * @return The encoder.
-   */
-  public Encoder<ILoggingEvent> getEncoder() {
-    return encoder;
   }
 }
