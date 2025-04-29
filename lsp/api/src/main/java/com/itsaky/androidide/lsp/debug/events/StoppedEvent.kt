@@ -17,7 +17,7 @@ data class StoppedEvent(
     val threadId: Int,
     val frameId: Int,
     val allThreadsStopped: Boolean,
-): IDebuggerEvent
+): DebugEvent
 
 /**
  * The reason why the execution of the program has been stopped.
