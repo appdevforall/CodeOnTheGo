@@ -19,6 +19,9 @@
   <string name="reset">Réinitialiser</string>
   <string name="app_logs">Logs App</string>
   <string name="ide_logs">Logs IDE</string>
+  <string name="cancel_project_text">Annuler</string>
+  <string name="close_without_saving">Fermer sans enregistrer les fichiers</string>
+  <string name="save_and_close">Enregistrer les fichiers et fermer le projet</string>
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">Commencer</string>
   <string name="msg_cannot_perform_fix">Impossible de lancer QuickFix</string>
