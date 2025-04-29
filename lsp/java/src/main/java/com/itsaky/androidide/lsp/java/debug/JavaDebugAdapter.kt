@@ -6,10 +6,14 @@ import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.RemoteClientCapabilities
+import com.itsaky.androidide.lsp.debug.events.BreakpointDescriptor
+import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
+import com.itsaky.androidide.lsp.debug.events.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
+import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpec
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
@@ -17,6 +21,7 @@ import com.sun.jdi.Bootstrap
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
 import com.sun.jdi.connect.TransportTimeoutException
+import com.sun.jdi.event.BreakpointEvent
 import com.sun.tools.jdi.SocketListeningConnector
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
@@ -92,7 +97,12 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     private val vms = CopyOnWriteArraySet<VmConnection>()
 
     private var listenerThread: JDWPListenerThread? = null
-    private var listenerState: ListenerState? = null
+    private var _listenerState: ListenerState? = null
+
+    private val listenerState: ListenerState
+        get() = checkNotNull(_listenerState) {
+            "Listener state is not initialized"
+        }
 
     companion object {
         private val logger = LoggerFactory.getLogger(JavaDebugAdapter::class.java)
@@ -116,7 +126,10 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         ): JavaDebugAdapter = checkNotNull(currentInstance(), message)
     }
 
-    fun connVm() = this.vms.first()
+    private fun connVm(): VmConnection {
+        checkIsConnected()
+        return this.vms.first()
+    }
 
     /**
      * Get the connected VM.
@@ -139,12 +152,14 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             args.map { (_, value) -> "$value" }.joinToString()
         )
 
-        this.listenerState = ListenerState(
-            client = client, connector = connector, args = args
+        this._listenerState = ListenerState(
+            client = client,
+            connector = connector,
+            args = args
         )
 
         this.listenerThread = JDWPListenerThread(
-            listenerState!!, this::onConnectedToVm
+            _listenerState!!, this::onConnectedToVm
         ).also { thread -> thread.start() }
     }
 
@@ -188,7 +203,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         vmConnection.startEventHandler()
 
         this.vms.add(vmConnection)
-        this.listenerState!!.client.onAttach(client)
+        this._listenerState!!.client.onAttach(client)
     }
 
     override suspend fun connectedRemoteClients(): Set<RemoteClient> =
@@ -234,7 +249,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         TODO("Find breakpoints using the request param here and remove them using EventRequestSpecList")
     }
 
-    fun resolveNow(
+    private fun resolveNow(
         specList: EventRequestSpecList,
         spec: EventRequestSpec
     ) {
@@ -244,9 +259,46 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         }
     }
 
+    override fun breakpointEvent(e: BreakpointEvent) {
+        e.virtualMachine().checkIsCurrentVm()
+
+        val vm = connVm()
+        val location = e.location()
+        val descriptor = BreakpointDescriptor(
+            source = Source(
+                name = location.sourceName(),
+                path = location.sourcePath()
+            ),
+            line = location.lineNumber(),
+            column = null,
+            threadId = e.thread().uniqueID().toString()
+        )
+
+        val response = listenerState.client.onBreakpointHit(
+            event = BreakpointHitEvent(
+                remoteClient = vm.client,
+                descriptor = descriptor
+            )
+        )
+
+        when (response.resumePolicy) {
+            ResumePolicy.SUSPEND -> {
+                logger.debug("ResumePolicy.SUSPEND -> keep suspended")
+            }
+            ResumePolicy.RESUME_THREAD -> {
+                logger.debug("ResumePolicy.RESUME_THREAD -> resume thread")
+                e.thread().resume()
+            }
+            ResumePolicy.RESUME_CLIENT -> {
+                logger.debug("ResumePolicy.RESUME_CLIENT -> resume client")
+                vm.vm.resume()
+            }
+        }
+    }
+
     override fun close() {
         try {
-            listenerState?.stopListening()
+            _listenerState?.stopListening()
             listenerThread?.interrupt()
         } catch (err: Throwable) {
             logger.error("Unable to stop VM connection listener", err)
@@ -261,6 +313,17 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             } finally {
                 vms.remove(vm)
             }
+        }
+    }
+
+    private fun checkIsConnected() = check(vms.isNotEmpty()) {
+        "No connected VMs"
+    }
+
+    private fun VirtualMachine.checkIsCurrentVm() {
+        checkIsConnected()
+        check(this == connVm().vm) {
+            "Received event from VM that is not connected to this adapter"
         }
     }
 }
