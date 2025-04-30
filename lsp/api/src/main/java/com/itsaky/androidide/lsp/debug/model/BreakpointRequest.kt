@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.debug.model
 
+import com.itsaky.androidide.lsp.debug.RemoteClient
+
 enum class SuspendPolicy {
     /**
      * Do not suspend,
@@ -24,8 +26,9 @@ enum class SuspendPolicy {
  * @author Akash Yadav
  */
 data class BreakpointRequest(
+    override val remoteClient: RemoteClient,
     val breakpoints: List<BreakpointDefinition>,
-)
+): DapRequest
 
 /**
  * Defines the response to a request to set breakpoints.

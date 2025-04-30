@@ -15,6 +15,9 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointResult
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.Source
+import com.itsaky.androidide.lsp.debug.model.StepRequestParams
+import com.itsaky.androidide.lsp.debug.model.StepResponse
+import com.itsaky.androidide.lsp.debug.model.StepResult
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
@@ -177,7 +180,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             name = vm.name(),
             version = vm.version(),
             capabilities = RemoteClientCapabilities(
-                canSetBreakpoints = true
+                breakpointSupport = true
             ),
         )
 
@@ -213,8 +216,12 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     ): BreakpointResponse {
         val vm = connVm()
 
-        if (!vm.isHandlingEvents) {
-            // we're not handling events from the VM
+        check(vm.client == request.remoteClient) {
+            "Received request for breakpoints from a different client"
+        }
+
+        if (!vm.isHandlingEvents || !vm.client.capabilities.breakpointSupport) {
+            // we're not handling events from the VM, or the VM does not support adding breakpoints
             return BreakpointResponse.EMPTY
         }
 
@@ -275,10 +282,14 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     override suspend fun removeBreakpoints(
         request: BreakpointRequest
     ): BreakpointResponse {
-        logger.debug("Received removeBreakpoints request: {}", request)
         val vm = connVm()
 
-        if (!vm.isHandlingEvents) {
+        check(vm.client == request.remoteClient) {
+            "Received request for breakpoints from a different client"
+        }
+
+        if (!vm.isHandlingEvents || !vm.client.capabilities.breakpointSupport) {
+            // we're not handling events from the VM, or the VM does not support adding breakpoints
             return BreakpointResponse.EMPTY
         }
 
@@ -302,6 +313,21 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                     }
             }
         )
+    }
+
+    override suspend fun step(request: StepRequestParams): StepResponse {
+        val vm = connVm()
+
+        check(vm.client == request.remoteClient) {
+            "Received request for breakpoints from a different client"
+        }
+
+        if (!vm.isHandlingEvents || !vm.client.capabilities.stepSupport) {
+            // we're not handling events from the VM, or the VM does not support adding breakpoints
+            return StepResponse(StepResult.Failure())
+        }
+
+        TODO("Implement logic to handle step requests")
     }
 
     override fun breakpointEvent(e: BreakpointEvent) {

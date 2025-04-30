@@ -65,6 +65,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
             runBlocking {
                 event.remoteClient.adapter.removeBreakpoints(
                     BreakpointRequest(
+                        remoteClient = event.remoteClient,
                         breakpoints = listOf(testBreakpoint)
                     )
                 )
@@ -89,6 +90,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         clientScope.launch {
             client.adapter.addBreakpoints(
                 BreakpointRequest(
+                    remoteClient = client,
                     breakpoints = listOf(testBreakpoint)
                 )
             )

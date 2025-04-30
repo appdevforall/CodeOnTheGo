@@ -44,7 +44,9 @@ sealed interface BreakpointResult {
  * @property results The results of individual breakpoint requests.
  * @author Akash Yadav
  */
-data class BreakpointResponse(val results: List<BreakpointResult>) {
+data class BreakpointResponse(
+    val results: List<BreakpointResult>
+): DapResponse {
     companion object {
         val EMPTY = BreakpointResponse(emptyList())
     }

@@ -20,8 +20,10 @@ data class RemoteClient(
 /**
  * Capabilities of the remote client.
  *
- * @property canSetBreakpoints Whether the remote client can set breakpoints.
+ * @property breakpointSupport Whether the remote client supports setting/unsetting breakpoints.
+ * @property stepSupport Whether the remote client can step through code execution.
  */
 data class RemoteClientCapabilities(
-    val canSetBreakpoints: Boolean,
+    val breakpointSupport: Boolean,
+    val stepSupport: Boolean,
 )
