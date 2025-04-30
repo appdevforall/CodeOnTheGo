@@ -19,6 +19,9 @@
   <string name="reset">Sıfırla</string>
   <string name="app_logs">Uygulama günlükleri</string>
   <string name="ide_logs">IDE günlükleri</string>
+  <string name="cancel_project_text">İptal</string>
+  <string name="close_without_saving">Dosyaları kaydetmeden kapat</string>
+  <string name="save_and_close">Dosyaları kaydet ve projeyi kapat</string>
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">Başla</string>
   <string name="msg_cannot_perform_fix">Hızlı düzeltme gerçekleştirilemiyor</string>

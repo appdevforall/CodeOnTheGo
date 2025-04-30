@@ -86,7 +86,7 @@
   <string name="cancel_project_text">Cancel</string>
   <string name="close_without_saving">Close without saving files</string>
   <string name="save_close_project">Save files and close project</string>
-
+  <string name="save_and_close">Save files and close project</string>
   <!-- Templates -->
   <string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
   <string name="template_basic">Basic Project</string>
@@ -338,7 +338,8 @@
   <string name="idepref_customFont_title">Use custom font</string>
   <string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
   <string name="msg_installing_apk">Installing APK...</string>
-  <string name="msg_action_open_application">Do you want to open the application?</string>
+  <string name="msg_action_open_application">Your app is installed. Do you want to launch the app?</string>
+  <string name="msg_action_open_title_application">App installed</string>
 
     <string name="title_gradle_service_notification_channel">Code on the Go Gradle build service</string>
     <string name="msg_hex_color_code">Hex color code</string>
