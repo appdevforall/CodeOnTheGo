@@ -43,6 +43,10 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+
+    packaging {
+      resources.excludes.add("com/sun/jna/**")
+    }
   }
 
   testOptions {
@@ -85,37 +89,6 @@ android {
   installation {
     //installOptions("-timeout", "420000") // 5 minutes (in milliseconds)
   }
-}
-
-// Task to create symbolic link on Linux only
-tasks.register("createSymbolicLinkForLayoutEditor") {
-  // Check if the OS is Linux
-  val os: String = System.getProperty("os.name").lowercase(Locale.ENGLISH)
-
-  // Update paths to reflect the correct locations for LayoutEditor
-  val sourcePath: java.nio.file.Path = Paths.get(rootDir.absolutePath, "LayoutEditor")
-  val destinationPath: java.nio.file.Path = Paths.get(rootDir.absolutePath, "layouteditor")
-  val destinationFile = destinationPath.toFile()
-
-  if (os.contains("linux") || os.contains("nix") || os.contains("nux")) {
-    // Check if the symbolic link already exists
-    if (destinationFile.exists() && Files.isSymbolicLink(destinationPath)) {
-      doLast {
-        println("Symbolic link already exists: $destinationPath -> $sourcePath")
-      }
-    } else {
-      Files.createSymbolicLink(destinationPath, sourcePath)
-    }
-  } else {
-    doLast {
-      println("Skipping symbolic link creation: Not running on Linux.")
-    }
-  }
-}
-
-// Ensure the symbolic link task runs before preBuild
-tasks.named("preBuild").configure {
-  dependsOn("createSymbolicLinkForLayoutEditor")
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.packageName}.events.AppEventsIndex") } }
@@ -273,6 +246,10 @@ dependencies {
   androidTestImplementation(libs.tests.androidx.test.runner)
 }
 
+configurations.all {
+  exclude(group = "com.sun.jna")
+}
+
 //sentry {
 //    org.set("appdevforall-inc-pb")
 //    projectName.set("android")
@@ -281,3 +258,4 @@ dependencies {
 //    // disable if you don't want to expose your sources
 //    includeSourceContext.set(true)
 //}
+

@@ -62,16 +62,5 @@
         app:layout_constraintTop_toTopOf="parent"
         tools:text="File tree" />
 
-    <ImageView
-        android:id="@+id/email_support"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_marginBottom="16dp"
-        android:contentDescription="@string/help"
-        android:src="@drawable/ic_mail_24_outlined"
-        app:layout_constraintBottom_toBottomOf="@id/navigation"
-        app:layout_constraintEnd_toEndOf="@id/navigation"
-        app:layout_constraintStart_toStartOf="@id/navigation" />
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>

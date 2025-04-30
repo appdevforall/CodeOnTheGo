@@ -24,7 +24,6 @@ import ch.qos.logback.classic.spi.ConfiguratorRank
 import ch.qos.logback.core.spi.ContextAwareBase
 import com.google.auto.service.AutoService
 import com.itsaky.androidide.logging.JvmStdErrAppender
-import com.itsaky.androidide.logging.encoder.IDELogFormatEncoder
 
 @ConfiguratorRank(ConfiguratorRank.CUSTOM_HIGH_PRIORITY)
 @AutoService(Configurator::class)
@@ -35,7 +34,7 @@ class ToolingLoggingConfigurator : ContextAwareBase(), Configurator {
     addInfo("Setting up logging configuration for test runtime")
 
     val stdErrAppender = JvmStdErrAppender()
-    stdErrAppender.encoder = IDELogFormatEncoder()
+    stdErrAppender.context = context
     stdErrAppender.start()
 
     val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)

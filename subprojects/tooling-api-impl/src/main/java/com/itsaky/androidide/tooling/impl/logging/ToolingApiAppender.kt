@@ -17,8 +17,11 @@
 
 package com.itsaky.androidide.tooling.impl.logging
 
+import ch.qos.logback.classic.PatternLayout
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
+import ch.qos.logback.core.Context
+import com.itsaky.androidide.logging.utils.LogUtils
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.impl.Main
 
@@ -29,6 +32,27 @@ import com.itsaky.androidide.tooling.impl.Main
  */
 class ToolingApiAppender : AppenderBase<ILoggingEvent>() {
 
+  private val layout = PatternLayout()
+
+  init {
+      layout.pattern = LogUtils.PATTERN_LAYOUT_MESSAGE_PATTERN
+  }
+
+  override fun start() {
+    super.start()
+    layout.start()
+  }
+
+  override fun stop() {
+    super.stop()
+    layout.stop()
+  }
+
+  override fun setContext(context: Context?) {
+    super.setContext(context)
+    layout.context = context
+  }
+
   override fun append(eventObject: ILoggingEvent?) {
     if (eventObject == null || !isStarted) {
       return
@@ -38,7 +62,7 @@ class ToolingApiAppender : AppenderBase<ILoggingEvent>() {
       LogMessageParams(
         eventObject.level.levelStr[0],
         eventObject.loggerName,
-        eventObject.formattedMessage
+        layout.doLayout(eventObject)
       )
     )
   }

@@ -19,6 +19,9 @@
   <string name="reset">Zur&#xFC;cksetzen</string>
   <string name="app_logs">App-Protokolle</string>
   <string name="ide_logs">IDE-Protokolle</string>
+  <string name="cancel_project_text">Abbrechen</string>
+  <string name="close_without_saving">Ohne Speichern der Dateien schließen</string>
+  <string name="save_and_close">Dateien speichern und Projekt schließen</string>
   <!-- LSP, Diagnostics & Completions -->
   <string name="get_started">Loslegen</string>
   <string name="msg_cannot_perform_fix">Schnellkorrektur kann nicht durchgef&#xFC;hrt werden</string>

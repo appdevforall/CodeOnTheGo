@@ -23,11 +23,14 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Process
+import android.text.Spannable
+import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
+import android.text.style.LeadingMarginSpan
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -57,7 +60,6 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
-import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
@@ -88,7 +90,6 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
-import com.itsaky.androidide.ui.CustomSnackbar
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
@@ -316,19 +317,16 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             return
         }
 
-    val snackbar = CustomSnackbar(this, findViewById(android.R.id.content))
-    snackbar.show(
-      message = getString(R.string.msg_action_open_application),
-      textFirstAction = getString(R.string.yes),
-      textSecondaryAction = getString(R.string.no),
-      actionFirst = {
-        IntentUtils.launchApp(this, packageName)
-      },
-      actionSecondary = {
-        snackbar.dismiss()
-      }
-    )
-  }
+        val builder = newMaterialDialogBuilder(this)
+        builder.setTitle(string.msg_action_open_title_application)
+        builder.setMessage(string.msg_action_open_application)
+        builder.setPositiveButton(string.yes) { dialog, _ ->
+            dialog.dismiss()
+            IntentUtils.launchApp(this, packageName)
+        }
+        builder.setNegativeButton(string.no, null)
+        builder.show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -733,21 +731,45 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun setupNoEditorView() {
         content.noEditorSummary.movementMethod = LinkMovementMethod()
-        val filesSpan: ClickableSpan = object : ClickableSpan() {
-            override fun onClick(widget: View) {
-                binding.root.openDrawer(GravityCompat.START)
-            }
-        }
-        val bottomSheetSpan: ClickableSpan = object : ClickableSpan() {
-            override fun onClick(widget: View) {
-                editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
-            }
-        }
         val sb = SpannableStringBuilder()
-        appendClickableSpan(sb, string.msg_drawer_for_files, filesSpan)
-        appendClickableSpan(sb, string.msg_swipe_for_output, bottomSheetSpan)
+        val indentParent = 80
+        val indentChild = 140
+
+        fun appendHierarchicalText(textRes: Int) {
+            val text = getString(textRes)
+            text.split("\n").forEach { line ->
+                val trimmed = line.trimStart()
+
+                val margin = when {
+                    trimmed.startsWith("-") -> indentChild
+                    trimmed.startsWith("•") -> indentParent
+                    else -> 0
+                }
+
+                val spannable = SpannableString("$trimmed\n")
+
+                if (margin > 0) {
+                    spannable.setSpan(
+                        LeadingMarginSpan.Standard(margin, margin),
+                        0, spannable.length,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+
+                sb.append(spannable)
+            }
+        }
+
+        appendHierarchicalText(R.string.msg_drawer_for_files)
+        sb.append("\n")
+        appendHierarchicalText(R.string.msg_swipe_for_output)
+        sb.append("\n")
+        appendHierarchicalText(R.string.msg_help_hint)
+
         content.noEditorSummary.text = sb
     }
+
+
 
     private fun appendClickableSpan(
         sb: SpannableStringBuilder,
