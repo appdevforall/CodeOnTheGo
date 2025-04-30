@@ -67,6 +67,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
 
 class OnboardingActivity : AppIntro2() {
 
@@ -78,6 +81,23 @@ class OnboardingActivity : AppIntro2() {
             reloadJdkDistInfo {
                 tryNavigateToMainIfSetupIsCompleted()
             }
+        }
+    }
+
+    private val requestStoragePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            Log.i(TAG, "READ_EXTERNAL_STORAGE permission granted via direct request.")
+            // Permission granted, now we can proceed with the logic that needs it.
+            // Option 1: Trigger the setup action again (might need restructuring onDonePressed)
+            // Option 2: Assume onDonePressed will be called again by user action (simpler)
+            Toast.makeText(this, "Storage permission granted. Please press Done again.", Toast.LENGTH_SHORT).show()
+        } else {
+            Log.e(TAG, "READ_EXTERNAL_STORAGE permission denied via direct request.")
+            Toast.makeText(this, "Storage permission is required to access Downloads.", Toast.LENGTH_LONG).show()
+            // Permission denied, cannot proceed with accessing Downloads.
+            // Stay on the current fragment or provide guidance.
         }
     }
 
@@ -198,13 +218,30 @@ class OnboardingActivity : AppIntro2() {
             return
         }
 
+        // --- Permission Check and Request ---
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED) {
+
+            Log.w(TAG, "Storage permission missing before starting setup. Requesting...")
+            // Request the permission using the launcher
+            requestStoragePermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+            // Do NOT proceed with the rest of onDonePressed logic yet.
+            // Wait for the user to grant/deny via the launcher's callback.
+            // The user will likely need to press "Done" again after granting.
+            return // Exit onDonePressed for now
+        }
+        // --- End Permission Check ---
+
+        // If we reach here, permission is granted. Proceed with setup.
+        Log.d(TAG, "Storage permission granted. Proceeding with setup task.")
+
         if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
             activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
                 runOnUiThread {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
                 copyTermuxDebsAndManifest()
-                copyAndroidSDK()
+                setupAndroidSdkDirectlyFromDownloads()
                 copyMavenLocalRepoFiles()
 
                 runOnUiThread {
@@ -254,24 +291,69 @@ class OnboardingActivity : AppIntro2() {
         }
     }
 
-    private fun copyAndroidSDK() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK)
-        val zipFile =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK + File.separator + ANDROID_SDK_ZIP)
+    private fun setupAndroidSdkDirectlyFromDownloads() {
+        // 1. Define the target directory for the *unzipped* content (in app's private storage)
+        val outputDirectory = File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK)
+        // Define the expected source file name in Downloads
+        val sourceFileName = ANDROID_SDK_ZIP // "android-sdk.zip"
+
+        Log.i(TAG, "Attempting to setup Android SDK DIRECTLY FROM Downloads folder.")
+        Log.d(TAG, "Target directory for unzipped files: ${outputDirectory.absolutePath}")
+
+        // 2. Check for Storage Permission (Absolutely essential)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "Read External Storage permission not granted. Cannot access Downloads.")
+            println("Android SDK setup failed: Read permission not granted.")
+            // TODO: Inform user permission is required
+            return // Stop the process if permission is missing
+        }
+
+        // 3. Locate the public Downloads directory and the source zip file
+        val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+        val sourceZipFile = File(downloadsDir, sourceFileName)
+        Log.d(TAG, "Looking for SDK zip at: ${sourceZipFile.absolutePath}")
+
+        // 4. Check if the source file exists in Downloads
+        // Note: Even if it exists, Scoped Storage might prevent access later
+        if (!sourceZipFile.exists() || !sourceZipFile.isFile) {
+            Log.e(TAG, "Source file not found or is not a file: ${sourceZipFile.absolutePath}")
+            println("Android SDK setup failed: ${sourceFileName} not found in Downloads folder.")
+            // TODO: Inform user to place the file
+            return // Stop the process if the file is missing
+        }
+
+        // 5. Create the target directory (in app's private storage) if it doesn't exist
         if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
+            if (!outputDirectory.mkdirs()) {
+                Log.e(TAG, "Failed to create output directory: ${outputDirectory.absolutePath}")
+                println("Android SDK setup failed: Could not create target directory.")
+                return // Stop if directory creation fails
+            }
         }
 
         try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_ANDROID_SDK),
-                outputDirectory.path
-            )
-            ZipUtils.unzipFile(zipFile, outputDirectory)
-            zipFile.delete()
+            // --- Key Change: Unzip directly FROM Downloads source ---
+            Log.i(TAG, "Attempting to unzip ${sourceZipFile.absolutePath} directly into ${outputDirectory.absolutePath}")
+
+            ZipUtils.unzipFile(sourceZipFile, outputDirectory)
+
+            Log.i(TAG, "Unzip directly from Downloads appears successful.")
+
+        } catch (e: SecurityException) {
+            // This is the most likely error on modern Android due to Scoped Storage
+            Log.e(TAG, "SecurityException during unzip from Downloads. Access denied.", e)
+            println("Android SDK setup failed: Could not access ${sourceFileName} in Downloads. This is likely due to Android storage restrictions (Scoped Storage).")
+            // TODO: Inform the user about storage restrictions. Suggest alternative methods (like using assets or SAF).
         } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
+            Log.e(TAG, "IOException during SDK unzip from Downloads: ${e.message}", e)
+            println("Android SDK unzip failed during I/O: ${e.message}")
+            // TODO: Inform user about potential file corruption or storage issues.
+        } catch (e: Exception) {
+            // Catch other potential errors from ZipUtils
+            Log.e(TAG, "Generic Exception during SDK unzip from Downloads: ${e.message}", e)
+            println("Android SDK unzip failed: ${e.message}")
+            // TODO: Provide a generic error message.
         }
     }
 
