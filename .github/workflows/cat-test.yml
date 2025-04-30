@@ -33,10 +33,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Git LFS
+      - name: Install and Configure Git LFS - Selective pull
         run: |
-          brew install git-lfs
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
           git lfs install
+          git lfs pull
 
       - name: Fetch Git LFS objects
         run: git lfs pull
