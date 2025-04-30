@@ -18,6 +18,7 @@
 package com.itsaky.androidide.fragments.sidebar
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import androidx.core.graphics.Insets
@@ -26,9 +27,13 @@ import androidx.core.view.marginTop
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updateMarginsRelative
 import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.databinding.FragmentEditorSidebarBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.utils.EditorSidebarActions
+import com.itsaky.androidide.utils.TooltipUtils
+import kotlinx.coroutines.launch
 
 /**
  * Fragment for showing the default items in the editor activity's sidebar.
@@ -62,6 +67,29 @@ class EditorSidebarFragment : FragmentWithBinding<FragmentEditorSidebarBinding>(
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
     EditorSidebarActions.setup(this)
+  }
+
+  fun setupTooltip(view: View, tooltipTag: String) {
+    (requireActivity() as? EditorHandlerActivity)?.let { activity ->
+      view.setOnLongClickListener { view ->
+        activity.lifecycleScope.launch {
+          try {
+            val tooltipData = activity.getTooltipData(tooltipTag)
+            tooltipData?.let {
+              TooltipUtils.showIDETooltip(
+                context = view.context,
+                anchorView = view,
+                level = 0,
+                tooltipItem = it
+              )
+            }
+          } catch (e: Exception) {
+            Log.e("Tooltip", "Error loading tooltip for $tooltipTag", e)
+          }
+        }
+        true
+      }
+    }
   }
 
   /**
