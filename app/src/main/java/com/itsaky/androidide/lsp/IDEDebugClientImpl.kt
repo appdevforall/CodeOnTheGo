@@ -1,18 +1,16 @@
 package com.itsaky.androidide.lsp
 
 import androidx.annotation.GuardedBy
-import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
-import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
 import com.itsaky.androidide.lsp.debug.events.ResumePolicy
+import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
-import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
-import com.itsaky.androidide.lsp.java.JavaLanguageServer
+import com.itsaky.androidide.lsp.debug.model.Source
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -64,8 +62,6 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         ++hitCount
 
         if (hitCount == 2) {
-            val server = ILanguageServerRegistry.getDefault()
-                .getServer(JavaLanguageServer.SERVER_ID) as JavaLanguageServer
             runBlocking {
                 event.remoteClient.adapter.removeBreakpoints(
                     BreakpointRequest(
