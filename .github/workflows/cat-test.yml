@@ -1,7 +1,9 @@
 name: Run Android UI Tests with cAT
+
 permissions:
   contents: read
   actions: write
+
 on:
   pull_request:
     branches: [ "stage", "feature/**" ]
@@ -22,6 +24,7 @@ jobs:
     name: Run UI Tests with cAT
     runs-on: self-hosted
     timeout-minutes: 120
+
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
@@ -63,11 +66,20 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-            
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 30
           target: google_apis
           arch: x86_64
+          avd-name: test
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
           script: ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
