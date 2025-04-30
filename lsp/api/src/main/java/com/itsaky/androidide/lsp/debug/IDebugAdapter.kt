@@ -2,6 +2,8 @@ package com.itsaky.androidide.lsp.debug
 
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
+import com.itsaky.androidide.lsp.debug.model.StepRequestParams
+import com.itsaky.androidide.lsp.debug.model.StepResponse
 
 /**
  * A debug adapter provides support for debugging a given type of file.
@@ -38,4 +40,9 @@ interface IDebugAdapter {
      * @return The response definition of the breakpoints remove.
      */
     suspend fun removeBreakpoints(request: BreakpointRequest): BreakpointResponse
+
+    /**
+     * Step through a suspended program.
+     */
+    suspend fun step(request: StepRequestParams): StepResponse
 }
