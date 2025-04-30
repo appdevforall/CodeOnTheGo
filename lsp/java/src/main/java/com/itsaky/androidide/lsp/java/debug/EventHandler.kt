@@ -1,12 +1,14 @@
 package com.itsaky.androidide.lsp.java.debug
 
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
+import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.event.BreakpointEvent
 import com.sun.jdi.event.ClassPrepareEvent
 import com.sun.jdi.event.ClassUnloadEvent
 import com.sun.jdi.event.Event
+import com.sun.jdi.event.EventSet
 import com.sun.jdi.event.ExceptionEvent
 import com.sun.jdi.event.LocatableEvent
 import com.sun.jdi.event.MethodEntryEvent
@@ -29,7 +31,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
 
-
 /**
  * Handles events from the VM.
  *
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory
  */
 internal class EventHandler(
     private val vm: VirtualMachine,
+    private val threadState: ThreadState,
     private val stopOnVmStart: Boolean,
     private val consumer: EventConsumer
 ) : AutoCloseable {
@@ -85,8 +87,8 @@ internal class EventHandler(
                         events.resume()
                     } else if (events.suspendPolicy() == EventRequest.SUSPEND_ALL) {
                         // notify consumer that the VM has interrupted
-                        // TODO: Get information about the current thread
                         logger.info("startListening: VM interrupted")
+                        setCurrentThread(events)
                         consumer.vmInterrupted()
                     }
                 } catch (interupption: InterruptedException) {
@@ -100,6 +102,26 @@ internal class EventHandler(
             eventsJob = null
             logger.info("EventHandler completed")
         }
+    }
+
+    private fun setCurrentThread(set: EventSet) {
+        val thread: ThreadReference?
+        if (set.size > 0) {
+            /*
+             * If any event in the set has a thread associated with it,
+             * they all will, so just grab the first one.
+             */
+            val event = set.iterator().next() // Is there a better way?
+            thread = eventThread(event)
+        } else {
+            thread = null
+        }
+        setCurrentThread(thread)
+    }
+
+    private fun setCurrentThread(thread: ThreadReference?) {
+        threadState.invalidateAll()
+        threadState.setCurrentThread(thread)
     }
 
     /**
@@ -209,7 +231,7 @@ internal class EventHandler(
      * @see [handleEvent]
      */
     private fun threadStartEvent(event: ThreadStartEvent): Boolean {
-        // TODO: Add thread tracker
+        threadState.addThread(event.thread())
         consumer.threadStartEvent(event)
         return false
     }
@@ -218,7 +240,7 @@ internal class EventHandler(
      * @see [handleEvent]
      */
     private fun threadDeathEvent(event: ThreadDeathEvent): Boolean {
-        // TODO: Remove thread tracker
+        threadState.addThread(event.thread())
         consumer.threadDeathEvent(event)
         return false
     }
