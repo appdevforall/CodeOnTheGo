@@ -17,7 +17,9 @@ sealed interface StepResult {
      */
     data class Failure(
         val cause: Throwable? = null
-    ): StepResult
+    ): StepResult {
+        constructor(message: String) : this(IllegalStateException(message))
+    }
 }
 
 /**

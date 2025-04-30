@@ -20,12 +20,14 @@ import com.itsaky.androidide.lsp.debug.model.StepResponse
 import com.itsaky.androidide.lsp.debug.model.StepResult
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
+import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
+import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
@@ -48,6 +50,14 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     companion object {
         private val logger = LoggerFactory.getLogger(JavaDebugAdapter::class.java)
+
+        private val DEFAULT_CLASS_EXCLUSION_FILTERS = arrayOf(
+            "java.*",
+            "javax.*",
+            "jdk.*",
+            "com.sun.*",
+            "sun.*",
+        )
 
         /**
          * Get the current instance of the [JavaDebugAdapter].
@@ -268,10 +278,41 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.stepSupport) {
             // we're not handling events from the VM, or the VM does not support adding breakpoints
-            return StepResponse(StepResult.Failure())
+            return StepResponse(StepResult.Failure("Step support is not enabled"))
         }
 
-        TODO("Implement logic to handle step requests")
+        val suspendedThread = vm.threadState.current
+            ?: return StepResponse(StepResult.Failure("No thread is currently suspended"))
+
+        clearPreviousStep(vm.vm, suspendedThread.thread)
+
+        val reqMgr = vm.vm.eventRequestManager()
+        val req = reqMgr.createStepRequest(
+            suspendedThread.thread,
+            StepRequest.STEP_LINE,
+            request.type.asDepthInt()
+        )
+
+        for (pattern in DEFAULT_CLASS_EXCLUSION_FILTERS) {
+            req.addClassExclusionFilter(pattern)
+        }
+
+        req.addCountFilter(request.countFilter)
+        req.enable()
+        vm.threadState.invalidateAll()
+        vm.vm.resume()
+
+        return StepResponse(StepResult.Success)
+    }
+
+    private fun clearPreviousStep(vm: VirtualMachine, thread: ThreadReference) {
+        val reqMgr = vm.eventRequestManager()
+        for (stepReq in reqMgr.stepRequests()) {
+            if (stepReq.thread() == thread) {
+                reqMgr.deleteEventRequest(stepReq)
+                break
+            }
+        }
     }
 
     override fun breakpointEvent(e: BreakpointEvent) {
