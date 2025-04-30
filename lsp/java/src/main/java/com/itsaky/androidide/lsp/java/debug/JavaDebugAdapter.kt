@@ -20,79 +20,15 @@ import com.itsaky.androidide.lsp.debug.model.StepResponse
 import com.itsaky.androidide.lsp.debug.model.StepResult
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
-import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
-import com.sun.jdi.connect.Connector
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
 import com.sun.tools.jdi.SocketListeningConnector
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
-
-data class ListenerState(
-    val client: IDebugClient,
-    val connector: SocketListeningConnector,
-    val args: Map<String, Connector.Argument>
-) {
-
-    /**
-     * Start listening for connections from VMs.
-     *
-     * @return The address of the listening socket.
-     */
-    fun startListening(): String = connector.startListening(args)
-
-    /**
-     * Stop listening for connections from VMs.
-     */
-    fun stopListening() = connector.stopListening(args)
-
-    /**
-     * Accept a connection from a VM.
-     *
-     * @return The connected VM.
-     */
-    fun accept(): VirtualMachine = connector.accept(args)
-}
-
-/**
- * Represents a connected VM state.
- *
- * @property client The client model for the VM, containing basic metadata.
- * @property vm The connected VM.
- * @property eventReader The job that reads events from the VM.
- */
-internal data class VmConnection(
-    val client: RemoteClient,
-    val vm: VirtualMachine,
-    val eventHandler: EventHandler? = null,
-) : AutoCloseable {
-
-    val isHandlingEvents: Boolean
-        get() = eventHandler != null
-
-    /**
-     * The event request spec list for the VM.
-     */
-    val eventRequestSpecList: EventRequestSpecList?
-        get() = eventHandler?.eventRequestSpecList
-
-    /**
-     * Start listening for events from the VM.
-     */
-    fun startEventHandler() {
-        eventHandler?.startListening()
-    }
-
-    @WorkerThread
-    override fun close() {
-        eventHandler?.close()
-        vm.dispose()
-    }
-}
 
 /**
  * @author Akash Yadav
@@ -175,20 +111,27 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             throw UnsupportedOperationException("Debugging multiple VMs is not supported yet")
         }
 
+        val vmCanBeModfified = vm.canBeModified()
         val client = RemoteClient(
             adapter = this,
             name = vm.name(),
             version = vm.version(),
             capabilities = RemoteClientCapabilities(
-                breakpointSupport = true
+                breakpointSupport = vmCanBeModfified,
+                stepSupport = vmCanBeModfified
             ),
         )
 
         logger.debug("Connected to VM: {}", client)
 
+        val threadState = ThreadState(vm = vm)
+
         val eventHandler = if (vm.canBeModified()) {
             EventHandler(
-                vm = vm, stopOnVmStart = false, consumer = this
+                vm = vm,
+                threadState = threadState,
+                stopOnVmStart = false,
+                consumer = this
             )
         } else {
             logger.warn("Not reading events from VM '{}' because it is read-only", vm.name())
@@ -198,6 +141,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val vmConnection = VmConnection(
             client = client,
             vm = vm,
+            threadState = threadState,
             eventHandler = eventHandler,
         )
 
@@ -411,8 +355,9 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     }
 }
 
-class JDWPListenerThread(
-    private val listenerState: ListenerState, private val onConnect: (VirtualMachine) -> Unit
+internal class JDWPListenerThread(
+    private val listenerState: ListenerState,
+    private val onConnect: (VirtualMachine) -> Unit
 ) : Thread("JDWPListenerThread") {
 
     companion object {
