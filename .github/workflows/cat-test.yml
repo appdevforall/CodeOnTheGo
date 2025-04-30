@@ -20,8 +20,8 @@ env:
 jobs:
   run_ui_tests:
     name: Run UI Tests with cAT
-    runs-on: macos-13-large
-    timeout-minutes: 60
+    runs-on: self-hosted
+    timeout-minutes: 120
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
