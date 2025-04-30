@@ -56,6 +56,9 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         // Ensure :gradle-plugin project is configured before this project proceeds
         target.evaluationDependsOn(":gradle-plugin")
         target.run {
+            val includeOfflineAssets = hasProperty("includeOfflineAssets") &&
+                    property("includeOfflineAssets") == "true"
+
             val wrapperGeneratorTaskProvider = tasks.register(
                 "generateGradleWrapper",
                 GradleWrapperGeneratorTask::class.java
@@ -78,18 +81,29 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 COPY_GRADLE_EXECUTABLE_TASK_NAME,
                 CopyGradleExecutableToAssetsTask::class.java
             )
+            if (!includeOfflineAssets) {
+                gradleExecutableToAssetsTaskProvider.configure { onlyIf { false } }
+            }
 
             val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
-
+            if (!includeOfflineAssets) {
+                gradleTermuxLibsToAssetsTaskProvider.configure { onlyIf { false } }
+            }
             val gradleCachesToAssetsTaskProvider = tasks.register(
                 COPY_GRADLE_CACHES_TO_ASSETS,
                 CopyGradleCachesToAssetsTask::class.java
             )
+            if (!includeOfflineAssets) {
+                gradleCachesToAssetsTaskProvider.configure { onlyIf { false } }
+            }
 
             val androidSdkToAssetsTaskProvider = tasks.register(
                 COPY_ANDROID_SDK_TO_ASSETS,
                 CopySdkToAssetsTask::class.java
             )
+            if (!includeOfflineAssets) {
+                androidSdkToAssetsTaskProvider.configure { onlyIf { false } }
+            }
 
             androidComponentsExtension.onVariants { variant ->
 
