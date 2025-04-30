@@ -338,7 +338,8 @@
   <string name="idepref_customFont_title">Use custom font</string>
   <string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
   <string name="msg_installing_apk">Installing APK...</string>
-  <string name="msg_action_open_application">Do you want to open the application?</string>
+  <string name="msg_action_open_application">Your app is installed. Do you want to launch the app?</string>
+  <string name="msg_action_open_title_application">App installed</string>
 
     <string name="title_gradle_service_notification_channel">Code on the Go Gradle build service</string>
     <string name="msg_hex_color_code">Hex color code</string>
