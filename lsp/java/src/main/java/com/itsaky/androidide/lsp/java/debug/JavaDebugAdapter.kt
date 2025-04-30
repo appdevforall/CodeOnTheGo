@@ -18,6 +18,7 @@ import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
+import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
@@ -230,14 +231,19 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
             if (spec == null) {
                 addSpec = true
+
                 spec = when (br) {
                     is PositionalBreakpoint -> specList.createBreakpoint(
                         source = br.source,
-                        lineNumber = br.line
+                        lineNumber = br.line,
+                        suspendPolicy = br.suspendPolicy.asJdiInt()
                     )
 
                     is MethodBreakpoint -> specList.createBreakpoint(
-                        br.source, br.methodId, br.methodArgs
+                        source = br.source,
+                        methodId = br.methodId,
+                        methodArgs = br.methodArgs,
+                        suspendPolicy = br.suspendPolicy.asJdiInt()
                     )
 
                     else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")

@@ -3,7 +3,6 @@ package com.itsaky.androidide.lsp.java.debug.spec
 import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
-import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.utils.StringUtil.isJavaIdentifier
 import com.sun.jdi.AbsentInformationException
 import com.sun.jdi.InvalidTypeException
@@ -49,19 +48,25 @@ internal class BreakpointSpec : EventRequestSpec {
 
     constructor(
         refSpec: ReferenceTypeSpec,
+        suspendPolicy: Int,
         lineNumber: Int,
         threadFilter: ThreadReference?
-    ) : super(refSpec) {
-        this.data = BreakpointData.Global(lineNumber, threadFilter)
-    }
+    ) : this(refSpec, suspendPolicy, BreakpointData.Global(lineNumber, threadFilter))
 
     constructor(
         refSpec: ReferenceTypeSpec,
+        suspendPolicy: Int,
         methodID: String,
         methodArgs: List<String>,
         threadFilter: ThreadReference?
-    ) : super(refSpec) {
-        this.data = BreakpointData.Method(methodID, methodArgs, threadFilter)
+    ) : this(refSpec, suspendPolicy, BreakpointData.Method(methodID, methodArgs, threadFilter))
+
+    private constructor(
+        refSpec: ReferenceTypeSpec,
+        suspendPolicy: Int,
+        data: BreakpointData,
+    ): super(refSpec, suspendPolicy) {
+        this.data = data
     }
 
     /**

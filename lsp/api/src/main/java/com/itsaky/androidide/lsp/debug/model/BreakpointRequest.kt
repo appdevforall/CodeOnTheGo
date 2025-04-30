@@ -38,6 +38,12 @@ interface BreakpointDefinition {
     val source: Source
 
     /**
+     * The policy to use when suspending the program.
+     */
+    val suspendPolicy: SuspendPolicy
+        get() = SuspendPolicy.All
+
+    /**
      * The condition to evaluate for the breakpoint.
      */
     val condition: String?
