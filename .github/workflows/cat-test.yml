@@ -73,13 +73,35 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      - name: Install KVM dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system qemu-kvm bridge-utils
+          sudo systemctl enable libvirtd
+          sudo systemctl start libvirtd
+          ls -la /dev/kvm || echo "KVM device not found"
+          groups $(whoami)
+          sudo usermod -aG kvm $(whoami)
+          sudo chmod 666 /dev/kvm || echo "Cannot chmod /dev/kvm"
+
+      - name: Clean AVD folder
+        run: |
+          rm -rf ~/.android/avd/*
+          mkdir -p ~/.android/avd/
+
+      - name: Accept Android SDK licenses
+        run: sdkmanager --licenses
+
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          target: google_apis
+          api-level: 29
+          target: default
           arch: x86_64
           avd-name: test
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          force-avd-creation: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim -accel off
           disable-animations: true
-          script: ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
+          script: |
+            adb devices
+            ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
