@@ -26,10 +26,12 @@ import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
+import com.sun.jdi.event.StepEvent
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
+import com.itsaky.androidide.lsp.debug.events.StepEvent as LspStepEvent
 
 /**
  * @author Akash Yadav
@@ -334,6 +336,26 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         )
 
         response.resumePolicy.doResume(vm.vm, e.thread())
+    }
+
+    override fun stepEvent(e: StepEvent) {
+        e.virtualMachine().checkIsCurrentVm()
+
+        val vm = connVm()
+        val location = e.location()
+        val thread = e.thread()
+
+        val threadInfo = checkNotNull(vm.threadState.getThreadInfo(thread)) {
+            "Unknown thread: ${thread.name()}"
+        }
+
+        val response = listenerState.client.onStep(
+            event = LspStepEvent(
+                remoteClient = vm.client,
+                location =location.asLspLocation(),
+                threadInfo = threadInfo.asLspModel()
+            )
+        )
     }
 
     override fun close() {
