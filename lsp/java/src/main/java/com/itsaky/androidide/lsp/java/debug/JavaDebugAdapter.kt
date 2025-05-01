@@ -6,7 +6,6 @@ import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.RemoteClientCapabilities
-import com.itsaky.androidide.lsp.debug.events.BreakpointDescriptor
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
 import com.itsaky.androidide.lsp.debug.events.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
@@ -14,7 +13,6 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.BreakpointResult
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
-import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
 import com.itsaky.androidide.lsp.debug.model.StepResult
@@ -22,12 +20,12 @@ import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
+import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
-import com.sun.jdi.event.StepEvent
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
 import org.slf4j.LoggerFactory
@@ -323,15 +321,6 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val location = e.location()
         val thread = e.thread()
 
-        val descriptor = BreakpointDescriptor(
-            source = Source(
-                name = location.sourceName(),
-                path = location.sourcePath()
-            ),
-            line = location.lineNumber(),
-            column = null,
-        )
-
         val threadInfo = checkNotNull(vm.threadState.getThreadInfo(thread)) {
             "Unknown thread: ${thread.name()}"
         }
@@ -339,7 +328,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val response = listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
                 remoteClient = vm.client,
-                descriptor = descriptor,
+                location =location.asLspLocation(),
                 threadInfo = threadInfo.asLspModel()
             )
         )
