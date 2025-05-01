@@ -12,8 +12,9 @@ import com.itsaky.androidide.lsp.debug.model.Source
  */
 data class BreakpointHitEvent(
     override val remoteClient: RemoteClient,
-    val descriptor: BreakpointDescriptor
-): EventOrResponse
+    override val threadInfo: ThreadInfo,
+    val descriptor: BreakpointDescriptor,
+): EventOrResponse, HasThreadInfo
 
 /**
  * Describes a breakpoint that was hit.
@@ -21,13 +22,11 @@ data class BreakpointHitEvent(
  * @property source The source file in which the breakpoint was hit.
  * @property line The line number in source file.
  * @property column The column number in line.
- * @property threadId The unique indentifier of the current execution thread.
  */
 data class BreakpointDescriptor(
     val source: Source,
     val line: Int,
     val column: Int? = null,
-    val threadId: String? = null,
 )
 
 /**

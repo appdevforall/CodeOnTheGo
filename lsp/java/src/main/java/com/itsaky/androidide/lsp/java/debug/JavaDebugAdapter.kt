@@ -27,6 +27,7 @@ import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
+import com.sun.jdi.event.StepEvent
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
 import org.slf4j.LoggerFactory
@@ -320,6 +321,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         val vm = connVm()
         val location = e.location()
+        val thread = e.thread()
+
         val descriptor = BreakpointDescriptor(
             source = Source(
                 name = location.sourceName(),
@@ -327,12 +330,17 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             ),
             line = location.lineNumber(),
             column = null,
-            threadId = e.thread().uniqueID().toString()
         )
+
+        val threadInfo = checkNotNull(vm.threadState.getThreadInfo(thread)) {
+            "Unknown thread: ${thread.name()}"
+        }
 
         val response = listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
-                remoteClient = vm.client, descriptor = descriptor
+                remoteClient = vm.client,
+                descriptor = descriptor,
+                threadInfo = threadInfo.asLspModel()
             )
         )
 
