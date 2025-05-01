@@ -6,7 +6,7 @@ import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import org.slf4j.LoggerFactory
 import java.util.Collections
-import com.itsaky.androidide.lsp.debug.events.ThreadInfo as LspThreadInfo
+import com.itsaky.androidide.lsp.debug.model.ThreadInfo as LspThreadInfo
 
 /**
  * Information about a thread.
