@@ -39,11 +39,11 @@ import kotlin.io.FilesKt;
 import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.io.FileInputStream; // For copying
-import java.io.FileOutputStream; // For copying
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream; // For copying
-import java.io.OutputStream; // For copying
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class ToolsManager {
 

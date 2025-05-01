@@ -74,17 +74,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
             }
 
-//            val gradleExecutableToAssetsTaskProvider = tasks.register(
-//                COPY_GRADLE_EXECUTABLE_TASK_NAME,
-//                CopyGradleExecutableToAssetsTask::class.java
-//            )
-
-//            val gradleCachesToAssetsTaskProvider = tasks.register(
-//                COPY_GRADLE_CACHES_TO_ASSETS,
-//                CopyGradleCachesToAssetsTask::class.java
-//            )
-
-
             androidComponentsExtension.onVariants { variant ->
 
                 val variantNameCapitalized = variant.name.capitalized()
@@ -172,19 +161,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     copyCogoPluginJar,
                     AddFileToAssetsTask::outputDirectory
                 )
-
-
-                // Local gradle zip copier
-//                variant.sources.assets?.addGeneratedSourceDirectory(
-//                    gradleExecutableToAssetsTaskProvider,
-//                    CopyGradleExecutableToAssetsTask::outputDirectory
-//                )
-
-                // Local gradle caches copier
-//                variant.sources.assets?.addGeneratedSourceDirectory(
-//                    gradleCachesToAssetsTaskProvider,
-//                    CopyGradleCachesToAssetsTask::outputDirectory
-//                )
 
             }
         }
