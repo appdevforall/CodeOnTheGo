@@ -28,9 +28,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Button
-import android.widget.ImageButton
 import android.widget.PopupWindow
+import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentTransaction
 import com.google.android.material.color.MaterialColors
@@ -50,7 +49,6 @@ object TooltipUtils {
     private val mainActivity: MainActivity?
         get() = MainActivity.getInstance()
 
-    private val TOOLTIP_BUTTON_IDS = listOf(R.id.button1, R.id.button2, R.id.button3)
 
     /**
      * This displays a webpage as the 3rd level tooltip
@@ -81,11 +79,6 @@ object TooltipUtils {
         level: Int,
         tooltipItem: IDETooltipItem
     ) {
-        // Define the specific actions for this tooltip type
-        val onFabClickAction: (PopupWindow) -> Unit = { popupWindow ->
-            popupWindow.dismiss()
-            showIDETooltip(context, anchorView, level + 1, tooltipItem) // Recursive call
-        }
 
         val onActionButtonClickAction: (PopupWindow, String) -> Unit = { popupWindow, url ->
             popupWindow.dismiss()
@@ -98,7 +91,6 @@ object TooltipUtils {
             anchorView = anchorView,
             level = level,
             tooltipItem = tooltipItem,
-            onFabClick = onFabClickAction,
             onActionButtonClick = onActionButtonClickAction
         )
     }
@@ -115,11 +107,7 @@ object TooltipUtils {
         block: (htmlString: String) -> Unit // Action for buttons
     ) {
         tooltipItem?.let { item -> // Only proceed if tooltipItem is not null
-            // Define the specific actions for this tooltip type
-            val onFabClickAction: (PopupWindow) -> Unit = { popupWindow ->
-                popupWindow.dismiss()
-                showEditorTooltip(context, editor, level + 1, item, block) // Recursive call passing block
-            }
+
 
             val onActionButtonClickAction: (PopupWindow, String) -> Unit = { popupWindow, url ->
                 popupWindow.dismiss()
@@ -132,7 +120,6 @@ object TooltipUtils {
                 anchorView = editor, // Use editor as anchor
                 level = level,
                 tooltipItem = item,
-                onFabClick = onFabClickAction,
                 onActionButtonClick = onActionButtonClickAction
             )
         }
@@ -148,10 +135,8 @@ object TooltipUtils {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
-        onFabClick: (popupWindow: PopupWindow) -> Unit,
         onActionButtonClick: (popupWindow: PopupWindow, url: String) -> Unit
     ) {
-        val currentActivity = mainActivity ?: return
         val inflater = LayoutInflater.from(context)
         val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
         val popupWindow = PopupWindow(
@@ -160,14 +145,8 @@ object TooltipUtils {
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
 
-        val fab = popupView.findViewById<Button>(R.id.fab) // Assuming Button styled like FAB
+        val seeMore = popupView.findViewById<TextView>(R.id.see_more)
         val webView = popupView.findViewById<WebView>(R.id.webview)
-
-        val tooltipHtmlContent = when(level) {
-            0    -> tooltipItem.summary
-            1    -> "${tooltipItem.summary}<br>${tooltipItem.detail}"
-            else -> ""
-        }
 
         val textColor = MaterialColors.getColor(
             context,
@@ -175,80 +154,75 @@ object TooltipUtils {
             "Color attribute not found in theme"
         )
 
-        fun Int.toHexColor(): String {
-            return String.format("#%06X", 0xFFFFFF and this)
+        fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
+        val hexColor = textColor.toHexColor()
+
+        var tooltipHtmlContent = when (level) {
+            0 -> tooltipItem.summary
+            1 -> "${tooltipItem.summary}<br>${tooltipItem.detail}"
+            else -> ""
         }
 
-        val hexColor = textColor.toHexColor()
+        val isLastLevel = (level == 0 && tooltipItem.detail.isBlank()) || level == 1
+        if (isLastLevel && tooltipItem.buttons.isNotEmpty()) {
+            val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
+                """<a href="$url" style="color:#00be00;text-decoration:underline;">$label</a>"""
+            }
+            tooltipHtmlContent += "<br><br>$linksHtml"
+        }
+
+        // Full HTML
         val styledHtml = """
         <!DOCTYPE html>
         <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {
-                    margin: 0; 
-                    padding: 10px; 
-                    word-wrap: break-word;
-                    color: $hexColor;
-                }
-            </style>
-        </head>
-        <body>
-            $tooltipHtmlContent
-        </body>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 10px;
+                        word-wrap: break-word;
+                        color: $hexColor;
+                    }
+                    a {
+                        color: #00be00;
+                        text-decoration: underline;
+                    }
+                </style>
+            </head>
+            <body>
+                $tooltipHtmlContent
+            </body>
         </html>
         """.trimIndent()
 
-        fab.setOnClickListener {
-            onFabClick(popupWindow)
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                url?.let {
+                    popupWindow.dismiss()
+                    onActionButtonClick(popupWindow, it)
+                }
+                return true
+            }
         }
-
-        for(buttonId in TOOLTIP_BUTTON_IDS) {
-            popupView.findViewById<Button>(buttonId)?.visibility = View.GONE
-        }
-        fab.visibility = View.VISIBLE
-
-        webView.webViewClient = WebViewClient()
         webView.settings.javaScriptEnabled = true
         webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
 
+        seeMore.setOnClickListener {
+            popupWindow.dismiss()
+            showIDETooltip(context, anchorView, level + 1, tooltipItem)
+        }
+        seeMore.visibility =
+            if (level == 0 && tooltipItem.detail.isNotBlank()) View.VISIBLE else View.GONE
+
         val transparentColor = ContextCompat.getColor(context, android.R.color.transparent)
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
-        val isLastLevel = (level == 0 && tooltipItem.detail.isBlank()) || level == 1
-        if(isLastLevel) {
-            fab.visibility = View.GONE
-            if(tooltipItem.buttons.isNotEmpty()) {
-                var buttonIndex = 0
-                for(buttonPair: Pair<String, String> in tooltipItem.buttons) {
-                    if(buttonIndex >= TOOLTIP_BUTTON_IDS.size) break
-
-                    val id = TOOLTIP_BUTTON_IDS[buttonIndex++]
-                    val button = popupView.findViewById<Button>(id)
-                    val url = buttonPair.second
-
-                    button?.text = buttonPair.first
-                    button?.visibility = View.VISIBLE
-                    button?.tag = url
-                    button?.setOnClickListener {
-                        onActionButtonClick(popupWindow, url)
-                    }
-                }
-            }
-        }
-
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
-        popupWindow.showAtLocation(
-            anchorView,
-            Gravity.CENTER,
-            0,
-            0
-        )
+        popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
     }
-
 
     /**
      * Dumps tooltip database content to Logcat for debugging.
