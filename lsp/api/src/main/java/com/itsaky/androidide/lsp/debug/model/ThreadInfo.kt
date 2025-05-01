@@ -37,23 +37,12 @@ interface LocalVariable {
     /**
      * Get the value of the variable.
      */
-    fun getValue(): LocalVariableValue
+    fun getValue(): String
 
     /**
      * Set the value of the variable.
      */
-    fun setValue(value: LocalVariableValue)
-}
-
-/**
- * The value of a [LocalVariable].
- */
-interface LocalVariableValue {
-
-    /**
-     * The value of the variable.
-     */
-    override fun toString(): String
+    fun setValue(value: String)
 }
 
 /**
@@ -69,12 +58,12 @@ interface StackFrame {
     /**
      * Get the values of the visible variables in this call frame.
      */
-    fun getVariableValues(): Map<LocalVariable, LocalVariableValue>
+    fun getVariableValues(): Map<LocalVariable, String>
 
     /**
      * Get the value of the given variable.
      */
-    fun getValue(variable: LocalVariable): LocalVariableValue
+    fun getValue(variable: LocalVariable): String
 
     /**
      * Set the value of the given variable.
@@ -82,7 +71,7 @@ interface StackFrame {
      * @param variable The variable to set the value of.
      * @param value The value to set the variable to.
      */
-    fun setValue(variable: LocalVariable, value: LocalVariableValue)
+    fun setValue(variable: LocalVariable, value: String)
 }
 
 /**
