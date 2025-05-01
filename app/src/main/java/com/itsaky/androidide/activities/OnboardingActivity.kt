@@ -242,7 +242,7 @@ class OnboardingActivity : AppIntro2() {
                 }
                 copyTermuxDebsAndManifest()
                 setupAndroidSdkDirectlyFromDownloads()
-                copyMavenLocalRepoFiles()
+                setupMavenRepoDirectlyFromDownloads()
 
                 runOnUiThread {
                     val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
@@ -300,15 +300,6 @@ class OnboardingActivity : AppIntro2() {
         Log.i(TAG, "Attempting to setup Android SDK DIRECTLY FROM Downloads folder.")
         Log.d(TAG, "Target directory for unzipped files: ${outputDirectory.absolutePath}")
 
-        // 2. Check for Storage Permission (Absolutely essential)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-            != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "Read External Storage permission not granted. Cannot access Downloads.")
-            println("Android SDK setup failed: Read permission not granted.")
-            // TODO: Inform user permission is required
-            return // Stop the process if permission is missing
-        }
-
         // 3. Locate the public Downloads directory and the source zip file
         val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
         val sourceZipFile = File(downloadsDir, sourceFileName)
@@ -357,25 +348,73 @@ class OnboardingActivity : AppIntro2() {
         }
     }
 
-    private fun copyMavenLocalRepoFiles() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + LOCAL_MAVEN_CACHES_DEST)
-        val mavenZipFile =
-            File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
+    private fun setupMavenRepoDirectlyFromDownloads() {
+        // 1. Define the target directory for the *unzipped* content
+        // Uses the constant for the destination Maven caches path
+        val outputDirectory = File(application.filesDir.path + File.separator + LOCAL_MAVEN_CACHES_DEST)
+
+        // Define the expected source file name in Downloads
+        // Uses the constant for the Maven repo zip archive name
+        val sourceFileName = LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME // "localMvnRepository.zip"
+
+        Log.i(TAG, "Attempting to setup Local Maven Repo DIRECTLY FROM Downloads folder.")
+        Log.d(TAG, "Target directory for unzipped files: ${outputDirectory.absolutePath}")
+
+        // NOTE: Permission check (READ_EXTERNAL_STORAGE) is assumed to have been
+        // performed and passed in onDonePressed before this function is called.
+
+        // 2. Locate the public Downloads directory and the source zip file
+        val downloadsDir: File? = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+        if (downloadsDir == null) {
+            Log.e(TAG, "Could not access public Downloads directory.")
+            println("Maven Repo setup failed: Cannot find Downloads directory.")
+            // TODO: Inform user or handle error
+            return // Stop if directory is null
+        }
+        val sourceZipFile = File(downloadsDir, sourceFileName)
+        Log.d(TAG, "Looking for Maven Repo zip at: ${sourceZipFile.absolutePath}")
+
+        // 3. Check if the source file exists in Downloads
+        if (!sourceZipFile.exists() || !sourceZipFile.isFile) {
+            Log.e(TAG, "Source file not found or is not a file: ${sourceZipFile.absolutePath}")
+            println("Maven Repo setup failed: ${sourceFileName} not found in Downloads folder.")
+            // TODO: Inform user to place the file
+            return // Stop if the file is missing
+        }
+
+        // 4. Create the target directory (in app's private storage) if it doesn't exist
         if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
+            if (!outputDirectory.mkdirs()) {
+                Log.e(TAG, "Failed to create output directory: ${outputDirectory.absolutePath}")
+                println("Maven Repo setup failed: Could not create target directory.")
+                return // Stop if directory creation fails
+            }
         }
 
         try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_AGP_8_0_0_CACHES),
-                outputDirectory.path
-            )
+            // 5. Unzip DIRECTLY from the Downloads source file into the app's private directory
+            Log.i(TAG, "Attempting to unzip ${sourceZipFile.absolutePath} (Maven Repo) directly into ${outputDirectory.absolutePath}")
 
-            ZipUtils.unzipFile(mavenZipFile, outputDirectory)
-            mavenZipFile.delete()
+            // *** Use the sourceZipFile pointing to Downloads as input ***
+            ZipUtils.unzipFile(sourceZipFile, outputDirectory)
+
+            Log.i(TAG, "Unzip directly from Downloads appears successful for Maven Repo.")
+
+        } catch (e: SecurityException) {
+            // Catch potential permission/Scoped Storage issues
+            Log.e(TAG, "SecurityException during Maven Repo unzip from Downloads. Access denied.", e)
+            println("Maven Repo setup failed: Could not access ${sourceFileName} in Downloads (Scoped Storage?).")
+            // TODO: Inform the user about storage restrictions.
         } catch (e: IOException) {
-            println("Android Gradle caches copy failed + ${e.message}")
+            // Catch errors during file reading/writing
+            Log.e(TAG, "IOException during Maven Repo unzip from Downloads: ${e.message}", e)
+            println("Maven Repo setup failed during I/O: ${e.message}")
+            // TODO: Inform user about potential file corruption or storage issues.
+        } catch (e: Exception) {
+            // Catch other potential errors (e.g., from ZipUtils)
+            Log.e(TAG, "Generic Exception during Maven Repo unzip from Downloads: ${e.message}", e)
+            println("Maven Repo setup failed: ${e.message}")
+            // TODO: Provide a generic error message.
         }
     }
 
