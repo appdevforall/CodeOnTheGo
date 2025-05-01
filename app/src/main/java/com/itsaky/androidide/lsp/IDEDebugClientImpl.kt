@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
+import com.itsaky.androidide.lsp.debug.events.StepEvent
 import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
@@ -76,6 +77,10 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
             remoteClient = event.remoteClient,
             resumePolicy = ResumePolicy.RESUME_CLIENT
         )
+    }
+
+    override fun onStep(event: StepEvent) {
+        logger.debug("onStep: {}", event)
     }
 
     override fun onAttach(client: RemoteClient): Unit = stateGuard.write {
