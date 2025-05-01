@@ -39,6 +39,11 @@ import kotlin.io.FilesKt;
 import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.FileInputStream; // For copying
+import java.io.FileOutputStream; // For copying
+import java.io.IOException;
+import java.io.InputStream; // For copying
+import java.io.OutputStream; // For copying
 
 public class ToolsManager {
 
@@ -234,12 +239,92 @@ public class ToolsManager {
   }
 
   private static void extractGradleDists() {
+    // --- MODIFICATION FOR 'DOWNLOADS' DEVELOPMENT WORKFLOW ---
+    // Attempts to copy required Gradle distribution zips directly from
+    // the device's public Downloads folder to the app's private gradle-dists storage.
 
-    String[]  binToCopy = {"gradle-8.0-bin.zip", "gradle-8.7-bin.zip"};
-    for (String binFile : binToCopy) {
-      ResourceUtils.copyFileFromAssets(getCommonAsset(binFile),
-              Environment.GRADLE_DISTS.getAbsolutePath()+ File.separator + binFile);
+    LOG.info("Attempting to copy Gradle dists directly FROM Downloads folder.");
+
+    // 1. Get Downloads directory
+    // NOTE: READ_EXTERNAL_STORAGE permission check should happen before this,
+    // ideally in OnboardingActivity before calling ToolsManager.init or setup tasks.
+    final File downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+
+    if (downloadsDir == null || !downloadsDir.isDirectory()) {
+      LOG.error("Could not access public Downloads directory. Skipping Gradle dists setup from Downloads.");
+      System.out.println("Gradle Dists setup failed: Cannot find Downloads directory.");
+      return; // Cannot proceed
     }
+
+    // 2. Ensure the target directory exists (app's private storage)
+    // Assuming Environment.GRADLE_DISTS points to the correct private File object
+    final File gradleDistsTargetDir = Environment.GRADLE_DISTS;
+    if (!gradleDistsTargetDir.exists()) {
+      if (!gradleDistsTargetDir.mkdirs()) {
+        LOG.error("Failed to create Gradle dists target directory: {}", gradleDistsTargetDir.getAbsolutePath());
+        System.out.println("Gradle Dists setup failed: Could not create target directory: " + gradleDistsTargetDir.getAbsolutePath());
+        return; // Cannot proceed
+      } else {
+        LOG.info("Created Gradle dists target directory: {}", gradleDistsTargetDir.getAbsolutePath());
+      }
+    }
+
+    // 3. List of files to copy
+    String[] binToCopy = {"gradle-8.0-bin.zip", "gradle-8.7-bin.zip"};
+
+    // 4. Iterate and attempt to copy each file
+    for (String binFileName : binToCopy) {
+      final File sourceFile = new File(downloadsDir, binFileName);
+      final File targetFile = new File(gradleDistsTargetDir, binFileName); // Target location
+
+      LOG.debug("Looking for Gradle dist {} at: {}", binFileName, sourceFile.getAbsolutePath());
+      LOG.debug("Target location for {}: {}", binFileName, targetFile.getAbsolutePath());
+
+      // 5. Check if source file exists in Downloads
+      if (!sourceFile.exists() || !sourceFile.isFile()) {
+        LOG.warn("Gradle dist source file not found in Downloads: {}", sourceFile.getAbsolutePath());
+        System.out.println("Gradle Dists setup: Skipping " + binFileName + " - Not found in Downloads folder.");
+        continue; // Skip to the next file
+      }
+
+      // 6. Attempt to copy the file
+      InputStream inStream = null;
+      OutputStream outStream = null;
+      try {
+        inStream = new FileInputStream(sourceFile);
+        outStream = new FileOutputStream(targetFile); // Overwrites if exists
+
+        byte[] buffer = new byte[1024 * 16]; // 16KB buffer
+        int bytesRead;
+        LOG.info("Attempting to copy {} from Downloads to {}", sourceFile.getName(), targetFile.getAbsolutePath());
+        while ((bytesRead = inStream.read(buffer)) != -1) {
+          outStream.write(buffer, 0, bytesRead);
+        }
+        LOG.info("Successfully copied {} to {}", sourceFile.getName(), targetFile.getAbsolutePath());
+
+      } catch (SecurityException e) {
+        LOG.error("SecurityException copying {} from Downloads. Access denied.", sourceFile.getName(), e);
+        System.out.println("Gradle Dists setup failed for " + sourceFile.getName() + ": Could not access file in Downloads (Scoped Storage?).");
+        // Depending on strictness, you might 'continue' or 'return'
+      } catch (IOException e) {
+        LOG.error("IOException copying {} from Downloads.", sourceFile.getName(), e);
+        System.out.println("Gradle Dists setup failed for " + sourceFile.getName() + " during I/O: " + e.getMessage());
+      } catch (Exception e) {
+        // Catch any other unexpected errors during copy
+        LOG.error("Generic Exception copying {} from Downloads.", sourceFile.getName(), e);
+        System.out.println("Gradle Dists setup failed for " + sourceFile.getName() + ": " + e.getMessage());
+      } finally {
+        // 7. Close streams
+        try {
+          if (inStream != null) inStream.close();
+        } catch (IOException e) { /* ignore */ }
+        try {
+          if (outStream != null) outStream.close();
+        } catch (IOException e) { /* ignore */ }
+      }
+    } // End for loop
+
+    LOG.info("Finished attempt to copy Gradle dists from Downloads folder.");
   }
 
   private static void writeInitScript() {

@@ -74,22 +74,16 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
             }
 
-            val gradleExecutableToAssetsTaskProvider = tasks.register(
-                COPY_GRADLE_EXECUTABLE_TASK_NAME,
-                CopyGradleExecutableToAssetsTask::class.java
-            )
+//            val gradleExecutableToAssetsTaskProvider = tasks.register(
+//                COPY_GRADLE_EXECUTABLE_TASK_NAME,
+//                CopyGradleExecutableToAssetsTask::class.java
+//            )
 
-            val gradleTermuxLibsToAssetsTaskProvider = tasks.register(COPY_TERMUX_LIBS_TASK_NAME, CopyTermuxCacheAndManifestTask::class.java)
+//            val gradleCachesToAssetsTaskProvider = tasks.register(
+//                COPY_GRADLE_CACHES_TO_ASSETS,
+//                CopyGradleCachesToAssetsTask::class.java
+//            )
 
-            val gradleCachesToAssetsTaskProvider = tasks.register(
-                COPY_GRADLE_CACHES_TO_ASSETS,
-                CopyGradleCachesToAssetsTask::class.java
-            )
-
-            val androidSdkToAssetsTaskProvider = tasks.register(
-                COPY_ANDROID_SDK_TO_ASSETS,
-                CopySdkToAssetsTask::class.java
-            )
 
             androidComponentsExtension.onVariants { variant ->
 
@@ -181,28 +175,17 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
 
                 // Local gradle zip copier
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    gradleExecutableToAssetsTaskProvider,
-                    CopyGradleExecutableToAssetsTask::outputDirectory
-                )
-
-                // Local termux libs copier
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    gradleTermuxLibsToAssetsTaskProvider,
-                    CopyTermuxCacheAndManifestTask::outputDirectory
-                )
+//                variant.sources.assets?.addGeneratedSourceDirectory(
+//                    gradleExecutableToAssetsTaskProvider,
+//                    CopyGradleExecutableToAssetsTask::outputDirectory
+//                )
 
                 // Local gradle caches copier
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    gradleCachesToAssetsTaskProvider,
-                    CopyGradleCachesToAssetsTask::outputDirectory
-                )
+//                variant.sources.assets?.addGeneratedSourceDirectory(
+//                    gradleCachesToAssetsTaskProvider,
+//                    CopyGradleCachesToAssetsTask::outputDirectory
+//                )
 
-                // Local android sdk version copier
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    androidSdkToAssetsTaskProvider,
-                    CopySdkToAssetsTask::outputDirectory
-                )
             }
         }
     }

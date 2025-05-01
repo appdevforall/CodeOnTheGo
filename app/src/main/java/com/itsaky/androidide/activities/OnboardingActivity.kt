@@ -70,6 +70,7 @@ import java.io.IOException
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
+import com.adfa.constants.TERMUX_DEBS_ZIP_FILENAME
 
 class OnboardingActivity : AppIntro2() {
 
@@ -240,7 +241,8 @@ class OnboardingActivity : AppIntro2() {
                 runOnUiThread {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
-                copyTermuxDebsAndManifest()
+//                copyTermuxDebsAndManifest()
+                setupTermuxDirectlyFromDownloads()
                 setupAndroidSdkDirectlyFromDownloads()
                 setupMavenRepoDirectlyFromDownloads()
 
@@ -262,33 +264,118 @@ class OnboardingActivity : AppIntro2() {
         tryNavigateToMainIfSetupIsCompleted()
     }
 
-    private fun copyTermuxDebsAndManifest() {
-        val outputDirectory = File(application.dataDir.path + File.separator + TERMUX_DEBS_PATH)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
+    private fun setupTermuxDirectlyFromDownloads() {
+        // --- Part 1: Handle Termux Debs via Zip ---
+
+        // 1a. Define the target directory for the *unzipped* .deb files
+        // Note: TERMUX_DEBS_PATH is relative; combine with app's data directory.
+        val debsOutputDirectory = File(application.dataDir, TERMUX_DEBS_PATH)
+        // Define the expected source zip file name in Downloads
+        val debsSourceFileName = TERMUX_DEBS_ZIP_FILENAME
+
+        Log.i(TAG, "Attempting to setup Termux Debs DIRECTLY FROM Downloads using $debsSourceFileName.")
+        Log.d(TAG, "Target directory for unzipped debs: ${debsOutputDirectory.absolutePath}")
+
+        // NOTE: Permission check (READ_EXTERNAL_STORAGE) is assumed to have been
+        // performed and passed in onDonePressed before this function is called.
+
+        // 2a. Locate the public Downloads directory and the source zip file
+        val downloadsDir: File? = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+        if (downloadsDir == null) {
+            Log.e(TAG, "Could not access public Downloads directory.")
+            println("Termux Debs setup failed: Cannot find Downloads directory.")
+            // Handle error - maybe skip Termux setup for dev? Or halt.
+            // For safety, let's try the manifest part even if debs fail.
+        } else { // Only proceed with debs if downloadsDir is not null
+            val debsSourceZipFile = File(downloadsDir, debsSourceFileName)
+            Log.d(TAG, "Looking for Termux Debs zip at: ${debsSourceZipFile.absolutePath}")
+
+            // 3a. Check if the source zip file exists
+            if (!debsSourceZipFile.exists() || !debsSourceZipFile.isFile) {
+                Log.e(TAG, "Source zip file not found: ${debsSourceZipFile.absolutePath}")
+                println("Termux Debs setup failed: ${debsSourceFileName} not found in Downloads.")
+                // Handle error - Inform user, maybe skip.
+            } else {
+                // 4a. Create the target directory structure (e.g., dataDir/cache/apt/archives)
+                if (!debsOutputDirectory.exists()) {
+                    if (!debsOutputDirectory.mkdirs()) { // mkdirs creates parent dirs too
+                        Log.e(TAG, "Failed to create output directory structure: ${debsOutputDirectory.absolutePath}")
+                        println("Termux Debs setup failed: Could not create target directory structure.")
+                        // Handle error
+                    }
+                }
+
+                // 5a. Unzip DIRECTLY from Downloads into the target app directory if directory creation succeeded
+                if (debsOutputDirectory.exists()) {
+                    try {
+                        Log.i(TAG, "Attempting to unzip ${debsSourceZipFile.absolutePath} (Termux Debs) directly into ${debsOutputDirectory.absolutePath}")
+                        // Unzip source file FROM Downloads INTO the app's private cache structure
+                        ZipUtils.unzipFile(debsSourceZipFile, debsOutputDirectory)
+                        Log.i(TAG, "Unzip directly from Downloads appears successful for Termux Debs.")
+                    } catch (e: SecurityException) {
+                        Log.e(TAG, "SecurityException during Termux Debs unzip from Downloads. Access denied.", e)
+                        println("Termux Debs setup failed: Could not access ${debsSourceFileName} in Downloads (Scoped Storage?).")
+                    } catch (e: IOException) {
+                        Log.e(TAG, "IOException during Termux Debs unzip from Downloads: ${e.message}", e)
+                        println("Termux Debs setup failed during I/O: ${e.message}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Generic Exception during Termux Debs unzip from Downloads: ${e.message}", e)
+                        println("Termux Debs setup failed: ${e.message}")
+                    }
+                }
+            }
+        } // End of deb handling block
+
+        // --- Part 2: Handle Manifest File ---
+
+        // Define manifest source and target
+        val manifestFileName = MANIFEST_FILE_NAME // "manifest.json"
+        // Target: app_filesDir/home/manifest.json
+        val manifestTargetFile = File(application.filesDir, HOME_PATH).resolve(manifestFileName)
+
+        Log.i(TAG, "Attempting to copy Manifest file DIRECTLY FROM Downloads folder.")
+
+        if (downloadsDir == null) {
+            // We already logged this error during deb handling.
+            println("Termux Manifest setup skipped: Cannot find Downloads directory.")
+            return // Can't proceed without Downloads dir
         }
 
-        try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME),
-                outputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
-        }
+        // Source: downloadsDir/manifest.json
+        val manifestSourceFile = File(downloadsDir, manifestFileName)
+        Log.d(TAG, "Looking for Manifest file at: ${manifestSourceFile.absolutePath}")
+        Log.d(TAG, "Target file for manifest: ${manifestTargetFile.absolutePath}")
 
-        try {
-            val manifestOutputDirectory =
-                File(application.filesDir.path + File.separator + HOME_PATH).resolve(
-                    MANIFEST_FILE_NAME
-                )
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(MANIFEST_FILE_NAME),
-                manifestOutputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux manifest copy failed + ${e.message}")
-        }
+        // Check if manifest exists in Downloads
+        if (!manifestSourceFile.exists() || !manifestSourceFile.isFile) {
+            Log.w(TAG, "Manifest file not found in Downloads: ${manifestSourceFile.absolutePath}. Skipping manifest setup.")
+            println("Termux Manifest setup skipped: ${manifestFileName} not found in Downloads.")
+            // This might be acceptable depending on how crucial the manifest is.
+        } else {
+            // Copy manifest file directly
+            try {
+                // Ensure parent directory exists (app_filesDir/home)
+                if (!manifestTargetFile.parentFile.exists()) {
+                    if (!manifestTargetFile.parentFile.mkdirs()) {
+                        Log.e(TAG, "Failed to create parent directory for manifest: ${manifestTargetFile.parentFile.absolutePath}")
+                        println("Termux Manifest setup failed: Could not create target parent directory.")
+                        return // Stop if parent dir creation fails
+                    }
+                }
+                // Perform the direct copy from Downloads to app's private files/home
+                manifestSourceFile.copyTo(manifestTargetFile, overwrite = true)
+                Log.i(TAG, "Manifest file copy from Downloads successful.")
+            } catch (e: SecurityException) {
+                Log.e(TAG, "SecurityException copying Manifest from Downloads.", e)
+                println("Termux Manifest setup failed: Could not access ${manifestFileName} in Downloads (Scoped Storage?).")
+            } catch (e: IOException) {
+                Log.e(TAG, "IOException copying Manifest from Downloads: ${e.message}", e)
+                println("Termux Manifest setup failed during I/O: ${e.message}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Generic Exception copying Manifest from Downloads: ${e.message}", e)
+                println("Termux Manifest setup failed: ${e.message}")
+            }
+        } // End of manifest handling block
     }
 
     private fun setupAndroidSdkDirectlyFromDownloads() {

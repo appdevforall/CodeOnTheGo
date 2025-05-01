@@ -51,6 +51,8 @@ const val USR = "usr"
 const val GRADLE_FOLDER_NAME = "gradle"
 const val APG_SOURCE_FOLDER_NAME = "android_gradle_plugin"
 
+const val TERMUX_DEBS_ZIP_FILENAME = "termux_debs.zip"
+
 // GradleWrapper
 const val LOCAL_GRADLE_DISTRIBUTION_VERSION = "8.0"
 const val LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION = "8.7"
