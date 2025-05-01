@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.debug.events
+package com.itsaky.androidide.lsp.debug.model
 
 /**
  * Reference to an object in the debugger.

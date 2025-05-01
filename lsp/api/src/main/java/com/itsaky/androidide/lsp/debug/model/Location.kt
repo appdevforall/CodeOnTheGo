@@ -1,6 +1,4 @@
-package com.itsaky.androidide.lsp.debug.events
-
-import com.itsaky.androidide.lsp.debug.model.Source
+package com.itsaky.androidide.lsp.debug.model
 
 /**
  * An event that has a location.

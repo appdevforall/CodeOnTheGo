@@ -2,9 +2,9 @@ package com.itsaky.androidide.lsp.java.debug
 
 import com.sun.jdi.LocalVariable
 import com.sun.jdi.StackFrame
-import com.itsaky.androidide.lsp.debug.events.LocalVariable as LspLocalVariable
-import com.itsaky.androidide.lsp.debug.events.StackFrame as LspStackFrame
-import com.itsaky.androidide.lsp.debug.events.ThreadInfo as LspThreadInfo
+import com.itsaky.androidide.lsp.debug.model.LocalVariable as LspLocalVariable
+import com.itsaky.androidide.lsp.debug.model.StackFrame as LspStackFrame
+import com.itsaky.androidide.lsp.debug.model.ThreadInfo as LspThreadInfo
 
 class JavaLocalVariable(
     val frame: StackFrame,
