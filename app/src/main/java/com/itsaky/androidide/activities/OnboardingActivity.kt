@@ -70,6 +70,8 @@ import java.io.IOException
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
+import com.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
+import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import com.adfa.constants.TERMUX_DEBS_ZIP_FILENAME
 
 class OnboardingActivity : AppIntro2() {
@@ -241,10 +243,10 @@ class OnboardingActivity : AppIntro2() {
                 runOnUiThread {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
-//                copyTermuxDebsAndManifest()
                 setupTermuxDirectlyFromDownloads()
                 setupAndroidSdkDirectlyFromDownloads()
                 setupMavenRepoDirectlyFromDownloads()
+                setupGradleDistsDirectlyFromDownloads()
 
                 runOnUiThread {
                     val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
@@ -503,6 +505,79 @@ class OnboardingActivity : AppIntro2() {
             println("Maven Repo setup failed: ${e.message}")
             // TODO: Provide a generic error message.
         }
+    }
+
+    private fun setupGradleDistsDirectlyFromDownloads() {
+        Log.i(TAG, "Attempting to copy Gradle dists DIRECTLY FROM Downloads folder.")
+
+        // 1. Get Downloads directory
+        val downloadsDir: File? = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+        if (downloadsDir == null) {
+            Log.e(TAG, "Could not access public Downloads directory. Skipping Gradle dists setup.")
+            println("Gradle Dists setup failed: Cannot find Downloads directory.")
+            return
+        }
+
+        // 2. Define and ensure the target directory exists
+        // Construct the target path robustly. Assuming GRADLE_DISTS is the ABSOLUTE path string here.
+        // If GRADLE_DISTS is relative, you need to combine it with app's private storage base path.
+        // Let's reconstruct based on common patterns seen previously:
+        val gradleDistsTargetDirPath = application.filesDir.path + File.separator +
+                com.adfa.constants.HOME_PATH + File.separator +
+                ".androidide" + File.separator + "gradle-dists" // Reconstruct target path
+        val gradleDistsTargetDir = File(gradleDistsTargetDirPath)
+
+        if (!gradleDistsTargetDir.exists()) {
+            if (!gradleDistsTargetDir.mkdirs()) {
+                Log.e(TAG, "Failed to create Gradle dists target directory: ${gradleDistsTargetDir.absolutePath}")
+                println("Gradle Dists setup failed: Could not create target directory.")
+                return
+            } else {
+                Log.i(TAG, "Created Gradle dists target directory: ${gradleDistsTargetDir.absolutePath}")
+            }
+        }
+
+        // 3. List of files to copy (using constants)
+        val binToCopy = arrayOf(GRADLE_WRAPPER_FILE_NAME, COMPOSE_GRADLE_WRAPPER_FILE_NAME)
+
+        // 4. Iterate and attempt copy for each file
+        for (binFileName in binToCopy) {
+            if (binFileName == null || binFileName.isEmpty()) {
+                Log.w(TAG, "Skipping null or empty Gradle dist filename.")
+                continue
+            }
+
+            val sourceFile = File(downloadsDir, binFileName)
+            val targetFile = File(gradleDistsTargetDir, binFileName)
+
+            Log.d(TAG, "Looking for Gradle dist $binFileName at: ${sourceFile.absolutePath}")
+            Log.d(TAG, "Target location for $binFileName: ${targetFile.absolutePath}")
+
+            // 5. Check if source file exists in Downloads
+            if (!sourceFile.exists() || !sourceFile.isFile) {
+                Log.w(TAG, "Gradle dist source file not found in Downloads: ${sourceFile.absolutePath}")
+                println("Gradle Dists setup: Skipping $binFileName - Not found in Downloads folder.")
+                continue // Try the next file
+            }
+
+            // 6. Attempt the copy using Kotlin's extension function
+            try {
+                Log.i(TAG, "Attempting to copy ${sourceFile.name} from Downloads to ${targetFile.absolutePath}")
+                sourceFile.copyTo(targetFile, true) // true = overwrite if exists
+                Log.i(TAG, "Successfully copied ${sourceFile.name} to ${targetFile.getAbsolutePath()}")
+            } catch (e: SecurityException) {
+                Log.e(TAG, "SecurityException copying ${sourceFile.name} from Downloads. Access denied.", e)
+                println("Gradle Dists setup failed for ${sourceFile.name}: Could not access file in Downloads (Scoped Storage?).")
+                // Consider how critical this failure is for your dev workflow
+            } catch (e: IOException) {
+                Log.e(TAG, "IOException copying ${sourceFile.name} from Downloads.", e)
+                println("Gradle Dists setup failed for ${sourceFile.name} during I/O: ${e.message}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Generic Exception copying ${sourceFile.name} from Downloads.", e)
+                println("Gradle Dists setup failed for ${sourceFile.name}: ${e.message}")
+            }
+        } // End for loop
+        Log.i(TAG, "Finished attempt to copy Gradle dists from Downloads folder.")
     }
 
     private fun checkToolsIsInstalled(): Boolean {
