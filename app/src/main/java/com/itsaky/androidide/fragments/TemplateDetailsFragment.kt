@@ -58,10 +58,6 @@ class TemplateDetailsFragment :
 
     private val recentProjectsViewModel: RecentProjectsViewModel by activityViewModels()
 
-    companion object {
-
-        private val log = LoggerFactory.getLogger(TemplateDetailsFragment::class.java)
-    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -73,7 +69,6 @@ class TemplateDetailsFragment :
 
         viewModel.creatingProject.observe(viewLifecycleOwner) {
             TransitionManager.beginDelayedTransition(binding.root)
-            binding.progress.isVisible = it
             binding.finish.isEnabled = !it
             binding.previous.isEnabled = !it
         }
@@ -112,7 +107,6 @@ class TemplateDetailsFragment :
                 viewModel.creatingProject.value = false
                 if (result == null || err != null || result !is ProjectTemplateRecipeResult) {
                     err?.printStackTrace()
-                    log.error("Failed to create project. result={}, err={}", result, err?.message)
                     if (err != null) {
                         flashError(err.cause?.message ?: err.message)
                     } else {
