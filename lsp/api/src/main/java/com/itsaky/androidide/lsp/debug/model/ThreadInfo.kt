@@ -37,7 +37,52 @@ interface LocalVariable {
     /**
      * Get the value of the variable.
      */
-    fun getValue(): String
+    fun getValue(): LocalVariableValue
+
+    /**
+     * Set the value of the variable.
+     */
+    fun setValue(value: LocalVariableValue)
+}
+
+/**
+ * The value of a [LocalVariable].
+ */
+interface LocalVariableValue {
+
+    /**
+     * The value of the variable.
+     */
+    override fun toString(): String
+}
+
+/**
+ * A stack frame in the call stack.
+ */
+interface StackFrame {
+
+    /**
+     * Get the visible variables in this call frame.
+     */
+    fun getVariables(): List<LocalVariable>
+
+    /**
+     * Get the values of the visible variables in this call frame.
+     */
+    fun getVariableValues(): Map<LocalVariable, LocalVariableValue>
+
+    /**
+     * Get the value of the given variable.
+     */
+    fun getValue(variable: LocalVariable): LocalVariableValue
+
+    /**
+     * Set the value of the given variable.
+     *
+     * @param variable The variable to set the value of.
+     * @param value The value to set the variable to.
+     */
+    fun setValue(variable: LocalVariable, value: LocalVariableValue)
 }
 
 /**
@@ -54,22 +99,4 @@ interface ThreadInfo {
      * Get the call frames of this thread.
      */
     fun getFrames(): List<StackFrame>
-}
-
-interface StackFrame {
-
-    /**
-     * Get the visible variables in this call frame.
-     */
-    fun getVariables(): List<LocalVariable>
-
-    /**
-     * Get the values of the visible variables in this call frame.
-     */
-    fun getVariableValues(): Map<LocalVariable, String>
-
-    /**
-     * Get the value of the given variable.
-     */
-    fun getValue(variable: LocalVariable): String
 }
