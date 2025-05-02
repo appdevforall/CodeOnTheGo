@@ -4,7 +4,6 @@ import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.model.HasThreadInfo
 import com.itsaky.androidide.lsp.debug.model.LocatableEvent
 import com.itsaky.androidide.lsp.debug.model.Location
-import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 
 /**
  * Describes a step event in a client.
@@ -13,7 +12,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo
  */
 data class StepEvent(
     override val remoteClient: RemoteClient,
-    override val threadInfo: ThreadInfo,
+    override val threadId: String,
     override val location: Location,
 ): EventOrResponse, LocatableEvent, HasThreadInfo
 

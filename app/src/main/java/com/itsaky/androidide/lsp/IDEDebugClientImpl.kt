@@ -12,6 +12,8 @@ import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.Source
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoParams
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -61,6 +63,26 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
     override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
         logger.debug("onBreakpointHit: {}", event)
         ++hitCount
+
+        runBlocking {
+            val threadInfo = event.remoteClient.adapter.threadInfo(
+                request = ThreadInfoParams(
+                    threadId = event.threadId,
+                    remoteClient = event.remoteClient
+                )
+            )
+
+            if (threadInfo.result !is ThreadInfoResult.Success) {
+                logger.error("Failed to get thread info from remote client")
+            } else {
+                val ti = (threadInfo.result as ThreadInfoResult.Success).threadInfo
+                val currentFrame = ti.getFrames()[0]
+                val someInt = currentFrame.getVariables().first { it.name == "someInt" }
+                logger.debug("onBreakpointHit[preSetValue]: someInt={}, value={}", someInt, someInt.getValue())
+                someInt.setValue("42")
+                logger.debug("onBreakpointHit[postSetValue]: someInt={}, value={}", someInt, someInt.getValue())
+            }
+        }
 
         if (hitCount == 2) {
             runBlocking {
