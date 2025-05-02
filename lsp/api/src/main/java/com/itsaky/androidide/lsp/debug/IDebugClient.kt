@@ -24,16 +24,9 @@ interface IDebugClient : IDebugEventHandler {
     fun onStop(event: StoppedEvent)
 
     /**
-     * Called when the application being debugged has terminated.
+     * Called when the application being debugged has been disconnected.
      *
-     * @param client The client that was terminated.
+     * @param client The client that disconnected.
      */
-    fun onTerminate(client: RemoteClient)
-
-    /**
-     * Called when the application being debugged has died.
-     *
-     * @param client The client that died.
-     */
-    fun onDeath(client: RemoteClient)
+    fun onDisconnect(client: RemoteClient)
 }

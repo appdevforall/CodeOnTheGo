@@ -30,6 +30,7 @@ import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
 import com.sun.jdi.event.StepEvent
+import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
 import org.slf4j.LoggerFactory
@@ -377,6 +378,26 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 threadId = thread.uniqueID().toString(),
             )
         )
+    }
+
+    override fun vmDisconnectEvent(e: VMDisconnectEvent) {
+        e.virtualMachine().checkIsCurrentVm()
+        val vm = connVm()
+
+        try {
+            // notify client that the VM has disconnected
+            _listenerState?.client?.onDisconnect(vm.client)
+        } catch (err: Throwable) {
+            // ignored
+        }
+
+        try {
+            vm.close()
+        } catch (err: Throwable) {
+            logger.error("Failed to disconnect from VM '{}'", vm.client.name, err)
+        } finally {
+            vms.remove(vm)
+        }
     }
 
     override fun close() {

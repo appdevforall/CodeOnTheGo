@@ -7,10 +7,10 @@ import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
 import com.itsaky.androidide.lsp.debug.events.StepEvent
-import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
+import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
@@ -129,13 +129,8 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         // program has stopped execution for some reason
     }
 
-    override fun onTerminate(client: RemoteClient) = stateGuard.write {
-        logger.debug("onTerminate: client={}", client)
-        state = state.copy(clients = state.clients - client)
-    }
-
-    override fun onDeath(client: RemoteClient) = stateGuard.write {
-        logger.debug("onDeath: client={}", client)
+    override fun onDisconnect(client: RemoteClient) = stateGuard.write {
+        logger.debug("onDisconnect: client={}", client)
         state = state.copy(clients = state.clients - client)
     }
 }
