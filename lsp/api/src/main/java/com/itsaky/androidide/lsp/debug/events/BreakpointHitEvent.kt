@@ -5,7 +5,6 @@ import com.itsaky.androidide.lsp.debug.model.HasThreadInfo
 import com.itsaky.androidide.lsp.debug.model.LocatableEvent
 import com.itsaky.androidide.lsp.debug.model.Location
 import com.itsaky.androidide.lsp.debug.model.ResumePolicy
-import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 
 /**
  * Parameters for when a breakpoint is hit in a target application.
@@ -14,7 +13,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo
  */
 data class BreakpointHitEvent(
     override val remoteClient: RemoteClient,
-    override val threadInfo: ThreadInfo,
+    override val threadId: String,
     override val location: Location,
 ): EventOrResponse, LocatableEvent, HasThreadInfo
 
