@@ -4,6 +4,9 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
+import com.itsaky.androidide.lsp.debug.model.ThreadInfo
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoParams
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
 
 /**
  * A debug adapter provides support for debugging a given type of file.
@@ -45,4 +48,12 @@ interface IDebugAdapter {
      * Step through a suspended program.
      */
     suspend fun step(request: StepRequestParams): StepResponse
+
+    /**
+     * Get the information about a thread.
+     *
+     * @param request The request definition of the thread.
+     * @return The information about the thread, or `null` if the thread does not exist.
+     */
+    suspend fun threadInfo(request: ThreadInfoParams): ThreadInfoResponse
 }
