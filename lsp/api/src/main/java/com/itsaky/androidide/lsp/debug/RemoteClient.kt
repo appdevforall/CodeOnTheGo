@@ -26,4 +26,5 @@ data class RemoteClient(
 data class RemoteClientCapabilities(
     val breakpointSupport: Boolean,
     val stepSupport: Boolean,
+    val threadInfoSupport: Boolean,
 )

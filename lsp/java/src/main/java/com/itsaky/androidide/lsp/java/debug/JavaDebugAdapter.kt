@@ -7,15 +7,18 @@ import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.RemoteClientCapabilities
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
-import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.BreakpointResult
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
+import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
 import com.itsaky.androidide.lsp.debug.model.StepResult
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoParams
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
@@ -129,7 +132,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             version = vm.version(),
             capabilities = RemoteClientCapabilities(
                 breakpointSupport = vmCanBeModfified,
-                stepSupport = vmCanBeModfified
+                stepSupport = vmCanBeModfified,
+                threadInfoSupport = vmCanBeModfified,
             ),
         )
 
@@ -158,6 +162,10 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         // Start listening for events
         vmConnection.startEventHandler()
+
+        // get initial threads AFTER we start listening for events so that we always have references
+        // to all available threads
+        threadState.initThreads()
 
         this.vms.add(vmConnection)
         this._listenerState!!.client.onAttach(client)
@@ -306,6 +314,27 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         return StepResponse(StepResult.Success)
     }
 
+    override suspend fun threadInfo(
+        request: ThreadInfoParams
+    ): ThreadInfoResponse {
+        val vm = connVm()
+
+        check(vm.client == request.remoteClient) {
+            "Received request for breakpoints from a different client"
+        }
+
+        if (!vm.isHandlingEvents || !vm.client.capabilities.threadInfoSupport) {
+            return ThreadInfoResponse(ThreadInfoResult.Failure("ThreadInfo support is not enabled"))
+        }
+
+        val threadInfo = vm.threadState.getThreadInfo(request.threadId)
+        if (threadInfo != null) {
+            return ThreadInfoResponse(ThreadInfoResult.Success(threadInfo.asLspModel()))
+        }
+
+        return ThreadInfoResponse(ThreadInfoResult.Failure())
+    }
+
     private fun clearPreviousStep(vm: VirtualMachine, thread: ThreadReference) {
         val reqMgr = vm.eventRequestManager()
         for (stepReq in reqMgr.stepRequests()) {
@@ -323,15 +352,11 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val location = e.location()
         val thread = e.thread()
 
-        val threadInfo = checkNotNull(vm.threadState.getThreadInfo(thread)) {
-            "Unknown thread: ${thread.name()}"
-        }
-
         val response = listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
                 remoteClient = vm.client,
-                location =location.asLspLocation(),
-                threadInfo = threadInfo.asLspModel()
+                location = location.asLspLocation(),
+                threadId = thread.uniqueID().toString()
             )
         )
 
@@ -345,15 +370,11 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val location = e.location()
         val thread = e.thread()
 
-        val threadInfo = checkNotNull(vm.threadState.getThreadInfo(thread)) {
-            "Unknown thread: ${thread.name()}"
-        }
-
         val response = listenerState.client.onStep(
             event = LspStepEvent(
                 remoteClient = vm.client,
-                location =location.asLspLocation(),
-                threadInfo = threadInfo.asLspModel()
+                location = location.asLspLocation(),
+                threadId = thread.uniqueID().toString(),
             )
         )
     }

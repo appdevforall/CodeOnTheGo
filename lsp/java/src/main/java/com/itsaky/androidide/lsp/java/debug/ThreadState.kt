@@ -16,13 +16,14 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo as LspThreadInfo
 class ThreadInfo(
     val thread: ThreadReference
 ) {
-    fun asLspModel(): LspThreadInfo =
-        LspThreadInfo(this)
+
+    private var _currentFrame = 0
 
     /**
      * The current frame index.
      */
-    var currentFrame: Int = 0
+    var currentFrame: Int
+        get() = _currentFrame
         private set(value) {
             ensureSuspended()
 
@@ -30,8 +31,14 @@ class ThreadInfo(
                 "Invalid frame index: $value"
             }
 
-            field = value
+            _currentFrame = value
         }
+
+    /**
+     * Get this thread info as [LspThreadInfo].
+     */
+    fun asLspModel(): LspThreadInfo =
+        LspThreadInfo(this)
 
     /**
      * Ensure that the thread is suspended.
@@ -64,7 +71,8 @@ class ThreadInfo(
      * Invalidate the current stack frame index.
      */
     fun invalidate() {
-        currentFrame = 0
+        // update backing field directly since we may not be in a suspended state here
+        _currentFrame = 0
     }
 
     /**
@@ -133,7 +141,7 @@ class ThreadState(
             return _threadGroup!!
         }
 
-    private fun initThreads() {
+    internal fun initThreads() {
         if (!gotInitialThreads) {
             _threads.addAll(vm.allThreads().map(::ThreadInfo))
             gotInitialThreads = true

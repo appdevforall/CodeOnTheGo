@@ -1,22 +1,14 @@
 package com.itsaky.androidide.lsp.debug.model
 
 /**
- * Reference to an object in the debugger.
- *
- * This interface is as marker interface, and doesn't provide any properties or functions. It is
- * expected to be passed to and used by the debug adapter to resolve references.
- */
-interface ObjectReference
-
-/**
  * Any [DebugEvent] that has a thread associated with it.
  */
 interface HasThreadInfo {
 
     /**
-     * The thread information.
+     * The unique ID of the thread associated with this event.
      */
-    val threadInfo: ThreadInfo
+    val threadId: String
 }
 
 /**
