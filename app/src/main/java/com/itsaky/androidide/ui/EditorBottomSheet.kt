@@ -144,6 +144,7 @@ constructor(
           tabView,
           0,
           IDETooltipItem(
+            tooltipCategory = "ide",
             tooltipTag = tooltipMessage,
             detail = tooltipMessage,
             summary =  "More information about $title",
