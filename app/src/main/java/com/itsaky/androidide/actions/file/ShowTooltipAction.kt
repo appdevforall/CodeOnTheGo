@@ -39,12 +39,17 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
 
     override suspend fun execAction(data: ActionData): Any {
         val editor = data.getEditor()!!
+        val category = when(editor.file?.extension) {
+            "java" -> "java"
+            "kt" -> "kotlin"
+            else -> "ui"
+        }
         val cursor = editor.text.cursor
         val activity = data.getActivity()
-        val word = editor.text.substring(cursor.left, cursor.right)
+        val tag = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
-            activity?.getTooltipData(word)?.let { tooltipData ->
-                TooltipUtils.showIDETooltip(
+            activity?.getTooltipData(category, tag)?.let { tooltipData ->
+                TooltipUtils.showEditorTooltip(
                     context,
                     editor,
                     0,

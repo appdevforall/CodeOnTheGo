@@ -137,7 +137,8 @@ class MainFragment : BaseFragment() {
         val tag = action.id.toString()
         CoroutineScope(Dispatchers.IO).launch {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
-            val item = dao.getTooltip(tag)
+            val item = dao.getTooltip("ui", tag)
+            val buttons = item.buttons
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipUtils.showIDETooltip(
