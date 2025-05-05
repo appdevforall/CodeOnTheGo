@@ -75,6 +75,12 @@ class OnboardingActivity : AppIntro2() {
     ) {
         Log.d(TAG, "TerminalActivity: resultCode=${it.resultCode}")
         if (!isFinishing) {
+            val currentFragment = supportFragmentManager.fragments
+                .filterIsInstance<IdeSetupConfigurationFragment>()
+                .firstOrNull()
+
+            currentFragment?.removeJdkDemoFolderIfExists()
+
             reloadJdkDistInfo {
                 tryNavigateToMainIfSetupIsCompleted()
             }

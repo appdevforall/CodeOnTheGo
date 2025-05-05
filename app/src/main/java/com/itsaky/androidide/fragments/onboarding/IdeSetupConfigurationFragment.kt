@@ -51,6 +51,7 @@ import com.itsaky.androidide.utils.ConnectionInfo
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.getConnectionInfo
+import java.io.File
 
 /**
  * @author Akash Yadav
@@ -305,5 +306,13 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
       backgroundDataRestrictionReceiver = null
     }
   }
+
+  fun removeJdkDemoFolderIfExists() {
+    val demoDir = File(Environment.PREFIX, "opt/openjdk-17.0/demo")
+    if (demoDir.exists()) {
+      demoDir.deleteRecursively()
+    }
+  }
+
 
 }
