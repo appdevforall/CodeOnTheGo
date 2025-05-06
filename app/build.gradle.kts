@@ -5,11 +5,8 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
-import java.nio.file.Files
-import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 import kotlin.reflect.jvm.javaMethod
 
 plugins {
@@ -189,6 +186,7 @@ dependencies {
   implementation(projects.idestats)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
+  implementation(projects.subprojects.libjdwp)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)
