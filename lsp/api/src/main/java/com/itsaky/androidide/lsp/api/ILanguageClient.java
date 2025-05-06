@@ -18,6 +18,8 @@
 package com.itsaky.androidide.lsp.api;
 
 import androidx.annotation.Nullable;
+
+import com.itsaky.androidide.lsp.debug.IDebugClient;
 import com.itsaky.androidide.lsp.models.CodeActionItem;
 import com.itsaky.androidide.lsp.models.DiagnosticItem;
 import com.itsaky.androidide.lsp.models.DiagnosticResult;
@@ -25,6 +27,7 @@ import com.itsaky.androidide.lsp.models.PerformCodeActionParams;
 import com.itsaky.androidide.lsp.models.ShowDocumentParams;
 import com.itsaky.androidide.lsp.models.ShowDocumentResult;
 import com.itsaky.androidide.models.Location;
+
 import java.io.File;
 import java.util.List;
 
@@ -34,6 +37,13 @@ import java.util.List;
  * @author Akash Yadav
  */
 public interface ILanguageClient {
+
+  /**
+   * Get the {@link IDebugClient} implementation to handle debugger functions.
+   *
+   * @return The {@link IDebugClient} instance.
+   */
+  IDebugClient getDebugClient();
 
   /**
    * Publish the diagnostics result (allow the user to see them).
@@ -72,6 +82,7 @@ public interface ILanguageClient {
    *
    * @param file       The file in which the given action must be performed.
    * @param actionItem The action item describing the action.
+   * @noinspection unused
    */
   @Deprecated
   default void performCodeAction(File file, CodeActionItem actionItem) {
