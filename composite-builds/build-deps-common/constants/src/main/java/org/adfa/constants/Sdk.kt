@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.adfa.constants
+package org.adfa.constants
 
 /**
  * Android API versions.
