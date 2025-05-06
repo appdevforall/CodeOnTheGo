@@ -166,7 +166,7 @@ object TooltipUtils {
         val isLastLevel = (level == 0 && tooltipItem.detail.isBlank()) || level == 1
         if (isLastLevel && tooltipItem.buttons.isNotEmpty()) {
             val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
-                """<a href="$url" style="color:#00be00;text-decoration:underline;">$label</a>"""
+                """<a href="$url" style="color:#233490;text-decoration:underline;">$label</a>"""
             }
             tooltipHtmlContent += "<br><br>$linksHtml"
         }
@@ -185,7 +185,7 @@ object TooltipUtils {
                         color: $hexColor;
                     }
                     a {
-                        color: #00be00;
+                        color: #233490;
                         text-decoration: underline;
                     }
                 </style>
