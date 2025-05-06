@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.adfa.constants
+package org.adfa.constants
 
 import java.io.File
 
@@ -55,10 +55,10 @@ const val APG_SOURCE_FOLDER_NAME = "android_gradle_plugin"
 // used to be 8.0 before unification
 const val LOCAL_GRADLE_DISTRIBUTION_VERSION = "8.7"
 const val LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION = "8.7"
-const val GRADLE_VERSION = "gradle-${LOCAL_GRADLE_DISTRIBUTION_VERSION}"
-const val COMPOSE_GRADLE_VERSION = "gradle-${LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION}"
-const val GRADLE_WRAPPER_FILE_NAME = "${GRADLE_VERSION}-bin.zip"
-const val COMPOSE_GRADLE_WRAPPER_FILE_NAME = "${COMPOSE_GRADLE_VERSION}-bin.zip"
+const val GRADLE_VERSION = "gradle-$LOCAL_GRADLE_DISTRIBUTION_VERSION"
+const val COMPOSE_GRADLE_VERSION = "gradle-$LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION"
+const val GRADLE_WRAPPER_FILE_NAME = "$GRADLE_VERSION-bin.zip"
+const val COMPOSE_GRADLE_WRAPPER_FILE_NAME = "$COMPOSE_GRADLE_VERSION-bin.zip"
 val GRADLE_WRAPPER_PATH_SUFFIX = GRADLE_FOLDER_NAME + File.separator + "wrapper" + File.separator
 
 // AGP
@@ -68,21 +68,21 @@ const val DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION = "8.0.0"
 const val KOTLIN_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION = "1.8.0"
 
 const val LOCAL_SOURCE_ANDROID_GRADLE_PLUGIN_VERSION_NAME =
-    "gradle-${LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}.jar"
+    "gradle-$LOCAL_ANDROID_GRADLE_PLUGIN_VERSION.jar"
 const val LOCAL_SOURCE_ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME =
-    "kotlin-gradle-plugin-${KOTLIN_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}.jar"
+    "kotlin-gradle-plugin-$KOTLIN_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION.jar"
 
 const val LOCAL_ANDROID_GRADLE_PLUGIN_NAME =
-    "gradle-${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
-const val LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME = "${LOCAL_ANDROID_GRADLE_PLUGIN_NAME}.jar"
+    "gradle-$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
+const val LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME = "$LOCAL_ANDROID_GRADLE_PLUGIN_NAME.jar"
 const val ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME =
-    "kotlin-gradle-plugin-${KOTLIN_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}.jar"
+    "kotlin-gradle-plugin-$KOTLIN_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION.jar"
 
 /**
  * this line differes from LOCAL_ANDROID_GRADLE_PLUGIN_NAME by the : that we can use outside of gradle files.
  */
 const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME =
-    "com.android.tools.build:gradle:${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
+    "com.android.tools.build:gradle:$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
 
 // .androide folder
 @Suppress("SdCardPath")
@@ -90,11 +90,11 @@ const val ANDROIDIDE_HOME = "/data/data/com.itsaky.androidide/files/home/.androi
 
 // Cogo gradle plugin
 const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
-const val COGO_GRADLE_PLUGIN_JAR_NAME = "${COGO_GRADLE_PLUGIN_NAME}.jar"
-const val COGO_GRADLE_PLUGIN_PATH = "${ANDROIDIDE_HOME}/plugin"
+const val COGO_GRADLE_PLUGIN_JAR_NAME = "$COGO_GRADLE_PLUGIN_NAME.jar"
+const val COGO_GRADLE_PLUGIN_PATH = "$ANDROIDIDE_HOME/plugin"
 
 // dists folder for gradle-<version>-bin.zip files
-const val GRADLE_DISTS = "${ANDROIDIDE_HOME}/gradle-dists"
+const val GRADLE_DISTS = "$ANDROIDIDE_HOME/gradle-dists"
 
 
 //ABI
@@ -130,11 +130,11 @@ const val LOCAL_MAVEN_REPO_FOLDER_DEST = "localMvnRepository"
 
 // SDK
 const val LOCAL_SOURCE_ANDROID_SDK = "androidsdk"
-const val DESTINATION_ANDROID_SDK = "${HOME_PATH}/${ANDROID_SDK_PATH}"
+const val DESTINATION_ANDROID_SDK = "$HOME_PATH/$ANDROID_SDK_PATH"
 
 // Platform Tools
 const val LOCAL_PLATFORM_TOOLS = "platformtools"
-const val DESTINATION_PLATFORM_TOOLS = "${HOME_PATH}/${ANDROID_SDK_PATH}/platform-tools"
+const val DESTINATION_PLATFORM_TOOLS = "$HOME_PATH/$ANDROID_SDK_PATH/platform-tools"
 
 // New tasks
 const val COPY_GRADLE_EXECUTABLE_TASK_NAME = "copyGradleExecutable"
