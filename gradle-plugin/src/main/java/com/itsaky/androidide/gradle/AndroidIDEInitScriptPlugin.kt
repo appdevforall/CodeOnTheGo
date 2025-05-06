@@ -66,6 +66,8 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
     target.rootProject { rootProject ->
       rootProject.buildscript.apply {
         dependencies.apply {
+          // TODO(itsaky-adfa): do not hardcode this
+          //    Refactor :constants module so that we have this value available in build-logic/* modules
           add("classpath", rootProject.files("/data/data/com.itsaky.androidide/files/home/.androidide/plugin/cogo-plugin.jar"))
         }
       }

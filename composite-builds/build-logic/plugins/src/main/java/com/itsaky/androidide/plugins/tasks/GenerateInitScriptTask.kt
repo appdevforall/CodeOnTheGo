@@ -18,8 +18,6 @@
 package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.COGO_GRADLE_PLUGIN_NAME
-import com.adfa.constants.GRADLE_FOLDER_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
 import com.adfa.constants.COGO_GRADLE_PLUGIN_PATH
 import com.itsaky.androidide.build.config.VersionUtils
 import org.gradle.api.DefaultTask
@@ -92,13 +90,11 @@ abstract class GenerateInitScriptTask : DefaultTask() {
           }
 
           dependencies {
-          //    classpath(files("$LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME"))
               classpath  name: "$COGO_GRADLE_PLUGIN_NAME"
           }
       }
       
       apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
-      // apply plugin: com.itsaky.androidide.gradle.CogoCleanPlugin
     """
           .trimIndent()
       )

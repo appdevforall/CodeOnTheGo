@@ -85,15 +85,16 @@ const val LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME =
     "com.android.tools.build:gradle:${DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION}"
 
 // .androide folder
-const val ANDROIDIDE_PATH = "/data/data/com.itsaky.androidide/files/home/.androidide"
+@Suppress("SdCardPath")
+const val ANDROIDIDE_HOME = "/data/data/com.itsaky.androidide/files/home/.androidide"
 
 // Cogo gradle plugin
 const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
 const val COGO_GRADLE_PLUGIN_JAR_NAME = "${COGO_GRADLE_PLUGIN_NAME}.jar"
-const val COGO_GRADLE_PLUGIN_PATH = "${ANDROIDIDE_PATH}/plugin"
+const val COGO_GRADLE_PLUGIN_PATH = "${ANDROIDIDE_HOME}/plugin"
 
 // dists folder for gradle-<version>-bin.zip files
-const val GRADLE_DISTS = "${ANDROIDIDE_PATH}/gradle-dists"
+const val GRADLE_DISTS = "${ANDROIDIDE_HOME}/gradle-dists"
 
 
 //ABI
