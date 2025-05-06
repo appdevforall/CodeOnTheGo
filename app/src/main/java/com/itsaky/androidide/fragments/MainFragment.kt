@@ -2,7 +2,6 @@ package com.itsaky.androidide.fragments
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -13,7 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
-import com.adfa.constants.FEEDBACK_EMAIL
+import org.adfa.constants.FEEDBACK_EMAIL
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -22,7 +21,6 @@ import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.BaseIDEActivity
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
