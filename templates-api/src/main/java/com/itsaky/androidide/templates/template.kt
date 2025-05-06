@@ -19,17 +19,17 @@ package com.itsaky.androidide.templates
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import com.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
-import com.adfa.constants.COMPILE_SDK_VERSION
-import com.adfa.constants.COMPOSE_SDK_VERSION
-import com.adfa.constants.GRADLE_DISTRIBUTION_VERSION
-import com.adfa.constants.JAVA_SOURCE_VERSION
-import com.adfa.constants.JAVA_TARGET_VERSION
-import com.adfa.constants.KOTLIN_VERSION
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
-import com.adfa.constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
-import com.adfa.constants.Sdk
-import com.adfa.constants.TARGET_SDK_VERSION
+import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
+import org.adfa.constants.COMPILE_SDK_VERSION
+import org.adfa.constants.COMPOSE_SDK_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
+import org.adfa.constants.JAVA_SOURCE_VERSION
+import org.adfa.constants.JAVA_TARGET_VERSION
+import org.adfa.constants.KOTLIN_VERSION
+import org.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import org.adfa.constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
+import org.adfa.constants.Sdk
+import org.adfa.constants.TARGET_SDK_VERSION
 import com.itsaky.androidide.templates.base.util.optonallyKts
 import java.io.File
 import java.util.UUID
@@ -168,7 +168,8 @@ enum class SrcSet(val folder: String) {
  * @property kotlin The Kotlin Plugin version.
  */
 open class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_VERSION,
-  val gradle: String = GRADLE_DISTRIBUTION_VERSION, val kotlin: String = KOTLIN_VERSION)
+                              val gradle: String = GRADLE_DISTRIBUTION_VERSION, val kotlin: String = KOTLIN_VERSION
+)
 
 /**
  * Version information for the project.
@@ -189,7 +190,8 @@ class ProjectVersionLocalData : ProjectVersionData(LOCAL_ANDROID_GRADLE_PLUGIN_V
  */
 data class ModuleVersionData(val minSdk: Sdk, val targetSdk: Sdk = TARGET_SDK_VERSION,
                              val compileSdk: Sdk = COMPILE_SDK_VERSION, val javaSource: String = JAVA_SOURCE_VERSION,
-                             val javaTarget: String = JAVA_TARGET_VERSION, val composeSdk: Sdk = COMPOSE_SDK_VERSION) {
+                             val javaTarget: String = JAVA_TARGET_VERSION, val composeSdk: Sdk = COMPOSE_SDK_VERSION
+) {
 
   /**
    * Get the Java source version string representation in the `JavaVersion.VERSION_${version}` format.
@@ -224,8 +226,8 @@ class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVe
  * So in future we would not get confused.
  */
 open class ModuleTemplateData(name: String, val appName: String?, val packageName: String,
-  projectDir: File, val type: ModuleType, language: Language, useKts: Boolean = true, minSdk: Sdk,
-  val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
+                              projectDir: File, val type: ModuleType, language: Language, useKts: Boolean = true, minSdk: Sdk,
+                              val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
   BaseTemplateData(name, projectDir, language, useKts, useToml) {
 
   private val srcDirs = mutableMapOf<SrcSet, File>()

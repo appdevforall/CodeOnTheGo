@@ -17,8 +17,8 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import com.adfa.constants.COGO_GRADLE_PLUGIN_NAME
-import com.adfa.constants.COGO_GRADLE_PLUGIN_PATH
+import org.adfa.constants.COGO_GRADLE_PLUGIN_NAME
+import org.adfa.constants.COGO_GRADLE_PLUGIN_PATH
 import com.itsaky.androidide.build.config.VersionUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
