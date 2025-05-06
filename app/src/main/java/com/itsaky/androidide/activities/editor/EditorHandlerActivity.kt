@@ -578,9 +578,9 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         startActivity(intent)
     }
 
-    override suspend fun getTooltipData(word: String): IDETooltipItem? {
+    override suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
-          IDEApplication.idetooltipDao.getTooltip(word)
+          IDEApplication.idetooltipDao.getTooltip(category, tag)
         }
     }
 
