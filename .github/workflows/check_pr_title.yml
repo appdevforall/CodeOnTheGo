@@ -1,0 +1,24 @@
+name: Check PR Title for well-formed Jira issue
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check_title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR Title for JIRA Key
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          #!/bin/bash
+          
+          jira_regex="ADFA-[0-9]+"
+
+          if [[ "$PR_TITLE" =~ "$jira_regex" ]]; then
+            echo "PR title '$PR_TITLE' contains a valid JIRA issue key."
+          else
+            echo "Error: PR title '$PR_TITLE' does not contain a valid JIRA issue key."
+            exit 1
+          fi
