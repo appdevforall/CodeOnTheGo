@@ -60,7 +60,6 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
-import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
@@ -91,7 +90,6 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
-import com.itsaky.androidide.ui.CustomSnackbar
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
@@ -319,19 +317,16 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             return
         }
 
-    val snackbar = CustomSnackbar(this, findViewById(android.R.id.content))
-    snackbar.show(
-      message = getString(R.string.msg_action_open_application),
-      textFirstAction = getString(R.string.yes),
-      textSecondaryAction = getString(R.string.no),
-      actionFirst = {
-        IntentUtils.launchApp(this, packageName)
-      },
-      actionSecondary = {
-        snackbar.dismiss()
-      }
-    )
-  }
+        val builder = newMaterialDialogBuilder(this)
+        builder.setTitle(string.msg_action_open_title_application)
+        builder.setMessage(string.msg_action_open_application)
+        builder.setPositiveButton(string.yes) { dialog, _ ->
+            dialog.dismiss()
+            IntentUtils.launchApp(this, packageName)
+        }
+        builder.setNegativeButton(string.no, null)
+        builder.show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

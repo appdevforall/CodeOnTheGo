@@ -88,5 +88,5 @@ interface IEditorHandler {
   fun closeAll(runAfter: () -> Unit)
   fun closeOthers()
   fun openFAQActivity(htmlData: String)
-  suspend fun getTooltipData(word:String): IDETooltipItem?
+  suspend fun getTooltipData(category: String, tag:String): IDETooltipItem?
 }
