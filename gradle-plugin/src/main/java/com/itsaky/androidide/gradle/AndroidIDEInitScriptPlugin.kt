@@ -20,6 +20,7 @@ package com.itsaky.androidide.gradle
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_IS_TEST_ENV
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_MAVEN_LOCAL_REPOSITORY
+import org.adfa.constants.ANDROIDIDE_HOME
 import org.gradle.StartParameter
 import org.gradle.api.Plugin
 import org.gradle.api.artifacts.ExternalModuleDependency
@@ -66,9 +67,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
     target.rootProject { rootProject ->
       rootProject.buildscript.apply {
         dependencies.apply {
-          // TODO(itsaky-adfa): do not hardcode this
-          //    Refactor :constants module so that we have this value available in build-logic/* modules
-          add("classpath", rootProject.files("/data/data/com.itsaky.androidide/files/home/.androidide/plugin/cogo-plugin.jar"))
+          add("classpath", rootProject.files("$ANDROIDIDE_HOME/plugin/cogo-plugin.jar"))
         }
       }
     }
