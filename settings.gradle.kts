@@ -48,6 +48,7 @@ dependencyResolutionManagement {
     ),
 
     "build-deps-common" to arrayOf(
+      "constants",
       "desugaring-core"
     )
   )
@@ -107,7 +108,6 @@ include(
   ":app",
   ":build-info",
   ":common",
-  ":constants",
   ":editor",
   ":editor-api",
   ":editor-treesitter",

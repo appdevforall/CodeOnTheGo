@@ -19,12 +19,18 @@
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-dependencyResolutionManagement {
+val commonDeps = arrayOf(
+  "constants",
+  "desugaring-core",
+)
 
+dependencyResolutionManagement {
   includeBuild("../build-deps-common") {
     dependencySubstitution {
-      substitute(module("com.itsaky.androidide.build:desugaring-core"))
-        .using(project(":desugaring-core"))
+      for (module in commonDeps) {
+        substitute(module("com.itsaky.androidide.build:${module}"))
+          .using(project(":${module}"))
+      }
     }
   }
 
@@ -44,7 +50,6 @@ dependencyResolutionManagement {
 include(
   ":common",
   ":desugaring",
-  ":desugaring-core",
   ":plugins",
   ":properties-parser"
 )
