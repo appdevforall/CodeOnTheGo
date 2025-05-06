@@ -19,6 +19,6 @@ jobs:
           if [[ "$PR_TITLE" =~ "$jira_regex" ]]; then
             echo "PR title '$PR_TITLE' contains a valid JIRA issue key."
           else
-            echo "Error: PR title '$PR_TITLE' does not contain a valid JIRA issue key."
+            echo "Error: PR title '$PR_TITLE' does not contain a valid JIRA issue key. Please ensure your title includes a key in the format ADFA-XXXX."
             exit 1
           fi
