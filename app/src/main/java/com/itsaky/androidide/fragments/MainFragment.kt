@@ -137,7 +137,7 @@ class MainFragment : BaseFragment() {
         val tag = action.id.toString()
         CoroutineScope(Dispatchers.IO).launch {
             val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
-            val item = dao.getTooltip(tag)
+            val item = dao.getTooltip("ide", tag)
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipUtils.showIDETooltip(
@@ -145,6 +145,7 @@ class MainFragment : BaseFragment() {
                         view!!,
                         0,
                         IDETooltipItem(
+                            tooltipCategory = "ide",
                             tooltipTag = item?.tooltipTag ?: "",
                             detail = item?.detail ?: "",
                             summary = item?.summary ?: "",
