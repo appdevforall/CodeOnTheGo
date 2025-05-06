@@ -15,6 +15,7 @@ jobs:
           #!/bin/bash
           
           jira_regex="ADFA-[0-9]+"
+          echo "<$jira_regex> <$PR_TITLE>"
 
           if [[ "$PR_TITLE" =~ "$jira_regex" ]]; then
             echo "PR title '$PR_TITLE' contains a valid JIRA issue key."
