@@ -45,6 +45,8 @@ configurations {
 }
 
 dependencies {
+  implementation(libs.composite.constants)
+
   implementation(projects.gradlePluginConfig)
   implementation(projects.buildInfo)
 
