@@ -17,12 +17,23 @@ android {
     defaultConfig {
         externalNativeBuild {
             cmake {
-                val javaRoot = Properties().also { props ->
-                    rootProject.file("local.properties").inputStream().use { input ->
+                val localProps = rootProject.file("local.properties")
+                var javaRoot: String? = null
+                if (localProps.exists()) {
+                    javaRoot = localProps.inputStream().use { input ->
+                        val props = Properties()
                         props.load(input)
+                        props.getProperty("Java_ROOT", null)
                     }
-                }.getProperty("Java_ROOT") ?: System.getenv("Java_ROOT")
-                ?: throw GradleException("Java_ROOT not set")
+                }
+
+                if (javaRoot == null) {
+                    javaRoot = System.getenv("Java_ROOT")
+                }
+
+                if (javaRoot == null) {
+                    throw GradleException("Java_ROOT not set")
+                }
 
                 arguments += setOf("-DJava_ROOT=${javaRoot}")
                 targets += setOf(
