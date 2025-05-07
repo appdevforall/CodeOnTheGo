@@ -83,6 +83,11 @@ jobs:
           groups $(whoami)
           sudo usermod -aG kvm $(whoami)
           sudo chmod 666 /dev/kvm || echo "Cannot chmod /dev/kvm"
+          # Ensure current session has kvm group access
+          if [ $(stat -c '%G' /dev/kvm) = "kvm" ]; then
+            sudo chgrp kvm /dev/kvm
+            newgrp kvm
+          fi
 
       - name: Clean AVD folder
         run: |
@@ -90,7 +95,34 @@ jobs:
           mkdir -p ~/.android/avd/
 
       - name: Accept Android SDK licenses
-        run: sdkmanager --licenses
+        run: yes | sdkmanager --licenses
+
+      # Install required SDK components
+      - name: Install required SDK components
+        run: |
+          sdkmanager "platform-tools" "platforms;android-29" "build-tools;30.0.3" "system-images;android-29;default;x86_64" "emulator"
+          echo "SDK components installed"
+
+      # Verify emulator installation
+      - name: Verify emulator installation
+        run: |
+          ls -la $ANDROID_SDK_ROOT/emulator/
+          $ANDROID_SDK_ROOT/emulator/emulator -version
+
+      # Create AVD with more memory and ensure it's created properly
+      - name: Create AVD manually
+        run: |
+          echo "Creating AVD manually"
+          echo "no" | avdmanager create avd -n test -k "system-images;android-29;default;x86_64" -c 2000M -f
+          ls -la ~/.android/avd/
+          cat ~/.android/avd/test.avd/config.ini
+
+      # Add memory parameters to config
+      - name: Configure emulator settings
+        run: |
+          echo "hw.ramSize=2048" >> ~/.android/avd/test.avd/config.ini
+          echo "vm.heapSize=512" >> ~/.android/avd/test.avd/config.ini
+          echo "disk.dataPartition.size=4096M" >> ~/.android/avd/test.avd/config.ini
 
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
@@ -99,9 +131,23 @@ jobs:
           target: default
           arch: x86_64
           avd-name: test
-          force-avd-creation: true
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim -accel off
+          force-avd-creation: false  # We created it manually above
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim -memory 2048
           disable-animations: true
           script: |
+            # Wait for device to be fully booted
+            adb wait-for-device
+            adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 3; done'
+            
+            # Show connected devices
             adb devices
-            ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
+            
+            # Run instrumentation tests
+            ./gradlew app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: instrumentation-test-results
+          path: app/build/reports/androidTests/connected/
