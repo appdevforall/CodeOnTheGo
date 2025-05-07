@@ -9,4 +9,4 @@
 
 [submodule "oj-libjdwp"]
 	path = oj-libjdwp
-	url = https://github.com/itsaky/oj-libjdwp.git
+	url = https://github.com/appdevforall/oj-libjdwp.git
