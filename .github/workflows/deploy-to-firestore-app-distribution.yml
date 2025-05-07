@@ -73,7 +73,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK Platform 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
 
       - name: Cache Dependencies
         uses: actions/cache@v4
