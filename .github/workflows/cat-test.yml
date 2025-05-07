@@ -84,19 +84,63 @@ jobs:
         run: |
           rm -rf ~/.android/avd/*
           mkdir -p ~/.android/avd/
+
+      - name: Pre-download emulator system image
+        run: |
+          echo "Available disk space:"
+          df -h
+          echo "Downloading system image..."
+          sdkmanager "system-images;android-35;google_apis;x86_64"
+          echo "Accepting SDK licenses again..."
+          yes | sdkmanager --licenses
+
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          
+          # Clean Android SDK components
+          echo "Cleaning Android SDK cache..."
+          rm -rf "${ANDROID_HOME}/temp/" || true
+          
+          # Remove unused system images
+          echo "Removing unused system images..."
+          find "${ANDROID_HOME}/system-images" -mindepth 1 -maxdepth 1 -type d -not -name "android-35" | xargs rm -rf || true
+          
+          # Clean build cache
+          echo "Cleaning Gradle cache..."
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.gradle/caches/*/fileHashes/
+          rm -rf ~/.gradle/caches/*/javaCompile/
+          
+          # Remove Android build directories
+          echo "Removing Android build directories..."
+          find . -name "build" -type d -exec rm -rf {} +
+          
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Accept Android SDK licenses
         run: sdkmanager --licenses
 
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
+        timeout-minutes: 20
         with:
-          api-level: 28
-          target: default
+          api-level: 35
+          target: google_apis
           arch: x86_64
           avd-name: test
           force-avd-creation: true
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim -accel off
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim
           disable-animations: true
           script: |
+            echo "Waiting for emulator to start..."
+            adb wait-for-device
             adb devices
+            echo "Emulator ready, setting properties..."
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            echo "Running tests..."
             ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
