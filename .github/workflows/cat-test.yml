@@ -95,18 +95,22 @@ jobs:
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 29
-          target: default
+          api-level: 31
+          target: google_apis
           arch: x86_64
           avd-name: test
           force-avd-creation: true
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -accel on -partition-size 2048 -memory 2048 -cores 2
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-accel
           disable-animations: true
           script: |
+            echo "Waiting for emulator to start..."
+            adb wait-for-device
             adb devices
+            echo "Emulator ready, setting properties..."
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
+            echo "Running tests..."
             ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
 
       - name: Upload test results on failure
