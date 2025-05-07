@@ -17,17 +17,11 @@
 
 package com.itsaky.androidide.plugins
 
-import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.BOOTSTRAP_SOURCE_FOLDER
-import com.adfa.constants.LOCAL_GRADLE_8_0_0_CACHES_PATH
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import com.adfa.constants.SOURCE_LIB_FOLDER
-import com.itsaky.androidide.plugins.util.DownloadUtils
+import org.adfa.constants.BOOTSTRAP_SOURCE_FOLDER
+import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils
-import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.internal.FileUtils
 import org.gradle.internal.os.OperatingSystem
 import java.io.File
 

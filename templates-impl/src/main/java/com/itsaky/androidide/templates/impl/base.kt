@@ -17,7 +17,7 @@
 
 package com.itsaky.androidide.templates.impl
 
-import com.adfa.constants.Sdk
+import org.adfa.constants.Sdk
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.EnumParameter
 import com.itsaky.androidide.templates.Language
@@ -56,14 +56,14 @@ internal fun AndroidModuleTemplateBuilder.templateAsset(name: String,
 }
 
 internal inline fun baseProjectImpl(
-  projectName: StringParameter = projectNameParameter(),
-  packageName: StringParameter = packageNameParameter(),
-  useKts: BooleanParameter = useKtsParameter(),
-  minSdk: EnumParameter<Sdk> = minSdkParameter(),
-  language: EnumParameter<Language> = projectLanguageParameter(),
-  projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
-  isToml: Boolean = false,
-  crossinline block: ProjectTemplateBuilder.() -> Unit
+    projectName: StringParameter = projectNameParameter(),
+    packageName: StringParameter = packageNameParameter(),
+    useKts: BooleanParameter = useKtsParameter(),
+    minSdk: EnumParameter<Sdk> = minSdkParameter(),
+    language: EnumParameter<Language> = projectLanguageParameter(),
+    projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+    isToml: Boolean = false,
+    crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate =
   baseProject(projectName = projectName, packageName = packageName,
     useKts = useKts, minSdk = minSdk, language = language,

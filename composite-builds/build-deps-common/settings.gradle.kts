@@ -40,6 +40,7 @@ dependencyResolutionManagement {
 }
 
 include(
+  ":constants",
   ":desugaring-core",
 )
 

@@ -17,10 +17,10 @@
 
 package com.itsaky.androidide.plugins
 
-import com.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
-import com.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
-import com.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
-import com.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion

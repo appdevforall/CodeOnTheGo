@@ -25,8 +25,8 @@ import android.widget.CheckBox
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
-import com.adfa.constants.CONTENT_KEY
-import com.adfa.constants.HELP_PAGE_URL
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.HELP_PAGE_URL
 import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
@@ -125,7 +125,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     override fun doOpenHelp() {
         openHelpActivity()
     }
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

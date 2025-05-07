@@ -17,8 +17,6 @@
 
 package com.itsaky.androidide.templates.base
 
-import com.adfa.constants.GRADLE_FOLDER_NAME
-import com.adfa.constants.TOML_FILE_NAME
 import com.android.SdkConstants.ANDROID_MANIFEST_XML
 import com.itsaky.androidide.templates.ModuleType.AndroidLibrary
 import com.itsaky.androidide.templates.RecipeExecutor

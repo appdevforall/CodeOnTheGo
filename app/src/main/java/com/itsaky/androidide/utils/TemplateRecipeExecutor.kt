@@ -17,11 +17,8 @@
 
 package com.itsaky.androidide.utils
 
-import com.adfa.constants.GRADLE_WRAPPER_PART_FILE_NAME
-import com.adfa.constants.GRADLE_ZIP_FILE_NAME
-import com.adfa.constants.LOCAL_AGP_8_0_0_CACHES_DEST
-import com.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import com.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
+import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.app.IDEApplication

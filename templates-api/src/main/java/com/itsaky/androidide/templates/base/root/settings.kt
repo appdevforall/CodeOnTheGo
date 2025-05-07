@@ -17,8 +17,8 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import com.adfa.constants.LOCAL_MAVEN_REPO_FOLDER_DEST
+import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
+import org.adfa.constants.LOCAL_MAVEN_REPO_FOLDER_DEST
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 /**

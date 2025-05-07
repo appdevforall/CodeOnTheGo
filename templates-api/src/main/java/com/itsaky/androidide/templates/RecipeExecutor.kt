@@ -17,7 +17,7 @@
 
 package com.itsaky.androidide.templates
 
-import com.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
+import org.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
 import java.io.File
 import java.io.InputStream
 

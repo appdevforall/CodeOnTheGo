@@ -17,11 +17,11 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
-import com.adfa.constants.LOCAL_SOURCE_ANDROID_GRADLE_PLUGIN_VERSION_NAME
-import com.adfa.constants.LOCAL_SOURCE_ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
-import com.adfa.constants.SOURCE_LIB_FOLDER
+import org.adfa.constants.ASSETS_COMMON_FOLDER
+import org.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
+import org.adfa.constants.LOCAL_SOURCE_ANDROID_GRADLE_PLUGIN_VERSION_NAME
+import org.adfa.constants.LOCAL_SOURCE_ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
+import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.google.common.io.Files
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -51,7 +51,9 @@ abstract class CopyGradleAndroidExceutableToAssetsTask : DefaultTask() {
             destFile.delete()
         }
 
-        val kotlinDestFile = outputDirectory.resolve(LOCAL_SOURCE_ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME)
+        val kotlinDestFile = outputDirectory.resolve(
+            LOCAL_SOURCE_ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
+        )
 
         if (kotlinDestFile.exists()) {
             kotlinDestFile.delete()

@@ -17,11 +17,10 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
-import com.adfa.constants.GRADLE_WRAPPER_FILE_NAME
-import com.adfa.constants.SOURCE_LIB_FOLDER
-import com.adfa.constants.Sdk
+import org.adfa.constants.ASSETS_COMMON_FOLDER
+import org.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
+import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
+import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.google.common.io.Files
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException

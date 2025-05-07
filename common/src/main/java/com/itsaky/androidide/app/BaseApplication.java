@@ -61,7 +61,7 @@ public class BaseApplication extends Application {
     mPrefsManager = new PreferenceManager(this);
     JavaCharacter.initMap();
 
-    if (!VMUtils.isJvm()|| isInstrumentedTest()) {
+    if (!VMUtils.isJvm() || isInstrumentedTest()) {
       ToolsManager.init(this, null);
     }
   }

@@ -15,16 +15,10 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
   //noinspection JavaPluginLanguageLevel
   id("java-library")
   alias(libs.plugins.kotlin.jvm)
-}
-
-tasks.withType<KotlinCompile> {
-  kotlinOptions.jvmTarget = "17"
 }
 
 dependencies {
