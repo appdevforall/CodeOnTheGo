@@ -36,7 +36,7 @@ object HomeScreen : KScreen<HomeScreen>() {
                     try {
                         title {
                             isVisible()
-                            containsText("Get Started")
+                            containsText("Get started")
                         }
                     } catch (e: Exception) {
                         println("Get Started title not visible: ${e.message}")

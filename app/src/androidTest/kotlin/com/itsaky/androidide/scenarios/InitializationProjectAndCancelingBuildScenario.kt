@@ -62,7 +62,7 @@ class InitializationProjectAndCancelingBuildScenario : Scenario() {
                 EditorScreen {
                     closeProjectDialog {
                         positiveButton {
-                            hasText("Yes")
+                            hasText("Save files and close project")
                             click()
                         }
                     }
