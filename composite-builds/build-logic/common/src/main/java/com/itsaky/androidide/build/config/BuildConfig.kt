@@ -31,7 +31,7 @@ object BuildConfig {
   const val compileSdk = 35
 
   /** The minimum SDK version. */
-  const val minSdk = 26
+  const val minSdk = 28
 
   /** The target SDK version. */
   const val targetSdk = 28
