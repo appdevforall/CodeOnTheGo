@@ -90,7 +90,7 @@ jobs:
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 31
+          api-level: 28
           target: default
           arch: x86_64
           avd-name: test
