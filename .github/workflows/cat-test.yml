@@ -143,4 +143,4 @@ jobs:
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
             echo "Running tests..."
-            ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite
+            ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite --stacktrace
