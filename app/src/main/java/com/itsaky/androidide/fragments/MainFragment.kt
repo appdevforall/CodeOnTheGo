@@ -188,7 +188,7 @@ class MainFragment : BaseFragment() {
                         feedbackIntent.type = "text/plain"
                         feedbackIntent.putExtra(
                             Intent.EXTRA_EMAIL,
-                            arrayOf(FEEDBACK_EMAIL)
+                            arrayOf(R.string.feeback_email)
                         )
                         feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
                         feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
