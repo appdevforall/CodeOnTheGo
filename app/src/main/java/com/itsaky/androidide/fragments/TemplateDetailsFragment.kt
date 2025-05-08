@@ -77,7 +77,6 @@ class TemplateDetailsFragment :
             viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
         }
 
-        // Fix for TemplateDetailsFragment.kt - Modified finish button click listener
         binding.finish.setOnClickListener {
             viewModel.creatingProject.value = true
             val template = viewModel.template.value ?: run {
@@ -116,10 +115,8 @@ class TemplateDetailsFragment :
                     return@executeAsyncProvideError
                 }
 
-                // Store the result for direct opening
                 val projectDir = result.data.projectDir
 
-                // Add to recent projects
                 recentProjectsViewModel.insertProject(
                     RecentProject(
                         location = projectDir.path,
@@ -128,11 +125,9 @@ class TemplateDetailsFragment :
                     )
                 )
 
-                // Flash success message
                 flashSuccess(string.project_created_successfully)
 
-                // Open project directly WITHOUT first returning to main screen
-                // This avoids the screen transition flash
+
                 (requireActivity() as MainActivity).openProject(projectDir)
             }
         }
