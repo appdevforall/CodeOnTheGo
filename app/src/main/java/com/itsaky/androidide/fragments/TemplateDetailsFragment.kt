@@ -115,21 +115,16 @@ class TemplateDetailsFragment :
                     return@executeAsyncProvideError
                 }
 
-                viewModel.setScreen(MainViewModel.SCREEN_MAIN)
-                flashSuccess(string.project_created_successfully)
-
+                val projectDir = result.data.projectDir
                 recentProjectsViewModel.insertProject(
                     RecentProject(
-                        location = result.data.projectDir.path,
+                        location = projectDir.path,
                         name = result.data.name,
                         createdAt = Date().toString()
                     )
                 )
-
-                viewModel.postTransition(viewLifecycleOwner) {
-                    // open the project
-                    (requireActivity() as MainActivity).openProject(result.data.projectDir)
-                }
+                flashSuccess(string.project_created_successfully)
+                (requireActivity() as MainActivity).openProject(projectDir)
             }
         }
 
