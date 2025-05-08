@@ -17,9 +17,9 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_GRADLE_8_0_0_CACHES_PATH
-import com.adfa.constants.SOURCE_LIB_FOLDER
+import org.adfa.constants.ASSETS_COMMON_FOLDER
+import org.adfa.constants.LOCAL_GRADLE_8_0_0_CACHES_PATH
+import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
@@ -28,7 +28,6 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
 import kotlin.io.path.Path
 
 abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
