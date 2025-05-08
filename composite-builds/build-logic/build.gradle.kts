@@ -19,15 +19,19 @@ plugins {
     id("java")
     kotlin("jvm") version "1.9.22"
 }
-subprojects {
+
+allprojects {
     plugins.withId("java-library") {
-        extensions.getByType(JavaPluginExtension::class.java).apply {
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(17)
+            }
         }
     }
-}
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        kotlin {
+            jvmToolchain(17)
+        }
+    }
 }
