@@ -70,10 +70,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      - name: Fix sourceSets path for build-logic plugins
-        run: |
-          sed -i 's|srcDirs("plugins/src/main/java/com/itsaky/androidide", "../../../constants/src/main/java/com/adfa/constants")|srcDirs("plugins/src/main/java/com/itsaky/androidide", file("${rootProject.projectDir}/../../../constants/src/main/java/com/adfa/constants"))|g' composite-builds/build-logic/plugins/build.gradle.kts
-
       - name: Install KVM dependencies
         run: |
           sudo apt-get update
