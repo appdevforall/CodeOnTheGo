@@ -2,7 +2,6 @@ package com.itsaky.androidide.fragments
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -13,8 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
-
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -22,10 +21,10 @@ import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.BaseIDEActivity
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -50,8 +49,6 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
-import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 
 class MainFragment : BaseFragment() {
 
@@ -170,7 +167,8 @@ class MainFragment : BaseFragment() {
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
-                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+                        val stackTrace =
+                            Exception().stackTrace.asList().toString().replace(",", "\n")
 
                         val feedbackMessage = getString(
                             R.string.feedback_message,
