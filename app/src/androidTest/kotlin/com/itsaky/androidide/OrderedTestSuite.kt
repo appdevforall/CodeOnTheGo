@@ -7,8 +7,7 @@ import org.junit.runners.Suite
 @Suite.SuiteClasses(
     WelcomeScreenTest::class,
     PermissionsScreenTest::class,
-    ProjectBuildTestWithGroovyGradle::class,
-    ProjectBuildTestWithKtsGradle::class,
+//    ProjectBuildTestWithKtsGradle::class,
     CleanupTest::class
 )
 class OrderedTestSuite

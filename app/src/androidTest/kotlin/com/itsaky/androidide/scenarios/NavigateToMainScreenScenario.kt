@@ -44,8 +44,22 @@ class NavigateToMainScreenScenario : Scenario() {
                     }
 
                     SystemPermissionsScreen {
-                        installPackagesPermission {
-                            click()
+                        try {
+                            installPackagesPermission {
+                                click()
+                            }
+                        } catch (e: Exception) {
+                            println("Trying alternative text for install packages permission")
+                            try {
+                                installPackagesPermissionAlt1 {
+                                    click()
+                                }
+                            } catch (e1: Exception) {
+                                println("Trying second alternative text for install packages permission")
+                                installPackagesPermissionAlt2 {
+                                    click()
+                                }
+                            }
                         }
                     }
 
@@ -62,10 +76,16 @@ class NavigateToMainScreenScenario : Scenario() {
         }
 
         step("Click continue button on the Install Tools Screen") {
-            InstallToolsScreen.doneButton {
-                isVisible()
-                isClickable()
-                click()
+            flakySafely(120000) {
+                device.uiDevice.waitForIdle(10000)
+                InstallToolsScreen.doneButton {
+                    flakySafely(20000) {
+                        isVisible()
+                        isEnabled()
+                        isClickable()
+                        click()
+                    }
+                }
             }
         }
 
