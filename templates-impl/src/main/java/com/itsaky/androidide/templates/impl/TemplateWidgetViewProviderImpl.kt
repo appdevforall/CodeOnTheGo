@@ -24,6 +24,7 @@ import android.widget.ArrayAdapter
 import androidx.core.content.ContextCompat
 import com.google.android.material.textfield.TextInputLayout
 import com.google.auto.service.AutoService
+import com.itsaky.androidide.resources.databinding.LayoutSpinnerBinding
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.EnumParameter
@@ -37,7 +38,6 @@ import com.itsaky.androidide.templates.TextFieldParameter
 import com.itsaky.androidide.templates.TextFieldWidget
 import com.itsaky.androidide.templates.Widget
 import com.itsaky.androidide.templates.impl.databinding.LayoutCheckboxBinding
-import com.itsaky.androidide.templates.impl.databinding.LayoutSpinnerBinding
 import com.itsaky.androidide.templates.impl.databinding.LayoutTextfieldBinding
 import com.itsaky.androidide.utils.ServiceLoader
 import com.itsaky.androidide.utils.SingleTextWatcher
@@ -167,21 +167,21 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
       val array = nameToEnum.keys.toTypedArray()
 
-      input.setAdapter(ArrayAdapter(context,
+      spinnerText.setAdapter(ArrayAdapter(context,
         androidx.appcompat.R.layout.support_simple_spinner_dropdown_item,
         array))
 
       val defaultName = enumToName[param.default] ?: param.default.name
 
       root.isEnabled = nameToEnum.size > 1
-      input.listSelection = array.indexOf(defaultName)
-      input.setText(defaultName, false)
+      spinnerText.listSelection = array.indexOf(defaultName)
+      spinnerText.setText(defaultName, false)
 
       val observer = object : DefaultObserver<Enum<*>>() {
         override fun onChanged(parameter: Parameter<Enum<*>>) {
           (parameter as EnumParameter<*>).apply {
             disableAndRun {
-              input.setText(enumToName[value])
+              spinnerText.setText(enumToName[value])
             }
           }
         }

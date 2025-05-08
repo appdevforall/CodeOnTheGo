@@ -23,6 +23,8 @@ import androidx.collection.LongSparseArray;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
+
+import com.itsaky.androidide.fragments.DebuggerFragment;
 import com.itsaky.androidide.fragments.DiagnosticsListFragment;
 import com.itsaky.androidide.fragments.SearchResultFragment;
 import com.itsaky.androidide.fragments.output.AppLogFragment;
@@ -63,6 +65,11 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
             fragmentActivity.getString(R.string.view_search_results),
             SearchResultFragment.class,
             ++index));
+    this.fragments.add(
+            new Tab(
+                    fragmentActivity.getString(R.string.debugger_title),
+                    DebuggerFragment.class,
+                    ++index));
   }
 
   public Fragment getFragmentAtIndex(int index) {
@@ -84,7 +91,8 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
     try {
       final var field = FragmentStateAdapter.class.getDeclaredField("mFragments");
       field.setAccessible(true);
-      return (LongSparseArray<Fragment>) field.get(this);
+        //noinspection unchecked
+        return (LongSparseArray<Fragment>) field.get(this);
     } catch (Throwable th) {
       LOG.error("Unable to reflect fragment list from adapter.");
     }
@@ -125,7 +133,8 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
     final var name = clazz.getName();
     for (final var tab : this.fragments) {
       if (tab.name.equals(name)) {
-        return (T) getFragmentById(tab.itemId);
+          //noinspection unchecked
+          return (T) getFragmentById(tab.itemId);
       }
     }
 
