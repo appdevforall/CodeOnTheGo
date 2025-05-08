@@ -41,14 +41,20 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
         val activity = data.getActivity()
+        val category = when(editor.file!!.extension.toString()) {
+            "java" -> "java"
+            "kt" -> "kotlin"
+            else -> "ide"
+        }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
-            activity?.getTooltipData(word)?.let { tooltipData ->
+            activity?.getTooltipData(category, word)?.let { tooltipData ->
                 TooltipUtils.showIDETooltip(
                     context,
                     editor,
                     0,
                     IDETooltipItem(
+                        tooltipCategory = category,
                         tooltipTag = tooltipData.tooltipTag,
                         detail = tooltipData.detail,
                         summary = tooltipData.summary,

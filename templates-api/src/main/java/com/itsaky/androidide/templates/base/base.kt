@@ -17,8 +17,7 @@
 
 package com.itsaky.androidide.templates.base
 
-import com.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import com.adfa.constants.Sdk
+import org.adfa.constants.Sdk
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.EnumParameter
@@ -54,8 +53,6 @@ import com.itsaky.androidide.templates.useKtsParameter
 import com.itsaky.androidide.utils.AndroidUtils
 import com.itsaky.androidide.utils.Environment
 import java.io.File
-import java.nio.file.Files
-import kotlin.io.path.Path
 
 typealias AndroidModuleTemplateConfigurator = AndroidModuleTemplateBuilder.() -> Unit
 
