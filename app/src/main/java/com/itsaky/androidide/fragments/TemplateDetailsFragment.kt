@@ -116,7 +116,6 @@ class TemplateDetailsFragment :
                 }
 
                 val projectDir = result.data.projectDir
-
                 recentProjectsViewModel.insertProject(
                     RecentProject(
                         location = projectDir.path,
@@ -124,10 +123,7 @@ class TemplateDetailsFragment :
                         createdAt = Date().toString()
                     )
                 )
-
                 flashSuccess(string.project_created_successfully)
-
-
                 (requireActivity() as MainActivity).openProject(projectDir)
             }
         }
