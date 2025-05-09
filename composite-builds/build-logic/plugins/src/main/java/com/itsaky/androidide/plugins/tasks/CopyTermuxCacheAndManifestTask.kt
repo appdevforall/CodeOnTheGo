@@ -17,22 +17,17 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
-import com.adfa.constants.MANIFEST_FILE_NAME
-import com.adfa.constants.SOURCE_LIB_FOLDER
+import org.adfa.constants.ASSETS_COMMON_FOLDER
+import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+import org.adfa.constants.MANIFEST_FILE_NAME
+import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.google.common.io.Files
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copy
-import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
-import java.io.IOException
-import kotlin.io.path.Path
 
 
 abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {

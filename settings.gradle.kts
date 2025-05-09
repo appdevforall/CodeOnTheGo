@@ -51,6 +51,7 @@ dependencyResolutionManagement {
     ),
 
     "build-deps-common" to arrayOf(
+      "constants",
       "desugaring-core"
     )
   )
