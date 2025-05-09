@@ -17,32 +17,45 @@
 
 package com.itsaky.androidide.localHTTPServer
 
-import android.content.Context
 import android.util.Log
-import android.util.Log.*
+import android.util.Log.d
 import com.itsaky.androidide.app.IDEApplication
-import com.itsaky.androidide.utils.FileUtil
+import com.itsaky.androidide.idetooltips.DocumentationDatabase
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
-import org.json.JSONObject
+import okhttp3.internal.connection.Exchange
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.InetSocketAddress
-import java.util.Scanner
-import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Exchanger
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
+import kotlin.time.measureTime
 
 class LocalServerUtil() {
 
     val TAG = this.javaClass.simpleName
+    val DEFAULT_LANGUAGE = "en-us"
+    val ACCEPT_LANGUAGES = "Accept-Language"
+    val ACCEPT_ENCODINGS = "Accept-Encoding"
+    val ACCEPT = "Accept"
+    val BROTLI_TAG = "br"
+    val BROTLI_COMPRESSION = "brotli"
+    val BROTLI_COMMAND = "/data/data/com.itsaky.androidide/files/usr/bin/brotli"
+    val BROTLI_TIMEOUT = 5 * 1000L
+
+
+
     var httpServer : HttpServer? = null
     var serverUp = false
     val context = IDEApplication.instance.applicationContext
 
     fun startServer(port: Int) {
         try {
+//            httpServer = HttpServer.create(InetSocketAddress("localhost", port), 0)
             httpServer = HttpServer.create(InetSocketAddress(port), 0)
             httpServer!!.executor = Executors.newCachedThreadPool()
             httpServer!!.createContext("/", rootHandler)
@@ -53,11 +66,6 @@ class LocalServerUtil() {
         } catch (e: IOException) {
             e.printStackTrace()
         }
-    }
-
-    fun streamToString(inputStream: InputStream): String {
-        val s = Scanner(inputStream).useDelimiter("\\A")
-        return if (s.hasNext()) s.next() else ""
     }
 
     fun sendTextResponse(httpExchange: HttpExchange, responseText: String,
@@ -72,10 +80,24 @@ class LocalServerUtil() {
         os.close()
     }
 
-    fun sendBinaryResponse(httpExchange: HttpExchange, responseData: ByteArray,
-                           contentType: String) {
+    fun sendErrorResponse(httpExchange: HttpExchange, responseText: String,
+                         contentType: String){
+        // Encode response text as UTF-8 and convert to ByteArray
+        val respByteArray = responseText.encodeToByteArray()
         httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
-        httpExchange.sendResponseHeaders(200, responseData.size.toLong())
+        httpExchange.sendResponseHeaders(404, respByteArray.size.toLong())
+
+        val os = httpExchange.responseBody
+        os.write(respByteArray)
+        os.close()
+    }
+
+    fun sendBinaryResponse(
+        httpExchange: HttpExchange, responseData: ByteArray?,
+        contentType: String
+    ) {
+        httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
+        httpExchange.sendResponseHeaders(200, responseData?.size?.toLong() ?: 0)
 
         val os = httpExchange.responseBody
         os.write(responseData)
@@ -85,8 +107,6 @@ class LocalServerUtil() {
     fun stopServer() {
         if (httpServer != null){
             httpServer!!.stop(0)
-//            serverTextView.text = getString(R.string.server_down)
-//            serverButton.text = getString(R.string.start_server)
         }
     }
 
@@ -94,152 +114,254 @@ class LocalServerUtil() {
     public val rootHandler = HttpHandler { exchange ->
         run {
             // Get request method
+            Log.d(TAG, exchange.toString())
             when (exchange!!.requestMethod) {
                 "GET" -> {
-                    Log.d("HTTPRequest", exchange.requestURI.toString())
+                    Log.d(TAG, exchange.requestHeaders.toString())
+                    Log.d(TAG, exchange.requestURI.toString())
 
-                    // Chop off query params so they're not included in the file URI
-                    // that we actually read from. Content is static so these
-                    // parameters only matter for client-side behavior.
+
                     val querySplitPath = exchange.requestURI.toString().split("?")
-                    val rawFilePath = querySplitPath[0]
-
+                    var rawFilePath = querySplitPath[0].toString()
+                    if (rawFilePath.startsWith("/")) {
+                        rawFilePath = rawFilePath.substring(1)
+                    }
                     // Get path components
-                    val splitPath = rawFilePath.split("/")
+                    val database = DocumentationDatabase.getDatabase(context)
+                    val contentDao = database.contentDao()
+                    val contentTypeDao = database.contentTypeDao()
+                    val contentItem = contentDao.getContent(rawFilePath)
 
-                    // Extract file extension for content type header
-                    val basename = splitPath[splitPath.size - 1]
-                    val dotSplitBasename = basename.split(".")
-                    val extension = dotSplitBasename[dotSplitBasename.size - 1]
-
-                    // Get actual file URI with respect to document root
-                    val slicedSplitPath = splitPath.slice(1..splitPath.size - 1)
-                    val fileURI = slicedSplitPath.joinToString(separator = "/")
-
-                    // Process text and binary data requests separately
-                    var isText = false
-                    var contentType = ""
-
-                    // Extension to content type maps should be stored somewhere
-                    // properly. Refactor this.
-                    if (extension == "css") {
-                        contentType = "text/css"
-                        isText = true
-                    } else if (extension == "png") {
-                        contentType = "image/png"
-                    } else if (extension == "gif") {
-                        contentType = "image/gif"
-                    } else if (extension == "js") {
-                        contentType = "text/javascript"
-                        isText = true
+                    if (contentItem == null) {
+                        sendErrorResponse(exchange, formatNotFoundError(rawFilePath), "text/html")
                     } else {
-                        contentType = "text/html; charset=utf-8"
-                        isText = true
+                        val typeItem =   //contentItem.contentTypeID
+                            contentTypeDao.getContentTypeById(contentItem!!.contentTypeID)
+                        val type = typeItem!!.value
+                        // Extract file extension for content type header
+                        val headers = exchange.requestHeaders
+                        var acceptsBrotli = false
+                        for (key in headers.keys) {
+                            if (key.equals(ACCEPT_ENCODINGS)) {
+                                val headerValues = headers.get(key)
+                                if (headerValues!!.equals(BROTLI_TAG)) {
+                                    acceptsBrotli = true
+                                }
+                            }
+                        }
+
+                        var html: ByteArray? = contentItem.content
+                        if (!acceptsBrotli && typeItem!!.compression.equals("brotli")) {
+                            val duration = measureTime {
+                                html = decodeBrotli(
+                                    BROTLI_COMMAND,
+                                    contentItem.content,
+                                    BROTLI_TIMEOUT
+                                )
+                            }
+                            Log.d(TAG, "brotli took $duration")
+                        }
+
+//                        if (typeItem!!.compression.equals("None")) {
+//                            sendTextResponse(exchange, html.toString(), type)
+//                        } else {
+                            sendBinaryResponse(exchange, html, type)
+//                        }
                     }
-
-                    // Process text and binary documents separately
-                    if (isText) {
-                        val responseContent = readFromAsset("CoGoTooltips/html/" + fileURI, context)
-                        sendTextResponse(exchange, responseContent, contentType)
-                    } else {
-                        val responseContent = readFromBinaryAsset("CoGoTooltips/html/" + fileURI, context)
-                        sendBinaryResponse(exchange, responseContent, contentType)
-                    }
-                }
-            }
-        }
-    }
-
-    val messageHandler = HttpHandler { httpExchange ->
-        run {
-            when (httpExchange!!.requestMethod) {
-                "GET" -> {
-                    // Get all messages
-                    sendTextResponse(httpExchange, "Would be all messages stringified json", "text/html; charset=utf-8")
-                }
-                "POST" -> {
-                    val inputStream = httpExchange.requestBody
-
-                    val requestBody = streamToString(inputStream)
-                    val jsonBody = JSONObject(requestBody)
-                    // save message to database
-
-                    //for testing
-                    sendTextResponse(httpExchange, jsonBody.toString(), "text/html; charset=utf-8")
                 }
             }
         }
     }
 
     /**
-     * Reads from an asset file and returns its content as a String.
+     * Formats a 404 Not Found error message.  This function provides a
+     * consistent and user-friendly way to display 404 errors in an Android
+     * application.  It encapsulates the error message construction,
+     * allowing for easy modification and localization.
      *
-     * @param path The path to the asset file
-     * @param ctx The context from which the asset should be read
-     * @return The content of the asset file as a String
+     * @param url The URL that was not found.
+     * @return A formatted string representing the 404 error.
      */
-    fun readFromAsset(path: String?, ctx: Context): String {
-        try {
-            // Get the input stream from the asset
-            val inputStream = ctx.assets.open(path!!)
+    fun formatNotFoundError(url: String): String {
+        return """
+        <html>
+        <head>
+            <title>404 Not Found</title>
+            <style>
+                body {
+                    font-family: 'Arial', sans-serif;
+                    background-color: #f4f4f4;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    text-align: center;
+                }
+                .container {
+                    max-width: 80%; /* Responsive width */
+                    padding: 20px;
+                    background-color: #fff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+                    border: 1px solid #ddd;
+                }
+                h1 {
+                    font-size: 2.5em; /* Larger heading */
+                    color: #4CAF50; /* A shade of green */
+                    margin-bottom: 10px;
+                }
+                p {
+                    font-size: 1.1em; /* Slightly larger paragraph text */
+                    margin-bottom: 20px;
+                    line-height: 1.5; /* Improved readability */
+                }
+                hr {
+                    border: none;
+                    height: 1px;
+                    background-color: #ddd; /* Lighter divider */
+                    margin: 20px 0;
+                }
+                a {
+                    color: #0078d7; /* Standard blue for links */
+                    text-decoration: none;
+                }
+                a:hover {
+                    text-decoration: underline; /* Indicate link on hover */
+                }
+                .error-details {
+                  background-color: #f8f8f8;
+                  padding: 10px;
+                  border-radius: 5px;
+                  margin-top: 10px;
+                  font-size: 0.9em;
+                  color: #555;
+                  border: 1px solid #eee;
+                  overflow-wrap: break-word;
+                  word-break: break-all;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>404 Not Found</h1>
+                <p>Sorry, the page you are looking for could not be found.</p>
+                <hr>
+                <p>The requested URL 
+                    <span class="error-details">
+                        ${htmlEncode(url)}
+                    </span>
+                 was not found on this server.</p>
+                <p>
+                    <a href="/">Back to Home</a>
+                </p>
+            </div>
+        </body>
+        </html>
+        """.trimIndent()
 
-            // Create a byte array output stream to store the read bytes
-            val outputStream = ByteArrayOutputStream()
-
-            // Create a buffer of 1024 bytes
-            val _buf = ByteArray(1024)
-            var i: Int
-
-            // Read the bytes from the input stream, write them to the output stream and close the streams
-            while ((inputStream.read(_buf).also { i = it }) != -1) {
-                outputStream.write(_buf, 0, i)
-            }
-            outputStream.close()
-            inputStream.close()
-
-            // Return the content of the output stream as a String
-            return outputStream.toString()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        // If an exception occurred, return an empty String
-        return ""
     }
 
     /**
-     * Reads from an asset file and returns its content as a ByteArray.
-     *
-     * @param path The path to the asset file
-     * @param ctx The context from which the asset should be read
-     * @return The content of the asset file as a String
+     * Utility function to HTML encode a string.  This is essential to prevent
+     * Cross-Site Scripting (XSS) vulnerabilities when displaying user-provided
+     * data (like a URL) in an HTML page.  It replaces special characters
+     * with their corresponding HTML entities.
      */
-    fun readFromBinaryAsset(path: String?, ctx: Context): ByteArray {
-        try {
-            // Get the input stream from the asset
-            val inputStream = ctx.assets.open(path!!)
-
-            // Create a byte array output stream to store the read bytes
-            val outputStream = ByteArrayOutputStream()
-
-            // Create a buffer of 1024 bytes
-            val _buf = ByteArray(1024)
-            var i: Int
-
-            // Read the bytes from the input stream, write them to the output stream and close the streams
-            while ((inputStream.read(_buf).also { i = it }) != -1) {
-                outputStream.write(_buf, 0, i)
-            }
-            outputStream.close()
-            inputStream.close()
-
-            // Return the content of the output stream as a String
-            return outputStream.toByteArray()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        // If an exception occurred, return an empty ByteArray
-        return byteArrayOf()
+    private fun htmlEncode(text: String): String {
+        return text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#039;")
     }
+
+    /**
+     * Sends binary data to the brotli application via a pipe and receives a binary
+     * result. Handles errors robustly and logs information.  This version includes a timeout.
+     *
+     * @param command The command to execute the external application.
+     * @param inputData The binary data to send to the external application.
+     * @param timeoutSeconds The maximum time to wait for the application to respond.
+     * @return The binary result received from the external application, or null if an
+     * error occurred or the timeout was reached.
+     */
+    fun decodeBrotli(
+        command: String,
+        inputData: ByteArray,
+        timeoutSeconds: Long = 10L
+    ): ByteArray? {
+        var process: Process? = null
+        var inputStream: OutputStream? = null
+        var outputStream: InputStream? = null
+        var errorStream: InputStream? = null
+
+        try {
+            // 1. Execute the external application.
+            val processBuilder = ProcessBuilder(command, "--decompress")
+            process = processBuilder.start()
+
+            // 2. Get the input and output streams of the process.
+            process.outputStream.use { stdIn ->
+                inputStream = stdIn
+                // 3. Write the binary input data to the application's standard input.
+                stdIn.write(inputData)
+                stdIn.flush()
+            }
+
+            // 4. Wait for the process to complete with a timeout.
+            val completed = if (timeoutSeconds > 0) {
+                process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+            } else {
+                process.waitFor()
+                true
+            }
+
+            if (!completed) {
+                Log.e(TAG, "External application timed out after $timeoutSeconds seconds.")
+                process.destroy()
+                return null
+            }
+
+            // 5. Check the exit value.
+            val exitValue = process.exitValue()
+            if (exitValue != 0) {
+                errorStream = process.errorStream
+                val errorText = errorStream.bufferedReader().use { it.readText() }
+                Log.e(TAG, "External application exited with error code $exitValue. Error output: $errorText")
+                return null
+            }
+
+            // 6. Read the binary output from the application's standard output.
+            process.inputStream.use { stdOut ->
+                outputStream = stdOut
+                val buffer = ByteArray(4096) // Use a buffer to read in chunks
+                val output = ByteArrayOutputStream()
+                var bytesRead: Int
+                while (stdOut.read(buffer).also { bytesRead = it } != -1) {
+                    output.write(buffer, 0, bytesRead)
+                }
+                val result = output.toByteArray()
+                Log.d(TAG, "Received binary result of size: ${result.size} bytes")
+                return result
+            }
+
+        } catch (e: IOException) {
+            Log.e(TAG, "IOException: ${e.message}", e)
+            return null
+        } catch (e: InterruptedException) {
+            Log.e(TAG, "InterruptedException: ${e.message}", e)
+            return null
+        } finally {
+            // 7. Clean up resources.
+            if (process != null) {
+                process.destroy()
+            }
+        }
+    }
+
+
 }

@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.fragments
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -27,6 +28,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
 import java.net.URL
@@ -36,6 +38,7 @@ class IDETooltipWebviewFragment : Fragment() {
     private lateinit var webView: WebView
     private lateinit var website : String
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -110,9 +113,12 @@ class IDETooltipWebviewFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         // Clean up the WebView in Fragment
-        webView.clearHistory()
-        webView.loadUrl("about:blank")
+        if(webView.isVisible) {
+            webView.clearHistory()
+            webView.loadUrl("about:blank")
+        }
         webView.destroy()
+
     }
 
     companion object {
