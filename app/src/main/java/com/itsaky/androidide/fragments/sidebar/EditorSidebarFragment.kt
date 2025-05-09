@@ -69,12 +69,12 @@ class EditorSidebarFragment : FragmentWithBinding<FragmentEditorSidebarBinding>(
     EditorSidebarActions.setup(this)
   }
 
-  fun setupTooltip(view: View, tooltipTag: String) {
+  fun setupTooltip(view: View, tooltipCategory: String, tooltipTag: String) {
     (requireActivity() as? EditorHandlerActivity)?.let { activity ->
       view.setOnLongClickListener { view ->
         activity.lifecycleScope.launch {
           try {
-            val tooltipData = activity.getTooltipData(tooltipTag)
+            val tooltipData = activity.getTooltipData(tooltipCategory, tooltipTag)
             tooltipData?.let {
               TooltipUtils.showIDETooltip(
                 context = view.context,
