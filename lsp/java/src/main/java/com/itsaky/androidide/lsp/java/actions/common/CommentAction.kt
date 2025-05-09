@@ -44,5 +44,5 @@ class CommentAction : BaseJavaCodeAction() {
     return true
   }
   
-  override fun dismissOnAction() = false
+  override fun dismissOnAction() = true
 }
