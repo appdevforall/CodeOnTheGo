@@ -19,6 +19,7 @@ package com.itsaky.androidide.activities
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
@@ -133,6 +134,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
      */
     fun transferDatabaseFromAssets(context: Context, databaseName: String): Boolean {
         val dbPath = context.getDatabasePath(databaseName)
+        Log.d(TAG, "transferDatabaseFromAssets\\\\dbPath = $dbPath")
 
         // Check if the database already exists in internal storage.
         if (dbPath.exists()) {
@@ -151,6 +153,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         }
 
         // Copy the database file from assets to internal storage.
+
         try {
             val inputStream: InputStream = context.assets.open("database/$databaseName") // Corrected path
             val outputStream = FileOutputStream(dbPath)

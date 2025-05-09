@@ -68,6 +68,7 @@ object TooltipUtils {
         bundle.putString(MainFragment.KEY_TOOLTIP_URL, url)
         fragment.arguments = bundle
         transaction.replace(R.id.fragment_containers_parent, fragment)
+        transaction.show(fragment)
         transaction.commitAllowingStateLoss()
     }
 

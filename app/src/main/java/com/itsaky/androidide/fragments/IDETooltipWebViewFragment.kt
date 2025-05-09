@@ -88,8 +88,6 @@ class IDETooltipWebviewFragment : Fragment() {
 
         // Set up WebChromeClient to support JavaScript
 //        webView.webChromeClient = WebChromeClient()
-        webView.canGoBack()
-        webView.canGoForward()
         webView.settings.allowFileAccessFromFileURLs
         webView.settings.allowFileAccess
         webView.settings.allowUniversalAccessFromFileURLs
@@ -107,7 +105,10 @@ class IDETooltipWebviewFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        Log.d(Companion.TAG, "IDETooltipWebviewFragment\\\\onViewCreated called")
+        Log.d(Companion.TAG, "IDETooltipWebViewFragment\\\\onViewCreated called")
+        view.requestFocus()
+        view.bringToFront()
+        view.elevation = 5.0F
     }
 
     override fun onDestroyView() {
@@ -116,13 +117,13 @@ class IDETooltipWebviewFragment : Fragment() {
         if(webView.isVisible) {
             webView.clearHistory()
             webView.loadUrl("about:blank")
+            webView.destroy()
         }
-        webView.destroy()
 
     }
 
     companion object {
-        private const val TAG = "IDETooltipWebviewFragment"
+        private const val TAG = "IDETooltipWebViewFragment"
     }
 
 
