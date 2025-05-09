@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -159,8 +160,8 @@ class MainFragment : BaseFragment() {
 
     private fun performFeedbackAction() {
         val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
-        builder?.let { builder ->
-            builder.setTitle("Alert!")
+        builder?.apply {
+            setTitle("Alert!")
                 .setMessage(
                     HtmlCompat.fromHtml(
                         getString(R.string.feedback_warning),
@@ -169,33 +170,35 @@ class MainFragment : BaseFragment() {
                 )
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                    run {
-                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+                    val stackTrace = Exception().stackTrace.joinToString("\n")
 
-                        val feedbackMessage = getString(
-                            R.string.feedback_message,
-                            BuildConfig.VERSION_NAME,
-                            stackTrace
-                        )
+                    val feedbackMessage = getString(
+                        R.string.feedback_message,
+                        BuildConfig.VERSION_NAME,
+                        stackTrace
+                    )
 
-                        val feedbackIntent = Intent(Intent.ACTION_SEND)
-                        val subject = MessageFormat.format(
-                            resources.getString(R.string.feedback_subject),
-                            "Main"
-                        )
+                    val subject = MessageFormat.format(
+                        resources.getString(R.string.feedback_subject),
+                        "Main"
+                    )
 
-                        feedbackIntent.data = Uri.parse("mailto:")
-                        feedbackIntent.type = "text/plain"
-                        feedbackIntent.putExtra(
-                            Intent.EXTRA_EMAIL,
-                            arrayOf(FEEDBACK_EMAIL)
-                        )
-                        feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                    val mailUri = Uri.parse("mailto:$FEEDBACK_EMAIL" +
+                            "?subject=${Uri.encode(subject)}" +
+                            "&body=${Uri.encode(feedbackMessage)}"
+                    )
 
-                        shareActivityResultLauncher.launch(feedbackIntent)
-                        dialog.dismiss()
+                    val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = mailUri
                     }
+
+                    if (emailIntent.resolveActivity(requireContext().packageManager) != null) {
+                        startActivity(emailIntent)
+                    } else {
+                        Toast.makeText(requireContext(), "No email apps found", Toast.LENGTH_SHORT).show()
+                    }
+
+                    dialog.dismiss()
                 }
                 .create()
                 .show()
