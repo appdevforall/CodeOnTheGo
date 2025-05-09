@@ -117,5 +117,5 @@ Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
     <string name="more_label">More</string>
     <string name="send_email">Send Email</string>
     <string name="close">Close</string>
-    <string name="feeback_email">feedback@appdevforall.com</string>
+    <string name="feeback_email">feedback@appdevforall.org</string>
 </resources>
