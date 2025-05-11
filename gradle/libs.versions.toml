@@ -1,6 +1,6 @@
 [versions]
 activityKtx = "1.8.2"
-agp = "8.10.0"
+agp = "8.8.2"
 agp-tooling = "8.4.2"
 appcompat = "1.6.1"
 colorpickerview = "2.3.0"
