@@ -32,6 +32,8 @@ import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
 import org.gradle.api.Project
 import org.gradle.api.artifacts.MinimalExternalModuleDependency
 import org.gradle.api.provider.Provider
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * ABIs for which the product flavors will be created.
@@ -74,7 +76,8 @@ fun Project.configureAndroidModule(
                     arrayOf(
                         "META-INF/CHANGES",
                         "META-INF/README.md",
-                        "META-INF/LICENSE-notice.md"
+                        "META-INF/LICENSE-notice.md",
+                        "com/sun/jna/**"
                     )
                 )
                 pickFirsts.addAll(
@@ -135,18 +138,18 @@ fun Project.configureAndroidModule(
                 )
             }
 
-//      splits {
-//        abi {
-//          reset()
-//          isEnable = true
-//          isUniversalApk = false
-//          if (isFDroidBuild) {
-//            include(FDroidConfig.fDroidBuildArch!!)
-//          } else {
-//            include(*flavorsAbis.keys.toTypedArray())
-//          }
-//        }
-//      }
+//            splits {
+//                abi {
+//                    reset()
+//                    isEnable = true
+//                    isUniversalApk = false
+//                    if (isFDroidBuild) {
+//                        include(FDroidConfig.fDroidBuildArch!!)
+//                    } else {
+//                        include(*flavorsAbis.keys.toTypedArray())
+//                    }
+//                }
+//            }
 
             extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
                 onVariants { variant ->
@@ -162,13 +165,54 @@ fun Project.configureAndroidModule(
                     }
                 }
             }
+
+            extensions.getByType(com.android.build.gradle.AppExtension::class.java).apply {
+                applicationVariants.all {
+                    outputs.all {
+                        val flavorName = productFlavors.firstOrNull()?.name ?: "default"
+                        val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
+                        val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
+                        val newApkName = "CodeOnTheGo-${flavorName}-${buildTypeName}${date}.apk"
+
+                        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
+                    }
+                }
+            }
+
+        } else {
+            defaultConfig {
+                ndk {
+                    abiFilters.clear()
+                    abiFilters += flavorsAbis.keys
+                }
+            }
         }
 
-        defaultConfig {
-             ndk {
-                 abiFilters.clear()
-                 abiFilters += (flavorsAbis.keys - "x86_64")
-             }
+        flavorDimensions("abi")
+
+        productFlavors {
+
+            create("v7") {
+                dimension = "abi"
+                ndk {
+                    abiFilters += "armeabi-v7a"
+                }
+            }
+
+            create("v8") {
+                dimension = "abi"
+                ndk {
+                    abiFilters += "arm64-v8a"
+                }
+            }
+
+            // NOTE: disable x86_64 builds for now
+            create("x86") {
+                dimension = "abi"
+                ndk {
+                    abiFilters += "x86_64"
+                }
+            }
         }
 
         buildTypes.getByName("debug") { isMinifyEnabled = false }
