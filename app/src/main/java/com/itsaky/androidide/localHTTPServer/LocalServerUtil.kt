@@ -104,6 +104,7 @@ class LocalServerUtil() {
         os.close()
     }
 
+    //shutdown the server
     fun stopServer() {
         if (httpServer != null){
             httpServer!!.stop(0)
