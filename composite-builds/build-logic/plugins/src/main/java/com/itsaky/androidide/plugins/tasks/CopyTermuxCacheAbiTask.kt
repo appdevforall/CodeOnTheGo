@@ -19,6 +19,7 @@ package com.itsaky.androidide.plugins.tasks
 
 import com.adfa.constants.ASSETS_COMMON_FOLDER
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+import com.adfa.constants.DESTINATION_TERMUX_PACKAGES_FOLDER_NAME
 import com.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
 import com.adfa.constants.MANIFEST_FILE_NAME
 import com.adfa.constants.SOURCE_LIB_FOLDER
@@ -28,6 +29,9 @@ import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWi
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
@@ -35,7 +39,14 @@ import java.io.IOException
 import kotlin.io.path.Path
 
 
-abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
+abstract class CopyTermuxCacheAbiTask : DefaultTask() {
+
+    @get:Input
+//    abstract val srcDir: Property<String>
+    var srcDir: String = ""
+
+//    @get:Input
+//    var srcDir: String = ""
 
     /**
      * The output directory.
@@ -44,26 +55,23 @@ abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyTermuxCachesToAssets() {
+    fun copyTermuxAbiCacheToAssets() {
         val outputDirectory = this.outputDirectory.get()
-            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME).asFile
+            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME +
+                    File.separator + DESTINATION_TERMUX_PACKAGES_FOLDER_NAME).asFile
         val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+            this.project.projectDir.parentFile.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator +
+                    LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME + File.separator + this.srcDir
 
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
 
-        // NOTE: disable copying of the full termux lib for now
-        // copy(sourceFilePath, outputDirectory)
+        if (!File(sourceFilePath).exists()) {
+            return
+        }
 
-
-
-        val manifestOutputDirectory = this.outputDirectory.get()
-            .file(ASSETS_COMMON_FOLDER).asFile.resolve(MANIFEST_FILE_NAME)
-        val manifestSourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + MANIFEST_FILE_NAME
-        Files.copy(File(manifestSourceFilePath), manifestOutputDirectory)
+        copy(sourceFilePath, outputDirectory)
     }
 
 }
