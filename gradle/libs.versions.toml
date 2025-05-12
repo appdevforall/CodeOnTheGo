@@ -1,6 +1,6 @@
 [versions]
 activityKtx = "1.8.2"
-agp = "8.0.0"
+agp = "8.8.2"
 agp-tooling = "8.4.2"
 appcompat = "1.6.1"
 colorpickerview = "2.3.0"
@@ -53,6 +53,7 @@ androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", ve
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
 composite-appintro = { module = "com.itsaky.androidide.build:appintro" }
+composite-constants = { module = "com.itsaky.androidide.build:constants" }
 composite-desugaringCore = { module = "com.itsaky.androidide.build:desugaring-core" }
 composite-fuzzysearch = { module = "com.itsaky.androidide.build:fuzzysearch" }
 composite-googleJavaFormat = { module = "com.itsaky.androidide.build:google-java-format" }
