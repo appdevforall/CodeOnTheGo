@@ -481,7 +481,6 @@ class MainFragment : BaseFragment() {
             flashError(string.git_clone_failed)
             return
         }
-
         val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
         builder.setTitle(string.git_clone_failed)
         builder.setMessage(error.localizedMessage)
