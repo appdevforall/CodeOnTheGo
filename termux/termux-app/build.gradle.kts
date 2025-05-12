@@ -67,9 +67,10 @@ androidComponents {
             "v7" -> variant.sources.assets?.addGeneratedSourceDirectory(
                 copyV7TermuxCache,
                 CopyTermuxCacheAbiTask::outputDirectory)
-            "x86" -> variant.sources.assets?.addGeneratedSourceDirectory(
-                copyX86TermuxCache,
-                CopyTermuxCacheAbiTask::outputDirectory)
+            // NOTE: disable x86_64 builds for now
+            //"x86" -> variant.sources.assets?.addGeneratedSourceDirectory(
+            //    copyX86TermuxCache,
+            //    CopyTermuxCacheAbiTask::outputDirectory)
             else -> variant.sources.assets?.addGeneratedSourceDirectory(
                 copyV8TermuxCache,
                 CopyTermuxCacheAbiTask::outputDirectory)// default to v8
@@ -124,9 +125,10 @@ val copyV7TermuxCache = tasks.register<CopyTermuxCacheAbiTask>("copyV7TermuxCach
     srcDir = "v7"
 }
 
-val copyX86TermuxCache = tasks.register<CopyTermuxCacheAbiTask>("copyX86TermuxCache") {
-    srcDir = "x86"
-}
+// NOTE: disable x86_64 builds for now
+//val copyX86TermuxCache = tasks.register<CopyTermuxCacheAbiTask>("copyX86TermuxCache") {
+//    srcDir = "x86"
+//}
 
 afterEvaluate {
     listOf("generateV8DebugResValues", "generateV8ReleaseResValues").forEach { taskName ->
@@ -140,10 +142,10 @@ afterEvaluate {
             dependsOn("copyV7TermuxCache")
         }
     }
-
-    listOf("generateX86DebugResValues", "generateX86ReleaseResValues").forEach { taskName ->
-        tasks.named(taskName).configure {
-            dependsOn("copyX86TermuxCache")
-        }
-    }
+    // NOTE: disable x86_64 builds for now
+    //listOf("generateX86DebugResValues", "generateX86ReleaseResValues").forEach { taskName ->
+    //    tasks.named(taskName).configure {
+    //        dependsOn("copyX86TermuxCache")
+    //    }
+    //}
 }
