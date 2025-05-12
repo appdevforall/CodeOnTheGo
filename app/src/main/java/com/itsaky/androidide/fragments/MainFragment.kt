@@ -13,8 +13,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
-import org.adfa.constants.FEEDBACK_EMAIL
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -25,6 +25,7 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -49,8 +50,6 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
-import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 
 class MainFragment : BaseFragment() {
 
@@ -158,8 +157,8 @@ class MainFragment : BaseFragment() {
 
     private fun performFeedbackAction() {
         val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
-        builder?.apply {
-            setTitle(R.string.alert_message)
+        builder?.let { builder ->
+            builder.setTitle("Alert!")
                 .setMessage(
                     HtmlCompat.fromHtml(
                         getString(R.string.email_feedback_warning_prompt),
@@ -168,35 +167,33 @@ class MainFragment : BaseFragment() {
                 )
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                    val stackTrace = Exception().stackTrace.joinToString("\n")
+                    run {
+                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
 
-                    val feedbackMessage = getString(
-                        R.string.feedback_message,
-                        BuildConfig.VERSION_NAME,
-                        stackTrace
-                    )
+                        val feedbackMessage = getString(
+                            R.string.feedback_message,
+                            BuildConfig.VERSION_NAME,
+                            stackTrace
+                        )
 
-                    val subject = MessageFormat.format(
-                        resources.getString(R.string.feedback_subject),
-                        "Main"
-                    )
+                        val feedbackIntent = Intent(Intent.ACTION_SEND)
+                        val subject = MessageFormat.format(
+                            resources.getString(R.string.feedback_subject),
+                            "Main"
+                        )
 
-                    val mailUri = Uri.parse("mailto:$FEEDBACK_EMAIL" +
-                            "?subject=${Uri.encode(subject)}" +
-                            "&body=${Uri.encode(feedbackMessage)}"
-                    )
+                        feedbackIntent.data = Uri.parse("mailto:")
+                        feedbackIntent.type = "text/plain"
+                        feedbackIntent.putExtra(
+                            Intent.EXTRA_EMAIL,
+                            arrayOf(R.string.feeback_email)
+                        )
+                        feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
+                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
 
-                    val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = mailUri
+                        shareActivityResultLauncher.launch(feedbackIntent)
+                        dialog.dismiss()
                     }
-
-                    if (emailIntent.resolveActivity(requireContext().packageManager) != null) {
-                        startActivity(emailIntent)
-                    } else {
-                        Toast.makeText(requireContext(), R.string.no_email_apps, Toast.LENGTH_SHORT).show()
-                    }
-
-                    dialog.dismiss()
                 }
                 .create()
                 .show()
