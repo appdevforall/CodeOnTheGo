@@ -52,8 +52,6 @@ abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
         // NOTE: disable copying of the full termux lib for now
         // copy(sourceFilePath, outputDirectory)
 
-
-
         val manifestOutputDirectory = this.outputDirectory.get()
             .file(ASSETS_COMMON_FOLDER).asFile.resolve(MANIFEST_FILE_NAME)
         val manifestSourceFilePath =
