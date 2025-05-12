@@ -161,10 +161,10 @@ class MainFragment : BaseFragment() {
     private fun performFeedbackAction() {
         val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.apply {
-            setTitle("Alert!")
+            setTitle(R.string.alert_message)
                 .setMessage(
                     HtmlCompat.fromHtml(
-                        getString(R.string.feedback_warning),
+                        getString(R.string.email_feedback_warning_prompt),
                         HtmlCompat.FROM_HTML_MODE_COMPACT
                     )
                 )
@@ -195,7 +195,7 @@ class MainFragment : BaseFragment() {
                     if (emailIntent.resolveActivity(requireContext().packageManager) != null) {
                         startActivity(emailIntent)
                     } else {
-                        Toast.makeText(requireContext(), "No email apps found", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), R.string.no_email_apps, Toast.LENGTH_SHORT).show()
                     }
 
                     dialog.dismiss()
