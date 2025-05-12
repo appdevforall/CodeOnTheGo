@@ -56,7 +56,7 @@ import java.io.InputStream
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
-    private val DATABASENAME = "documentation"
+    private val DATABASENAME = "documentation.db"
     private val TAG = "MainActivity"
 
     private val viewModel by viewModels<MainViewModel>()
@@ -133,12 +133,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
      * @return true if the database was transferred successfully, false otherwise.
      */
     fun transferDatabaseFromAssets(context: Context, databaseName: String): Boolean {
+        //database is 128M so pick a large buffer size for speed
+        val BUFFERSIZE = 1024*1024
+
         val dbPath = context.getDatabasePath(databaseName)
         Log.d(TAG, "transferDatabaseFromAssets\\\\dbPath = $dbPath")
 
         // Check if the database already exists in internal storage.
         if (dbPath.exists()) {
-            Log.d(TAG, "Database already exists at ${dbPath.absolutePath}")
+            Log.d(TAG, "Database $DATABASENAME already exists at ${dbPath.absolutePath}")
             return true // Or false, depending on your desired behavior if the file exists
         }
 
@@ -146,7 +149,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         val dbDir = File(dbPath.parent!!) // Use non-null assertion as getDatabasePath's parent is never null
         if (!dbDir.exists()) {
             if (!dbDir.mkdirs()) {
-                Log.e(TAG, "Failed to create database directory: ${dbDir.absolutePath}")
+                Log.e(TAG, "Failed to create database directory: ${dbDir.absolutePath} for $DATABASENAME")
                 return false
             }
             Log.d(TAG, "Database directory created at ${dbDir.absolutePath}")
@@ -157,7 +160,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         try {
             val inputStream: InputStream = context.assets.open("database/$databaseName") // Corrected path
             val outputStream = FileOutputStream(dbPath)
-            val buffer = ByteArray(8192) // Use a reasonable buffer size
+            val buffer = ByteArray(BUFFERSIZE) // Use a reasonable buffer size
             var length: Int
             while (inputStream.read(buffer).also { length = it } > 0) {
                 outputStream.write(buffer, 0, length)
@@ -165,10 +168,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             outputStream.flush()
             outputStream.close()
             inputStream.close()
-            Log.d(TAG, "Database copied successfully to ${dbPath.absolutePath}")
+            Log.d(TAG, "Database $DATABASENAME successfully to ${dbPath.absolutePath}")
             return true
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to copy database: ${e.message}")
+            Log.e(TAG, "Failed to copy database $DATABASENAME: ${e.message}")
             e.printStackTrace() // Print the stack trace to help with debugging
             return false
         }
