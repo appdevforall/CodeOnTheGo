@@ -17,17 +17,9 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import com.adfa.constants.ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
-import com.adfa.constants.DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
-import com.adfa.constants.GRADLE_FOLDER_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_DEPENDENCY_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_NAME
-import com.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
+import org.adfa.constants.DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
-import java.io.File
 
 internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
   return """
