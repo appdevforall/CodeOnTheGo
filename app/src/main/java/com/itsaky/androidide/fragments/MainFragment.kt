@@ -12,8 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
-import org.adfa.constants.FEEDBACK_EMAIL
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -24,6 +24,7 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -48,8 +49,6 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
-import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 
 class MainFragment : BaseFragment() {
 
@@ -168,7 +167,8 @@ class MainFragment : BaseFragment() {
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
-                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+                        val stackTrace =
+                            Exception().stackTrace.asList().toString().replace(",", "\n")
 
                         val feedbackMessage = getString(
                             R.string.feedback_message,
@@ -186,7 +186,7 @@ class MainFragment : BaseFragment() {
                         feedbackIntent.type = "text/plain"
                         feedbackIntent.putExtra(
                             Intent.EXTRA_EMAIL,
-                            arrayOf(FEEDBACK_EMAIL)
+                            arrayOf(R.string.feeback_email)
                         )
                         feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
                         feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
