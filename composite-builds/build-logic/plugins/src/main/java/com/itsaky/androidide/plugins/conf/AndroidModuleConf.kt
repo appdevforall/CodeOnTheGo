@@ -207,12 +207,12 @@ fun Project.configureAndroidModule(
             }
 
             // NOTE: disable x86_64 builds for now
-            create("x86") {
-                dimension = "abi"
-                ndk {
-                    abiFilters += "x86_64"
-                }
-            }
+            //create("x86") {
+            //    dimension = "abi"
+            //    ndk {
+            //        abiFilters += "x86_64"
+            //    }
+            //}
         }
 
         buildTypes.getByName("debug") { isMinifyEnabled = false }
