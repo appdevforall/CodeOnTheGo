@@ -130,6 +130,13 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     private val log = LoggerFactory.getLogger(GradleBuildService::class.java)
     private val NOTIFICATION_ID = R.string.app_name
     private val SERVER_System_err = LoggerFactory.getLogger("ToolingApiErrorStream")
+
+    private const val ERROR_GRADLE_ENTERPRISE_PLUGIN = "gradle-enterprise-gradle-plugin"
+    private const val ERROR_COULD_NOT_FIND_GRADLE = "Could not find com.gradle"
+
+    private const val MESSAGE_SCAN_REQUIRES_PLUGIN = "The --scan option requires the Gradle Enterprise plugin."
+    private const val MESSAGE_OPTION_DISABLED = "This option has been disabled."
+    private const val MESSAGE_EXCEPTION_SCAN_DISABLED = "Disabled --scan option due to missing Gradle Enterprise plugin"
   }
 
   override fun onCreate() {
@@ -447,21 +454,22 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
         return@handleAsync future.get()
       } catch (e: Throwable) {
         if (BuildPreferences.isScanEnabled &&
-          (e.toString().contains("gradle-enterprise-gradle-plugin") ||
-                  e.toString().contains("Could not find com.gradle"))) {
+          (e.toString().contains(ERROR_GRADLE_ENTERPRISE_PLUGIN) ||
+                  e.toString().contains(ERROR_COULD_NOT_FIND_GRADLE))) {
 
           BuildPreferences.isScanEnabled = false
 
-          eventListener?.onOutput("The --scan option requires the Gradle Enterprise plugin.")
-          eventListener?.onOutput("This option has been disabled.")
+          eventListener?.onOutput(MESSAGE_SCAN_REQUIRES_PLUGIN)
+          eventListener?.onOutput(MESSAGE_OPTION_DISABLED)
 
-          throw ScanPluginMissingException("Disabled --scan option due to missing Gradle Enterprise plugin")
+          throw ScanPluginMissingException(MESSAGE_EXCEPTION_SCAN_DISABLED)
         }
 
         throw CompletionException(e)
       }
     }.handle(this::markBuildAsFinished)
   }
+
   class ScanPluginMissingException(message: String) : Exception(message)
 
   private fun isGradleEnterprisePluginAvailable(): Boolean {
