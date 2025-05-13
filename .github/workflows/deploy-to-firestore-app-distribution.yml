@@ -48,7 +48,7 @@ jobs:
       - name: Install and Configure Git LFS - Selective pull
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-lfs
+          sudo apt-get install -y git-lfs make
           git lfs install
           git lfs pull
 
@@ -56,13 +56,6 @@ jobs:
         run: |
           git submodule init
           git submodule update --remote
-
-      - name: Install CMake v3.31.4
-        run: |
-          wget --quiet https://github.com/Kitware/CMake/releases/download/v3.31.4/cmake-3.31.4-linux-x86_64.sh
-          chmod +x cmake-3.31.4-linux-x86_64.sh
-          sudo ./cmake-3.31.4-linux-x86_64.sh --skip-license --prefix=/usr/local
-          rm cmake-3.31.4-linux-x86_64.sh
 
       - name: Set up JDKs
         uses: actions/setup-java@v4
@@ -82,8 +75,13 @@ jobs:
       - name: Install Android SDK Platform 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Verify cmake installation
-        run: cmake --version
+      - name: Install CMake
+        run: |
+          echo "Installing CMake from Android SDK..."
+          yes | sdkmanager "cmake;3.31.4"
+          echo "Adding CMake to PATH..."
+          export PATH=$ANDROID_SDK_ROOT/cmake/3.31.4/bin:$PATH
+          cmake --version
 
       - name: Cache Dependencies
         uses: actions/cache@v4
@@ -104,16 +102,12 @@ jobs:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Find APK file
-        # We need to find the v8 APK specifically
+        # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
-          apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
-          if [ -z "$apk_path" ]; then
-            echo "ERROR: Could not find v8 APK"
-            exit 1
-          fi
+          apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
-          echo "Found v8 APK at: $apk_path"
+          echo "Found APK at: $apk_path"
 
       - name: Set branch name
         run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
