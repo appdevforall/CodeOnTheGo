@@ -88,6 +88,12 @@ jobs:
       - name: Install Android SDK Platform 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
 
+      - name: Verify CMake version
+        run: |
+          cmake --version
+          which cmake
+          echo "CMake path: $(which cmake)"
+
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
@@ -105,7 +111,8 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Run failing task with debug output
-        run: ./gradlew :subprojects:libjdwp:collectLibJdiSupport -DJava_ROOT=${{ env.JAVA_HOME_8_X64 }}
+        run: |
+          ./gradlew :subprojects:libjdwp:build
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
