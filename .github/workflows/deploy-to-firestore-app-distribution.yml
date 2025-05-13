@@ -63,6 +63,7 @@ jobs:
       - name: Set Java_ROOT environment variable
         run: |
           echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
 
       - name: Install and Configure Git LFS - Selective pull
         run: |
@@ -104,12 +105,11 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --stacktrace -Dorg.gradle.java.home=$Java_ROOT
+        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --stacktrace
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Find APK file
-        # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
           apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
