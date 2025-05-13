@@ -75,10 +75,13 @@ class LocalServerUtil() {
         val HTTP_NOT_FOUND = 404
         httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
         httpExchange.sendResponseHeaders(HTTP_NOT_FOUND, respByteArray.size.toLong())
-
         val os = httpExchange.responseBody
-        os.write(respByteArray)
-        os.close()
+
+        try {
+            os.write(respByteArray)
+        } finally {
+            os.close()
+        }
     }
 
     fun sendBinaryResponse(
@@ -117,8 +120,8 @@ class LocalServerUtil() {
 
                     val querySplitPath = exchange.requestURI.toString().split("?")
                     var rawFilePath = querySplitPath[0].toString()
-                    //TODO remove the '/' from the documentation.db database
                     if (rawFilePath.startsWith("/")) {
+                        Log.e(TAG, "RawFile path in database '$rawFilePath' starts with '/'")
                         rawFilePath = rawFilePath.substring(1)
                     }
                     // Get path components
