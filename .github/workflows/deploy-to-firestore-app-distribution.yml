@@ -85,6 +85,20 @@ jobs:
       - name: Verify cmake installation
         run: cmake --version
 
+      - name: Patch jdi-support.jar location
+        run: |
+            echo "Searching for jdi-support.jar..."
+            found_path=$(find subprojects/libjdwp/.cmake -name jdi-support.jar | head -n 1)
+            if [ -f "$found_path" ]; then
+              echo "Found at: $found_path"
+              mkdir -p subprojects/libjdwp/build/libs/
+              cp "$found_path" subprojects/libjdwp/build/libs/jdi-support.jar
+              echo "Copied to subprojects/libjdwp/build/libs/jdi-support.jar"
+            else
+              echo "❌ jdi-support.jar not found!"
+              exit 1
+            fi
+
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
