@@ -35,26 +35,12 @@ import org.gradle.kotlin.dsl.withType
 import com.itsaky.androidide.build.config.publishingVersion
 import java.io.File
 
-private val projectsRequiringMavenLocalForTests = arrayOf(":gradle-plugin")
 private val mavenLocalRepos = hashMapOf<String, String>()
 
 @Suppress("UnstableApiUsage")
 fun Project.configureMavenPublish() {
   assert(plugins.hasPlugin("com.vanniktech.maven.publish.base")) {
     "${javaClass.simpleName} can only be applied to maven publish projects."
-  }
-
-  gradle.projectsEvaluated {
-    rootProject.subprojects {
-      if (project.path in projectsRequiringMavenLocalForTests) {
-        tasks.withType<Test> {
-          for ((project, _) in mavenLocalRepos) {
-            dependsOn(
-              project(project).tasks.getByName("publishAllPublicationsToBuildMavenLocalRepository"))
-          }
-        }
-      }
-    }
   }
 
   afterEvaluate {
@@ -124,16 +110,6 @@ private fun Project.configureMavenLocal() {
 
   tasks.create<Delete>("deleteBuildMavenLocal") {
     delete(mavenLocalPath)
-  }
-
-  if (project.path in projectsRequiringMavenLocalForTests) {
-    tasks.withType<Test> {
-      dependsOn(tasks.getByName("publishAllPublicationsToBuildMavenLocalRepository"))
-      doFirst {
-        val file = mavenLocalPath.get().file("repos.txt").asFile
-        file.writeText(mavenLocalRepos.values.joinToString(separator = File.pathSeparator))
-      }
-    }
   }
 
   afterEvaluate {
