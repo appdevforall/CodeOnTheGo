@@ -51,11 +51,24 @@ jobs:
           sudo apt-get install -y git-lfs make
           git lfs install
           git lfs pull
+          # Verify LFS files are properly pulled
+          echo "=== Checking Git LFS status ==="
+          git lfs ls-files -l | grep -v '(-)' || echo "No LFS files found"
+          # Check specific directories that might contain binary files
+          echo "=== Looking for binary files in oj-libjdwp ==="
+          find oj-libjdwp -type f -size +1M -ls || echo "No large files found"
 
       - name: Initialize submodules
         run: |
+          echo "=== Initializing submodules ==="
           git submodule init
           git submodule update --remote
+          echo "=== Submodule status ==="
+          git submodule status
+          echo "=== Checking oj-libjdwp directory ==="
+          ls -la oj-libjdwp
+          echo "=== Checking key files in oj-libjdwp ==="
+          find oj-libjdwp -name "*.jar" -o -name "CMakeLists.txt" -o -name "*.cmake"
 
       - name: Set up JDKs
         uses: actions/setup-java@v4
@@ -91,8 +104,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
+      - name: Run failing task with debug output
+        run: ./gradlew :subprojects:libjdwp:collectLibJdiSupport --debug --stacktrace -DJava_ROOT=${{ env.JAVA_HOME_8_X64 }}
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+
+      - name: Check CMake build directories
+        run: |
+          echo "=== Looking for jdi-support.jar in .cmake directory ==="
+          find . -name "jdi-support.jar" -ls || echo "jdi-support.jar not found"
+          echo "=== Content of .cmake directory ==="
+          find subprojects/libjdwp/.cmake -type f -name "*.log" -o -name "*.jar" -ls || echo "No log or jar files found"
+          echo "=== CMake logs if available ==="
+          find subprojects/libjdwp/.cmake -name "*.log" -exec cat {} \; || echo "No log files found"
+        continue-on-error: true
+
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand -DJava_ROOT=${{ env.JAVA_HOME_8_X64 }}
+        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --info -DJava_ROOT=${{ env.JAVA_HOME_8_X64 }}
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
