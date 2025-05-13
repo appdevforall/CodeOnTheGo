@@ -17,6 +17,7 @@
 package com.itsaky.androidide.gradle
 
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
+import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_INJECT
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
@@ -28,34 +29,31 @@ import org.gradle.api.logging.Logging
  */
 class AndroidIDEGradlePlugin : Plugin<Project> {
 
-  companion object {
+    companion object {
 
-    private val logger = Logging.getLogger(AndroidIDEGradlePlugin::class.java)
-  }
-
-  override fun apply(target: Project) {
-    if (target.isTestEnv) {
-      logger.lifecycle("Applying ${javaClass.simpleName} to project '${target.path}'")
+        private val logger = Logging.getLogger(AndroidIDEGradlePlugin::class.java)
     }
 
-    target.run {
-
-      val isLogSenderEnabled = if (hasProperty(PROPERTY_LOGSENDER_ENABLED)) {
-        property(PROPERTY_LOGSENDER_ENABLED).toString().toBoolean()
-      } else {
-        // enabled by default
-        true
-      }
-
-      if (plugins.hasPlugin(APP_PLUGIN)) {
-
-        if (isLogSenderEnabled) {
-          logger.info("Trying to apply LogSender plugin to project '${project.path}'")
-          pluginManager.apply(LogSenderPlugin::class.java)
-        } else {
-          logger.warn("LogSender is disabled. Dependency will not be added to project '${project.path}'.")
+    override fun apply(target: Project) {
+        if (target.isTestEnv) {
+            logger.lifecycle("Applying ${javaClass.simpleName} to project '${target.path}'")
         }
-      }
+
+        target.run {
+            val isLogSenderEnabled = findProperty(PROPERTY_LOGSENDER_ENABLED) == "true"
+            val isDebuggerEnabled = findProperty(PROP_JDWP_INJECT) == "true"
+
+            if (plugins.hasPlugin(APP_PLUGIN)) {
+                if (isLogSenderEnabled) {
+                    logger.info("Applying LogSender plugin to project '${project.path}'")
+                    pluginManager.apply(LogSenderPlugin::class.java)
+                }
+
+                if (isDebuggerEnabled) {
+                    logger.info("Applying JdwpConfig plugin to project '${project.path}'")
+                    pluginManager.apply(JdwpConfigPlugin::class.java)
+                }
+            }
+        }
     }
-  }
 }
