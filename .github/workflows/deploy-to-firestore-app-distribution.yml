@@ -60,6 +60,10 @@ jobs:
             8
             17
 
+      - name: Set Java_ROOT environment variable
+        run: |
+          echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
+
       - name: Install and Configure Git LFS - Selective pull
         run: |
           sudo apt-get update
@@ -100,7 +104,7 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --stacktrace
+        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --stacktrace -Dorg.gradle.java.home=$Java_ROOT
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
