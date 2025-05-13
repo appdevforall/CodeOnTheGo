@@ -102,3 +102,6 @@ sentry.properties
 
 #.DS_Store
 .DS_Store
+
+# Generated files for tooling API
+tests/test-home

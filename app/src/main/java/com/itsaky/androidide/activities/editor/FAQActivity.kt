@@ -21,7 +21,7 @@ import androidx.core.graphics.Insets
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
-import com.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityFaqBinding
