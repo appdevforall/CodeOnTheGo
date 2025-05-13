@@ -85,9 +85,6 @@ jobs:
       - name: Verify cmake installation
         run: cmake --version
 
-      - name: Set CMake path manually
-        run: echo "${ANDROID_HOME}/cmake/3.31.4/bin" >> $GITHUB_PATH
-
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
