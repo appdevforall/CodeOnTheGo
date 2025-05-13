@@ -24,6 +24,39 @@ package com.itsaky.androidide.tooling.api;
  */
 public final class ToolingConfig {
 
+  /**
+   * Whether to inject the JDWP library directory into the target application.
+   */
+  public static final String PROP_JDWP_INJECT = "ide.property.jdwp.inject";
+
+  /**
+   * The directory where the JDWP library is located. The direct children of this directory must be
+   * architecture-specific directories, which should contain the shared library (similar to how `jniLibs`
+   * directory works in Android projects).
+   */
+  public static final String PROP_JDWP_LIBDIR = "ide.property.jdwp.libdir";
+
+  /**
+   * The name of the JDWP library, without file extension or `lib` prefix.
+   * Defaults to {@link #JDWP_LIBNAME_DEFAULT}.
+   */
+  public static final String PROP_JDWP_LIBNAME = "ide.property.jdwp.libname";
+
+  /**
+   * The default value for {@link #PROP_JDWP_LIBNAME}.
+   */
+  public static final String JDWP_LIBNAME_DEFAULT = "jdwp";
+
+  /**
+   * The options to pass to the JDWP library.
+   */
+  public static final String PROP_JDWP_OPTIONS = "ide.property.jdwp.options";
+
+  /**
+   * The default value for {@link #PROP_JDWP_OPTIONS}.
+   */
+  public static final String JDWP_OPTIONS_DEFAULT = "suspend=n,server=y,transport=dt_socket";
+
   private ToolingConfig() {
     throw new UnsupportedOperationException("This class cannot be instantiated.");
   }
