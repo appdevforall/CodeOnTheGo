@@ -6,4 +6,6 @@
     <dimen name="content_padding">8dip</dimen>
     <dimen name="content_padding_double">16dip</dimen>
     <dimen name="content_padding_triple">32dip</dimen>
+
+    <dimen name="debugoverlay_content_spacing">16dp</dimen>
 </resources>
