@@ -301,9 +301,6 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     if (BuildPreferences.isDebugEnabled) {
       extraArgs.add("--debug")
     }
-    if (BuildPreferences.isScanEnabled) {
-      extraArgs.add("--scan")
-    }
     if (BuildPreferences.isWarningModeAllEnabled) {
       extraArgs.add("--warning-mode")
       extraArgs.add("all")
@@ -313,6 +310,13 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     }
     if (BuildPreferences.isOfflineEnabled) {
       extraArgs.add("--offline")
+    }
+    if (BuildPreferences.isScanEnabled) {
+      if (isGradleEnterprisePluginAvailable()) {
+        extraArgs.add("--scan")
+      } else {
+        log.warn("Gradle Enterprise plugin is not available. The --scan option has been disabled for this build.")
+      }
     }
     return CompletableFuture.completedFuture(extraArgs)
   }
@@ -405,13 +409,31 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     params: InitializeProjectParams): CompletableFuture<InitializeResult> {
     checkServerStarted()
     Objects.requireNonNull(params)
-    return performBuildTasks(server!!.initialize(params))
+    return try {
+      performBuildTasks(server!!.initialize(params))
+    } catch (e: ScanPluginMissingException) {
+      log.info("Retrying initialization without --scan option...")
+      initializeProject(params)
+    }
   }
 
   override fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> {
     checkServerStarted()
     val message = TaskExecutionMessage(listOf(*tasks))
-    return performBuildTasks(server!!.executeTasks(message))
+
+    val future = performBuildTasks(server!!.executeTasks(message))
+
+    return future.handle { result, exception ->
+      if (exception != null) {
+        val cause = exception.cause
+        if (cause is ScanPluginMissingException) {
+          log.info("Retrying build without --scan option...")
+          return@handle executeTasks(*tasks).get()
+        }
+        throw CompletionException(exception)
+      }
+      return@handle result
+    }
   }
 
   override fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult> {
@@ -424,9 +446,46 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
       try {
         return@handleAsync future.get()
       } catch (e: Throwable) {
+        if (BuildPreferences.isScanEnabled &&
+          (e.toString().contains("gradle-enterprise-gradle-plugin") ||
+                  e.toString().contains("Could not find com.gradle"))) {
+
+          BuildPreferences.isScanEnabled = false
+
+          eventListener?.onOutput("The --scan option requires the Gradle Enterprise plugin.")
+          eventListener?.onOutput("This option has been disabled.")
+
+          throw ScanPluginMissingException("Disabled --scan option due to missing Gradle Enterprise plugin")
+        }
+
         throw CompletionException(e)
       }
     }.handle(this::markBuildAsFinished)
+  }
+  class ScanPluginMissingException(message: String) : Exception(message)
+
+  private fun isGradleEnterprisePluginAvailable(): Boolean {
+    val projectDir = ProjectManagerImpl.getInstance().projectDir ?: return false
+
+    val settingsFiles = listOf(
+      File(projectDir, "settings.gradle"),
+      File(projectDir, "settings.gradle.kts")
+    )
+
+    for (file in settingsFiles) {
+      if (file.exists()) {
+        try {
+          val content = file.readText()
+          if (content.contains("com.gradle.enterprise")) {
+            return true
+          }
+        } catch (e: Exception) {
+          log.error("Error reading settings file: ${file.name}", e)
+        }
+      }
+    }
+
+    return false
   }
 
   private fun onPrepareBuildRequest() {
