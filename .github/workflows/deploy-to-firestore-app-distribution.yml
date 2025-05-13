@@ -45,6 +45,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install and Configure Git LFS - Selective pull
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs make
+          git lfs install
+          git lfs pull
 
       - name: Initialize submodules
         run: |
@@ -60,18 +66,6 @@ jobs:
             8
             17
 
-      - name: Set Java_ROOT environment variable
-        run: |
-          echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
-
-      - name: Install and Configure Git LFS - Selective pull
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs make
-          git lfs install
-          git lfs pull
-
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
 
@@ -81,15 +75,8 @@ jobs:
       - name: Install Android SDK Platform 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
 
-      - name: Verify CMake installation
-        run: |
-          if command -v cmake >/dev/null; then
-            echo "CMake is installed"
-            cmake --version
-          else
-            echo "CMake is not installed" >&2
-            exit 1
-          fi
+      - name: Set Java_ROOT environment variable
+        run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
       - name: Cache Dependencies
         uses: actions/cache@v4
@@ -105,11 +92,12 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --stacktrace
+        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand -DJava_ROOT=${{ env.JAVA_HOME_8_X64 }}
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Find APK file
+        # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
           apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
