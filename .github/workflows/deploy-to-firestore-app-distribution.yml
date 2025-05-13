@@ -91,7 +91,7 @@ jobs:
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
         env:
-          Java_ROOT: ${{ env.JAVA_HOME_17_X64 }}
+          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
 
       - name: Find APK file
         # We need to find the v8 APK specifically
