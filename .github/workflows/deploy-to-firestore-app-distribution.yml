@@ -57,8 +57,12 @@ jobs:
           git submodule init
           git submodule update --remote
 
-      - name: Install CMake
-        run: sudo apt-get update && sudo apt-get install -y cmake
+      - name: Install CMake v3.31.4 or later
+        run: |
+          wget --quiet https://github.com/Kitware/CMake/releases/download/v3.31.4/cmake-3.31.4-linux-x86_64.sh
+          chmod +x cmake-3.31.4-linux-x86_64.sh
+          sudo ./cmake-3.31.4-linux-x86_64.sh --skip-license --prefix=/usr/local
+          rm cmake-3.31.4-linux-x86_64.sh
 
       - name: Set up JDKs
         uses: actions/setup-java@v4
