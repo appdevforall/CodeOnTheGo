@@ -24,16 +24,13 @@ import com.itsaky.androidide.idetooltips.DocumentationDatabase
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
-import okhttp3.internal.connection.Exchange
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
-import java.util.concurrent.Exchanger
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
-import kotlin.time.measureTime
+import java.util.concurrent.TimeUnit
 
 class LocalServerUtil() {
 
@@ -42,10 +39,12 @@ class LocalServerUtil() {
     val ACCEPT_LANGUAGES = "Accept-Language"
     val ACCEPT_ENCODINGS = "Accept-Encoding"
     val ACCEPT = "Accept"
+    val BUFFER_SIZE = 65536
     val BROTLI_TAG = "br"
     val BROTLI_COMPRESSION = "brotli"
     val BROTLI_COMMAND = "/data/data/com.itsaky.androidide/files/usr/bin/brotli"
     val BROTLI_TIMEOUT = 5 * 1000L
+    val BROTLI_COMMAND_OPTIONS = "--decompress"
 
 
 
@@ -68,24 +67,14 @@ class LocalServerUtil() {
         }
     }
 
-    fun sendTextResponse(httpExchange: HttpExchange, responseText: String,
-                         contentType: String){
+    fun sendNotFoundResponse(httpExchange: HttpExchange){
         // Encode response text as UTF-8 and convert to ByteArray
+        val responseText = "not found: ${httpExchange.requestURI.toString()}"
+        val contentType = "text/plain"
         val respByteArray = responseText.encodeToByteArray()
+        val HTTP_NOT_FOUND = 404
         httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
-        httpExchange.sendResponseHeaders(200, respByteArray.size.toLong())
-
-        val os = httpExchange.responseBody
-        os.write(respByteArray)
-        os.close()
-    }
-
-    fun sendErrorResponse(httpExchange: HttpExchange, responseText: String,
-                         contentType: String){
-        // Encode response text as UTF-8 and convert to ByteArray
-        val respByteArray = responseText.encodeToByteArray()
-        httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
-        httpExchange.sendResponseHeaders(404, respByteArray.size.toLong())
+        httpExchange.sendResponseHeaders(HTTP_NOT_FOUND, respByteArray.size.toLong())
 
         val os = httpExchange.responseBody
         os.write(respByteArray)
@@ -96,12 +85,16 @@ class LocalServerUtil() {
         httpExchange: HttpExchange, responseData: ByteArray?,
         contentType: String
     ) {
-        httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
-        httpExchange.sendResponseHeaders(200, responseData?.size?.toLong() ?: 0)
-
+        val HTTP_OK = 200
         val os = httpExchange.responseBody
-        os.write(responseData)
-        os.close()
+        try {
+            httpExchange.getResponseHeaders().put("Content-Type", listOf(contentType))
+            httpExchange.sendResponseHeaders(HTTP_OK, responseData?.size?.toLong() ?: 0)
+
+            os.write(responseData)
+        } finally {
+            os.close()
+        }
     }
 
     //shutdown the server
@@ -124,6 +117,7 @@ class LocalServerUtil() {
 
                     val querySplitPath = exchange.requestURI.toString().split("?")
                     var rawFilePath = querySplitPath[0].toString()
+                    //TODO remove the '/' from the documentation.db database
                     if (rawFilePath.startsWith("/")) {
                         rawFilePath = rawFilePath.substring(1)
                     }
@@ -134,11 +128,11 @@ class LocalServerUtil() {
                     val contentItem = contentDao.getContent(rawFilePath)
 
                     if (contentItem == null) {
-                        sendErrorResponse(exchange, formatNotFoundError(rawFilePath), "text/html")
+                        sendNotFoundResponse(exchange)
                     } else {
                         val typeItem =   //contentItem.contentTypeID
                             contentTypeDao.getContentTypeById(contentItem!!.contentTypeID)
-                        val type = typeItem!!.value
+                        val itemType = typeItem!!.value
                         // Extract file extension for content type header
                         val headers = exchange.requestHeaders
                         var acceptsBrotli = false
@@ -148,137 +142,26 @@ class LocalServerUtil() {
                                 if (headerValues!!.equals(BROTLI_TAG)) {
                                     acceptsBrotli = true
                                 }
+                                break
                             }
                         }
 
                         var html: ByteArray? = contentItem.content
                         if (!acceptsBrotli && typeItem!!.compression.equals("brotli")) {
-                            val duration = measureTime {
                                 html = decodeBrotli(
                                     BROTLI_COMMAND,
                                     contentItem.content,
                                     BROTLI_TIMEOUT
                                 )
-                            }
-                            Log.d(TAG, "brotli took $duration")
                         }
 
-//                        if (typeItem!!.compression.equals("None")) {
-//                            sendTextResponse(exchange, html.toString(), type)
-//                        } else {
-                            sendBinaryResponse(exchange, html, type)
-//                        }
+                        sendBinaryResponse(exchange, html, itemType)
                     }
                 }
             }
         }
     }
 
-    /**
-     * Formats a 404 Not Found error message.  This function provides a
-     * consistent and user-friendly way to display 404 errors in an Android
-     * application.  It encapsulates the error message construction,
-     * allowing for easy modification and localization.
-     *
-     * @param url The URL that was not found.
-     * @return A formatted string representing the 404 error.
-     */
-    fun formatNotFoundError(url: String): String {
-        return """
-        <html>
-        <head>
-            <title>404 Not Found</title>
-            <style>
-                body {
-                    font-family: 'Arial', sans-serif;
-                    background-color: #f4f4f4;
-                    color: #333;
-                    margin: 0;
-                    padding: 0;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    text-align: center;
-                }
-                .container {
-                    max-width: 80%; /* Responsive width */
-                    padding: 20px;
-                    background-color: #fff;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
-                    border: 1px solid #ddd;
-                }
-                h1 {
-                    font-size: 2.5em; /* Larger heading */
-                    color: #4CAF50; /* A shade of green */
-                    margin-bottom: 10px;
-                }
-                p {
-                    font-size: 1.1em; /* Slightly larger paragraph text */
-                    margin-bottom: 20px;
-                    line-height: 1.5; /* Improved readability */
-                }
-                hr {
-                    border: none;
-                    height: 1px;
-                    background-color: #ddd; /* Lighter divider */
-                    margin: 20px 0;
-                }
-                a {
-                    color: #0078d7; /* Standard blue for links */
-                    text-decoration: none;
-                }
-                a:hover {
-                    text-decoration: underline; /* Indicate link on hover */
-                }
-                .error-details {
-                  background-color: #f8f8f8;
-                  padding: 10px;
-                  border-radius: 5px;
-                  margin-top: 10px;
-                  font-size: 0.9em;
-                  color: #555;
-                  border: 1px solid #eee;
-                  overflow-wrap: break-word;
-                  word-break: break-all;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>404 Not Found</h1>
-                <p>Sorry, the page you are looking for could not be found.</p>
-                <hr>
-                <p>The requested URL 
-                    <span class="error-details">
-                        ${htmlEncode(url)}
-                    </span>
-                 was not found on this server.</p>
-                <p>
-                    <a href="/">Back to Home</a>
-                </p>
-            </div>
-        </body>
-        </html>
-        """.trimIndent()
-
-    }
-
-    /**
-     * Utility function to HTML encode a string.  This is essential to prevent
-     * Cross-Site Scripting (XSS) vulnerabilities when displaying user-provided
-     * data (like a URL) in an HTML page.  It replaces special characters
-     * with their corresponding HTML entities.
-     */
-    private fun htmlEncode(text: String): String {
-        return text
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-            .replace("'", "&#039;")
-    }
 
     /**
      * Sends binary data to the brotli application via a pipe and receives a binary
@@ -302,7 +185,7 @@ class LocalServerUtil() {
 
         try {
             // 1. Execute the external application.
-            val processBuilder = ProcessBuilder(command, "--decompress")
+            val processBuilder = ProcessBuilder(command, BROTLI_COMMAND_OPTIONS)
             process = processBuilder.start()
 
             // 2. Get the input and output streams of the process.
@@ -339,8 +222,9 @@ class LocalServerUtil() {
             // 6. Read the binary output from the application's standard output.
             process.inputStream.use { stdOut ->
                 outputStream = stdOut
-                val buffer = ByteArray(4096) // Use a buffer to read in chunks
+                val buffer = ByteArray(BUFFER_SIZE) // Use a buffer to read in chunks
                 val output = ByteArrayOutputStream()
+
                 var bytesRead: Int
                 while (stdOut.read(buffer).also { bytesRead = it } != -1) {
                     output.write(buffer, 0, bytesRead)
@@ -363,6 +247,4 @@ class LocalServerUtil() {
             }
         }
     }
-
-
 }

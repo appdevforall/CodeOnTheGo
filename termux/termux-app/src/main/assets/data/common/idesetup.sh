@@ -64,11 +64,3 @@ for abi in "${supported_abis[@]}"
 
 mkdir -p "$props_dir"
 printf "JAVA_HOME=%s" "$jdk_dir" >"$props"
-
-#-- this is an interim fix to use our own mirror of packages.androidide.com
-#-- a permanent fix will be to change the source of the libs_source/bootstrap/boostrap-<arch>.zip
-#-- specifically the etc/apt/sources.list
-echo "deb [trusted=yes] https://packages.appdevforall.org/apt/termux-main/ stable main" > $SYSROOT/etc/apt/sources.list
-echo "copying documentation database from /data/user/0/com.itsaky.androidide/databases/documentation"
-echo "    to /data/user/0/com.itsaky.androidide/databases/documentation"
-###cp -f /data/user/0/com.itsaky.androidide/databases/documentation   /data/data/com.itsaky.androidide/databases/documentation

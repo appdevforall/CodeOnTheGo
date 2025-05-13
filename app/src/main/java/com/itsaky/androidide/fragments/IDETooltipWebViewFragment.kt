@@ -38,6 +38,7 @@ class IDETooltipWebviewFragment : Fragment() {
     private lateinit var webView: WebView
     private lateinit var website : String
 
+    //This warning is unnecessary because we control the content
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -106,9 +107,6 @@ class IDETooltipWebviewFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         Log.d(Companion.TAG, "IDETooltipWebViewFragment\\\\onViewCreated called")
-        view.requestFocus()
-        view.bringToFront()
-        view.elevation = 5.0F
     }
 
     override fun onDestroyView() {

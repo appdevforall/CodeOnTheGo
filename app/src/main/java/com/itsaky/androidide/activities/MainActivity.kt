@@ -141,7 +141,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         // Check if the database already exists in internal storage.
         if (dbPath.exists()) {
-            Log.d(TAG, "Database $DATABASENAME already exists at ${dbPath.absolutePath}")
+            Log.d(TAG, "Database $databaseName already exists at ${dbPath.absolutePath}")
             return true // Or false, depending on your desired behavior if the file exists
         }
 
@@ -157,9 +157,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         // Copy the database file from assets to internal storage.
 
+        val inputStream: InputStream = context.assets.open("database/$databaseName") // Corrected path
+        val outputStream = FileOutputStream(dbPath)
         try {
-            val inputStream: InputStream = context.assets.open("database/$databaseName") // Corrected path
-            val outputStream = FileOutputStream(dbPath)
             val buffer = ByteArray(BUFFERSIZE) // Use a reasonable buffer size
             var length: Int
             while (inputStream.read(buffer).also { length = it } > 0) {
@@ -168,12 +168,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             outputStream.flush()
             outputStream.close()
             inputStream.close()
-            Log.d(TAG, "Database $DATABASENAME successfully to ${dbPath.absolutePath}")
+            Log.d(TAG, "Database $databaseName successfully to ${dbPath.absolutePath}")
             return true
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to copy database $DATABASENAME: ${e.message}")
+            Log.e(TAG, "Failed to copy database $databaseName: ${e.message}")
             e.printStackTrace() // Print the stack trace to help with debugging
             return false
+        } finally {
+            outputStream.flush()
+            outputStream.close()
+            inputStream.close()
         }
     }
 

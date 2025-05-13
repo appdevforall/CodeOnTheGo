@@ -25,11 +25,6 @@ data class Content(
 
         other as Content
 
-        if (languageID != other.languageID) return false
-        if (contentTypeID != other.contentTypeID) return false
-        if (path != other.path) return false
-        if (!content.contentEquals(other.content)) return false
-
         return true
     }
 

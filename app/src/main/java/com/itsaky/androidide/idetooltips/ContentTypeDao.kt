@@ -8,14 +8,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ContentTypeDao {
-    @Query("SELECT * FROM ContentTypes")
-    fun getAll(): Flow<List<ContentType>>
-
     @Query("SELECT * FROM ContentTypes WHERE id = :id")
     fun getContentTypeById(id: Int): ContentType?
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insert(contentType: ContentType): Long
 
     @Query("SELECT * FROM ContentTypes WHERE `value` = :value")
     fun getContentTypeByValue(value: String): ContentType?
