@@ -75,6 +75,16 @@ jobs:
       - name: Install Android SDK Platform 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
 
+      - name: Verify CMake installation
+        run: |
+          if command -v cmake >/dev/null; then
+            echo "CMake is installed"
+            cmake --version
+          else
+            echo "CMake is not installed" >&2
+            exit 1
+          fi
+
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
