@@ -101,7 +101,7 @@ jobs:
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --stacktrace
         env:
-          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+          Java_ROOT: ${{ env.JAVA_HOME_17_X64 }}
 
       - name: Find APK file
         # We need to find the APK since the name is dynamically generated and it does not have a definite location
