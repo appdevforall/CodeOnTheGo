@@ -105,7 +105,7 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Run failing task with debug output
-        run: ./gradlew :subprojects:libjdwp:collectLibJdiSupport --debug --stacktrace -DJava_ROOT=${{ env.JAVA_HOME_8_X64 }}
+        run: ./gradlew :subprojects:libjdwp:collectLibJdiSupport -DJava_ROOT=${{ env.JAVA_HOME_8_X64 }}
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
