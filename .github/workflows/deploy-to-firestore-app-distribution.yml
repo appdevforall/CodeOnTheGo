@@ -94,12 +94,16 @@ jobs:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Find APK file
-        # We need to find the APK since the name is dynamically generated and it does not have a definite location
+        # We need to find the v8 APK specifically
         id: find_apk
         run: |
-          apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
+          apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
+          if [ -z "$apk_path" ]; then
+            echo "ERROR: Could not find v8 APK"
+            exit 1
+          fi
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
-          echo "Found APK at: $apk_path"
+          echo "Found v8 APK at: $apk_path"
 
       - name: Set branch name
         run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
