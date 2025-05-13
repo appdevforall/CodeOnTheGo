@@ -89,7 +89,7 @@ jobs:
             ${{ runner.os }}-gradle-deps-
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
+        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand --stacktrace
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
