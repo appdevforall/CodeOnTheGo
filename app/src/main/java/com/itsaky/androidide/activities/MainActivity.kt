@@ -46,6 +46,9 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_L
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 //import io.sentry.Sentry
 import java.io.File
+import android.content.Context
+import android.hardware.display.DisplayManager
+import android.view.Display
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -90,6 +93,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         super.onCreate(savedInstanceState)
         
         openLastProject()
+        setupSecondaryDisplay()
 
         viewModel.currentScreen.observe(this) { screen ->
             if (screen == -1) {
@@ -245,5 +249,22 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         ITemplateProvider.getInstance().release()
         super.onDestroy()
         _binding = null
+    }
+
+    private fun setupSecondaryDisplay() {
+        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val displays = displayManager.displays
+        var secondDisplay: Display? = null
+
+        for (display in displays) {
+            if (display.displayId != Display.DEFAULT_DISPLAY) {
+                secondDisplay = display
+                break
+            }
+        }
+        secondDisplay?.let {
+            val presentation = SecondaryScreen(this, it)
+            presentation.show()
+        }
     }
 }
