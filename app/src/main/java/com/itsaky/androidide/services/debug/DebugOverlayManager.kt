@@ -7,15 +7,12 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.ViewConfiguration
-import android.view.ViewGroup
 import android.view.WindowManager
-import androidx.annotation.DrawableRes
-import androidx.appcompat.widget.TooltipCompat
 import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
+import com.itsaky.androidide.actions.ActionItem
+import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
-import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -35,9 +32,6 @@ class DebugOverlayManager private constructor(
     private var initialTouchY = 0f
 
     init {
-        // why not use android:clipToOutline in XML?
-        // because android:clipToOutline attr is only used on API >= 31
-        binding.actions.clipToOutline = true
         binding.dragHandle.root.icon = ContextCompat.getDrawable(binding.root.context, R.drawable.ic_drag_handle)
 
         binding.dragHandle.root.setOnTouchListener { v, event ->
@@ -126,72 +120,16 @@ class DebugOverlayManager private constructor(
             // noinspection InflateParams
             val layout = DebuggerActionsWindowBinding.inflate(inflater)
 
-            val actions = listOf(
-                SimpleAction(
-                    label = "Pause",
-                    icon = R.drawable.ic_run_outline
-                ),
-                SimpleAction(
-                    label = "Step over",
-                    icon = R.drawable.ic_run_outline
-                ),
-                SimpleAction(
-                    label = "Step into",
-                    icon = R.drawable.ic_run_outline
-                ),
-                SimpleAction(
-                    label = "Step out",
-                    icon = R.drawable.ic_run_outline
-                ),
-                SimpleAction(
-                    label = "Restart",
-                    icon = R.drawable.ic_run_outline
-                ),
-                SimpleAction(
-                    label = "Stop",
-                    icon = R.drawable.ic_run_outline
-                ),
-            )
+            val actionsRegistry = ActionsRegistry.getInstance()
+            val debuggerActions = actionsRegistry.getActions(ActionItem.Location.DEBUGGER_ACTIONS)
 
-            layout.actions.adapter = ActionsAdapter(actions)
+            val adapter = DebuggerActionsOverlayAdapter(debuggerActions.values.toList())
+            layout.actions.adapter = adapter
 
             return DebugOverlayManager(
                 windowManager,
                 layout,
             )
-        }
-    }
-
-    data class SimpleAction(
-        val label: String,
-
-        @DrawableRes
-        val icon: Int,
-    )
-
-    class ActionsAdapter(
-        private val actions: List<SimpleAction>
-    ) : RecyclerView.Adapter<ActionsAdapter.VH>() {
-
-        class VH(
-            val binding: LayoutPopupMenuItemBinding
-        ) : RecyclerView.ViewHolder(binding.root)
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-            val layoutInflater = LayoutInflater.from(parent.context)
-            val binding = LayoutPopupMenuItemBinding.inflate(layoutInflater, parent, false)
-            return VH(binding)
-        }
-
-        override fun getItemCount(): Int {
-            return actions.size
-        }
-
-        override fun onBindViewHolder(holder: VH, position: Int) {
-            val binding = holder.binding
-            val action = actions[position]
-            binding.root.icon = ContextCompat.getDrawable(binding.root.context, action.icon)
-            TooltipCompat.setTooltipText(binding.root, action.label)
         }
     }
 }
