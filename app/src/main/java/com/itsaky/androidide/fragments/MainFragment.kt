@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -160,15 +161,14 @@ class MainFragment : BaseFragment() {
             builder.setTitle("Alert!")
                 .setMessage(
                     HtmlCompat.fromHtml(
-                        getString(R.string.feedback_warning),
+                        getString(R.string.email_feedback_warning_prompt),
                         HtmlCompat.FROM_HTML_MODE_COMPACT
                     )
                 )
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
-                        val stackTrace =
-                            Exception().stackTrace.asList().toString().replace(",", "\n")
+                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
 
                         val feedbackMessage = getString(
                             R.string.feedback_message,
