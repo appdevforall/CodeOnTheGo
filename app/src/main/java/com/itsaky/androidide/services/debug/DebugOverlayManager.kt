@@ -30,6 +30,7 @@ class DebugOverlayManager private constructor(
     private var initialWindowY = 0
     private var initialTouchX = 0f
     private var initialTouchY = 0f
+    private var isDragging = false
 
     init {
         binding.dragHandle.root.icon = ContextCompat.getDrawable(binding.root.context, R.drawable.ic_drag_handle)
@@ -47,7 +48,8 @@ class DebugOverlayManager private constructor(
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
-                    if (deltaX > touchSlop || deltaY > touchSlop) {
+                    if (isDragging || deltaX > touchSlop || deltaY > touchSlop) {
+                        isDragging = true
                         overlayLayoutParams.x = initialWindowX + deltaX
                         overlayLayoutParams.y = initialWindowY + deltaY
                         windowManager.updateViewLayout(binding.root, overlayLayoutParams)
@@ -56,6 +58,7 @@ class DebugOverlayManager private constructor(
                 }
 
                 MotionEvent.ACTION_UP -> {
+                    isDragging = false
                     val deltaX = abs(event.rawX - initialTouchX)
                     val deltaY = abs(event.rawY - initialTouchY)
                     if (deltaX < touchSlop && deltaY < touchSlop) {
