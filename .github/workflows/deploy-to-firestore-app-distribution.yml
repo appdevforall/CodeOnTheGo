@@ -25,8 +25,6 @@ env:
   ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
-  BUILD_JAVA_VERSION: '17'
-  BUILD_JAVA_DIST: 'temurin'
   FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
   FIREBASE_DISTRIBUTION_URL: ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
   FIREBASE_DOWNLOAD_URL: ${{ secrets.FIREBASE_DOWNLOAD_URL }}
@@ -50,7 +48,7 @@ jobs:
       - name: Install and Configure Git LFS - Selective pull
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-lfs
+          sudo apt-get install -y git-lfs make
           git lfs install
           git lfs pull
 
@@ -59,12 +57,14 @@ jobs:
           git submodule init
           git submodule update --remote
 
-      - name: Set up JDK 17
+      - name: Set up JDKs
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ env.BUILD_JAVA_VERSION }}
-          distribution: ${{ env.BUILD_JAVA_DIST }}
           cache: 'gradle' # Built-in Gradle caching
+          distribution: temurin
+          java-version: |
+            8
+            17
 
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
@@ -73,7 +73,16 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK Platform 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
+
+      - name: Verify CMake version
+        run: |
+          cmake --version
+          which cmake
+          echo "CMake path: $(which cmake)"
+
+      - name: Set Java_ROOT environment variable
+        run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
       - name: Cache Dependencies
         uses: actions/cache@v4
@@ -88,14 +97,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
+      - name: Build libjdwp
+        run: |
+          ./gradlew :subprojects:libjdwp:build
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Find APK file
         # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
-          apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
+          apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
           echo "Found APK at: $apk_path"
 
@@ -128,7 +145,7 @@ jobs:
         run: |
           # Use regex to extract JIRA ticket in format ADFA-XXX
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-          
+
           # If JIRA ticket was found, set the URL, otherwise set as N/A
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
@@ -136,7 +153,7 @@ jobs:
             JIRA_TICKET="N/A"
             JIRA_URL="#"
           fi
-          
+
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
@@ -241,6 +258,6 @@ jobs:
               }
             ]
           }' > payload.json
-          
+
           # Send notification
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
