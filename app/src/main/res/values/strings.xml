@@ -93,11 +93,12 @@ Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.L
 \n
 Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
 </string>
-    <string name="feedback_warning">Sending feedback will create and send a private email to feedback,appdevforall.com,
-    if you feel that this would be an unsafe action, then click &lt;b>&lt;i>Cancel&lt;/i>&lt;/b>, otherwise click &lt;b>&lt;i>Ok&lt;/i>&lt;/b> to proceed</string>
+    <string name="email_feedback_warning_prompt">Sending feedback will create and send a private email to feedback@appdevforall.com,
+    if you feel that this would be an unsafe action, then click &lt;b>&lt;i>Cancel&lt;/i>&lt;/b>, otherwise click &lt;b>&lt;i>OK&lt;/i>&lt;/b> to proceed</string>
     <string name="feedback_subject">Feedback for {0} Screen</string>
     <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen.\n\nThank You.\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
     <string name="send_feedback">Send Feedback</string>
+    <string name="alert_message">Alert!</string>
     <string name="fab_more">More</string>
     <string name="msg_recent_projects">Recent Projects</string>
     <string name="msg_create_new_from_recent">Click the New project button to create a new project or\n@@open from a folder@@</string>
@@ -106,7 +107,8 @@ Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
     <string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
     <string name="open_from_folder">Open from folder</string>
     <string name="msg_delete_selected_project">Are you sure want to delete the selected project? This action cannot be undone.</string>
-
+    <string name="feeback_email">feedback@appdevforall.org</string>
+    <string name="no_email_apps">No email apps found</string>
 
     <string name="msg_internet_access_required">Internet access is required.</string>
     <string name="msg_contact_app_dev_title">Contact App Dev for All</string>
