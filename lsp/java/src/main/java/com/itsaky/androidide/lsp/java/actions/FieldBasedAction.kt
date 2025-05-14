@@ -138,7 +138,12 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
     val triple = findFields(task, file, range)
     if (triple == null) {
       ThreadUtils.runOnUiThread {
-        flashError(data[Context::class.java]!!.getString(R.string.msg_no_fields_found))
+        val context = data[Context::class.java]
+        if (context != null) {
+          flashError(context.getString(R.string.msg_no_fields_found))
+        } else {
+          flashError("No fields found in the selected range")
+        }
       }
       return
     }
