@@ -107,6 +107,7 @@ Connected to the target VM, address: \'localhost:46423\', transport: \'socket\'
     <string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
     <string name="open_from_folder">Open from folder</string>
     <string name="msg_delete_selected_project">Are you sure want to delete the selected project? This action cannot be undone.</string>
+    <string name="feeback_email">feedback@appdevforall.org</string>
     <string name="no_email_apps">No email apps found</string>
 
     <string name="msg_internet_access_required">Internet access is required.</string>
