@@ -75,6 +75,15 @@ jobs:
       - name: Install Android SDK Platform 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
 
+      - name: Verify CMake version
+        run: |
+          cmake --version
+          which cmake
+          echo "CMake path: $(which cmake)"
+
+      - name: Set Java_ROOT environment variable
+        run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
+
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
@@ -88,6 +97,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
+      - name: Build libjdwp
+        run: |
+          ./gradlew :subprojects:libjdwp:build
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
         env:
@@ -97,7 +112,7 @@ jobs:
         # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
-          apk_path=$(find app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
+          apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
           echo "Found APK at: $apk_path"
 
