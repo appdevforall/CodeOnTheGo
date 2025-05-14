@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:layout_margin="@dimen/content_padding_double"
     android:background="@drawable/bg_debugger_actions_window">
 
     <include
@@ -11,10 +12,12 @@
         layout="@layout/layout_popup_menu_item"
         app:icon="@drawable/ic_drag_handle"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/space"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Space
+        android:id="@+id/space"
         android:layout_width="8dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -26,7 +29,6 @@
         android:id="@+id/actions"
         android:layout_width="wrap_content"
         android:layout_height="0dp"
-        android:clipChildren="true"
         android:fadingEdge="vertical"
         android:fadingEdgeLength="42dp"
         android:orientation="horizontal"
@@ -35,7 +37,7 @@
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/drag_handle"
+        app:layout_constraintStart_toEndOf="@id/space"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="RtlSymmetry"
         tools:listitem="@layout/layout_popup_menu_item" />

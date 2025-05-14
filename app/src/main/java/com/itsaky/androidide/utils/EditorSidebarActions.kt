@@ -118,9 +118,7 @@ internal object EditorSidebarActions {
 
         rail.menu.clear()
 
-        val data = ActionData()
-        data.put(Context::class.java, context)
-
+        val data = ActionData.create(context)
         val titleRef = WeakReference(binding.title)
         val params = FillMenuParams(
             data,
