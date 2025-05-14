@@ -194,8 +194,7 @@ class UIDesignerActivity : BaseIDEActivity() {
   private fun ensureToolbarMenu(menu: Menu) {
     menu.clear()
 
-    val data = ActionData()
-    data.put(Context::class.java, this)
+    val data = ActionData.create(this)
     data.put(Fragment::class.java, workspace())
 
     ActionsRegistry.getInstance().fillMenu(FillMenuParams(data, UI_DESIGNER_TOOLBAR, menu))

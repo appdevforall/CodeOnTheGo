@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.actions;
 
+import android.content.Context;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -28,6 +30,21 @@ import java.util.Objects;
  * @author Akash Yadav
  */
 public class ActionData {
+
+  private ActionData() {}
+
+  /**
+   * Creates a new {@link ActionData} instance.
+   *
+   * @param context The context to this instance is attached to.
+   * @return A new {@link ActionData} instance.
+   */
+  @NonNull
+  public static ActionData create(@NonNull Context context) {
+    final var data = new ActionData();
+    data.put(Context.class, context);
+    return data;
+  }
 
   private final Map<Class<?>, Object> instances = new HashMap<>();
 

@@ -621,6 +621,13 @@
   <string name="idepref_jdkVersion_title">JDK version</string>
   <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
   <string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
+
   <string name="debugger_title">Debugger</string>
   <string name="debugger_thread">Thread</string>
+  <string name="debugger_step_into">Step into</string>
+  <string name="debugger_step_out">Step out</string>
+  <string name="debugger_step_over">Step over</string>
+  <string name="debugger_stop">Stop</string>
+  <string name="debugger_pause">Pause</string>
+  <string name="debugger_restart">Restart</string>
 </resources>

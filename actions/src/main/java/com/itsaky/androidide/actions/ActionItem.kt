@@ -144,6 +144,12 @@ interface ActionItem {
   /** Location where an action item will be shown. */
   enum class Location(val id: String) {
 
+    /**
+     * Location marker for the action items shown in the debugger (both overlay window and the
+     * bottom sheet).
+     */
+    DEBUGGER_ACTIONS("ide.debugger"),
+
     /** Location marker for action items shown in editor activity's toolbar. */
     EDITOR_TOOLBAR("ide.editor.toolbar"),
 

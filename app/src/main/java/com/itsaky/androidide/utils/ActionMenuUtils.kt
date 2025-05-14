@@ -42,8 +42,7 @@ object ActionMenuUtils {
     dragToOpen: Boolean = false
   ): PopupMenu {
     return PopupMenu(context, anchor).apply {
-      val data = ActionData()
-      data.put(Context::class.java, context)
+      val data = ActionData.create(context)
       ActionsRegistry.getInstance().fillMenu(FillMenuParams(data, location, menu))
 
       if (dragToOpen) {

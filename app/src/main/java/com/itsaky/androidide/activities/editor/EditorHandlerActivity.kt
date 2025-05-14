@@ -253,10 +253,9 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   }
 
   private fun createToolbarActionData(): ActionData {
-    val data = ActionData()
+    val data = ActionData.create(this)
     val currentEditor = getCurrentEditor()
 
-    data.put(Context::class.java, this)
     data.put(CodeEditorView::class.java, currentEditor)
 
     if (currentEditor != null) {

@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.lsp.api
 
-import android.content.Context
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.eventbus.events.editor.ChangeType.DELETE
@@ -179,9 +178,7 @@ abstract class LSPTest {
   }
 
   open fun createActionData(vararg values: Any): ActionData {
-    val data = ActionData()
-
-    data.put(Context::class.java, RuntimeEnvironment.getApplication())
+    val data = ActionData.create(RuntimeEnvironment.getApplication())
     for (value in values) {
       if (value is Path) {
         data.put(Path::class.java, value)
