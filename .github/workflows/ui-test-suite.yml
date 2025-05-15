@@ -1,0 +1,147 @@
+name: Run Android UI Tests with cAT
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  pull_request:
+    branches: [ "stage", "feature/**" ]
+    paths-ignore:
+      - '**.md'
+      - 'fastlane/**'
+      - '.github/workflows/crowdin_contributors.yml'
+      - '.github/workflows/deploy-to-firestore-app-distribution.yml'
+  workflow_dispatch: { }
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  BUILD_JAVA_VERSION: '17'
+  BUILD_JAVA_DIST: 'temurin'
+
+jobs:
+  run_ui_tests:
+    name: Run UI Tests with cAT
+    runs-on: self-hosted
+    timeout-minutes: 120
+
+    steps:
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install and Configure Git LFS - Selective pull
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull
+      - name: Fetch Git LFS objects
+        run: git lfs pull
+
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.BUILD_JAVA_VERSION }}
+          distribution: ${{ env.BUILD_JAVA_DIST }}
+
+      - name: Restore Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Install KVM dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system qemu-kvm bridge-utils
+          sudo systemctl enable libvirtd
+          sudo systemctl start libvirtd
+          ls -la /dev/kvm || echo "KVM device not found"
+          groups $(whoami)
+          sudo usermod -aG kvm $(whoami)
+          sudo chmod 666 /dev/kvm || echo "Cannot chmod /dev/kvm"
+      - name: Clean AVD folder
+        run: |
+          rm -rf ~/.android/avd/*
+          mkdir -p ~/.android/avd/
+
+      - name: Pre-download emulator system image
+        run: |
+          echo "Available disk space:"
+          df -h
+          echo "Downloading system image..."
+          sdkmanager "system-images;android-35;google_apis;arm64"
+          echo "Accepting SDK licenses again..."
+          yes | sdkmanager --licenses
+
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          
+          # Clean Android SDK components
+          echo "Cleaning Android SDK cache..."
+          rm -rf "${ANDROID_HOME}/temp/" || true
+          
+          # Remove unused system images
+          echo "Removing unused system images..."
+          find "${ANDROID_HOME}/system-images" -mindepth 1 -maxdepth 1 -type d -not -name "android-35" | xargs rm -rf || true
+          
+          # Clean build cache
+          echo "Cleaning Gradle cache..."
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.gradle/caches/*/fileHashes/
+          rm -rf ~/.gradle/caches/*/javaCompile/
+          
+          # Remove Android build directories
+          echo "Removing Android build directories..."
+          find . -name "build" -type d -exec rm -rf {} +
+          
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Accept Android SDK licenses
+        run: sdkmanager --licenses
+
+      - name: Run connected tests
+        uses: ReactiveCircus/android-emulator-runner@v2
+        timeout-minutes: 20
+        with:
+          api-level: 35
+          target: google_apis
+          arch: arm64
+          avd-name: Pixel_9
+          device: pixel
+          force-avd-creation: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            echo "Waiting for emulator to start..."
+            adb wait-for-device
+            adb devices
+            echo "Emulator ready, setting properties..."
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            echo "Running tests..."
+            ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite --stacktrace
