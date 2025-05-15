@@ -40,7 +40,17 @@ class PermissionsScreenTest : TestCase() {
                 subTitle {
                     isVisible()
                 }
-                assertEquals(2, rvPermissions.getSize())
+                rvPermissions {
+                    isVisible()
+                    // Wait for RecyclerView to fully load
+                    flakySafely(timeoutMs = 5000) {
+                        isDisplayed()
+                    }
+                }
+                // Make the size check flaky-safe
+                flakySafely(timeoutMs = 5000) {
+                    assertEquals(2, rvPermissions.getSize())
+                }
                 rvPermissions {
                     childAt<PermissionScreen.PermissionItem>(0) {
                         title {

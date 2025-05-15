@@ -30,8 +30,58 @@ class NavigateToMainScreenScenario : Scenario() {
                     }
 
                     SystemPermissionsScreen {
-                        storagePermissionView {
-                            click()
+                        try {
+                            // Try the original permission text first
+                            storagePermissionView {
+                                click()
+                            }
+                        } catch (e: Exception) {
+                            println("Trying alternative text for storage permission")
+                            try {
+                                storagePermissionViewAlt1 {
+                                    click()
+                                }
+                            } catch (e1: Exception) {
+                                try {
+                                    storagePermissionViewAlt2 {
+                                        click()
+                                    }
+                                } catch (e2: Exception) {
+                                    try {
+                                        storagePermissionViewAlt3 {
+                                            click()
+                                        }
+                                    } catch (e3: Exception) {
+                                        try {
+                                            storagePermissionViewAlt4 {
+                                                click()
+                                            }
+                                        } catch (e4: Exception) {
+                                            try {
+                                                storagePermissionViewAlt5 {
+                                                    click()
+                                                }
+                                            } catch (e5: Exception) {
+                                                try {
+                                                    storagePermissionViewAlt6 {
+                                                        click()
+                                                    }
+                                                } catch (e6: Exception) {
+                                                    try {
+                                                        storagePermissionViewAlt7 {
+                                                            click()
+                                                        }
+                                                    } catch (e7: Exception) {
+                                                        storagePermissionViewAlt8 {
+                                                            click()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
