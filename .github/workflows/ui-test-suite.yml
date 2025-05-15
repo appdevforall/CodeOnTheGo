@@ -10,8 +10,7 @@ on:
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
-      - '.github/workflows/crowdin_contributors.yml'
-      - '.github/workflows/deploy-to-firestore-app-distribution.yml'
+
   workflow_dispatch: { }
 
 env:
