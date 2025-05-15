@@ -116,6 +116,9 @@ jobs:
       - name: Accept Android SDK licenses
         run: sdkmanager --licenses
 
+      - name: Build plugins module first
+        run: ./gradlew clean :build-logic:plugins:compileKotlin --stacktrace
+
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
         timeout-minutes: 20
