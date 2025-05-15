@@ -90,7 +90,7 @@ jobs:
           echo "Available disk space:"
           df -h
           echo "Downloading system image..."
-          sdkmanager "system-images;android-35;google_apis;x86_64"
+          sdkmanager "system-images;android-35;google_apis;arm64"
           echo "Accepting SDK licenses again..."
           yes | sdkmanager --licenses
 
@@ -129,8 +129,9 @@ jobs:
         with:
           api-level: 35
           target: google_apis
-          arch: x86_64
-          avd-name: test
+          arch: arm64
+          avd-name: Pixel_9
+          device: pixel
           force-avd-creation: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim
           disable-animations: true
