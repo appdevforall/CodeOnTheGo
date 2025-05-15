@@ -634,7 +634,7 @@
   <string name="help">Help</string>
   <string name="code"></string>
 
-  <string name="email_feedback_warning_prompt">Sending feedback will create and send a private email to feedback@appdevforall.com, if you feel that this would be an unsafe action, then click <b><i>Cancel</i></b>, otherwise click <b><i>OK</i></b> to proceed</string>
+  <string name="email_feedback_warning_prompt">Sending feedback will create and send a private email to feedback@appdevforall.org, if you feel that this would be an unsafe action, then click <b><i>Cancel</i></b>, otherwise click <b><i>OK</i></b> to proceed</string>
   <string name="feedback_subject">Feedback for %1$s Screen</string>
   <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen.\n\nThank You.\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
   <string name="send_feedback">Send Feedback</string>
