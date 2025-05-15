@@ -7,13 +7,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
-import org.adfa.constants.FEEDBACK_EMAIL
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
@@ -24,6 +25,7 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -48,14 +50,14 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.MessageFormat
 import java.util.concurrent.CancellationException
-import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 
 class MainFragment : BaseFragment() {
 
     private val viewModel by viewModels<MainViewModel>(
         ownerProducer = { requireActivity() })
     private var binding: FragmentMainBinding? = null
+    private data class CloneRequest(val url: String, val targetDir: File)
+    private var currentCloneRequest: CloneRequest? = null
 
     companion object {
 
@@ -161,7 +163,7 @@ class MainFragment : BaseFragment() {
             builder.setTitle("Alert!")
                 .setMessage(
                     HtmlCompat.fromHtml(
-                        getString(R.string.feedback_warning),
+                        getString(R.string.email_feedback_warning_prompt),
                         HtmlCompat.FROM_HTML_MODE_COMPACT
                     )
                 )
@@ -186,7 +188,7 @@ class MainFragment : BaseFragment() {
                         feedbackIntent.type = "text/plain"
                         feedbackIntent.putExtra(
                             Intent.EXTRA_EMAIL,
-                            arrayOf(FEEDBACK_EMAIL)
+                            arrayOf(R.string.feeback_email)
                         )
                         feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
                         feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
@@ -266,6 +268,7 @@ class MainFragment : BaseFragment() {
         val prefs = BaseApplication.getBaseInstance().prefManager
         val repoName = url.substringAfterLast('/').substringBeforeLast(".git")
         val targetDir = File(Environment.PROJECTS_DIR, repoName)
+        currentCloneRequest = CloneRequest(url, targetDir)
         if (targetDir.exists()) {
             showCloneDirExistsError(targetDir)
             return
@@ -286,7 +289,6 @@ class MainFragment : BaseFragment() {
                     .setDirectory(targetDir)
                     .setProgressMonitor(progress)
                 val token = prefs.getString(GITHUB_PAT, "")
-                //error is caught in showCloneError
                 if (!token.isNullOrBlank()) {
                     cmd.setCredentialsProvider(
                         UsernamePasswordCredentialsProvider(
@@ -331,12 +333,148 @@ class MainFragment : BaseFragment() {
     }
 
     private fun showCloneDirExistsError(targetDir: File) {
-        val builder = context?.let { AlertDialog.Builder(it) }
+        val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.setTitle(string.title_warning)
-        builder?.setMessage(string.git_clone_dir_exists)
-        builder?.setPositiveButton(android.R.string.ok) { _, _ -> targetDir.deleteRecursively() }
+        builder?.setMessage(getString(R.string.git_clone_dir_exists_detailed, targetDir.absolutePath))
+        builder?.setPositiveButton(R.string.delete_and_clone) { _, _ ->
+            val progressBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
+            val progressBinding = LayoutDialogProgressBinding.inflate(layoutInflater)
+
+            progressBinding.message.visibility = View.VISIBLE
+            progressBinding.message.text = getString(R.string.deleting_directory)
+
+            progressBuilder.setTitle(R.string.please_wait)
+            progressBuilder.setView(progressBinding.root)
+            progressBuilder.setCancelable(false)
+
+            val progressDialog = progressBuilder.show()
+
+            val coroutineScope = (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    targetDir.deleteRecursively()
+                    withContext(Dispatchers.Main) {
+                        progressDialog.dismiss()
+                        proceedWithClone()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        progressDialog.dismiss()
+                        val errorBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
+                        errorBuilder.setTitle(R.string.error)
+                        errorBuilder.setMessage(getString(R.string.error_deleting_directory, e.localizedMessage))
+                        errorBuilder.setPositiveButton(android.R.string.ok, null)
+                        errorBuilder.show()
+                    }
+                }
+            }
+        }
+        builder?.setNeutralButton(R.string.choose_different_location) { dlg, _ ->
+            dlg.dismiss()
+            showChooseAlternativeCloneLocation(targetDir)
+        }
         builder?.setNegativeButton(android.R.string.cancel) { dlg, _ -> dlg.dismiss() }
         builder?.show()
+    }
+
+    private fun proceedWithClone() {
+        val request = currentCloneRequest ?: return
+        val url = request.url
+        val targetDir = request.targetDir
+
+        val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
+        val binding = LayoutDialogProgressBinding.inflate(layoutInflater)
+
+        binding.message.visibility = View.VISIBLE
+
+        builder.setTitle(string.git_clone_in_progress)
+        builder.setMessage(url)
+        builder.setView(binding.root)
+        builder.setCancelable(false)
+
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        val progress = GitCloneProgressMonitor(binding.progress, binding.message)
+        val coroutineScope =
+            (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
+
+        var getDialog: Function0<AlertDialog?>? = null
+
+        val cloneJob = coroutineScope.launch(Dispatchers.IO) {
+            val git = try {
+                val cmd: CloneCommand = Git.cloneRepository()
+                cmd
+                    .setURI(url)
+                    .setDirectory(targetDir)
+                    .setProgressMonitor(progress)
+                val token = prefs.getString(GITHUB_PAT, "")
+                if (!token.isNullOrBlank()) {
+                    cmd.setCredentialsProvider(
+                        UsernamePasswordCredentialsProvider(
+                            "<token>",
+                            token
+                        )
+                    )
+                }
+                cmd.call()
+            } catch (err: Throwable) {
+                if (!progress.isCancelled) {
+                    err.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
+                        showCloneError(err)
+                    }
+                }
+                null
+            }
+
+            try {
+                git?.close()
+            } finally {
+                val success = git != null
+                withContext(Dispatchers.Main) {
+                    getDialog?.invoke()?.also { dialog ->
+                        if (dialog.isShowing) dialog.dismiss()
+                        if (success) flashSuccess(string.git_clone_success)
+                    }
+                }
+            }
+        }
+
+        builder.setPositiveButton(android.R.string.cancel) { iface, _ ->
+            iface.dismiss()
+            progress.cancel()
+            cloneJob.cancel(CancellationException("Cancelled by user"))
+        }
+
+        val dialog = builder.show()
+        getDialog = { dialog }
+    }
+
+    private fun showChooseAlternativeCloneLocation(originalDir: File) {
+        val cloneRequest = currentCloneRequest ?: return
+
+        val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
+        val binding = LayoutDialogTextInputBinding.inflate(layoutInflater)
+
+        binding.name.setHint(string.new_directory_name)
+        binding.name.editText?.setText(originalDir.name + "_new")
+
+        builder.setView(binding.root)
+        builder.setTitle(string.choose_different_location)
+        builder.setCancelable(true)
+        builder.setPositiveButton(string.git_clone) { dialog, _ ->
+            dialog.dismiss()
+            val newDirName = binding.name.editText?.text?.toString()
+            if (!newDirName.isNullOrBlank()) {
+                val newTargetDir = File(originalDir.parentFile, newDirName)
+
+                currentCloneRequest = CloneRequest(cloneRequest.url, newTargetDir)
+
+                proceedWithClone()
+            }
+        }
+        builder.setNegativeButton(android.R.string.cancel, null)
+        builder.show()
     }
 
     private fun showCloneError(error: Throwable?) {
@@ -344,7 +482,6 @@ class MainFragment : BaseFragment() {
             flashError(string.git_clone_failed)
             return
         }
-
         val builder = DialogUtils.newMaterialDialogBuilder(requireContext())
         builder.setTitle(string.git_clone_failed)
         builder.setMessage(error.localizedMessage)

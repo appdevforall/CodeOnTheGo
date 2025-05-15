@@ -103,5 +103,5 @@ sentry.properties
 #.DS_Store
 .DS_Store
 
-# Model jar file
-tests/test-home/.androidide/init/model.jar
+# Generated files for tooling API
+tests/test-home
