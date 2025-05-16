@@ -31,7 +31,7 @@ import androidx.core.view.isVisible
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
-    import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.idetooltips.DocumentationDatabase
