@@ -94,16 +94,10 @@ class GenerateSettersAndGettersAction : FieldBasedAction() {
     val file = data.requirePath()
 
     compiler.compile(file).run { task ->
-      val triple = findFields(task, file, range)
-      val typeFinder = triple.first
-      val type = triple.second
-      val fields = triple.third
-
-      fields.removeIf { !names.contains("${it.name}: ${it.type}") }
-
-      log.debug("Creating setters/getters for fields: {}", fields.map { it.name })
-
-      generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
+      withValidFields(data, task, file, range) { typeFinder, type, fields ->
+        fields.removeIf { !names.contains("${it.name}: ${it.type}") }
+        generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
+      }
     }
   }
 
