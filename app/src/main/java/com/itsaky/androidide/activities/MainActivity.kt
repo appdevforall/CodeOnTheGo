@@ -31,7 +31,7 @@ import androidx.core.view.isVisible
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.activities.editor.EditorActivityKt
+    import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.idetooltips.DocumentationDatabase
@@ -288,7 +288,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     internal fun openProject(root: File) {
         ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-        startActivity(Intent(this, EditorActivityKt::class.java))
+
+        val intent = Intent(this, EditorActivityKt::class.java).apply {
+            putExtra("PROJECT_PATH", root.absolutePath)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
+        startActivity(intent)
     }
 
     internal fun deleteProject(root: File) {
