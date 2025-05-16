@@ -130,11 +130,6 @@ jobs:
           echo "Disk space after cleanup:"
           df -h
 
-      - name: Build plugins module first
-        run: ./gradlew clean :build-logic:plugins:compileKotlin --stacktrace
-        env:
-          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
-
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
         timeout-minutes: 20
