@@ -138,7 +138,6 @@ jobs:
           target: google_apis
           arch: x86_64
           avd-name: Pixel_9
-          device: pixel
           force-avd-creation: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim
           disable-animations: true
