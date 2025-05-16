@@ -78,9 +78,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
                 val ti = (threadInfo.result as ThreadInfoResult.Success).threadInfo
                 val currentFrame = ti.getFrames()[0]
                 val someInt = currentFrame.getVariables().first { it.name == "someInt" }
-                logger.debug("onBreakpointHit[preSetValue]: someInt={}, value={}", someInt, someInt.getValue())
-                someInt.setValue("42")
-                logger.debug("onBreakpointHit[postSetValue]: someInt={}, value={}", someInt, someInt.getValue())
+                logger.debug("onBreakpointHit[preSetValue]: someInt={}, value={}", someInt, someInt.value())
             }
         }
 
