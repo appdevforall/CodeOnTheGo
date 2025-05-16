@@ -60,9 +60,10 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
   override fun apply(target: Gradle) {
     removeDaemonLogs(target)
 
-    target.settingsEvaluated { settings ->
-      settings.addDependencyRepositories()
-    }
+    // NOTE disable access to non-local repos
+    //target.settingsEvaluated { settings ->
+    //  settings.addDependencyRepositories()
+    //}
 
     target.rootProject { rootProject ->
       rootProject.buildscript.apply {
