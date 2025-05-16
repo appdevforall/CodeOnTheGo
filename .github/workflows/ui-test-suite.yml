@@ -134,22 +134,21 @@ jobs:
         uses: ReactiveCircus/android-emulator-runner@v2
         timeout-minutes: 20
         with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          avd-name: Pixel_9
-          force-avd-creation: true
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim
-          disable-animations: true
-          script: |
-            echo "Waiting for emulator to start..."
-            adb wait-for-device
-            adb devices
-            echo "Emulator ready, setting properties..."
-            adb shell settings put global window_animation_scale 0
-            adb shell settings put global transition_animation_scale 0
-            adb shell settings put global animator_duration_scale 0
-            echo "Running tests..."
-            ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite --stacktrace
-        env:
-          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+            api-level: 34
+            target: google_apis
+            arch: x86_64
+            avd-name: Pixel_9
+            device: pixel
+            force-avd-creation: true
+            emulator-options: -no-snapshot-save -no-window -gpu swiftshader -noaudio -no-boot-anim
+            disable-animations: true
+            script: |
+              echo "Waiting for emulator to start..."
+              adb wait-for-device
+              adb devices
+              echo "Emulator ready, setting properties..."
+              adb shell settings put global window_animation_scale 0
+              adb shell settings put global transition_animation_scale 0
+              adb shell settings put global animator_duration_scale 0
+              echo "Running tests..."
+              ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite --stacktrace
