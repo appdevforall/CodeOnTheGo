@@ -16,6 +16,18 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   BUILD_JAVA_VERSION: '17'
   BUILD_JAVA_DIST: 'temurin'
+  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
 
 jobs:
   run_ui_tests:
@@ -41,19 +53,22 @@ jobs:
           git lfs install
           git lfs pull
 
-      - name: Fetch Git LFS objects
-        run: git lfs pull
-
       - name: Initialize submodules
         run: |
           git submodule init
           git submodule update --remote
 
-      - name: Set up JDK 17
+      - name: Set up JDKs
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ env.BUILD_JAVA_VERSION }}
-          distribution: ${{ env.BUILD_JAVA_DIST }}
+          cache: 'gradle'
+          distribution: temurin
+          java-version: |
+            8
+            17
+
+      - name: Set Java_ROOT environment variable
+        run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
       - name: Restore Gradle Cache
         uses: actions/cache@v4
@@ -67,6 +82,14 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "system-images;android-34;google_apis;x86_64" "cmake;3.31.4"
+
+      - name: Verify CMake version
+        run: |
+          cmake --version
+          which cmake
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
@@ -87,14 +110,8 @@ jobs:
           rm -rf ~/.android/avd/*
           mkdir -p ~/.android/avd/
 
-      - name: Pre-download emulator system image
-        run: |
-          echo "Available disk space:"
-          df -h
-          echo "Downloading system image..."
-          sdkmanager "system-images;android-34;google_apis;x86_64"
-          echo "Accepting SDK licenses again..."
-          yes | sdkmanager --licenses
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
 
       - name: Free up disk space
         run: |
@@ -113,11 +130,10 @@ jobs:
           echo "Disk space after cleanup:"
           df -h
 
-      - name: Accept Android SDK licenses
-        run: sdkmanager --licenses
-
       - name: Build plugins module first
         run: ./gradlew clean :build-logic:plugins:compileKotlin --stacktrace
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Run connected tests
         uses: ReactiveCircus/android-emulator-runner@v2
@@ -141,3 +157,5 @@ jobs:
             adb shell settings put global animator_duration_scale 0
             echo "Running tests..."
             ./gradlew app:cAT -Pandroid.testInstrumentationRunnerArguments.class=com.itsaky.androidide.OrderedTestSuite --stacktrace
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
