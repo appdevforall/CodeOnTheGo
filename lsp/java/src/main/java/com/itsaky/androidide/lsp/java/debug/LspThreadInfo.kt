@@ -3,11 +3,12 @@ package com.itsaky.androidide.lsp.java.debug
 import com.itsaky.androidide.lsp.debug.model.PrimitiveKind
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue
 import com.itsaky.androidide.lsp.debug.model.StringValue
+import com.itsaky.androidide.lsp.debug.model.Value
+import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.sun.jdi.StackFrame
 import com.itsaky.androidide.lsp.debug.model.StackFrame as LspStackFrame
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo as LspThreadInfo
-import com.itsaky.androidide.lsp.debug.model.Value as LspVariableValue
 import com.itsaky.androidide.lsp.debug.model.Variable as LspVariable
 
 class JavaStackFrame(
@@ -17,10 +18,7 @@ class JavaStackFrame(
     override fun getVariables(): List<LspVariable<*>> =
         this.frame.visibleVariables().map { variable -> JavaVariable.forVariable(frame, variable) }
 
-    override fun setValue(
-        variable: LspVariable<*>,
-        value: LspVariableValue
-    ) {
+    override fun <Val : Value> setValue(variable: Variable<Val>, value: Val) {
         variable as JavaVariable
         when (variable.kind) {
             VariableKind.PRIMITIVE -> {
