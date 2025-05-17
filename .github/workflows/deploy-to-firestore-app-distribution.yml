@@ -90,6 +90,8 @@ jobs:
           sudo apt-get install -y tar
           # Verify the tar version
           tar --version
+          # Set tar buffer size to handle large files better
+          export TAROPT="--blocking-factor=64 --checkpoint=1000"
 
       - name: Cache Dependencies
         uses: actions/cache@v4
@@ -109,16 +111,30 @@ jobs:
           # Make sure the submodule is updated properly
           git submodule update --init --recursive oj-libjdwp
           
-          # Clean any partial extractions
-          find . -name "*.tar.gz" -o -name "*.tgz" | xargs -I{} bash -c "echo 'Verifying {}'; tar tf {} > /dev/null || echo '{} may be corrupted'"
-          
-          # Clear CMake cache before building
+          # Clean any partial extractions and prepare directory
           rm -rf subprojects/libjdwp/.cmake || true
+          mkdir -p /tmp/libiconv-extract
+          
+          # Manually handle libiconv extraction first if it exists
+          LIBICONV_TAR=$(find subprojects/ -name "libiconv-*.tar.gz" || true)
+          if [ -n "$LIBICONV_TAR" ]; then
+            echo "Found libiconv archive: $LIBICONV_TAR"
+            echo "Manually extracting libiconv"
+            # Extract to temp dir first
+            tar -xf "$LIBICONV_TAR" -C /tmp/libiconv-extract
+            echo "Manual extraction complete, listing files:"
+            ls -la /tmp/libiconv-extract
+          fi
+          
+          # Set CMake environment variables
+          export CMAKE_VERBOSE_MAKEFILE=ON
+          export VERBOSE=1
           
           # Build with debug output
-          ./gradlew :subprojects:libjdwp:build --info
+          ./gradlew :subprojects:libjdwp:build --info --stacktrace
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+          TAR_OPTIONS: "--warning=no-unknown-keyword"
 
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
