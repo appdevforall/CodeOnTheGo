@@ -96,16 +96,16 @@ jobs:
           key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
+
       - name: Clean libjdwp build directory
         run: |
           rm -rf subprojects/libjdwp/.cmake/Debug/*/arm64-v8a
 
       - name: Build libjdwp
         run: |
-          ./gradlew :subprojects:libjdwp:build
+          ./gradlew :subprojects:libjdwp:clean :subprojects:libjdwp:build
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
-
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
         env:
