@@ -84,15 +84,6 @@ jobs:
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
-      - name: Install tar with verbose error handling
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tar
-          # Verify the tar version
-          tar --version
-          # Set tar buffer size to handle large files better
-          export TAROPT="--blocking-factor=64 --checkpoint=1000"
-
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
@@ -105,36 +96,15 @@ jobs:
           key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
+      - name: Clean libjdwp build directory
+        run: |
+          rm -rf subprojects/libjdwp/.cmake/Debug/*/arm64-v8a
 
       - name: Build libjdwp
         run: |
-          # Make sure the submodule is updated properly
-          git submodule update --init --recursive oj-libjdwp
-          
-          # Clean any partial extractions and prepare directory
-          rm -rf subprojects/libjdwp/.cmake || true
-          mkdir -p /tmp/libiconv-extract
-          
-          # Manually handle libiconv extraction first if it exists
-          LIBICONV_TAR=$(find subprojects/ -name "libiconv-*.tar.gz" || true)
-          if [ -n "$LIBICONV_TAR" ]; then
-            echo "Found libiconv archive: $LIBICONV_TAR"
-            echo "Manually extracting libiconv"
-            # Extract to temp dir first
-            tar -xf "$LIBICONV_TAR" -C /tmp/libiconv-extract
-            echo "Manual extraction complete, listing files:"
-            ls -la /tmp/libiconv-extract
-          fi
-          
-          # Set CMake environment variables
-          export CMAKE_VERBOSE_MAKEFILE=ON
-          export VERBOSE=1
-          
-          # Build with debug output
-          ./gradlew :subprojects:libjdwp:build --info --stacktrace
+          ./gradlew :subprojects:libjdwp:build
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
-          TAR_OPTIONS: "--warning=no-unknown-keyword"
 
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
