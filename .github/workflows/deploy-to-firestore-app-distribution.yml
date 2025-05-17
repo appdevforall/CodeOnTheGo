@@ -84,6 +84,13 @@ jobs:
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
+      - name: Install tar with verbose error handling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tar
+          # Verify the tar version
+          tar --version
+
       - name: Cache Dependencies
         uses: actions/cache@v4
         with:
@@ -99,7 +106,17 @@ jobs:
 
       - name: Build libjdwp
         run: |
-          ./gradlew :subprojects:libjdwp:build
+          # Make sure the submodule is updated properly
+          git submodule update --init --recursive oj-libjdwp
+          
+          # Clean any partial extractions
+          find . -name "*.tar.gz" -o -name "*.tgz" | xargs -I{} bash -c "echo 'Verifying {}'; tar tf {} > /dev/null || echo '{} may be corrupted'"
+          
+          # Clear CMake cache before building
+          rm -rf subprojects/libjdwp/.cmake || true
+          
+          # Build with debug output
+          ./gradlew :subprojects:libjdwp:build --info
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
