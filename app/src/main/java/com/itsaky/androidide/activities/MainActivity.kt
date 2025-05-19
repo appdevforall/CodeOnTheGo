@@ -322,13 +322,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     private fun setupSecondaryDisplay() {
         val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         val displays = displayManager.displays
-        var secondDisplay: Display? = null
 
-        for (display in displays) {
-            if (display.displayId != Display.DEFAULT_DISPLAY) {
-                secondDisplay = display
-                break
-            }
+        val secondDisplay = displays.firstOrNull { display ->
+            display.displayId != Display.DEFAULT_DISPLAY
         }
         secondDisplay?.let {
             val presentation = SecondaryScreen(this, it)
