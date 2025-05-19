@@ -107,8 +107,11 @@ jobs:
         run: |
           # Clear CMake cache first
           find subprojects/libjdwp/.cmake -type d -name "*" -exec rm -rf {} \; 2>/dev/null || true
+          # Verify Java version
+          echo "Using Java 8: $JAVA_HOME_8_X64"
+          $JAVA_HOME_8_X64/bin/java -version
           # Run with more verbose output
-          ./gradlew :subprojects:libjdwp:build --info
+          JAVA_HOME=$JAVA_HOME_8_X64 ./gradlew :subprojects:libjdwp:build --info
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
