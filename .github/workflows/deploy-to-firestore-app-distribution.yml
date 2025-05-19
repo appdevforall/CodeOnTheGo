@@ -116,7 +116,7 @@ jobs:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Assemble Universal APK
-        run: ./gradlew clean :app:assembleDebug --parallel --configure-on-demand
+        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
