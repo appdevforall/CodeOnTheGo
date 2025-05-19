@@ -73,6 +73,12 @@ jobs:
       - name: Install Android SDK Platform 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
 
+      - name: Install Android NDK
+        run: |
+          echo "Installing NDK version 26.1.10909125"
+          sdkmanager --install "ndk;26.1.10909125"
+          echo "NDK_ROOT=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> $GITHUB_ENV
+
       - name: Update CMake permissions
         run: |
           chmod -R +x $ANDROID_SDK_ROOT/cmake
@@ -115,21 +121,22 @@ jobs:
           # Enable more verbose CMake/Ninja output
           export VERBOSE=1
           export CMAKE_VERBOSE_MAKEFILE=ON
-          # Try building with --debug-output for more information
-          ./gradlew :subprojects:libjdwp:build --info --debug-output || {
+          # Try building with --debug for more information
+          ./gradlew :subprojects:libjdwp:build --info --debug || {
             echo "Regular build failed, trying with additional flags..."
             # Try with a directory permission fix
             sudo chmod -R 777 /home/ubuntu/AWS/actions-runner/_work/CodeOnTheGo/CodeOnTheGo/subprojects/libjdwp
-            # Try with a different approach - direct CMake command
-            cd subprojects/libjdwp
-            mkdir -p build && cd build
-            cmake .. -G Ninja
-            ninja
-            cd ../..
-            ./gradlew :subprojects:libjdwp:build --info --debug-output
+            # Check if CMakeLists.txt exists
+            if [ ! -f "subprojects/libjdwp/CMakeLists.txt" ]; then
+              echo "ERROR: CMakeLists.txt not found in libjdwp directory"
+              ls -la subprojects/libjdwp/
+            fi
+            # Try with a different approach - use Gradle with proper flags
+            ./gradlew :subprojects:libjdwp:build --info --debug
           }
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+          ANDROID_NDK_HOME: ${{ env.NDK_ROOT }}
 
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
