@@ -500,22 +500,15 @@ public final class ExtraKeysView extends GridLayout {
                 return;
         }
 
-        if (Settings.System.getInt(getContext().getContentResolver(),
-            Settings.System.HAPTIC_FEEDBACK_ENABLED, 0) != 0) {
+        boolean hapticFeedbackEnabled = Settings.Global.getInt(getContext().getContentResolver(),
+                "haptic_feedback_enabled", 0) != 0;
 
-            if (Build.VERSION.SDK_INT >= 28) {
+        if (hapticFeedbackEnabled) {
+            if (Settings.Global.getInt(getContext().getContentResolver(), "zen_mode", 0) != 2) {
                 button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            } else {
-                // Perform haptic feedback only if no total silence mode enabled.
-                if (Settings.Global.getInt(getContext().getContentResolver(), "zen_mode", 0) != 2) {
-                    button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                }
             }
         }
     }
-
-
-
     public void onAnyExtraKeyButtonClick(View view, @NonNull ExtraKeyButton buttonInfo, MaterialButton button) {
         if (isSpecialButton(buttonInfo)) {
             if (mLongPressCount > 0) return;
