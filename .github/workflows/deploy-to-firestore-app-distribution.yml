@@ -111,12 +111,12 @@ jobs:
           echo "Using Java 8: $JAVA_HOME_8_X64"
           $JAVA_HOME_8_X64/bin/java -version
           # Run with more verbose output
-          ./gradlew :subprojects:libjdwp:build --info
+          ./gradlew :subprojects:libjdwp:build --info --stacktrace
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
+        run: ./gradlew clean :app:assembleDebug --parallel --configure-on-demand
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
