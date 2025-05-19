@@ -149,7 +149,6 @@ const val COPY_LOCAL_MAVEN_REPO_TO_ASSETS = "copyLocalMavenRepoToAssets"
 
 // Tooltips
 const val CONTENT_KEY = "CONTENT_KEY"
-const val CONTENT_TITLE_KEY = "CONTENT_TITLE_KEY"
 
 // Toml
 const val TOML_FILE_NAME = "libs.versions.toml"
