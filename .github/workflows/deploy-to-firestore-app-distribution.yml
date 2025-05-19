@@ -51,10 +51,12 @@ jobs:
           sudo apt-get install -y git-lfs make
           git lfs install
           git lfs pull
+
       - name: Initialize submodules
         run: |
           git submodule init
           git submodule update --remote
+
       - name: Set up JDKs
         uses: actions/setup-java@v4
         with:
@@ -63,9 +65,9 @@ jobs:
           java-version: |
             8
             17
-      - name: Install required tools
-        run: |
-          sudo apt-get update && sudo apt-get install -y unzip cmake ninja-build
+
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -73,31 +75,11 @@ jobs:
       - name: Install Android SDK Platform 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
 
-      - name: Install Android NDK
+      - name: Verify CMake version
         run: |
-          echo "Installing NDK version 26.1.10909125"
-          sdkmanager --install "ndk;26.1.10909125"
-          echo "NDK_ROOT=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> $GITHUB_ENV
-
-      - name: Update CMake permissions
-        run: |
-          chmod -R +x $ANDROID_SDK_ROOT/cmake
-          echo "Current CMake version:"
           cmake --version
-
-      # Fix for the ninja build issue with libiconv extraction
-      - name: Prepare build environment for libjdwp
-        run: |
-          # Create extraction directory with proper permissions
-          mkdir -p /home/ubuntu/AWS/actions-runner/_work/CodeOnTheGo/CodeOnTheGo/subprojects/libjdwp/.cmake/Debug/*/arm64-v8a/libiconv-prefix/src/ || true
-          chmod -R 777 /home/ubuntu/AWS/actions-runner/_work/CodeOnTheGo/CodeOnTheGo/subprojects || true
-          # Try to pre-download and extract libiconv to avoid ninja issues
-          cd /tmp
-          wget -q https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.17.tar.gz
-          mkdir -p libiconv-extract
-          tar xf libiconv-1.17.tar.gz -C libiconv-extract
-          find /home/ubuntu/AWS/actions-runner/_work/CodeOnTheGo/CodeOnTheGo/subprojects -name "libiconv-prefix" -type d | xargs -I{} cp -r /tmp/libiconv-extract/* "{}"/src/ || true
-          echo "Preparation complete"
+          which cmake
+          echo "CMake path: $(which cmake)"
 
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
@@ -115,28 +97,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
-      # Modified to capture better error output
-      - name: Build libjdwp
-        run: |
-          # Enable more verbose CMake/Ninja output
-          export VERBOSE=1
-          export CMAKE_VERBOSE_MAKEFILE=ON
-          # Try building with --debug for more information
-          ./gradlew :subprojects:libjdwp:build || {
-            echo "Regular build failed, trying with additional flags..."
-            # Try with a directory permission fix
-            sudo chmod -R 777 /home/ubuntu/AWS/actions-runner/_work/CodeOnTheGo/CodeOnTheGo/subprojects/libjdwp
-            # Check if CMakeLists.txt exists
-            if [ ! -f "subprojects/libjdwp/CMakeLists.txt" ]; then
-              echo "ERROR: CMakeLists.txt not found in libjdwp directory"
-              ls -la subprojects/libjdwp/
-            fi
-            # Try with a different approach - use Gradle with proper flags
-            ./gradlew :subprojects:libjdwp:build
-          }
-        env:
-          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
-          ANDROID_NDK_HOME: ${{ env.NDK_ROOT }}
+#      - name: Build libjdwp
+#        run: |
+#          ./gradlew :subprojects:libjdwp:build
+#        env:
+#          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
@@ -150,6 +115,7 @@ jobs:
           apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
           echo "Found APK at: $apk_path"
+
       - name: Set branch name
         run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
@@ -173,11 +139,13 @@ jobs:
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           fi
+
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
           # Use regex to extract JIRA ticket in format ADFA-XXX
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+
           # If JIRA ticket was found, set the URL, otherwise set as N/A
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
@@ -185,8 +153,10 @@ jobs:
             JIRA_TICKET="N/A"
             JIRA_URL="#"
           fi
+
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
+
       - name: Upload artifact to Firebase App Distribution
         id: firebase_upload
         uses: emertozd/Firebase-Distribution-Github-Action@v2
@@ -209,6 +179,7 @@ jobs:
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+
           # Create JSON payload
           echo '{
             "blocks": [
@@ -287,5 +258,6 @@ jobs:
               }
             ]
           }' > payload.json
+
           # Send notification
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
