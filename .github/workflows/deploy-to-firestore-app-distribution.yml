@@ -122,7 +122,7 @@ jobs:
           export VERBOSE=1
           export CMAKE_VERBOSE_MAKEFILE=ON
           # Try building with --debug for more information
-          ./gradlew :subprojects:libjdwp:build --info --debug || {
+          ./gradlew :subprojects:libjdwp:build || {
             echo "Regular build failed, trying with additional flags..."
             # Try with a directory permission fix
             sudo chmod -R 777 /home/ubuntu/AWS/actions-runner/_work/CodeOnTheGo/CodeOnTheGo/subprojects/libjdwp
@@ -132,7 +132,7 @@ jobs:
               ls -la subprojects/libjdwp/
             fi
             # Try with a different approach - use Gradle with proper flags
-            ./gradlew :subprojects:libjdwp:build --info --debug
+            ./gradlew :subprojects:libjdwp:build
           }
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
