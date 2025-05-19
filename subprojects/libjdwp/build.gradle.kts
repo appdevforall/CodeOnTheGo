@@ -1,89 +1,48 @@
 @file:Suppress("UnstableApiUsage")
 
 import com.itsaky.androidide.build.config.BuildConfig
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.io.FileNotFoundException
-import java.util.Properties
+import com.itsaky.androidide.plugins.extension.AssetSource
+import com.itsaky.androidide.plugins.extension.JniLibAbi
 
 plugins {
     id("com.android.library")
     id("kotlin-android")
+    id("com.itsaky.androidide.build.external-assets")
 }
 
 android {
     namespace = "${BuildConfig.packageName}.libjdwp"
     ndkVersion = BuildConfig.ndkVersion
+}
 
-    defaultConfig {
-        externalNativeBuild {
-            cmake {
-                val localProps = rootProject.file("local.properties")
-                var javaRoot: String? = null
-                if (localProps.exists()) {
-                    javaRoot = localProps.inputStream().use { input ->
-                        val props = Properties()
-                        props.load(input)
-                        props.getProperty("Java_ROOT", null)
-                    }
-                }
+val OJ_LIBJDWP_REPO = "https://github.com/appdevforall/oj-libjdwp"
+val OJ_LIBJDWP_TAG = "v2025-05-19-a582a55"
+val OJ_LIBJDWP_LIBS = arrayOf(
+    "dt_socket" to arrayOf(
+        JniLibAbi.Aarch64 to "f6f9db19089c7124b9a7883a97d830195b15317de923ffc19e335b954514505b",
+        JniLibAbi.Arm to "f1e7507fa5f59e6e99b9fe5edfe630ad051e4c8530c941d7c57aaf7b2c29c176",
+    ),
+    "jdwp" to arrayOf(
+        JniLibAbi.Aarch64 to "ed6a0c25e8b959491fc46c01b7e5f46c7a266730f8b5bfb49d1e5cdf4ad58c50",
+        JniLibAbi.Arm to "05ef7d594a384ea4ad92b653c2d1f36dab3784dca569d582cb68511216e877f2",
+    ),
+    "npt" to arrayOf(
+        JniLibAbi.Aarch64 to "068d600ab401e607e149e60b44f812936e7379ebc41871b0d53ef490362262f5",
+        JniLibAbi.Arm to "16395686d5238e9dd091003c30b7527af71808434bee092a637b8c99251edc31",
+    ),
+)
 
-                if (javaRoot == null) {
-                    javaRoot = System.getenv("Java_ROOT")
-                }
-
-                if (javaRoot == null) {
-                    throw GradleException("Java_ROOT not set")
-                }
-
-                arguments += setOf("-DJava_ROOT=${javaRoot}")
-                targets += setOf(
-                    "dt_socket", "jdwp", "npt", "jdi-support"
+externalAssets {
+    for ((lib, archs) in OJ_LIBJDWP_LIBS) {
+        for ((arch, sha256) in archs) {
+            jni("${lib}-${arch}") {
+                libName = lib
+                abi = arch
+                source = AssetSource.External(
+                    url = uri("$OJ_LIBJDWP_REPO/releases/download/$OJ_LIBJDWP_TAG/${arch.abi}-lib${lib}.so"),
+                    sha256Checksum = sha256
                 )
             }
         }
     }
-    externalNativeBuild {
-        cmake {
-            path = rootProject.file("oj-libjdwp/CMakeLists.txt")
-            version = "3.31.4"
-            buildStagingDirectory = file(".cmake")
-        }
-    }
-}
-
-val jdiSupportDir = project.layout.buildDirectory.dir("jdi-support")
-
-val collectLibJdiSupport = tasks.register("collectLibJdiSupport") {
-    dependsOn(tasks.matching { it.name.startsWith("externalNativeBuildDebug") })
-
-    doLast {
-        val outputDir = jdiSupportDir.get().asFile
-        if (!outputDir.exists()) {
-            outputDir.mkdirs()
-        }
-
-        val fileOut = outputDir.resolve("classes.jar")
-
-        val fileIn = project.fileTree(".cmake").matching {
-            include("**/jdi-support.jar")
-        }.maxByOrNull { it.lastModified() }
-            ?: throw FileNotFoundException("jdi-support.jar not found")
-
-        fileIn.copyTo(fileOut, overwrite = true)
-    }
-}
-
-tasks.withType<JavaCompile> {
-    dependsOn(collectLibJdiSupport)
-}
-
-tasks.withType<KotlinCompile> {
-    dependsOn(collectLibJdiSupport)
-}
-
-dependencies {
-    api(fileTree(project.layout.buildDirectory) {
-        include("jdi-support/classes.jar")
-    })
-    api(libs.common.kotlin.coroutines.android)
 }

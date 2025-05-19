@@ -54,5 +54,9 @@ gradlePlugin {
       id = "com.itsaky.androidide.build.lexergenerator"
       implementationClass = "com.itsaky.androidide.plugins.LexerGeneratorPlugin"
     }
+    create("com.itsaky.androidide.build.external-assets") {
+      id = "com.itsaky.androidide.build.external-assets"
+      implementationClass = "com.itsaky.androidide.plugins.ExternalAssetsPlugin"
+    }
   }
 }
