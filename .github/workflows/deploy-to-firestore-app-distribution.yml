@@ -97,14 +97,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
-#      - name: Build libjdwp
-#        run: |
-#          ./gradlew :subprojects:libjdwp:build
-#        env:
-#          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+      - name: Clean project
+        run: |
+          ./gradlew clean
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+
+      - name: Build libjdwp
+        run: |
+          ./gradlew :subprojects:libjdwp:build
+        env:
+          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
+        run: ./gradlew clean :app:assembleDebug --parallel --configure-on-demand
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
