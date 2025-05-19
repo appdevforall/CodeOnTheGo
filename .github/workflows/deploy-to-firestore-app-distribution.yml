@@ -110,11 +110,8 @@ jobs:
           # Verify Java version
           echo "Using Java 8: $JAVA_HOME_8_X64"
           $JAVA_HOME_8_X64/bin/java -version
-          # Create temporary gradle.properties to disable module flags incompatible with Java 8
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-XX:+HeapDumpOnOutOfMemoryError -Xmx2g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=512m" > ~/.gradle/gradle.properties
           # Run with more verbose output
-          JAVA_HOME=$JAVA_HOME_8_X64 ./gradlew :subprojects:libjdwp:build --info
+          ./gradlew :subprojects:libjdwp:build --info
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
