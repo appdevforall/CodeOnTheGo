@@ -105,7 +105,10 @@ jobs:
 
       - name: Build libjdwp
         run: |
-          ./gradlew :subprojects:libjdwp:build
+          # Clear CMake cache first
+          find subprojects/libjdwp/.cmake -type d -name "*" -exec rm -rf {} \; 2>/dev/null || true
+          # Run with more verbose output
+          ./gradlew :subprojects:libjdwp:build --info
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
