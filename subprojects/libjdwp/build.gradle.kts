@@ -35,7 +35,7 @@ val OJ_LIBJDWP_LIBS = arrayOf(
 externalAssets {
     for ((lib, archs) in OJ_LIBJDWP_LIBS) {
         for ((arch, sha256) in archs) {
-            jni("${lib}-${arch}") {
+            jniLib("${lib}-${arch}") {
                 libName = lib
                 abi = arch
                 source = AssetSource.External(
@@ -44,5 +44,13 @@ externalAssets {
                 )
             }
         }
+    }
+
+    jarDependency("jdi-support") {
+        configuration = "api"
+        source = AssetSource.External(
+            url = uri("$OJ_LIBJDWP_REPO/releases/download/$OJ_LIBJDWP_TAG/jdi-support.jar"),
+            sha256Checksum = "1ae447d08bd40b20abf270079cf59919d8575a2e8657fa936faf18678fe1ccc5"
+        )
     }
 }

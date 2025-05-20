@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.tasks
 
 import com.itsaky.androidide.plugins.extension.AssetConfiguration
 import com.itsaky.androidide.plugins.extension.AssetSource
+import com.itsaky.androidide.plugins.extension.ExternalJarDependencyConfiguration
 import com.itsaky.androidide.plugins.extension.JniLibAssetConfiguration
 import com.itsaky.androidide.plugins.extension.RawAssetConfiguration
 import com.itsaky.androidide.plugins.util.DownloadUtils
@@ -11,6 +12,7 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
@@ -34,18 +36,25 @@ abstract class AddExternalAssetTask : DefaultTask() {
     abstract val cacheDir: DirectoryProperty
 
     /**
-     * The directory where the asset should be added.
+     * The directory where the asset should be added. Optional only for JAR dependency assets.
      */
     @get:OutputDirectory
+    @get:Optional
     abstract val outputDir: DirectoryProperty
 
     @TaskAction
     fun addAsset() {
         val asset = asset.get()
-        val cacheDir = cacheDir.asFile.get()
+        val cacheDir = cacheDir.asFile.get().also { it.mkdirs() }
+        val cachedFile = asset.fetchSourceInto(cacheDir)
+
+        if (asset is ExternalJarDependencyConfiguration) {
+            // no need to process further
+            return
+        }
+
         val outputDir = outputDir.asFile.get()
         val destFile = asset.resolveDestFile(outputDir)
-        val cachedFile = asset.fetchSourceInto(cacheDir)
         val destDir = destFile.parentFile!!
         if (!destDir.exists() && !destDir.mkdirs()) {
             throw IllegalStateException("Unable to create directory $destDir")
@@ -95,9 +104,11 @@ abstract class AddExternalAssetTask : DefaultTask() {
 private fun AssetConfiguration.resolveDestFile(outputDir: File): File = when(this) {
     is RawAssetConfiguration -> outputDir.resolve(this.assetPath)
     is JniLibAssetConfiguration -> outputDir.resolve("${this.abi.abi}/lib${this.libName}.so")
+    is ExternalJarDependencyConfiguration -> outputDir.resolve(this.jarName)
 }
 
 private fun AssetConfiguration.resolveCacheFile(cacheDir: File): File = when (this) {
     is RawAssetConfiguration -> cacheDir.resolve(this.assetPath)
     is JniLibAssetConfiguration -> cacheDir.resolve("lib${this.libName}_${this.abi.abi}.so")
+    is ExternalJarDependencyConfiguration -> cacheDir.resolve(this.jarName)
 }

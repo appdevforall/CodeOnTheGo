@@ -89,6 +89,9 @@ abstract class RawAssetConfiguration @Inject constructor(
     abstract var assetPath: String
 }
 
+/**
+ * Configuration for a single JNI library asset to be included in the APK.
+ */
 abstract class JniLibAssetConfiguration @Inject constructor(
     name: String
 ) : AssetConfiguration(name) {
@@ -102,4 +105,22 @@ abstract class JniLibAssetConfiguration @Inject constructor(
      * The ABI of the JNI library.
      */
     abstract var abi: JniLibAbi
+}
+
+/**
+ * Configuration for a single JAR dependency to added to the declaring module's dependencies.
+ */
+abstract class ExternalJarDependencyConfiguration @Inject constructor(
+    name: String
+): AssetConfiguration(name) {
+
+    /**
+     * The configuration of the JAR dependency.
+     */
+    var configuration: String = "implementation"
+
+    /**
+     * The name of the JAR file to be added to the dependencies.
+     */
+    var jarName: String = "${name}.jar"
 }
