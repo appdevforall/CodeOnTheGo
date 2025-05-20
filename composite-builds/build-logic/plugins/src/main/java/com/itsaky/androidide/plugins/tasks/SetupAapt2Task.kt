@@ -26,6 +26,7 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+import java.net.URI
 
 /**
  * @author Akash Yadav
@@ -83,8 +84,8 @@ abstract class SetupAapt2Task : DefaultTask() {
       file.parentFile.deleteRecursively()
       file.parentFile.mkdirs()
 
-      val remoteUrl = AAPT2_DOWNLOAD_URL.format(DEFAULT_VERSION, arch)
-      DownloadUtils.doDownload(file, remoteUrl, checksum, logger)
+      val remoteUrl = URI.create(AAPT2_DOWNLOAD_URL.format(DEFAULT_VERSION, arch)).toURL()
+      DownloadUtils.downloadFile(remoteUrl, file, checksum, logger)
       assertAapt2Arch(file, ELFUtils.ElfAbi.forName(arch)!!)
     }
   }
