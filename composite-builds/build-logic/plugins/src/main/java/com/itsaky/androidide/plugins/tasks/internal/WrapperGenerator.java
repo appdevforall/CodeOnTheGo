@@ -130,7 +130,7 @@ public class WrapperGenerator {
     generator.setExitEnvironmentVar("GRADLE_EXIT_CONSOLE");
     generator.setAppNameSystemProperty("org.gradle.appname");
     generator.setScriptRelPath(unixScript.getName());
-    generator.setDefaultJvmOpts(ImmutableList.of("-Xmx64m", "-Xms64m"));
+    generator.setDefaultJvmOpts(ImmutableList.of("-Xmx2048m", "-Xms64m"));
     generator.generateUnixScript(unixScript);
     generator.generateWindowsScript(batchScript);
   }
