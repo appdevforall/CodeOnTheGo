@@ -73,7 +73,8 @@ public class ToolsManager {
             extractToolingApi();
             extractCogoPlugin();
             extractGradleDists();
-            extractAndroidJar();
+            // NOTE no need to extract android.jar
+            //extractAndroidJar();
             extractColorScheme(app);
             extractJdwp(app);
             writeInitScript();
@@ -275,7 +276,7 @@ public class ToolsManager {
     }
 
     private static void extractGradleDists() {
-        String[] binToCopy = {"gradle-8.0-bin.zip", "gradle-8.7-bin.zip"};
+        String[] binToCopy = {"gradle-8.7-bin.zip"};
         for (String binFile : binToCopy) {
             ResourceUtils.copyFileFromAssets(getCommonAsset(binFile),
                     Environment.GRADLE_DISTS.getAbsolutePath() + File.separator + binFile);
