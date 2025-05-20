@@ -142,7 +142,7 @@ include(
   ":subprojects:flashbar",
   ":subprojects:framework-stubs",
   ":subprojects:javac-services",
-  ":subprojects:libjdwp",
+//  ":subprojects:libjdwp", HJE 2025-05-19 attempting to fix the build
   ":subprojects:projects",
   ":subprojects:tooling-api",
   ":subprojects:tooling-api-events",
