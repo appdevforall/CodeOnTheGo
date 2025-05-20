@@ -76,7 +76,7 @@ public class ToolsManager {
             extractAndroidJar();
             extractColorScheme(app);
             writeInitScript();
-            extractJdwp(app); // HJE 2025-05-19 Attempting to fix the build; swapping this line with the above as per Joel's Slack https://app-dev-for-all.slack.com/archives/C08H3RESTJ7/p1747471779056379
+            // extractJdwp(app); // HJE 2025-05-19 Attempting to fix the build; swapping this line with the above as per Joel's Slack https://app-dev-for-all.slack.com/archives/C08H3RESTJ7/p1747471779056379
 
             deleteIdeenv();
         }).whenComplete((__, error) -> {
