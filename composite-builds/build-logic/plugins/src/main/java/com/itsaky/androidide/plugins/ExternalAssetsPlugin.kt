@@ -116,7 +116,7 @@ class ExternalAssetsPlugin : Plugin<Project> {
                 val source = when (asset) {
                     is RawAssetConfiguration -> variant.sources.assets
                     is JniLibAssetConfiguration -> variant.sources.jniLibs
-                    else -> null
+                    else -> throw IllegalArgumentException("Unknown asset type: $asset")
                 }
 
                 source?.addGeneratedSourceDirectory(
