@@ -97,9 +97,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
-      - name: Build libjdwp
+      - name: Build libjdwp (HJE: skip)
         run: |
-          ./gradlew :subprojects:libjdwp:build
+          echo HJE 2025-05-19 ./gradlew :subprojects:libjdwp:build
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
