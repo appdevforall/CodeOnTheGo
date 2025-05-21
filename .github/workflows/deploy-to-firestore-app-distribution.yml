@@ -115,7 +115,7 @@ jobs:
             ${{ runner.os }}-android-build-cache-
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleV8Debug --max-workers=2 --configure-on-demand
+        run: ./gradlew :app:assembleV8Debug --no-daemon
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
