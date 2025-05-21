@@ -97,12 +97,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-deps-
 
-      - name: Build libjdwp
-        run: |
-          ./gradlew :subprojects:libjdwp:build
-        env:
-          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
-
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
         env:
@@ -151,7 +145,7 @@ jobs:
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
           else
             JIRA_TICKET="N/A"
-            JIRA_URL="#"
+            JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
           fi
 
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
