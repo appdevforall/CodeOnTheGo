@@ -84,18 +84,35 @@ jobs:
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
-      - name: Cache Dependencies
+      # Cache Gradle Modules
+      - name: Cache Gradle Modules
+        id: cache-gradle-modules
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.gradle/caches/modules-2
-            ~/.gradle/caches/jars-*
-            ~/.gradle/caches/transforms-*
-            ~/.gradle/wrapper
-            ~/.android/build-cache
-          key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          path: ~/.gradle/caches/modules-2
+          key: ${{ runner.os }}-gradle-modules-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-deps-
+            ${{ runner.os }}-gradle-modules-
+
+      # Cache Gradle Wrapper
+      - name: Cache Gradle Wrapper
+        id: cache-gradle-wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-wrapper-
+
+      # Cache Android Build Cache
+      - name: Cache Android Build Cache
+        id: cache-android-build
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/build-cache
+          key: ${{ runner.os }}-android-build-cache-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-android-build-cache-
 
       - name: Assemble Universal APK
         run: ./gradlew :app:assembleV8Debug --parallel --configure-on-demand
