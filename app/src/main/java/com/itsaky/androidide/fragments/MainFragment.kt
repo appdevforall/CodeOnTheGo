@@ -171,23 +171,22 @@ class MainFragment : BaseFragment() {
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
                         val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
-
                         val feedbackMessage = getString(
                             R.string.feedback_message,
                             BuildConfig.VERSION_NAME,
                             stackTrace
                         )
-
                         val feedbackEmail = getString(R.string.feedback_email)
+                        val currentScreen = getCurrentScreenName()
 
                         try {
                             val feedbackIntent = Intent(Intent.ACTION_SENDTO).apply {
                                 data = Uri.parse("mailto:")
                                 putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
 
-                                val subject = MessageFormat.format(
+                                val subject = String.format(
                                     resources.getString(R.string.feedback_subject),
-                                    "Main"
+                                    currentScreen
                                 )
                                 putExtra(Intent.EXTRA_SUBJECT, subject)
                                 putExtra(Intent.EXTRA_TEXT, feedbackMessage)
@@ -202,9 +201,9 @@ class MainFragment : BaseFragment() {
                                     type = "message/rfc822"
                                     putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
 
-                                    val subject = MessageFormat.format(
+                                    val subject = String.format(
                                         resources.getString(R.string.feedback_subject),
-                                        "Main"
+                                        currentScreen
                                     )
                                     putExtra(Intent.EXTRA_SUBJECT, subject)
                                     putExtra(Intent.EXTRA_TEXT, feedbackMessage)
@@ -224,6 +223,12 @@ class MainFragment : BaseFragment() {
                 .show()
         }
     }
+
+    private fun getCurrentScreenName(): String {
+        val activity = requireActivity()
+        return activity.javaClass.simpleName.replace("Activity", "")
+    }
+
 
     override fun onDestroyView() {
         super.onDestroyView()
