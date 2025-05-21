@@ -62,18 +62,25 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
   }
 
   fun destroy() {
-    if (this.sessionId != -1) {
-      this.activity?.packageManager?.packageInstaller?.let { packageInstaller ->
-        packageInstaller.mySessions.find { session -> session.sessionId == this.sessionId }
-          ?.also { info ->
+    if (this.sessionId != -1 && this.activity != null && !this.activity!!.isFinishing && !this.activity!!.isDestroyed) {
+      try {
+        this.activity?.packageManager?.packageInstaller?.let { packageInstaller ->
+          val sessionExists = packageInstaller.mySessions.any { it.sessionId == this.sessionId }
+          if (sessionExists) {
             try {
-              packageInstaller.abandonSession(info.sessionId)
+              packageInstaller.abandonSession(this.sessionId)
             } catch (ex: Exception) {
-              log.error("Failed to abandon session {} : {}", info.sessionId, ex.cause?.message ?: ex.message)
+              log.error("Failed to abandon session {} : {}", this.sessionId, ex.cause?.message ?: ex.message)
             }
+          } else {
+            log.info("Session {} no longer exists or is already abandoned", this.sessionId)
           }
+        }
+      } catch (ex: Exception) {
+        log.error("Error while handling installation session {} : {}", this.sessionId, ex.cause?.message ?: ex.message)
       }
     }
+
     this.activity = null
     this.sessionId = -1
   }
