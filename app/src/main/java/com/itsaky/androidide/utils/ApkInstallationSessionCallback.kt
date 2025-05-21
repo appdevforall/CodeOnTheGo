@@ -30,6 +30,9 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
 
   companion object {
     private val log = LoggerFactory.getLogger(ApkInstallationSessionCallback::class.java)
+    private const val LOG_ABANDON_FAILED = "Failed to abandon session {} : {}"
+    private const val LOG_SESSION_NOT_EXISTS = "Session {} no longer exists or is already abandoned"
+    private const val LOG_SESSION_ERROR = "Error while handling installation session {} : {}"
   }
 
   override fun onCreated(sessionId: Int) {
@@ -70,14 +73,14 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
             try {
               packageInstaller.abandonSession(this.sessionId)
             } catch (ex: Exception) {
-              log.error("Failed to abandon session {} : {}", this.sessionId, ex.cause?.message ?: ex.message)
+              log.error(LOG_ABANDON_FAILED, this.sessionId, ex.cause?.message ?: ex.message)
             }
           } else {
-            log.info("Session {} no longer exists or is already abandoned", this.sessionId)
+            log.info(LOG_SESSION_NOT_EXISTS, this.sessionId)
           }
         }
       } catch (ex: Exception) {
-        log.error("Error while handling installation session {} : {}", this.sessionId, ex.cause?.message ?: ex.message)
+        log.error(LOG_SESSION_ERROR, this.sessionId, ex.cause?.message ?: ex.message)
       }
     }
 
