@@ -34,7 +34,6 @@ import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
-import com.itsaky.androidide.idetooltips.DocumentationDatabase
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R.string
@@ -48,11 +47,14 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-//import io.sentry.Sentry
+
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+
+import android.hardware.display.DisplayManager
+import android.view.Display
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -102,6 +104,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         transferDatabaseFromAssets(this, DATABASENAME)
 
         openLastProject()
+        setupSecondaryDisplay()
 
         viewModel.currentScreen.observe(this) { screen ->
             if (screen == -1) {
@@ -314,5 +317,18 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         ITemplateProvider.getInstance().release()
         super.onDestroy()
         _binding = null
+    }
+
+    private fun setupSecondaryDisplay() {
+        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val displays = displayManager.displays
+
+        val secondDisplay = displays.firstOrNull { display ->
+            display.displayId != Display.DEFAULT_DISPLAY
+        }
+        secondDisplay?.let {
+            val presentation = SecondaryScreen(this, it)
+            presentation.show()
+        }
     }
 }
