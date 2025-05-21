@@ -20,6 +20,7 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -140,13 +141,15 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     get() = hiddenContent.height
 
   private lateinit var dragHelper: ViewDragHelper
+  private var hasReceivedDownEvent = false
+  private var lastActionDownEvent: MotionEvent? = null
 
   /**
    * Whether the view is currently in 'dragging' state.
    */
   val isDragging: Boolean
     get() = draggingState == ViewDragHelper.STATE_DRAGGING ||
-        draggingState == ViewDragHelper.STATE_SETTLING
+            draggingState == ViewDragHelper.STATE_SETTLING
 
   /**
    * The ID of the view which will be dragged to reveal the content.
@@ -173,7 +176,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     protected set
 
   companion object {
-
+    private const val TAG = "SwipeRevealLayout"
     private const val HIDDEN_CONTENT_INDEX = 0
     private const val OVERLAPPING_CONTENT_INDEX = 1
 
@@ -187,7 +190,15 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     const val STATE_SETTLING = ViewDragHelper.STATE_SETTLING
 
     const val AUTO_OPEN_VELOCITY_LIM = 800.0
+    private const val LOG_SYNTHETIC_DOWN_INJECTED = "Injecting synthetic DOWN event to correct event sequence."
+    private const val LOG_SYNTHETIC_DOWN_ERROR = "Error processing synthetic DOWN event."
+    private const val LOG_SYNTHETIC_DOWN_IN_ON_TOUCH = "Injecting synthetic DOWN event in onTouchEvent."
+    private const val LOG_SYNTHETIC_DOWN_ERROR_ON_TOUCH = "Error processing synthetic DOWN event in onTouchEvent."
+    private const val LOG_NEW_SYNTHETIC_DOWN = "Creating new synthetic DOWN event in onTouchEvent."
+    private const val LOG_NEW_SYNTHETIC_DOWN_ERROR = "Error processing new synthetic DOWN event."
+    private const val LOG_PROCESS_TOUCH_ERROR = "Error en ViewDragHelper.processTouchEvent"
   }
+
 
   init {
     if (attrs != null) {
@@ -227,13 +238,84 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-    return isViewHit(dragHandleView!!, ev.x.toInt(),
-      ev.y.toInt()) && dragHelper.shouldInterceptTouchEvent(ev)
+    if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+      hasReceivedDownEvent = true
+
+      if (lastActionDownEvent != null) {
+        lastActionDownEvent!!.recycle()
+      }
+      lastActionDownEvent = MotionEvent.obtain(ev)
+
+      if (dragHelper.viewDragState == ViewDragHelper.STATE_SETTLING) {
+        dragHelper.abort()
+      }
+    } else if (ev.actionMasked == MotionEvent.ACTION_MOVE && !hasReceivedDownEvent) {
+      if (lastActionDownEvent != null) {
+        try {
+          dragHelper.processTouchEvent(lastActionDownEvent!!)
+          hasReceivedDownEvent = true
+          Log.d(TAG, LOG_SYNTHETIC_DOWN_INJECTED)
+        } catch (e: Exception) {
+          Log.e(TAG, LOG_SYNTHETIC_DOWN_ERROR, e)
+        }
+      }
+    } else if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+      hasReceivedDownEvent = false
+    }
+
+    return isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt()) &&
+            dragHelper.shouldInterceptTouchEvent(ev)
   }
 
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    dragHelper.processTouchEvent(event)
+    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+      hasReceivedDownEvent = true
+
+      if (lastActionDownEvent != null) {
+        lastActionDownEvent!!.recycle()
+      }
+      lastActionDownEvent = MotionEvent.obtain(event)
+
+    } else if (event.actionMasked == MotionEvent.ACTION_MOVE && !hasReceivedDownEvent) {
+      if (lastActionDownEvent != null) {
+        try {
+          dragHelper.processTouchEvent(lastActionDownEvent!!)
+          hasReceivedDownEvent = true
+          Log.d(TAG, LOG_SYNTHETIC_DOWN_IN_ON_TOUCH)
+        } catch (e: Exception) {
+          Log.e(TAG, LOG_SYNTHETIC_DOWN_ERROR_ON_TOUCH, e)
+        }
+      } else {
+        val syntheticDown = MotionEvent.obtain(
+          event.downTime, event.eventTime - 10,
+          MotionEvent.ACTION_DOWN,
+          event.x, event.y,
+          event.metaState
+        )
+
+        try {
+          dragHelper.processTouchEvent(syntheticDown)
+          hasReceivedDownEvent = true
+          Log.d(TAG, LOG_NEW_SYNTHETIC_DOWN)
+        } catch (e: Exception) {
+          Log.e(TAG, LOG_NEW_SYNTHETIC_DOWN_ERROR, e)
+        } finally {
+          syntheticDown.recycle()
+        }
+      }
+    } else if (event.actionMasked == MotionEvent.ACTION_UP ||
+      event.actionMasked == MotionEvent.ACTION_CANCEL) {
+      hasReceivedDownEvent = false
+    }
+
+    try {
+      dragHelper.processTouchEvent(event)
+    } catch (e: IllegalArgumentException) {
+      Log.e(TAG, "$LOG_PROCESS_TOUCH_ERROR: ${e.message}")
+      hasReceivedDownEvent = false
+      return false
+    }
 
     val x = event.x
     val xInt = x.toInt()
@@ -257,14 +339,19 @@ open class SwipeRevealLayout @JvmOverloads constructor(
       }
     }
 
-    return isInHandle && isViewHit(hiddenContent, xInt, yInt) || isViewHit(overlappingContent, xInt,
-      yInt)
+    return isInHandle && isViewHit(hiddenContent, xInt, yInt) || isViewHit(overlappingContent, xInt, yInt)
   }
 
   override fun computeScroll() {
     if (dragHelper.continueSettling(true)) {
       postInvalidateOnAnimation()
     }
+  }
+
+  override fun onDetachedFromWindow() {
+    super.onDetachedFromWindow()
+    lastActionDownEvent?.recycle()
+    lastActionDownEvent = null
   }
 
   /**
@@ -353,6 +440,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     val scrX = parentLoc[0] + x
     val scrY = parentLoc[1] + y
     return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width &&
-        scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
+            scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
   }
 }
