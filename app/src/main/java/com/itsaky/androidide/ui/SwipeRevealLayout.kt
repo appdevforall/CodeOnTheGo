@@ -20,7 +20,6 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
-import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -142,7 +141,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
   private lateinit var dragHelper: ViewDragHelper
   private var hasReceivedDownEvent = false
-  private var lastActionDownEvent: MotionEvent? = null
 
   /**
    * Whether the view is currently in 'dragging' state.
@@ -176,7 +174,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     protected set
 
   companion object {
-    private const val TAG = "SwipeRevealLayout"
+
     private const val HIDDEN_CONTENT_INDEX = 0
     private const val OVERLAPPING_CONTENT_INDEX = 1
 
@@ -190,15 +188,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     const val STATE_SETTLING = ViewDragHelper.STATE_SETTLING
 
     const val AUTO_OPEN_VELOCITY_LIM = 800.0
-    private const val LOG_SYNTHETIC_DOWN_INJECTED = "Injecting synthetic DOWN event to correct event sequence."
-    private const val LOG_SYNTHETIC_DOWN_ERROR = "Error processing synthetic DOWN event."
-    private const val LOG_SYNTHETIC_DOWN_IN_ON_TOUCH = "Injecting synthetic DOWN event in onTouchEvent."
-    private const val LOG_SYNTHETIC_DOWN_ERROR_ON_TOUCH = "Error processing synthetic DOWN event in onTouchEvent."
-    private const val LOG_NEW_SYNTHETIC_DOWN = "Creating new synthetic DOWN event in onTouchEvent."
-    private const val LOG_NEW_SYNTHETIC_DOWN_ERROR = "Error processing new synthetic DOWN event."
-    private const val LOG_PROCESS_TOUCH_ERROR = "Error en ViewDragHelper.processTouchEvent"
   }
-
 
   init {
     if (attrs != null) {
@@ -238,90 +228,50 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-    if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-      hasReceivedDownEvent = true
+    when (ev.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        val isInDragHandle = isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
+        hasReceivedDownEvent = isInDragHandle
 
-      if (lastActionDownEvent != null) {
-        lastActionDownEvent!!.recycle()
-      }
-      lastActionDownEvent = MotionEvent.obtain(ev)
-
-      if (dragHelper.viewDragState == ViewDragHelper.STATE_SETTLING) {
-        dragHelper.abort()
-      }
-    } else if (ev.actionMasked == MotionEvent.ACTION_MOVE && !hasReceivedDownEvent) {
-      if (lastActionDownEvent != null) {
-        try {
-          dragHelper.processTouchEvent(lastActionDownEvent!!)
-          hasReceivedDownEvent = true
-          Log.d(TAG, LOG_SYNTHETIC_DOWN_INJECTED)
-        } catch (e: Exception) {
-          Log.e(TAG, LOG_SYNTHETIC_DOWN_ERROR, e)
+        if (hasReceivedDownEvent) {
+          dragHelper.shouldInterceptTouchEvent(ev)
         }
-      }
-    } else if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
-      hasReceivedDownEvent = false
-    }
 
-    return isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt()) &&
-            dragHelper.shouldInterceptTouchEvent(ev)
+        return isInDragHandle
+      }
+
+      MotionEvent.ACTION_MOVE,
+      MotionEvent.ACTION_UP,
+      MotionEvent.ACTION_CANCEL -> {
+        if (hasReceivedDownEvent) {
+          val shouldIntercept = dragHelper.shouldInterceptTouchEvent(ev)
+          if (ev.actionMasked == MotionEvent.ACTION_UP ||
+            ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+            hasReceivedDownEvent = false
+          }
+          return shouldIntercept && isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
+        }
+        return false
+      }
+      else -> return false
+    }
   }
 
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-      hasReceivedDownEvent = true
-
-      if (lastActionDownEvent != null) {
-        lastActionDownEvent!!.recycle()
-      }
-      lastActionDownEvent = MotionEvent.obtain(event)
-
-    } else if (event.actionMasked == MotionEvent.ACTION_MOVE && !hasReceivedDownEvent) {
-      if (lastActionDownEvent != null) {
-        try {
-          dragHelper.processTouchEvent(lastActionDownEvent!!)
-          hasReceivedDownEvent = true
-          Log.d(TAG, LOG_SYNTHETIC_DOWN_IN_ON_TOUCH)
-        } catch (e: Exception) {
-          Log.e(TAG, LOG_SYNTHETIC_DOWN_ERROR_ON_TOUCH, e)
-        }
-      } else {
-        val syntheticDown = MotionEvent.obtain(
-          event.downTime, event.eventTime - 10,
-          MotionEvent.ACTION_DOWN,
-          event.x, event.y,
-          event.metaState
-        )
-
-        try {
-          dragHelper.processTouchEvent(syntheticDown)
-          hasReceivedDownEvent = true
-          Log.d(TAG, LOG_NEW_SYNTHETIC_DOWN)
-        } catch (e: Exception) {
-          Log.e(TAG, LOG_NEW_SYNTHETIC_DOWN_ERROR, e)
-        } finally {
-          syntheticDown.recycle()
-        }
-      }
-    } else if (event.actionMasked == MotionEvent.ACTION_UP ||
-      event.actionMasked == MotionEvent.ACTION_CANCEL) {
-      hasReceivedDownEvent = false
-    }
-
-    try {
-      dragHelper.processTouchEvent(event)
-    } catch (e: IllegalArgumentException) {
-      Log.e(TAG, "$LOG_PROCESS_TOUCH_ERROR: ${e.message}")
-      hasReceivedDownEvent = false
-      return false
-    }
-
     val x = event.x
     val xInt = x.toInt()
     val y = event.y
     val yInt = y.toInt()
-    val isInHandle = dragHelper.isViewUnder(dragHandleView, xInt, yInt)
+    val isInHandle: Boolean
+
+    try {
+      dragHelper.processTouchEvent(event)
+      isInHandle = dragHelper.isViewUnder(dragHandleView, xInt, yInt)
+    } catch (e: IllegalArgumentException) {
+      hasReceivedDownEvent = false
+      return false
+    }
 
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
@@ -338,7 +288,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
         }
       }
     }
-
     return isInHandle && isViewHit(hiddenContent, xInt, yInt) || isViewHit(overlappingContent, xInt, yInt)
   }
 
@@ -346,12 +295,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     if (dragHelper.continueSettling(true)) {
       postInvalidateOnAnimation()
     }
-  }
-
-  override fun onDetachedFromWindow() {
-    super.onDetachedFromWindow()
-    lastActionDownEvent?.recycle()
-    lastActionDownEvent = null
   }
 
   /**
@@ -439,7 +382,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
     val scrX = parentLoc[0] + x
     val scrY = parentLoc[1] + y
-    return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width &&
-            scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
+    return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width && scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
   }
 }
