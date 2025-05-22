@@ -61,9 +61,6 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
     removeDaemonLogs(target)
 
     // NOTE disable access to non-local repos
-    target.settingsEvaluated { settings ->
-      settings.addDependencyRepositories()
-    }
 
     target.rootProject { rootProject ->
       rootProject.buildscript.apply {
