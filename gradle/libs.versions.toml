@@ -62,6 +62,7 @@ composite-javapoet = { module = "com.itsaky.androidide.build:javapoet" }
 composite-jaxp = { module = "com.itsaky.androidide.build:jaxp" }
 composite-jdt = { module = "com.itsaky.androidide.build:jdt" }
 composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" }
+composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
 gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }

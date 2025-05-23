@@ -2,6 +2,8 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.fragments.debug.DebuggerTreeGenerator
+import com.itsaky.androidide.fragments.debug.VariablesTreeNode
 import com.itsaky.androidide.lsp.debug.model.PrimitiveKind
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue
 import com.itsaky.androidide.lsp.debug.model.PrimitiveVariable
@@ -10,8 +12,10 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
+import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -67,14 +71,17 @@ private class SimpleVariable(
     val value: String,
 ) : PrimitiveVariable {
     override val kind = VariableKind.PRIMITIVE
-    override fun value(): PrimitiveValue = SimplePrimitiveValue(value, primitiveKind)
-    override fun toString(): String = "$name: $typeName"
+    override suspend fun value(): PrimitiveValue = SimplePrimitiveValue(value, primitiveKind)
+    override suspend fun isMutable(): Boolean = false
+    override suspend fun objectMembers(): Set<Variable<*>> = emptySet()
+    override fun toString(): String = name
 }
 
 private data class DebuggerState(
     val threads: List<ThreadInfo>,
     val threadIndex: Int,
     val frameIndex: Int,
+    val variablesTree: Tree<VariablesTreeNode>
 ) {
     val selectedThread: ThreadInfo?
         get() = threads.getOrNull(threadIndex)
@@ -86,7 +93,8 @@ private data class DebuggerState(
         val DEFAULT = DebuggerState(
             threads = emptyList(),
             threadIndex = -1,
-            frameIndex = -1
+            frameIndex = -1,
+            variablesTree = Tree.createTree(),
         )
     }
 }
@@ -121,49 +129,68 @@ class DebuggerViewModel : ViewModel() {
     private val state = MutableStateFlow(DebuggerState.DEFAULT)
 
     val allThreads: StateFlow<List<ThreadInfo>>
-        get() = state.map { it.threads }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.Eagerly,
-                initialValue = emptyList()
-            )
+        get() = state.map { it.threads }.stateIn(
+            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
+        )
 
     val selectedThread: StateFlow<Pair<ThreadInfo?, Int>>
         get() = state.map { state ->
             state.selectedThread to state.threadIndex
         }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = null to -1
+            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = null to -1
         )
 
     val selectedFrame: StateFlow<Pair<StackFrame?, Int>>
         get() = state.map { state ->
             state.selectedFrame to state.frameIndex
         }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = null to -1
+            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = null to -1
         )
 
     val selectedFrameVariables: StateFlow<List<Variable<*>>>
         get() = selectedFrame.map { (frame, _) ->
             frame?.getVariables() ?: emptyList()
         }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = emptyList()
+            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
         )
 
-    fun setThreads(threads: List<ThreadInfo>) {
+    val variablesTree: StateFlow<Tree<VariablesTreeNode>>
+        get() = state.map { state ->
+            state.variablesTree
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = Tree.createTree()
+        )
+
+    suspend fun setThreads(threads: List<ThreadInfo>) {
         state.update {
             val threadIndex = if (threads.isNotEmpty()) 0 else -1
             val frameIndex = if (threadIndex >= 0) 0 else -1
             DebuggerState(
                 threads = threads,
                 threadIndex = threadIndex,
-                frameIndex = frameIndex
+                frameIndex = frameIndex,
+                variablesTree = createVariablesTree(threads, threadIndex, frameIndex)
             )
+        }
+    }
+
+    private suspend fun createVariablesTree(
+        threads: List<ThreadInfo>, threadIndex: Int, frameIndex: Int
+    ): Tree<VariablesTreeNode> = coroutineScope {
+        Tree.createTree<VariablesTreeNode>().apply {
+            val roots =
+                threads.getOrNull(threadIndex)
+                    ?.getFrames()
+                    ?.getOrNull(frameIndex)
+                    ?.getVariables()
+                    ?.map { variable ->
+                        VariablesTreeNode(variable)
+                    }
+
+            generator = DebuggerTreeGenerator.newInstance(roots?.toSet() ?: emptySet())
+            initTree()
         }
     }
 
@@ -171,7 +198,7 @@ class DebuggerViewModel : ViewModel() {
     fun observeLatestThreads(
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
-        consume: (List<ThreadInfo>) -> Unit
+        consume: suspend (List<ThreadInfo>) -> Unit
     ) = viewModelScope.launch(observeOn) {
         allThreads.collectLatest { threads ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
@@ -184,13 +211,16 @@ class DebuggerViewModel : ViewModel() {
         }
     }
 
-    fun setSelectedThreadIndex(index: Int) {
+    suspend fun setSelectedThreadIndex(index: Int) {
         state.update { current ->
             check(index in 0..<current.threads.size) {
                 "Invalid thread index: $index"
             }
 
-            current.copy(threadIndex = index)
+            current.copy(
+                threadIndex = index,
+                variablesTree = createVariablesTree(current.threads, index, current.frameIndex)
+            )
         }
     }
 
@@ -198,7 +228,7 @@ class DebuggerViewModel : ViewModel() {
     fun observeLatestSelectedThread(
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
-        consume: (ThreadInfo?, Int) -> Unit
+        consume: suspend (ThreadInfo?, Int) -> Unit
     ) = viewModelScope.launch(observeOn) {
         selectedThread.collectLatest { (thread, index) ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
@@ -211,13 +241,16 @@ class DebuggerViewModel : ViewModel() {
         }
     }
 
-    fun setSelectedFrameIndex(index: Int) {
+    suspend fun setSelectedFrameIndex(index: Int) {
         state.update { current ->
             check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
                 "Invalid frame index: $index"
             }
 
-            current.copy(frameIndex = index)
+            current.copy(
+                frameIndex = index,
+                variablesTree = createVariablesTree(current.threads, index, current.frameIndex)
+            )
         }
     }
 
@@ -225,7 +258,7 @@ class DebuggerViewModel : ViewModel() {
     fun observeLatestSelectedFrame(
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
-        consume: (StackFrame?, Int) -> Unit,
+        consume: suspend (StackFrame?, Int) -> Unit,
     ) = viewModelScope.launch(observeOn) {
         selectedFrame.collectLatest { (frame, index) ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
@@ -234,6 +267,23 @@ class DebuggerViewModel : ViewModel() {
                 }
             } else {
                 consume(frame, index)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    fun observeLatestVariablesTree(
+        observeOn: CoroutineDispatcher = Dispatchers.Default,
+        notifyOn: CoroutineDispatcher? = null,
+        consume: suspend (Tree<VariablesTreeNode>) -> Unit
+    ) = viewModelScope.launch(observeOn) {
+        variablesTree.collectLatest { tree ->
+            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+                withContext(notifyOn) {
+                    consume(tree)
+                }
+            } else {
+                consume(tree)
             }
         }
     }
