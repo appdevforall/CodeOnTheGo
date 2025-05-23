@@ -1,0 +1,107 @@
+## Flox Environment Manifest -----------------------------------------
+##
+##   _Everything_ you need to know about the _manifest_ is here:
+##
+##               https://flox.dev/docs/concepts/manifest
+##
+## -------------------------------------------------------------------
+# Flox manifest version managed by Flox CLI
+version = 1
+
+
+## Install Packages --------------------------------------------------
+##  $ flox install gum  <- puts a package in [install] section below
+##  $ flox search gum   <- search for a package
+##  $ flox show gum     <- show all versions of a package
+## -------------------------------------------------------------------
+[install]
+git.pkg-path = "git"
+git-lfs.pkg-path = "git-lfs"
+jdk17.pkg-path = "jdk17"
+android-studio-tools.pkg-path = "android-studio-tools"
+# gum.pkg-path = "gum"
+# gum.version = "^0.14.5"
+
+
+## Environment Variables ---------------------------------------------
+##  ... available for use in the activated environment
+##      as well as [hook], [profile] scripts and [services] below.
+## -------------------------------------------------------------------
+[vars]
+# INTRO_MESSAGE = "It's gettin' Flox in here"
+
+
+## Activation Hook ---------------------------------------------------
+##  ... run by _bash_ shell when you run 'flox activate'.
+## -------------------------------------------------------------------
+[hook]
+on-activate = '''
+  # Use these env vars if set; otherwise fall back to default
+  DEFAULT_ANDROID_HOME="$HOME/Android/Sdk"
+  DEFAULT_GRADLE_USER_HOME="$HOME/.gradle"
+  ANDROID_HOME="${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}"
+  GRADLE_USER_HOME="${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}"
+  export ANDROID_HOME
+  export GRADLE_USER_HOME
+
+  echo "Using ANDROID_HOME=$ANDROID_HOME"
+  echo "Using GRADLE_USER_HOME=$GRADLE_USER_HOME"
+
+  # Accept licenses
+  { yes || true; } | sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+
+  # Install SDK packages
+  sdkmanager --sdk_root="$ANDROID_HOME" --install \
+    "build-tools;35.0.0" \
+    "cmake;3.31.6" \
+    "platforms;android-35" \
+    "platform-tools" \
+    "ndk;26.1.10909125"
+'''
+
+
+## Profile script ----------------------------------------------------
+## ... sourced by _your shell_ when you run 'flox activate'.
+## -------------------------------------------------------------------
+[profile]
+common = '''
+  # Override the 'sdkmanager' command so that we don't have to
+  #   specify --sdk_root everytime
+  sdkman=$(command -v sdkmanager)
+  alias sdkmanager="$sdkman --sdk_root=$ANDROID_HOME"
+'''
+## Shell specific profiles go here:
+# bash = ...
+# zsh  = ...
+# fish = ...
+
+
+## Services ----------------------------------------------------------
+##  $ flox services start             <- Starts all services
+##  $ flox services status            <- Status of running services
+##  $ flox activate --start-services  <- Activates & starts all
+## -------------------------------------------------------------------
+[services]
+# myservice.command = "python3 -m http.server"
+
+
+## Include ----------------------------------------------------------
+## ... environments to create a composed environment
+## ------------------------------------------------------------------
+[include]
+# environments = [
+#     { dir = "../common" }
+# ]
+
+
+## Other Environment Options -----------------------------------------
+[options]
+# Systems that environment is compatible with
+systems = [
+  "aarch64-darwin",
+  "aarch64-linux",
+  "x86_64-darwin",
+  "x86_64-linux",
+]
+# Uncomment to disable CUDA detection.
+# cuda-detection = false
