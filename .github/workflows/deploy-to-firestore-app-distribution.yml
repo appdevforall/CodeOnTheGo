@@ -90,7 +90,7 @@ jobs:
         uses: flox/install-flox-action@v2
 
       - name: Assemble Universal APK
-        uses: flox/activate-action@v2
+        uses: flox/activate-action@v1
         with:
           command: ./gradlew :app:assembleV8Debug --no-daemon
 
