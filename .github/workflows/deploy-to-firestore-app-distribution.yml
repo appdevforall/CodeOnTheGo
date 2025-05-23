@@ -86,7 +86,19 @@ jobs:
       #     restore-keys: |
       #       ${{ runner.os }}-android-build-cache-
 
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
       - name: Install Flox
+        if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
       - name: Assemble Universal APK
