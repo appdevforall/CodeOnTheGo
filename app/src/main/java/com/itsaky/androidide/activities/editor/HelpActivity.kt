@@ -25,6 +25,7 @@ import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityHelpBinding
+import org.adfa.constants.CONTENT_TITLE_KEY
 
 class HelpActivity : EdgeToEdgeIDEActivity() {
 
@@ -44,11 +45,13 @@ class HelpActivity : EdgeToEdgeIDEActivity() {
 
         with(binding) {
             setSupportActionBar(toolbar)
-            supportActionBar!!.setTitle(R.string.help)
             supportActionBar!!.setDisplayHomeAsUpEnabled(true)
             toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 
+            val pageTitle = intent.getStringExtra(CONTENT_TITLE_KEY)
             val htmlContent = intent.getStringExtra(CONTENT_KEY)
+
+            supportActionBar?.title = pageTitle ?: getString(R.string.help)
 
             // Enable JavaScript if required
             webView.settings.javaScriptEnabled = true
