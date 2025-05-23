@@ -1,0 +1,508 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "version": 1,
+    "install": {
+      "android-studio-tools": {
+        "pkg-path": "android-studio-tools"
+      },
+      "git": {
+        "pkg-path": "git"
+      },
+      "git-lfs": {
+        "pkg-path": "git-lfs"
+      },
+      "jdk17": {
+        "pkg-path": "jdk17"
+      }
+    },
+    "hook": {
+      "on-activate": "  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses\n\n  # Install SDK packages\n  sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \\\n    \"build-tools;35.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-35\" \\\n    \"platform-tools\" \\\n    \"ndk;26.1.10909125\"\n"
+    },
+    "profile": {
+      "common": "  # Override the 'sdkmanager' command so that we don't have to\n  #   specify --sdk_root everytime\n  sdkman=$(command -v sdkmanager)\n  alias sdkmanager=\"$sdkman --sdk_root=$ANDROID_HOME\"\n"
+    },
+    "options": {
+      "systems": [
+        "aarch64-darwin",
+        "aarch64-linux",
+        "x86_64-darwin",
+        "x86_64-linux"
+      ]
+    }
+  },
+  "packages": [
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/z9s7k7hc89qw6mcgv7gddp7hffcv1jd2-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:26:05.462409Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/rbmxi7d5a1k7v5xilqrj51v3a8y08adp-android-studio-tools-13114758"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/9f4jkmqb3vgd4ivf0276vcwbkaarga2g-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:48:46.851322Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mjrydz60ix524lvcdnvxcczalbnsm5fm-android-studio-tools-13114758"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/qwb12grf9ic1vbkr4bjsp96g3a1xnrl2-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:09:13.234586Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/gcwbg7k2saa8k1sc0p0jcg19xrs5aagw-android-studio-tools-13114758"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/4ik9d1msnqpbprx4v1whvw5a30fwnrg8-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:44:48.617336Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/jaaxg7lkp2d9md87qwgfbjw1fh97cyz9-android-studio-tools-13114758"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git",
+      "broken": false,
+      "derivation": "/nix/store/w5498y0hfjwqwh1jk3884xzdj6s2cnja-git-2.49.0.drv",
+      "description": "Distributed version control system",
+      "install_id": "git",
+      "license": "GPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-2.49.0",
+      "pname": "git",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:26:06.353321Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.49.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/4a1f3ymqasdx2sfwn615n6x6z15qk5nd-git-2.49.0-doc",
+        "out": "/nix/store/9pa6rygnkrdp03j4ba0w6yb5qid5x3qb-git-2.49.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git",
+      "broken": false,
+      "derivation": "/nix/store/c4yl0xsnfpkg2wp0gdfkk51ylkkba8s4-git-2.49.0.drv",
+      "description": "Distributed version control system",
+      "install_id": "git",
+      "license": "GPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-2.49.0",
+      "pname": "git",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:48:48.216331Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.49.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/ypv73aihzciz9x12imf5dvz4qkn4wakd-git-2.49.0-debug",
+        "doc": "/nix/store/ll9hlbwp3vvihpx2p2g7mykrl2a4snk4-git-2.49.0-doc",
+        "out": "/nix/store/bqk89pw1wmjzrqi20vqz194ylfhl5cnm-git-2.49.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git",
+      "broken": false,
+      "derivation": "/nix/store/2gvvn0lq8hxndg607b7aswqdw065gkdj-git-2.49.0.drv",
+      "description": "Distributed version control system",
+      "install_id": "git",
+      "license": "GPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-2.49.0",
+      "pname": "git",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:09:14.073124Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.49.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/0544ir9xg154jsb00i0881ggpafyw4nc-git-2.49.0-doc",
+        "out": "/nix/store/38kaic6dax0nkj4xwnyysmlwzdlrfdfr-git-2.49.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git",
+      "broken": false,
+      "derivation": "/nix/store/x7636h5b8dyh2icwrcwbnbjwmjwazkzn-git-2.49.0.drv",
+      "description": "Distributed version control system",
+      "install_id": "git",
+      "license": "GPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-2.49.0",
+      "pname": "git",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:44:50.112790Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.49.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/6nibw5w4xay921qx7lp74bs10qsqp0g9-git-2.49.0-debug",
+        "doc": "/nix/store/7dfxlvdhr5g57b1v8gxwpa2gs7i9g3y5-git-2.49.0-doc",
+        "out": "/nix/store/805a5wv1cyah5awij184yfad1ksmbh9f-git-2.49.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-lfs",
+      "broken": false,
+      "derivation": "/nix/store/krxxmp19paqkr8wxqgiy5amaj7sg4sqg-git-lfs-3.6.1.drv",
+      "description": "Git extension for versioning large files",
+      "install_id": "git-lfs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-lfs-3.6.1",
+      "pname": "git-lfs",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:26:06.366951Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.6.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/dymqpgvdpcqhnssnvwcp7kcr6di66h9g-git-lfs-3.6.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-lfs",
+      "broken": false,
+      "derivation": "/nix/store/q5ng5dcyqbjr1a762d97r2m42p3qr9r2-git-lfs-3.6.1.drv",
+      "description": "Git extension for versioning large files",
+      "install_id": "git-lfs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-lfs-3.6.1",
+      "pname": "git-lfs",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:48:48.234010Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.6.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/cpxc0dxja8dkrkshc93ra0cvhg6r62gy-git-lfs-3.6.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-lfs",
+      "broken": false,
+      "derivation": "/nix/store/sjb94wm85im8lxcnxz5xfn97fq33hk72-git-lfs-3.6.1.drv",
+      "description": "Git extension for versioning large files",
+      "install_id": "git-lfs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-lfs-3.6.1",
+      "pname": "git-lfs",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:09:14.086969Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.6.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/shw3wdnfvr69hc49nb1x3qlnbb8sd2ac-git-lfs-3.6.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-lfs",
+      "broken": false,
+      "derivation": "/nix/store/36llv0fhqywsx9dbpp9aplw7vbq0nhwr-git-lfs-3.6.1.drv",
+      "description": "Git extension for versioning large files",
+      "install_id": "git-lfs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "git-lfs-3.6.1",
+      "pname": "git-lfs",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:44:50.131523Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.6.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mwc7zfdg7hk7xb70p3samcwsym2p7gj5-git-lfs-3.6.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/g9c6ymdb9zwxnyqhjggh3czhm4bx03dp-zulu-ca-jdk-17.0.12.drv",
+      "description": "Certified builds of OpenJDK",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "zulu-ca-jdk-17.0.12",
+      "pname": "jdk17",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:26:06.834916Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.12",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/3clfkf49kf9j00xr75zsag78h72zcwxd-zulu-ca-jdk-17.0.12"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/nf5p408gkmzzgzjcvkpspw96xyqx989v-openjdk-17.0.14+7.drv",
+      "description": "Open-source Java Development Kit",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "openjdk-17.0.14+7",
+      "pname": "jdk17",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T04:48:49.903185Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.14+7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/2fnirdq86nrvrlzcb6fxi2divj55pgq1-openjdk-17.0.14+7-debug",
+        "out": "/nix/store/zhys88jj19v027apz0m6hs0fhx80cwbs-openjdk-17.0.14+7"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/7cdiv349gh4vmyj31a8x2qbqfzrmdg6n-zulu-ca-jdk-17.0.12.drv",
+      "description": "Certified builds of OpenJDK",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "zulu-ca-jdk-17.0.12",
+      "pname": "jdk17",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:09:14.592079Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.12",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/2f69k186mp68n01572qf1yhbjbhys6g0-zulu-ca-jdk-17.0.12"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/rzipknjacaacmshmckj51pilc7f7nsqq-openjdk-17.0.14+7.drv",
+      "description": "Open-source Java Development Kit",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "name": "openjdk-17.0.14+7",
+      "pname": "jdk17",
+      "rev": "292fa7d4f6519c074f0a50394dbbe69859bb6043",
+      "rev_count": 802366,
+      "rev_date": "2025-05-18T04:33:40Z",
+      "scrape_date": "2025-05-20T05:44:51.883724Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.14+7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/7zi5xnq5f98zfkwcc0qr872gsk94x2fj-openjdk-17.0.14+7-debug",
+        "out": "/nix/store/063dnz6gcvjwa0caiv637adqci11gap8-openjdk-17.0.14+7"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}
