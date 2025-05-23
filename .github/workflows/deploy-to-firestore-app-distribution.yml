@@ -48,7 +48,7 @@ jobs:
       - name: Install and Configure Git LFS - Selective pull
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-lfs make
+          sudo apt-get install -y git-lfs
           git lfs install
           git lfs pull
 
@@ -56,35 +56,7 @@ jobs:
         run: |
           git submodule init
           git submodule update --remote
-
-      - name: Set up JDKs
-        uses: actions/setup-java@v4
-        with:
-          cache: 'gradle' # Built-in Gradle caching
-          distribution: temurin
-          java-version: |
-            8
-            17
-
-      - name: Install unzip
-        run: sudo apt-get update && sudo apt-get install -y unzip
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK Platform 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
-
-      - name: Verify CMake version
-        run: |
-          cmake --version
-          which cmake
-          echo "CMake path: $(which cmake)"
-
-      - name: Set Java_ROOT environment variable
-        run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
-
-      # Cache Gradle Modules
+          
       - name: Cache Gradle Modules
         id: cache-gradle-modules
         uses: actions/cache@v4
@@ -94,30 +66,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-modules-
 
-      # Cache Gradle Wrapper
-      - name: Cache Gradle Wrapper
-        id: cache-gradle-wrapper
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-wrapper-
+      # # Cache Gradle Wrapper
+      # - name: Cache Gradle Wrapper
+      #   id: cache-gradle-wrapper
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ~/.gradle/wrapper
+      #     key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-gradle-wrapper-
 
-      # Cache Android Build Cache
-      - name: Cache Android Build Cache
-        id: cache-android-build
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/build-cache
-          key: ${{ runner.os }}-android-build-cache-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-android-build-cache-
+      # # Cache Android Build Cache
+      # - name: Cache Android Build Cache
+      #   id: cache-android-build
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ~/.android/build-cache
+      #     key: ${{ runner.os }}-android-build-cache-${{ github.run_id }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-android-build-cache-
+
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
 
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleV8Debug --no-daemon
-        env:
-          Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
+        uses: flox/activate-action@v2
+        with:
+          command: ./gradlew :app:assembleV8Debug --no-daemon
 
       - name: Find APK file
         # We need to find the APK since the name is dynamically generated and it does not have a definite location
