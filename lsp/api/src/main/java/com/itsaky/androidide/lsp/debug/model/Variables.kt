@@ -170,14 +170,24 @@ interface Variable<ValueType: Value> {
     val typeName: String
 
     /**
-     * The [kind][VariableKind] of this variable.
+     * The [kind][VariableKind] of the variable.
      */
     val kind: VariableKind
 
     /**
+     * Whether the variable is mutable.
+     */
+    suspend fun isMutable(): Boolean
+
+    /**
      * Get the value of the variable as [ValueType].
      */
-    fun value(): ValueType
+    suspend fun value(): ValueType
+
+    /**
+     * Get the members of of the object that this variable references. May be empty.
+     */
+    suspend fun objectMembers(): Set<Variable<*>>
 }
 
 /**
