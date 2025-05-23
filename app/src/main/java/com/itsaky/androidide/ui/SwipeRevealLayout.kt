@@ -140,13 +140,14 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     get() = hiddenContent.height
 
   private lateinit var dragHelper: ViewDragHelper
+  private var hasReceivedDownEvent = false
 
   /**
    * Whether the view is currently in 'dragging' state.
    */
   val isDragging: Boolean
     get() = draggingState == ViewDragHelper.STATE_DRAGGING ||
-        draggingState == ViewDragHelper.STATE_SETTLING
+            draggingState == ViewDragHelper.STATE_SETTLING
 
   /**
    * The ID of the view which will be dragged to reveal the content.
@@ -227,19 +228,50 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-    return isViewHit(dragHandleView!!, ev.x.toInt(),
-      ev.y.toInt()) && dragHelper.shouldInterceptTouchEvent(ev)
+    when (ev.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        val isInDragHandle = isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
+        hasReceivedDownEvent = isInDragHandle
+
+        if (hasReceivedDownEvent) {
+          dragHelper.shouldInterceptTouchEvent(ev)
+        }
+
+        return isInDragHandle
+      }
+
+      MotionEvent.ACTION_MOVE,
+      MotionEvent.ACTION_UP,
+      MotionEvent.ACTION_CANCEL -> {
+        if (hasReceivedDownEvent) {
+          val shouldIntercept = dragHelper.shouldInterceptTouchEvent(ev)
+          if (ev.actionMasked == MotionEvent.ACTION_UP ||
+            ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+            hasReceivedDownEvent = false
+          }
+          return shouldIntercept && isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
+        }
+        return false
+      }
+      else -> return false
+    }
   }
 
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    dragHelper.processTouchEvent(event)
-
     val x = event.x
     val xInt = x.toInt()
     val y = event.y
     val yInt = y.toInt()
-    val isInHandle = dragHelper.isViewUnder(dragHandleView, xInt, yInt)
+    val isInHandle: Boolean
+
+    try {
+      dragHelper.processTouchEvent(event)
+      isInHandle = dragHelper.isViewUnder(dragHandleView, xInt, yInt)
+    } catch (e: IllegalArgumentException) {
+      hasReceivedDownEvent = false
+      return false
+    }
 
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
@@ -256,9 +288,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
         }
       }
     }
-
-    return isInHandle && isViewHit(hiddenContent, xInt, yInt) || isViewHit(overlappingContent, xInt,
-      yInt)
+    return isInHandle && isViewHit(hiddenContent, xInt, yInt) || isViewHit(overlappingContent, xInt, yInt)
   }
 
   override fun computeScroll() {
@@ -352,7 +382,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
     val scrX = parentLoc[0] + x
     val scrY = parentLoc[1] + y
-    return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width &&
-        scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
+    return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width && scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
   }
 }
