@@ -44,7 +44,8 @@ dependencyResolutionManagement {
       "jdk-compiler",
       "jdk-jdeps",
       "jdt",
-      "layoutlib-api"
+      "layoutlib-api",
+      "treeview"
     ),
 
     "build-deps-common" to arrayOf(
