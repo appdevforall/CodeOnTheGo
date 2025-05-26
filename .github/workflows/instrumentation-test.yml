@@ -1,0 +1,149 @@
+name: Build and Test with Firebase Test Lab
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  pull_request:
+    branches: [ "stage", "feature/**" ]
+    paths-ignore:
+      - '**.md'
+      - 'fastlane/**'
+
+  workflow_dispatch: { }
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
+  FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+  FIREBASE_DISTRIBUTION_URL: ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
+  FIREBASE_DOWNLOAD_URL: ${{ secrets.FIREBASE_DOWNLOAD_URL }}
+
+jobs:
+  build_test:
+    name: Build and Firebase Test
+    runs-on: self-hosted
+    timeout-minutes: 90
+    steps:
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install and Configure Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs make
+          git lfs install
+          git lfs pull
+
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          cache: 'gradle'
+          distribution: temurin
+          java-version: |
+            8
+            17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Platform + Tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
+
+      - name: Verify CMake version
+        run: cmake --version
+
+      - name: Set Java_ROOT environment variable
+        run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
+
+      - name: Install gcloud CLI
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl apt-transport-https ca-certificates gnupg
+          echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+          curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+          sudo apt-get update && sudo apt-get install -y google-cloud-sdk
+
+      - name: Authenticate gcloud CLI
+        run: |
+          echo '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}' > keyfile.json
+          gcloud auth activate-service-account --key-file=keyfile.json
+          gcloud config set project switcher-891cc
+
+      - name: Assemble APKs
+        run: |
+          ./gradlew :app:assembleV8DebugAndroidTest
+          ./gradlew :app:assembleV8Debug
+
+      - name: Run Firebase Test Lab and Wait for Results
+        run: |
+          mkdir -p test-results
+          set -o pipefail
+
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
+            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
+            --device model=oriole,version=33,locale=en,orientation=portrait \
+            --environment-variables clearPackageData=true \
+            --use-orchestrator \
+            --timeout 45m \
+            --num-flaky-test-attempts=2 \
+            --results-dir=test-results/kotlin \
+            --results-bucket=gs://firebase-test-results-${RANDOM} \
+            --project=switcher-891cc \
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" | tee test-results/kotlin/test_output.txt
+
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
+            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
+            --device model=oriole,version=33,locale=en,orientation=portrait \
+            --environment-variables clearPackageData=true \
+            --use-orchestrator \
+            --timeout 45m \
+            --num-flaky-test-attempts=2 \
+            --results-dir=test-results/groovy \
+            --results-bucket=gs://firebase-test-results-${RANDOM} \
+            --project=switcher-891cc \
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" | tee test-results/groovy/test_output.txt
+
+      - name: Notify Slack with parsed test results
+        run: |
+          parse_results() {
+            local file="$1"
+            local count=$(grep -c "\[\s*\(PASS\|FAIL\)\s*\]" "$file" || true)
+            local pass=$(grep -c "\[\s*PASS\s*\]" "$file" || true)
+            local fail=$(grep -c "\[\s*FAIL\s*\]" "$file" || true)
+            echo "Tests run: $count, Passed: $pass, Failed: $fail"
+          }
+
+          KOTLIN_RESULTS=$(parse_results test-results/kotlin/test_output.txt)
+          GROOVY_RESULTS=$(parse_results test-results/groovy/test_output.txt)
+
+          curl -X POST -H 'Content-type: application/json' --data "{\n            \"text\": \"*Firebase Test Lab Results*\n\n*Kotlin DSL:* $KOTLIN_RESULTS\n*Groovy DSL:* $GROOVY_RESULTS\n\"\n          }" $SLACK_WEBHOOK
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
