@@ -84,7 +84,7 @@ jobs:
         run: |
           echo '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}' > keyfile.json
           gcloud auth activate-service-account --key-file=keyfile.json
-          gcloud config set project switcher-891cc
+          gcloud config set project codeonthego-64a92
 
       - name: Assemble APKs
         run: |
@@ -107,7 +107,7 @@ jobs:
             --num-flaky-test-attempts=2 \
             --results-dir=test-results/kotlin \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
-            --project=switcher-891cc \
+            --project=codeonthego-64a92 \
             --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" | tee test-results/kotlin/test_output.txt
 
           gcloud firebase test android run \
@@ -121,7 +121,7 @@ jobs:
             --num-flaky-test-attempts=2 \
             --results-dir=test-results/groovy \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
-            --project=switcher-891cc \
+            --project=codeonthego-64a92 \
             --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" | tee test-results/groovy/test_output.txt
 
       - name: Notify Slack with parsed test results
