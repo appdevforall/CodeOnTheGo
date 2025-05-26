@@ -58,32 +58,30 @@ on-activate = '''
   echo "Accepting SDK licenses..."
   { yes || true; } | sdkmanager --sdk_root="$ANDROID_HOME" --licenses 2>&1 > /dev/null
 
-  # The packages we need
-  declare -a packages=(
-    "build-tools;35.0.0"
-    "cmake;3.31.6"
-    "platforms;android-35"
-    "platform-tools"
-    "ndk;26.1.10909125"
-  )
+  install_sdk_tools_if_required() {
+    installed_tools=$(sdkmanager --sdk_root="$ANDROID_HOME" --list_installed)
 
-  # The packages we need, but aren't installed
-  declare -a to_install=()
+    declare -a to_install=()
+    for package in "$@"; do
+        if ! echo "$installed_tools" | grep -q "$package"; then
+            echo "'$package' is missing."
+            to_install+=("$package")
+        fi
+    done
 
-  echo "Checking installed packages..."
-  installed=$(sdkmanager --sdk_root="$ANDROID_HOME" --list_installed)
-  for package in "${packages[@]}"; do
-    if ! echo "$installed" | grep -q "$package"; then
-      echo "'$package' is not installed."
-      to_install+=("$package")
+    if [ ${#to_install[@]} -ne 0 ]; then
+        echo "Installing SDK Tools: ${to_install[*]}"
+        sdkmanager --sdk_root="$ANDROID_HOME" --install "${to_install[@]}"
     fi
-  done
+  }
 
-  # Install missing SDK packages
-  if [ ${#to_install[@]} -ne 0 ]; then
-    echo "Installing: ${to_install[@]}"
-    sdkmanager --sdk_root="$ANDROID_HOME" --install "${to_install[@]}"
-  fi
+  # The packages we need
+  install_sdk_tools_if_required \
+    "build-tools;35.0.0" \
+    "cmake;3.31.6" \
+    "platforms;android-35" \
+    "platform-tools" \
+    "ndk;26.1.10909125"
 
   # Set up local.properties file
   if ! [ -f "local.properties" ]; then
