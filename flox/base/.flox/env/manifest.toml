@@ -86,6 +86,21 @@ on-activate = '''
     echo "Installing: ${to_install[@]}"
     sdkmanager --sdk_root="$ANDROID_HOME" --install "${to_install[@]}"
   fi
+
+  # Set up local.properties file
+  if ! [ -f "local.properties" ]; then
+    echo "Creating local.properties file..."
+    echo "sdk.dir=$ANDROID_HOME" > local.properties
+  else
+    local_props=$(cat "local.properties")
+    if ! echo "$local_props" | grep -q "^sdk.dir="; then
+      echo "Updating local.properties to add sdk.dir=$ANDROID_HOME..."
+      echo "sdk.dir=$ANDROID_HOME" >> local.properties
+    else
+      echo "Updating local.properties to use sdk.dir=$ANDROID_HOME..."
+      sed -i "s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g" local.properties
+    fi
+  fi
 '''
 
 
