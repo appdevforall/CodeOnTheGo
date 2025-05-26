@@ -237,21 +237,22 @@ open class SwipeRevealLayout @JvmOverloads constructor(
           dragHelper.shouldInterceptTouchEvent(ev)
         }
 
-        return isInDragHandle
+        return isInDragHandle && dragHelper.shouldInterceptTouchEvent(ev)
       }
 
       MotionEvent.ACTION_MOVE,
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_CANCEL -> {
-        if (hasReceivedDownEvent) {
-          val shouldIntercept = dragHelper.shouldInterceptTouchEvent(ev)
-          if (ev.actionMasked == MotionEvent.ACTION_UP ||
-            ev.actionMasked == MotionEvent.ACTION_CANCEL) {
-            hasReceivedDownEvent = false
-          }
-          return shouldIntercept && isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
+        if (!hasReceivedDownEvent) {
+          return false
         }
-        return false
+
+        val shouldIntercept = dragHelper.shouldInterceptTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_UP ||
+          ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+          hasReceivedDownEvent = false
+        }
+        return shouldIntercept && isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
       }
       else -> return false
     }
