@@ -40,7 +40,7 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
         }
 
         target.run {
-            val isLogSenderEnabled = findProperty(PROPERTY_LOGSENDER_ENABLED) == "true"
+            val isLogSenderEnabled = /*findProperty(PROPERTY_LOGSENDER_ENABLED) == "true"*/ false
             val isDebuggerEnabled = findProperty(PROP_JDWP_INJECT) == "true"
 
             if (plugins.hasPlugin(APP_PLUGIN)) {
