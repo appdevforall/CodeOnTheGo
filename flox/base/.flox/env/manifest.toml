@@ -36,6 +36,9 @@ android-studio-tools.pkg-path = "android-studio-tools"
 ## -------------------------------------------------------------------
 [hook]
 on-activate = '''
+  set -eu
+  set -o pipefail
+
   # Use these env vars if set; otherwise fall back to default
   DEFAULT_ANDROID_HOME="$HOME/Android/Sdk"
   DEFAULT_GRADLE_USER_HOME="$HOME/.gradle"
@@ -48,15 +51,35 @@ on-activate = '''
   echo "Using GRADLE_USER_HOME=$GRADLE_USER_HOME"
 
   # Accept licenses
-  { yes || true; } | sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+  echo "Accepting SDK licenses..."
+  { yes || true; } | sdkmanager --sdk_root="$ANDROID_HOME" --licenses 2>&1 > /dev/null
 
-  # Install SDK packages
-  sdkmanager --sdk_root="$ANDROID_HOME" --install \
-    "build-tools;35.0.0" \
-    "cmake;3.31.6" \
-    "platforms;android-35" \
-    "platform-tools" \
+  # The packages we need
+  declare -a packages=(
+    "build-tools;35.0.0"
+    "cmake;3.31.6"
+    "platforms;android-35"
+    "platform-tools"
     "ndk;26.1.10909125"
+  )
+
+  # The packages we need, but aren't installed
+  declare -a to_install=()
+
+  echo "Checking installed packages..."
+  installed=$(sdkmanager --sdk_root="$ANDROID_HOME" --list_installed)
+  for package in "${packages[@]}"; do
+    if ! echo "$installed" | grep -q "$package"; then
+      echo "'$package' is not installed."
+      to_install+=("$package")
+    fi
+  done
+
+  # Install missing SDK packages
+  if [ ${#to_install[@]} -ne 0 ]; then
+    echo "Installing: ${to_install[@]}"
+    sdkmanager --sdk_root="$ANDROID_HOME" --install "${to_install[@]}"
+  fi
 '''
 
 
