@@ -178,28 +178,56 @@ class MainFragment : BaseFragment() {
                             stackTrace
                         )
 
-                        val feedbackIntent = Intent(Intent.ACTION_SEND)
-                        val subject = MessageFormat.format(
-                            resources.getString(R.string.feedback_subject),
-                            "Main"
-                        )
+                        val feedbackEmail = getString(R.string.feedback_email)
+                        val currentScreen = getCurrentScreenName()
 
-                        feedbackIntent.data = Uri.parse("mailto:")
-                        feedbackIntent.type = "text/plain"
-                        feedbackIntent.putExtra(
-                            Intent.EXTRA_EMAIL,
-                            arrayOf(R.string.feedback_email)
-                        )
-                        feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                        try {
+                            val feedbackIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:")
+                                putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
 
-                        shareActivityResultLauncher.launch(feedbackIntent)
+                                val subject = String.format(
+                                    resources.getString(R.string.feedback_subject),
+                                    currentScreen
+                                )
+                                putExtra(Intent.EXTRA_SUBJECT, subject)
+                                putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                            }
+
+                            shareActivityResultLauncher.launch(
+                                Intent.createChooser(feedbackIntent, "Send Feedback")
+                            )
+                        } catch (e: Exception) {
+                            try {
+                                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "message/rfc822"
+                                    putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
+
+                                    val subject = String.format(
+                                        resources.getString(R.string.feedback_subject),
+                                        currentScreen
+                                    )
+                                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                                    putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                                }
+                                shareActivityResultLauncher.launch(
+                                    Intent.createChooser(fallbackIntent, "Send Feedback")
+                                )
+                            } catch (e2: Exception) {
+                                requireActivity().flashError(R.string.no_email_apps)
+                            }
+                        }
                         dialog.dismiss()
                     }
                 }
                 .create()
                 .show()
         }
+    }
+
+    private fun getCurrentScreenName(): String {
+        val activity = requireActivity()
+        return activity.javaClass.simpleName.replace("Activity", "")
     }
 
     override fun onDestroyView() {
