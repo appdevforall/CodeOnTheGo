@@ -67,12 +67,13 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
             val setupAapt2TaskTaskProvider = tasks.register("setupAapt2", SetupAapt2Task::class.java)
 
-            val addAndroidJarTaskProvider = tasks.register(
-                "addAndroidJarToAssets",
-                AddAndroidJarToAssetsTask::class.java
-            ) {
-                androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
-            }
+            // NOTE: skip adding android.jar to apk
+            //val addAndroidJarTaskProvider = tasks.register(
+            //    "addAndroidJarToAssets",
+            //    AddAndroidJarToAssetsTask::class.java
+            //) {
+            //    androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
+            //}
 
             val gradleExecutableToAssetsTaskProvider = tasks.register(
                 COPY_GRADLE_EXECUTABLE_TASK_NAME,
@@ -105,10 +106,11 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     GradleWrapperGeneratorTask::outputDirectory
                 )
 
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    addAndroidJarTaskProvider,
-                    AddAndroidJarToAssetsTask::outputDirectory
-                )
+                // NOTE: skip adding android.jar to apk
+                //variant.sources.assets?.addGeneratedSourceDirectory(
+                //    addAndroidJarTaskProvider,
+                //    AddAndroidJarToAssetsTask::outputDirectory
+                //)
 
                 // Init script generator
                 val generateInitScript = tasks.register(
