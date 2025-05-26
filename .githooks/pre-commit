@@ -11,12 +11,12 @@ branch_name=$(git rev-parse --abbrev-ref HEAD)
 # <ticket>     ::= <digit> {3,5}
 # <suffix>     ::= <hyphen> <alphanumeric_string>
 #
-# <alphanumeric_string> ::= <letter> {<letter> | <digit> | _}*
+# <alphanumeric_string> ::= <letter> {<letter> | <digit> | _ | -}*
 # <letter>     ::= [a-zA-Z]
 # <digit>      ::= [0-9]
 # <hyphen>     ::= "-"
 
-if ! [[ "$branch_name" =~ ^([a-zA-Z0-9-]+\/)?ADFA-[0-9]{3,5}(-[a-zA-Z0-9_-]+)?$ ]]; then
+if ! [[ "$branch_name" =~ ^([a-zA-Z0-9_-]+\/)?ADFA-[0-9]{3,5}(-[a-zA-Z0-9_-]+)?$ ]]; then
     echo "❌ Error: Branch name '$branch_name' does not conform to the naming policy."
     echo ""
     echo "✅ Allowed formats:"
