@@ -80,13 +80,6 @@ jobs:
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
-      - name: Install gcloud CLI
-        run: |
-          sudo apt-get update && sudo apt-get install -y curl apt-transport-https ca-certificates gnupg
-          curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
-          echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null
-          sudo apt-get update && sudo apt-get install -y google-cloud-sdk
-
       - name: Authenticate gcloud CLI
         run: |
           echo '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}' > keyfile.json
