@@ -31,61 +31,52 @@ import java.security.MessageDigest
  */
 object DownloadUtils {
 
-  /**
-   * Download the file at given [URL][remoteUrl] to the given [local file][file] and verify the
-   * SHA-256 checksum of the downloaded file with the [expected checksum][expectedChecksum].
-   */
-  fun doDownload(
-    file: File,
-    remoteUrl: String,
-    expectedChecksum: String,
-    logger: Logger
-  ) {
+    /**
+     * Download the file from the given [url] to the [destination] file. Use [sha256Checksum] to verify
+     * file integrity.
+     */
+    fun downloadFile(
+        url: URL,
+        destination: File,
+        sha256Checksum: String,
+        logger: Logger
+    ) {
+        val digest = MessageDigest.getInstance("SHA-256")
 
-    logger.info("Download $remoteUrl to $file having checksum ${expectedChecksum}...")
+        if (destination.exists()) {
+            if (destination.isFile) {
+                if (digest.sha256(destination) == sha256Checksum) {
+                    logger.info("File {} already exists and has not been tampered.", destination)
+                    return
+                }
 
-    val digest = MessageDigest.getInstance("SHA-256")
+                logger.quiet("Checksum mismatch. Deleting {}.", destination)
+                destination.delete()
+            } else {
+                destination.deleteRecursively()
+            }
+        }
 
-    if (file.exists()) {
-      logger.debug("{} already exists. Checking checksum...", file)
+        logger.quiet("Downloading {} to {}.", url, destination)
 
-      digest.update(file.readBytes())
-      var checksum = BigInteger(1, digest.digest()).toString(16)
-      while (checksum.length < 64) {
-        checksum = "0$checksum"
-      }
+        val connection = url.openConnection() as HttpURLConnection
+        connection.instanceFollowRedirects = true
 
-      if (checksum == expectedChecksum) {
-        logger.info("$file is already downloaded and valid. Skipping download.")
-        return
-      } else {
-        logger.info(
-          "Deleting old $file with invalid checksum: $checksum expected: $expectedChecksum")
-        file.delete()
-      }
+        val digestStream = DigestInputStream(connection.inputStream, digest)
+        digestStream.use { input ->
+            destination.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        var checksum = BigInteger(1, digest.digest()).toString(16)
+        if (checksum.length < 64) {
+            checksum = "0".repeat(64 - checksum.length) + checksum
+        }
+
+        if (checksum != sha256Checksum) {
+            logger.error("Checksum mismatch. expected={} actual={}.", sha256Checksum, checksum)
+            throw GradleException("Unable to download file $url. Checksum mismatch. expected=$sha256Checksum actual=$checksum.")
+        }
     }
-
-    logger.info("File does not exist. Downloading ${remoteUrl}...")
-
-    file.parentFile.mkdirs()
-
-    val connection = URL(remoteUrl).openConnection() as HttpURLConnection
-    connection.instanceFollowRedirects = true
-
-    file.outputStream().buffered().use { out ->
-      DigestInputStream(connection.inputStream, digest).transferTo(out)
-      out.flush()
-    }
-
-    var checksum = BigInteger(1, digest.digest()).toString(16)
-    while (checksum.length < 64) {
-      checksum = "0$checksum"
-    }
-
-    if (checksum != expectedChecksum) {
-      file.delete()
-      throw GradleException(
-        "Wrong checksum for $remoteUrl: expected: $expectedChecksum, actual: $checksum")
-    }
-  }
 }
