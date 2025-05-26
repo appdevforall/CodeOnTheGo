@@ -56,35 +56,6 @@ jobs:
         run: |
           git submodule init
           git submodule update --remote
-          
-      - name: Cache Gradle Modules
-        id: cache-gradle-modules
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/caches/modules-2
-          key: ${{ runner.os }}-gradle-modules-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-modules-
-
-      # # Cache Gradle Wrapper
-      # - name: Cache Gradle Wrapper
-      #   id: cache-gradle-wrapper
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ~/.gradle/wrapper
-      #     key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle-wrapper.properties') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-gradle-wrapper-
-
-      # # Cache Android Build Cache
-      # - name: Cache Android Build Cache
-      #   id: cache-android-build
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ~/.android/build-cache
-      #     key: ${{ runner.os }}-android-build-cache-${{ github.run_id }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-android-build-cache-
 
       - name: Check if Nix is installed
         id: check_nix
