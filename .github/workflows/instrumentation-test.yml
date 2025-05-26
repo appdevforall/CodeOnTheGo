@@ -80,12 +80,6 @@ jobs:
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
-      - name: Authenticate gcloud CLI
-        run: |
-          echo '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}' > keyfile.json
-          gcloud auth activate-service-account --key-file=keyfile.json
-          gcloud config set project codeonthego-64a92
-
       - name: Assemble APKs
         run: |
           ./gradlew :app:assembleV8DebugAndroidTest --no-daemon
