@@ -15,8 +15,6 @@ version = 1
 ##  $ flox show gum     <- show all versions of a package
 ## -------------------------------------------------------------------
 [install]
-git.pkg-path = "git"
-git-lfs.pkg-path = "git-lfs"
 jdk17.pkg-path = "jdk17"
 android-studio-tools.pkg-path = "android-studio-tools"
 # gum.pkg-path = "gum"
