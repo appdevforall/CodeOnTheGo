@@ -39,6 +39,12 @@ on-activate = '''
   set -eu
   set -o pipefail
 
+  if ! [ -f ".androidide_root" ]; then
+    echo "Run `flox activate` from the root directory"
+    echo "Abort."
+    exit 1
+  fi
+
   # Use these env vars if set; otherwise fall back to default
   DEFAULT_ANDROID_HOME="$HOME/Android/Sdk"
   DEFAULT_GRADLE_USER_HOME="$HOME/.gradle"
