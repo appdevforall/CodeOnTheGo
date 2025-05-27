@@ -83,8 +83,15 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
         R.string.permission_title_install_packages, R.string.permission_desc_install_packages,
         canRequestPackageInstalls(context)))
 
+      permissions.add(OnboardingPermissionItem(Manifest.permission.SYSTEM_ALERT_WINDOW,
+        R.string.permission_title_overlay_window, R.string.permission_desc_overlay_window,
+        canDrawOverlays(context)))
+
       return permissions
     }
+
+    @JvmStatic
+    fun canDrawOverlays(context: Context) : Boolean = Settings.canDrawOverlays(context)
 
     @JvmStatic
     fun areAllPermissionsGranted(context: Context) : Boolean = getRequiredPermissions(context).all { it.isGranted }
@@ -110,6 +117,7 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
       return when (permission) {
         Manifest.permission_group.STORAGE -> isStoragePermissionGranted(context)
         Manifest.permission.REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
+        Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
         else -> checkSelfPermission(context, permission)
       }
     }
@@ -135,6 +143,7 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
       Manifest.permission_group.STORAGE -> requestStoragePermission()
       Manifest.permission.REQUEST_INSTALL_PACKAGES -> requestSettingsTogglePermission(
         Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+      Manifest.permission.SYSTEM_ALERT_WINDOW -> requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
     }
   }
 
@@ -151,7 +160,11 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
   private fun requestSettingsTogglePermission(action: String) {
     val intent = Intent(action)
     intent.setData(Uri.fromParts("package", BuildInfo.PACKAGE_NAME, null))
-    settingsTogglePermissionRequestLauncher.launch(intent)
+    try {
+      settingsTogglePermissionRequestLauncher.launch(intent)
+    } catch (err: Throwable) {
+      flashError(getString(R.string.err_no_activity_to_handle_action, action))
+    }
   }
 
   override val isPolicyRespected: Boolean

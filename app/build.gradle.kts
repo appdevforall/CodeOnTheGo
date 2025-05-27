@@ -155,6 +155,7 @@ dependencies {
   implementation(libs.composite.appintro)
   implementation(libs.composite.desugaringCore)
   implementation(libs.composite.javapoet)
+  implementation(libs.composite.treeview)
 
   // Local projects here
   implementation(projects.actions)
