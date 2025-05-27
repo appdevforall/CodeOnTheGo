@@ -20,7 +20,7 @@ class DebuggerFragment :
 
     private val tabs = listOf(
         "Variables" to VariableListFragment(),
-        "Call stack" to CallStackFragment()
+//        "Call stack" to CallStackFragment()
     )
 
     private val viewModel by viewModels<DebuggerViewModel>(ownerProducer = { requireActivity() })
@@ -73,7 +73,7 @@ class DebuggerPagerAdapter(
     private val fragments: List<Fragment>
 ) : FragmentStateAdapter(fragment) {
 
-    override fun getItemCount(): Int = 2
+    override fun getItemCount(): Int = fragments.size
 
     override fun createFragment(position: Int): Fragment = fragments[position]
 }
