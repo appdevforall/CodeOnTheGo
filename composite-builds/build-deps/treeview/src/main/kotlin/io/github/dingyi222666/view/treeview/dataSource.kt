@@ -240,7 +240,7 @@ class DataSourceNodeGenerator<T : Any>(
             hasChild = if (currentData is MultipleDataSource<T>) {
                 currentData.size() > 0
             } else false,
-            isChild = currentData is MultipleDataSource<T>,
+            isBranch = currentData is MultipleDataSource<T>,
             expand = false
         )
     }
@@ -291,7 +291,7 @@ class DataSourceNodeGenerator<T : Any>(
             name = rootData.name,
             id = Tree.ROOT_NODE_ID,
             hasChild = true,
-            isChild = true,
+            isBranch = true,
         )
     }
 }

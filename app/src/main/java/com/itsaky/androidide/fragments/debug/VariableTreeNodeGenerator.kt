@@ -51,7 +51,7 @@ class VariableTreeNodeGenerator private constructor(
         depth = parentNode.depth + 1,
         name = currentData.name,
         expand = false,
-        isChild = true,
+        isBranch = true,
     )
 
     override suspend fun fetchChildData(targetNode: TreeNode<Variable<*>>): Set<Variable<*>> {
@@ -71,7 +71,7 @@ class VariableTreeNodeGenerator private constructor(
             depth = -1,
             name = Tree.ROOT_NODE_ID.toString(),
             expand = true,
-            isChild = false,
+            isBranch = false,
         )
     }
 }

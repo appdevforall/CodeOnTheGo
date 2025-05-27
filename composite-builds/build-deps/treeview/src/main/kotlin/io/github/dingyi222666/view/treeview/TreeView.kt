@@ -245,7 +245,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
      * @param [fullRefresh] Whether to fetch nodes from the node generator when refreshed, if false, then nodes will be fetched from the cache
      */
     suspend fun toggleNode(node: TreeNode<T>, fullRefresh: Boolean = true) {
-        if (!node.isChild) {
+        if (!node.isBranch) {
             return
         }
         if (node.expand) {
@@ -493,13 +493,13 @@ class TreeView<T : Any> @JvmOverloads constructor(
     }
 
     override fun onClick(node: TreeNode<T>, holder: ViewHolder) {
-        if (node.isChild) {
+        if (node.isBranch) {
             onToggle(node, !node.expand, holder)
         }
 
         nodeEventListener.onClick(node, holder)
 
-        if (!node.isChild) {
+        if (!node.isBranch) {
             return
         }
 
@@ -579,7 +579,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
             val targetNode = this@TreeView._adapter.getItem(target.adapterPosition)
 
             // Only handle directory nodes that are not expanded
-            if (!targetNode.isChild || targetNode.expand) {
+            if (!targetNode.isBranch || targetNode.expand) {
                 lastExpandNode = null
                 return
             }
@@ -742,7 +742,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
             }
 
             // Case 2: Moving to collapsed directory
-            if (targetNode.isChild && !targetNode.expand) {
+            if (targetNode.isBranch && !targetNode.expand) {
                 return tree.getParentNode(targetNode) ?: targetNode
             }
 
@@ -910,7 +910,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
             viewHolder: RecyclerView.ViewHolder,
             target: RecyclerView.ViewHolder
         ): Boolean {
-            srcNode.depth = if (targetNode.isChild) {
+            srcNode.depth = if (targetNode.isBranch) {
                 targetNode.depth + 1
             } else {
                 targetNode.depth
