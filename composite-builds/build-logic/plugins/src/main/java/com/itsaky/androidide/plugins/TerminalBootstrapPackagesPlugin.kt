@@ -17,17 +17,11 @@
 
 package com.itsaky.androidide.plugins
 
-import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.BOOTSTRAP_SOURCE_FOLDER
-import com.adfa.constants.LOCAL_GRADLE_8_0_0_CACHES_PATH
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import com.adfa.constants.SOURCE_LIB_FOLDER
-import com.itsaky.androidide.plugins.util.DownloadUtils
+import org.adfa.constants.BOOTSTRAP_SOURCE_FOLDER
+import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils
-import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.internal.FileUtils
 import org.gradle.internal.os.OperatingSystem
 import java.io.File
 
@@ -46,7 +40,6 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
     private val BOOTSTRAP_PACKAGES = mapOf(
       "aarch64" to "68da03ed270d59cafcd37981b00583c713b42cb440adf03d1bf980f39a55181d",
       "arm" to "f3d9f2da7338bd00b02a8df192bdc22ad431a5eef413cecf4cd78d7a54ffffbf",
-      "x86_64" to "6e4e50a206c3384c36f141b2496c1a7c69d30429e4e20268c51a84143530af67"
     )
 
     /**
@@ -75,6 +68,7 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
         return@map arch to file
       }.toMap()
 
+      // TODO: Remove the __x86_64__ definition and below, the test for it. --DS, 18-May-2025
       project.file("src/main/cpp/termux-bootstrap-zip.S").writeText(
         """
              .global blob
@@ -86,7 +80,7 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
          #elif defined __arm__
              .incbin "${escapePathOnWindows(files["arm"]!!.absolutePath)}"
          #elif defined __x86_64__
-             .incbin "${escapePathOnWindows(files["x86_64"]!!.absolutePath)}"
+
          #else
          # error Unsupported arch
          #endif
