@@ -20,6 +20,7 @@ package com.itsaky.androidide.gradle
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_IS_TEST_ENV
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_MAVEN_LOCAL_REPOSITORY
+import org.adfa.constants.ANDROIDIDE_HOME
 import org.gradle.StartParameter
 import org.gradle.api.Plugin
 import org.gradle.api.artifacts.ExternalModuleDependency
@@ -30,6 +31,8 @@ import org.gradle.api.logging.Logging
 import java.io.File
 import java.io.FileNotFoundException
 import java.net.URI
+
+const val MAX_LOGFILE_COUNT = 2
 
 /**
  * Plugin for the AndroidIDE's Gradle Init Script.
@@ -55,23 +58,15 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
    * This script has no direct usage by AS search, but is invoked from string and in gradle tasks.
    */
   override fun apply(target: Gradle) {
-    target.settingsEvaluated { settings ->
-      settings.addDependencyRepositories()
-    }
+    removeDaemonLogs(target)
+
+    // NOTE disable access to non-local repos
 
     target.rootProject { rootProject ->
       rootProject.buildscript.apply {
         dependencies.apply {
-          val gradlePluginDep = rootProject.ideDependency("gradle-plugin")
-          if (gradlePluginDep is ExternalModuleDependency) {
-            // SNAPSHOT versions of gradle-plugin do not change
-            gradlePluginDep.isChanging = false
-          }
-
-          add("classpath", gradlePluginDep)
+          add("classpath", rootProject.files("$ANDROIDIDE_HOME/plugin/cogo-plugin.jar"))
         }
-
-        repositories.addDependencyRepositories(rootProject.gradle.startParameter)
       }
     }
 
@@ -89,6 +84,32 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
           sub.pluginManager.apply(BuildInfo.PACKAGE_NAME)
         }
       }
+    }
+  }
+
+  private fun removeDaemonLogs(gradle: Gradle) {
+    // logger.lifecycle("#@^*( Applyingg Clean Plugin")
+    // Get the Gradle user home directory
+    val gradleUserHomeDir = gradle.gradleUserHomeDir
+
+    // Get the current Gradle version
+    val currentGradleVersion = gradle.gradleVersion
+    val logsDir = File(gradleUserHomeDir, "daemon/$currentGradleVersion")
+
+    if (logsDir.exists() && logsDir.isDirectory) {
+      logger.lifecycle("CoGo clean logs of gradle ($currentGradleVersion) task running....")
+
+      // Filter and iterate over log files, sorted by last modified date
+      logsDir.listFiles()?.filter { it.isFile && it.name.endsWith(".log") }
+        ?.sortedByDescending { it.lastModified() }
+        ?.drop(MAX_LOGFILE_COUNT)
+        ?.forEach { logFile ->
+          logger.lifecycle("deleting log: ${logFile.name}")
+          logFile.delete()
+        }
+    }
+    else {
+      logger.lifecycle("No deletions made, number of log files does not exceed ($MAX_LOGFILE_COUNT) for gradle ($currentGradleVersion). ")
     }
   }
 

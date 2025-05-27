@@ -40,10 +40,6 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
-
-    packaging {
-      resources.excludes.add("com/sun/jna/**")
-    }
   }
 
   testOptions {
@@ -57,16 +53,6 @@ android {
   buildTypes {
     release {
       isShrinkResources = true
-    }
-
-    applicationVariants.all {
-      outputs.all {
-        val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
-        val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
-        val newApkName = "CodeOnTheGo-${buildTypeName}${date}.apk"
-
-        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
-      }
     }
   }
 
@@ -244,9 +230,6 @@ dependencies {
   androidTestImplementation(libs.tests.androidx.test.runner)
 }
 
-configurations.all {
-  exclude(group = "com.sun.jna")
-}
 
 //sentry {
 //    org.set("appdevforall-inc-pb")
@@ -256,4 +239,3 @@ configurations.all {
 //    // disable if you don't want to expose your sources
 //    includeSourceContext.set(true)
 //}
-
