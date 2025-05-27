@@ -27,7 +27,7 @@ import androidx.annotation.CallSuper
  *
  * You can implement your own tree structure.
  */
-interface AbstractTree<T : Any> : TreeVisitable<T>, TreeIdGenerator {
+interface AbstractTree<T : Any> : TreeVisitable<T> {
 
     /**
      * Node generator.

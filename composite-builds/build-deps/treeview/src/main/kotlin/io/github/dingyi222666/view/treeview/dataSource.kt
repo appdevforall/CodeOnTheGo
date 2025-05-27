@@ -236,7 +236,7 @@ class DataSourceNodeGenerator<T : Any>(
             data = currentData,
             depth = parentNode.depth + 1,
             name = currentData.name,
-            id = tree.generateId(),
+            id = Tree.generateId(),
             hasChild = if (currentData is MultipleDataSource<T>) {
                 currentData.size() > 0
             } else false,
