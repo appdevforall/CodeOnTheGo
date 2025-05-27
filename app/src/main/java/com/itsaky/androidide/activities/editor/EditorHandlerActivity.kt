@@ -30,7 +30,7 @@ import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
-import com.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_KEY
 import com.blankj.utilcode.util.ImageUtils
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
@@ -56,7 +56,6 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.roomData.tooltips.Tooltip
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
@@ -696,7 +695,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     editorActivityScope.launch {
       val files = editorViewModel.getOpenedFiles()
       val dupliCount = mutableMapOf<String, Int>()
-      val names = MutableIntObjectMap<Pair<String, @DrawableRes Int>>()
+      val names = MutableIntObjectMap<Pair<String, @receiver:DrawableRes Int>>()
       val nameBuilder = UniqueNameBuilder<File>("", File.separator)
 
       files.forEach {

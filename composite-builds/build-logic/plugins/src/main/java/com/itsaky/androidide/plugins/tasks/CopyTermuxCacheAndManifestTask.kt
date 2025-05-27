@@ -17,22 +17,17 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import com.adfa.constants.ASSETS_COMMON_FOLDER
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import com.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
-import com.adfa.constants.MANIFEST_FILE_NAME
-import com.adfa.constants.SOURCE_LIB_FOLDER
+import org.adfa.constants.ASSETS_COMMON_FOLDER
+import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+import org.adfa.constants.MANIFEST_FILE_NAME
+import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.google.common.io.Files
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copy
-import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
-import java.io.IOException
-import kotlin.io.path.Path
 
 
 abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
@@ -49,7 +44,13 @@ abstract class CopyTermuxCacheAndManifestTask : DefaultTask() {
             .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME).asFile
         val sourceFilePath =
             this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-        copy(sourceFilePath, outputDirectory)
+
+        if (!outputDirectory.exists()) {
+            outputDirectory.mkdirs()
+        }
+
+        // NOTE: disable copying of the full termux lib for now
+        // copy(sourceFilePath, outputDirectory)
 
         val manifestOutputDirectory = this.outputDirectory.get()
             .file(ASSETS_COMMON_FOLDER).asFile.resolve(MANIFEST_FILE_NAME)
