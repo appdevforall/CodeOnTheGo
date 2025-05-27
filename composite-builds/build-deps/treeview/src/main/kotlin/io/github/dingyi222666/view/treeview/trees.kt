@@ -49,9 +49,6 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
 
     override lateinit var generator: TreeNodeGenerator<T>
 
-    @Synchronized
-    override fun generateId(): Int = Companion.generateId()
-
     private fun removeAllChildNode(currentNodeId: Int) {
         allNodeAndChild.remove(currentNodeId)
     }
@@ -317,8 +314,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
     }
 
     override fun copy(): Tree<T> {
-        val tree = createTree<T>()
-        tree.generator = generator
+        val tree = createTree(generator)
         tree.rootNode = rootNode
         tree.selectedNodes.addAll(selectedNodes)
         tree.allNode.putAll(allNode)
@@ -374,8 +370,13 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
         /**
          * Create a new tree structure to store data of type [T]
          */
-        fun <T : Any> createTree(): Tree<T> {
-            return Tree()
+        fun <T : Any> createTree(
+            generator: TreeNodeGenerator<T>
+        ): Tree<T> {
+            val tree = Tree<T>()
+            tree.generator = generator
+            tree.initTree()
+            return tree
         }
 
         /**
