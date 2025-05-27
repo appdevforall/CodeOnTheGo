@@ -79,9 +79,9 @@ open class TreeNode<T : Any>(
     var hasChild: Boolean = false,
 
     /**
-     * Whether the node is a child node
+     * Whether the node is a branch node.
      */
-    var isChild: Boolean = false,
+    var isBranch: Boolean = false,
 
     /**
      * Whether the node is expanded or not.
@@ -108,7 +108,7 @@ open class TreeNode<T : Any>(
         if (name != other.name) return false
         if (id != other.id) return false
         if (hasChild != other.hasChild) return false
-        if (isChild != other.isChild) return false
+        if (isBranch != other.isBranch) return false
         if (expand != other.expand) return false
         if (selected != other.selected) return false
         return data == other.data
@@ -149,7 +149,7 @@ open class TreeNode<T : Any>(
             name = name,
             id = id,
             hasChild = hasChild,
-            isChild = isChild,
+            isBranch = isBranch,
             expand = expand,
         ).apply {
             selected = this@TreeNode.selected
@@ -157,7 +157,7 @@ open class TreeNode<T : Any>(
     }
 
     override fun toString(): String {
-        return "TreeNode(data=$data, depth=$depth, name=$name, id=$id, hasChild=$hasChild, isChild=$isChild, expand=$expand, selected=$selected)"
+        return "TreeNode(data=$data, depth=$depth, name=$name, id=$id, hasChild=$hasChild, isChild=$isBranch, expand=$expand, selected=$selected)"
     }
 }
 

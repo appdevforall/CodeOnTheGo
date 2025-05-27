@@ -81,7 +81,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
     }
 
     private fun addAllChild(parentNode: TreeNode<T>, currentNodes: LinkedHashSet<TreeNode<T>>) {
-        parentNode.isChild = true
+        parentNode.isBranch = true
         parentNode.hasChild = true
 
         putNode(parentNode.id, parentNode)
@@ -105,7 +105,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
         val rootNode = createRootNodeUseGenerator() ?: TreeNode<T>(
             data = null, depth = 0, name = "Root", id = 0
         )
-        rootNode.isChild = true
+        rootNode.isBranch = true
         rootNode.expand = true
         this.rootNode = rootNode
         return rootNode
@@ -185,7 +185,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
 
         addOrRemoveSelectedNode(node)
 
-        if (!selectChild || !node.isChild) {
+        if (!selectChild || !node.isBranch) {
             return
         }
         refreshWithChild(node, false)
@@ -196,7 +196,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
             val currentNode = willRefreshNodes.removeFirst()
             currentNode.selected = selected
             addOrRemoveSelectedNode(currentNode)
-            if (!currentNode.isChild) {
+            if (!currentNode.isBranch) {
                 continue
             }
             getChildNodesForCache(currentNode).forEach {
@@ -251,7 +251,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
 
         while (willRefreshNodes.isNotEmpty()) {
             val currentRefreshNode = willRefreshNodes.removeLast()
-            if (!currentRefreshNode.isChild) {
+            if (!currentRefreshNode.isBranch) {
                 continue
             }
             val childNodes = refreshInternal(currentRefreshNode)
@@ -335,7 +335,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
         while (nodeQueue.isNotEmpty()) {
             val currentNode = nodeQueue.removeFirst()
 
-            if (!currentNode.isChild) {
+            if (!currentNode.isBranch) {
                 visitor.visitLeafNode(currentNode)
                 continue
             }
