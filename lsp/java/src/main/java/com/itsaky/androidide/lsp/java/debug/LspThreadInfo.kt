@@ -16,10 +16,10 @@ class JavaStackFrame(
 ) : LspStackFrame {
 
     override fun getVariables(): List<LspVariable<*>> =
-        this.frame.visibleVariables().map { variable -> JavaVariable.forVariable(frame, variable) }
+        this.frame.visibleVariables().map { variable -> JavaLocalVariable.forVariable(frame, variable) }
 
     override fun <Val : Value> setValue(variable: Variable<Val>, value: Val) {
-        variable as JavaVariable
+        variable as JavaLocalVariable
         when (variable.kind) {
             VariableKind.PRIMITIVE -> {
                 check(value is PrimitiveValue) {

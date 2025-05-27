@@ -17,6 +17,7 @@ import com.sun.jdi.CharType
 import com.sun.jdi.CharValue
 import com.sun.jdi.DoubleType
 import com.sun.jdi.DoubleValue
+import com.sun.jdi.Field
 import com.sun.jdi.FloatType
 import com.sun.jdi.FloatValue
 import com.sun.jdi.IntegerType
@@ -28,6 +29,7 @@ import com.sun.jdi.Mirror
 import com.sun.jdi.ObjectReference
 import com.sun.jdi.PrimitiveType
 import com.sun.jdi.PrimitiveValue
+import com.sun.jdi.ReferenceType
 import com.sun.jdi.ShortType
 import com.sun.jdi.ShortValue
 import com.sun.jdi.StackFrame
@@ -35,6 +37,8 @@ import com.sun.jdi.StringReference
 import com.sun.jdi.Type
 import com.sun.jdi.Value
 import com.sun.jdi.VoidValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue as LspPrimitiveValue
 import com.itsaky.androidide.lsp.debug.model.StringValue as LspStringValue
 import com.itsaky.androidide.lsp.debug.model.Value as LspValue
@@ -100,8 +104,7 @@ internal class JavaReferenceValue(
     private val jdi: Value
 ) : BaseJavaValue(jdi), ReferenceValue {
 
-    override fun toString(): String =
-        jdi.toString()
+    override fun toString(): String = jdi.toString()
 }
 
 internal class JavaArrayLikeValue(
@@ -111,37 +114,77 @@ internal class JavaArrayLikeValue(
     override val size: ULong
         get() = jdi.length().toULong()
 
-    override fun get(index: ULong): LspValue =
-        jdi.getValue(index.toInt()).toLspValue()
+    override fun get(index: ULong): LspValue = jdi.getValue(index.toInt()).toLspValue()
 }
 
-internal abstract class JavaVariable<ValueType : LspValue>(
+internal abstract class AbstractJavaVariable<ValueT : LspValue>(
+    final override val name: String,
+    final override val typeName: String,
+    protected val type: Type,
+) : Variable<ValueT> {
+
+    final override val kind by lazy {
+        when (type) {
+            is PrimitiveType -> VariableKind.PRIMITIVE
+
+            // TODO: Support other array-like types (like lists).
+            is ArrayType -> VariableKind.ARRAYLIKE
+            is ObjectReference -> VariableKind.REFERENCE
+            else -> VariableKind.UNKNOWN
+        }
+    }
+
+    override suspend fun objectMembers(): Set<Variable<*>> = withContext(Dispatchers.IO) {
+        val type = this@AbstractJavaVariable.type
+        if (type !is ReferenceType) {
+            // TODO: We can provide other information as 'members' for other types of variables.
+            return@withContext emptySet()
+        }
+
+        val fields = type.allFields()
+        fields.map { field ->
+            JavaFieldVariable<ValueT>(type, field)
+        }.toSet()
+    }
+}
+
+internal class JavaFieldVariable<ValueT : LspValue>(
+    private val ref: ReferenceType, private val field: Field
+) : AbstractJavaVariable<ValueT>(
+    name = field.name(), typeName = field.typeName(), type = field.type()
+) {
+
+    override suspend fun isMutable(): Boolean = !field.isFinal
+
+    override suspend fun value(): ValueT = withContext(Dispatchers.IO) {
+        @Suppress("UNCHECKED_CAST") ref.getValue(field).toLspValue() as ValueT
+    }
+}
+
+internal abstract class JavaLocalVariable<ValueType : LspValue>(
     protected val stackFrame: StackFrame,
     protected val variable: LocalVariable,
-) : Variable<ValueType> {
+) : AbstractJavaVariable<ValueType>(
+    name = variable.name(), typeName = variable.typeName(), type = variable.type()
+) {
 
     companion object {
-
-        internal fun forVariable(stackFrame: StackFrame, variable: LocalVariable): JavaVariable<*> = when (variable.type()) {
+        internal fun forVariable(
+            stackFrame: StackFrame, variable: LocalVariable
+        ): JavaLocalVariable<*> = when (variable.type()) {
             is PrimitiveType -> JavaPrimitiveVariable(stackFrame, variable)
             is ObjectReference -> JavaStringVariable(stackFrame, variable)
             else -> throw IllegalStateException("Unsupported variable type: ${variable.type()}")
         }
     }
 
-    override val name: String by lazy {
-        variable.name()
+    override suspend fun isMutable(): Boolean = true
+
+    override suspend fun value(): ValueType = withContext(Dispatchers.IO) {
+        @Suppress("UNCHECKED_CAST") stackFrame.getValue(variable).toLspValue() as ValueType
     }
 
-    override val typeName: String by lazy {
-        variable.typeName()
-    }
-
-    protected val type: Type by lazy {
-        variable.type()
-    }
-
-    internal fun jdiValue() = stackFrame.getValue(variable)
+    internal suspend fun jdiValue() = withContext(Dispatchers.IO) { stackFrame.getValue(variable) }
 
     protected inline fun <reified T : Type> requireType(action: () -> Unit) {
         check(type is T) {
@@ -151,23 +194,12 @@ internal abstract class JavaVariable<ValueType : LspValue>(
     }
 
     protected fun setValue(value: Value) = stackFrame.setValue(variable, value)
-
-    final override val kind: VariableKind by lazy {
-        when (variable.type()) {
-            is PrimitiveType -> VariableKind.PRIMITIVE
-
-            // TODO: Support other array-like types (like lists).
-            is ArrayType -> VariableKind.ARRAYLIKE
-            is ObjectReference -> VariableKind.REFERENCE
-            else -> VariableKind.UNKNOWN
-        }
-    }
 }
 
 internal class JavaPrimitiveVariable(
     stackFrame: StackFrame,
     variable: LocalVariable,
-) : JavaVariable<LspPrimitiveValue>(stackFrame, variable), PrimitiveVariable {
+) : JavaLocalVariable<LspPrimitiveValue>(stackFrame, variable), PrimitiveVariable {
 
     override val primitiveKind: PrimitiveKind by lazy {
         when (type) {
@@ -182,8 +214,6 @@ internal class JavaPrimitiveVariable(
             else -> throw IllegalStateException("Unsupported primitive type: $type")
         }
     }
-
-    override fun value() = JavaPrimitiveValue(jdiValue() as PrimitiveValue)
 
     internal fun setValue(boolean: Boolean) = requireType<ByteType> {
         setValue(variable.mirrorOf(boolean))
@@ -221,9 +251,7 @@ internal class JavaPrimitiveVariable(
 internal class JavaStringVariable(
     stackFrame: StackFrame,
     variable: LocalVariable,
-) : JavaVariable<LspStringValue>(stackFrame, variable), StringVariable {
-    override fun value() = JavaStringValue(jdiValue() as StringReference)
-
+) : JavaLocalVariable<LspStringValue>(stackFrame, variable), StringVariable {
     internal fun setValue(string: String) = requireType<ByteType> {
         setValue(variable.mirrorOf(string))
     }
