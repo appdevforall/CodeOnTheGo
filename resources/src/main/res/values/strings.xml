@@ -595,8 +595,10 @@
   <string name="title_grant">Allow</string>
   <string name="permission_title_storage">Storage</string>
   <string name="permission_desc_storage">Allow Code on the Go to access files.</string>
-  <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
   <string name="permission_title_install_packages">Install packages</string>
+  <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
+  <string name="permission_title_overlay_window">Overlay window</string>
+  <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
   <string name="onboarding_title_permissions">Permissions</string>
   <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
   <string name="msg_grant_permissions">Please grant the permissions to continue.</string>
@@ -637,6 +639,8 @@
   <string name="debugger_stop">Stop</string>
   <string name="debugger_pause">Pause</string>
   <string name="debugger_restart">Restart</string>
+
+  <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
   <string name="file">File</string>
   <string name="actions">Actions</string>
