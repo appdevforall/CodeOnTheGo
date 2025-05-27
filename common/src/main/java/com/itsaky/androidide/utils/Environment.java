@@ -32,6 +32,8 @@ public final class Environment {
   public static final String DEFAULT_ROOT = "/data/data/com.itsaky.androidide/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
+
+  private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
   public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
   private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
@@ -46,6 +48,7 @@ public final class Environment {
   public static File TMP_DIR;
   public static File BIN_DIR;
   public static File LIB_DIR;
+  public static File JDWP_LIB_DIR;
   public static File PROJECTS_DIR;
 
   /**
@@ -74,8 +77,11 @@ public final class Environment {
     TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
     BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
     LIB_DIR = mkdirIfNotExits(new File(PREFIX, "lib"));
+    JDWP_LIB_DIR = mkdirIfNotExits(new File(LIB_DIR, "oj-libjdwp"));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
-    ANDROID_JAR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "android.jar"));
+    // NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
+    //       and don't create the dir if it doesn't exist
+    ANDROID_JAR = new File(ANDROID_JAR_HOME, "android.jar");
     TOOLING_API_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "tooling-api")),
         "tooling-api-all.jar");
     COGO_PLUGIN_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "plugin")),

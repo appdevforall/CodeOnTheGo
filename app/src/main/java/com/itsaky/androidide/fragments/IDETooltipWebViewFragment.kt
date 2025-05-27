@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.fragments
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -27,6 +28,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
 import java.net.URL
@@ -36,6 +38,8 @@ class IDETooltipWebviewFragment : Fragment() {
     private lateinit var webView: WebView
     private lateinit var website : String
 
+    //This warning is unnecessary because we control the content
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -85,8 +89,6 @@ class IDETooltipWebviewFragment : Fragment() {
 
         // Set up WebChromeClient to support JavaScript
 //        webView.webChromeClient = WebChromeClient()
-        webView.canGoBack()
-        webView.canGoForward()
         webView.settings.allowFileAccessFromFileURLs
         webView.settings.allowFileAccess
         webView.settings.allowUniversalAccessFromFileURLs
@@ -104,19 +106,22 @@ class IDETooltipWebviewFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        Log.d(Companion.TAG, "IDETooltipWebviewFragment\\\\onViewCreated called")
+        Log.d(Companion.TAG, "IDETooltipWebViewFragment\\\\onViewCreated called")
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         // Clean up the WebView in Fragment
-        webView.clearHistory()
-        webView.loadUrl("about:blank")
-        webView.destroy()
+        if(webView.isVisible) {
+            webView.clearHistory()
+            webView.loadUrl("about:blank")
+            webView.destroy()
+        }
+
     }
 
     companion object {
-        private const val TAG = "IDETooltipWebviewFragment"
+        private const val TAG = "IDETooltipWebViewFragment"
     }
 
 

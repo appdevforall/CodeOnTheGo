@@ -51,6 +51,7 @@ dependencyResolutionManagement {
     ),
 
     "build-deps-common" to arrayOf(
+      "constants",
       "desugaring-core"
     )
   )
@@ -141,6 +142,7 @@ include(
   ":subprojects:flashbar",
   ":subprojects:framework-stubs",
   ":subprojects:javac-services",
+  ":subprojects:libjdwp",
   ":subprojects:projects",
   ":subprojects:tooling-api",
   ":subprojects:tooling-api-events",

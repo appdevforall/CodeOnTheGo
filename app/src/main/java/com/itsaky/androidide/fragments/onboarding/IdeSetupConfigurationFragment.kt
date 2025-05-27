@@ -38,9 +38,9 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
-import com.adfa.constants.ARM_KEY
-import com.adfa.constants.V7_KEY
-import com.adfa.constants.V8_KEY
+import org.adfa.constants.ARM_KEY
+import org.adfa.constants.V7_KEY
+import org.adfa.constants.V8_KEY
 import com.github.appintro.SlidePolicy
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutOnboardngSetupConfigBinding

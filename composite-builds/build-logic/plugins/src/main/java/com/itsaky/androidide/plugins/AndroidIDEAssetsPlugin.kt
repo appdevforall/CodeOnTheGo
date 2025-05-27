@@ -17,10 +17,10 @@
 
 package com.itsaky.androidide.plugins
 
-import com.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
-import com.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
-import com.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
-import com.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
@@ -67,12 +67,13 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
             val setupAapt2TaskTaskProvider = tasks.register("setupAapt2", SetupAapt2Task::class.java)
 
-            val addAndroidJarTaskProvider = tasks.register(
-                "addAndroidJarToAssets",
-                AddAndroidJarToAssetsTask::class.java
-            ) {
-                androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
-            }
+            // NOTE: skip adding android.jar to apk
+            //val addAndroidJarTaskProvider = tasks.register(
+            //    "addAndroidJarToAssets",
+            //    AddAndroidJarToAssetsTask::class.java
+            //) {
+            //    androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
+            //}
 
             val gradleExecutableToAssetsTaskProvider = tasks.register(
                 COPY_GRADLE_EXECUTABLE_TASK_NAME,
@@ -105,10 +106,11 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     GradleWrapperGeneratorTask::outputDirectory
                 )
 
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    addAndroidJarTaskProvider,
-                    AddAndroidJarToAssetsTask::outputDirectory
-                )
+                // NOTE: skip adding android.jar to apk
+                //variant.sources.assets?.addGeneratedSourceDirectory(
+                //    addAndroidJarTaskProvider,
+                //    AddAndroidJarToAssetsTask::outputDirectory
+                //)
 
                 // Init script generator
                 val generateInitScript = tasks.register(
