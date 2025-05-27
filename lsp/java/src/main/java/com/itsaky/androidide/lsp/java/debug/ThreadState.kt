@@ -13,7 +13,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo as LspThreadInfo
  *
  * @property thread The thread reference.
  */
-class ThreadInfo(
+internal class ThreadInfo(
     val thread: ThreadReference
 ) {
 
@@ -99,7 +99,7 @@ class ThreadInfo(
  * @property _threads The threads in the VM.
  * @property vthreads The virtual threads in the VM.
  */
-class ThreadState(
+internal class ThreadState(
     private val vm: VirtualMachine
 ) {
     // TODO: Java 21 added support for virtual threads
