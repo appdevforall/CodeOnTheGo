@@ -58,7 +58,7 @@ class VariableListFragment : Fragment() {
         }
 
         viewModel.observeLatestVariablesTree(
-            notifyOn = Dispatchers.Default
+            notifyOn = Dispatchers.Main
         ) { tree ->
             treeView.tree = tree
             treeView.refresh()
