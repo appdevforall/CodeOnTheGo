@@ -268,7 +268,7 @@ interface AbstractTree<T : Any> : TreeVisitable<T> {
      * @param [fullRefresh] Whether to fetch nodes from the node generator when refreshed, if false, then nodes will be fetched from the cache
      */
     suspend fun toggleNode(node: TreeNode<T>, fullRefresh: Boolean = false) {
-        if (!node.isChild) {
+        if (!node.isBranch) {
             return
         }
         if (node.expand) {
