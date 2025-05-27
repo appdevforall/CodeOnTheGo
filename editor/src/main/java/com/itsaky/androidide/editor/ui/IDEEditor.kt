@@ -96,6 +96,11 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.view.MotionEvent
+
 /**
  * [CodeEditor] implementation for the IDE.
  *
@@ -119,6 +124,16 @@ open class IDEEditor @JvmOverloads constructor(
   internal var isModified = false
 
   private val selectionChangeHandler = Handler(Looper.getMainLooper())
+
+  // Breakpoints organizados por archivo y línea
+  private val breakpointsByFile = mutableMapOf<String, MutableSet<Int>>()
+
+  private val breakpoints = mutableSetOf<Int>()
+  private val breakpointPaint = Paint().apply {
+    color = android.graphics.Color.RED
+    isAntiAlias = true
+  }
+
   private var selectionChangeRunner: Runnable? = Runnable {
     val languageClient = languageClient ?: return@Runnable
     val cursor = this.cursor ?: return@Runnable
@@ -228,6 +243,135 @@ open class IDEEditor @JvmOverloads constructor(
         workspaceVariableResolver = WorkspaceVariableResolver()
       }
     }
+  }
+
+  override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (event.action == MotionEvent.ACTION_DOWN) {
+      val x = event.x
+      val y = event.y
+
+      if (x < getLineNumberAreaWidth()) {
+        val yWithScroll = y + scrollY
+        val rowHeight = rowHeight.toFloat()
+        val rowIndex = (yWithScroll / rowHeight).toInt().coerceIn(0, layout.rowCount - 1)
+        val line = layout.getLineNumberForRow(rowIndex)
+
+        // Alternar breakpoint
+        if (!breakpoints.add(line)) {
+          breakpoints.remove(line)
+        }
+
+        println("📍 Línea tocada: ${line + 1}")
+        invalidate()
+        return true
+      }
+    }
+    return super.onTouchEvent(event)
+  }
+
+
+  private fun getLineNumberAreaWidth(): Float {
+    return SizeUtils.dp2px(40f).toFloat()
+  }
+
+
+
+
+  /**
+   * Dibuja los breakpoints en el editor
+   */
+  private fun drawBreakpoints(canvas: Canvas) {
+    val fileKey = getCurrentFileKey() ?: return
+    val breakpoints = breakpointsByFile[fileKey] ?: return
+
+    if (breakpoints.isEmpty()) return
+
+    val leftMargin = SizeUtils.dp2px(50f).toFloat()
+    val circleRadius = SizeUtils.dp2px(8f).toFloat()
+    val circleX = SizeUtils.dp2px(25f).toFloat()
+
+    // Usar los métodos reales del editor para obtener líneas visibles
+    val firstVisibleLine = getFirstVisibleLine()
+    val lastVisibleLine = getLastVisibleLine()
+
+    for (lineNumber in breakpoints) {
+      // Solo procesar breakpoints visibles
+      if (lineNumber >= firstVisibleLine && lineNumber <= lastVisibleLine) {
+        // Calcular posición Y basada en la diferencia con la primera línea visible
+        val lineOffset = lineNumber - firstVisibleLine
+        val estimatedRowHeight = height.toFloat() / (lastVisibleLine - firstVisibleLine + 1)
+        val lineY = lineOffset * estimatedRowHeight + (estimatedRowHeight / 2f)
+
+        canvas.drawCircle(circleX, lineY, circleRadius, breakpointPaint)
+      }
+    }
+  }
+
+  /**
+   * Obtiene el número de línea basándose en las coordenadas Y del toque
+   */
+  private fun getLineNumberFromCoordinate(y: Float): Int {
+    val firstVisibleLine = getFirstVisibleLine()
+    val lastVisibleLine = getLastVisibleLine()
+
+    if (firstVisibleLine == lastVisibleLine) return firstVisibleLine
+
+    // Calcular qué línea corresponde a la coordenada Y
+    val visibleLines = lastVisibleLine - firstVisibleLine + 1
+    val estimatedRowHeight = height.toFloat() / visibleLines
+    val lineOffset = (y / estimatedRowHeight).toInt()
+    val targetLine = firstVisibleLine + lineOffset
+
+    // Verificar que esté en rango válido
+    return if (targetLine >= firstVisibleLine && targetLine <= lastVisibleLine) {
+      targetLine
+    } else {
+      -1
+    }
+  }
+
+  /**
+   * Alterna un breakpoint en una línea específica
+   */
+  private fun toggleBreakpointAt(line: Int) {
+    val fileKey = getCurrentFileKey() ?: return
+    val breakpoints = breakpointsByFile.getOrPut(fileKey) { mutableSetOf() }
+
+    val wasAdded = if (breakpoints.contains(line)) {
+      breakpoints.remove(line)
+      log.info("Breakpoint removido en línea $line")
+      false
+    } else {
+      breakpoints.add(line)
+      log.info("Breakpoint añadido en línea $line")
+      true
+    }
+
+    invalidate()
+    onBreakpointToggled(line, wasAdded)
+  }
+
+  /**
+   * Callback llamado cuando se activa/desactiva un breakpoint
+   */
+  protected open fun onBreakpointToggled(line: Int, isSet: Boolean) {
+    // Override este método en subclases para manejar cambios de breakpoints
+  }
+
+  /**
+   * Obtiene la clave única del archivo actual
+   */
+  private fun getCurrentFileKey(): String? {
+    return file?.absolutePath
+  }
+
+  /**
+   * Obtiene todos los breakpoints activos para el archivo actual
+   */
+  fun getBreakpoints(): Set<Int> {
+    return getCurrentFileKey()?.let {
+      breakpointsByFile[it]?.toSet()
+    } ?: emptySet()
   }
 
   override fun setLanguageClient(client: ILanguageClient?) {
@@ -418,6 +562,8 @@ open class IDEEditor @JvmOverloads constructor(
     setupTsLanguageJob?.cancel("Editor is releasing resources.")
 
     if (editorScope.isActive) {
+      // Limpiar breakpoints del archivo actual al liberar recursos
+      breakpointsByFile.clear()
       editorScope.cancelIfActive("Editor is releasing resources.")
     }
   }
