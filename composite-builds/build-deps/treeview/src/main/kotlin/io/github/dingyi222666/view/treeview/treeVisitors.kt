@@ -99,7 +99,7 @@ class CollapseAllTreeVisitor<T : Any> : TreeVisitor<T> {
         if (node.depth <= -1) {
             return true
         }
-        node.expand = false
+        node.isExpanded = false
 
         return true
     }
@@ -112,8 +112,8 @@ class CollapseDepthTreeVisitor<T : Any>(
         if (node.depth <= -1) {
             return true
         }
-        val oldExpand = node.expand
-        node.expand = node.depth < depth
+        val oldExpand = node.isExpanded
+        node.isExpanded = node.depth < depth
         return if (node.depth <= depth) true else oldExpand
     }
 }
@@ -122,7 +122,7 @@ class ExpandDepthTreeVisitor<T : Any>(
     private val depth: Int
 ) : TreeVisitor<T> {
     override fun visitChildNode(node: TreeNode<T>): Boolean {
-        node.expand = true
+        node.isExpanded = true
         return node.depth < depth
     }
 }
@@ -130,7 +130,7 @@ class ExpandDepthTreeVisitor<T : Any>(
 
 class ExpandAllTreeVisitor<T : Any> : TreeVisitor<T> {
     override fun visitChildNode(node: TreeNode<T>): Boolean {
-        node.expand = true
+        node.isExpanded = true
         return true
     }
 }

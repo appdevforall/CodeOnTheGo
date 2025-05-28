@@ -24,7 +24,7 @@ class VariableTreeNodeGenerator private constructor(
         data = currentData,
         depth = parentNode.depth + 1,
         name = currentData.name,
-        expand = false,
+        isExpanded = false,
         isBranch = true,
     )
 
@@ -44,7 +44,7 @@ class VariableTreeNodeGenerator private constructor(
             data = null,
             depth = -1,
             name = Tree.ROOT_NODE_ID.toString(),
-            expand = true,
+            isExpanded = true,
             isBranch = false,
         )
     }

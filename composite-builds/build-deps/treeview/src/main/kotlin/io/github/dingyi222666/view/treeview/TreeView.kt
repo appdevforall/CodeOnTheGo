@@ -248,7 +248,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
         if (!node.isBranch) {
             return
         }
-        if (node.expand) {
+        if (node.isExpanded) {
             collapseNode(node, fullRefresh)
         } else {
             expandNode(node, fullRefresh)
@@ -494,7 +494,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
 
     override fun onClick(node: TreeNode<T>, holder: ViewHolder) {
         if (node.isBranch) {
-            onToggle(node, !node.expand, holder)
+            onToggle(node, !node.isExpanded, holder)
         }
 
         nodeEventListener.onClick(node, holder)
@@ -540,7 +540,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
     }
 
     override fun onToggle(node: TreeNode<T>, isExpand: Boolean, holder: ViewHolder) {
-        node.expand = isExpand
+        node.isExpanded = isExpand
         nodeEventListener.onToggle(node, isExpand, holder)
     }
 
@@ -579,7 +579,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
             val targetNode = this@TreeView._adapter.getItem(target.adapterPosition)
 
             // Only handle directory nodes that are not expanded
-            if (!targetNode.isBranch || targetNode.expand) {
+            if (!targetNode.isBranch || targetNode.isExpanded) {
                 lastExpandNode = null
                 return
             }
@@ -619,7 +619,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
                     delay(expandNodeDelay)
                     // Check if we're still hovering over the same node
                     if (lastExpandNode == targetNode) {
-                        targetNode.expand = true
+                        targetNode.isExpanded = true
                         refresh(true, targetNode)
                     }
                 }
@@ -742,12 +742,12 @@ class TreeView<T : Any> @JvmOverloads constructor(
             }
 
             // Case 2: Moving to collapsed directory
-            if (targetNode.isBranch && !targetNode.expand) {
+            if (targetNode.isBranch && !targetNode.isExpanded) {
                 return tree.getParentNode(targetNode) ?: targetNode
             }
 
             // Case 3: Moving into expanded directory
-            if (lastTargetNode.depth < targetNode.depth && lastTargetNode.expand) {
+            if (lastTargetNode.depth < targetNode.depth && lastTargetNode.isExpanded) {
                 return lastTargetNode
             }
 
@@ -777,7 +777,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
 
             // Check if nodes share same expanded parent
             if (parentLastTargetNodeOfNull != null && parentTargetNode != null &&
-                parentLastTargetNodeOfNull.expand && parentLastTargetNodeOfNull == parentTargetNode
+                parentLastTargetNodeOfNull.isExpanded && parentLastTargetNodeOfNull == parentTargetNode
             ) {
                 return parentLastTargetNodeOfNull
             }

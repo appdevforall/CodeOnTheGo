@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.content.Context
-import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -63,7 +62,7 @@ class VariableListBinder : TreeViewBinder<EagerVariable<*>>() {
                 "${data.resolvedName()}: ${data.resolvedTypeName()} = ${data.resolvedTypeName()}"
             icon.setImageDrawable(ic ?: CircleCharDrawable(data.kind.name.first(), true))
 
-            chevron.rotation = if (node.expand) 90f else 0f
+            chevron.rotation = if (node.isExpanded) 90f else 0f
             chevron.visibility = if (data.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
         }
     }
