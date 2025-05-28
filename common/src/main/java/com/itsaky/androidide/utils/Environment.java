@@ -52,7 +52,6 @@ public final class Environment {
   public static File PROJECTS_DIR;
 
   // split assets vars
-  public static Boolean SPLIT_ASSETS;
   public static File DOWNLOAD_DIR;
   public static File SPLIT_ASSETS_ZIP;
 
