@@ -21,6 +21,7 @@ import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
 import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
 import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
 import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.SPLIT_ASSETS
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
@@ -36,6 +37,7 @@ import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
 import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.configurationcache.extensions.capitalized
 
 /**
@@ -88,9 +90,15 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
             )
 
             val androidSdkToAssetsTaskProvider = tasks.register(
-                COPY_ANDROID_SDK_TO_ASSETS,
-                CopySdkToAssetsTask::class.java
+            COPY_ANDROID_SDK_TO_ASSETS,
+            CopySdkToAssetsTask::class.java
             )
+
+            if (SPLIT_ASSETS) {
+                gradleExecutableToAssetsTaskProvider.configure { enabled = false }
+                gradleCachesToAssetsTaskProvider.configure { enabled = false }
+                androidSdkToAssetsTaskProvider.configure { enabled = false }
+            }
 
             androidComponentsExtension.onVariants { variant ->
 
