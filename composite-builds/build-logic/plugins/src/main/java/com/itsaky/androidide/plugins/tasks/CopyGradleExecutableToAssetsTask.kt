@@ -62,7 +62,9 @@ abstract class CopyGradleExecutableToAssetsTask : DefaultTask() {
 
         try {
             Files.copy(File(sourceFilePath), destFile)
-            Files.copy(File(sourceFilePathCompose), destFileCompose)
+            if (sourceFilePathCompose != sourceFilePath) {
+                Files.copy(File(sourceFilePathCompose), destFileCompose)
+            }
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }
