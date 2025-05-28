@@ -22,7 +22,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import android.net.Uri
 import android.os.Bundle
 import android.text.SpannableString
 import android.text.Spanned
@@ -45,7 +44,6 @@ import androidx.navigation.fragment.FragmentNavigatorDestinationBuilder
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.get
 import androidx.navigation.navOptions
-import com.google.android.material.navigation.NavigationBarMenuView
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
@@ -65,7 +63,6 @@ import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.databinding.ContactDialogBinding
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
-import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 import androidx.core.net.toUri
 
@@ -75,10 +72,6 @@ import androidx.core.net.toUri
  *
  * @author Akash Yadav
  */
-
-object ContactDetails {
-    const val EMAIL_SUPPORT = "feedback@appdevforall.org"
-}
 
 internal object EditorSidebarActions {
     val tooltipTags = mutableListOf<String>()
@@ -259,16 +252,18 @@ internal object EditorSidebarActions {
         dialog.window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
+        val feedbackEmail = context.getString(R.string.feedback_email)
+
         // Prepare the email intent for reuse
         val emailIntent: () -> Unit = {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
-                data = "mailto:$EMAIL_SUPPORT?subject=Feedback about Code on the Go".toUri()
+                data = "mailto:$feedbackEmail?subject=Feedback about Code on the Go".toUri()
             }
             context.startActivity(intent)
         }
 
         // Apply a clickable span on tvDescription to remove underline and set blue color.
-        val email = EMAIL_SUPPORT
+        val email = feedbackEmail
         val text = binding.tvDescription.text.toString()
         val start = text.indexOf(email)
         if (start >= 0) {
@@ -313,6 +308,4 @@ internal object EditorSidebarActions {
     fun SidebarActionItem.tooltipTag(): String {
         return "ide.sidebar.${label.lowercase().replace("[^a-z0-9]+".toRegex(), "_")}.longpress"
     }
-
-
 }
