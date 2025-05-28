@@ -11,6 +11,7 @@ import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * @author Akash Yadav
@@ -55,9 +56,11 @@ class DebuggerFragment :
             viewModel.setSelectedThreadIndex(index)
         }
 
-        viewModel.setThreads(DebuggerViewModel.demoThreads())
-        viewModel.setSelectedThreadIndex(0)
-        viewModel.setSelectedFrameIndex(0)
+        viewLifecycleScope.launch {
+            viewModel.setThreads(DebuggerViewModel.demoThreads())
+            viewModel.setSelectedThreadIndex(0)
+            viewModel.setSelectedFrameIndex(0)
+        }
 
         val mediator = TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->
             tab.text = tabs[position].first

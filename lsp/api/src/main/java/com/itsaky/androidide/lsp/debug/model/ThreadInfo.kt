@@ -19,7 +19,7 @@ interface StackFrame {
     /**
      * Get the visible variables in this call frame.
      */
-    fun getVariables(): List<Variable<*>>
+    suspend fun getVariables(): List<Variable<*>>
 
     /**
      * Set the value of the given variable.
@@ -27,7 +27,7 @@ interface StackFrame {
      * @param variable The variable to set the value of.
      * @param value The value to set the variable to.
      */
-    fun <Val: Value> setValue(variable: Variable<Val>, value: Val)
+    suspend fun <Val: Value> setValue(variable: Variable<Val>, value: Val)
 }
 
 /**
@@ -43,5 +43,5 @@ interface ThreadInfo {
     /**
      * Get the call frames of this thread.
      */
-    fun getFrames(): List<StackFrame>
+    suspend fun getFrames(): List<StackFrame>
 }
