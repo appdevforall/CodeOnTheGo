@@ -76,7 +76,6 @@ class EagerVariable<T : Value> private constructor(
 
     fun resolvedValue() = deferredValue.getValue(
         defaultValue = null,
-        errorValue = null
     )
 
     companion object {
