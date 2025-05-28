@@ -241,7 +241,7 @@ class DataSourceNodeGenerator<T : Any>(
                 currentData.size() > 0
             } else false,
             isBranch = currentData is MultipleDataSource<T>,
-            expand = false
+            isExpanded = false
         )
     }
 

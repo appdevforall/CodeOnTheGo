@@ -106,7 +106,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
             data = null, depth = 0, name = "Root", id = 0
         )
         rootNode.isBranch = true
-        rootNode.expand = true
+        rootNode.isExpanded = true
         this.rootNode = rootNode
         return rootNode
     }
@@ -256,7 +256,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
             }
             val childNodes = refreshInternal(currentRefreshNode)
             for (childNode in childNodes) {
-                if (withExpandable && !childNode.expand) {
+                if (withExpandable && !childNode.isExpanded) {
                     continue
                 }
                 willRefreshNodes.addLast(childNode)
@@ -280,7 +280,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
     }
 
     override suspend fun collapseNode(node: TreeNode<T>, fullRefresh: Boolean) {
-        node.expand = false
+        node.isExpanded = false
         if (fullRefresh) {
             refreshWithChild(node, true)
         }
@@ -295,7 +295,7 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
     }
 
     override suspend fun expandNode(node: TreeNode<T>, fullRefresh: Boolean) {
-        node.expand = true
+        node.isExpanded = true
         if (fullRefresh) {
             refreshWithChild(node, true)
         }

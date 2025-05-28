@@ -88,7 +88,7 @@ open class TreeNode<T : Any>(
      *
      * The TreeView checks this value when displaying the list of nodes and decides whether or not to display the child nodes under the node
      */
-    var expand: Boolean = true,
+    var isExpanded: Boolean = true,
 
     /**
      * Whether the node is selected or not.
@@ -109,7 +109,7 @@ open class TreeNode<T : Any>(
         if (id != other.id) return false
         if (hasChild != other.hasChild) return false
         if (isBranch != other.isBranch) return false
-        if (expand != other.expand) return false
+        if (isExpanded != other.isExpanded) return false
         if (selected != other.selected) return false
         return data == other.data
     }
@@ -119,7 +119,7 @@ open class TreeNode<T : Any>(
         result = 31 * result + (name?.hashCode() ?: 0)
         result = 31 * result + id
         result = 31 * result + hasChild.hashCode()
-        result = 31 * result + expand.hashCode()
+        result = 31 * result + isExpanded.hashCode()
         result = 31 * result + hasChild.hashCode()
         result = 31 * result + selected.hashCode()
         result = 31 * result + (data?.hashCode() ?: 0)
@@ -150,14 +150,14 @@ open class TreeNode<T : Any>(
             id = id,
             hasChild = hasChild,
             isBranch = isBranch,
-            expand = expand,
+            isExpanded = isExpanded,
         ).apply {
             selected = this@TreeNode.selected
         }
     }
 
     override fun toString(): String {
-        return "TreeNode(data=$data, depth=$depth, name=$name, id=$id, hasChild=$hasChild, isChild=$isBranch, expand=$expand, selected=$selected)"
+        return "TreeNode(data=$data, depth=$depth, name=$name, id=$id, hasChild=$hasChild, isChild=$isBranch, expand=$isExpanded, selected=$selected)"
     }
 }
 
