@@ -271,7 +271,7 @@ interface AbstractTree<T : Any> : TreeVisitable<T> {
         if (!node.isBranch) {
             return
         }
-        if (node.expand) {
+        if (node.isExpanded) {
             collapseNode(node, fullRefresh)
         } else {
             expandNode(node, fullRefresh)
@@ -410,7 +410,7 @@ suspend fun <T : Any> AbstractTree<T>.toSortedList(
                 result.add(node)
             }
             return if (withExpandable) {
-                node.expand
+                node.isExpanded
             } else {
                 true
             }
