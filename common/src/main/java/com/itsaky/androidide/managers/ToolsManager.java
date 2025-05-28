@@ -72,8 +72,9 @@ public class ToolsManager {
             extractAapt2();
             extractToolingApi();
             extractCogoPlugin();
-            extractGradleDists();
-            // NOTE no need to extract android.jar
+            // NOTE disable gradle bin zips extraction -- jm 2025-05-28
+            //extractGradleDists();
+            // NOTE no need to extract android.jar -- jm 2025-05-23
             //extractAndroidJar();
             extractColorScheme(app);
             extractJdwp(app);

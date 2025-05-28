@@ -27,6 +27,11 @@ import java.io.File
  * Moved from template-api in case of a roor repo merge we have to manuall move changes here.
  */
 
+// TODO: get value from BuildConfig.DEBUG -- jm 2025-05-28
+//       import com.itsaky.androidide.BuildConfig
+const val SPLIT_ASSETS = true
+const val SPLIT_ASSETS_ZIP = "/Downloads/assets.zip"
+
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.5.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.0.0"
 const val KOTLIN_VERSION = "1.9.22"

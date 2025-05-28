@@ -51,6 +51,11 @@ public final class Environment {
   public static File JDWP_LIB_DIR;
   public static File PROJECTS_DIR;
 
+  // split assets vars
+  public static Boolean SPLIT_ASSETS;
+  public static File DOWNLOAD_DIR;
+  public static File SPLIT_ASSETS_ZIP;
+
   /**
    * Used by Java LSP until the project is initialized.
    */
@@ -70,6 +75,9 @@ public final class Environment {
   public static File GRADLE_DISTS;
 
   public static void init() {
+    DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
+    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets.zip");
+
     ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
     PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
     HOME = mkdirIfNotExits(new File(ROOT, "home"));

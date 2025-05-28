@@ -25,16 +25,6 @@ import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import org.adfa.constants.ANDROID_SDK_ZIP
-import org.adfa.constants.DESTINATION_ANDROID_SDK
-import org.adfa.constants.HOME_PATH
-import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import org.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
-import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
-import org.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
-import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import org.adfa.constants.MANIFEST_FILE_NAME
-import org.adfa.constants.TERMUX_DEBS_PATH
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.github.appintro.AppIntro2
@@ -64,6 +54,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
+import org.adfa.constants.ANDROID_SDK_ZIP
+import org.adfa.constants.DESTINATION_ANDROID_SDK
+import org.adfa.constants.HOME_PATH
+import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
+import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
+import org.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
+import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
+import org.adfa.constants.MANIFEST_FILE_NAME
+import org.adfa.constants.SPLIT_ASSETS
+import org.adfa.constants.TERMUX_DEBS_PATH
 import java.io.File
 import java.io.IOException
 
@@ -205,6 +206,7 @@ class OnboardingActivity : AppIntro2() {
                 copyTermuxDebsAndManifest()
                 copyAndroidSDK()
                 copyMavenLocalRepoFiles()
+                copyGradleDists()
 
                 runOnUiThread {
                     val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
@@ -231,10 +233,14 @@ class OnboardingActivity : AppIntro2() {
         }
 
         try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME),
-                outputDirectory.path
-            )
+            if (SPLIT_ASSETS) {
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, "packages/") }
+            else {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME),
+                    outputDirectory.path
+                )
+            }
         } catch (e: IOException) {
             println("Termux caches copy failed + ${e.message}")
         }
@@ -263,14 +269,18 @@ class OnboardingActivity : AppIntro2() {
         }
 
         try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_ANDROID_SDK),
-                outputDirectory.path
-            )
+            if (SPLIT_ASSETS) {
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, ANDROID_SDK_ZIP) }
+            else {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getCommonAsset(LOCAL_SOURCE_ANDROID_SDK),
+                    outputDirectory.path
+                )
+            }
             ZipUtils.unzipFile(zipFile, outputDirectory)
             zipFile.delete()
         } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
+            println("Android SDK copy failed + ${e.message}")
         }
     }
 
@@ -284,15 +294,43 @@ class OnboardingActivity : AppIntro2() {
         }
 
         try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_AGP_8_0_0_CACHES),
-                outputDirectory.path
-            )
+            if (SPLIT_ASSETS) {
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME) }
+            else {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getCommonAsset(LOCAL_SOURCE_AGP_8_0_0_CACHES),
+                    outputDirectory.path
+                )
+            }
 
             ZipUtils.unzipFile(mavenZipFile, outputDirectory)
             mavenZipFile.delete()
         } catch (e: IOException) {
             println("Android Gradle caches copy failed + ${e.message}")
+        }
+    }
+
+    private fun copyGradleDists() {
+
+        try {
+            val binToCopy = arrayOf("gradle-8.7-bin.zip")
+            for (binFile in binToCopy) {
+                val outputDirectory =
+                    File(Environment.GRADLE_DISTS.absolutePath)
+                if (!outputDirectory.exists()) {
+                    outputDirectory.mkdirs()
+                }
+                if (SPLIT_ASSETS) {
+                    ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, binFile)
+                } else {
+                    ResourceUtils.copyFileFromAssets(
+                        ToolsManager.getCommonAsset(binFile),
+                        outputDirectory.path
+                    )
+                }
+            }
+        } catch (e: IOException) {
+            println("Gradle Dists copy failed + ${e.message}")
         }
     }
 
