@@ -7,4 +7,4 @@ fun ThreadDescriptor.displayText(): String =
     "'${name}'@${id} in group '${group}': ${state.uppercase()}"
 
 fun StackFrameDescriptor.displayText(): String =
-    "${sourceFile}:${lineNumber} in ${method}${methodSignature}"
+    "${method}${methodSignature}"
