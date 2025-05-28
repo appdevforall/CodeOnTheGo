@@ -18,11 +18,15 @@
 package com.itsaky.androidide.editor.ui
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
@@ -96,11 +100,6 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.view.MotionEvent
-
 /**
  * [CodeEditor] implementation for the IDE.
  *
@@ -114,6 +113,7 @@ open class IDEEditor @JvmOverloads constructor(
   private val editorFeatures: EditorFeatures = EditorFeatures()
 ) : CodeEditor(context, attrs, defStyleAttr, defStyleRes), IEditor by editorFeatures, ILspEditor {
 
+
   @Suppress("PropertyName")
   internal var _file: File? = null
 
@@ -125,14 +125,173 @@ open class IDEEditor @JvmOverloads constructor(
 
   private val selectionChangeHandler = Handler(Looper.getMainLooper())
 
-  // Breakpoints organizados por archivo y línea
-  private val breakpointsByFile = mutableMapOf<String, MutableSet<Int>>()
-
+  // Breakpoints
   private val breakpoints = mutableSetOf<Int>()
+
+  // Paint para dibujar círculos rojos
   private val breakpointPaint = Paint().apply {
-    color = android.graphics.Color.RED
+    color = Color.RED
+    style = Paint.Style.FILL
     isAntiAlias = true
   }
+
+  override fun onDraw(canvas: Canvas) {
+    // Primero dibujar el contenido normal del editor
+    super.onDraw(canvas)
+
+    testDirectDraw(canvas)
+
+    // Luego dibujar los breakpoints
+    drawBreakpoints(canvas)
+  }
+
+  /**
+   * Dibuja los breakpoints usando la lógica de líneas visibles del editor
+   */
+  private fun drawBreakpoints(canvas: Canvas) {
+    if (breakpoints.isEmpty()) return
+
+    val rowHeight = this.rowHeight
+    val firstVisibleLine = getFirstVisibleLine()
+    val lastVisibleLine = getLastVisibleLine()
+
+    // Configuración visual
+    val breakpointRadius = SizeUtils.dp2px(6f).toFloat()
+    val breakpointMarginLeft = SizeUtils.dp2px(8f).toFloat()
+
+    // Iterar solo las filas visibles (similar a como lo hace LineNumberPanel internamente)
+    for (visibleRowIndex in 0 until (lastVisibleLine - firstVisibleLine + 1)) {
+      val currentLine = firstVisibleLine + visibleRowIndex
+
+
+      if (breakpoints.contains(currentLine)) {
+        // Calcular Y usando la misma lógica que los números de línea
+        val centerY = visibleRowIndex * rowHeight + (rowHeight / 2f)
+        val centerX = breakpointMarginLeft + breakpointRadius
+
+        // Dibujar el breakpoint
+        canvas.drawCircle(centerX, centerY, breakpointRadius, breakpointPaint)
+      }
+    }
+  }
+
+
+  override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (event.action == MotionEvent.ACTION_DOWN) {
+      val x = event.x
+      val y = event.y
+
+      // Verificar si el toque fue en el área de números de línea
+      if (x <= getLineNumberAreaWidth()) {
+        val touchedLine = getTouchedLineNumber(y)
+
+        if (touchedLine >= 0 && touchedLine < lineCount) {
+          toggleBreakpoint(touchedLine)
+          return true
+        }
+      }
+    }
+    return super.onTouchEvent(event)
+  }
+
+  /**
+   * Obtiene el número de línea basándose en las coordenadas Y del toque
+   */
+  private fun getTouchedLineNumber(y: Float): Int {
+    val rowHeight = this.rowHeight.toFloat()
+    val layout = this.layout
+
+    // Calcular qué fila fue tocada
+    val touchedRow = ((y + offsetY) / rowHeight).toInt()
+
+    // Verificar que esté en rango válido
+    if (touchedRow >= 0 && touchedRow < layout.rowCount) {
+      return layout.getLineNumberForRow(touchedRow)
+    }
+
+    return -1
+  }
+
+  /**
+   * Alterna un breakpoint en la línea especificada
+   */
+  fun toggleBreakpoint(line: Int) {
+    // LOGS DETALLADOS DEL CLICK
+    println("🎯 ========== TOGGLE BREAKPOINT ==========")
+    println("📍 Línea clicada: $line (mostrada como ${line + 1})")
+    println("📊 Estado actual:")
+    println("  offsetY: $offsetY")
+    println("  rowHeight: ${this.rowHeight}")
+    println("  firstVisibleLine: ${getFirstVisibleLine()}")
+    println("  lastVisibleLine: ${getLastVisibleLine()}")
+    println("  lineCount total: $lineCount")
+    println("  breakpoints actuales: $breakpoints")
+
+    // Calcular información adicional sobre la línea
+    val rowHeight = this.rowHeight.toFloat()
+    val absoluteLineY = line * rowHeight
+    val screenY = absoluteLineY - offsetY
+    val centerY = screenY + (rowHeight / 2f)
+
+    println("📐 Cálculos para línea $line:")
+    println("  absoluteLineY: $absoluteLineY")
+    println("  screenY: $screenY")
+    println("  centerY: $centerY")
+    println("  ¿Está visible?: ${centerY >= 0 && centerY <= height}")
+
+    // Verificar si la línea está en el rango visible
+    val firstVisible = getFirstVisibleLine()
+    val lastVisible = getLastVisibleLine()
+    val isInVisibleRange = line >= firstVisible && line <= lastVisible
+    println("  ¿En rango visible?: $isInVisibleRange")
+
+    if (isInVisibleRange) {
+      val relativeIndex = line - firstVisible
+      val relativeY = relativeIndex * this.rowHeight + (this.rowHeight / 2f)
+      println("  relativeIndex: $relativeIndex")
+      println("  relativeY: $relativeY")
+    }
+
+    // Obtener contenido de la línea si es posible
+    try {
+      if (line < lineCount) {
+        val lineContent = text.getLineString(line)
+        val trimmedContent = lineContent.take(50) // Primeros 50 caracteres
+        println("📝 Contenido línea $line: \"$trimmedContent${if (lineContent.length > 50) "..." else ""}\"")
+      }
+    } catch (e: Exception) {
+      println("❌ Error obteniendo contenido de línea: ${e.message}")
+    }
+
+    // Realizar el toggle
+    val wasAdded = if (breakpoints.contains(line)) {
+      breakpoints.remove(line)
+      println("➖ Breakpoint REMOVIDO de línea $line")
+      false
+    } else {
+      breakpoints.add(line)
+      println("➕ Breakpoint AGREGADO a línea $line")
+      true
+    }
+
+    println("📋 Breakpoints después del toggle: $breakpoints")
+    println("🔄 Invalidando canvas...")
+
+    invalidate()
+    onBreakpointToggled(line, wasAdded)
+
+    println("📍 RESUMEN: Breakpoint ${if (wasAdded) "añadido" else "removido"} en línea ${line + 1}")
+    println("🎯 ========== FIN TOGGLE ==========")
+  }
+
+  /**
+   * Callback llamado cuando se activa/desactiva un breakpoint
+   */
+  protected open fun onBreakpointToggled(line: Int, isSet: Boolean) {
+    // Override este método en subclases para manejar cambios de breakpoints
+  }
+
+  private val breakpointsByFile = mutableMapOf<String, MutableSet<Int>>()
 
   private var selectionChangeRunner: Runnable? = Runnable {
     val languageClient = languageClient ?: return@Runnable
@@ -245,134 +404,16 @@ open class IDEEditor @JvmOverloads constructor(
     }
   }
 
-  override fun onTouchEvent(event: MotionEvent): Boolean {
-    if (event.action == MotionEvent.ACTION_DOWN) {
-      val x = event.x
-      val y = event.y
-
-      if (x < getLineNumberAreaWidth()) {
-        val yWithScroll = y + scrollY
-        val rowHeight = rowHeight.toFloat()
-        val rowIndex = (yWithScroll / rowHeight).toInt().coerceIn(0, layout.rowCount - 1)
-        val line = layout.getLineNumberForRow(rowIndex)
-
-        // Alternar breakpoint
-        if (!breakpoints.add(line)) {
-          breakpoints.remove(line)
-        }
-
-        println("📍 Línea tocada: ${line + 1}")
-        invalidate()
-        return true
-      }
-    }
-    return super.onTouchEvent(event)
-  }
 
 
   private fun getLineNumberAreaWidth(): Float {
-    return SizeUtils.dp2px(40f).toFloat()
-  }
-
-
-
-
-  /**
-   * Dibuja los breakpoints en el editor
-   */
-  private fun drawBreakpoints(canvas: Canvas) {
-    val fileKey = getCurrentFileKey() ?: return
-    val breakpoints = breakpointsByFile[fileKey] ?: return
-
-    if (breakpoints.isEmpty()) return
-
-    val leftMargin = SizeUtils.dp2px(50f).toFloat()
-    val circleRadius = SizeUtils.dp2px(8f).toFloat()
-    val circleX = SizeUtils.dp2px(25f).toFloat()
-
-    // Usar los métodos reales del editor para obtener líneas visibles
-    val firstVisibleLine = getFirstVisibleLine()
-    val lastVisibleLine = getLastVisibleLine()
-
-    for (lineNumber in breakpoints) {
-      // Solo procesar breakpoints visibles
-      if (lineNumber >= firstVisibleLine && lineNumber <= lastVisibleLine) {
-        // Calcular posición Y basada en la diferencia con la primera línea visible
-        val lineOffset = lineNumber - firstVisibleLine
-        val estimatedRowHeight = height.toFloat() / (lastVisibleLine - firstVisibleLine + 1)
-        val lineY = lineOffset * estimatedRowHeight + (estimatedRowHeight / 2f)
-
-        canvas.drawCircle(circleX, lineY, circleRadius, breakpointPaint)
-      }
-    }
-  }
-
-  /**
-   * Obtiene el número de línea basándose en las coordenadas Y del toque
-   */
-  private fun getLineNumberFromCoordinate(y: Float): Int {
-    val firstVisibleLine = getFirstVisibleLine()
-    val lastVisibleLine = getLastVisibleLine()
-
-    if (firstVisibleLine == lastVisibleLine) return firstVisibleLine
-
-    // Calcular qué línea corresponde a la coordenada Y
-    val visibleLines = lastVisibleLine - firstVisibleLine + 1
-    val estimatedRowHeight = height.toFloat() / visibleLines
-    val lineOffset = (y / estimatedRowHeight).toInt()
-    val targetLine = firstVisibleLine + lineOffset
-
-    // Verificar que esté en rango válido
-    return if (targetLine >= firstVisibleLine && targetLine <= lastVisibleLine) {
-      targetLine
-    } else {
-      -1
-    }
-  }
-
-  /**
-   * Alterna un breakpoint en una línea específica
-   */
-  private fun toggleBreakpointAt(line: Int) {
-    val fileKey = getCurrentFileKey() ?: return
-    val breakpoints = breakpointsByFile.getOrPut(fileKey) { mutableSetOf() }
-
-    val wasAdded = if (breakpoints.contains(line)) {
-      breakpoints.remove(line)
-      log.info("Breakpoint removido en línea $line")
-      false
-    } else {
-      breakpoints.add(line)
-      log.info("Breakpoint añadido en línea $line")
-      true
-    }
-
-    invalidate()
-    onBreakpointToggled(line, wasAdded)
-  }
-
-  /**
-   * Callback llamado cuando se activa/desactiva un breakpoint
-   */
-  protected open fun onBreakpointToggled(line: Int, isSet: Boolean) {
-    // Override este método en subclases para manejar cambios de breakpoints
+    // Aproximar el ancho del área de números de línea
+    return SizeUtils.dp2px(50f).toFloat()
   }
 
   /**
    * Obtiene la clave única del archivo actual
    */
-  private fun getCurrentFileKey(): String? {
-    return file?.absolutePath
-  }
-
-  /**
-   * Obtiene todos los breakpoints activos para el archivo actual
-   */
-  fun getBreakpoints(): Set<Int> {
-    return getCurrentFileKey()?.let {
-      breakpointsByFile[it]?.toSet()
-    } ?: emptySet()
-  }
 
   override fun setLanguageClient(client: ILanguageClient?) {
     if (isReleased) {
@@ -508,7 +549,7 @@ open class IDEEditor @JvmOverloads constructor(
 
   // not overridable!
   final override fun <T : EditorBuiltinComponent?> replaceComponent(clazz: Class<T>,
-    replacement: T & Any) {
+                                                                    replacement: T & Any) {
     super.replaceComponent(clazz, replacement)
   }
 
@@ -723,12 +764,12 @@ open class IDEEditor @JvmOverloads constructor(
    * Applies the given [TreeSitterLanguage] and the [color scheme][scheme] for the given [file type][type].
    */
   open fun applyTreeSitterLang(language: TreeSitterLanguage, type: String,
-    scheme: SchemeAndroidIDE?) {
+                               scheme: SchemeAndroidIDE?) {
     applyTreeSitterLangInternal(language, type, scheme)
   }
 
   private fun applyTreeSitterLangInternal(language: TreeSitterLanguage, type: String,
-    scheme: SchemeAndroidIDE?) {
+                                          scheme: SchemeAndroidIDE?) {
     if (isReleased) {
       return
     }
@@ -851,7 +892,7 @@ open class IDEEditor @JvmOverloads constructor(
   }
 
   private inline fun launchCancellableAsyncWithProgress(@StringRes message: Int,
-    crossinline action: suspend CoroutineScope.(flashbar: Flashbar, cancelChecker: ICancelChecker) -> Unit): Job? {
+                                                        crossinline action: suspend CoroutineScope.(flashbar: Flashbar, cancelChecker: ICancelChecker) -> Unit): Job? {
     if (isReleased) {
       return null
     }
@@ -1028,7 +1069,7 @@ open class IDEEditor @JvmOverloads constructor(
   }
 
   private fun configureFlashbar(builder: Flashbar.Builder, @StringRes message: Int,
-    cancelChecker: ICancelChecker) {
+                                cancelChecker: ICancelChecker) {
     builder.message(message).primaryActionText(android.R.string.cancel)
       .primaryActionTapListener { bar: Flashbar ->
         cancelChecker.cancel()
@@ -1060,5 +1101,19 @@ open class IDEEditor @JvmOverloads constructor(
 
   override fun setSelectionAround(line: Int, column: Int) {
     editorFeatures.setSelectionAround(line, column)
+  }
+
+  private fun testDirectDraw(canvas: Canvas) {
+    val testPaint = Paint().apply {
+      color = Color.BLUE
+      style = Paint.Style.FILL
+      isAntiAlias = true
+    }
+
+    val testY = 400f // ← SIN - offsetY (como estaba antes)
+    val testX = 60f
+    val testRadius = 8f
+
+    canvas.drawCircle(testX, testY, testRadius, testPaint)
   }
 }
