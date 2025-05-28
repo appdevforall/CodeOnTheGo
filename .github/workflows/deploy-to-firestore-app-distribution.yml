@@ -84,21 +84,8 @@ jobs:
       - name: Set Java_ROOT environment variable
         run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
 
-      - name: Cache Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches/modules-2
-            ~/.gradle/caches/jars-*
-            ~/.gradle/caches/transforms-*
-            ~/.gradle/wrapper
-            ~/.android/build-cache
-          key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-deps-
-
       - name: Assemble Universal APK
-        run: ./gradlew :app:assembleDebug --parallel --configure-on-demand
+        run: ./gradlew :app:assembleV8Debug --no-daemon
         env:
           Java_ROOT: ${{ env.JAVA_HOME_8_X64 }}
 
