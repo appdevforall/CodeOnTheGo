@@ -111,7 +111,25 @@ jobs:
             --device model=oriole,version=33,locale=en,orientation=portrait \
             --environment-variables clearPackageData=true \
             --use-orchestrator \
-            --timeout 45m \
+            --timeout 45m \- name: Notify Slack with parsed test results
+              run: |
+                parse_results() {
+                  local file="$1"
+                  local count=$(grep -c "\[\s*\(PASS\|FAIL\)\s*\]" "$file" || true)
+                  local pass=$(grep -c "\[\s*PASS\s*\]" "$file" || true)
+                  local fail=$(grep -c "\[\s*FAIL\s*\]" "$file" || true)
+                  echo "Tests run: $count, Passed: $pass, Failed: $fail"
+                }
+            
+                KOTLIN_RESULTS=$(parse_results test-results/kotlin/test_output.txt)
+                GROOVY_RESULTS=$(parse_results test-results/groovy/test_output.txt)
+            
+                curl -X POST \
+                  -H 'Content-type: application/json' \
+                  --data "{\"text\":\"*Firebase Test Lab Results*\n\n*Kotlin DSL:* ${KOTLIN_RESULTS}\n*Groovy DSL:* ${GROOVY_RESULTS}\"}" \
+                  $SLACK_WEBHOOK
+              env:
+                SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
             --num-flaky-test-attempts=2 \
             --results-dir=test-results/groovy \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
@@ -133,4 +151,5 @@ jobs:
 
           curl -X POST -H 'Content-type: application/json' --data "{\n            \"text\": \"*Firebase Test Lab Results*\n\n*Kotlin DSL:* $KOTLIN_RESULTS\n*Groovy DSL:* $GROOVY_RESULTS\n\"\n          }" $SLACK_WEBHOOK
         env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+#          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK: "https://hooks.slack.com/services/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"
