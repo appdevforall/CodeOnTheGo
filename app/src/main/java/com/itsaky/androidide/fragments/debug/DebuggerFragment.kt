@@ -11,7 +11,11 @@ import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * @author Akash Yadav
@@ -30,24 +34,38 @@ class DebuggerFragment :
         super.onViewCreated(view, savedInstanceState)
 
         viewModel.observeLatestThreads(
-            notifyOn = Dispatchers.Main
+            notifyOn = Dispatchers.IO
         ) { threads ->
-            binding.threadLayoutSelector.spinnerText.setAdapter(
-                ArrayAdapter(
-                    requireContext(),
-                    android.R.layout.simple_dropdown_item_1line,
-                    threads
-                )
-            )
+            coroutineScope {
+                val labels = threads.map { thread ->
+                    async {
+                        thread.resolve().displayText()
+                    }
+                }.awaitAll()
+
+                withContext(Dispatchers.Main) {
+                    binding.threadLayoutSelector.spinnerText.setAdapter(
+                        ArrayAdapter(
+                            requireContext(),
+                            android.R.layout.simple_dropdown_item_1line,
+                            labels
+                        )
+                    )
+                }
+            }
         }
 
         viewModel.observeLatestSelectedThread(
-            notifyOn = Dispatchers.Main
+            notifyOn = Dispatchers.IO
         ) { thread, index ->
             if (index >= 0) {
-                binding.threadLayoutSelector.spinnerText.apply {
-                    listSelection = index
-                    setText(thread!!.getName(), false)
+                val descriptor = thread!!.resolve()
+                withContext(Dispatchers.Main) {
+                    binding.threadLayoutSelector.spinnerText.apply {
+                        listSelection = index
+                        // noinspection SetTextI18n
+                        setText(descriptor.displayText(), false)
+                    }
                 }
             }
         }

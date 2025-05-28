@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.debug.model.PrimitiveVariable
 import com.itsaky.androidide.lsp.debug.model.ReferenceValue
 import com.itsaky.androidide.lsp.debug.model.StringVariable
 import com.itsaky.androidide.lsp.debug.model.Variable
+import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.sun.jdi.ArrayReference
 import com.sun.jdi.ArrayType
@@ -118,12 +119,12 @@ internal class JavaArrayLikeValue(
 }
 
 internal abstract class AbstractJavaVariable<ValueT : LspValue>(
-    final override val name: String,
-    final override val typeName: String,
+    protected val name: String,
+    protected val typeName: String,
     protected val type: Type,
 ) : Variable<ValueT> {
 
-    final override val kind by lazy {
+    internal val kind by lazy {
         when (type) {
             is PrimitiveType -> VariableKind.PRIMITIVE
 
@@ -133,6 +134,15 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
             else -> VariableKind.UNKNOWN
         }
     }
+
+    protected open suspend fun isMutable(): Boolean = false
+
+    override suspend fun descriptor() = VariableDescriptor(
+        name = name,
+        typeName = typeName,
+        kind = kind,
+        isMutable = isMutable()
+    )
 
     override suspend fun objectMembers(): Set<Variable<*>> = withContext(Dispatchers.IO) {
         val type = this@AbstractJavaVariable.type
@@ -156,8 +166,9 @@ internal class JavaFieldVariable<ValueT : LspValue>(
 
     override suspend fun isMutable(): Boolean = !field.isFinal
 
+    @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueT = withContext(Dispatchers.IO) {
-        @Suppress("UNCHECKED_CAST") ref.getValue(field).toLspValue() as ValueT
+        ref.getValue(field).toLspValue() as ValueT
     }
 }
 
@@ -180,8 +191,9 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
 
     override suspend fun isMutable(): Boolean = true
 
+    @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueType = withContext(Dispatchers.IO) {
-        @Suppress("UNCHECKED_CAST") stackFrame.getValue(variable).toLspValue() as ValueType
+        stackFrame.getValue(variable).toLspValue() as ValueType
     }
 
     internal suspend fun jdiValue() = withContext(Dispatchers.IO) { stackFrame.getValue(variable) }

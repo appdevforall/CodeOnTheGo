@@ -1,44 +1,78 @@
 package com.itsaky.androidide.fragments.debug
 
 import com.itsaky.androidide.lsp.debug.model.StackFrame
+import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
+import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
+import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
+import com.itsaky.androidide.lsp.java.utils.completedOrNull
+import com.itsaky.androidide.lsp.java.utils.getValue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
+
+interface Eager<T> {
+
+    /**
+     * Whether the value is resolved.
+     */
+    val isResolved: Boolean
+
+    /**
+     * Get the resolved value, or throw an exception if the value is not resolved.
+     */
+    val resolved: T
+
+    /**
+     * Resolve the value.
+     */
+    suspend fun resolve(): T
+}
+
+/**
+ * Get the resolved value, or return `null` if the value is not resolved.
+ */
+val <T> Eager<T>.resolvedOrNull: T?
+    get() = if (isResolved) resolved else null
+
+/**
+ * Get the resolved value, or return [default value][default] if the value is not resolved.
+ *
+ * @param default The default value to return if the value is not resolved.
+ */
+fun <T> Eager<T>.resolvedOr(default: T): T? = if (isResolved) resolved else default
 
 /**
  * A [variable][Variable] that is eagerly resolved.
  *
  * @author Akash Yadav
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class EagerVariable<T : Value> private constructor(
     private val delegate: Variable<T>,
-) : Variable<T> by delegate {
+) : Variable<T> by delegate, Eager<VariableDescriptor> {
 
-    private val deferredName = CompletableDeferred<String>()
-    private val deferredTypeName = CompletableDeferred<String>()
+    private val deferredDescriptor = CompletableDeferred<VariableDescriptor>()
     private val deferredValue = CompletableDeferred<T?>()
 
     /**
      * Whether the variable is resolved.
      */
-    val isResolved: Boolean
-        get() = deferredName.isCompleted
-                && deferredTypeName.isCompleted
-                && deferredValue.isCompleted
+    override val isResolved: Boolean
+        get() = deferredDescriptor.completedOrNull != null
+                && deferredValue.completedOrNull != null
 
-    fun resolvedName() = deferredName.getValue(
-        defaultValue = "...",
-        errorValue = "<error>"
-    )
+    override val resolved: VariableDescriptor
+        get() = checkNotNull(deferredDescriptor.completedOrNull) {
+            "Variable is not resolved"
+        }
 
-    fun resolvedTypeName() = deferredTypeName.getValue(
-        defaultValue = "...",
-        errorValue = "<error>"
-    )
+    fun resolvedName() = deferredDescriptor.completedOrNull?.name ?: ""
+
+    fun resolvedTypeName() = deferredDescriptor.completedOrNull?.typeName ?: ""
 
     fun resolvedValue() = deferredValue.getValue(
         defaultValue = null,
@@ -58,13 +92,8 @@ class EagerVariable<T : Value> private constructor(
                 return delegate
             }
 
-            return coroutineScope {
-                val variable = EagerVariable(delegate)
-
-                // resolve in background
-                launch { variable.resolve() }
-
-                variable
+            return EagerVariable(delegate).also { variable ->
+                variable.resolve()
             }
         }
     }
@@ -72,14 +101,17 @@ class EagerVariable<T : Value> private constructor(
     /**
      * Resolve the variable state.
      */
-    private suspend fun resolve() {
+    override suspend fun resolve(): VariableDescriptor = coroutineScope {
         // NOTE:
         // Care must be take to only resolve values which are absolutely needed
         // to render the UI. Resolution of values which are not immediately required must be deferred.
 
-        deferredName.complete(delegate.name)
-        deferredTypeName.complete(delegate.typeName)
-        deferredValue.complete(delegate.value())
+        val value = async { delegate.value() }
+        val descriptor = delegate.descriptor()
+
+        deferredDescriptor.complete(descriptor)
+        deferredValue.complete(value.await())
+        return@coroutineScope descriptor
     }
 
     override suspend fun objectMembers(): Set<EagerVariable<*>> =
@@ -90,63 +122,85 @@ class EagerVariable<T : Value> private constructor(
             }.toSet()
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
-private fun <T> CompletableDeferred<T>.getValue(
-    defaultValue: T,
-    errorValue: T
-): T {
-    if (!this.isCompleted) {
-        return defaultValue
-    }
-
-    if (this.getCompletionExceptionOrNull() != null) {
-        return errorValue
-    }
-
-    return this.getCompleted()
-}
-
 /**
  * @author Akash Yadav
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class EagerStackFrame private constructor(
     private val delegate: StackFrame,
-) : StackFrame by delegate {
+) : StackFrame by delegate, Eager<StackFrameDescriptor> {
+
+    private val deferredDescriptor = CompletableDeferred<StackFrameDescriptor>()
+
+    override val isResolved: Boolean
+        get() = deferredDescriptor.completedOrNull != null
+
+    override val resolved: StackFrameDescriptor
+        get() = checkNotNull(deferredDescriptor.completedOrNull) {
+            "Stack frame is not resolved"
+        }
 
     companion object {
 
         /**
          * Create a new eagerly-resolved stack frame delegating to [delegate].
          */
-        fun create(delegate: StackFrame): EagerStackFrame {
+        suspend fun create(delegate: StackFrame): EagerStackFrame {
             if (delegate is EagerStackFrame) {
                 return delegate
             }
 
-            return EagerStackFrame(delegate)
+            return EagerStackFrame(delegate).also {
+                it.resolve()
+            }
         }
+    }
+
+    override suspend fun resolve(): StackFrameDescriptor {
+        val descriptor = delegate.descriptor()
+        deferredDescriptor.complete(descriptor)
+        return descriptor
     }
 
     override suspend fun getVariables(): List<EagerVariable<*>> =
         delegate.getVariables().map { variable -> EagerVariable.create(variable) }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class EagerThreadInfo private constructor(
     private val delegate: ThreadInfo,
-) : ThreadInfo by delegate {
+) : ThreadInfo by delegate, Eager<ThreadDescriptor> {
+
+    private val deferredDescriptor = CompletableDeferred<ThreadDescriptor>()
+
+    override val isResolved: Boolean
+        get() = deferredDescriptor.completedOrNull != null
+
+    override val resolved: ThreadDescriptor
+        get() = checkNotNull(deferredDescriptor.completedOrNull) {
+            "Thread is not resolved"
+        }
 
     companion object {
 
         /**
          * Create a new eagerly-resolved thread info delegating to [delegate].
          */
-        fun create(delegate: ThreadInfo): EagerThreadInfo {
+        suspend fun create(delegate: ThreadInfo): EagerThreadInfo {
             if (delegate is EagerThreadInfo) {
                 return delegate
             }
 
-            return EagerThreadInfo(delegate)
+            return EagerThreadInfo(delegate).also {
+                it.resolve()
+            }
         }
+    }
+
+    override suspend fun resolve(): ThreadDescriptor {
+        val descriptor = delegate.descriptor()
+        deferredDescriptor.complete(descriptor)
+        return descriptor
     }
 
     override suspend fun getFrames(): List<EagerStackFrame> =
