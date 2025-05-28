@@ -23,7 +23,7 @@ class VariableTreeNodeGenerator private constructor(
         id = Tree.generateId(),
         data = currentData,
         depth = parentNode.depth + 1,
-        name = currentData.name,
+        name = currentData.resolvedOrNull?.name ?: "<unknown>",
         isExpanded = false,
         isBranch = true,
     )

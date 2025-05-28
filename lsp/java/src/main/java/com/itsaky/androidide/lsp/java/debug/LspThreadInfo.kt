@@ -2,7 +2,9 @@ package com.itsaky.androidide.lsp.java.debug
 
 import com.itsaky.androidide.lsp.debug.model.PrimitiveKind
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue
+import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
 import com.itsaky.androidide.lsp.debug.model.StringValue
+import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
@@ -16,6 +18,20 @@ import com.itsaky.androidide.lsp.debug.model.Variable as LspVariable
 class JavaStackFrame(
     val frame: StackFrame,
 ) : LspStackFrame {
+
+    override suspend fun descriptor() = withContext(Dispatchers.IO) {
+        val location = frame.location()
+        val method = checkNotNull(location.method()) {
+            "Method not found for location: $location"
+        }
+
+        StackFrameDescriptor(
+            method = method.name(),
+            methodSignature = method.genericSignature(),
+            sourceFile = location.sourceName(),
+            lineNumber = location.lineNumber().toLong()
+        )
+    }
 
     override suspend fun getVariables(): List<LspVariable<*>> {
         val variables = withContext(Dispatchers.IO) { frame.visibleVariables() }
@@ -63,8 +79,17 @@ internal class LspThreadInfo(
     val thread: ThreadInfo
 ) : LspThreadInfo {
 
-    override fun getName(): String =
-        thread.thread.name()
+    override suspend fun descriptor(): ThreadDescriptor = withContext(Dispatchers.IO) {
+        val thread = thread.thread
+        val group = thread.threadGroup()
+
+        ThreadDescriptor(
+            id = thread.uniqueID().toString(),
+            name = thread.name(),
+            group = group.name(),
+            state = thread.status().toString()
+        )
+    }
 
     override suspend fun getFrames(): List<LspStackFrame> =
         thread.frames()
