@@ -10,7 +10,6 @@ val <T> CompletableDeferred<T>.completedOrNull: T?
 @ExperimentalCoroutinesApi
 fun <T> CompletableDeferred<T>.getValue(
     defaultValue: T,
-    errorValue: T
 ): T {
     val alreadyCompleted = completedOrNull
     if (alreadyCompleted != null) {
@@ -18,7 +17,7 @@ fun <T> CompletableDeferred<T>.getValue(
     }
 
     if (this.getCompletionExceptionOrNull() != null) {
-        return errorValue
+        return defaultValue
     }
 
     return this.getCompleted()

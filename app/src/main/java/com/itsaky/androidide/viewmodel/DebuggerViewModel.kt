@@ -191,6 +191,15 @@ class DebuggerViewModel : ViewModel() {
             scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = null to -1
         )
 
+    val allFrames: StateFlow<List<EagerStackFrame>>
+        get() = selectedThread.map { (thread, _) ->
+            thread?.getFrames() ?: emptyList()
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
+
     val selectedFrame: StateFlow<Pair<EagerStackFrame?, Int>>
         get() = state.map { state ->
             state.selectedFrame() to state.frameIndex
@@ -301,6 +310,23 @@ class DebuggerViewModel : ViewModel() {
                 }
             } else {
                 consume(thread, index)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    fun observeLatestAllFrames(
+        observeOn: CoroutineDispatcher = Dispatchers.Default,
+        notifyOn: CoroutineDispatcher? = null,
+        consume: suspend (List<StackFrame>) -> Unit
+    ) = viewModelScope.launch(observeOn) {
+        allFrames.collectLatest { frames ->
+            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+                withContext(notifyOn) {
+                    consume(frames)
+                }
+            } else {
+                consume(frames)
             }
         }
     }
