@@ -232,11 +232,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
       MotionEvent.ACTION_DOWN -> {
         val isInDragHandle = isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
         hasReceivedDownEvent = isInDragHandle
-
-        if (hasReceivedDownEvent) {
-          dragHelper.shouldInterceptTouchEvent(ev)
-        }
-
         return isInDragHandle && dragHelper.shouldInterceptTouchEvent(ev)
       }
 
