@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
+import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.isSystemInDarkMode
@@ -38,13 +39,15 @@ class VariableListBinder : TreeViewBinder<EagerVariable<*>>() {
             )
         }
 
-        binding.root.apply {
-            setPaddingRelative(
+        binding.apply {
+            root.setPaddingRelative(
                 /* start = */ node.depth * treeIndent,
-                /* top = */ paddingTop,
-                /* end = */ paddingEnd,
-                /* bottom = */ paddingBottom
+                /* top = */ root.paddingTop,
+                /* end = */ root.paddingEnd,
+                /* bottom = */ root.paddingBottom
             )
+
+            chevron.rotation = if (node.isExpanded) 90f else 0f
         }
 
         if (node.data?.isResolved != true) {
@@ -53,22 +56,22 @@ class VariableListBinder : TreeViewBinder<EagerVariable<*>>() {
         }
 
         val data = node.data ?: return
+        val descriptor = data.resolved
 
         binding.apply {
-            val ic = data.icon(root.context)?.let { ContextCompat.getDrawable(root.context, it) }
+            val ic = descriptor.icon(root.context)?.let { ContextCompat.getDrawable(root.context, it) }
 
             // noinspection SetTextI18n
             label.text =
-                "${data.resolvedName()}: ${data.resolvedTypeName()} = ${data.resolvedTypeName()}"
-            icon.setImageDrawable(ic ?: CircleCharDrawable(data.kind.name.first(), true))
+                "${descriptor.name}: ${descriptor.typeName} = ${data.resolvedValue()}"
+            icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
-            chevron.rotation = if (node.isExpanded) 90f else 0f
-            chevron.visibility = if (data.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
+            chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
         }
     }
 }
 
-private fun EagerVariable<*>.icon(context: Context): Int? = when (kind) {
+private fun VariableDescriptor.icon(context: Context): Int? = when (kind) {
     VariableKind.PRIMITIVE -> R.drawable.ic_db_primitive
     VariableKind.REFERENCE -> R.drawable.ic_dbg_value
     VariableKind.ARRAYLIKE -> when (context.isSystemInDarkMode()) {
