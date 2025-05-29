@@ -88,22 +88,22 @@ jobs:
       - name: Run Firebase Test Lab and Wait for Results
         run: |
           mkdir -p test-results
-
-#          # Run Kotlin DSL tests
-#          echo "Running Kotlin DSL tests..."
-#          gcloud firebase test android run \
-#            --type instrumentation \
-#            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
-#            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
-#            --device model=oriole,version=33,locale=en,orientation=portrait \
-#            --environment-variables clearPackageData=true \
-#            --use-orchestrator \
-#            --timeout 45m \
-#            --num-flaky-test-attempts=2 \
-#            --results-dir=test-results/kotlin \
-#            --results-bucket=gs://firebase-test-results-${RANDOM} \
-#            --project=codeonthego-64a92 \
-#            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" | tee test-results/kotlin/test_output.txt || true
+          
+          # Run Kotlin DSL tests
+          echo "Running Kotlin DSL tests..."
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
+            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
+            --device model=oriole,version=33,locale=en,orientation=portrait \
+            --environment-variables clearPackageData=true \
+            --use-orchestrator \
+            --timeout 45m \
+            --num-flaky-test-attempts=2 \
+            --results-dir=test-results/kotlin \
+            --results-bucket=gs://firebase-test-results-${RANDOM} \
+            --project=codeonthego-64a92 \
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" | tee test-results/kotlin/test_output.txt || true
 
           # Run Groovy DSL tests
           echo "Running Groovy DSL tests..."
