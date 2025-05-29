@@ -122,13 +122,9 @@ open class IDEEditor @JvmOverloads constructor(
   private var _diagnosticWindow: DiagnosticWindow? = null
   private var fileVersion = 0
   internal var isModified = false
-
   private val selectionChangeHandler = Handler(Looper.getMainLooper())
-
-  // Breakpoints
   private val breakpoints = mutableSetOf<Int>()
 
-  // Paint para dibujar círculos rojos
   private val breakpointPaint = Paint().apply {
     color = Color.RED
     style = Paint.Style.FILL
@@ -136,18 +132,11 @@ open class IDEEditor @JvmOverloads constructor(
   }
 
   override fun onDraw(canvas: Canvas) {
-    // Primero dibujar el contenido normal del editor
     super.onDraw(canvas)
-
-    testDirectDraw(canvas)
-
-    // Luego dibujar los breakpoints
+    //testDirectDraw(canvas)
     drawBreakpoints(canvas)
   }
 
-  /**
-   * Dibuja los breakpoints usando la lógica de líneas visibles del editor
-   */
   private fun drawBreakpoints(canvas: Canvas) {
     if (breakpoints.isEmpty()) return
 
@@ -155,21 +144,17 @@ open class IDEEditor @JvmOverloads constructor(
     val firstVisibleLine = getFirstVisibleLine()
     val lastVisibleLine = getLastVisibleLine()
 
-    // Configuración visual
     val breakpointRadius = SizeUtils.dp2px(6f).toFloat()
     val breakpointMarginLeft = SizeUtils.dp2px(8f).toFloat()
 
-    // Iterar solo las filas visibles (similar a como lo hace LineNumberPanel internamente)
     for (visibleRowIndex in 0 until (lastVisibleLine - firstVisibleLine + 1)) {
       val currentLine = firstVisibleLine + visibleRowIndex
 
 
       if (breakpoints.contains(currentLine)) {
-        // Calcular Y usando la misma lógica que los números de línea
-        val centerY = visibleRowIndex * rowHeight + (rowHeight / 2f)
+        val centerY = currentLine * rowHeight + (rowHeight / 2f)
         val centerX = breakpointMarginLeft + breakpointRadius
 
-        // Dibujar el breakpoint
         canvas.drawCircle(centerX, centerY, breakpointRadius, breakpointPaint)
       }
     }
@@ -181,7 +166,6 @@ open class IDEEditor @JvmOverloads constructor(
       val x = event.x
       val y = event.y
 
-      // Verificar si el toque fue en el área de números de línea
       if (x <= getLineNumberAreaWidth()) {
         val touchedLine = getTouchedLineNumber(y)
 
@@ -194,17 +178,12 @@ open class IDEEditor @JvmOverloads constructor(
     return super.onTouchEvent(event)
   }
 
-  /**
-   * Obtiene el número de línea basándose en las coordenadas Y del toque
-   */
   private fun getTouchedLineNumber(y: Float): Int {
     val rowHeight = this.rowHeight.toFloat()
     val layout = this.layout
 
-    // Calcular qué fila fue tocada
     val touchedRow = ((y + offsetY) / rowHeight).toInt()
 
-    // Verificar que esté en rango válido
     if (touchedRow >= 0 && touchedRow < layout.rowCount) {
       return layout.getLineNumberForRow(touchedRow)
     }
@@ -212,38 +191,16 @@ open class IDEEditor @JvmOverloads constructor(
     return -1
   }
 
-  /**
-   * Alterna un breakpoint en la línea especificada
-   */
   fun toggleBreakpoint(line: Int) {
-    // LOGS DETALLADOS DEL CLICK
-    println("🎯 ========== TOGGLE BREAKPOINT ==========")
-    println("📍 Línea clicada: $line (mostrada como ${line + 1})")
-    println("📊 Estado actual:")
-    println("  offsetY: $offsetY")
-    println("  rowHeight: ${this.rowHeight}")
-    println("  firstVisibleLine: ${getFirstVisibleLine()}")
-    println("  lastVisibleLine: ${getLastVisibleLine()}")
-    println("  lineCount total: $lineCount")
-    println("  breakpoints actuales: $breakpoints")
 
-    // Calcular información adicional sobre la línea
     val rowHeight = this.rowHeight.toFloat()
     val absoluteLineY = line * rowHeight
     val screenY = absoluteLineY - offsetY
     val centerY = screenY + (rowHeight / 2f)
 
-    println("📐 Cálculos para línea $line:")
-    println("  absoluteLineY: $absoluteLineY")
-    println("  screenY: $screenY")
-    println("  centerY: $centerY")
-    println("  ¿Está visible?: ${centerY >= 0 && centerY <= height}")
-
-    // Verificar si la línea está en el rango visible
     val firstVisible = getFirstVisibleLine()
     val lastVisible = getLastVisibleLine()
     val isInVisibleRange = line >= firstVisible && line <= lastVisible
-    println("  ¿En rango visible?: $isInVisibleRange")
 
     if (isInVisibleRange) {
       val relativeIndex = line - firstVisible
@@ -252,43 +209,31 @@ open class IDEEditor @JvmOverloads constructor(
       println("  relativeY: $relativeY")
     }
 
-    // Obtener contenido de la línea si es posible
     try {
       if (line < lineCount) {
         val lineContent = text.getLineString(line)
-        val trimmedContent = lineContent.take(50) // Primeros 50 caracteres
-        println("📝 Contenido línea $line: \"$trimmedContent${if (lineContent.length > 50) "..." else ""}\"")
+        val trimmedContent = lineContent.take(50)
+        println("Line content: $line: \"$trimmedContent${if (lineContent.length > 50) "..." else ""}\"")
       }
     } catch (e: Exception) {
-      println("❌ Error obteniendo contenido de línea: ${e.message}")
+      println("Error getting the line: ${e.message}")
     }
 
-    // Realizar el toggle
     val wasAdded = if (breakpoints.contains(line)) {
       breakpoints.remove(line)
-      println("➖ Breakpoint REMOVIDO de línea $line")
       false
     } else {
       breakpoints.add(line)
-      println("➕ Breakpoint AGREGADO a línea $line")
       true
     }
 
-    println("📋 Breakpoints después del toggle: $breakpoints")
-    println("🔄 Invalidando canvas...")
-
     invalidate()
     onBreakpointToggled(line, wasAdded)
-
-    println("📍 RESUMEN: Breakpoint ${if (wasAdded) "añadido" else "removido"} en línea ${line + 1}")
-    println("🎯 ========== FIN TOGGLE ==========")
   }
 
-  /**
-   * Callback llamado cuando se activa/desactiva un breakpoint
-   */
+
   protected open fun onBreakpointToggled(line: Int, isSet: Boolean) {
-    // Override este método en subclases para manejar cambios de breakpoints
+
   }
 
   private val breakpointsByFile = mutableMapOf<String, MutableSet<Int>>()
@@ -407,13 +352,8 @@ open class IDEEditor @JvmOverloads constructor(
 
 
   private fun getLineNumberAreaWidth(): Float {
-    // Aproximar el ancho del área de números de línea
     return SizeUtils.dp2px(50f).toFloat()
   }
-
-  /**
-   * Obtiene la clave única del archivo actual
-   */
 
   override fun setLanguageClient(client: ILanguageClient?) {
     if (isReleased) {
@@ -603,7 +543,6 @@ open class IDEEditor @JvmOverloads constructor(
     setupTsLanguageJob?.cancel("Editor is releasing resources.")
 
     if (editorScope.isActive) {
-      // Limpiar breakpoints del archivo actual al liberar recursos
       breakpointsByFile.clear()
       editorScope.cancelIfActive("Editor is releasing resources.")
     }
@@ -1110,7 +1049,7 @@ open class IDEEditor @JvmOverloads constructor(
       isAntiAlias = true
     }
 
-    val testY = 400f // ← SIN - offsetY (como estaba antes)
+    val testY = 400f
     val testX = 60f
     val testRadius = 8f
 
