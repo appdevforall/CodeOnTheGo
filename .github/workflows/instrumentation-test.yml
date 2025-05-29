@@ -113,8 +113,10 @@ jobs:
           KOTLIN_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/kotlin/test_output.txt | head -1 || echo "")
           echo "KOTLIN_TEST_URL=$KOTLIN_TEST_URL" >> $GITHUB_ENV
           
-          # Extract video URL for Kotlin tests
-          KOTLIN_VIDEO_URL=$(grep -o 'https://storage.cloud.google.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || echo "")
+          # Extract video URL for Kotlin tests - try multiple patterns
+          KOTLIN_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
+                            grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
+                            grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
           echo "KOTLIN_VIDEO_URL=$KOTLIN_VIDEO_URL" >> $GITHUB_ENV
 
           # Run Groovy DSL tests
@@ -140,8 +142,10 @@ jobs:
           GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
           echo "GROOVY_TEST_URL=$GROOVY_TEST_URL" >> $GITHUB_ENV
           
-          # Extract video URL for Groovy tests
-          GROOVY_VIDEO_URL=$(grep -o 'https://storage.cloud.google.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || echo "")
+          # Extract video URL for Groovy tests - try multiple patterns
+          GROOVY_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
+                            grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
+                            grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
           echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
 
       - name: Notify Slack with parsed test results
@@ -198,33 +202,41 @@ jobs:
             echo "File does not exist"
           fi
 
-          # Send to Slack
-          SLACK_MESSAGE="*Firebase Test Lab Results*\n\n*${KOTLIN_RESULTS}*\n*${GROOVY_RESULTS}*"
+          # Send to Slack with better formatting
+          SLACK_MESSAGE="*🔥 Firebase Test Lab Results*\\n\\n"
+          SLACK_MESSAGE="$SLACK_MESSAGE*${KOTLIN_RESULTS}*\\n"
+          SLACK_MESSAGE="$SLACK_MESSAGE*${GROOVY_RESULTS}*\\n"
           
-          # Add Kotlin test URLs if available
+          # Add Kotlin URLs
           if [[ -n "$KOTLIN_TEST_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\n\n🔗 Kotlin Test Results: $KOTLIN_TEST_URL"
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🔗 Kotlin Test Results: $KOTLIN_TEST_URL"
           fi
           
           if [[ -n "$KOTLIN_VIDEO_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\n🎥 Kotlin Test Video: $KOTLIN_VIDEO_URL"
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Kotlin Test Video: $KOTLIN_VIDEO_URL"
           fi
           
-          # Add Groovy test URLs if available
+          # Add Groovy URLs  
           if [[ -n "$GROOVY_TEST_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\n\n🔗 Groovy Test Results: $GROOVY_TEST_URL"
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n🔗 Groovy Test Results: $GROOVY_TEST_URL"
           fi
           
           if [[ -n "$GROOVY_VIDEO_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\n🎥 Groovy Test Video: $GROOVY_VIDEO_URL"
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Groovy Test Video: $GROOVY_VIDEO_URL"
           fi
+          
+          # Add debugging info to see what URLs were found
+          echo "Debug - Kotlin Video URL: '$KOTLIN_VIDEO_URL'"
+          echo "Debug - Groovy Video URL: '$GROOVY_VIDEO_URL'"
+          echo "Debug - Kotlin Test URL: '$KOTLIN_TEST_URL'"
+          echo "Debug - Groovy Test URL: '$GROOVY_TEST_URL'"
           
           # Fallback to general Firebase console if no specific URLs found
           if [[ -z "$KOTLIN_TEST_URL" && -z "$GROOVY_TEST_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\n\nCheck Firebase console: ${{ env.FIREBASE_CONSOLE_URL }}"
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n📱 Check Firebase console: ${{ env.FIREBASE_CONSOLE_URL }}"
           fi
 
           curl -X POST \
             -H 'Content-type: application/json' \
-            --data "{\"text\":\"$SLACK_MESSAGE\"}" \
+            --data "$(printf '{"text":"%s"}' "$SLACK_MESSAGE")" \
             "${{ env.SLACK_WEBHOOK }}"
