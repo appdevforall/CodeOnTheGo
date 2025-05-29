@@ -17,7 +17,6 @@
 
 package io.github.rosemoe.sora.editor.ts
 
-import android.graphics.Color
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
@@ -31,8 +30,6 @@ import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.analysis.StyleReceiver
 import io.github.rosemoe.sora.lang.styling.CodeBlock
 import io.github.rosemoe.sora.lang.styling.Styles
-import io.github.rosemoe.sora.lang.styling.color.ResolvableColor
-import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.lang.styling.line.LineSideIcon
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
@@ -134,11 +131,13 @@ class TsAnalyzeWorker(
   }
 
   fun addBreakpoint(line: Int) {
-    styles.addLineStyle(LineGutterBackground(line) { Color.RED })
+    styles.addLineStyle(LineSideIcon(line, BreakpointDrawable()))
+    updateStyles()
   }
 
   fun removeBreakpoint(line: Int) {
     styles.eraseLineStyle(line, LineSideIcon::class.java)
+    updateStyles()
   }
 
   private fun processNextMessage() {
