@@ -259,15 +259,9 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     val xInt = x.toInt()
     val y = event.y
     val yInt = y.toInt()
-    val isInHandle: Boolean
 
-    try {
-      dragHelper.processTouchEvent(event)
-      isInHandle = dragHelper.isViewUnder(dragHandleView, xInt, yInt)
-    } catch (e: IllegalArgumentException) {
-      hasReceivedDownEvent = false
-      return false
-    }
+    dragHelper.processTouchEvent(event)
+    val isInHandle = dragHelper.isViewUnder(dragHandleView, xInt, yInt)
 
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
@@ -280,10 +274,11 @@ open class SwipeRevealLayout @JvmOverloads constructor(
         val dy = y - initialDragY
         val slop = dragHelper.touchSlop
         if (dx * dx + dy * dy < slop * slop && isInHandle) {
-          smoothSlideTo(if (dragProgress == 0f) 0f else 1f)
+          smoothSlideTo(if (dragProgress == 0f) 1f else 0f)
         }
       }
     }
+
     return isInHandle && isViewHit(hiddenContent, xInt, yInt) || isViewHit(overlappingContent, xInt, yInt)
   }
 
