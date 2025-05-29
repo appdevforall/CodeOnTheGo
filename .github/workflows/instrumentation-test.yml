@@ -30,6 +30,7 @@ env:
   FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
   FIREBASE_DISTRIBUTION_URL: ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
   FIREBASE_DOWNLOAD_URL: ${{ secrets.FIREBASE_DOWNLOAD_URL }}
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
 
 jobs:
   build_test:
@@ -107,6 +108,14 @@ jobs:
           
           KOTLIN_EXIT_CODE=$?
           echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
+          
+          # Extract Firebase Test Lab URL for Kotlin tests
+          KOTLIN_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/kotlin/test_output.txt | head -1 || echo "")
+          echo "KOTLIN_TEST_URL=$KOTLIN_TEST_URL" >> $GITHUB_ENV
+          
+          # Extract video URL for Kotlin tests
+          KOTLIN_VIDEO_URL=$(grep -o 'https://storage.cloud.google.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || echo "")
+          echo "KOTLIN_VIDEO_URL=$KOTLIN_VIDEO_URL" >> $GITHUB_ENV
 
           # Run Groovy DSL tests
           echo "Running Groovy DSL tests..."
@@ -126,6 +135,14 @@ jobs:
           
           GROOVY_EXIT_CODE=$?
           echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
+          
+          # Extract Firebase Test Lab URL for Groovy tests
+          GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
+          echo "GROOVY_TEST_URL=$GROOVY_TEST_URL" >> $GITHUB_ENV
+          
+          # Extract video URL for Groovy tests
+          GROOVY_VIDEO_URL=$(grep -o 'https://storage.cloud.google.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || echo "")
+          echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
 
       - name: Notify Slack with parsed test results
         if: always()  # Run even if tests fail
@@ -182,7 +199,32 @@ jobs:
           fi
 
           # Send to Slack
+          SLACK_MESSAGE="*Firebase Test Lab Results*\n\n*${KOTLIN_RESULTS}*\n*${GROOVY_RESULTS}*"
+          
+          # Add Kotlin test URLs if available
+          if [[ -n "$KOTLIN_TEST_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\n\n🔗 Kotlin Test Results: $KOTLIN_TEST_URL"
+          fi
+          
+          if [[ -n "$KOTLIN_VIDEO_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\n🎥 Kotlin Test Video: $KOTLIN_VIDEO_URL"
+          fi
+          
+          # Add Groovy test URLs if available
+          if [[ -n "$GROOVY_TEST_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\n\n🔗 Groovy Test Results: $GROOVY_TEST_URL"
+          fi
+          
+          if [[ -n "$GROOVY_VIDEO_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\n🎥 Groovy Test Video: $GROOVY_VIDEO_URL"
+          fi
+          
+          # Fallback to general Firebase console if no specific URLs found
+          if [[ -z "$KOTLIN_TEST_URL" && -z "$GROOVY_TEST_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\n\nCheck Firebase console: ${{ env.FIREBASE_CONSOLE_URL }}"
+          fi
+
           curl -X POST \
             -H 'Content-type: application/json' \
-            --data "{\"text\":\"*Firebase Test Lab Results*\n\n*${KOTLIN_RESULTS}*\n*${GROOVY_RESULTS}*\n\nCheck Firebase console for detailed results: ${{ env.FIREBASE_CONSOLE_URL }}\"}" \
-            "https://hooks.slack.com/services/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"
+            --data "{\"text\":\"$SLACK_MESSAGE\"}" \
+            "${{ env.SLACK_WEBHOOK }}"
