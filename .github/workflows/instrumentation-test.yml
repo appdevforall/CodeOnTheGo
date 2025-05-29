@@ -87,7 +87,7 @@ jobs:
 
       - name: Run Firebase Test Lab and Wait for Results
         run: |
-          mkdir -p test-results
+          mkdir -p test-results/kotlin test-results/groovy
           
           # Run Kotlin DSL tests
           echo "Running Kotlin DSL tests..."
@@ -103,7 +103,10 @@ jobs:
             --results-dir=test-results/kotlin \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" | tee test-results/kotlin/test_output.txt || true
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" > test-results/kotlin/test_output.txt 2>&1
+          
+          KOTLIN_EXIT_CODE=$?
+          echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
 
           # Run Groovy DSL tests
           echo "Running Groovy DSL tests..."
@@ -119,22 +122,67 @@ jobs:
             --results-dir=test-results/groovy \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" | tee test-results/groovy/test_output.txt || true
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" > test-results/groovy/test_output.txt 2>&1
+          
+          GROOVY_EXIT_CODE=$?
+          echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
 
       - name: Notify Slack with parsed test results
+        if: always()  # Run even if tests fail
         run: |
           parse_results() {
             local file="$1"
-            local count=$(grep -c "\[\s*\(PASS\|FAIL\)\s*\]" "$file" || true)
-            local pass=$(grep -c "\[\s*PASS\s*\]" "$file" || true)
-            local fail=$(grep -c "\[\s*FAIL\s*\]" "$file" || true)
-            echo "Tests run: $count, Passed: $pass, Failed: $fail"
+            local test_name="$2"
+          
+            if [[ ! -f "$file" ]]; then
+              echo "$test_name: No results file found"
+              return
+            fi
+          
+            # Check if file is empty
+            if [[ ! -s "$file" ]]; then
+              echo "$test_name: Results file is empty"
+              return
+            fi
+          
+            # Parse Firebase Test Lab results - look for common patterns
+            local pass=$(grep -i "passed\|success" "$file" | wc -l || echo "0")
+            local fail=$(grep -i "failed\|error" "$file" | wc -l || echo "0")
+            local total=$((pass + fail))
+          
+            # If no specific test results found, check exit status or general output
+            if [[ $total -eq 0 ]]; then
+              if grep -q "Test run completed" "$file"; then
+                echo "$test_name: Test completed (check Firebase console for details)"
+              else
+                echo "$test_name: Test may have failed or results unclear"
+              fi
+            else
+              echo "$test_name: Tests run: $total, Passed: $pass, Failed: $fail"
+            fi
           }
 
-          KOTLIN_RESULTS=$(parse_results test-results/kotlin/test_output.txt)
-          GROOVY_RESULTS=$(parse_results test-results/groovy/test_output.txt)
+          echo "Parsing test results..."
+          KOTLIN_RESULTS=$(parse_results test-results/kotlin/test_output.txt "Kotlin DSL")
+          GROOVY_RESULTS=$(parse_results test-results/groovy/test_output.txt "Groovy DSL")
+          
+          # Also capture the actual output for debugging
+          echo "Kotlin output file contents:"
+          if [[ -f test-results/kotlin/test_output.txt ]]; then
+            head -20 test-results/kotlin/test_output.txt
+          else
+            echo "File does not exist"
+          fi
+          
+          echo "Groovy output file contents:"
+          if [[ -f test-results/groovy/test_output.txt ]]; then
+            head -20 test-results/groovy/test_output.txt
+          else
+            echo "File does not exist"
+          fi
 
+          # Send to Slack
           curl -X POST \
             -H 'Content-type: application/json' \
-            --data "{\"text\":\"*Firebase Test Lab Results*\n\n*Kotlin DSL:* ${KOTLIN_RESULTS}\n*Groovy DSL:* ${GROOVY_RESULTS}\"}" \
-            "https://hooks.slack.com/services/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"
+            --data "{\"text\":\"*Firebase Test Lab Results*\n\n*${KOTLIN_RESULTS}*\n*${GROOVY_RESULTS}*\n\nCheck Firebase console for detailed results: ${{ env.FIREBASE_CONSOLE_URL }}\"}" \
+            "https://hooks.slack.com/services/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"
