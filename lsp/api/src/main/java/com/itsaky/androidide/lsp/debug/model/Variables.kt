@@ -155,29 +155,29 @@ interface ArrayLikeValue : Value {
 }
 
 /**
+ * A descriptor of a [Variable].
+ *
+ * @property name The name of the variable.
+ * @property typeName The type name of the variable.
+ * @property kind The [kind][VariableKind] of the variable.
+ * @property isMutable Whether the variable is mutable.
+ */
+data class VariableDescriptor(
+    val name: String,
+    val typeName: String,
+    val kind: VariableKind,
+    val isMutable: Boolean,
+)
+
+/**
  * Information about a local variable.
  */
 interface Variable<ValueType: Value> {
 
     /**
-     * The name of the variable.
+     * Get the descriptor for the variable.
      */
-    val name: String
-
-    /**
-     * The type name of the variable.
-     */
-    val typeName: String
-
-    /**
-     * The [kind][VariableKind] of the variable.
-     */
-    val kind: VariableKind
-
-    /**
-     * Whether the variable is mutable.
-     */
-    suspend fun isMutable(): Boolean
+    suspend fun descriptor(): VariableDescriptor
 
     /**
      * Get the value of the variable as [ValueType].
