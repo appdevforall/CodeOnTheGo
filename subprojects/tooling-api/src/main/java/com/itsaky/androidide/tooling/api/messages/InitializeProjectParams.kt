@@ -27,9 +27,11 @@ import java.io.Serializable
  * @property androidParams The [AndroidInitializationParams] for initializing the Android module projects.
  * @author Akash Yadav
  */
-data class InitializeProjectParams @JvmOverloads constructor(
+class InitializeProjectParams @JvmOverloads constructor(
   val directory: String,
   val gradleDistribution: GradleDistributionParams = GradleDistributionParams.WRAPPER,
-  val androidParams: AndroidInitializationParams = AndroidInitializationParams.DEFAULT
-) : Serializable
+  val androidParams: AndroidInitializationParams = AndroidInitializationParams.DEFAULT,
+  gradleArgs: List<String> = emptyList(),
+  jvmArgs: List<String> = emptyList(),
+) : GradleBuildParams(gradleArgs, jvmArgs), Serializable
 

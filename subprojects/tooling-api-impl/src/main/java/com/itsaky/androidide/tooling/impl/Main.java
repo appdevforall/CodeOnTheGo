@@ -21,16 +21,13 @@ import com.itsaky.androidide.logging.JvmStdErrAppender;
 import com.itsaky.androidide.tooling.api.IToolingApiClient;
 import com.itsaky.androidide.tooling.api.util.ToolingApiLauncher;
 import com.itsaky.androidide.tooling.impl.internal.ProjectImpl;
-import com.itsaky.androidide.tooling.impl.progress.ForwardingProgressListener;
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
+
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import org.gradle.tooling.ConfigurableLauncher;
+
 import org.gradle.tooling.events.OperationType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,28 +100,6 @@ public class Main {
         }
       } catch (Throwable e) {
         LOG.warn("Unable to get Gradle wrapper availability from client", e);
-      }
-    }
-  }
-
-  @SuppressWarnings("NewApi")
-  public static void finalizeLauncher(ConfigurableLauncher<?> launcher) {
-    final var out = new LoggingOutputStream();
-    launcher.setStandardError(out);
-    launcher.setStandardOutput(out);
-    launcher.setStandardInput(new ByteArrayInputStream("NoOp".getBytes(StandardCharsets.UTF_8)));
-    launcher.addProgressListener(new ForwardingProgressListener(), progressUpdateTypes());
-
-    if (client != null) {
-      try {
-        final var args = client.getBuildArguments().get();
-        args.removeIf(Objects::isNull);
-        args.removeIf(String::isBlank);
-
-        LOG.debug("Arguments from tooling client: {}", args);
-        launcher.addArguments(args);
-      } catch (Throwable e) {
-        LOG.error("Unable to get build arguments from tooling client", e);
       }
     }
   }
