@@ -176,6 +176,7 @@ class MainFragment : BaseFragment() {
                             BuildConfig.VERSION_NAME,
                             stackTrace
                         )
+
                         val feedbackEmail = getString(R.string.feedback_email)
                         val currentScreen = getCurrentScreenName()
 
@@ -215,7 +216,6 @@ class MainFragment : BaseFragment() {
                                 requireActivity().flashError(R.string.no_email_apps)
                             }
                         }
-
                         dialog.dismiss()
                     }
                 }
@@ -228,7 +228,6 @@ class MainFragment : BaseFragment() {
         val activity = requireActivity()
         return activity.javaClass.simpleName.replace("Activity", "")
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()
