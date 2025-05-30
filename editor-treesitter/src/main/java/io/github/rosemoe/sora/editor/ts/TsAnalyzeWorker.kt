@@ -17,6 +17,8 @@
 
 package io.github.rosemoe.sora.editor.ts
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
@@ -25,10 +27,12 @@ import com.itsaky.androidide.treesitter.api.TreeSitterQueryCapture
 import com.itsaky.androidide.treesitter.api.safeExecQueryCursor
 import com.itsaky.androidide.treesitter.string.UTF16String
 import io.github.rosemoe.sora.data.ObjectAllocator
+import io.github.rosemoe.sora.editor.ts.linestyle.BreakpointDrawable
 import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.analysis.StyleReceiver
 import io.github.rosemoe.sora.lang.styling.CodeBlock
 import io.github.rosemoe.sora.lang.styling.Styles
+import io.github.rosemoe.sora.lang.styling.line.LineSideIcon
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -39,6 +43,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
+import java.util.TreeSet
 import java.util.concurrent.CancellationException
 import java.util.concurrent.LinkedBlockingQueue
 
@@ -126,6 +131,14 @@ class TsAnalyzeWorker(
         }
       }
     }
+  }
+
+  fun addBreakpoint(line: Int) {
+    styles.addLineStyle(LineSideIcon(line, BreakpointDrawable()))
+  }
+
+  fun removeBreakpoint(line: Int) {
+    styles.eraseLineStyle(line, LineSideIcon::class.java)
   }
 
   private fun processNextMessage() {

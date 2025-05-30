@@ -18,7 +18,6 @@
 package com.itsaky.androidide.editor.ui
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
