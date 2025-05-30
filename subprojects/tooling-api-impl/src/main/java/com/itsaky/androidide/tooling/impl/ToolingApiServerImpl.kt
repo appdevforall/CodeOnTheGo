@@ -48,6 +48,7 @@ import com.itsaky.androidide.tooling.impl.internal.ProjectImpl
 import com.itsaky.androidide.tooling.impl.sync.ModelBuilderException
 import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
 import com.itsaky.androidide.tooling.impl.sync.RootProjectModelBuilderParams
+import com.itsaky.androidide.tooling.impl.util.configureFrom
 import com.itsaky.androidide.utils.StopWatch
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.BuildException
@@ -182,7 +183,9 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
         val project = try {
           val modelBuilderParams = RootProjectModelBuilderParams(
             connection,
-            this.buildCancellationToken!!.token()
+            this.buildCancellationToken!!.token(),
+            params.gradleArgs,
+            params.jvmArgs
           )
           val impl = RootModelBuilder(params).build(modelBuilderParams) as? ProjectImpl?
             ?: throw ModelBuilderException("Failed to build project model")
@@ -261,7 +264,7 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
       builder.setStandardError(out)
       builder.setStandardOutput(out)
       builder.forTasks(*message.tasks.filter { it.isNotBlank() }.toTypedArray())
-      Main.finalizeLauncher(builder)
+      builder.configureFrom(message)
 
       this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
       builder.withCancellationToken(this.buildCancellationToken!!.token())
