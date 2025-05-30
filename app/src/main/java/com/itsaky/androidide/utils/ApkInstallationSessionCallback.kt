@@ -65,9 +65,12 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
   }
 
   fun destroy() {
-    if (this.sessionId != -1 && this.activity != null && !this.activity!!.isFinishing && !this.activity!!.isDestroyed) {
+    val currentActivity = this.activity
+    val isActivityValid = currentActivity != null && !currentActivity.isFinishing && !currentActivity.isDestroyed
+
+    if (this.sessionId != -1 && isActivityValid) {
       try {
-        this.activity?.packageManager?.packageInstaller?.let { packageInstaller ->
+        currentActivity?.packageManager?.packageInstaller?.let { packageInstaller ->
           val sessionExists = packageInstaller.mySessions.any { it.sessionId == this.sessionId }
           if (sessionExists) {
             try {
