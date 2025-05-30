@@ -43,7 +43,7 @@ on-activate = '''
       echo "sdk.dir=$ANDROID_HOME" >> local.properties
     else
       echo "Updating local.properties to use sdk.dir=$ANDROID_HOME..."
-      sed -i "s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g" local.properties
+      sed -i'' -e "s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g" local.properties
     fi
   fi
 
