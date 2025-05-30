@@ -171,7 +171,6 @@ class MainFragment : BaseFragment() {
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
                         val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
-
                         val feedbackMessage = getString(
                             R.string.feedback_message,
                             BuildConfig.VERSION_NAME,
