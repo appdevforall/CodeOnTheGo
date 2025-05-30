@@ -21,6 +21,7 @@ import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.ui.IDECompletionPublisher
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.ILanguageServer
+import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.progress.ICancelChecker
 import io.github.rosemoe.sora.lang.Language
@@ -30,6 +31,7 @@ import io.github.rosemoe.sora.lang.format.Formatter
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.nio.file.Paths
 
 /**
@@ -47,6 +49,9 @@ abstract class IDELanguage : Language {
   open fun getTabSize(): Int {
     return EditorPreferences.tabSize
   }
+
+  open fun addBreakpoint(file: File, line: Int) {}
+  open fun removeBreakpoint(file: File, line: Int) {}
 
   @Throws(CompletionCancelledException::class)
   override fun requireAutoComplete(

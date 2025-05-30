@@ -29,6 +29,7 @@ import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.databinding.LayoutCodeEditorBinding
+import com.itsaky.androidide.editor.language.IDELanguage
 import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.editor.ui.IDEEditor.Companion.createInputTypeFlags
@@ -46,10 +47,17 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.customOrJBMono
+import io.github.rosemoe.sora.editor.ts.linestyle.BreakpointDrawable
+import io.github.rosemoe.sora.event.ClickEvent
+import io.github.rosemoe.sora.event.InterceptTarget
+import io.github.rosemoe.sora.event.SideIconClickEvent
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.LineSeparator
+import io.github.rosemoe.sora.util.IntPair
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.REGION_LINE_NUMBER
 import io.github.rosemoe.sora.widget.component.Magnifier
+import io.github.rosemoe.sora.widget.resolveTouchRegion
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -132,6 +140,34 @@ class CodeEditorView(
       dividerWidth = SizeUtils.dp2px(2f).toFloat()
       colorScheme = SchemeAndroidIDE.newInstance(context)
       lineSeparator = LineSeparator.LF
+
+      subscribeEvent(ClickEvent::class.java) { event, unsubscribe ->
+        // if the editor is backed by a file, then there's no point in adding a breakpoint
+        val editorFile = this.file ?: return@subscribeEvent
+        val region = IntPair.getFirst(resolveTouchRegion(event.causingEvent))
+        if (region == REGION_LINE_NUMBER) {
+          val language = editorLanguage as? IDELanguage? ?: return@subscribeEvent
+          val server = languageServer ?: return@subscribeEvent
+          if (server.debugAdapter != null) {
+            event.intercept(InterceptTarget.TARGET_EDITOR)
+
+            // If we already have a breakpoint added, we won't have received this event
+            // this is because the click is consumed by the SideIconClickEvent for the breakpoint would have consumed this event
+            // as a result, it's safe to assume that there aren't any breakpoints on this line
+            language.addBreakpoint(editorFile, event.line)
+            postInvalidate()
+          }
+        }
+      }
+
+      subscribeEvent(SideIconClickEvent::class.java) { event, unsubscribe ->
+        val editorFile = this.file ?: return@subscribeEvent
+        if (event.clickedIcon.drawable is BreakpointDrawable) {
+          val language = editorLanguage as? IDELanguage? ?: return@subscribeEvent
+          language.removeBreakpoint(editorFile, event.clickedIcon.line)
+          postInvalidate()
+        }
+      }
     }
 
     _searchLayout = EditorSearchLayout(context, binding.editor)

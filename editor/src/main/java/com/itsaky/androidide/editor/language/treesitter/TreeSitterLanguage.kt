@@ -34,6 +34,7 @@ import io.github.rosemoe.sora.lang.analysis.AnalyzeManager
 import io.github.rosemoe.sora.text.ContentReference
 import io.github.rosemoe.sora.widget.SymbolPairMatch
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  * Tree Sitter language implementation.
@@ -83,6 +84,16 @@ abstract class TreeSitterLanguage(
     this.languageScheme = langScheme
     this.analyzer.langScheme = languageScheme
     langScheme?.styles?.forEach { tsTheme.putStyleRule(it.key, it.value.makeStyle()) }
+  }
+
+  override fun addBreakpoint(file: File, line: Int) {
+    // dispatch breakpoint update to debug client
+    this.analyzer.addBreakpoint(line)
+  }
+
+  override fun removeBreakpoint(file: File, line: Int) {
+    // dispatch breakpoint to debug client
+    this.analyzer.removeBreakpoint(line)
   }
 
   override fun getAnalyzeManager(): AnalyzeManager {
