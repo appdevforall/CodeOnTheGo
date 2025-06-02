@@ -25,6 +25,7 @@ import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.blankj.utilcode.util.FileUtils
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.github.appintro.AppIntro2
@@ -56,6 +57,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
 import org.adfa.constants.DESTINATION_ANDROID_SDK
+import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.HOME_PATH
 import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
@@ -207,6 +209,8 @@ class OnboardingActivity : AppIntro2() {
                 copyAndroidSDK()
                 copyMavenLocalRepoFiles()
                 copyGradleDists()
+                copyToolingApi()
+                copyDocumentation()
 
                 runOnUiThread {
                     val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
@@ -333,6 +337,55 @@ class OnboardingActivity : AppIntro2() {
             println("Gradle Dists copy failed + ${e.message}")
         }
     }
+
+    private fun copyDocumentation() {
+        val dbPath = getDatabasePath(DOCUMENTATION_DB)
+        val dbFile = File(Environment.DOWNLOAD_DIR, DOCUMENTATION_DB)
+        try {
+            if (SPLIT_ASSETS) {
+                if (dbFile.exists()) {
+                    // first priority to copy is documentation db in /sdcard/Download
+                    dbFile.copyTo(dbPath, overwrite = true)
+                } else {
+                    // second priority is the one contained in assets.zip
+                    ZipUtils.unzipFileByKeyword(
+                        Environment.SPLIT_ASSETS_ZIP,
+                        dbPath.parentFile,
+                        DOCUMENTATION_DB
+                    )
+                }
+            } else {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getDatabaseAsset(DOCUMENTATION_DB),
+                    dbPath.path
+                )
+            }
+        } catch (e: IOException) {
+            println("Documentation DB copy failed + ${e.message}")
+        }
+    }
+
+    private fun copyToolingApi() {
+        val tooling_api_jar = "tooling-api-all.jar"
+
+        try {
+            if (Environment.TOOLING_API_JAR.exists()) {
+                FileUtils.delete(Environment.TOOLING_API_JAR)
+            }
+
+            if (SPLIT_ASSETS) {
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, Environment.TOOLING_API_JAR.parentFile, tooling_api_jar)
+            } else {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getCommonAsset(tooling_api_jar),
+                    Environment.TOOLING_API_JAR.absolutePath
+                )
+            }
+        } catch (e: IOException) {
+            println("Tooling API jar copy failed + ${e.message}")
+        }
+    }
+
 
     private fun checkToolsIsInstalled(): Boolean {
         return IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty()
