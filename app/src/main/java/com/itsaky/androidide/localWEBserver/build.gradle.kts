@@ -4,23 +4,9 @@ import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 val brotliVersion = "1.18.0"
 val operatingSystem = DefaultNativePlatform.getCurrentOperatingSystem()
 
-plugins {
-    kotlin("jvm") version "1.9.0"
-    application
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
-}
-
 group = "org.appdevforall.localwebserver"
 version = "1.0-SNAPSHOT"
 
-repositories {
-    mavenCentral()
-}
 
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
@@ -58,10 +44,6 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-}
-
-application {
-    mainClass.set("org.appdevforall.localwebserver.WebServerKtKt")
 }
 
 tasks.test {

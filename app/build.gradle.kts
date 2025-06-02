@@ -34,12 +34,14 @@ import java.util.zip.ZipInputStream
 plugins {
   id("com.android.application")
   id("kotlin-android")
+  id("kotlin-jvm")
   id("kotlin-kapt")
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
 //  id("io.sentry.android.gradle") version "4.2.0"
 
   id("com.itsaky.androidide.desugaring")
+  id("org.gradle.toolchains.foojay-resolver-convention").version("0.10.0")
 }
 
 apply {
