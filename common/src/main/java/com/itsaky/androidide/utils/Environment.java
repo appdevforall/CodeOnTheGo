@@ -17,6 +17,11 @@
 package com.itsaky.androidide.utils;
 
 import android.annotation.SuppressLint;
+import android.os.Build;
+
+import java.util.Arrays;
+import java.util.List;
+
 import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
 import java.io.File;
@@ -74,8 +79,10 @@ public final class Environment {
   public static File GRADLE_DISTS;
 
   public static void init() {
+    var arch = getArchitecture();
     DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
-    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets.zip");
+    var assets_zip = "assets-" + arch + ".zip";
+    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, assets_zip);
 
     ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
     PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
@@ -168,4 +175,19 @@ public final class Environment {
   private static File newTempFile() {
     return new File(TMP_DIR, "temp_" + UUID.randomUUID().toString().replace('-', 'X'));
   }
+
+  public static String getArchitecture() {
+    List<String> supportedAbis = Arrays.asList(Build.SUPPORTED_ABIS);
+
+    if (supportedAbis.contains("arm64-v8a")) {
+      return "v8";
+    } else if (supportedAbis.contains("armeabi-v7a") || supportedAbis.contains("armeabi")) {
+      return "v7";
+    } else if (supportedAbis.contains("x86") || supportedAbis.contains("x86_64")) {
+      return "x86";
+    } else {
+      return "unknown";
+    }
+  }
+
 }
