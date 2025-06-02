@@ -25,15 +25,12 @@ import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
 import androidx.core.app.NotificationManagerCompat
-import org.adfa.constants.GRADLE_FOLDER_NAME
-import org.adfa.constants.TOML_FILE_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R.*
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.lookup.Lookup
-import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
@@ -51,9 +48,6 @@ import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
-import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_INJECT
-import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_LIBDIR
-import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_OPTIONS
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
@@ -72,6 +66,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import org.adfa.constants.GRADLE_FOLDER_NAME
+import org.adfa.constants.TOML_FILE_NAME
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -296,11 +292,6 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     // The one downloaded from Maven is not built for Android
     extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
     extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
-    extraArgs.add("-P${PROP_JDWP_INJECT}=${JdwpOptions.JDWP_ENABLED}")
-    if (JdwpOptions.JDWP_ENABLED) {
-      extraArgs.add("-P${PROP_JDWP_LIBDIR}=${Environment.JDWP_LIB_DIR.absolutePath}")
-      extraArgs.add("-P${PROP_JDWP_OPTIONS}=${JdwpOptions.JDWP_OPTIONS}")
-    }
 
     if (BuildPreferences.isStacktraceEnabled) {
       extraArgs.add("--stacktrace")
@@ -418,9 +409,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     return performBuildTasks(server!!.initialize(params))
   }
 
-  override fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> {
+  override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
     checkServerStarted()
-    val message = TaskExecutionMessage(listOf(*tasks))
     return performBuildTasks(server!!.executeTasks(message))
   }
 

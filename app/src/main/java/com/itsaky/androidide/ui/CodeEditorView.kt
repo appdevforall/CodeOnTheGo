@@ -142,7 +142,7 @@ class CodeEditorView(
       lineSeparator = LineSeparator.LF
 
       subscribeEvent(ClickEvent::class.java) { event, unsubscribe ->
-        // if the editor is backed by a file, then there's no point in adding a breakpoint
+        // if the editor is not backed by a file, then there's no point in adding a breakpoint
         val editorFile = this.file ?: return@subscribeEvent
         val region = IntPair.getFirst(resolveTouchRegion(event.causingEvent))
         if (region == REGION_LINE_NUMBER) {

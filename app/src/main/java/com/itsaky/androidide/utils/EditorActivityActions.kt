@@ -21,8 +21,9 @@ import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry
+import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.actions.build.ProjectSyncAction
-import com.itsaky.androidide.actions.build.QuickRunWithCancellationAction
+import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.build.RunTasksAction
 import com.itsaky.androidide.actions.editor.CopyAction
 import com.itsaky.androidide.actions.editor.CutAction
@@ -81,7 +82,8 @@ class EditorActivityActions {
       // Toolbar actions
       registry.registerAction(UndoAction(context, order++))
       registry.registerAction(RedoAction(context, order++))
-      registry.registerAction(QuickRunWithCancellationAction(context, order++))
+      registry.registerAction(QuickRunAction(context, order++))
+      registry.registerAction(DebugAction(context, order++))
       registry.registerAction(RunTasksAction(context, order++))
       registry.registerAction(SaveFileAction(context, order++))
       registry.registerAction(PreviewLayoutAction(context, order++))
