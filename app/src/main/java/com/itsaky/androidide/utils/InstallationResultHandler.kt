@@ -46,8 +46,7 @@ object InstallationResultHandler {
       INSTALL_PACKAGE_REQ_CODE,
       intent,
       PendingIntent.FLAG_UPDATE_CURRENT
-    )
-      .intentSender
+    ).intentSender
   }
 
   @JvmStatic
