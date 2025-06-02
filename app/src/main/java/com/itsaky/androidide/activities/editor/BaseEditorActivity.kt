@@ -378,9 +378,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
-
-        Log.d("BaseEditorActivity", "onCreate: bind: DebuggerService")
-        bindService(Intent(this, DebuggerService::class.java), debuggerServiceConnection, Context.BIND_AUTO_CREATE)
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
