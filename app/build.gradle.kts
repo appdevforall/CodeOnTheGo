@@ -5,12 +5,22 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import okio.Path.Companion.toPath
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.reflect.jvm.javaMethod
+
+import java.net.URL
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+import org.json.JSONObject
+
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
 
 plugins {
   id("com.android.application")
@@ -31,6 +41,7 @@ buildscript {
   dependencies {
     classpath(libs.logging.logback.core)
     classpath(libs.composite.desugaringCore)
+    classpath(libs.org.json)
   }
 }
 
@@ -231,6 +242,7 @@ dependencies {
   androidTestImplementation(projects.testing.android)
 
   androidTestImplementation(libs.tests.androidx.test.runner)
+
 }
 
 
@@ -242,3 +254,106 @@ dependencies {
 //    // disable if you don't want to expose your sources
 //    includeSourceContext.set(true)
 //}
+
+tasks.register("downloadDocDb") {
+  doLast {
+    val githubRepo = "appdevforall/OfflineDocumentationTools"
+    val latestReleaseApiUrl = "https://api.github.com/repos/$githubRepo/releases/latest"
+
+    project.logger.lifecycle("Fetching latest release metadata...")
+    try {
+      val jsonResponse = URL(latestReleaseApiUrl).readText()
+      val jsonObject = JSONObject(jsonResponse)
+
+      val assets = jsonObject.getJSONArray("assets")
+      var assetUrl: String? = null
+      var assetName: String? = null
+
+      for (i in 0 until assets.length()) {
+        val asset = assets.getJSONObject(i)
+        val name = asset.getString("name")
+        if (name.endsWith(".sqlite")) {
+          assetUrl = asset.getString("browser_download_url")
+          assetName = name
+          break
+        }
+      }
+
+      val dbName = "documentation.db"
+      if (assetUrl != null && assetName != null) {
+        val destinationPath = project.rootProject.projectDir.resolve("libs_source/${dbName}").toPath()
+
+
+        project.logger.lifecycle("Downloading: $assetUrl as ${destinationPath}")
+
+        URL(assetUrl).openStream().use { input ->
+          Files.copy(input, destinationPath, StandardCopyOption.REPLACE_EXISTING)
+          println("Download complete: ${destinationPath.toString()}")
+        }
+      } else {
+        project.logger.lifecycle("No `.sqlite` asset found in the latest release.")
+      }
+    } catch (e: Exception) {
+      project.logger.lifecycle("Failed to fetch documentation.db info: ${e.message}")
+    }
+  }
+}
+
+fun createAssetsZip(zipName: String, archDir: String) {
+  val outputDir = project.layout.buildDirectory.dir("outputs/assets").get().asFile
+  if (!outputDir.exists()) {
+    outputDir.mkdirs()
+    println("Creating output directory: ${outputDir.absolutePath}")
+  }
+
+  val zipFile = outputDir.resolve(zipName)
+  val sourceDir = project.rootDir.resolve("libs_source")
+  val pkgDir = sourceDir.resolve(archDir)
+
+
+  ZipOutputStream(zipFile.outputStream()).use { zipOut ->
+
+    mapOf(
+      "android-sdk.zip" to sourceDir.resolve("androidsdk/android-sdk.zip"),
+      "localMvnRepository.zip" to sourceDir.resolve("gradle/localMvnRepository.zip"),
+      "gradle-8.7-bin.zip" to sourceDir.resolve("gradle-8.7-bin.zip"),
+      "tooling-api-all.jar" to project.rootDir.resolve("subprojects/tooling-api-impl/build/libs/tooling-api-all.jar"),
+      "documentation.db" to sourceDir.resolve("documentation.db")
+    ).forEach { (fileName, filePath) ->
+      if (filePath.exists()) {
+        project.logger.lifecycle("Zipping ${fileName} from ${filePath.absolutePath}")
+        zipOut.putNextEntry(ZipEntry(fileName))
+        filePath.inputStream().copyTo(zipOut)
+        zipOut.closeEntry()
+      }
+    }
+
+    pkgDir.walk().filter { it.isFile }.forEach { file ->
+      val relativePath = "packages/" + file.name
+      zipOut.putNextEntry(ZipEntry(relativePath))
+      file.inputStream().copyTo(zipOut)
+      zipOut.closeEntry()
+    }
+
+    println("Created ${zipName} successfully at ${zipFile.parentFile.absolutePath}")
+  }
+}
+tasks.register("assembleV8Assets") {
+  dependsOn("assembleV8Debug")
+
+  doLast {
+    createAssetsZip("assets-v8.zip","termux/v8")
+  }
+}
+
+tasks.register("assembleV7Assets") {
+  dependsOn("assembleV7Debug")
+
+  doLast {
+    createAssetsZip("assets-v7.zip","termux/v7")
+  }
+}
+
+tasks.register("assembleAssets") {
+  dependsOn("assembleV8Assets", "assembleV7Assets")
+}
