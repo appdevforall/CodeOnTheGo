@@ -58,6 +58,8 @@ public class ToolsManager {
 
     public static String COMMON_ASSET_DATA_DIR = "data/common";
 
+    public static String DATABASE_ASSET_DATA_DIR = "database";
+
     public static void init(@NonNull BaseApplication app, Runnable onFinish) {
 
         if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
@@ -70,11 +72,7 @@ public class ToolsManager {
             IJdkDistributionProvider.getInstance().loadDistributions();
             writeNoMediaFile();
             extractAapt2();
-            extractToolingApi();
             extractCogoPlugin();
-            extractGradleDists();
-            // NOTE no need to extract android.jar
-            //extractAndroidJar();
             extractColorScheme(app);
             extractJdwp(app);
             writeInitScript();
@@ -205,13 +203,6 @@ public class ToolsManager {
         }
     }
 
-    private static void extractAndroidJar() {
-        if (!Environment.ANDROID_JAR.exists()) {
-            ResourceUtils.copyFileFromAssets(getCommonAsset("android.jar"),
-                    Environment.ANDROID_JAR.getAbsolutePath());
-        }
-    }
-
     private static void deleteIdeenv() {
         final var file = new File(Environment.BIN_DIR, "ideenv");
         if (file.exists() && !file.delete()) {
@@ -240,6 +231,12 @@ public class ToolsManager {
         return COMMON_ASSET_DATA_DIR + "/" + name;
     }
 
+    @NonNull
+    @Contract(pure = true)
+    public static String getDatabaseAsset(String name) {
+        return DATABASE_ASSET_DATA_DIR + "/" + name;
+    }
+
     private static void extractAapt2() {
         if (!Environment.AAPT2.exists()) {
             final var context = BaseApplication.getBaseInstance();
@@ -257,15 +254,6 @@ public class ToolsManager {
         }
     }
 
-    private static void extractToolingApi() {
-        if (Environment.TOOLING_API_JAR.exists()) {
-            FileUtils.delete(Environment.TOOLING_API_JAR);
-        }
-
-        ResourceUtils.copyFileFromAssets(getCommonAsset("tooling-api-all.jar"),
-                Environment.TOOLING_API_JAR.getAbsolutePath());
-    }
-
     private static void extractCogoPlugin() {
         if (Environment.COGO_PLUGIN_JAR.exists()) {
             FileUtils.delete(Environment.COGO_PLUGIN_JAR);
@@ -273,14 +261,6 @@ public class ToolsManager {
 
         ResourceUtils.copyFileFromAssets(getCommonAsset("cogo-plugin.jar"),
                 Environment.COGO_PLUGIN_JAR.getAbsolutePath());
-    }
-
-    private static void extractGradleDists() {
-        String[] binToCopy = {"gradle-8.7-bin.zip"};
-        for (String binFile : binToCopy) {
-            ResourceUtils.copyFileFromAssets(getCommonAsset(binFile),
-                    Environment.GRADLE_DISTS.getAbsolutePath() + File.separator + binFile);
-        }
     }
 
     private static void writeInitScript() {
