@@ -8,6 +8,9 @@
       },
       "jdk17": {
         "pkg-path": "jdk17"
+      },
+      "ktlint": {
+        "pkg-path": "ktlint"
       }
     },
     "hook": {
@@ -33,13 +36,13 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:22:15.112666Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:53.881398Z",
       "stabilities": [
         "unstable"
       ],
@@ -62,13 +65,13 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:40:49.451730Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:00.976394Z",
       "stabilities": [
         "unstable"
       ],
@@ -91,13 +94,13 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:57:24.026334Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:56:58.697593Z",
       "stabilities": [
         "unstable"
       ],
@@ -120,13 +123,13 @@
       "description": "Android Studio CLI Tools",
       "install_id": "android-studio-tools",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "android-studio-tools-13114758",
       "pname": "android-studio-tools",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T05:16:51.111855Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:55.390466Z",
       "stabilities": [
         "unstable"
       ],
@@ -149,13 +152,13 @@
       "description": "Certified builds of OpenJDK",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "zulu-ca-jdk-17.0.12",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:22:16.521322Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.683189Z",
       "stabilities": [
         "unstable"
       ],
@@ -178,13 +181,13 @@
       "description": "Open-source Java Development Kit",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "openjdk-17.0.14+7",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:40:52.420256Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:04.041996Z",
       "stabilities": [
         "unstable"
       ],
@@ -208,13 +211,13 @@
       "description": "Certified builds of OpenJDK",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "zulu-ca-jdk-17.0.12",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T04:57:25.459654Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:57:00.146185Z",
       "stabilities": [
         "unstable"
       ],
@@ -237,13 +240,13 @@
       "description": "Open-source Java Development Kit",
       "install_id": "jdk17",
       "license": "GPL-2.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
       "name": "openjdk-17.0.14+7",
       "pname": "jdk17",
-      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
-      "rev_count": 804993,
-      "rev_date": "2025-05-23T18:48:26Z",
-      "scrape_date": "2025-05-26T05:16:54.365394Z",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:58.687401Z",
       "stabilities": [
         "unstable"
       ],
@@ -259,11 +262,132 @@
       "system": "x86_64-linux",
       "group": "toplevel",
       "priority": 5
+    },
+    {
+      "attr_path": "ktlint",
+      "broken": false,
+      "derivation": "/nix/store/l4yrdp5ay5mxphca3axzp37ykan4225g-ktlint-1.5.0.drv",
+      "description": "Anti-bikeshedding Kotlin linter with built-in formatter",
+      "install_id": "ktlint",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "ktlint-1.5.0",
+      "pname": "ktlint",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:22:55.882612Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/4zwf9cdjprwf3c00zvgbpm2gpilcmbkb-ktlint-1.5.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ktlint",
+      "broken": false,
+      "derivation": "/nix/store/yiv4nqv1ny2dl8rzsjgwify8bm0k85ji-ktlint-1.5.0.drv",
+      "description": "Anti-bikeshedding Kotlin linter with built-in formatter",
+      "install_id": "ktlint",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "ktlint-1.5.0",
+      "pname": "ktlint",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:41:04.666271Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/c4dm33d8arkm6lkn79rkx978v49ci404-ktlint-1.5.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ktlint",
+      "broken": false,
+      "derivation": "/nix/store/66w8a2r6aylls2825vrgfzr9fzkdp396-ktlint-1.5.0.drv",
+      "description": "Anti-bikeshedding Kotlin linter with built-in formatter",
+      "install_id": "ktlint",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "ktlint-1.5.0",
+      "pname": "ktlint",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T04:57:00.357625Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/92zn9f2abl03a8x0jgpnndar8590avyw-ktlint-1.5.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ktlint",
+      "broken": false,
+      "derivation": "/nix/store/kc309mdhcxzlygr37skfx94rb40l24y6-ktlint-1.5.0.drv",
+      "description": "Anti-bikeshedding Kotlin linter with built-in formatter",
+      "install_id": "ktlint",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "name": "ktlint-1.5.0",
+      "pname": "ktlint",
+      "rev": "96ec055edbe5ee227f28cdbc3f1ddf1df5965102",
+      "rev_count": 807377,
+      "rev_date": "2025-05-28T19:24:49Z",
+      "scrape_date": "2025-05-31T05:15:59.336373Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.5.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mfxd71wmry878391qkfyyg8i60r8q4si-ktlint-1.5.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
     }
   ],
   "compose": {
     "composer": {
       "version": 1,
+      "install": {
+        "ktlint": {
+          "pkg-path": "ktlint"
+        }
+      },
       "hook": {
         "on-activate": "  # Set up local.properties file\n  if ! [ -f \"local.properties\" ]; then\n    echo \"Creating local.properties file...\"\n    echo \"sdk.dir=$ANDROID_HOME\" > local.properties\n  else\n    local_props=$(cat \"local.properties\")\n    if ! echo \"$local_props\" | grep -q \"^sdk.dir=\"; then\n      echo \"Updating local.properties to add sdk.dir=$ANDROID_HOME...\"\n      echo \"sdk.dir=$ANDROID_HOME\" >> local.properties\n    else\n      echo \"Updating local.properties to use sdk.dir=$ANDROID_HOME...\"\n      sed -i'' -e \"s|sdk.dir=.*|sdk.dir=$ANDROID_HOME|g\" local.properties\n    fi\n  fi\n\n  # Set git-hooks, if required\n  hook=\".git/hooks/pre-commit\"\n  if ! [ -f \"$hook\" ] || ! cat \"$hook\" | grep -q 'COGO_PRE_COMMIT_HOOK'; then\n    echo \"Updating pre-commit hook...\"\n    cat .githooks/pre-commit >> \"$hook\"\n    echo \"# -- COGO_PRE_COMMIT_HOOK\" >> \"$hook\"\n    chmod +x \"$hook\"\n  fi\n"
       },
