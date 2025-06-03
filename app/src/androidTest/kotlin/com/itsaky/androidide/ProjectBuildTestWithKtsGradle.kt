@@ -236,6 +236,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
         }
     }
 
+// TODO: to be uncommented out when the compose project template is fixed
 //    @Test
 //    fun test_projectBuild_composeProject() {
 //        run {
