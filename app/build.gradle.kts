@@ -41,7 +41,7 @@ buildscript {
   dependencies {
     classpath(libs.logging.logback.core)
     classpath(libs.composite.desugaringCore)
-    classpath("org.json:json:20210307")
+    classpath(libs.org.json)
   }
 }
 
@@ -281,10 +281,10 @@ tasks.register("downloadDocDb") {
 
       val dbName = "documentation.db"
       if (assetUrl != null && assetName != null) {
-        val destinationPath = layout.projectDirectory.file("libs_source/${dbName}").asFile.toPath()
+        val destinationPath = project.rootProject.projectDir.resolve("libs_source/${dbName}").toPath()
 
 
-        project.logger.lifecycle("Downloading: $assetUrl as ${dbName}")
+        project.logger.lifecycle("Downloading: $assetUrl as ${destinationPath}")
 
         URL(assetUrl).openStream().use { input ->
           Files.copy(input, destinationPath, StandardCopyOption.REPLACE_EXISTING)
