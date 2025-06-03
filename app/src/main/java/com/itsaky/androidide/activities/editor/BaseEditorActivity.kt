@@ -17,15 +17,11 @@
 
 package com.itsaky.androidide.activities.editor
 
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.os.IBinder
 import android.os.Process
 import android.text.Spannable
 import android.text.SpannableString
@@ -92,7 +88,6 @@ import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
@@ -203,17 +198,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
     private val editorLayoutCorners by lazy {
         resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
-    }
-
-    private var debuggerService: DebuggerService? = null
-    private val debuggerServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            debuggerService = (service as DebuggerService.Binder).getService()
-            debuggerService!!.showOverlay()
-        }
-        override fun onServiceDisconnected(name: ComponentName?) {
-            debuggerService = null
-        }
     }
 
     private var optionsMenuInvalidator: Runnable? = null
@@ -380,7 +364,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         watchMemory()
 
         Log.d("BaseEditorActivity", "onCreate: bind: DebuggerService")
-        bindService(Intent(this, DebuggerService::class.java), debuggerServiceConnection, Context.BIND_AUTO_CREATE)
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {

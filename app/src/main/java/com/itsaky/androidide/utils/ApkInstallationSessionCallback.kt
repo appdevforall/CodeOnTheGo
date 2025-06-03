@@ -17,8 +17,11 @@
 
 package com.itsaky.androidide.utils
 
+import android.content.Context
+import android.content.Intent
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.activities.editor.BaseEditorActivity
+import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.ui.EditorBottomSheet
 import org.slf4j.LoggerFactory
 
@@ -26,7 +29,18 @@ import org.slf4j.LoggerFactory
 class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) :
   SingleSessionCallback() {
 
+  private var debuggerService: DebuggerService? = null
   private var sessionId = -1
+
+  private val debuggerServiceConnection = DebuggerUtils.debuggerServiceConnection(
+    onConnected = { service ->
+      debuggerService = service
+      debuggerService?.showOverlay()
+    },
+    onDisconnected = {
+      debuggerService = null
+    }
+  )
 
   companion object {
     private val log = LoggerFactory.getLogger(ApkInstallationSessionCallback::class.java)
@@ -50,7 +64,10 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
     activity?._binding?.content?.apply {
       bottomSheet.showChild(EditorBottomSheet.CHILD_HEADER)
       bottomSheet.setActionProgress(0)
-      if (!success) {
+      if (success) {
+        val intent = Intent(activity, DebuggerService::class.java)
+        activity?.bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
+      } else {
         activity?.flashError(string.title_installation_failed)
       }
 
