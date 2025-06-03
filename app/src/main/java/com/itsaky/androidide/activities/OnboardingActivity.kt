@@ -329,7 +329,7 @@ class OnboardingActivity : AppIntro2() {
                 } else {
                     ResourceUtils.copyFileFromAssets(
                         ToolsManager.getCommonAsset(binFile),
-                        outputDirectory.path
+                        outputDirectory.resolve(binFile).absolutePath
                     )
                 }
             }
