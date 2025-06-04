@@ -107,5 +107,4 @@ sentry.properties
 tests/test-home
 /tests/**/.androidide/init/model.jar
 
-
-/composite-builds/**/build/
+/composite-builds/build-deps-common/constants/build/
