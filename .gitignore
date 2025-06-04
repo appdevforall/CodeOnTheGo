@@ -105,5 +105,7 @@ sentry.properties
 
 # Generated files for tooling API
 tests/test-home
+/tests/**/.androidide/init/model.jar
+
 
 /composite-builds/**/build/
