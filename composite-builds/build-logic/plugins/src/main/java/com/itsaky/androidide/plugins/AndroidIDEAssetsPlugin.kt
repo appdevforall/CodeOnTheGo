@@ -21,11 +21,14 @@ import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
 import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
 import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
 import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
+import org.adfa.constants.SPLIT_ASSETS
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
 import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
+import com.itsaky.androidide.plugins.tasks.CopyDocDbToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleCachesToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleExecutableToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopySdkToAssetsTask
@@ -36,6 +39,7 @@ import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
 import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.configurationcache.extensions.capitalized
 
 /**
@@ -67,14 +71,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
             val setupAapt2TaskTaskProvider = tasks.register("setupAapt2", SetupAapt2Task::class.java)
 
-            // NOTE: skip adding android.jar to apk
-            //val addAndroidJarTaskProvider = tasks.register(
-            //    "addAndroidJarToAssets",
-            //    AddAndroidJarToAssetsTask::class.java
-            //) {
-            //    androidJar = androidComponentsExtension.getAndroidJar(assertExists = true)
-            //}
-
             val gradleExecutableToAssetsTaskProvider = tasks.register(
                 COPY_GRADLE_EXECUTABLE_TASK_NAME,
                 CopyGradleExecutableToAssetsTask::class.java
@@ -91,6 +87,18 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 COPY_ANDROID_SDK_TO_ASSETS,
                 CopySdkToAssetsTask::class.java
             )
+
+            val docDbToAssetsTaskProvider = tasks.register(
+                COPY_DOC_DB_TO_ASSETS,
+                CopyDocDbToAssetsTask::class.java
+            )
+
+            if (SPLIT_ASSETS) {
+                gradleExecutableToAssetsTaskProvider.configure { enabled = false }
+                gradleCachesToAssetsTaskProvider.configure { enabled = false }
+                androidSdkToAssetsTaskProvider.configure { enabled = false }
+                docDbToAssetsTaskProvider.configure { enabled = false }
+            }
 
             androidComponentsExtension.onVariants { variant ->
 
@@ -144,6 +152,10 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     copyToolingApiJar,
                     AddFileToAssetsTask::outputDirectory
                 )
+
+                if (SPLIT_ASSETS) {
+                    copyToolingApiJar.configure { enabled = false }
+                }
 
                 val copyCogoPluginJar = tasks.register(
                     "copy${variantNameCapitalized}CogoPluginJar",
@@ -200,10 +212,16 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     CopyGradleCachesToAssetsTask::outputDirectory
                 )
 
-                // Local android sdk version copier
+                // documentation db copier
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     androidSdkToAssetsTaskProvider,
                     CopySdkToAssetsTask::outputDirectory
+                )
+
+                // Local android sdk version copier
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    docDbToAssetsTaskProvider,
+                    CopyDocDbToAssetsTask::outputDirectory
                 )
             }
         }
