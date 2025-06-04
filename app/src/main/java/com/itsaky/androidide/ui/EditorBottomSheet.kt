@@ -147,8 +147,8 @@ constructor(
             tooltipCategory = "ide",
             tooltipTag = tooltipMessage,
             detail = tooltipMessage,
-            summary =  "More information about $title",
-            buttons = arrayListOf(Pair("Learn more", "~/help_top.html")),
+            summary = context.getString(R.string.more_information_about, title),
+            buttons = arrayListOf(Pair(context.getString(R.string.learn_more), "~/help_top.html")),
           ),
         )
 
