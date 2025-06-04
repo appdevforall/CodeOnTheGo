@@ -160,7 +160,7 @@ class MainFragment : BaseFragment() {
     private fun performFeedbackAction() {
         val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.let { builder ->
-            builder.setTitle("Alert!")
+            builder.setTitle(getString(R.string.alert))
                 .setMessage(
                     HtmlCompat.fromHtml(
                         getString(R.string.email_feedback_warning_prompt),
@@ -200,7 +200,7 @@ class MainFragment : BaseFragment() {
                             }
 
                             shareActivityResultLauncher.launch(
-                                Intent.createChooser(feedbackIntent, "Send Feedback")
+                                Intent.createChooser(feedbackIntent, getString(R.string.send_feedback))
                             )
                         } catch (e: Exception) {
                             try {
@@ -216,7 +216,7 @@ class MainFragment : BaseFragment() {
                                     putExtra(Intent.EXTRA_TEXT, feedbackBody)
                                 }
                                 shareActivityResultLauncher.launch(
-                                    Intent.createChooser(fallbackIntent, "Send Feedback")
+                                    Intent.createChooser(fallbackIntent, getString(R.string.send_feedback))
                                 )
                             } catch (e2: Exception) {
                                 requireActivity().flashError(R.string.no_email_apps)
