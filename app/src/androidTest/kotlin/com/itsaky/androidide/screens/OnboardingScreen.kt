@@ -10,7 +10,13 @@ object OnboardingScreen : KScreen<OnboardingScreen>() {
     override val layoutId: Int? = null
     override val viewClass: Class<*>? = null
 
-    val greetingTitle = KTextView { withText(R.string.app_name) }
-    val greetingSubtitle = KTextView { withText(R.string.msg_no_internet_no_problem) }
+    val greetingTitle = KTextView {
+        withId(R.id.title)
+        isDisplayed()
+    }
+    val greetingSubtitle = KTextView {
+        withId(R.id.description)
+        isDisplayed()
+    }
     val nextButton = KButton { withId(R.id.next) }
 }
