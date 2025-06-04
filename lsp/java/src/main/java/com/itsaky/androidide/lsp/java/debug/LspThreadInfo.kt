@@ -27,7 +27,7 @@ class JavaStackFrame(
 
         StackFrameDescriptor(
             method = method.name(),
-            methodSignature = method.genericSignature(),
+            methodSignature = method.signature(),
             sourceFile = location.sourceName(),
             lineNumber = location.lineNumber().toLong()
         )

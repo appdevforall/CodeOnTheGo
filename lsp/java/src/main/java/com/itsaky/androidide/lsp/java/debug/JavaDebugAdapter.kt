@@ -16,9 +16,11 @@ import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
 import com.itsaky.androidide.lsp.debug.model.StepResult
-import com.itsaky.androidide.lsp.debug.model.ThreadInfoParams
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
+import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
+import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
@@ -126,15 +128,16 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             throw UnsupportedOperationException("Debugging multiple VMs is not supported yet")
         }
 
-        val vmCanBeModfified = vm.canBeModified()
+        val vmCanBeModified = vm.canBeModified()
         val client = RemoteClient(
             adapter = this,
             name = vm.name(),
             version = vm.version(),
             capabilities = RemoteClientCapabilities(
-                breakpointSupport = vmCanBeModfified,
-                stepSupport = vmCanBeModfified,
-                threadInfoSupport = vmCanBeModfified,
+                breakpointSupport = vmCanBeModified,
+                stepSupport = vmCanBeModified,
+                threadInfoSupport = vmCanBeModified,
+                threadListSupport = vmCanBeModified,
             ),
         )
 
@@ -316,7 +319,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     }
 
     override suspend fun threadInfo(
-        request: ThreadInfoParams
+        request: ThreadInfoRequestParams
     ): ThreadInfoResponse {
         val vm = connVm()
 
@@ -334,6 +337,21 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         }
 
         return ThreadInfoResponse(ThreadInfoResult.Failure())
+    }
+
+    override suspend fun allThreads(request: ThreadListRequestParams): ThreadListResponse {
+        val vm = connVm()
+        check(vm.client == request.remoteClient) {
+            "Received request for thread list from a different client"
+        }
+
+        if (!vm.isHandlingEvents || !vm.client.capabilities.threadListSupport) {
+            return ThreadListResponse(emptyList())
+        }
+
+        return ThreadListResponse(
+            threads = vm.threadState.threads.map { thread -> LspThreadInfo(thread) }
+        )
     }
 
     private fun clearPreviousStep(vm: VirtualMachine, thread: ThreadReference) {

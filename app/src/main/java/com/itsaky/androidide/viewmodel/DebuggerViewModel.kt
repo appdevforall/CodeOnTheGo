@@ -101,7 +101,7 @@ class DebuggerViewModel : ViewModel() {
         )
 
     fun setThreads(threads: List<ThreadInfo>) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             state.update {
                 val threadIndex = if (threads.isNotEmpty()) 0 else -1
                 val frameIndex =
@@ -152,7 +152,7 @@ class DebuggerViewModel : ViewModel() {
     }
 
     fun setSelectedThreadIndex(index: Int) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             state.update { current ->
                 check(index in 0..<current.threads.size) {
                     "Invalid thread index: $index"
@@ -205,7 +205,7 @@ class DebuggerViewModel : ViewModel() {
     }
 
     fun setSelectedFrameIndex(index: Int) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             state.update { current ->
                 check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
                     "Invalid frame index: $index"

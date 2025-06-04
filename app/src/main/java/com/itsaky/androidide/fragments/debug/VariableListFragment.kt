@@ -5,7 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
@@ -18,7 +18,7 @@ class VariableListFragment : Fragment() {
 
     private lateinit var treeView: TreeView<EagerVariable<*>>
 
-    private val viewModel by viewModels<DebuggerViewModel>(ownerProducer = { requireActivity() })
+    private val viewModel by activityViewModels<DebuggerViewModel>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
