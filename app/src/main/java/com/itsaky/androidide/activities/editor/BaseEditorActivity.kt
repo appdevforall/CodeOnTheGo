@@ -220,11 +220,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     fun ensureDebuggerServiceBound() {
         if (debuggerService == null) {
-            Log.d("DebuggerService", "Binding DebuggerService...")
             val intent = Intent(this, DebuggerService::class.java)
             bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
-        } else {
-            Log.d("DebuggerService", "Already bound to DebuggerService.")
         }
     }
 
