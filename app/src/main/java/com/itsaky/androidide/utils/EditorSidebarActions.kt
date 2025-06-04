@@ -63,6 +63,7 @@ import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.databinding.ContactDialogBinding
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
+import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 import androidx.core.net.toUri
 
@@ -72,6 +73,10 @@ import androidx.core.net.toUri
  *
  * @author Akash Yadav
  */
+
+object ContactDetails {
+    const val EMAIL_SUPPORT = "feedback@appdevforall.org"
+}
 
 internal object EditorSidebarActions {
     val tooltipTags = mutableListOf<String>()
@@ -234,75 +239,22 @@ internal object EditorSidebarActions {
     }
 
     fun showContactDialog(context: Context) {
-        val dialog = Dialog(context)
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val builder = DialogUtils.newMaterialDialogBuilder(context)
 
-        // Inflate the custom layout using view binding
-        val binding = ContactDialogBinding.inflate(LayoutInflater.from(context))
-        dialog.setContentView(binding.root)
-
-        // Calculate the desired external padding in pixels (32dp each side)
-        val metrics = context.resources.displayMetrics
-        val externalPadding = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, 16f, metrics
-        ).toInt()
-        val dialogWidth = metrics.widthPixels - 2 * externalPadding
-
-        // Set the dialog's dimensions: custom width to create padding on each side
-        dialog.window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-
-        val feedbackEmail = context.getString(R.string.feedback_email)
-
-        // Prepare the email intent for reuse
-        val emailIntent: () -> Unit = {
-            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                data = "mailto:$feedbackEmail?subject=Feedback about Code on the Go".toUri()
+        builder.setTitle(R.string.msg_contact_app_dev_title)
+            .setMessage(R.string.msg_contact_app_dev_description)
+            .setNegativeButton(android.R.string.cancel) { dialog, _ ->
+                dialog.dismiss()
             }
-            context.startActivity(intent)
-        }
-
-        // Apply a clickable span on tvDescription to remove underline and set blue color.
-        val email = feedbackEmail
-        val text = binding.tvDescription.text.toString()
-        val start = text.indexOf(email)
-        if (start >= 0) {
-            val spannable = SpannableString(text)
-            val clickableSpan = object : ClickableSpan() {
-                override fun onClick(widget: View) {
-                    emailIntent()
+            .setPositiveButton(R.string.send_email) { dialog, _ ->
+                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                    data = "mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
                 }
-
-                override fun updateDrawState(ds: TextPaint) {
-                    ds.color = ContextCompat.getColor(context, R.color.primary_blue)
-                    ds.isUnderlineText = false // Remove underline
-                }
+                context.startActivity(intent)
+                dialog.dismiss()
             }
-            spannable.setSpan(
-                clickableSpan,
-                start,
-                start + email.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            binding.tvDescription.text = spannable
-            binding.tvDescription.movementMethod = LinkMovementMethod.getInstance()
-        }
-
-        // Set the whole dialog clickable (except the Close button) to open the email.
-        binding.root.setOnClickListener {
-            emailIntent()
-        }
-
-        // When the send email button is clicked:
-        binding.btnSendEmail.setOnClickListener {
-            emailIntent()
-        }
-        // Close button action: dismiss the dialog.
-        binding.btnClose.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.show()
+            .create()
+            .show()
     }
 
     fun SidebarActionItem.tooltipTag(): String {
