@@ -101,8 +101,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        transferDatabaseFromAssets(this, DATABASENAME)
-
         openLastProject()
         setupSecondaryDisplay()
 
@@ -127,63 +125,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
         instance = this
     }
-
-    /**
-     * Transfers a database from the assets folder to the device's internal storage.
-     *
-     * @param context The application context.
-     * @param databaseName The name of the database file in the assets folder (e.g., "mydatabase.db").
-     * @return true if the database was transferred successfully, false otherwise.
-     */
-    fun transferDatabaseFromAssets(context: Context, databaseName: String): Boolean {
-        //database is 128M so pick a large buffer size for speed
-        val BUFFERSIZE = 1024*1024
-
-        val dbPath = context.getDatabasePath(databaseName)
-        Log.d(TAG, "transferDatabaseFromAssets\\\\dbPath = $dbPath")
-
-        // Check if the database already exists in internal storage.
-        if (dbPath.exists()) {
-            Log.d(TAG, "Database $databaseName already exists at ${dbPath.absolutePath}")
-            return true // Or false, depending on your desired behavior if the file exists
-        }
-
-        // Ensure the directory exists.
-        val dbDir = File(dbPath.parent!!) // Use non-null assertion as getDatabasePath's parent is never null
-        if (!dbDir.exists()) {
-            if (!dbDir.mkdirs()) {
-                Log.e(TAG, "Failed to create database directory: ${dbDir.absolutePath} for $DATABASENAME")
-                return false
-            }
-            Log.d(TAG, "Database directory created at ${dbDir.absolutePath}")
-        }
-
-        // Copy the database file from assets to internal storage.
-
-        val inputStream: InputStream = context.assets.open("database/$databaseName") // Corrected path
-        val outputStream = FileOutputStream(dbPath)
-        try {
-            val buffer = ByteArray(BUFFERSIZE) // Use a reasonable buffer size
-            var length: Int
-            while (inputStream.read(buffer).also { length = it } > 0) {
-                outputStream.write(buffer, 0, length)
-            }
-            outputStream.flush()
-            outputStream.close()
-            inputStream.close()
-            Log.d(TAG, "Database $databaseName successfully to ${dbPath.absolutePath}")
-            return true
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to copy database $databaseName: ${e.message}")
-            e.printStackTrace() // Print the stack trace to help with debugging
-            return false
-        } finally {
-            outputStream.flush()
-            outputStream.close()
-            inputStream.close()
-        }
-    }
-
 
     override fun onApplySystemBarInsets(insets: Insets) {
         binding.fragmentContainersParent.setPadding(
