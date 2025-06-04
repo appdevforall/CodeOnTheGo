@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
@@ -17,7 +17,7 @@ import kotlinx.coroutines.Dispatchers
  */
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 
-    private val viewHolder by viewModels<DebuggerViewModel>(ownerProducer = { requireActivity() })
+    private val viewHolder by activityViewModels<DebuggerViewModel>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

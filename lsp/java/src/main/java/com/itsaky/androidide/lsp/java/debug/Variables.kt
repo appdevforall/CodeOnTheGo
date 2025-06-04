@@ -184,8 +184,7 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
             stackFrame: StackFrame, variable: LocalVariable
         ): JavaLocalVariable<*> = when (variable.type()) {
             is PrimitiveType -> JavaPrimitiveVariable(stackFrame, variable)
-            is ObjectReference -> JavaStringVariable(stackFrame, variable)
-            else -> throw IllegalStateException("Unsupported variable type: ${variable.type()}")
+            else -> JavaStringVariable(stackFrame, variable)
         }
     }
 

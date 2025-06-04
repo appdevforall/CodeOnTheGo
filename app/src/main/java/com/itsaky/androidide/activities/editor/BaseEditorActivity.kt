@@ -17,12 +17,15 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.IBinder
 import android.os.Process
 import android.text.Spannable
 import android.text.SpannableString
@@ -97,13 +100,13 @@ import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
 import com.itsaky.androidide.utils.ApkInstallationSessionCallback
-import com.itsaky.androidide.utils.DebuggerUtils
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
@@ -133,7 +136,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
     protected val memoryUsageWatcher = MemoryUsageWatcher()
     protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
-    private var debuggerService: DebuggerService? = null
 
     var isDestroying = false
         protected set
@@ -147,6 +149,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
     val editorViewModel by viewModels<EditorViewModel>()
+    val debuggerViewModel by viewModels<DebuggerViewModel>()
 
     internal var _binding: ActivityEditorBinding? = null
     val binding: ActivityEditorBinding
@@ -195,17 +198,25 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-    private val debuggerServiceConnection = DebuggerUtils.debuggerServiceConnection(
-        onConnected = { service ->
-            Log.d("DebuggerService", "DebuggerService connected.")
-            debuggerService = service
-            debuggerService?.showOverlay()
-        },
-        onDisconnected = {
-            Log.d("DebuggerService", "DebuggerService disconnected.")
+    private var isImeVisible = false
+    private var contentCardRealHeight: Int? = null
+    private val editorSurfaceContainerBackground by lazy {
+        resolveAttr(R.attr.colorSurfaceDim)
+    }
+    private val editorLayoutCorners by lazy {
+        resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
+    }
+
+    private var debuggerService: DebuggerService? = null
+    private val debuggerServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            debuggerService = (service as DebuggerService.Binder).getService()
+            debuggerService!!.showOverlay()
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {
             debuggerService = null
         }
-    )
+    }
 
     fun ensureDebuggerServiceBound() {
         if (debuggerService == null) {
@@ -215,15 +226,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         } else {
             Log.d("DebuggerService", "Already bound to DebuggerService.")
         }
-    }
-
-    private var isImeVisible = false
-    private var contentCardRealHeight: Int? = null
-    private val editorSurfaceContainerBackground by lazy {
-        resolveAttr(R.attr.colorSurfaceDim)
-    }
-    private val editorLayoutCorners by lazy {
-        resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
     }
 
     private var optionsMenuInvalidator: Runnable? = null

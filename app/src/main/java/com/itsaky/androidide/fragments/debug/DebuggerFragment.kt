@@ -4,7 +4,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
@@ -28,7 +28,7 @@ class DebuggerFragment :
         "Call stack" to CallStackFragment()
     )
 
-    private val viewModel by viewModels<DebuggerViewModel>(ownerProducer = { requireActivity() })
+    private val viewModel by activityViewModels<DebuggerViewModel>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -75,9 +75,7 @@ class DebuggerFragment :
         }
 
         viewLifecycleScope.launch {
-            viewModel.setThreads(DebuggerViewModel.demoThreads())
-            viewModel.setSelectedThreadIndex(0)
-            viewModel.setSelectedFrameIndex(0)
+            viewModel.setThreads(emptyList())
         }
 
         val mediator = TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->
