@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.java.actions
 
 import android.content.Context
+import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
@@ -28,6 +29,7 @@ import com.itsaky.androidide.lsp.java.compiler.CompileTask
 import com.itsaky.androidide.lsp.java.visitors.FindTypeDeclarationAt
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.Modifier.STATIC
@@ -77,13 +79,13 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 
     return JavaCompilerProvider.get(module).compile(file).get { task ->
       val triple = findFields(task, file, range)
-      val type = triple.second
-      val fields = triple.third
-      val fieldNames = fields.map { "${it.name}: ${it.type}" } // Get the names
+      val type = triple?.second
+      val fields = triple?.third
+      val fieldNames = fields?.map { "${it.name}: ${it.type}" } // Get the names
 
-      log.debug("Found {} fields in class {}", fieldNames.size, type.simpleName)
+      log.debug("Found {} fields in class {}", fieldNames?.size, type?.simpleName)
 
-      return@get fieldNames
+      return@get fieldNames ?: emptyList<String>()
     }
   }
 
@@ -91,7 +93,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
     task: CompileTask,
     file: Path,
     range: com.itsaky.androidide.models.Range
-  ): Triple<FindTypeDeclarationAt, ClassTree, MutableList<VariableTree>> {
+  ): Triple<FindTypeDeclarationAt, ClassTree, MutableList<VariableTree>>? {
     // 1-based line and column index
     val startLine = range.start.line + 1
     val startColumn = range.start.column + 1
@@ -114,9 +116,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
     }
 
     if (type == null) {
-      throw CompletionException(
-        RuntimeException("Unable to find class declaration within cursor range")
-      )
+      return null
     }
 
     val fields =
@@ -126,6 +126,30 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
         .filter { !it.modifiers.flags.contains(STATIC) }
         .toMutableList()
     return Triple(typeFinder, type, fields)
+  }
+
+  protected inline fun withValidFields(
+    data: ActionData,
+    task: CompileTask,
+    file: Path,
+    range: com.itsaky.androidide.models.Range,
+    onValid: (FindTypeDeclarationAt, ClassTree, MutableList<VariableTree>) -> Unit
+  ) {
+    val triple = findFields(task, file, range)
+    if (triple == null) {
+      ThreadUtils.runOnUiThread {
+        val context = data[Context::class.java]
+        if (context != null) {
+          flashError(context.getString(R.string.msg_no_fields_found))
+        } else {
+          flashError("No fields found in the selected range")
+        }
+      }
+      return
+    }
+
+    val (typeFinder, type, fields) = triple
+    onValid(typeFinder, type, fields)
   }
 
   @Suppress("UNCHECKED_CAST")

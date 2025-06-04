@@ -23,6 +23,7 @@ import org.adfa.constants.DESTINATION_TERMUX_PACKAGES_FOLDER_NAME
 import org.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
 import org.adfa.constants.MANIFEST_FILE_NAME
 import org.adfa.constants.SOURCE_LIB_FOLDER
+import org.adfa.constants.SPLIT_ASSETS
 import com.google.common.io.Files
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copy
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
@@ -71,7 +72,9 @@ abstract class CopyTermuxCacheAbiTask : DefaultTask() {
             return
         }
 
-        copy(sourceFilePath, outputDirectory)
+        if (!SPLIT_ASSETS) {
+            copy(sourceFilePath, outputDirectory)
+        }
     }
 
 }

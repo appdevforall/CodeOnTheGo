@@ -205,6 +205,7 @@ nav-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-safe-ar
 maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish-plugin" }
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
 monitor = { group = "androidx.test", name = "monitor", version.ref = "monitorVersion" }
+org-json = { module = "org.json:json", version = "20210307"}
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

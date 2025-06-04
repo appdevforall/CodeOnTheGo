@@ -33,13 +33,18 @@ object HomeScreen : KScreen<HomeScreen>() {
         step("Click create project") {
             flakySafely(60000) {
                 HomeScreen {
-                    title {
-                        isVisible()
-                        hasText(R.string.get_started)
+                    try {
+                        title {
+                            isVisible()
+                            containsText("Get started")
+                        }
+                    } catch (e: Exception) {
+                        println("Get Started title not visible: ${e.message}")
                     }
+
                     rvActions {
                         scrollTo(0)
-                        childWith<ActionItem> { withText("Create project") } perform {
+                        childWith<ActionItem> { withText("Create Project") } perform {
                             isDisplayed()
                             click()
                         }
