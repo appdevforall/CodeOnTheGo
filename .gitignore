@@ -105,3 +105,5 @@ sentry.properties
 
 # Generated files for tooling API
 tests/test-home
+
+/composite-builds/**/build/**
