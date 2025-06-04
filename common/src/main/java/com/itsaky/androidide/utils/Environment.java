@@ -17,6 +17,11 @@
 package com.itsaky.androidide.utils;
 
 import android.annotation.SuppressLint;
+import android.os.Build;
+
+import java.util.Arrays;
+import java.util.List;
+
 import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
 import java.io.File;
@@ -32,6 +37,8 @@ public final class Environment {
   public static final String DEFAULT_ROOT = "/data/data/com.itsaky.androidide/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
+
+  private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
   public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
   private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
@@ -48,6 +55,10 @@ public final class Environment {
   public static File LIB_DIR;
   public static File JDWP_LIB_DIR;
   public static File PROJECTS_DIR;
+
+  // split assets vars
+  public static File DOWNLOAD_DIR;
+  public static File SPLIT_ASSETS_ZIP;
 
   /**
    * Used by Java LSP until the project is initialized.
@@ -68,6 +79,11 @@ public final class Environment {
   public static File GRADLE_DISTS;
 
   public static void init() {
+    var arch = getArchitecture();
+    DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
+    var assets_zip = "assets-" + arch + ".zip";
+    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, assets_zip);
+
     ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
     PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
     HOME = mkdirIfNotExits(new File(ROOT, "home"));
@@ -77,7 +93,9 @@ public final class Environment {
     LIB_DIR = mkdirIfNotExits(new File(PREFIX, "lib"));
     JDWP_LIB_DIR = mkdirIfNotExits(new File(LIB_DIR, "oj-libjdwp"));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
-    ANDROID_JAR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "android.jar"));
+    // NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
+    //       and don't create the dir if it doesn't exist
+    ANDROID_JAR = new File(ANDROID_JAR_HOME, "android.jar");
     TOOLING_API_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "tooling-api")),
         "tooling-api-all.jar");
     COGO_PLUGIN_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "plugin")),
@@ -157,4 +175,19 @@ public final class Environment {
   private static File newTempFile() {
     return new File(TMP_DIR, "temp_" + UUID.randomUUID().toString().replace('-', 'X'));
   }
+
+  public static String getArchitecture() {
+    List<String> supportedAbis = Arrays.asList(Build.SUPPORTED_ABIS);
+
+    if (supportedAbis.contains("arm64-v8a")) {
+      return "v8";
+    } else if (supportedAbis.contains("armeabi-v7a") || supportedAbis.contains("armeabi")) {
+      return "v7";
+    } else if (supportedAbis.contains("x86") || supportedAbis.contains("x86_64")) {
+      return "x86";
+    } else {
+      return "unknown";
+    }
+  }
+
 }
