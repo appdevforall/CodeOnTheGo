@@ -8,6 +8,7 @@ import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.models.ApkMetadata
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.ApkInstaller
@@ -25,6 +26,17 @@ abstract class AbstractRunAction(
     @DrawableRes iconRes: Int,
 ): AbstractModuleAssemblerAction(context, labelRes, iconRes) {
 
+    /**
+     * Create the task execution message for the build.
+     */
+    protected abstract fun onCreateTaskExecMessage(
+        data: ActionData,
+        module: AndroidModule,
+        variant: BasicAndroidVariantMetadata,
+        buildService: BuildService,
+        activity: EditorHandlerActivity
+    ): TaskExecutionMessage
+
     override suspend fun doBuild(
         data: ActionData,
         module: AndroidModule,
@@ -32,15 +44,20 @@ abstract class AbstractRunAction(
         buildService: BuildService,
         activity: EditorHandlerActivity
     ): TaskExecutionResult? {
-        val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
-        log.info("Running task '{}' to assemble variant '{}' of project '{}'", taskName, variant.name, module.path)
+        val message = onCreateTaskExecMessage(
+            data,
+            module,
+            variant,
+            buildService,
+            activity,
+        )
 
         val result = withContext(Dispatchers.IO) {
-            buildService.executeTasks(taskName).get()
+            buildService.executeTasks(message).get()
         }
 
         if (result?.isSuccessful != true) {
-            log.error("Tasks failed to execute: '{}'", taskName)
+            log.error("Tasks failed to execute: '{}'", message.tasks)
         }
 
         return result
