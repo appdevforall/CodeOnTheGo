@@ -160,7 +160,7 @@ class MainFragment : BaseFragment() {
     private fun performFeedbackAction() {
         val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.let { builder ->
-            builder.setTitle(getString(R.string.alert))
+            builder.setTitle("Alert!")
                 .setMessage(
                     HtmlCompat.fromHtml(
                         getString(R.string.email_feedback_warning_prompt),
@@ -171,17 +171,11 @@ class MainFragment : BaseFragment() {
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
                         val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
-
-                        val feedbackBody = buildString {
-                            append(
-                                getString(
-                                    R.string.feedback_message,
-                                    BuildConfig.VERSION_NAME,
-                                    stackTrace
-                                )
-                            )
-                            append("\n\n-- \n")
-                        }
+                        val feedbackMessage = getString(
+                            R.string.feedback_message,
+                            BuildConfig.VERSION_NAME,
+                            stackTrace
+                        )
 
                         val feedbackEmail = getString(R.string.feedback_email)
                         val currentScreen = getCurrentScreenName()
@@ -196,11 +190,11 @@ class MainFragment : BaseFragment() {
                                     currentScreen
                                 )
                                 putExtra(Intent.EXTRA_SUBJECT, subject)
-                                putExtra(Intent.EXTRA_TEXT, feedbackBody)
+                                putExtra(Intent.EXTRA_TEXT, feedbackMessage)
                             }
 
                             shareActivityResultLauncher.launch(
-                                Intent.createChooser(feedbackIntent, getString(R.string.send_feedback))
+                                Intent.createChooser(feedbackIntent, "Send Feedback")
                             )
                         } catch (e: Exception) {
                             try {
@@ -213,7 +207,7 @@ class MainFragment : BaseFragment() {
                                         currentScreen
                                     )
                                     putExtra(Intent.EXTRA_SUBJECT, subject)
-                                    putExtra(Intent.EXTRA_TEXT, feedbackBody)
+                                    putExtra(Intent.EXTRA_TEXT, feedbackMessage)
                                 }
                                 shareActivityResultLauncher.launch(
                                     Intent.createChooser(fallbackIntent, getString(R.string.send_feedback))
@@ -222,7 +216,6 @@ class MainFragment : BaseFragment() {
                                 requireActivity().flashError(R.string.no_email_apps)
                             }
                         }
-
                         dialog.dismiss()
                     }
                 }
@@ -235,7 +228,6 @@ class MainFragment : BaseFragment() {
         val activity = requireActivity()
         return activity.javaClass.simpleName.replace("Activity", "")
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()

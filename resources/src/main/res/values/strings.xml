@@ -653,6 +653,7 @@
   <string name="msg_contact_app_dev_title">Contact App Dev for All</string>
   <string name="msg_contact_app_dev_description">To report issues, make suggestions, and ask questions, email us at feedback@appdevforall.org. Internet access is required.</string>
   <string name="code_on_the_go">Code on the Go</string>
+  <string name="feedback_email_subject">Feedback for Code on the Go</string>
   <string name="msg_no_internet_no_problem">No computer? No Internet?\nNo problem.</string>
   <string name="offline_message">Offline</string>
   <string name="more_label">More</string>
