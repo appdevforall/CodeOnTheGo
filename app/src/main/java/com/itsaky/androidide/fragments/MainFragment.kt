@@ -210,7 +210,7 @@ class MainFragment : BaseFragment() {
                                     putExtra(Intent.EXTRA_TEXT, feedbackMessage)
                                 }
                                 shareActivityResultLauncher.launch(
-                                    Intent.createChooser(fallbackIntent, "Send Feedback")
+                                    Intent.createChooser(fallbackIntent, getString(R.string.send_feedback))
                                 )
                             } catch (e2: Exception) {
                                 requireActivity().flashError(R.string.no_email_apps)

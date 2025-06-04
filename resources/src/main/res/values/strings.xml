@@ -660,4 +660,13 @@
   <string name="send_email">Send Email</string>
   <string name="close">Close</string>
   <string name="tooltip_see_more_text">+ See more</string>
+  <string name="more_information_about">More information about %1$s</string>
+  <string name="learn_more">Learn more</string>
+  <string name="alert">Alert!</string>
+  <string name="commit_canceled_files_to_commit">There are files to commit, commit canceled</string>
+  <string name="commit_canceled_no_files_to_commit">No files to commit, commit canceled</string>
+  <string name="committed_all_changes_to_repository_in">Committed all changes to repository in %1$s</string>
+  <string name="halt">Halt</string>
+  <string name="breakpoint">Breakpoint</string>
+  <string name="project_name">Project name</string>
 </resources>
