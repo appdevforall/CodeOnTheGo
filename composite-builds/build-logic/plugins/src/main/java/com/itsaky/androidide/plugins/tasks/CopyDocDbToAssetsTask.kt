@@ -17,11 +17,11 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import org.adfa.constants.ASSETS_COMMON_FOLDER
-import org.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
-import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
+import org.adfa.constants.DATABASE_FOLDER
+import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.google.common.io.Files
+import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
@@ -29,8 +29,9 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.io.IOException
+import kotlin.io.path.Path
 
-abstract class CopyGradleExecutableToAssetsTask : DefaultTask() {
+abstract class CopyDocDbToAssetsTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -39,35 +40,29 @@ abstract class CopyGradleExecutableToAssetsTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyGradleExecutableToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER).asFile
+    fun CopyDocDbToAssets() {
+        val outputDirectory = this.outputDirectory.get()
+            .file(DATABASE_FOLDER).asFile
+        val sourceFilePath =
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + DOCUMENTATION_DB
+        copy(sourceFilePath, outputDirectory)
+    }
+
+    private fun copy(sourceFilePath: String, outputDirectory: File) {
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
 
-        val destFile = outputDirectory.resolve(GRADLE_WRAPPER_FILE_NAME)
-        val destFileCompose = outputDirectory.resolve(COMPOSE_GRADLE_WRAPPER_FILE_NAME)
-
+        val destFile = outputDirectory.resolve(DOCUMENTATION_DB)
         if (destFile.exists()) {
             destFile.delete()
         }
-        if (destFileCompose.exists()){
-            destFileCompose.delete()
-        }
-
-        val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + GRADLE_WRAPPER_FILE_NAME
-        val sourceFilePathCompose =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + COMPOSE_GRADLE_WRAPPER_FILE_NAME
 
         try {
             Files.copy(File(sourceFilePath), destFile)
-            if (sourceFilePathCompose != sourceFilePath) {
-                Files.copy(File(sourceFilePathCompose), destFileCompose)
-            }
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }
-
     }
+
 }

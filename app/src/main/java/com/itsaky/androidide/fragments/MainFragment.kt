@@ -171,29 +171,51 @@ class MainFragment : BaseFragment() {
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
                         val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
-
                         val feedbackMessage = getString(
                             R.string.feedback_message,
                             BuildConfig.VERSION_NAME,
                             stackTrace
                         )
+                        val feedbackEmail = getString(R.string.feedback_email)
+                        val currentScreen = getCurrentScreenName()
 
-                        val feedbackIntent = Intent(Intent.ACTION_SEND)
-                        val subject = MessageFormat.format(
-                            resources.getString(R.string.feedback_subject),
-                            "Main"
-                        )
+                        try {
+                            val feedbackIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:")
+                                putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
 
-                        feedbackIntent.data = Uri.parse("mailto:")
-                        feedbackIntent.type = "text/plain"
-                        feedbackIntent.putExtra(
-                            Intent.EXTRA_EMAIL,
-                            arrayOf(R.string.feeback_email)
-                        )
-                        feedbackIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-                        feedbackIntent.putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                                val subject = String.format(
+                                    resources.getString(R.string.feedback_subject),
+                                    currentScreen
+                                )
+                                putExtra(Intent.EXTRA_SUBJECT, subject)
+                                putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                            }
 
-                        shareActivityResultLauncher.launch(feedbackIntent)
+                            shareActivityResultLauncher.launch(
+                                Intent.createChooser(feedbackIntent, "Send Feedback")
+                            )
+                        } catch (e: Exception) {
+                            try {
+                                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "message/rfc822"
+                                    putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
+
+                                    val subject = String.format(
+                                        resources.getString(R.string.feedback_subject),
+                                        currentScreen
+                                    )
+                                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                                    putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                                }
+                                shareActivityResultLauncher.launch(
+                                    Intent.createChooser(fallbackIntent, "Send Feedback")
+                                )
+                            } catch (e2: Exception) {
+                                requireActivity().flashError(R.string.no_email_apps)
+                            }
+                        }
+
                         dialog.dismiss()
                     }
                 }
@@ -201,6 +223,12 @@ class MainFragment : BaseFragment() {
                 .show()
         }
     }
+
+    private fun getCurrentScreenName(): String {
+        val activity = requireActivity()
+        return activity.javaClass.simpleName.replace("Activity", "")
+    }
+
 
     override fun onDestroyView() {
         super.onDestroyView()

@@ -27,6 +27,10 @@ import java.io.File
  * Moved from template-api in case of a roor repo merge we have to manuall move changes here.
  */
 
+// TODO: get value from BuildConfig.DEBUG -- jm 2025-05-28
+//       import com.itsaky.androidide.BuildConfig
+const val SPLIT_ASSETS = /* false */ true
+
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.5.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.0.0"
 const val KOTLIN_VERSION = "1.9.22"
@@ -149,6 +153,7 @@ const val COPY_LOCAL_MAVEN_REPO_TO_ASSETS = "copyLocalMavenRepoToAssets"
 
 // Tooltips
 const val CONTENT_KEY = "CONTENT_KEY"
+const val CONTENT_TITLE_KEY = "CONTENT_TITLE_KEY"
 
 // Toml
 const val TOML_FILE_NAME = "libs.versions.toml"
@@ -156,3 +161,8 @@ const val TOML_FILE_NAME = "libs.versions.toml"
 // Help
 const val HELP_PAGE_URL =
     "file:///android_asset/CoGoTooltips/html/cogohelp/index.html"
+
+// Documentation
+const val DOCUMENTATION_DB = "documentation.db"
+const val DATABASE_FOLDER = "database"
+const val COPY_DOC_DB_TO_ASSETS = "copyDocDbToAssets"
