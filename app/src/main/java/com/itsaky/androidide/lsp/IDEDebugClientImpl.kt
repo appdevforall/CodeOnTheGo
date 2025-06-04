@@ -12,15 +12,15 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.Source
-import com.itsaky.androidide.lsp.debug.model.ThreadInfoParams
-import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
+import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
+import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
-import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
@@ -38,6 +38,7 @@ data class DebugClientState(
  */
 object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
 
+    var viewModel: DebuggerViewModel? = null
     private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
 
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
@@ -54,48 +55,32 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
     private val testBreakpoint = PositionalBreakpoint(
         source = Source(
             "DebuggingTarget.java",
-            "/storage/emulated/0/AndroidIDEProjects/My Application1/app/src/main/java/com/itsaky/debuggable/DebuggingTarget.java"
+            "/storage/emulated/0/AndroidIDEProjects/My Application/app/src/main/java/com/itsaky/debuggable/DebuggingTarget.java"
         ),
         line = 27,
     )
 
-    private var hitCount = 0
     override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
-        logger.debug("onBreakpointHit: {}", event)
-        ++hitCount
-
-        runBlocking {
-            val threadInfo = event.remoteClient.adapter.threadInfo(
-                request = ThreadInfoParams(
-                    threadId = event.threadId,
+        clientScope.launch(Dispatchers.IO) {
+            val adapter = event.remoteClient.adapter
+            val threadResponse = adapter.allThreads(
+                ThreadListRequestParams(
                     remoteClient = event.remoteClient
                 )
             )
 
-            if (threadInfo.result !is ThreadInfoResult.Success) {
-                logger.error("Failed to get thread info from remote client")
-            } else {
-                val ti = (threadInfo.result as ThreadInfoResult.Success).threadInfo
-                val currentFrame = ti.getFrames()[0]
-                val someInt = currentFrame.getVariables().first { it.descriptor().name == "someInt" }
-                logger.debug("onBreakpointHit[preSetValue]: someInt={}, value={}", someInt, someInt.value())
+            val threads = threadResponse.threads
+            if (threads.isEmpty()) {
+                logger.error("Failed to get info about thread: {}", event.threadId)
+                return@launch
             }
-        }
 
-        if (hitCount == 2) {
-            runBlocking {
-                event.remoteClient.adapter.removeBreakpoints(
-                    BreakpointRequest(
-                        remoteClient = event.remoteClient,
-                        breakpoints = listOf(testBreakpoint)
-                    )
-                )
-            }
+            logger.debug("threads({}): {}", threads.size, threads)
+            viewModel?.setThreads(threads)
         }
-
         return BreakpointHitResponse(
             remoteClient = event.remoteClient,
-            resumePolicy = ResumePolicy.RESUME_CLIENT
+            resumePolicy = ResumePolicy.SUSPEND_CLIENT
         )
     }
 
