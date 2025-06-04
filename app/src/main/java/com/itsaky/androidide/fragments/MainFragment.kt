@@ -160,7 +160,7 @@ class MainFragment : BaseFragment() {
     private fun performFeedbackAction() {
         val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.let { builder ->
-            builder.setTitle("Alert!")
+            builder.setTitle(getString(R.string.alert))
                 .setMessage(
                     HtmlCompat.fromHtml(
                         getString(R.string.email_feedback_warning_prompt),
@@ -171,11 +171,18 @@ class MainFragment : BaseFragment() {
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
                         val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
-                        val feedbackMessage = getString(
-                            R.string.feedback_message,
-                            BuildConfig.VERSION_NAME,
-                            stackTrace
-                        )
+
+                        val feedbackBody = buildString {
+                            append(
+                                getString(
+                                    R.string.feedback_message,
+                                    BuildConfig.VERSION_NAME,
+                                    stackTrace
+                                )
+                            )
+                            append("\n\n-- \n")
+                        }
+
                         val feedbackEmail = getString(R.string.feedback_email)
                         val currentScreen = getCurrentScreenName()
 
@@ -189,11 +196,11 @@ class MainFragment : BaseFragment() {
                                     currentScreen
                                 )
                                 putExtra(Intent.EXTRA_SUBJECT, subject)
-                                putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                                putExtra(Intent.EXTRA_TEXT, feedbackBody)
                             }
 
                             shareActivityResultLauncher.launch(
-                                Intent.createChooser(feedbackIntent, "Send Feedback")
+                                Intent.createChooser(feedbackIntent, getString(R.string.send_feedback))
                             )
                         } catch (e: Exception) {
                             try {
@@ -206,10 +213,10 @@ class MainFragment : BaseFragment() {
                                         currentScreen
                                     )
                                     putExtra(Intent.EXTRA_SUBJECT, subject)
-                                    putExtra(Intent.EXTRA_TEXT, feedbackMessage)
+                                    putExtra(Intent.EXTRA_TEXT, feedbackBody)
                                 }
                                 shareActivityResultLauncher.launch(
-                                    Intent.createChooser(fallbackIntent, "Send Feedback")
+                                    Intent.createChooser(fallbackIntent, getString(R.string.send_feedback))
                                 )
                             } catch (e2: Exception) {
                                 requireActivity().flashError(R.string.no_email_apps)
