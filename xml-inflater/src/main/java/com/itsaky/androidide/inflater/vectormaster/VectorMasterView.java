@@ -85,7 +85,12 @@ public class VectorMasterView extends View {
       return;
     }
 
-    xpp = resources.getXml(resID);
+    try {
+      this.xpp = resources.getXml(resID);
+      buildVectorModel();
+    } catch (Resources.NotFoundException e) {
+      vectorModel = null;
+    }
 
     int tempPosition;
     PathModel pathModel = new PathModel();
