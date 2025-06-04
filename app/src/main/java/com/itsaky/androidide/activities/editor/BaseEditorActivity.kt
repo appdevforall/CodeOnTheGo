@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
@@ -88,6 +89,7 @@ import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
@@ -95,6 +97,7 @@ import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
 import com.itsaky.androidide.utils.ApkInstallationSessionCallback
+import com.itsaky.androidide.utils.DebuggerUtils
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
@@ -130,6 +133,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
     protected val memoryUsageWatcher = MemoryUsageWatcher()
     protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
+    private var debuggerService: DebuggerService? = null
 
     var isDestroying = false
         protected set
@@ -188,6 +192,28 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 notifyDataSetChanged()
                 invalidate()
             }
+        }
+    }
+
+    private val debuggerServiceConnection = DebuggerUtils.debuggerServiceConnection(
+        onConnected = { service ->
+            Log.d("DebuggerService", "DebuggerService connected.")
+            debuggerService = service
+            debuggerService?.showOverlay()
+        },
+        onDisconnected = {
+            Log.d("DebuggerService", "DebuggerService disconnected.")
+            debuggerService = null
+        }
+    )
+
+    fun ensureDebuggerServiceBound() {
+        if (debuggerService == null) {
+            Log.d("DebuggerService", "Binding DebuggerService...")
+            val intent = Intent(this, DebuggerService::class.java)
+            bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
+        } else {
+            Log.d("DebuggerService", "Already bound to DebuggerService.")
         }
     }
 
@@ -362,8 +388,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
-
-        Log.d("BaseEditorActivity", "onCreate: bind: DebuggerService")
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -863,7 +887,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     open fun installationSessionCallback(): SessionCallback {
-        return ApkInstallationSessionCallback(this).also { installationCallback = it }
+        return ApkInstallationSessionCallback(this) {
+            ensureDebuggerServiceBound()
+        }.also { installationCallback = it }
     }
 }
 
