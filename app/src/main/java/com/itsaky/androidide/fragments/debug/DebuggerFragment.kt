@@ -75,9 +75,7 @@ class DebuggerFragment :
         }
 
         viewLifecycleScope.launch {
-            viewModel.setThreads(DebuggerViewModel.demoThreads())
-            viewModel.setSelectedThreadIndex(0)
-            viewModel.setSelectedFrameIndex(0)
+            viewModel.setThreads(emptyList())
         }
 
         val mediator = TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->

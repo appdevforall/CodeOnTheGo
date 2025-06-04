@@ -6,17 +6,8 @@ import com.itsaky.androidide.fragments.debug.EagerStackFrame
 import com.itsaky.androidide.fragments.debug.EagerThreadInfo
 import com.itsaky.androidide.fragments.debug.EagerVariable
 import com.itsaky.androidide.fragments.debug.VariableTreeNodeGenerator
-import com.itsaky.androidide.lsp.debug.model.PrimitiveKind
-import com.itsaky.androidide.lsp.debug.model.PrimitiveValue
-import com.itsaky.androidide.lsp.debug.model.PrimitiveVariable
 import com.itsaky.androidide.lsp.debug.model.StackFrame
-import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
-import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo
-import com.itsaky.androidide.lsp.debug.model.Value
-import com.itsaky.androidide.lsp.debug.model.Variable
-import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
-import com.itsaky.androidide.lsp.debug.model.VariableKind
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -30,79 +21,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.slf4j.LoggerFactory
-import kotlin.random.Random
-
-private class SimpleThreadInfo(
-    private val name: String, private val frames: List<StackFrame>
-) : ThreadInfo {
-    override suspend fun descriptor() = ThreadDescriptor(
-        id = Random(System.currentTimeMillis()).nextInt().toString(),
-        name = name,
-        group = "main",
-        state = "running"
-    )
-
-    override suspend fun getFrames(): List<StackFrame> = frames
-
-    override fun toString(): String = name
-}
-
-private class SimpleStackFrame(
-    private val variables: List<EagerVariable<*>>
-) : StackFrame {
-    override suspend fun descriptor() = StackFrameDescriptor(
-        method = "someMethod",
-        methodSignature = "()V",
-        sourceFile = "Class.java",
-        lineNumber = 123
-    )
-
-    override suspend fun getVariables(): List<EagerVariable<*>> = variables
-
-    override suspend fun <Val : Value> setValue(variable: Variable<Val>, value: Val) {
-        TODO("Not yet implemented")
-    }
-
-    override fun toString(): String = "at com.some.Class.someMethod(Class:123)"
-}
-
-private class SimplePrimitiveValue(
-    override val value: String,
-    override val kind: PrimitiveKind,
-) : PrimitiveValue {
-    override fun asByte(): Byte = value.toByte()
-    override fun asShort(): Short = value.toShort()
-    override fun asInt(): Int = value.toInt()
-    override fun asLong(): Long = value.toLong()
-    override fun asFloat(): Float = value.toFloat()
-    override fun asDouble(): Double = value.toDouble()
-    override fun asBoolean(): Boolean = value.toBoolean()
-    override fun asChar(): Char = value.toCharArray()[0]
-
-    override fun asString(): String = value
-    override fun toString(): String = asString()
-}
-
-private class SimpleVariable(
-    private val name: String,
-    private val typeName: String,
-    override val primitiveKind: PrimitiveKind,
-    val value: String,
-    private val kind: VariableKind = VariableKind.PRIMITIVE,
-    val members: Set<EagerVariable<*>> = emptySet(),
-) : PrimitiveVariable {
-    override suspend fun descriptor() = VariableDescriptor(
-        name = name,
-        typeName = typeName,
-        kind = kind,
-        isMutable = false
-    )
-
-    override suspend fun value(): PrimitiveValue = SimplePrimitiveValue(value, primitiveKind)
-    override suspend fun objectMembers(): Set<EagerVariable<*>> = members
-    override fun toString(): String = name
-}
 
 private data class DebuggerState(
     val threads: List<EagerThreadInfo>,
@@ -131,51 +49,6 @@ private data class DebuggerState(
  * @author Akash Yadav
  */
 class DebuggerViewModel : ViewModel() {
-
-    companion object {
-
-        private val logger = LoggerFactory.getLogger(DebuggerViewModel::class.java)
-
-        suspend fun demoThreads(): List<EagerThreadInfo> {
-            val threads = mutableListOf<EagerThreadInfo>()
-            for (i in 1..10) {
-                val frames = mutableListOf<StackFrame>()
-                for (j in 1..10) {
-                    val variables = mutableListOf<EagerVariable<*>>()
-                    for (k in 1..10) {
-                        variables.add(
-                            EagerVariable.create(
-                                SimpleVariable(
-                                    name = "thread${i}Frame${j}Var${k}",
-                                    typeName = "int",
-                                    kind = VariableKind.entries.filter { it != VariableKind.UNKNOWN }
-                                        .random(),
-                                    primitiveKind = PrimitiveKind.INT,
-                                    value = "$k",
-                                    members = (1..2).map { mem ->
-                                        EagerVariable.create(
-                                            SimpleVariable(
-                                                name = "thread${i}Frame${j}Var${k}Member${mem}",
-                                                typeName = "int",
-                                                kind = VariableKind.entries.filter { it != VariableKind.UNKNOWN }
-                                                    .random(),
-                                                primitiveKind = PrimitiveKind.INT,
-                                                value = "$k",
-                                            )
-                                        )
-                                    }.toSet()
-                                )
-                            )
-                        )
-                    }
-                    frames.add(SimpleStackFrame(variables))
-                }
-
-                threads.add(EagerThreadInfo.create(SimpleThreadInfo("Thread $i", frames)))
-            }
-            return threads
-        }
-    }
 
     private val state = MutableStateFlow(DebuggerState.DEFAULT)
 
