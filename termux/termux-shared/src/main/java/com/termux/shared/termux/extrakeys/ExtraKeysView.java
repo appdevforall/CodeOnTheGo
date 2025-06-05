@@ -493,29 +493,35 @@ public final class ExtraKeysView extends GridLayout {
             mExtraKeysViewClient.onExtraKeyButtonClick(view, buttonInfo, button);
     }
 
+    // Constants class for settings keys and values
+    public class SettingsConstants {
+        // Settings keys - these are Android system constants
+        public static final String HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled";
+        public static final String ZEN_MODE = "zen_mode";
+
+        // Zen Mode values - based on Android's Settings.Global.ZEN_MODE_* constants
+        public static final int ZEN_MODE_OFF = 0;
+        public static final int ZEN_MODE_NO_INTERRUPTIONS = 2;
+    }
+
     public void performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
         if (mExtraKeysViewClient != null) {
-            // If client handled the feedback, then just return
             if (mExtraKeysViewClient.performExtraKeyButtonHapticFeedback(view, buttonInfo, button))
                 return;
         }
 
-        if (Settings.System.getInt(getContext().getContentResolver(),
-            Settings.System.HAPTIC_FEEDBACK_ENABLED, 0) != 0) {
+        boolean hapticFeedbackEnabled = Settings.Global.getInt(getContext().getContentResolver(),
+                SettingsConstants.HAPTIC_FEEDBACK_ENABLED, 0) != 0;
 
-            if (Build.VERSION.SDK_INT >= 28) {
+        if (hapticFeedbackEnabled) {
+            int zenMode = Settings.Global.getInt(getContext().getContentResolver(),
+                    SettingsConstants.ZEN_MODE, SettingsConstants.ZEN_MODE_OFF);
+
+            if (zenMode != SettingsConstants.ZEN_MODE_NO_INTERRUPTIONS) {
                 button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-            } else {
-                // Perform haptic feedback only if no total silence mode enabled.
-                if (Settings.Global.getInt(getContext().getContentResolver(), "zen_mode", 0) != 2) {
-                    button.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                }
             }
         }
     }
-
-
-
     public void onAnyExtraKeyButtonClick(View view, @NonNull ExtraKeyButton buttonInfo, MaterialButton button) {
         if (isSpecialButton(buttonInfo)) {
             if (mLongPressCount > 0) return;
