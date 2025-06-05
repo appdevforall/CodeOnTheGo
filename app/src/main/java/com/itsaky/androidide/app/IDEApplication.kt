@@ -59,7 +59,6 @@ import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.termux.app.TermuxApplication
-import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.CoroutineScope
@@ -113,8 +112,8 @@ class IDEApplication : TermuxApplication() {
             checkForSecondDisplay()
 
             //Start the local HTTP server for CoGo tooltips
-            localServerUtil = LocalServerUtil()
-            localServerUtil!!.startServer(6174)
+            val localServerUtil = LocalServerUtil()
+            localServerUtil.startServer(6174)
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
