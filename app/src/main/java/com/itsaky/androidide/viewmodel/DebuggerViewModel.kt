@@ -11,6 +11,8 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -125,6 +127,14 @@ class DebuggerViewModel : ViewModel() {
         threadIndex: Int,
         frameIndex: Int
     ): Tree<ResolvableVariable<*>> = coroutineScope {
+
+        // resolve the data we need to render the UI
+        threads.map { thread ->
+            async {
+                thread.resolve()
+            }
+        }.awaitAll()
+
         val roots =
             threads.getOrNull(threadIndex)
                 ?.getFrames()
