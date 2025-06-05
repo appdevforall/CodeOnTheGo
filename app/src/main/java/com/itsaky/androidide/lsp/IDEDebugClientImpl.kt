@@ -114,6 +114,11 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
 
     override fun onDisconnect(client: RemoteClient) = stateGuard.write {
         logger.debug("onDisconnect: client={}", client)
+        if (state.clients.size == 1 && state.clients.first() == client) {
+            // reset debugger UI
+            viewModel?.setThreads(emptyList())
+        }
+        
         state = state.copy(clients = state.clients - client)
     }
 }
