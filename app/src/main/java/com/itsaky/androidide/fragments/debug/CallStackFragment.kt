@@ -46,7 +46,7 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 }
 
 class CallStackAdapter(
-    private val frames: List<EagerStackFrame>,
+    private val frames: List<ResolvableStackFrame>,
     private val onItemClickListener: ((Int) -> Unit)? = null
 ) : RecyclerView.Adapter<CallStackAdapter.VH>() {
 

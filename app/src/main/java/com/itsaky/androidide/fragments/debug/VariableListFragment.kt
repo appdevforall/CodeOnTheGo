@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
  */
 class VariableListFragment : Fragment() {
 
-    private lateinit var treeView: TreeView<EagerVariable<*>>
+    private lateinit var treeView: TreeView<ResolvableVariable<*>>
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
 
