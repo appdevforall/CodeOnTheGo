@@ -1,0 +1,264 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "version": 1,
+    "install": {
+      "android-studio-tools": {
+        "pkg-path": "android-studio-tools"
+      },
+      "jdk17": {
+        "pkg-path": "jdk17"
+      }
+    },
+    "hook": {
+      "on-activate": "  set -eu\n  set -o pipefail\n\n  if ! [ -f \".androidide_root\" ]; then\n    echo \"Run `flox activate` from the root directory\"\n    echo \"Abort.\"\n    exit 1\n  fi\n\n  # Use these env vars if set; otherwise fall back to default\n  DEFAULT_ANDROID_HOME=\"$HOME/Android/Sdk\"\n  DEFAULT_GRADLE_USER_HOME=\"$HOME/.gradle\"\n  ANDROID_HOME=\"${ANDROID_HOME:-$DEFAULT_ANDROID_HOME}\"\n  GRADLE_USER_HOME=\"${GRADLE_USER_HOME:-$DEFAULT_GRADLE_USER_HOME}\"\n  export ANDROID_HOME\n  export GRADLE_USER_HOME\n\n  echo \"Using ANDROID_HOME=$ANDROID_HOME\"\n  echo \"Using GRADLE_USER_HOME=$GRADLE_USER_HOME\"\n\n  # Accept licenses\n  echo \"Accepting SDK licenses...\"\n  { yes || true; } | sdkmanager --sdk_root=\"$ANDROID_HOME\" --licenses 2>&1 > /dev/null\n\n  install_sdk_tools_if_required() {\n    installed_tools=$(sdkmanager --sdk_root=\"$ANDROID_HOME\" --list_installed)\n\n    declare -a to_install=()\n    for package in \"$@\"; do\n        if ! echo \"$installed_tools\" | grep -q \"$package\"; then\n            echo \"'$package' is missing.\"\n            to_install+=(\"$package\")\n        fi\n    done\n\n    if [ ${#to_install[@]} -ne 0 ]; then\n        echo \"Installing SDK Tools: ${to_install[*]}\"\n        sdkmanager --sdk_root=\"$ANDROID_HOME\" --install \"${to_install[@]}\"\n    fi\n  }\n\n  # The packages we need\n  install_sdk_tools_if_required \\\n    \"build-tools;35.0.0\" \\\n    \"cmake;3.31.6\" \\\n    \"platforms;android-35\" \\\n    \"platform-tools\" \\\n    \"ndk;26.1.10909125\"\n"
+    },
+    "profile": {
+      "common": "  # Override the 'sdkmanager' command so that we don't have to\n  #   specify --sdk_root everytime\n  sdkman=$(command -v sdkmanager)\n  alias sdkmanager=\"$sdkman --sdk_root=$ANDROID_HOME\"\n"
+    },
+    "options": {
+      "systems": [
+        "aarch64-darwin",
+        "aarch64-linux",
+        "x86_64-darwin",
+        "x86_64-linux"
+      ]
+    }
+  },
+  "packages": [
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/z9s7k7hc89qw6mcgv7gddp7hffcv1jd2-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T04:22:15.112666Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/rbmxi7d5a1k7v5xilqrj51v3a8y08adp-android-studio-tools-13114758"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/9f4jkmqb3vgd4ivf0276vcwbkaarga2g-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T04:40:49.451730Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mjrydz60ix524lvcdnvxcczalbnsm5fm-android-studio-tools-13114758"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/qwb12grf9ic1vbkr4bjsp96g3a1xnrl2-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T04:57:24.026334Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/gcwbg7k2saa8k1sc0p0jcg19xrs5aagw-android-studio-tools-13114758"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "android-studio-tools",
+      "broken": false,
+      "derivation": "/nix/store/4ik9d1msnqpbprx4v1whvw5a30fwnrg8-android-studio-tools-13114758.drv",
+      "description": "Android Studio CLI Tools",
+      "install_id": "android-studio-tools",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "android-studio-tools-13114758",
+      "pname": "android-studio-tools",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T05:16:51.111855Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "13114758",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/jaaxg7lkp2d9md87qwgfbjw1fh97cyz9-android-studio-tools-13114758"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/g9c6ymdb9zwxnyqhjggh3czhm4bx03dp-zulu-ca-jdk-17.0.12.drv",
+      "description": "Certified builds of OpenJDK",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "zulu-ca-jdk-17.0.12",
+      "pname": "jdk17",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T04:22:16.521322Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.12",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/3clfkf49kf9j00xr75zsag78h72zcwxd-zulu-ca-jdk-17.0.12"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/nf5p408gkmzzgzjcvkpspw96xyqx989v-openjdk-17.0.14+7.drv",
+      "description": "Open-source Java Development Kit",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "openjdk-17.0.14+7",
+      "pname": "jdk17",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T04:40:52.420256Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.14+7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/2fnirdq86nrvrlzcb6fxi2divj55pgq1-openjdk-17.0.14+7-debug",
+        "out": "/nix/store/zhys88jj19v027apz0m6hs0fhx80cwbs-openjdk-17.0.14+7"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/7cdiv349gh4vmyj31a8x2qbqfzrmdg6n-zulu-ca-jdk-17.0.12.drv",
+      "description": "Certified builds of OpenJDK",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "zulu-ca-jdk-17.0.12",
+      "pname": "jdk17",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T04:57:25.459654Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.12",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/2f69k186mp68n01572qf1yhbjbhys6g0-zulu-ca-jdk-17.0.12"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jdk17",
+      "broken": false,
+      "derivation": "/nix/store/rzipknjacaacmshmckj51pilc7f7nsqq-openjdk-17.0.14+7.drv",
+      "description": "Open-source Java Development Kit",
+      "install_id": "jdk17",
+      "license": "GPL-2.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "name": "openjdk-17.0.14+7",
+      "pname": "jdk17",
+      "rev": "063f43f2dbdef86376cc29ad646c45c46e93234c",
+      "rev_count": 804993,
+      "rev_date": "2025-05-23T18:48:26Z",
+      "scrape_date": "2025-05-26T05:16:54.365394Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "17.0.14+7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/7zi5xnq5f98zfkwcc0qr872gsk94x2fj-openjdk-17.0.14+7-debug",
+        "out": "/nix/store/063dnz6gcvjwa0caiv637adqci11gap8-openjdk-17.0.14+7"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}
