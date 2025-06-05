@@ -118,7 +118,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
             // reset debugger UI
             viewModel?.setThreads(emptyList())
         }
-        
+
         state = state.copy(clients = state.clients - client)
     }
 }
