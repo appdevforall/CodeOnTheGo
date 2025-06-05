@@ -23,6 +23,7 @@ import com.sun.jdi.FloatType
 import com.sun.jdi.FloatValue
 import com.sun.jdi.IntegerType
 import com.sun.jdi.IntegerValue
+import com.sun.jdi.InternalException
 import com.sun.jdi.LocalVariable
 import com.sun.jdi.LongType
 import com.sun.jdi.LongValue
@@ -40,6 +41,7 @@ import com.sun.jdi.Value
 import com.sun.jdi.VoidValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue as LspPrimitiveValue
 import com.itsaky.androidide.lsp.debug.model.StringValue as LspStringValue
 import com.itsaky.androidide.lsp.debug.model.Value as LspValue
@@ -180,6 +182,7 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
 ) {
 
     companion object {
+        private val logger = LoggerFactory.getLogger(JavaLocalVariable::class.java)
         internal fun forVariable(
             stackFrame: StackFrame, variable: LocalVariable
         ): JavaLocalVariable<*> = when (variable.type()) {
@@ -191,8 +194,17 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
     override suspend fun isMutable(): Boolean = true
 
     @Suppress("UNCHECKED_CAST")
-    override suspend fun value(): ValueType = withContext(Dispatchers.IO) {
-        stackFrame.getValue(variable).toLspValue() as ValueType
+    override suspend fun value(): ValueType? = withContext(Dispatchers.IO) {
+        try {
+            stackFrame.getValue(variable).toLspValue() as ValueType
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to get value of variable '{}' in {}",
+                variable.name(),
+                stackFrame.location().method()
+            )
+            null
+        }
     }
 
     internal suspend fun jdiValue() = withContext(Dispatchers.IO) { stackFrame.getValue(variable) }

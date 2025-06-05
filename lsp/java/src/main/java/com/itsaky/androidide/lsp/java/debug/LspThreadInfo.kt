@@ -34,7 +34,17 @@ class JavaStackFrame(
     }
 
     override suspend fun getVariables(): List<LspVariable<*>> {
-        val variables = withContext(Dispatchers.IO) { frame.visibleVariables() }
+        val method = frame.location().method()
+        val type = method.declaringType()
+        if (method == null || method.isAbstract || method.isNative) {
+            // non-concrete method
+            // does not have any variables
+            return emptyList()
+        }
+
+        val variables = withContext(Dispatchers.IO) {
+            frame.visibleVariables()
+        }
         return variables.map { variable -> JavaLocalVariable.forVariable(frame, variable) }
     }
 
