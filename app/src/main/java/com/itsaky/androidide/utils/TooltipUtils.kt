@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.Log
@@ -35,6 +36,7 @@ import androidx.fragment.app.FragmentTransaction
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.fragments.IDETooltipWebviewFragment
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.idetooltips.IDETooltipDatabase
@@ -44,10 +46,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
+import org.adfa.constants.HELP_PAGE_URL
 
 object TooltipUtils {
     private val mainActivity: MainActivity?
         get() = MainActivity.getInstance()
+
     /**
      * This displays a webpage as the 3rd level tooltip
      *
@@ -78,10 +84,14 @@ object TooltipUtils {
         level: Int,
         tooltipItem: IDETooltipItem
     ) {
-        val onActionButtonClickAction: (PopupWindow, String) -> Unit = { popupWindow, url ->
-            popupWindow.dismiss()
-            showWebPage(context, url) // Call showWebPage
-        }
+        val onActionButtonClickAction: (PopupWindow, Pair<String, String>) -> Unit =
+            { popupWindow, urlContent ->
+                popupWindow.dismiss()
+                val intent = Intent(context, HelpActivity::class.java)
+                intent.putExtra(CONTENT_KEY, urlContent.first)
+                intent.putExtra(CONTENT_TITLE_KEY, urlContent.second)
+                context.startActivity(intent)
+            }
 
         // Call the common internal function
         setupAndShowTooltipPopup(
@@ -93,34 +103,7 @@ object TooltipUtils {
         )
     }
 
-    /**
-     * Shows a tooltip anchored to the CodeEditor.
-     */
-    @SuppressLint("SetJavaScriptEnabled")
-    fun showEditorTooltip(
-        context: Context,
-        editor: CodeEditor,
-        level: Int,
-        tooltipItem: IDETooltipItem?,
-        block: (htmlString: String) -> Unit // Action for buttons
-    ) {
-        tooltipItem?.let { item -> // Only proceed if tooltipItem is not null
 
-            val onActionButtonClickAction: (PopupWindow, String) -> Unit = { popupWindow, url ->
-                popupWindow.dismiss()
-                block.invoke(url) // Call the provided block
-            }
-
-            // Call the common internal function
-            setupAndShowTooltipPopup(
-                context = context,
-                anchorView = editor, // Use editor as anchor
-                level = level,
-                tooltipItem = item,
-                onActionButtonClick = onActionButtonClickAction
-            )
-        }
-    }
 
     /**
      * Internal helper function to create, configure, and show the tooltip PopupWindow.
@@ -132,7 +115,7 @@ object TooltipUtils {
         anchorView: View,
         level: Int,
         tooltipItem: IDETooltipItem,
-        onActionButtonClick: (popupWindow: PopupWindow, url: String) -> Unit
+        onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit
     ) {
         val inflater = LayoutInflater.from(context)
         val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
@@ -197,7 +180,7 @@ object TooltipUtils {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 url?.let {
                     popupWindow.dismiss()
-                    onActionButtonClick(popupWindow, it)
+                    onActionButtonClick(popupWindow, Pair(it, tooltipItem.tooltipTag))
                 }
                 return true
             }
@@ -234,10 +217,10 @@ object TooltipUtils {
             val records =
                 IDETooltipDatabase.getDatabase(context).idetooltipDao().getTooltipItems()
             withContext(Dispatchers.Main) {
-                if(records.isEmpty()) {
+                if (records.isEmpty()) {
                     Log.d("DumpIDEDatabase", "No records found in IDETooltipDatabase.")
                 } else {
-                    for(item: IDETooltipItem in records) {
+                    for (item: IDETooltipItem in records) {
                         Log.d(
                             "DumpIDEDatabase",
                             "tag = ${item.tooltipTag}\n\tsummary = ${item.summary}\n\tdetail = ${item.detail}\n\tbuttons = ${item.buttons}"

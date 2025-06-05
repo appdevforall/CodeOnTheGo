@@ -1,0 +1,237 @@
+name: Build and Test with Firebase Test Lab
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
+  FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+  FIREBASE_DISTRIBUTION_URL: ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
+  FIREBASE_DOWNLOAD_URL: ${{ secrets.FIREBASE_DOWNLOAD_URL }}
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  build_test:
+    name: Build and Firebase Test
+    runs-on: self-hosted
+    timeout-minutes: 90
+    steps:
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install and Configure Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs make
+          git lfs install
+          git lfs pull
+
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          cache: 'gradle'
+          distribution: temurin
+          java-version: |
+            8
+            17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Platform + Tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.4"
+
+      - name: Verify CMake version
+        run: cmake --version
+
+      - name: Set Java_ROOT environment variable
+        run: echo "Java_ROOT=$JAVA_HOME_8_X64" >> $GITHUB_ENV
+
+      - name: Assemble APKs
+        run: |
+          ./gradlew :app:assembleV8DebugAndroidTest --no-daemon
+          ./gradlew :app:assembleV8Debug --no-daemon
+
+      - name: Run Firebase Test Lab and Wait for Results
+        run: |
+          mkdir -p test-results/kotlin test-results/groovy
+          
+          # Run Kotlin DSL tests
+          echo "Running Kotlin DSL tests..."
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
+            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
+            --device model=oriole,version=33,locale=en,orientation=portrait \
+            --environment-variables clearPackageData=true \
+            --use-orchestrator \
+            --timeout 45m \
+            --num-flaky-test-attempts=2 \
+            --results-dir=test-results/kotlin \
+            --results-bucket=gs://firebase-test-results-${RANDOM} \
+            --project=codeonthego-64a92 \
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" > test-results/kotlin/test_output.txt 2>&1
+          
+          KOTLIN_EXIT_CODE=$?
+          echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
+          
+          # Extract Firebase Test Lab URL for Kotlin tests
+          KOTLIN_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/kotlin/test_output.txt | head -1 || echo "")
+          echo "KOTLIN_TEST_URL=$KOTLIN_TEST_URL" >> $GITHUB_ENV
+          
+          # Extract video URL for Kotlin tests - try multiple patterns
+          KOTLIN_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
+                            grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
+                            grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
+          echo "KOTLIN_VIDEO_URL=$KOTLIN_VIDEO_URL" >> $GITHUB_ENV
+
+          # Run Groovy DSL tests
+          echo "Running Groovy DSL tests..."
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
+            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
+            --device model=oriole,version=33,locale=en,orientation=portrait \
+            --environment-variables clearPackageData=true \
+            --use-orchestrator \
+            --timeout 45m \
+            --num-flaky-test-attempts=2 \
+            --results-dir=test-results/groovy \
+            --results-bucket=gs://firebase-test-results-${RANDOM} \
+            --project=codeonthego-64a92 \
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" > test-results/groovy/test_output.txt 2>&1
+          
+          GROOVY_EXIT_CODE=$?
+          echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
+          
+          # Extract Firebase Test Lab URL for Groovy tests
+          GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
+          echo "GROOVY_TEST_URL=$GROOVY_TEST_URL" >> $GITHUB_ENV
+          
+          # Extract video URL for Groovy tests - try multiple patterns
+          GROOVY_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
+                            grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
+                            grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
+          echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
+
+      - name: Notify Slack with parsed test results
+        if: always()  # Run even if tests fail
+        run: |
+          parse_results() {
+            local file="$1"
+            local test_name="$2"
+          
+            if [[ ! -f "$file" ]]; then
+              echo "$test_name: No results file found"
+              return
+            fi
+          
+            # Check if file is empty
+            if [[ ! -s "$file" ]]; then
+              echo "$test_name: Results file is empty"
+              return
+            fi
+          
+            # Parse Firebase Test Lab results - look for common patterns
+            local pass=$(grep -i "passed\|success" "$file" | wc -l || echo "0")
+            local fail=$(grep -i "failed\|error" "$file" | wc -l || echo "0")
+            local total=$((pass + fail))
+          
+            # If no specific test results found, check exit status or general output
+            if [[ $total -eq 0 ]]; then
+              if grep -q "Test run completed" "$file"; then
+                echo "$test_name: Test completed (check Firebase console for details)"
+              else
+                echo "$test_name: Test may have failed or results unclear"
+              fi
+            else
+              echo "$test_name: Tests run: $total, Passed: $pass, Failed: $fail"
+            fi
+          }
+
+          echo "Parsing test results..."
+          KOTLIN_RESULTS=$(parse_results test-results/kotlin/test_output.txt "Kotlin DSL")
+          GROOVY_RESULTS=$(parse_results test-results/groovy/test_output.txt "Groovy DSL")
+          
+          # Also capture the actual output for debugging
+          echo "Kotlin output file contents:"
+          if [[ -f test-results/kotlin/test_output.txt ]]; then
+            head -20 test-results/kotlin/test_output.txt
+          else
+            echo "File does not exist"
+          fi
+          
+          echo "Groovy output file contents:"
+          if [[ -f test-results/groovy/test_output.txt ]]; then
+            head -20 test-results/groovy/test_output.txt
+          else
+            echo "File does not exist"
+          fi
+
+          # Send to Slack with better formatting
+          SLACK_MESSAGE="*🔥 Firebase Test Lab Results*\\n\\n"
+          SLACK_MESSAGE="$SLACK_MESSAGE*${KOTLIN_RESULTS}*\\n"
+          SLACK_MESSAGE="$SLACK_MESSAGE*${GROOVY_RESULTS}*\\n"
+          
+          # Add Kotlin URLs
+          if [[ -n "$KOTLIN_TEST_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🔗 Kotlin Test Results: $KOTLIN_TEST_URL"
+          fi
+          
+          if [[ -n "$KOTLIN_VIDEO_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Kotlin Test Video: $KOTLIN_VIDEO_URL"
+          fi
+          
+          # Add Groovy URLs  
+          if [[ -n "$GROOVY_TEST_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n🔗 Groovy Test Results: $GROOVY_TEST_URL"
+          fi
+          
+          if [[ -n "$GROOVY_VIDEO_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Groovy Test Video: $GROOVY_VIDEO_URL"
+          fi
+          
+          # Add debugging info to see what URLs were found
+          echo "Debug - Kotlin Video URL: '$KOTLIN_VIDEO_URL'"
+          echo "Debug - Groovy Video URL: '$GROOVY_VIDEO_URL'"
+          echo "Debug - Kotlin Test URL: '$KOTLIN_TEST_URL'"
+          echo "Debug - Groovy Test URL: '$GROOVY_TEST_URL'"
+          
+          # Fallback to general Firebase console if no specific URLs found
+          if [[ -z "$KOTLIN_TEST_URL" && -z "$GROOVY_TEST_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n📱 Check Firebase console: ${{ env.FIREBASE_CONSOLE_URL }}"
+          fi
+
+          curl -X POST \
+            -H 'Content-type: application/json' \
+            --data "$(printf '{"text":"%s"}' "$SLACK_MESSAGE")" \
+            "${{ env.SLACK_WEBHOOK }}"

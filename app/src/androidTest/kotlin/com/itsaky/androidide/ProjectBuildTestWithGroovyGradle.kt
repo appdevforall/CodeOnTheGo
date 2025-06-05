@@ -16,6 +16,7 @@ import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 
+
 class ProjectBuildTestWithGroovyGradle : TestCase() {
 
     @get:Rule
