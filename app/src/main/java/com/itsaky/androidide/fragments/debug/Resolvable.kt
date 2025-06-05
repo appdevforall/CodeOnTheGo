@@ -13,7 +13,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CopyOnWriteArrayList
 
 interface Resolvable<T> {
 
@@ -31,6 +33,40 @@ interface Resolvable<T> {
      * Resolve the value.
      */
     suspend fun resolve(): T
+
+    /**
+     * Perform the given action when this resolvable has been resolved.
+     */
+    fun doOnResolve(action: suspend (T) -> Unit)
+}
+
+abstract class AbstractResolvable<T> : Resolvable<T> {
+
+    protected val callbacks = CopyOnWriteArrayList<suspend (T) -> Unit>()
+
+    override fun doOnResolve(action: suspend (T) -> Unit) {
+        if (isResolved) {
+            runBlocking { action(resolved) }
+            return
+        }
+
+        callbacks.add(action)
+    }
+
+    final override suspend fun resolve(): T {
+        val result = doResolve()
+
+        val callbacks = this.callbacks.toList()
+        this.callbacks.clear()
+
+        callbacks.forEach { action ->
+            action(result)
+        }
+
+        return result
+    }
+
+    protected abstract suspend fun doResolve(): T
 }
 
 /**
@@ -54,7 +90,7 @@ fun <T> Resolvable<T>.resolvedOr(default: T): T? = if (isResolved) resolved else
 @OptIn(ExperimentalCoroutinesApi::class)
 class ResolvableVariable<T : Value> private constructor(
     private val delegate: Variable<T>,
-) : Variable<T> by delegate, Resolvable<VariableDescriptor> {
+) : AbstractResolvable<VariableDescriptor>(), Variable<T> by delegate, Resolvable<VariableDescriptor> {
 
     private val deferredDescriptor = CompletableDeferred<VariableDescriptor>()
     private val deferredValue = CompletableDeferred<T?>()
@@ -101,7 +137,7 @@ class ResolvableVariable<T : Value> private constructor(
     /**
      * Resolve the variable state.
      */
-    override suspend fun resolve(): VariableDescriptor = coroutineScope {
+    override suspend fun doResolve(): VariableDescriptor = coroutineScope {
         // NOTE:
         // Care must be take to only resolve values which are absolutely needed
         // to render the UI. Resolution of values which are not immediately required must be deferred.
@@ -114,6 +150,9 @@ class ResolvableVariable<T : Value> private constructor(
 
         deferredDescriptor.complete(descriptor)
         deferredValue.complete(value.await())
+
+
+
         return@coroutineScope descriptor
     }
 
@@ -131,7 +170,7 @@ class ResolvableVariable<T : Value> private constructor(
 @OptIn(ExperimentalCoroutinesApi::class)
 class ResolvableStackFrame private constructor(
     private val delegate: StackFrame,
-) : StackFrame by delegate, Resolvable<StackFrameDescriptor> {
+) : AbstractResolvable<StackFrameDescriptor>(), StackFrame by delegate, Resolvable<StackFrameDescriptor> {
 
     private val deferredDescriptor = CompletableDeferred<StackFrameDescriptor>()
 
@@ -157,7 +196,7 @@ class ResolvableStackFrame private constructor(
         }
     }
 
-    override suspend fun resolve(): StackFrameDescriptor {
+    override suspend fun doResolve(): StackFrameDescriptor {
         getVariables().forEach { it.resolve() }
 
         val descriptor = delegate.descriptor()
@@ -172,7 +211,7 @@ class ResolvableStackFrame private constructor(
 @OptIn(ExperimentalCoroutinesApi::class)
 class ResolvableThreadInfo private constructor(
     private val delegate: ThreadInfo,
-) : ThreadInfo by delegate, Resolvable<ThreadDescriptor> {
+) : AbstractResolvable<ThreadDescriptor>(), ThreadInfo by delegate, Resolvable<ThreadDescriptor> {
 
     private val deferredDescriptor = CompletableDeferred<ThreadDescriptor>()
 
@@ -198,7 +237,7 @@ class ResolvableThreadInfo private constructor(
         }
     }
 
-    override suspend fun resolve(): ThreadDescriptor {
+    override suspend fun doResolve(): ThreadDescriptor {
         getFrames().forEach { it.resolve() }
 
         val descriptor = delegate.descriptor()

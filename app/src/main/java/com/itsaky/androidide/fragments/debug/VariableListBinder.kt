@@ -14,6 +14,8 @@ import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
 import io.github.dingyi222666.view.treeview.TreeView
 import io.github.dingyi222666.view.treeview.TreeViewBinder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class VariableListBinder : TreeViewBinder<ResolvableVariable<*>>() {
 
@@ -52,21 +54,22 @@ class VariableListBinder : TreeViewBinder<ResolvableVariable<*>>() {
 
         if (node.data?.isResolved != true) {
             binding.label.text = binding.root.context.getString(R.string.debugger_status_resolving)
-            return
         }
 
         val data = node.data ?: return
-        val descriptor = data.resolved
+        data.doOnResolve { descriptor ->
+            withContext(Dispatchers.Main) {
+                binding.apply {
+                    val ic = descriptor.icon(root.context)?.let { ContextCompat.getDrawable(root.context, it) }
 
-        binding.apply {
-            val ic = descriptor.icon(root.context)?.let { ContextCompat.getDrawable(root.context, it) }
+                    // noinspection SetTextI18n
+                    label.text =
+                        "${descriptor.name}: ${descriptor.typeName} = ${data.resolvedValue()}"
+                    icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
-            // noinspection SetTextI18n
-            label.text =
-                "${descriptor.name}: ${descriptor.typeName} = ${data.resolvedValue()}"
-            icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
-
-            chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
+                    chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
+                }
+            }
         }
     }
 }

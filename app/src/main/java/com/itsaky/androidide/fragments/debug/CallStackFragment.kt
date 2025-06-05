@@ -12,6 +12,7 @@ import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * @author Akash Yadav
@@ -72,16 +73,18 @@ class CallStackAdapter(
 
         if (!frame.isResolved) {
             binding.source.text = binding.root.context.getString(R.string.debugger_status_resolving)
-            return
         }
 
-        val descriptor = frame.resolved
-        binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
-        binding.label.text = descriptor.displayText()
-        binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
+        frame.doOnResolve { descriptor ->
+            withContext(Dispatchers.Main) {
+                binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
+                binding.label.text = descriptor.displayText()
+                binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
 
-        binding.root.setOnClickListener {
-            onItemClickListener?.invoke(position)
+                binding.root.setOnClickListener {
+                    onItemClickListener?.invoke(position)
+                }
+            }
         }
     }
 }
