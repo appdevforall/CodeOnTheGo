@@ -91,9 +91,7 @@ class ResolvableVariable<T : Value> private constructor(
                 return delegate
             }
 
-            return ResolvableVariable(delegate).also { variable ->
-                variable.resolve()
-            }
+            return ResolvableVariable(delegate)
         }
     }
 
@@ -149,9 +147,7 @@ class ResolvableStackFrame private constructor(
                 return delegate
             }
 
-            return ResolvableStackFrame(delegate).also {
-                it.resolve()
-            }
+            return ResolvableStackFrame(delegate)
         }
     }
 
@@ -190,9 +186,7 @@ class ResolvableThreadInfo private constructor(
                 return delegate
             }
 
-            return ResolvableThreadInfo(delegate).also {
-                it.resolve()
-            }
+            return ResolvableThreadInfo(delegate)
         }
     }
 
