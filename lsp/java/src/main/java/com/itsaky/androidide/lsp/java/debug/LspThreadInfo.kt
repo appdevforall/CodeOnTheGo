@@ -43,6 +43,9 @@ class JavaStackFrame(
 
         val variables = withContext(Dispatchers.IO) {
             frame.visibleVariables()
+
+                // some opaque frames in core Android classes have empty variable names (like ZygoteInit)
+                .filter { it.name().isNotBlank() }
         }
         return variables.map { variable -> JavaLocalVariable.forVariable(frame, variable) }
     }
