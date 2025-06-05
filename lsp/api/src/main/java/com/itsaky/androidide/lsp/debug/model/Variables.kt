@@ -180,9 +180,9 @@ interface Variable<ValueType: Value> {
     suspend fun descriptor(): VariableDescriptor
 
     /**
-     * Get the value of the variable as [ValueType].
+     * Get the value of the variable as [ValueType], or `null` if cannot be retrieved.
      */
-    suspend fun value(): ValueType
+    suspend fun value(): ValueType?
 
     /**
      * Get the members of of the object that this variable references. May be empty.
