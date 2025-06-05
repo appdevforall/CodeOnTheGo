@@ -51,7 +51,7 @@ class VariableListBinder : TreeViewBinder<ResolvableVariable<*>>() {
         }
 
         if (node.data?.isResolved != true) {
-            binding.label.text = "..."
+            binding.label.text = binding.root.context.getString(R.string.debugger_status_resolving)
             return
         }
 

@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
@@ -70,7 +71,7 @@ class CallStackAdapter(
         val frame = frames[position]
 
         if (!frame.isResolved) {
-            binding.source.text = "Resolving..."
+            binding.source.text = binding.root.context.getString(R.string.debugger_status_resolving)
             return
         }
 
