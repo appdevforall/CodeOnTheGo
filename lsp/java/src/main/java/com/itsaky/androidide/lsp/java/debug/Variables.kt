@@ -196,12 +196,14 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
     @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueType? = withContext(Dispatchers.IO) {
         try {
+            // TODO: find out if we can distinguish between opaque and non-opaque stack frames
             stackFrame.getValue(variable).toLspValue() as ValueType
         } catch (e: Exception) {
             logger.error(
                 "Failed to get value of variable '{}' in {}",
                 variable.name(),
-                stackFrame.location().method()
+                stackFrame.location().method(),
+                e
             )
             null
         }

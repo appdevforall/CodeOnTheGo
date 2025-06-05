@@ -35,7 +35,6 @@ class JavaStackFrame(
 
     override suspend fun getVariables(): List<LspVariable<*>> {
         val method = frame.location().method()
-        val type = method.declaringType()
         if (method == null || method.isAbstract || method.isNative) {
             // non-concrete method
             // does not have any variables
