@@ -13,6 +13,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import org.slf4j.LoggerFactory
 
 interface Resolvable<T> {
 
@@ -80,13 +81,15 @@ class ResolvableVariable<T : Value> private constructor(
 
     companion object {
 
+        private val logger = LoggerFactory.getLogger(ResolvableVariable::class.java)
+
         /**
          * Create a new eagerly-resolved variable delegating to [delegate].
          *
          * @param delegate The delegate variable.
          * @return The new eagerly-resolved variable.
          */
-        suspend fun <T : Value> create(delegate: Variable<T>): ResolvableVariable<T> {
+        fun <T : Value> create(delegate: Variable<T>): ResolvableVariable<T> {
             if (delegate is ResolvableVariable<T>) {
                 return delegate
             }
@@ -103,7 +106,10 @@ class ResolvableVariable<T : Value> private constructor(
         // Care must be take to only resolve values which are absolutely needed
         // to render the UI. Resolution of values which are not immediately required must be deferred.
 
-        val value = async { delegate.value() }
+        val value = async {
+            delegate.value()
+        }
+
         val descriptor = delegate.descriptor()
 
         deferredDescriptor.complete(descriptor)
@@ -142,7 +148,7 @@ class ResolvableStackFrame private constructor(
         /**
          * Create a new eagerly-resolved stack frame delegating to [delegate].
          */
-        suspend fun create(delegate: StackFrame): ResolvableStackFrame {
+        fun create(delegate: StackFrame): ResolvableStackFrame {
             if (delegate is ResolvableStackFrame) {
                 return delegate
             }
@@ -152,6 +158,8 @@ class ResolvableStackFrame private constructor(
     }
 
     override suspend fun resolve(): StackFrameDescriptor {
+        getVariables().forEach { it.resolve() }
+
         val descriptor = delegate.descriptor()
         deferredDescriptor.complete(descriptor)
         return descriptor
@@ -181,7 +189,7 @@ class ResolvableThreadInfo private constructor(
         /**
          * Create a new eagerly-resolved thread info delegating to [delegate].
          */
-        suspend fun create(delegate: ThreadInfo): ResolvableThreadInfo {
+        fun create(delegate: ThreadInfo): ResolvableThreadInfo {
             if (delegate is ResolvableThreadInfo) {
                 return delegate
             }
@@ -191,6 +199,8 @@ class ResolvableThreadInfo private constructor(
     }
 
     override suspend fun resolve(): ThreadDescriptor {
+        getFrames().forEach { it.resolve() }
+
         val descriptor = delegate.descriptor()
         deferredDescriptor.complete(descriptor)
         return descriptor
