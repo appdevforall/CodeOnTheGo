@@ -14,7 +14,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-interface Eager<T> {
+interface Resolvable<T> {
 
     /**
      * Whether the value is resolved.
@@ -35,7 +35,7 @@ interface Eager<T> {
 /**
  * Get the resolved value, or return `null` if the value is not resolved.
  */
-val <T> Eager<T>.resolvedOrNull: T?
+val <T> Resolvable<T>.resolvedOrNull: T?
     get() = if (isResolved) resolved else null
 
 /**
@@ -43,7 +43,7 @@ val <T> Eager<T>.resolvedOrNull: T?
  *
  * @param default The default value to return if the value is not resolved.
  */
-fun <T> Eager<T>.resolvedOr(default: T): T? = if (isResolved) resolved else default
+fun <T> Resolvable<T>.resolvedOr(default: T): T? = if (isResolved) resolved else default
 
 /**
  * A [variable][Variable] that is eagerly resolved.
@@ -51,9 +51,9 @@ fun <T> Eager<T>.resolvedOr(default: T): T? = if (isResolved) resolved else defa
  * @author Akash Yadav
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class EagerVariable<T : Value> private constructor(
+class ResolvableVariable<T : Value> private constructor(
     private val delegate: Variable<T>,
-) : Variable<T> by delegate, Eager<VariableDescriptor> {
+) : Variable<T> by delegate, Resolvable<VariableDescriptor> {
 
     private val deferredDescriptor = CompletableDeferred<VariableDescriptor>()
     private val deferredValue = CompletableDeferred<T?>()
@@ -86,12 +86,12 @@ class EagerVariable<T : Value> private constructor(
          * @param delegate The delegate variable.
          * @return The new eagerly-resolved variable.
          */
-        suspend fun <T : Value> create(delegate: Variable<T>): EagerVariable<T> {
-            if (delegate is EagerVariable<T>) {
+        suspend fun <T : Value> create(delegate: Variable<T>): ResolvableVariable<T> {
+            if (delegate is ResolvableVariable<T>) {
                 return delegate
             }
 
-            return EagerVariable(delegate).also { variable ->
+            return ResolvableVariable(delegate).also { variable ->
                 variable.resolve()
             }
         }
@@ -113,7 +113,7 @@ class EagerVariable<T : Value> private constructor(
         return@coroutineScope descriptor
     }
 
-    override suspend fun objectMembers(): Set<EagerVariable<*>> =
+    override suspend fun objectMembers(): Set<ResolvableVariable<*>> =
         delegate.objectMembers()
             .map { variable ->
                 // members of an eagerly-resolved variable are also eagerly-resolved
@@ -125,9 +125,9 @@ class EagerVariable<T : Value> private constructor(
  * @author Akash Yadav
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class EagerStackFrame private constructor(
+class ResolvableStackFrame private constructor(
     private val delegate: StackFrame,
-) : StackFrame by delegate, Eager<StackFrameDescriptor> {
+) : StackFrame by delegate, Resolvable<StackFrameDescriptor> {
 
     private val deferredDescriptor = CompletableDeferred<StackFrameDescriptor>()
 
@@ -144,12 +144,12 @@ class EagerStackFrame private constructor(
         /**
          * Create a new eagerly-resolved stack frame delegating to [delegate].
          */
-        suspend fun create(delegate: StackFrame): EagerStackFrame {
-            if (delegate is EagerStackFrame) {
+        suspend fun create(delegate: StackFrame): ResolvableStackFrame {
+            if (delegate is ResolvableStackFrame) {
                 return delegate
             }
 
-            return EagerStackFrame(delegate).also {
+            return ResolvableStackFrame(delegate).also {
                 it.resolve()
             }
         }
@@ -161,14 +161,14 @@ class EagerStackFrame private constructor(
         return descriptor
     }
 
-    override suspend fun getVariables(): List<EagerVariable<*>> =
-        delegate.getVariables().map { variable -> EagerVariable.create(variable) }
+    override suspend fun getVariables(): List<ResolvableVariable<*>> =
+        delegate.getVariables().map { variable -> ResolvableVariable.create(variable) }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class EagerThreadInfo private constructor(
+class ResolvableThreadInfo private constructor(
     private val delegate: ThreadInfo,
-) : ThreadInfo by delegate, Eager<ThreadDescriptor> {
+) : ThreadInfo by delegate, Resolvable<ThreadDescriptor> {
 
     private val deferredDescriptor = CompletableDeferred<ThreadDescriptor>()
 
@@ -185,12 +185,12 @@ class EagerThreadInfo private constructor(
         /**
          * Create a new eagerly-resolved thread info delegating to [delegate].
          */
-        suspend fun create(delegate: ThreadInfo): EagerThreadInfo {
-            if (delegate is EagerThreadInfo) {
+        suspend fun create(delegate: ThreadInfo): ResolvableThreadInfo {
+            if (delegate is ResolvableThreadInfo) {
                 return delegate
             }
 
-            return EagerThreadInfo(delegate).also {
+            return ResolvableThreadInfo(delegate).also {
                 it.resolve()
             }
         }
@@ -202,6 +202,6 @@ class EagerThreadInfo private constructor(
         return descriptor
     }
 
-    override suspend fun getFrames(): List<EagerStackFrame> =
-        delegate.getFrames().map { frame -> EagerStackFrame.create(frame) }
+    override suspend fun getFrames(): List<ResolvableStackFrame> =
+        delegate.getFrames().map { frame -> ResolvableStackFrame.create(frame) }
 }

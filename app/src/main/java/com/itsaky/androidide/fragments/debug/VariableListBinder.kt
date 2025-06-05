@@ -15,7 +15,7 @@ import io.github.dingyi222666.view.treeview.TreeNodeEventListener
 import io.github.dingyi222666.view.treeview.TreeView
 import io.github.dingyi222666.view.treeview.TreeViewBinder
 
-class VariableListBinder : TreeViewBinder<EagerVariable<*>>() {
+class VariableListBinder : TreeViewBinder<ResolvableVariable<*>>() {
 
     private var treeIndent = 0
 
@@ -25,12 +25,12 @@ class VariableListBinder : TreeViewBinder<EagerVariable<*>>() {
         return binding.root
     }
 
-    override fun getItemViewType(node: TreeNode<EagerVariable<*>>): Int = 0
+    override fun getItemViewType(node: TreeNode<ResolvableVariable<*>>): Int = 0
 
     override fun bindView(
         holder: TreeView.ViewHolder,
-        node: TreeNode<EagerVariable<*>>,
-        listener: TreeNodeEventListener<EagerVariable<*>>
+        node: TreeNode<ResolvableVariable<*>>,
+        listener: TreeNodeEventListener<ResolvableVariable<*>>
     ) {
         val binding = DebuggerVariableItemBinding.bind(holder.itemView)
         if (treeIndent == 0) {
