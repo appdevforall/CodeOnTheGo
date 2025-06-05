@@ -599,6 +599,8 @@
   <string name="permission_title_install_packages">Install packages</string>
   <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
   <string name="permission_title_overlay_window">Overlay window</string>
+  <string name="permission_title_accessibility">Accessibility</string>
+  <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
   <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
   <string name="onboarding_title_permissions">Permissions</string>
   <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
