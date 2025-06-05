@@ -126,6 +126,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         openHelpActivity()
     }
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
