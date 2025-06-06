@@ -50,8 +50,7 @@ abstract class IDELanguage : Language {
     return EditorPreferences.tabSize
   }
 
-  open fun addBreakpoint(file: File, line: Int) {}
-  open fun removeBreakpoint(file: File, line: Int) {}
+  open fun toggleBreakpoint(file: File, line: Int) {}
 
   @Throws(CompletionCancelledException::class)
   override fun requireAutoComplete(
