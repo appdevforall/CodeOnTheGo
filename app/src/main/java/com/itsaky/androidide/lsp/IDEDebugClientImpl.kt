@@ -80,7 +80,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         }
         return BreakpointHitResponse(
             remoteClient = event.remoteClient,
-            resumePolicy = ResumePolicy.SUSPEND_CLIENT
+            resumePolicy = ResumePolicy.SUSPEND_THREAD
         )
     }
 
