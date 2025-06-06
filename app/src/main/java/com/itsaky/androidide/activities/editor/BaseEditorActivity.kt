@@ -224,7 +224,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
     private val debuggerServiceStopRunnable = Runnable {
-        unbindService(debuggerServiceConnection)
+        if (debuggerService != null && debuggerViewModel.clientCount.value < 1) {
+            unbindService(debuggerServiceConnection)
+        }
     }
 
     fun ensureDebuggerServiceBound() {
@@ -232,7 +234,13 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         if (debuggerService == null) {
             val intent = Intent(this, DebuggerService::class.java)
             bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
+            postStopDebuggerServiceIfNotConnected()
         }
+    }
+
+    private fun postStopDebuggerServiceIfNotConnected() {
+        debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
+        debuggerServiceStopHandler.postDelayed(debuggerServiceStopRunnable, DEBUGGER_SERVICE_STOP_DELAY_MS)
     }
 
     private var optionsMenuInvalidator: Runnable? = null
@@ -723,11 +731,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun setupViews() {
         lifecycleScope.launch {
-            debuggerViewModel.clientCount.collectLatest { count ->
-                if (count == 0 && debuggerService != null) {
-                    log.info("Stopping debugger service in ${DEBUGGER_SERVICE_STOP_DELAY_MS}ms")
-                    debuggerServiceStopHandler.postDelayed(debuggerServiceStopRunnable, DEBUGGER_SERVICE_STOP_DELAY_MS)
-                }
+            debuggerViewModel.clientCount.collectLatest {
+                postStopDebuggerServiceIfNotConnected()
             }
         }
 
