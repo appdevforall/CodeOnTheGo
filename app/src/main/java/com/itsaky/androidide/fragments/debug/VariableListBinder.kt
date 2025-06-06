@@ -74,6 +74,7 @@ class VariableListBinder(
 
         coroutineScope.launch {
             val descriptor = data.resolve()
+            val strValue = data.resolvedValue()?.toString() ?: "<unavailable>"
             withContext(Dispatchers.Main) {
                 binding.apply {
                     if (descriptor == null) {
@@ -86,7 +87,7 @@ class VariableListBinder(
 
                     // noinspection SetTextI18n
                     label.text =
-                        "${descriptor.name}: ${descriptor.typeName} = ${data.resolvedValue()}"
+                        "${descriptor.name}: ${descriptor.typeName} = $strValue"
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE

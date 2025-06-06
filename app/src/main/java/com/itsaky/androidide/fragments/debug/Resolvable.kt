@@ -143,11 +143,7 @@ class ResolvableVariable<T : Value> private constructor(
         }
 
         val descriptor = delegate.descriptor()
-
         deferredValue.complete(value.await())
-
-        logger.debug("desc={} val={}", deferred.completedOrNull, deferredValue.completedOrNull)
-
         return@coroutineScope descriptor
     }
 

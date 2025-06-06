@@ -95,12 +95,14 @@ internal class JavaPrimitiveValue(
     override fun asBoolean(): Boolean = primitive.booleanValue()
     override fun asChar(): Char = primitive.charValue()
     override fun asString(): String = primitive.toString()
+    override fun toString(): String = asString()
 }
 
 internal class JavaStringValue(
     private val jdi: StringReference
 ) : BaseJavaValue(jdi), LspStringValue {
     override fun asString(): String = jdi.value()
+    override fun toString(): String = asString()
 }
 
 internal class JavaReferenceValue(
