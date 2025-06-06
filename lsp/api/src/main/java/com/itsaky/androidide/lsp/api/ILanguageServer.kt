@@ -32,6 +32,7 @@
  */
 package com.itsaky.androidide.lsp.api
 
+import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.models.CodeFormatResult
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -59,6 +60,20 @@ interface ILanguageServer {
   val serverId: String?
 
   /**
+   * Get the instance of the language client connected to this server.
+   *
+   * @return The language client.
+   */
+  val client: ILanguageClient?
+
+  /**
+   * Get the instance of the debug adapter connected to this server. Can be `null` if this language
+   * server doesn't support debugging.
+   */
+  val debugAdapter: IDebugAdapter?
+    get() = null
+
+  /**
    * Called by client to notify the server to shutdown. Language servers must release all the
    * resources in use.
    *
@@ -73,13 +88,6 @@ interface ILanguageServer {
    * @param client The client to set.
    */
   fun connectClient(client: ILanguageClient?)
-
-  /**
-   * Get the instance of the language client connected to this server.
-   *
-   * @return The language client.
-   */
-  val client: ILanguageClient?
 
   /**
    * Apply settings to the language server. Its up to the language server how it applies these

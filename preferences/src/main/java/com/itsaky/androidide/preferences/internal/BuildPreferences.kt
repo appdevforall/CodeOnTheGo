@@ -79,7 +79,7 @@ object BuildPreferences {
 
   /** Switch for Gradle `--info` option. */
   var isInfoEnabled: Boolean
-    get() = prefManager.getBoolean(INFO, GeneralPreferences.isFirstBuild)
+    get() = prefManager.getBoolean(INFO, true)
     set(enabled) {
       prefManager.putBoolean(INFO, enabled)
     }
