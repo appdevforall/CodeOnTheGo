@@ -337,6 +337,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
 
         val packageName = onResult(this, intent) ?: return
+        debuggerService?.targetPackage = packageName
 
         if (BuildPreferences.launchAppAfterInstall) {
             IntentUtils.launchApp(this, packageName)
@@ -387,6 +388,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
+
+        log.debug("onCreate: bind: DebuggerService")
+        bindService(Intent(this, DebuggerService::class.java), debuggerServiceConnection, BIND_AUTO_CREATE)
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {

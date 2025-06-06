@@ -7,10 +7,14 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * @author Akash Yadav
@@ -40,13 +44,14 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
         }
     }
 
-    override fun onCreateAdapter() = CallStackAdapter(viewHolder.allFrames.value) { newPosition ->
+    override fun onCreateAdapter() = CallStackAdapter(viewLifecycleScope, viewHolder.allFrames.value) { newPosition ->
         viewHolder.setSelectedFrameIndex(newPosition)
     }
 }
 
 class CallStackAdapter(
-    private val frames: List<EagerStackFrame>,
+    private val coroutineScope: CoroutineScope,
+    private val frames: List<ResolvableStackFrame>,
     private val onItemClickListener: ((Int) -> Unit)? = null
 ) : RecyclerView.Adapter<CallStackAdapter.VH>() {
 
@@ -70,17 +75,25 @@ class CallStackAdapter(
         val frame = frames[position]
 
         if (!frame.isResolved) {
-            binding.source.text = "Resolving..."
-            return
+            binding.source.text = binding.root.context.getString(R.string.debugger_status_resolving)
         }
 
-        val descriptor = frame.resolved
-        binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
-        binding.label.text = descriptor.displayText()
-        binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
+        coroutineScope.launch {
+            val descriptor = frame.resolve()
+            withContext(Dispatchers.Main) {
+                if (descriptor == null) {
+                    binding.label.text = "<error>"
+                    return@withContext
+                }
 
-        binding.root.setOnClickListener {
-            onItemClickListener?.invoke(position)
+                binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
+                binding.label.text = descriptor.displayText()
+                binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
+
+                binding.root.setOnClickListener {
+                    onItemClickListener?.invoke(position)
+                }
+            }
         }
     }
 }
