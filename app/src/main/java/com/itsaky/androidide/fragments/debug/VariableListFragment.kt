@@ -40,7 +40,7 @@ class VariableListFragment : Fragment() {
             supportHorizontalScroll = true
             supportDragging = false
             tree = viewModel.variablesTree.value
-            binder = VariableListBinder()
+            binder = VariableListBinder(viewLifecycleOwner.lifecycleScope)
 
             bindCoroutineScope(viewLifecycleOwner.lifecycleScope)
         }
