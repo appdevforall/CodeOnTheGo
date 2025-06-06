@@ -72,7 +72,7 @@ class VariableListBinder(
             return
         }
 
-        coroutineScope.launch {
+        coroutineScope.launch(Dispatchers.IO) {
             val descriptor = data.resolve()
             val strValue = data.resolvedValue()?.toString() ?: "<unavailable>"
             withContext(Dispatchers.Main) {

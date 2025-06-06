@@ -80,6 +80,7 @@ class DebuggerService : Service() {
     }
 
     override fun onDestroy() {
+        logger.debug("onDestroy()")
         targetPackage = null
         unregisterReceiver(foregroundAppReceiver)
         actionsList.forEach(actionsRegistry::unregisterAction)
