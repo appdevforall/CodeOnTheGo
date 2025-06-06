@@ -230,7 +230,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     fun ensureDebuggerServiceBound() {
-        debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
         if (debuggerService == null) {
             val intent = Intent(this, DebuggerService::class.java)
             bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
