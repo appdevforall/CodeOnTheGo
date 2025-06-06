@@ -17,6 +17,7 @@
 
 package io.github.rosemoe.sora.editor.ts
 
+import android.graphics.Color
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
@@ -25,12 +26,11 @@ import com.itsaky.androidide.treesitter.api.TreeSitterQueryCapture
 import com.itsaky.androidide.treesitter.api.safeExecQueryCursor
 import com.itsaky.androidide.treesitter.string.UTF16String
 import io.github.rosemoe.sora.data.ObjectAllocator
-import io.github.rosemoe.sora.editor.ts.linestyle.BreakpointDrawable
 import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.analysis.StyleReceiver
 import io.github.rosemoe.sora.lang.styling.CodeBlock
 import io.github.rosemoe.sora.lang.styling.Styles
-import io.github.rosemoe.sora.lang.styling.line.LineSideIcon
+import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -130,14 +130,18 @@ class TsAnalyzeWorker(
     }
   }
 
-  fun addBreakpoint(line: Int) {
-    styles.addLineStyle(LineSideIcon(line, BreakpointDrawable()))
-    updateStyles()
-  }
+  fun toggleBreakpoint(line: Int) {
+    val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
+    val gutterBg = lineStyle?.findOne(LineGutterBackground::class.java)
+    if (gutterBg != null) {
+      styles.eraseLineStyle(line, LineGutterBackground::class.java)
+    } else {
+      styles.addLineStyle(LineGutterBackground(line) { Color.RED })
+    }
 
-  fun removeBreakpoint(line: Int) {
-    styles.eraseLineStyle(line, LineSideIcon::class.java)
-    updateStyles()
+    // calling updateStyles does a lot of unnecessary work
+    // instead, just reset the same styles to the receiver
+    stylesReceiver?.setStyles(analyzer, styles)
   }
 
   private fun processNextMessage() {

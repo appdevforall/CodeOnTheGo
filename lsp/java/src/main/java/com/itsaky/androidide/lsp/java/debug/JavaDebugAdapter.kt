@@ -35,6 +35,8 @@ import com.sun.jdi.event.StepEvent
 import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
 import com.itsaky.androidide.lsp.debug.events.StepEvent as LspStepEvent
@@ -180,7 +182,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override suspend fun addBreakpoints(
         request: BreakpointRequest
-    ): BreakpointResponse {
+    ): BreakpointResponse = withContext(Dispatchers.IO) {
         val vm = connVm()
 
         check(vm.client == request.remoteClient) {
@@ -189,13 +191,13 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.breakpointSupport) {
             // we're not handling events from the VM, or the VM does not support adding breakpoints
-            return BreakpointResponse.EMPTY
+            return@withContext BreakpointResponse.EMPTY
         }
 
         val specList = vm.eventRequestSpecList!!
         val allSpecs = specList.eventRequestSpecs()
             .filterIsInstance<BreakpointSpec>()
-        return BreakpointResponse(request.breakpoints.map { br ->
+        return@withContext BreakpointResponse(request.breakpoints.map { br ->
 
             var addSpec = false
             var spec = allSpecs
@@ -248,7 +250,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override suspend fun removeBreakpoints(
         request: BreakpointRequest
-    ): BreakpointResponse {
+    ): BreakpointResponse = withContext(Dispatchers.IO) {
         val vm = connVm()
 
         check(vm.client == request.remoteClient) {
@@ -257,14 +259,14 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.breakpointSupport) {
             // we're not handling events from the VM, or the VM does not support adding breakpoints
-            return BreakpointResponse.EMPTY
+            return@withContext BreakpointResponse.EMPTY
         }
 
         val specList = vm.eventRequestSpecList!!
         val allSpecs = specList.eventRequestSpecs()
             .filterIsInstance<BreakpointSpec>()
 
-        return BreakpointResponse(
+        return@withContext BreakpointResponse(
             results = request.breakpoints.flatMap { br ->
                 allSpecs
                     .filter { spec -> spec.isSameAsDef(br) }
@@ -282,7 +284,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         )
     }
 
-    override suspend fun step(request: StepRequestParams): StepResponse {
+    override suspend fun step(request: StepRequestParams): StepResponse = withContext(Dispatchers.IO) {
         val vm = connVm()
 
         check(vm.client == request.remoteClient) {
@@ -291,11 +293,11 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.stepSupport) {
             // we're not handling events from the VM, or the VM does not support adding breakpoints
-            return StepResponse(StepResult.Failure("Step support is not enabled"))
+            return@withContext StepResponse(StepResult.Failure("Step support is not enabled"))
         }
 
         val suspendedThread = vm.threadState.current
-            ?: return StepResponse(StepResult.Failure("No thread is currently suspended"))
+            ?: return@withContext StepResponse(StepResult.Failure("No thread is currently suspended"))
 
         clearPreviousStep(vm.vm, suspendedThread.thread)
 
@@ -315,7 +317,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         vm.threadState.invalidateAll()
         vm.vm.resume()
 
-        return StepResponse(StepResult.Success)
+        return@withContext StepResponse(StepResult.Success)
     }
 
     override suspend fun threadInfo(
@@ -339,17 +341,17 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         return ThreadInfoResponse(ThreadInfoResult.Failure())
     }
 
-    override suspend fun allThreads(request: ThreadListRequestParams): ThreadListResponse {
+    override suspend fun allThreads(request: ThreadListRequestParams): ThreadListResponse = withContext(Dispatchers.IO) {
         val vm = connVm()
         check(vm.client == request.remoteClient) {
             "Received request for thread list from a different client"
         }
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.threadListSupport) {
-            return ThreadListResponse(emptyList())
+            return@withContext ThreadListResponse(emptyList())
         }
 
-        return ThreadListResponse(
+        return@withContext ThreadListResponse(
             threads = vm.threadState.threads.map { thread -> LspThreadInfo(thread) }
         )
     }
