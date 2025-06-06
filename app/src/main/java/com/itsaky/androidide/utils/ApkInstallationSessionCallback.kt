@@ -30,6 +30,10 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
 
   companion object {
     private val log = LoggerFactory.getLogger(ApkInstallationSessionCallback::class.java)
+    private const val LOG_ABANDON_FAILED = "Failed to abandon session {} : {}"
+    private const val LOG_SESSION_NOT_EXISTS = "Session {} no longer exists or is already abandoned"
+    private const val LOG_SESSION_ERROR = "Error while handling installation session {} : {}"
+    private const val SESSION_ID_NONE = -1
   }
 
   override fun onCreated(sessionId: Int) {
@@ -62,18 +66,28 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
   }
 
   fun destroy() {
-    if (this.sessionId != -1) {
-      this.activity?.packageManager?.packageInstaller?.let { packageInstaller ->
-        packageInstaller.mySessions.find { session -> session.sessionId == this.sessionId }
-          ?.also { info ->
+    val currentActivity = this.activity
+    val isActivityValid = currentActivity != null && !currentActivity.isFinishing && !currentActivity.isDestroyed
+
+    if (this.sessionId != SESSION_ID_NONE && isActivityValid) {
+      try {
+        currentActivity?.packageManager?.packageInstaller?.let { packageInstaller ->
+          val sessionExists = packageInstaller.mySessions.any { it.sessionId == this.sessionId }
+          if (sessionExists) {
             try {
-              packageInstaller.abandonSession(info.sessionId)
+              packageInstaller.abandonSession(this.sessionId)
             } catch (ex: Exception) {
-              log.error("Failed to abandon session {} : {}", info.sessionId, ex.cause?.message ?: ex.message)
+              log.error(LOG_ABANDON_FAILED, this.sessionId, ex.cause?.message ?: ex.message)
             }
+          } else {
+            log.info(LOG_SESSION_NOT_EXISTS, this.sessionId)
           }
+        }
+      } catch (ex: Exception) {
+        log.error(LOG_SESSION_ERROR, this.sessionId, ex.cause?.message ?: ex.message)
       }
     }
+
     this.activity = null
     this.sessionId = -1
   }
