@@ -19,7 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration.Companion.seconds
 
 class VariableListBinder(
     private val coroutineScope: CoroutineScope,
@@ -72,7 +74,7 @@ class VariableListBinder(
             return
         }
 
-        coroutineScope.launch {
+        coroutineScope.launch(Dispatchers.IO) {
             val descriptor = data.resolve()
             val strValue = data.resolvedValue()?.toString() ?: "<unavailable>"
             withContext(Dispatchers.Main) {

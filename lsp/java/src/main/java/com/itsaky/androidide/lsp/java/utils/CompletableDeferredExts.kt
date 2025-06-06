@@ -11,14 +11,13 @@ val <T> Deferred<T>.completedOrNull: T?
 fun <T> Deferred<T>.getValue(
     defaultValue: T,
 ): T {
-    val alreadyCompleted = completedOrNull
-    if (alreadyCompleted != null) {
-        return alreadyCompleted
-    }
-
-    if (this.getCompletionExceptionOrNull() != null) {
+    if (!isCompleted) {
         return defaultValue
     }
 
-    return this.getCompleted()
+    if (isCompleted && this.getCompletionExceptionOrNull() != null) {
+        return defaultValue
+    }
+
+    return completedOrNull ?: defaultValue
 }

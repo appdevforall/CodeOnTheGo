@@ -89,7 +89,7 @@ class ResolvableVariable<T : Value> private constructor(
     private val delegate: Variable<T>,
 ) : AbstractResolvable<VariableDescriptor>(), Variable<T> by delegate, Resolvable<VariableDescriptor> {
 
-    private val deferredValue = CompletableDeferred<T?>()
+    internal val deferredValue = CompletableDeferred<T?>()
 
     /**
      * Whether the variable is resolved.
