@@ -90,6 +90,7 @@ public class IDELanguageClientImpl implements ILanguageClient {
 
   public void setActivity(EditorHandlerActivity provider) {
     this.activity = provider;
+    this.debugClient.setViewModel(provider.getDebuggerViewModel());
   }
 
   public static IDELanguageClientImpl initialize(EditorHandlerActivity provider) {
@@ -113,6 +114,7 @@ public class IDELanguageClientImpl implements ILanguageClient {
   public static void shutdown() {
     if (mInstance != null) {
       mInstance.activity = null;
+      mInstance.debugClient.setViewModel(null);
     }
     mInstance = null;
   }
