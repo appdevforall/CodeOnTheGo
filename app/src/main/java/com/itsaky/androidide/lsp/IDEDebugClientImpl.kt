@@ -22,6 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 
@@ -30,8 +31,14 @@ import kotlin.concurrent.write
  */
 data class DebugClientState(
     val clients: Set<RemoteClient>,
-    val breakpoints: Set<PositionalBreakpoint>,
-)
+    val breakpoints: HashMap<Int, PositionalBreakpoint>,
+) {
+    val client: RemoteClient
+        get() = clients.first()
+
+    val clientOrNull: RemoteClient?
+        get() = clients.firstOrNull()
+}
 
 /**
  * @author Akash Yadav
@@ -49,19 +56,47 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
     @GuardedBy("stateGuard")
     private var state = DebugClientState(
         clients = mutableSetOf(),
-        breakpoints = mutableSetOf()
+        breakpoints = hashMapOf()
     )
 
-    private val testBreakpoint = PositionalBreakpoint(
-        source = Source(
-            "DebuggingTarget.java",
-            "/storage/emulated/0/AndroidIDEProjects/My Application/app/src/main/java/com/itsaky/debuggable/DebuggingTarget.java"
-        ),
-        line = 27,
-    )
+    fun toggleBreakpoint(file: File, line: Int) = stateGuard.write {
+        val breakpoints = listOf(
+            PositionalBreakpoint(
+                source = Source(
+                    name = file.name,
+                    path = file.absolutePath
+                ),
+                line = line
+            )
+        )
+
+        val remove = state.breakpoints.containsKey(line)
+        if (remove) {
+            state.breakpoints.remove(line)
+        } else {
+            state.breakpoints[line] = breakpoints.first()
+        }
+
+        // if we're already connected to a client, update the client as well
+        state.clientOrNull?.also { client ->
+            clientScope.launch {
+                val adapter = client.adapter ?: return@launch
+                val request = BreakpointRequest(
+                    remoteClient = client,
+                    breakpoints = breakpoints,
+                )
+
+                if (remove) {
+                    adapter.removeBreakpoints(request)
+                } else {
+                    adapter.addBreakpoints(request)
+                }
+            }
+        }
+    }
 
     override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
-        clientScope.launch(Dispatchers.IO) {
+        clientScope.launch {
             val adapter = event.remoteClient.adapter
             val threadResponse = adapter.allThreads(
                 ThreadListRequestParams(
@@ -101,7 +136,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
             client.adapter.addBreakpoints(
                 BreakpointRequest(
                     remoteClient = client,
-                    breakpoints = listOf(testBreakpoint)
+                    breakpoints = state.breakpoints.values.toList()
                 )
             )
         }
