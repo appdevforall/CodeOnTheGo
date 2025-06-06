@@ -135,10 +135,14 @@ class TsAnalyzeWorker(
 
   fun addBreakpoint(line: Int) {
     styles.addLineStyle(LineGutterBackground(line) { Color.RED })
+    styles.addLineStyle(LineSideIcon(line, BreakpointDrawable()))
+    updateStyles()
   }
 
   fun removeBreakpoint(line: Int) {
+    styles.addLineStyle(LineGutterBackground(line) { Color.TRANSPARENT })
     styles.eraseLineStyle(line, LineSideIcon::class.java)
+    updateStyles()
   }
 
   private fun processNextMessage() {

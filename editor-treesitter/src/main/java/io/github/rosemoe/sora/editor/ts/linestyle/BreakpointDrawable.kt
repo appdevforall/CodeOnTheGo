@@ -13,7 +13,7 @@ class BreakpointDrawable @JvmOverloads constructor(
     orientation, colors
 ) {
     init {
-        shape = OVAL
+        shape = RECTANGLE
         setColor(Color.RED)
     }
 }
