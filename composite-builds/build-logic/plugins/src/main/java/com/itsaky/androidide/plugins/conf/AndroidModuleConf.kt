@@ -218,7 +218,10 @@ fun Project.configureAndroidModule(
 
         buildTypes.getByName("debug") { isMinifyEnabled = false }
         buildTypes.getByName("release") {
+            // TODO: disable minify until issues with minified release build is resolved -- jm 2025-06-06
             isMinifyEnabled = isAppModule
+            isShrinkResources = isAppModule
+            // isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
