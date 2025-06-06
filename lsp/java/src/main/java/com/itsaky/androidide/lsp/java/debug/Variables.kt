@@ -23,7 +23,6 @@ import com.sun.jdi.FloatType
 import com.sun.jdi.FloatValue
 import com.sun.jdi.IntegerType
 import com.sun.jdi.IntegerValue
-import com.sun.jdi.InternalException
 import com.sun.jdi.LocalVariable
 import com.sun.jdi.LongType
 import com.sun.jdi.LongValue
@@ -139,6 +138,7 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
         }
     }
 
+    protected abstract suspend fun jdiValue(): Value
     protected open suspend fun isMutable(): Boolean = false
 
     override suspend fun descriptor() = VariableDescriptor(
@@ -149,30 +149,36 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
     )
 
     override suspend fun objectMembers(): Set<Variable<*>> = withContext(Dispatchers.IO) {
-        val type = this@AbstractJavaVariable.type
-        if (type !is ReferenceType) {
+        val value = jdiValue()
+        val type = value.type()
+        if (value !is ObjectReference) {
             // TODO: We can provide other information as 'members' for other types of variables.
             return@withContext emptySet()
         }
 
+        type as ReferenceType
+
         val fields = type.allFields()
         fields.map { field ->
-            JavaFieldVariable<ValueT>(type, field)
+            JavaFieldVariable<ValueT>(value, type, field)
         }.toSet()
     }
 }
 
 internal class JavaFieldVariable<ValueT : LspValue>(
-    private val ref: ReferenceType, private val field: Field
+    private val ref: ObjectReference,
+    private val refType: ReferenceType,
+    private val field: Field,
 ) : AbstractJavaVariable<ValueT>(
     name = field.name(), typeName = field.typeName(), type = field.type()
 ) {
 
     override suspend fun isMutable(): Boolean = !field.isFinal
+    override suspend fun jdiValue(): Value = ref
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueT = withContext(Dispatchers.IO) {
-        ref.getValue(field).toLspValue() as ValueT
+        (if (field.isStatic) refType.getValue(field) else ref.getValue(field)).toLspValue() as ValueT
     }
 }
 
@@ -211,7 +217,7 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
         }
     }
 
-    internal suspend fun jdiValue() = withContext(Dispatchers.IO) { stackFrame.getValue(variable) }
+    override suspend fun jdiValue(): Value = stackFrame.getValue(variable)
 
     protected inline fun <reified T : Type> requireType(action: () -> Unit) {
         check(type is T) {
@@ -221,6 +227,10 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
     }
 
     protected fun setValue(value: Value) = stackFrame.setValue(variable, value)
+
+    override suspend fun objectMembers(): Set<Variable<*>> {
+        return super.objectMembers()
+    }
 }
 
 internal class JavaPrimitiveVariable(
