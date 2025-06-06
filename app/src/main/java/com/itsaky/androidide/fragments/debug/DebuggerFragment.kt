@@ -52,7 +52,7 @@ class DebuggerFragment :
             coroutineScope {
                 val labels = threads.map { thread ->
                     async {
-                        thread.resolve().displayText()
+                        thread.resolve()?.displayText() ?: "<resolution-failure>"
                     }
                 }.awaitAll()
 
@@ -78,7 +78,7 @@ class DebuggerFragment :
                     binding.threadLayoutSelector.spinnerText.apply {
                         listSelection = index
                         // noinspection SetTextI18n
-                        setText(descriptor.displayText(), false)
+                        setText(descriptor?.displayText() ?: "<resolution-failure>", false)
                     }
                 }
             }

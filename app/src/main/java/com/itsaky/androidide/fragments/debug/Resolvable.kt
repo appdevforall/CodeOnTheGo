@@ -10,12 +10,12 @@ import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.java.utils.completedOrNull
 import com.itsaky.androidide.lsp.java.utils.getValue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.util.concurrent.CopyOnWriteArrayList
 
 interface Resolvable<T> {
 
@@ -32,35 +32,32 @@ interface Resolvable<T> {
     /**
      * Resolve the value.
      */
-    suspend fun resolve(): T
-
-    /**
-     * Perform the given action when this resolvable has been resolved.
-     */
-    fun doOnResolve(action: suspend (T) -> Unit)
+    suspend fun resolve(): T?
 }
 
 abstract class AbstractResolvable<T> : Resolvable<T> {
 
-    protected val callbacks = CopyOnWriteArrayList<suspend (T) -> Unit>()
+    private val _deferred = CompletableDeferred<T>()
 
-    override fun doOnResolve(action: suspend (T) -> Unit) {
-        if (isResolved) {
-            runBlocking { action(resolved) }
-            return
-        }
+    val deferred: Deferred<T>
+        get() = _deferred
 
-        callbacks.add(action)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val isResolved: Boolean
+        get() = deferred.completedOrNull != null
+
+    companion object {
+        @JvmStatic
+        protected val logger: Logger = LoggerFactory.getLogger(AbstractResolvable::class.java)
     }
 
-    final override suspend fun resolve(): T {
-        val result = doResolve()
-
-        val callbacks = this.callbacks.toList()
-        this.callbacks.clear()
-
-        callbacks.forEach { action ->
-            action(result)
+    final override suspend fun resolve(): T? {
+        val result = try {
+            doResolve()?.also(_deferred::complete)
+        } catch (err: Throwable) {
+            logger.error("Resolution failure", err)
+            _deferred.completeExceptionally(err)
+            null
         }
 
         return result
@@ -92,24 +89,22 @@ class ResolvableVariable<T : Value> private constructor(
     private val delegate: Variable<T>,
 ) : AbstractResolvable<VariableDescriptor>(), Variable<T> by delegate, Resolvable<VariableDescriptor> {
 
-    private val deferredDescriptor = CompletableDeferred<VariableDescriptor>()
     private val deferredValue = CompletableDeferred<T?>()
 
     /**
      * Whether the variable is resolved.
      */
     override val isResolved: Boolean
-        get() = deferredDescriptor.completedOrNull != null
-                && deferredValue.completedOrNull != null
+        get() = super.isResolved && deferredValue.completedOrNull != null
 
     override val resolved: VariableDescriptor
-        get() = checkNotNull(deferredDescriptor.completedOrNull) {
+        get() = checkNotNull(deferred.completedOrNull) {
             "Variable is not resolved"
         }
 
-    fun resolvedName() = deferredDescriptor.completedOrNull?.name ?: ""
+    fun resolvedName() = deferred.completedOrNull?.name ?: ""
 
-    fun resolvedTypeName() = deferredDescriptor.completedOrNull?.typeName ?: ""
+    fun resolvedTypeName() = deferred.completedOrNull?.typeName ?: ""
 
     fun resolvedValue() = deferredValue.getValue(
         defaultValue = null,
@@ -138,8 +133,9 @@ class ResolvableVariable<T : Value> private constructor(
      * Resolve the variable state.
      */
     override suspend fun doResolve(): VariableDescriptor = coroutineScope {
+        logger.debug("Resolving variable: {}", delegate.descriptor().name)
         // NOTE:
-        // Care must be take to only resolve values which are absolutely needed
+        // Care must be taken to only resolve values which are absolutely needed
         // to render the UI. Resolution of values which are not immediately required must be deferred.
 
         val value = async {
@@ -148,10 +144,9 @@ class ResolvableVariable<T : Value> private constructor(
 
         val descriptor = delegate.descriptor()
 
-        deferredDescriptor.complete(descriptor)
         deferredValue.complete(value.await())
 
-
+        logger.debug("desc={} val={}", deferred.completedOrNull, deferredValue.completedOrNull)
 
         return@coroutineScope descriptor
     }
@@ -172,13 +167,8 @@ class ResolvableStackFrame private constructor(
     private val delegate: StackFrame,
 ) : AbstractResolvable<StackFrameDescriptor>(), StackFrame by delegate, Resolvable<StackFrameDescriptor> {
 
-    private val deferredDescriptor = CompletableDeferred<StackFrameDescriptor>()
-
-    override val isResolved: Boolean
-        get() = deferredDescriptor.completedOrNull != null
-
     override val resolved: StackFrameDescriptor
-        get() = checkNotNull(deferredDescriptor.completedOrNull) {
+        get() = checkNotNull(deferred.completedOrNull) {
             "Stack frame is not resolved"
         }
 
@@ -198,10 +188,7 @@ class ResolvableStackFrame private constructor(
 
     override suspend fun doResolve(): StackFrameDescriptor {
         getVariables().forEach { it.resolve() }
-
-        val descriptor = delegate.descriptor()
-        deferredDescriptor.complete(descriptor)
-        return descriptor
+        return delegate.descriptor()
     }
 
     override suspend fun getVariables(): List<ResolvableVariable<*>> =
@@ -213,13 +200,8 @@ class ResolvableThreadInfo private constructor(
     private val delegate: ThreadInfo,
 ) : AbstractResolvable<ThreadDescriptor>(), ThreadInfo by delegate, Resolvable<ThreadDescriptor> {
 
-    private val deferredDescriptor = CompletableDeferred<ThreadDescriptor>()
-
-    override val isResolved: Boolean
-        get() = deferredDescriptor.completedOrNull != null
-
     override val resolved: ThreadDescriptor
-        get() = checkNotNull(deferredDescriptor.completedOrNull) {
+        get() = checkNotNull(deferred.completedOrNull) {
             "Thread is not resolved"
         }
 
@@ -239,10 +221,7 @@ class ResolvableThreadInfo private constructor(
 
     override suspend fun doResolve(): ThreadDescriptor {
         getFrames().forEach { it.resolve() }
-
-        val descriptor = delegate.descriptor()
-        deferredDescriptor.complete(descriptor)
-        return descriptor
+        return delegate.descriptor()
     }
 
     override suspend fun getFrames(): List<ResolvableStackFrame> =

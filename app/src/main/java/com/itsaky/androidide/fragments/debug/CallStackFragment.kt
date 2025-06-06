@@ -11,7 +11,9 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -42,12 +44,13 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
         }
     }
 
-    override fun onCreateAdapter() = CallStackAdapter(viewHolder.allFrames.value) { newPosition ->
+    override fun onCreateAdapter() = CallStackAdapter(viewLifecycleScope, viewHolder.allFrames.value) { newPosition ->
         viewHolder.setSelectedFrameIndex(newPosition)
     }
 }
 
 class CallStackAdapter(
+    private val coroutineScope: CoroutineScope,
     private val frames: List<ResolvableStackFrame>,
     private val onItemClickListener: ((Int) -> Unit)? = null
 ) : RecyclerView.Adapter<CallStackAdapter.VH>() {
@@ -75,8 +78,14 @@ class CallStackAdapter(
             binding.source.text = binding.root.context.getString(R.string.debugger_status_resolving)
         }
 
-        frame.doOnResolve { descriptor ->
+        coroutineScope.launch {
+            val descriptor = frame.resolve()
             withContext(Dispatchers.Main) {
+                if (descriptor == null) {
+                    binding.label.text = "<error>"
+                    return@withContext
+                }
+
                 binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
                 binding.label.text = descriptor.displayText()
                 binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
