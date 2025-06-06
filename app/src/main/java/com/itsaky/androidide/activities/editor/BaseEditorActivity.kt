@@ -25,7 +25,9 @@ import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.Process
 import android.text.Spannable
 import android.text.SpannableString
@@ -35,7 +37,6 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -54,6 +55,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
+import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.blankj.utilcode.util.FileUtils
@@ -113,6 +115,8 @@ import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -218,7 +222,13 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
+    private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
+    private val debuggerServiceStopRunnable = Runnable {
+        unbindService(debuggerServiceConnection)
+    }
+
     fun ensureDebuggerServiceBound() {
+        debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
         if (debuggerService == null) {
             val intent = Intent(this, DebuggerService::class.java)
             bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
@@ -228,6 +238,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private var optionsMenuInvalidator: Runnable? = null
 
     companion object {
+
+        const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
         @JvmStatic
         protected val PROC_IDE = "IDE"
@@ -388,9 +400,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
-
-        log.debug("onCreate: bind: DebuggerService")
-        bindService(Intent(this, DebuggerService::class.java), debuggerServiceConnection, BIND_AUTO_CREATE)
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -713,6 +722,15 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private fun setupViews() {
+        lifecycleScope.launch {
+            debuggerViewModel.clientCount.collectLatest { count ->
+                if (count == 0 && debuggerService != null) {
+                    log.info("Stopping debugger service in ${DEBUGGER_SERVICE_STOP_DELAY_MS}ms")
+                    debuggerServiceStopHandler.postDelayed(debuggerServiceStopRunnable, DEBUGGER_SERVICE_STOP_DELAY_MS)
+                }
+            }
+        }
+
         editorViewModel._isBuildInProgress.observe(this) { onBuildStatusChanged() }
         editorViewModel._isInitializing.observe(this) { onBuildStatusChanged() }
         editorViewModel._statusText.observe(this) {
