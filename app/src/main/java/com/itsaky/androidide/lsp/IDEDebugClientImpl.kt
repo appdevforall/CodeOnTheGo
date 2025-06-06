@@ -96,6 +96,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         }
 
         state = state.copy(clients = state.clients + client)
+        viewModel?.onAttach()
 
         clientScope.launch {
             client.adapter.addBreakpoints(
@@ -120,5 +121,8 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         }
 
         state = state.copy(clients = state.clients - client)
+        viewModel?.onDetach()
+
+        Unit
     }
 }
