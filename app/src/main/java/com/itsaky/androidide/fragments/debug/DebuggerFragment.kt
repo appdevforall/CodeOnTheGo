@@ -4,11 +4,12 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
+import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
-import com.itsaky.androidide.fragments.FragmentWithBinding
+import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -21,17 +22,29 @@ import kotlinx.coroutines.withContext
  * @author Akash Yadav
  */
 class DebuggerFragment :
-    FragmentWithBinding<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+    EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 
-    private val tabs = listOf(
-        "Variables" to VariableListFragment(),
-        "Call stack" to CallStackFragment()
-    )
+    private lateinit var tabs: Array<Pair<String, Fragment>>
 
-    private val viewModel by viewModels<DebuggerViewModel>(ownerProducer = { requireActivity() })
+    private val viewModel by activityViewModels<DebuggerViewModel>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        tabs = Array(2) { position ->
+            when (position) {
+                0 -> getString(R.string.debugger_variables) to VariableListFragment()
+                1 -> getString(R.string.debugger_call_stack) to CallStackFragment()
+                else -> throw IllegalStateException("Unknown position: $0")
+            }
+        }
+
+        emptyStateViewModel.emptyMessage.value = getString(R.string.debugger_msg_not_connected)
+        emptyStateViewModel.isEmpty.observe(viewLifecycleOwner) { isEmpty ->
+            if (isEmpty) {
+                binding.threadLayoutSelector.spinnerText.clearListSelection()
+            }
+        }
 
         viewModel.observeLatestThreads(
             notifyOn = Dispatchers.IO
@@ -39,11 +52,12 @@ class DebuggerFragment :
             coroutineScope {
                 val labels = threads.map { thread ->
                     async {
-                        thread.resolve().displayText()
+                        thread.resolve()?.displayText() ?: "<resolution-failure>"
                     }
                 }.awaitAll()
 
                 withContext(Dispatchers.Main) {
+                    emptyStateViewModel.isEmpty.value = labels.isEmpty()
                     binding.threadLayoutSelector.spinnerText.setAdapter(
                         ArrayAdapter(
                             requireContext(),
@@ -64,7 +78,7 @@ class DebuggerFragment :
                     binding.threadLayoutSelector.spinnerText.apply {
                         listSelection = index
                         // noinspection SetTextI18n
-                        setText(descriptor.displayText(), false)
+                        setText(descriptor?.displayText() ?: "<resolution-failure>", false)
                     }
                 }
             }
@@ -75,9 +89,7 @@ class DebuggerFragment :
         }
 
         viewLifecycleScope.launch {
-            viewModel.setThreads(DebuggerViewModel.demoThreads())
-            viewModel.setSelectedThreadIndex(0)
-            viewModel.setSelectedFrameIndex(0)
+            viewModel.setThreads(emptyList())
         }
 
         val mediator = TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->

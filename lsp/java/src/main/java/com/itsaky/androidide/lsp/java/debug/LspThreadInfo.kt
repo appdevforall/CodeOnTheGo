@@ -27,14 +27,26 @@ class JavaStackFrame(
 
         StackFrameDescriptor(
             method = method.name(),
-            methodSignature = method.genericSignature(),
+            methodSignature = method.signature(),
             sourceFile = location.sourceName(),
             lineNumber = location.lineNumber().toLong()
         )
     }
 
     override suspend fun getVariables(): List<LspVariable<*>> {
-        val variables = withContext(Dispatchers.IO) { frame.visibleVariables() }
+        val method = frame.location().method()
+        if (method == null || method.isAbstract || method.isNative) {
+            // non-concrete method
+            // does not have any variables
+            return emptyList()
+        }
+
+        val variables = withContext(Dispatchers.IO) {
+            frame.visibleVariables()
+
+                // some opaque frames in core Android classes have empty variable names (like ZygoteInit)
+                .filter { it.name().isNotBlank() }
+        }
         return variables.map { variable -> JavaLocalVariable.forVariable(frame, variable) }
     }
 

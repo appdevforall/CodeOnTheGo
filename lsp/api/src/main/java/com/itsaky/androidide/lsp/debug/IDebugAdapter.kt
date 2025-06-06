@@ -4,8 +4,11 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
-import com.itsaky.androidide.lsp.debug.model.ThreadInfoParams
+import com.itsaky.androidide.lsp.debug.model.ThreadInfo
+import com.itsaky.androidide.lsp.debug.model.ThreadInfoRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
+import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
+import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 
 /**
  * A debug adapter provides support for debugging a given type of file.
@@ -54,5 +57,13 @@ interface IDebugAdapter {
      * @param request The request definition of the thread.
      * @return The information about the thread, or `null` if the thread does not exist.
      */
-    suspend fun threadInfo(request: ThreadInfoParams): ThreadInfoResponse
+    suspend fun threadInfo(request: ThreadInfoRequestParams): ThreadInfoResponse
+
+    /**
+     * Get information about all the threads of the connected VM.
+     *
+     * @param request The parameters for the request.
+     * @return A [ThreadListResponse] containing a list of all known threads of the requested VM.
+     */
+    suspend fun allThreads(request: ThreadListRequestParams): ThreadListResponse
 }
