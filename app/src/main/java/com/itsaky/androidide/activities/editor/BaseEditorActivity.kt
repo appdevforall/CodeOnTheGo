@@ -18,7 +18,6 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageInstaller.SessionCallback
@@ -35,7 +34,6 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -106,6 +104,7 @@ import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
@@ -148,6 +147,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
     val editorViewModel by viewModels<EditorViewModel>()
+    val debuggerViewModel by viewModels<DebuggerViewModel>()
 
     internal var _binding: ActivityEditorBinding? = null
     val binding: ActivityEditorBinding
@@ -328,6 +328,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
 
         val packageName = onResult(this, intent) ?: return
+        debuggerService?.targetPackage = packageName
 
         if (BuildPreferences.launchAppAfterInstall) {
             IntentUtils.launchApp(this, packageName)
@@ -379,8 +380,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         setupMemUsageChart()
         watchMemory()
 
-        Log.d("BaseEditorActivity", "onCreate: bind: DebuggerService")
-        bindService(Intent(this, DebuggerService::class.java), debuggerServiceConnection, Context.BIND_AUTO_CREATE)
+        log.debug("onCreate: bind: DebuggerService")
+        bindService(Intent(this, DebuggerService::class.java), debuggerServiceConnection, BIND_AUTO_CREATE)
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
