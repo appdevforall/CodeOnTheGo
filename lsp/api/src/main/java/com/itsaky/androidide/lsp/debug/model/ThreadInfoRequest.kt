@@ -30,7 +30,7 @@ sealed interface ThreadInfoResult {
  * @property threadId The ID of the thread.
  * @author Akash Yadav
  */
-data class ThreadInfoParams(
+data class ThreadInfoRequestParams(
     val threadId: String,
     override val remoteClient: RemoteClient,
 ): DapRequest
@@ -38,9 +38,26 @@ data class ThreadInfoParams(
 /**
  * Response to a [ThreadInfo] request.
  *
- * @property result The result of the request.
+ * @property result The result of the request, may be `null`.
  * @author Akash Yadav
  */
 data class ThreadInfoResponse(
-    val result: ThreadInfoResult,
+    val result: ThreadInfoResult?,
 ): DapResponse
+
+/**
+ * Request the adapter to list all the threads of the given VM.
+ */
+data class ThreadListRequestParams(
+    override val remoteClient: RemoteClient
+): DapRequest
+
+/**
+ * Response to a [ThreadListRequestParams].
+ *
+ * @param threads All known threads of the VM.
+ */
+data class ThreadListResponse(
+    val threads: List<ThreadInfo>
+): DapResponse
+

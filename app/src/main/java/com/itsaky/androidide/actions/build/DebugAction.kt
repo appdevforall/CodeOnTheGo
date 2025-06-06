@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 class DebugAction(
     context: Context,
     override val order: Int
-): AbstractModuleAssemblerAction(
+): AbstractRunAction(
     context = context,
     labelRes = R.string.action_start_debugger,
     iconRes = R.drawable.ic_db_startdebugger
@@ -43,13 +43,13 @@ class DebugAction(
         enabled = JdwpOptions.JDWP_ENABLED
     }
 
-    override suspend fun doBuild(
+    override fun onCreateTaskExecMessage(
         data: ActionData,
         module: AndroidModule,
         variant: BasicAndroidVariantMetadata,
         buildService: BuildService,
         activity: EditorHandlerActivity
-    ): TaskExecutionResult? {
+    ): TaskExecutionMessage {
         val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
         log.info("Running task '{}' to assemble variant '{}' of project '{}'", taskName, variant.name, module.path)
 
@@ -65,22 +65,6 @@ class DebugAction(
             gradleArgs = debugArgs
         )
 
-        val result = withContext(Dispatchers.IO) {
-            buildService.executeTasks(executionMessage).get()
-        }
-
-        if (result?.isSuccessful != true) {
-            log.error("Tasks failed to execute: '{}'", taskName)
-        }
-
-        return result
-    }
-
-    override suspend fun handleResult(
-        data: ActionData,
-        result: TaskExecutionResult?,
-        module: AndroidModule,
-        variant: BasicAndroidVariantMetadata
-    ) {
+        return executionMessage
     }
 }
