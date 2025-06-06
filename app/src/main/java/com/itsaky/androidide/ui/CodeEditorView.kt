@@ -36,6 +36,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor.Companion.createInputTypeFlags
 import com.itsaky.androidide.editor.utils.ContentReadWrite.readContent
 import com.itsaky.androidide.editor.utils.ContentReadWrite.writeTo
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
@@ -47,10 +48,8 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.customOrJBMono
-import io.github.rosemoe.sora.editor.ts.linestyle.BreakpointDrawable
 import io.github.rosemoe.sora.event.ClickEvent
 import io.github.rosemoe.sora.event.InterceptTarget
-import io.github.rosemoe.sora.event.SideIconClickEvent
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.LineSeparator
 import io.github.rosemoe.sora.util.IntPair
@@ -154,18 +153,10 @@ class CodeEditorView(
             // If we already have a breakpoint added, we won't have received this event
             // this is because the click is consumed by the SideIconClickEvent for the breakpoint would have consumed this event
             // as a result, it's safe to assume that there aren't any breakpoints on this line
-            language.addBreakpoint(editorFile, event.line)
+            IDEDebugClientImpl.toggleBreakpoint(editorFile, event.line)
+            language.toggleBreakpoint(editorFile, event.line)
             postInvalidate()
           }
-        }
-      }
-
-      subscribeEvent(SideIconClickEvent::class.java) { event, unsubscribe ->
-        val editorFile = this.file ?: return@subscribeEvent
-        if (event.clickedIcon.drawable is BreakpointDrawable) {
-          val language = editorLanguage as? IDELanguage? ?: return@subscribeEvent
-          language.removeBreakpoint(editorFile, event.clickedIcon.line)
-          postInvalidate()
         }
       }
     }
