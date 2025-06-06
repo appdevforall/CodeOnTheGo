@@ -16,7 +16,6 @@ import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -60,30 +59,28 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
     )
 
     fun toggleBreakpoint(file: File, line: Int) = stateGuard.write {
-        val breakpoints = listOf(
-            PositionalBreakpoint(
-                source = Source(
-                    name = file.name,
-                    path = file.absolutePath
-                ),
-                line = line
-            )
+        val breakpoint = PositionalBreakpoint(
+            source = Source(
+                name = file.name,
+                path = file.absolutePath
+            ),
+            line = line
         )
 
         val remove = state.breakpoints.containsKey(line)
         if (remove) {
             state.breakpoints.remove(line)
         } else {
-            state.breakpoints[line] = breakpoints.first()
+            state.breakpoints[line] = breakpoint
         }
 
         // if we're already connected to a client, update the client as well
         state.clientOrNull?.also { client ->
             clientScope.launch {
-                val adapter = client.adapter ?: return@launch
+                val adapter = client.adapter
                 val request = BreakpointRequest(
                     remoteClient = client,
-                    breakpoints = breakpoints,
+                    breakpoints = listOf(breakpoint),
                 )
 
                 if (remove) {
