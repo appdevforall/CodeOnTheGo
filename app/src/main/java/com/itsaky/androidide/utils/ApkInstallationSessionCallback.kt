@@ -33,6 +33,7 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
     private const val LOG_ABANDON_FAILED = "Failed to abandon session {} : {}"
     private const val LOG_SESSION_NOT_EXISTS = "Session {} no longer exists or is already abandoned"
     private const val LOG_SESSION_ERROR = "Error while handling installation session {} : {}"
+    private const val SESSION_ID_NONE = -1
   }
 
   override fun onCreated(sessionId: Int) {
@@ -68,7 +69,7 @@ class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) 
     val currentActivity = this.activity
     val isActivityValid = currentActivity != null && !currentActivity.isFinishing && !currentActivity.isDestroyed
 
-    if (this.sessionId != -1 && isActivityValid) {
+    if (this.sessionId != SESSION_ID_NONE && isActivityValid) {
       try {
         currentActivity?.packageManager?.packageInstaller?.let { packageInstaller ->
           val sessionExists = packageInstaller.mySessions.any { it.sessionId == this.sessionId }
