@@ -17,10 +17,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -52,7 +54,11 @@ private data class DebuggerState(
  */
 class DebuggerViewModel : ViewModel() {
 
+    private val _clientCount = MutableStateFlow(0)
     private val state = MutableStateFlow(DebuggerState.DEFAULT)
+
+    val clientCount: StateFlow<Int>
+        get() = _clientCount.asStateFlow()
 
     val allThreads: StateFlow<List<ResolvableThreadInfo>>
         get() = state.map { it.threads }.stateIn(
@@ -101,6 +107,15 @@ class DebuggerViewModel : ViewModel() {
             started = SharingStarted.Eagerly,
             initialValue = DebuggerState.DEFAULT.variablesTree
         )
+
+    fun onAttach() = updateClientCount(1)
+
+    fun onDetach() = updateClientCount(-1)
+
+    private fun updateClientCount(delta: Int) {
+        val current = clientCount.value
+        _clientCount.updateAndGet { current + delta }
+    }
 
     fun setThreads(threads: List<ThreadInfo>) {
         viewModelScope.launch(Dispatchers.IO) {
