@@ -1,6 +1,7 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.content.Context
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,12 +15,21 @@ import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
 import io.github.dingyi222666.view.treeview.TreeView
 import io.github.dingyi222666.view.treeview.TreeViewBinder
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 
-class VariableListBinder : TreeViewBinder<ResolvableVariable<*>>() {
+class VariableListBinder(
+    private val coroutineScope: CoroutineScope,
+) : TreeViewBinder<ResolvableVariable<*>>() {
 
     private var treeIndent = 0
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(VariableListBinder::class.java)
+    }
 
     override fun createView(parent: ViewGroup, viewType: Int): View {
         val inflater = LayoutInflater.from(parent.context)
@@ -52,14 +62,26 @@ class VariableListBinder : TreeViewBinder<ResolvableVariable<*>>() {
             chevron.rotation = if (node.isExpanded) 90f else 0f
         }
 
+        Log.d("VariableListBinder", "bindView: node.data=${node.data}")
         if (node.data?.isResolved != true) {
             binding.label.text = binding.root.context.getString(R.string.debugger_status_resolving)
         }
 
-        val data = node.data ?: return
-        data.doOnResolve { descriptor ->
+        val data = node.data ?: run {
+            logger.error("No data set to node: {}", node)
+            return
+        }
+
+        coroutineScope.launch {
+            val descriptor = data.resolve()
             withContext(Dispatchers.Main) {
                 binding.apply {
+                    if (descriptor == null) {
+                        logger.error("Unable to resolve node: {}", data)
+                        label.text = "<error>"
+                        return@apply
+                    }
+
                     val ic = descriptor.icon(root.context)?.let { ContextCompat.getDrawable(root.context, it) }
 
                     // noinspection SetTextI18n
