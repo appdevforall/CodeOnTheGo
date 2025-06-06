@@ -17,10 +17,28 @@
 
 package com.itsaky.androidide.utils
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.Resources.Theme
+import android.provider.Settings
 import android.util.TypedValue
+
+/**
+ * Check if the given accessibility service is enabled.
+ */
+inline fun <reified T> Context.isAccessibilityEnabled(): Boolean {
+  try {
+    val enabled = Settings.Secure.getInt(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED)
+    if (enabled != 1) return false
+
+    val name = ComponentName(applicationContext, T::class.java)
+    val services = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+    return services?.contains(name.flattenToString()) ?: false
+  } catch (e: Settings.SettingNotFoundException) {
+    return false
+  }
+}
 
 fun Context.isSystemInDarkMode(): Boolean {
   return this.resources.configuration.isSystemInDarkMode()

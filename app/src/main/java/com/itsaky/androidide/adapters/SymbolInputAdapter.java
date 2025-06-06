@@ -17,7 +17,7 @@
  */
 package com.itsaky.androidide.adapters;
 
-import static com.itsaky.androidide.utils.ResourceUtilsKt.resolveAttr;
+import static com.itsaky.androidide.utils.ContextUtilsKt.resolveAttr;
 
 import android.annotation.SuppressLint;
 import android.view.LayoutInflater;
@@ -33,9 +33,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor;
 import com.itsaky.androidide.models.Symbol;
 import io.github.rosemoe.sora.widget.SelectionMovement;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class SymbolInputAdapter extends RecyclerView.Adapter<SymbolInputAdapter.VH> {

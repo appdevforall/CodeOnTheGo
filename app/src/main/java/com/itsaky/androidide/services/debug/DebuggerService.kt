@@ -1,8 +1,12 @@
 package com.itsaky.androidide.services.debug
 
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.IBinder
+import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.debug.PauseResumeVMAction
@@ -11,6 +15,7 @@ import com.itsaky.androidide.actions.debug.StepIntoAction
 import com.itsaky.androidide.actions.debug.StepOutAction
 import com.itsaky.androidide.actions.debug.StepOverAction
 import com.itsaky.androidide.actions.debug.StopVMAction
+import com.itsaky.androidide.buildinfo.BuildInfo
 import org.slf4j.LoggerFactory
 
 /**
@@ -26,6 +31,24 @@ class DebuggerService : Service() {
     private lateinit var actionsList: List<ActionItem>
     private lateinit var overlayManager: DebugOverlayManager
     private val binder = Binder()
+
+    internal var targetPackage: String? = null
+
+    private var foregroundAppReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent?) {
+            if (intent?.action != ForegroundDetectionService.ACTION_FOREGROUND_APP_CHANGED) {
+                return
+            }
+
+            val packageName = intent.getStringExtra(ForegroundDetectionService.EXTRA_PACKAGE_NAME)
+            logger.debug("onReceive: packageName={} targetPackage={}", packageName, targetPackage)
+            if (packageName == BuildInfo.PACKAGE_NAME || (targetPackage != null && packageName == targetPackage)) {
+                showOverlay()
+            } else {
+                hideOverlay()
+            }
+        }
+    }
 
     companion object {
         private val logger = LoggerFactory.getLogger(DebuggerService::class.java)
@@ -47,9 +70,18 @@ class DebuggerService : Service() {
 
         this.actionsList.forEach(actionsRegistry::registerAction)
         this.overlayManager = DebugOverlayManager.create(this)
+
+        ContextCompat.registerReceiver(
+            this,
+            foregroundAppReceiver,
+            IntentFilter(ForegroundDetectionService.ACTION_FOREGROUND_APP_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onDestroy() {
+        targetPackage = null
+        unregisterReceiver(foregroundAppReceiver)
         actionsList.forEach(actionsRegistry::unregisterAction)
         super.onDestroy()
     }

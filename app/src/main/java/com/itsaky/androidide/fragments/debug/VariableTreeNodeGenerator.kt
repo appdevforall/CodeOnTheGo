@@ -6,20 +6,20 @@ import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeGenerator
 
 class VariableTreeNodeGenerator private constructor(
-    private val rootNodes: Set<EagerVariable<*>> = emptySet()
-) : TreeNodeGenerator<EagerVariable<*>> {
+    private val rootNodes: Set<ResolvableVariable<*>> = emptySet()
+) : TreeNodeGenerator<ResolvableVariable<*>> {
 
     companion object {
         fun newInstance(
-            rootNodes: Set<EagerVariable<*>> = emptySet()
-        ): TreeNodeGenerator<EagerVariable<*>> = VariableTreeNodeGenerator(rootNodes)
+            rootNodes: Set<ResolvableVariable<*>> = emptySet()
+        ): TreeNodeGenerator<ResolvableVariable<*>> = VariableTreeNodeGenerator(rootNodes)
     }
 
     override fun createNode(
-        parentNode: TreeNode<EagerVariable<*>>,
-        currentData: EagerVariable<*>,
-        tree: AbstractTree<EagerVariable<*>>
-    ): TreeNode<EagerVariable<*>> = TreeNode(
+        parentNode: TreeNode<ResolvableVariable<*>>,
+        currentData: ResolvableVariable<*>,
+        tree: AbstractTree<ResolvableVariable<*>>
+    ): TreeNode<ResolvableVariable<*>> = TreeNode(
         id = Tree.generateId(),
         data = currentData,
         depth = parentNode.depth + 1,
@@ -28,7 +28,7 @@ class VariableTreeNodeGenerator private constructor(
         isBranch = true,
     )
 
-    override suspend fun fetchChildData(targetNode: TreeNode<EagerVariable<*>>): Set<EagerVariable<*>> {
+    override suspend fun fetchChildData(targetNode: TreeNode<ResolvableVariable<*>>): Set<ResolvableVariable<*>> {
         if (targetNode.id == Tree.ROOT_NODE_ID) {
             return rootNodes
         }
@@ -38,7 +38,7 @@ class VariableTreeNodeGenerator private constructor(
         return members
     }
 
-    override fun createRootNode(): TreeNode<EagerVariable<*>> {
+    override fun createRootNode(): TreeNode<ResolvableVariable<*>> {
         return TreeNode(
             id = Tree.ROOT_NODE_ID,
             data = null,
