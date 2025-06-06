@@ -127,7 +127,6 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             // TODO: Maybe add support for debugging multiple VMs?
             throw UnsupportedOperationException("Debugging multiple VMs is not supported yet")
         }
-
         val vmCanBeModified = vm.canBeModified()
         val client = RemoteClient(
             adapter = this,
@@ -419,6 +418,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     }
 
     override fun close() {
+        logger.debug("Closing JavaDebugAdapter...")
         try {
             _listenerState?.stopListening()
             listenerThread?.interrupt()
@@ -436,6 +436,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 vms.remove(vm)
             }
         }
+        logger.debug("JavaDebugAdapter closed successfully.")
     }
 
     private fun ResumePolicy.doResume(

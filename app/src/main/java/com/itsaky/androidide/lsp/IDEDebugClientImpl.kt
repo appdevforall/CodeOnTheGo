@@ -13,6 +13,7 @@ import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
+import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -97,6 +98,8 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
 
         state = state.copy(clients = state.clients + client)
 
+        DebuggerService.currentInstance()?.markClientConnected()
+
         clientScope.launch {
             client.adapter.addBreakpoints(
                 BreakpointRequest(
@@ -115,5 +118,10 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
     override fun onDisconnect(client: RemoteClient) = stateGuard.write {
         logger.debug("onDisconnect: client={}", client)
         state = state.copy(clients = state.clients - client)
+
+        if (state.clients.isEmpty()) {
+            DebuggerService.currentInstance()?.stopSelf()
+        }
     }
+
 }
