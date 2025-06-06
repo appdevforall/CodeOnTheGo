@@ -30,9 +30,11 @@ import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
 import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.isAccessibilityEnabled
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.models.OnboardingPermissionItem
+import com.itsaky.androidide.services.debug.ForegroundDetectionService
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
 
@@ -87,14 +89,22 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
         R.string.permission_title_overlay_window, R.string.permission_desc_overlay_window,
         canDrawOverlays(context)))
 
+      permissions.add(OnboardingPermissionItem(Manifest.permission.BIND_ACCESSIBILITY_SERVICE,
+        R.string.permission_title_accessibility, R.string.permission_desc_accessibility,
+        canDetectForegroundApps(context), isOptional = true
+      ))
+
       return permissions
     }
+
+      @JvmStatic
+      fun canDetectForegroundApps(context: Context): Boolean = context.isAccessibilityEnabled<ForegroundDetectionService>()
 
     @JvmStatic
     fun canDrawOverlays(context: Context) : Boolean = Settings.canDrawOverlays(context)
 
     @JvmStatic
-    fun areAllPermissionsGranted(context: Context) : Boolean = getRequiredPermissions(context).all { it.isGranted }
+    fun areAllPermissionsGranted(context: Context) : Boolean = getRequiredPermissions(context).all { it.isOptional || it.isGranted }
 
     @JvmStatic
     fun isStoragePermissionGranted(context: Context): Boolean {
@@ -118,6 +128,7 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
         Manifest.permission_group.STORAGE -> isStoragePermissionGranted(context)
         Manifest.permission.REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
         Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
+        Manifest.permission.BIND_ACCESSIBILITY_SERVICE -> canDetectForegroundApps(context)
         else -> checkSelfPermission(context, permission)
       }
     }
@@ -144,6 +155,7 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
       Manifest.permission.REQUEST_INSTALL_PACKAGES -> requestSettingsTogglePermission(
         Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
       Manifest.permission.SYSTEM_ALERT_WINDOW -> requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+      Manifest.permission.BIND_ACCESSIBILITY_SERVICE -> requestSettingsTogglePermission(Settings.ACTION_ACCESSIBILITY_SETTINGS, false)
     }
   }
 
@@ -157,9 +169,11 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
       Manifest.permission.WRITE_EXTERNAL_STORAGE))
   }
 
-  private fun requestSettingsTogglePermission(action: String) {
+  private fun requestSettingsTogglePermission(action: String, setData: Boolean = true) {
     val intent = Intent(action)
-    intent.setData(Uri.fromParts("package", BuildInfo.PACKAGE_NAME, null))
+    if (setData) {
+      intent.setData(Uri.fromParts("package", BuildInfo.PACKAGE_NAME, null))
+    }
     try {
       settingsTogglePermissionRequestLauncher.launch(intent)
     } catch (err: Throwable) {
@@ -168,7 +182,7 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
   }
 
   override val isPolicyRespected: Boolean
-    get() = permissions.all { it.isGranted }
+    get() = permissions.all { it.isOptional || it.isGranted }
 
   override fun onUserIllegallyRequestedNextPage() {
     activity?.flashError(R.string.msg_grant_permissions)
