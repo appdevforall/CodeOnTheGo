@@ -12,6 +12,8 @@ fun Location.asLspLocation(): LspLocation = LspLocation(
         name = sourceName(),
         path = sourcePath(),
     ),
-    line = lineNumber(),
+    // -1 because we get 1-indexed line numbers from JDI
+    // but IDE expects 0-indexed line numbers
+    line = lineNumber() - 1,
     column = null
 )

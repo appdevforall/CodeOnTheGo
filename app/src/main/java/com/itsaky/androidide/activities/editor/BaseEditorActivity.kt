@@ -108,6 +108,7 @@ import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
@@ -224,7 +225,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
     private val debuggerServiceStopRunnable = Runnable {
-        if (debuggerService != null && debuggerViewModel.clientCount.value < 1) {
+        if (debuggerService != null && debuggerViewModel.connectionState.value < DebuggerConnectionState.ATTACHED) {
             unbindService(debuggerServiceConnection)
         }
     }
@@ -730,7 +731,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun setupViews() {
         lifecycleScope.launch {
-            debuggerViewModel.clientCount.collectLatest {
+            debuggerViewModel.connectionState.collectLatest {
                 postStopDebuggerServiceIfNotConnected()
             }
         }
