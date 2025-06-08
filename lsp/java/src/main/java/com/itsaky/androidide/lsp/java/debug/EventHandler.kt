@@ -84,6 +84,7 @@ internal class EventHandler(
                     }
 
                     if (resumeVm) {
+                        logger.debug("resuming VM")
                         events.resume()
                     } else if (events.suspendPolicy() == EventRequest.SUSPEND_ALL) {
                         // notify consumer that the VM has interrupted
@@ -91,7 +92,8 @@ internal class EventHandler(
                         setCurrentThread(events)
                         consumer.vmInterrupted()
                     }
-                } catch (interupption: InterruptedException) {
+                } catch (interrupt: InterruptedException) {
+                    logger.debug("event handler interrupted")
                     // Ignore, changes will be seen at top of the loop
                 } catch (err: VMDisconnectedException) {
                     handleDisconnectedException()

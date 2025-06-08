@@ -16,6 +16,7 @@ import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
 import com.itsaky.androidide.lsp.debug.model.StepResult
+import com.itsaky.androidide.lsp.debug.model.SuspendPolicy
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
@@ -31,8 +32,10 @@ import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
+import com.sun.jdi.event.Event
 import com.sun.jdi.event.StepEvent
 import com.sun.jdi.event.VMDisconnectEvent
+import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
 import kotlinx.coroutines.Dispatchers
@@ -130,6 +133,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             throw UnsupportedOperationException("Debugging multiple VMs is not supported yet")
         }
 
+        vm.setDebugTraceMode(VirtualMachine.TRACE_ALL)
+
         val vmCanBeModified = vm.canBeModified()
         val client = RemoteClient(
             adapter = this,
@@ -211,7 +216,9 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 spec = when (br) {
                     is PositionalBreakpoint -> specList.createBreakpoint(
                         source = br.source,
-                        lineNumber = br.line,
+                        // +1 because we get 0-indexed line number from editor
+                        // but JDI expects 1-indexed line numbers
+                        lineNumber = br.line + 1,
                         suspendPolicy = br.suspendPolicy.asJdiInt()
                     )
 
@@ -299,6 +306,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val suspendedThread = vm.threadState.current
             ?: return@withContext StepResponse(StepResult.Failure("No thread is currently suspended"))
 
+        logger.debug("Step {} thread {}", request.type, suspendedThread.thread.name())
+
         clearPreviousStep(vm.vm, suspendedThread.thread)
 
         val reqMgr = vm.vm.eventRequestManager()
@@ -373,6 +382,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val location = e.location()
         val thread = e.thread()
 
+        logger.debug("breakpoint hit in thread {} at {}", thread.name(), location)
+
         val response = listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
                 remoteClient = vm.client,
@@ -385,6 +396,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     }
 
     override fun stepEvent(e: StepEvent) {
+        logger.debug("stepEvent: {}", e)
         e.virtualMachine().checkIsCurrentVm()
 
         val vm = connVm()
@@ -401,6 +413,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     }
 
     override fun vmDisconnectEvent(e: VMDisconnectEvent) {
+        logger.debug("vmDisconnectedEvent: {}", e)
         e.virtualMachine().checkIsCurrentVm()
         val vm = connVm()
 
