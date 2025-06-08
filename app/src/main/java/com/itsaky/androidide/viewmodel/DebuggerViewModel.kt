@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -49,16 +48,25 @@ private data class DebuggerState(
     }
 }
 
+
+enum class DebuggerConnectionState {
+    // order of the enum constants matter
+    DETACHED,
+    ATTACHED,
+    SUSPENDED,
+    AWAITING,
+}
+
 /**
  * @author Akash Yadav
  */
 class DebuggerViewModel : ViewModel() {
 
-    private val _clientCount = MutableStateFlow(0)
+    private val _connectionState = MutableStateFlow(DebuggerConnectionState.DETACHED)
     private val state = MutableStateFlow(DebuggerState.DEFAULT)
 
-    val clientCount: StateFlow<Int>
-        get() = _clientCount.asStateFlow()
+    val connectionState: StateFlow<DebuggerConnectionState>
+        get() = _connectionState.asStateFlow()
 
     val allThreads: StateFlow<List<ResolvableThreadInfo>>
         get() = state.map { it.threads }.stateIn(
@@ -108,32 +116,27 @@ class DebuggerViewModel : ViewModel() {
             initialValue = DebuggerState.DEFAULT.variablesTree
         )
 
-    fun onAttach() = updateClientCount(1)
-
-    fun onDetach() = updateClientCount(-1)
-
-    private fun updateClientCount(delta: Int) {
-        val current = clientCount.value
-        _clientCount.updateAndGet { current + delta }
+    fun setConnectionState(state: DebuggerConnectionState) {
+        _connectionState.update { state }
     }
 
     fun setThreads(threads: List<ThreadInfo>) {
         viewModelScope.launch(Dispatchers.IO) {
-            state.update {
-                val threadIndex = if (threads.isNotEmpty()) 0 else -1
-                val frameIndex =
-                    if (threads.firstOrNull()?.getFrames()?.firstOrNull() != null) 0 else -1
-                DebuggerState(
-                    threads = threads.map { ResolvableThreadInfo.create(it) },
-                    threadIndex = threadIndex,
-                    frameIndex = frameIndex,
-                    variablesTree = createVariablesTree(
-                        threads.map { ResolvableThreadInfo.create(it) },
-                        threadIndex,
-                        frameIndex
-                    )
+            val threadIndex = if (threads.isNotEmpty()) 0 else -1
+            val frameIndex =
+                if (threads.firstOrNull()?.getFrames()?.firstOrNull() != null) 0 else -1
+            val newState = DebuggerState(
+                threads = threads.map { ResolvableThreadInfo.create(it) },
+                threadIndex = threadIndex,
+                frameIndex = frameIndex,
+                variablesTree = createVariablesTree(
+                    threads.map { ResolvableThreadInfo.create(it) },
+                    threadIndex,
+                    frameIndex
                 )
-            }
+            )
+
+            state.update { newState }
         }
     }
 
