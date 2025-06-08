@@ -28,6 +28,7 @@ internal class EventRequestSpecList(
      * @return `true` if all requests were resolved, `false` otherwise.
      */
     fun resolve(prepareEvent: ClassPrepareEvent): Boolean {
+        logger.debug("resolve prepare event (class={}): {}", prepareEvent.referenceType(), prepareEvent)
         var failure = false
         synchronized(requestSpecs) {
             for (spec in requestSpecs) {
@@ -38,7 +39,7 @@ internal class EventRequestSpecList(
                 try {
                     val request = spec.resolve(vm, prepareEvent)
                     if (request != null) {
-                        logger.info("resolve: set (deferrred): {}", spec)
+                        logger.info("resolve: set (deferred): {}", spec)
                     }
                 } catch (err: Exception) {
                     // TODO: Add something get specific error messages for these exceptions
@@ -48,6 +49,7 @@ internal class EventRequestSpecList(
             }
         }
 
+        logger.debug("resolve(prepareEvent): failure={}", failure)
         return !failure
     }
 
