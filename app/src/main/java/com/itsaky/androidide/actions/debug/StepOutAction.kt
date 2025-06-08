@@ -3,6 +3,7 @@ package com.itsaky.androidide.actions.debug
 import android.content.Context
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
 
 /**
  * @author Akash Yadav
@@ -15,6 +16,6 @@ class StepOutAction(
     override val order = 3
 
     override suspend fun execAction(data: ActionData) {
-        // TODO: step into
+        IDEDebugClientImpl.stepOut()
     }
 }
