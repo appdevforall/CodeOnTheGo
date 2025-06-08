@@ -9,17 +9,23 @@ import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
 import com.itsaky.androidide.lsp.debug.events.StepEvent
 import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
+import com.itsaky.androidide.lsp.debug.model.LocatableEvent
+import com.itsaky.androidide.lsp.debug.model.Location
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
+import com.itsaky.androidide.models.Position
+import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -109,6 +115,8 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
 
             logger.debug("threads({}): {}", threads.size, threads)
             viewModel?.setThreads(threads)
+
+            openLocation(event)
         }
         return BreakpointHitResponse(
             remoteClient = event.remoteClient,
@@ -156,5 +164,28 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         viewModel?.onDetach()
 
         Unit
+    }
+
+    private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)
+
+    private suspend fun openLocation(location: Location) {
+        val file = location.source.path
+        val position = Position(location.line, 0)
+
+        val activity = IDELanguageClientImpl.getInstance().activity
+        if (activity == null) {
+            logger.error("Cannot open {}:{} because activity is null", file, position.line)
+            return
+        }
+
+        withContext(Dispatchers.Main.immediate) {
+            activity.openFileAndSelect(
+                file = File(file),
+                selection = Range(
+                    start = position,
+                    end = position
+                )
+            )
+        }
     }
 }
