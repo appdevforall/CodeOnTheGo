@@ -33,7 +33,6 @@ object JdwpOptions {
         "server" to "n",
         "transport" to "dt_socket",
         "address" to DEFAULT_JDWP_PORT.toString(),
-        "logflags" to "0xfff",
     )
 
     /**
