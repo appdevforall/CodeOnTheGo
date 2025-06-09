@@ -43,7 +43,10 @@ public interface ILanguageClient {
    *
    * @return The {@link IDebugClient} instance.
    */
-  IDebugClient getDebugClient();
+  @Nullable
+  default IDebugClient getDebugClient() {
+    return null;
+  }
 
   /**
    * Publish the diagnostics result (allow the user to see them).
