@@ -190,7 +190,7 @@ class BreakpointHandler {
                 path = file.absolutePath,
                 name = file.name
             ),
-            line = line
+            line = line + 1
         )
 
         val path = file.canonicalPath
