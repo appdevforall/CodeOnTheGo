@@ -49,8 +49,28 @@ open class TsAnalyzeManager(val languageSpec: TsLanguageSpec, var theme: TsTheme
     }
   }
 
+  fun addBreakpoint(line: Int) {
+    analyzeWorker?.addBreakpoint(line)
+  }
+
+  fun removeBreakpoint(line: Int) {
+    analyzeWorker?.removeBreakpoint(line)
+  }
+
+  fun removeAllBreakpoints() {
+    analyzeWorker?.removeAllBreakpoints()
+  }
+
   fun toggleBreakpoint(line: Int) {
     analyzeWorker?.toggleBreakpoint(line)
+  }
+
+  fun highlightLine(line: Int) {
+    this.analyzeWorker?.highlightLine(line)
+  }
+
+  fun unhighlightLines() {
+    this.analyzeWorker?.unhighlightLines()
   }
 
   override fun setReceiver(receiver: StyleReceiver?) {
