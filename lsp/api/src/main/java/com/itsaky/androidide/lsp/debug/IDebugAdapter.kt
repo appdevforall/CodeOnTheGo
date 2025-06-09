@@ -4,6 +4,7 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
+import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams

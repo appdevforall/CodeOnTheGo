@@ -50,8 +50,9 @@ private val disableCoreLibDesugaringForModules = arrayOf(":logsender", ":logger"
 fun Project.configureAndroidModule(
     coreLibDesugDep: Provider<MinimalExternalModuleDependency>
 ) {
+    var isAppModule = plugins.hasPlugin("com.android.application")
     assert(
-        plugins.hasPlugin("com.android.application") || plugins.hasPlugin("com.android.library")
+        isAppModule || plugins.hasPlugin("com.android.library")
     ) {
         "${javaClass.simpleName} can only be applied to Android projects"
     }
@@ -217,7 +218,12 @@ fun Project.configureAndroidModule(
 
         buildTypes.getByName("debug") { isMinifyEnabled = false }
         buildTypes.getByName("release") {
-            isMinifyEnabled = true
+            // TODO: disable minify until issues with minified release build is resolved -- jm 2025-06-06
+            isAppModule = false
+
+            isMinifyEnabled = isAppModule
+            isShrinkResources = isAppModule
+            // isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

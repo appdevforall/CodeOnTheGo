@@ -17,37 +17,21 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import org.adfa.constants.ASSETS_COMMON_FOLDER
-import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import org.adfa.constants.DESTINATION_TERMUX_PACKAGES_FOLDER_NAME
-import org.adfa.constants.LOCAL_SOURCE_TERMUX_VAR_FOLDER_NAME
-import org.adfa.constants.MANIFEST_FILE_NAME
+import org.adfa.constants.DATABASE_FOLDER
+import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.SOURCE_LIB_FOLDER
-import org.adfa.constants.SPLIT_ASSETS
 import com.google.common.io.Files
-import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copy
-import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
+import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.provider.Property
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.io.IOException
 import kotlin.io.path.Path
 
-
-abstract class CopyTermuxCacheAbiTask : DefaultTask() {
-
-    @get:Input
-//    abstract val srcDir: Property<String>
-    var srcDir: String = ""
-
-//    @get:Input
-//    var srcDir: String = ""
+abstract class CopyDocDbToAssetsTask : DefaultTask() {
 
     /**
      * The output directory.
@@ -56,24 +40,28 @@ abstract class CopyTermuxCacheAbiTask : DefaultTask() {
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
-    fun copyTermuxAbiCacheToAssets() {
+    fun CopyDocDbToAssets() {
         val outputDirectory = this.outputDirectory.get()
-            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME +
-                    File.separator + DESTINATION_TERMUX_PACKAGES_FOLDER_NAME).asFile
+            .file(DATABASE_FOLDER).asFile
         val sourceFilePath =
-            this.project.projectDir.parentFile.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator +
-                    LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME + File.separator + this.srcDir
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + DOCUMENTATION_DB
+        copy(sourceFilePath, outputDirectory)
+    }
 
+    private fun copy(sourceFilePath: String, outputDirectory: File) {
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
 
-        if (!File(sourceFilePath).exists()) {
-            return
+        val destFile = outputDirectory.resolve(DOCUMENTATION_DB)
+        if (destFile.exists()) {
+            destFile.delete()
         }
 
-        if (!SPLIT_ASSETS) {
-            copy(sourceFilePath, outputDirectory)
+        try {
+            Files.copy(File(sourceFilePath), destFile)
+        } catch (e: IOException) {
+            e.message?.let { throw GradleException(it) }
         }
     }
 

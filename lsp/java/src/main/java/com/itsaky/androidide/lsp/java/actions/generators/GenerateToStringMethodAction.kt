@@ -27,6 +27,7 @@ import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction
+import com.itsaky.androidide.lsp.java.actions.generators.GenerateConstructorAction.Companion
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
 import com.itsaky.androidide.lsp.java.utils.EditHelper
 import com.itsaky.androidide.preferences.internal.EditorPreferences
@@ -89,16 +90,10 @@ class GenerateToStringMethodAction : FieldBasedAction() {
     val file = data.requirePath()
 
     compiler.compile(file).run { task ->
-      val triple = findFields(task, file, range)
-      val typeFinder = triple.first
-      val type = triple.second
-      val fields = triple.third
-
-      fields.removeIf { !selected.contains("${it.name}: ${it.type}") }
-
-      log.debug("Creating toString() method with fields: {}", fields.map { it.name })
-
-      generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
+      withValidFields(data, task, file, range) { typeFinder, type, fields ->
+        fields.removeIf { !selected.contains("${it.name}: ${it.type}") }
+        generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
+      }
     }
   }
 

@@ -30,7 +30,6 @@ import android.view.LayoutInflater
 import android.widget.ArrayAdapter
 import android.widget.ListView
 import android.widget.Toast
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
@@ -117,7 +116,7 @@ object GitCommitTask {
 
                 Toast.makeText(
                     context,
-                    "There are files to commit, commit canceled",
+                    context.getString(R.string.commit_canceled_files_to_commit),
                     Toast.LENGTH_LONG
                 )
                     .show();
@@ -208,7 +207,7 @@ object GitCommitTask {
                         } else if (binding.lvFilesToCommit.checkedItemCount == 0) {
                             Toast.makeText(
                                 context,
-                                "No files to commit, commit cancelled",
+                                context.getString(R.string.commit_canceled_no_files_to_commit),
                                 Toast.LENGTH_LONG
                             ).show()
                         } else {
@@ -241,7 +240,10 @@ object GitCommitTask {
                                 ThreadUtils.runOnUiThread {
                                     Toast.makeText(
                                         context,
-                                        "Committed all changes to repository in " + path,
+                                        context.getString(
+                                            R.string.committed_all_changes_to_repository_in,
+                                            path
+                                        ),
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
