@@ -1,6 +1,9 @@
 package com.itsaky.androidide.lsp
 
+import android.annotation.SuppressLint
 import androidx.annotation.GuardedBy
+import com.itsaky.androidide.eventbus.events.EventReceiver
+import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
@@ -11,9 +14,7 @@ import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.LocatableEvent
 import com.itsaky.androidide.lsp.debug.model.Location
-import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.ResumePolicy
-import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
@@ -21,11 +22,12 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.withContext
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -36,7 +38,7 @@ import kotlin.concurrent.write
  */
 data class DebugClientState(
     val clients: Set<RemoteClient>,
-    val breakpoints: HashMap<Int, PositionalBreakpoint>,
+    val breakpoints: BreakpointHandler,
 ) {
     val client: RemoteClient
         get() = clients.first()
@@ -48,54 +50,51 @@ data class DebugClientState(
 /**
  * @author Akash Yadav
  */
-object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
+object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
 
     var viewModel: DebuggerViewModel? = null
     private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
 
-    @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
-    private val clientContext = newSingleThreadContext("IDEDebugClient")
+    @OptIn(DelicateCoroutinesApi::class)
+    private val clientContext = newFixedThreadPoolContext(4, "IDEDebugClient")
     private val clientScope = CoroutineScope(clientContext + SupervisorJob())
     private val stateGuard = ReentrantReadWriteLock()
 
     @GuardedBy("stateGuard")
     private var state = DebugClientState(
         clients = mutableSetOf(),
-        breakpoints = hashMapOf()
+        breakpoints = BreakpointHandler()
     )
 
-    fun toggleBreakpoint(file: File, line: Int) = stateGuard.write {
-        val breakpoint = PositionalBreakpoint(
-            source = Source(
-                name = file.name,
-                path = file.absolutePath
-            ),
-            line = line
-        )
-
-        val remove = state.breakpoints.containsKey(line)
-        if (remove) {
-            state.breakpoints.remove(line)
-        } else {
-            state.breakpoints[line] = breakpoint
-        }
-
-        // if we're already connected to a client, update the client as well
-        state.clientOrNull?.also { client ->
-            clientScope.launch {
-                val adapter = client.adapter
-                val request = BreakpointRequest(
-                    remoteClient = client,
-                    breakpoints = listOf(breakpoint),
-                )
-
-                if (remove) {
-                    adapter.removeBreakpoints(request)
-                } else {
-                    adapter.addBreakpoints(request)
+    init {
+        register()
+        state.breakpoints.begin { breakpoints ->
+            stateGuard.write {
+                clientScope.launch {
+                    state.clientOrNull?.also { client ->
+                        client.adapter.setBreakpoints(
+                            BreakpointRequest(
+                                remoteClient = client,
+                                breakpoints = breakpoints
+                            )
+                        )
+                    }
                 }
             }
         }
+    }
+
+    @SuppressLint("ImplicitSamInstance")
+    @Suppress("UNUSED")
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    fun onContentChange(event: DocumentChangeEvent) {
+        val breakpoints = state.breakpoints
+        clientScope.launch { breakpoints.change(event) }
+    }
+
+    fun toggleBreakpoint(file: File, line: Int) {
+        val breakpoints = state.breakpoints
+        clientScope.launch { breakpoints.toggle(file, line) }
     }
 
     override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
@@ -139,10 +138,11 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
         viewModel?.onAttach()
 
         clientScope.launch {
-            client.adapter.addBreakpoints(
+            val breakpoints = state.breakpoints.allBreakpoints
+            client.adapter.setBreakpoints(
                 BreakpointRequest(
                     remoteClient = client,
-                    breakpoints = state.breakpoints.values.toList()
+                    breakpoints = breakpoints
                 )
             )
         }

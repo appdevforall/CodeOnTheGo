@@ -39,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
+import kotlin.math.log
 import com.itsaky.androidide.lsp.debug.events.StepEvent as LspStepEvent
 
 /**
@@ -180,9 +181,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     override suspend fun connectedRemoteClients(): Set<RemoteClient> =
         vms.map(VmConnection::client).toSet()
 
-    override suspend fun addBreakpoints(
-        request: BreakpointRequest
-    ): BreakpointResponse = withContext(Dispatchers.IO) {
+    override suspend fun setBreakpoints(request: BreakpointRequest): BreakpointResponse = withContext(Dispatchers.IO) {
         val vm = connVm()
 
         check(vm.client == request.remoteClient) {
@@ -197,47 +196,40 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val specList = vm.eventRequestSpecList!!
         val allSpecs = specList.eventRequestSpecs()
             .filterIsInstance<BreakpointSpec>()
+
+        allSpecs.forEach { spec ->
+            try {
+                spec.remove(vm.vm)
+            } catch (e: Throwable) {
+                logger.error("failed to remove breakpoint {}", spec)
+            }
+        }
+
         return@withContext BreakpointResponse(request.breakpoints.map { br ->
 
-            var addSpec = false
-            var spec = allSpecs
-                .firstOrNull { spec ->
-                    spec.isSameAsDef(br)
-                }
+            val spec = when (br) {
+                is PositionalBreakpoint -> specList.createBreakpoint(
+                    source = br.source,
+                    lineNumber = br.line,
+                    suspendPolicy = br.suspendPolicy.asJdiInt()
+                )
 
-            if (spec == null) {
-                addSpec = true
+                is MethodBreakpoint -> specList.createBreakpoint(
+                    source = br.source,
+                    methodId = br.methodId,
+                    methodArgs = br.methodArgs,
+                    suspendPolicy = br.suspendPolicy.asJdiInt()
+                )
 
-                spec = when (br) {
-                    is PositionalBreakpoint -> specList.createBreakpoint(
-                        source = br.source,
-                        lineNumber = br.line,
-                        suspendPolicy = br.suspendPolicy.asJdiInt()
-                    )
-
-                    is MethodBreakpoint -> specList.createBreakpoint(
-                        source = br.source,
-                        methodId = br.methodId,
-                        methodArgs = br.methodArgs,
-                        suspendPolicy = br.suspendPolicy.asJdiInt()
-                    )
-
-                    else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")
-                }
+                else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")
             }
 
             var failure: Throwable? = null
-            val resolveSuccess = if (addSpec) {
-                // TODO: Maybe get the cause of the failure from this?
-                specList.addEagerlyResolve(spec)
-            } else {
-                try {
-                    spec.resolveEagerly(vm.vm)
-                    true
-                } catch (err: Throwable) {
-                    failure = err
-                    false
-                }
+            val resolveSuccess = try {
+                specList.addEagerlyResolve(spec, rethrow = true)
+            } catch (e: Throwable) {
+                failure = e
+                false
             }
 
             when {
@@ -246,42 +238,6 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 else -> BreakpointResult.Failure(br, failure)
             }
         })
-    }
-
-    override suspend fun removeBreakpoints(
-        request: BreakpointRequest
-    ): BreakpointResponse = withContext(Dispatchers.IO) {
-        val vm = connVm()
-
-        check(vm.client == request.remoteClient) {
-            "Received request for breakpoints from a different client"
-        }
-
-        if (!vm.isHandlingEvents || !vm.client.capabilities.breakpointSupport) {
-            // we're not handling events from the VM, or the VM does not support adding breakpoints
-            return@withContext BreakpointResponse.EMPTY
-        }
-
-        val specList = vm.eventRequestSpecList!!
-        val allSpecs = specList.eventRequestSpecs()
-            .filterIsInstance<BreakpointSpec>()
-
-        return@withContext BreakpointResponse(
-            results = request.breakpoints.flatMap { br ->
-                allSpecs
-                    .filter { spec -> spec.isSameAsDef(br) }
-                    .map { spec ->
-                        try {
-                            spec.remove(vm.vm)
-                            logger.debug("Removed breakpoint: {}", spec)
-                            BreakpointResult.Removed(br)
-                        } catch (err: Throwable) {
-                            logger.error("Failed to remove breakpoint: {}", spec, err)
-                            BreakpointResult.Failure(br, err)
-                        }
-                    }
-            }
-        )
     }
 
     override suspend fun step(request: StepRequestParams): StepResponse = withContext(Dispatchers.IO) {
