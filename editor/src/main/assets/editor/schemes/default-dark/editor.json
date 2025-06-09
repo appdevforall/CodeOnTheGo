@@ -28,5 +28,8 @@
   "highlighted.delimiters.bg": "@surfaceVariant",
   "highlighted.delimiters.fg": "@onSurface",
 
-  "non_printable_char": "@onSurface"
+  "non_printable_char": "@onSurface",
+
+  "breakpoint.line.indicator": "@breakpoint.line.indicator",
+  "breakpoint.line.bg": "@breakpoint.line.bg"
 }

@@ -18,6 +18,7 @@
 package io.github.rosemoe.sora.editor.ts
 
 import android.graphics.Color
+import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
@@ -30,6 +31,7 @@ import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.analysis.StyleReceiver
 import io.github.rosemoe.sora.lang.styling.CodeBlock
 import io.github.rosemoe.sora.lang.styling.Styles
+import io.github.rosemoe.sora.lang.styling.line.LineBackground
 import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
@@ -130,18 +132,56 @@ class TsAnalyzeWorker(
     }
   }
 
-  fun toggleBreakpoint(line: Int) {
-    val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
-    val gutterBg = lineStyle?.findOne(LineGutterBackground::class.java)
-    if (gutterBg != null) {
-      styles.eraseLineStyle(line, LineGutterBackground::class.java)
-    } else {
-      styles.addLineStyle(LineGutterBackground(line) { Color.RED })
+  fun addBreakpoint(line: Int) = toggleBreakpoint(line = line, addOnly = true)
+  fun removeBreakpoint(line: Int) = toggleBreakpoint(line = line, removeOnly = true)
+  fun removeAllBreakpoints() {
+      styles.lineStyles?.forEach { style ->
+          style.eraseStyle(LineGutterBackground::class.java)
+      }
+  }
+
+  fun toggleBreakpoint(line: Int, addOnly: Boolean = false, removeOnly: Boolean = false) {
+    require(!(addOnly && removeOnly)) {
+        "set either addOnly or removeOnly, not both"
     }
 
-    // calling updateStyles does a lot of unnecessary work
-    // instead, just reset the same styles to the receiver
-    stylesReceiver?.setStyles(analyzer, styles)
+    val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
+    val gutterBg = lineStyle?.findOne(LineGutterBackground::class.java)
+    var notify = true
+
+    if (gutterBg == null && !removeOnly) {
+      styles.addLineStyle(LineGutterBackground(line) { scheme ->
+        scheme.getColor(SchemeAndroidIDE.BREAKPOINT_LINE_INDICATOR)
+      })
+    } else if (!addOnly) {
+      styles.eraseLineStyle(line, LineGutterBackground::class.java)
+    } else {
+        notify = false
+    }
+
+    if (notify) {
+        // calling updateStyles does a lot of unnecessary work
+        // instead, just reset the same styles to the receiver
+        stylesReceiver?.setStyles(analyzer, styles)
+    }
+  }
+
+  fun highlightLine(line: Int) {
+    val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
+    val lineBg = lineStyle?.findOne(LineBackground::class.java)
+    if (lineBg == null) {
+      styles.addLineStyle(LineBackground(line) { scheme ->
+        scheme.getColor(SchemeAndroidIDE.BREAKPOINT_LINE_BG)
+      })
+      stylesReceiver?.setStyles(this.analyzer, styles)
+    }
+  }
+
+  fun unhighlightLines() {
+    styles.lineStyles?.forEach { style ->
+      style.eraseStyle(LineBackground::class.java)
+    }
+    stylesReceiver?.setStyles(this.analyzer, styles)
   }
 
   private fun processNextMessage() {
