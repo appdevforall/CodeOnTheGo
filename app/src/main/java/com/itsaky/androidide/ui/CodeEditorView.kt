@@ -60,7 +60,6 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.REGION_LINE_NUMBER
 import io.github.rosemoe.sora.widget.component.Magnifier
 import io.github.rosemoe.sora.widget.resolveTouchRegion
-import io.github.rosemoe.sora.widget.subscribeEvent
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -86,7 +85,7 @@ class CodeEditorView(
   context: Context,
   file: File,
   selection: Range
-) : LinearLayoutCompat(context), Closeable {
+) : LinearLayoutCompat(context), BreakpointHandler.EventListener, Closeable {
 
   private var _binding: LayoutCodeEditorBinding? = null
   private var _searchLayout: EditorSearchLayout? = null
@@ -135,6 +134,7 @@ class CodeEditorView(
   }
 
   init {
+    IDEDebugClientImpl.breakpoints.addListener(this)
     _binding = LayoutCodeEditorBinding.inflate(LayoutInflater.from(context))
 
     binding.editor.apply {
@@ -164,13 +164,13 @@ class CodeEditorView(
         }
       }
 
-      subscribeEvent(LanguageUpdateEvent::class.java) {event, unsubscribe ->
+      subscribeEvent(LanguageUpdateEvent::class.java) { event, unsubscribe ->
         this.file?.also { file ->
           resetBreakpointsInFile(file)
         }
       }
 
-      subscribeEvent(FileUpdateEvent::class.java) {event, unsubscribe ->
+      subscribeEvent(FileUpdateEvent::class.java) { event, unsubscribe ->
         this.file?.also { file ->
           resetBreakpointsInFile(file)
         }
@@ -178,7 +178,6 @@ class CodeEditorView(
     }
 
     _searchLayout = EditorSearchLayout(context, binding.editor)
-
     orientation = VERTICAL
 
     removeAllViews()
@@ -188,12 +187,35 @@ class CodeEditorView(
     readFileAndApplySelection(file, selection)
   }
 
+  override fun onHighlightLine(file: String, line: Int) {
+    if (file != this.file?.canonicalPath) {
+      return
+    }
+
+    (editor?.editorLanguage as? IDELanguage?)?.apply {
+      unhighlightLines()
+      highlightLine(line)
+    }
+  }
+
+  override fun onUnhighlight() {
+    (editor?.editorLanguage as? IDELanguage?)?.apply {
+      unhighlightLines()
+    }
+  }
+
   private fun resetBreakpointsInFile(file: File) {
-    val breakpoints = IDEDebugClientImpl.breakpoints.breakpointsInFile(file.canonicalPath)
+    val handler = IDEDebugClientImpl.breakpoints
+    val breakpoints = handler.breakpointsInFile(file.canonicalPath)
+    val highlightedLine = handler.highlightedLocation?.takeIf { it.first == file.canonicalPath }?.second
     editor?.apply {
       (editorLanguage as? IDELanguage?)?.apply {
         removeAllBreakpoints()
         addBreakpoints(breakpoints.map { it.line })
+        unhighlightLines()
+        if (highlightedLine != null) {
+          highlightLine(highlightedLine)
+        }
       }
     }
   }
@@ -541,6 +563,7 @@ class CodeEditorView(
 
   override fun close() {
     codeEditorScope.cancelIfActive("Cancellation was requested")
+    IDEDebugClientImpl.breakpoints.removeListener(this)
     _binding?.editor?.apply {
       notifyClose()
       release()

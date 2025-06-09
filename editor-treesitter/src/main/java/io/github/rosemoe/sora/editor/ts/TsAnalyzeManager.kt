@@ -65,6 +65,14 @@ open class TsAnalyzeManager(val languageSpec: TsLanguageSpec, var theme: TsTheme
     analyzeWorker?.toggleBreakpoint(line)
   }
 
+  fun highlightLine(line: Int) {
+    this.analyzeWorker?.highlightLine(line)
+  }
+
+  fun unhighlightLines() {
+    this.analyzeWorker?.unhighlightLines()
+  }
+
   override fun setReceiver(receiver: StyleReceiver?) {
     stylesReceiver = receiver
     _analyzeWorker?.stylesReceiver = receiver

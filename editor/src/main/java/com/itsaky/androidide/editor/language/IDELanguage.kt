@@ -57,6 +57,8 @@ abstract class IDELanguage : Language {
   open fun removeBreakpoints(lines: Iterable<Int>) = lines.forEach(::removeBreakpoint)
   open fun removeAllBreakpoints() {}
   open fun toggleBreakpoint(line: Int) {}
+  open fun highlightLine(line: Int) {}
+  open fun unhighlightLines() {}
 
   @Throws(CompletionCancelledException::class)
   override fun requireAutoComplete(

@@ -10,6 +10,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
@@ -35,14 +39,31 @@ class BreakpointHandler {
     private val scope = CoroutineScope(newSingleThreadContext("BreakpointHandler"))
     private val events = Channel<BreakpointEvent>(capacity = Channel.UNLIMITED)
     private val breakpoints = HashBasedTable.create<String, Int, PositionalBreakpoint>()
+    private val _highlightedLocation = MutableStateFlow<Pair<String, Int>?>(null)
     private var onSetBreakpoints: (List<BreakpointDefinition>) -> Unit by Delegates.notNull()
     private val listeners = CopyOnWriteArrayList<EventListener>()
+
+    val highlightedLocationState: StateFlow<Pair<String, Int>?>
+        get() = _highlightedLocation.asStateFlow()
+
+    val highlightedLocation: Pair<String, Int>?
+        get() = highlightedLocationState.value
 
     val allBreakpoints: List<BreakpointDefinition>
         get() = ArrayList(breakpoints.rowMap().flatMap { (_, bp) -> bp.values })
 
     companion object {
         private val logger = LoggerFactory.getLogger(BreakpointHandler::class.java)
+    }
+
+    fun highlightLocation(file: String, line: Int) {
+        this._highlightedLocation.update { file to line }
+        notifyHighlighted(file, line)
+    }
+
+    fun unhighlightHighlightedLocation() {
+        this._highlightedLocation.update { null }
+        notifyUnhighlight()
     }
 
     fun breakpointsInFile(path: String) = ArrayList(breakpoints.row(path).values)
@@ -57,13 +78,17 @@ class BreakpointHandler {
         }
     }
 
-    fun listen(listener: EventListener) {
+    fun addListener(listener: EventListener) {
         if (listeners.contains(listener)) {
             logger.warn("listener {} is already added", listener)
             return
         }
 
         listeners.add(listener)
+    }
+
+    fun removeListener(listener: EventListener) {
+        listeners.remove(listener)
     }
 
     suspend fun change(event: DocumentChangeEvent) {
@@ -212,10 +237,24 @@ class BreakpointHandler {
         }
     }
 
-    abstract class EventListener {
-        open fun onAddBreakpoint(file: String, line: Int) {}
-        open fun onRemoveBreakpoint(file: String, line: Int) {}
-        open fun onToggle(file: String, line: Int) {}
-        open fun onMoveBreakpoint(file: String, oldLine: Int, newLine: Int) {}
+    private fun notifyHighlighted(file: String, line: Int) {
+        for (listener in listeners) {
+            listener.onHighlightLine(file, line)
+        }
+    }
+
+    private fun notifyUnhighlight() {
+        for (listener in listeners) {
+            listener.onUnhighlight()
+        }
+    }
+
+    interface EventListener {
+        fun onAddBreakpoint(file: String, line: Int) {}
+        fun onRemoveBreakpoint(file: String, line: Int) {}
+        fun onToggle(file: String, line: Int) {}
+        fun onMoveBreakpoint(file: String, oldLine: Int, newLine: Int) {}
+        fun onHighlightLine(file: String, line: Int) {}
+        fun onUnhighlight()
     }
 }
