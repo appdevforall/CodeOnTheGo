@@ -29,6 +29,8 @@ import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.databinding.LayoutCodeEditorBinding
+import com.itsaky.androidide.editor.events.FileUpdateEvent
+import com.itsaky.androidide.editor.events.LanguageUpdateEvent
 import com.itsaky.androidide.editor.language.IDELanguage
 import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
@@ -36,6 +38,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor.Companion.createInputTypeFlags
 import com.itsaky.androidide.editor.utils.ContentReadWrite.readContent
 import com.itsaky.androidide.editor.utils.ContentReadWrite.writeTo
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.lsp.BreakpointHandler
 import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.api.ILanguageServer
@@ -57,6 +60,7 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.REGION_LINE_NUMBER
 import io.github.rosemoe.sora.widget.component.Magnifier
 import io.github.rosemoe.sora.widget.resolveTouchRegion
+import io.github.rosemoe.sora.widget.subscribeEvent
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -154,9 +158,21 @@ class CodeEditorView(
             // this is because the click is consumed by the SideIconClickEvent for the breakpoint would have consumed this event
             // as a result, it's safe to assume that there aren't any breakpoints on this line
             IDEDebugClientImpl.toggleBreakpoint(editorFile, event.line)
-            language.toggleBreakpoint(editorFile, event.line)
+            language.toggleBreakpoint(event.line)
             postInvalidate()
           }
+        }
+      }
+
+      subscribeEvent(LanguageUpdateEvent::class.java) {event, unsubscribe ->
+        this.file?.also { file ->
+          resetBreakpointsInFile(file)
+        }
+      }
+
+      subscribeEvent(FileUpdateEvent::class.java) {event, unsubscribe ->
+        this.file?.also { file ->
+          resetBreakpointsInFile(file)
         }
       }
     }
@@ -170,6 +186,16 @@ class CodeEditorView(
     addView(searchLayout, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
     readFileAndApplySelection(file, selection)
+  }
+
+  private fun resetBreakpointsInFile(file: File) {
+    val breakpoints = IDEDebugClientImpl.breakpoints.breakpointsInFile(file.canonicalPath)
+    editor?.apply {
+      (editorLanguage as? IDELanguage?)?.apply {
+        removeAllBreakpoints()
+        addBreakpoints(breakpoints.map { it.line })
+      }
+    }
   }
 
   /**
