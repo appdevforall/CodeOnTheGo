@@ -14,9 +14,13 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.LocatableEvent
 import com.itsaky.androidide.lsp.debug.model.Location
 import com.itsaky.androidide.lsp.debug.model.ResumePolicy
+import com.itsaky.androidide.lsp.debug.model.StepRequestParams
+import com.itsaky.androidide.lsp.debug.model.StepResult
+import com.itsaky.androidide.lsp.debug.model.StepType
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -52,17 +56,59 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
     val clientOrNull: RemoteClient?
         get() = clients.firstOrNull()
 
+    fun stepOver() = doStep(type = StepType.Over)
+    fun stepInto() = doStep(type = StepType.Into)
+    fun stepOut() = doStep(type = StepType.Out)
+
+    private inline fun withClient(action: String, block: (RemoteClient) -> Unit) {
+        clientOrNull?.also(block)
+            ?: logger.error("Cannot perform $action action. Not connected to a remote client.")
+    }
+
+    private fun doStep(
+        type: StepType,
+        countFilter: Int = 1
+    ) = withClient("step $type") { client ->
+        if (!client.capabilities.stepSupport) {
+            logger.error("Remote client does not support stepping")
+            return@withClient
+        }
+
+        clientScope.launch {
+            val params = StepRequestParams(
+                remoteClient = client,
+                type = type,
+                countFilter = countFilter
+            )
+
+            val response = client.adapter.step(params)
+            logger.debug("step response: {}", response)
+            if (response.result == StepResult.Success) {
+                viewModel?.setConnectionState(DebuggerConnectionState.AWAITING)
+            }
+        }
+    }
+
     init {
         register()
         breakpoints.begin { breakpoints ->
-            clientScope.launch {
-                clientOrNull?.also { client ->
-                    client.adapter.setBreakpoints(
-                        BreakpointRequest(
-                            remoteClient = client,
-                            breakpoints = breakpoints
+
+            // if we're already connected to a client, update the client as well
+            clientOrNull?.also { client ->
+                if (!client.capabilities.breakpointSupport) {
+                    logger.error("Remote client does not support breakpoints")
+                    return@also
+                }
+
+                clientScope.launch {
+                    clientOrNull?.also { client ->
+                        client.adapter.setBreakpoints(
+                            BreakpointRequest(
+                                remoteClient = client,
+                                breakpoints = breakpoints
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -99,6 +145,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
 
             openLocation(event)
         }
+
         return BreakpointHitResponse(
             remoteClient = event.remoteClient,
             resumePolicy = ResumePolicy.SUSPEND_THREAD
@@ -117,7 +164,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         }
 
         clients += client
-        viewModel?.onAttach()
+        viewModel?.setConnectionState(DebuggerConnectionState.ATTACHED)
         breakpoints.unhighlightHighlightedLocation()
 
         clientScope.launch {
@@ -145,7 +192,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
 
         breakpoints.unhighlightHighlightedLocation()
         clients -= client
-        viewModel?.onDetach()
+        viewModel?.setConnectionState(DebuggerConnectionState.DETACHED)
 
         Unit
     }

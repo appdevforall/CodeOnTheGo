@@ -121,15 +121,15 @@ internal class BreakpointSpec : EventRequestSpec {
             val method = findMatchingMethod(vm, refType, this.data as BreakpointData.Method)
             location = method.location()
         } else {
-            val locs = refType.locationsOfLine(lineNumber)
-            if (locs.isEmpty()) {
-                throw LineNotFoundException()
+            val locations = refType.locationsOfLine(lineNumber)
+            if (locations.isEmpty()) {
+                throw LineNotFoundException("no locations found for line $lineNumber")
             }
 
             // TODO: handle multiple locations
-            location = locs[0]
+            location = locations[0]
             if (location.method() == null) {
-                throw LineNotFoundException()
+                throw LineNotFoundException("no method at line $lineNumber: $location")
             }
         }
         return location
