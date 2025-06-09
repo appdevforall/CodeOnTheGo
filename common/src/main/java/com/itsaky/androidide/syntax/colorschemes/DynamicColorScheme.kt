@@ -39,6 +39,7 @@ open class DynamicColorScheme : SchemeAndroidIDE() {
     val onSurface = context.resolveAttr(attr.colorOnSurface)
     val onSurfaceVariant = context.resolveAttr(attr.colorOnSurfaceVariant)
     val outline = context.resolveAttr(attr.colorOutline)
+    val error = context.resolveAttr(attr.colorError)
     setColor(WHOLE_BACKGROUND, surface)
     setColor(LINE_NUMBER_BACKGROUND, surface)
     setColor(LINE_NUMBER, onSurface)
@@ -57,6 +58,9 @@ open class DynamicColorScheme : SchemeAndroidIDE() {
     setColor(COMPLETION_WND_TEXT_DETAIL, secondaryVariant)
     setColor(COMPLETION_WND_TEXT_API, secondaryVariant)
     setColor(COMPLETION_WND_TEXT_TYPE, secondaryVariant)
+
+    setColor(BREAKPOINT_LINE_INDICATOR, error or 0xf00000)
+    setColor(BREAKPOINT_LINE_BG, error or 0xf00000)
 
     if (!isInDarkMode) {
       applyLightColors()

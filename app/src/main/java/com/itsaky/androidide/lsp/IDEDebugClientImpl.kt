@@ -1,7 +1,6 @@
 package com.itsaky.androidide.lsp
 
 import android.annotation.SuppressLint
-import androidx.annotation.GuardedBy
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lsp.debug.IDebugClient
@@ -30,22 +29,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.write
-
-/**
- * State of [IDEDebugClientImpl].
- */
-data class DebugClientState(
-    val clients: Set<RemoteClient>,
-    val breakpoints: BreakpointHandler,
-) {
-    val client: RemoteClient
-        get() = clients.first()
-
-    val clientOrNull: RemoteClient?
-        get() = clients.firstOrNull()
-}
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * @author Akash Yadav
@@ -58,27 +42,27 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
     @OptIn(DelicateCoroutinesApi::class)
     private val clientContext = newFixedThreadPoolContext(4, "IDEDebugClient")
     private val clientScope = CoroutineScope(clientContext + SupervisorJob())
-    private val stateGuard = ReentrantReadWriteLock()
+    private val clients = CopyOnWriteArraySet<RemoteClient>()
 
-    @GuardedBy("stateGuard")
-    private var state = DebugClientState(
-        clients = mutableSetOf(),
-        breakpoints = BreakpointHandler()
-    )
+    val breakpoints = BreakpointHandler()
+
+    val requireClient: RemoteClient
+        get() = clients.first()
+
+    val clientOrNull: RemoteClient?
+        get() = clients.firstOrNull()
 
     init {
         register()
-        state.breakpoints.begin { breakpoints ->
-            stateGuard.write {
-                clientScope.launch {
-                    state.clientOrNull?.also { client ->
-                        client.adapter.setBreakpoints(
-                            BreakpointRequest(
-                                remoteClient = client,
-                                breakpoints = breakpoints
-                            )
+        breakpoints.begin { breakpoints ->
+            clientScope.launch {
+                clientOrNull?.also { client ->
+                    client.adapter.setBreakpoints(
+                        BreakpointRequest(
+                            remoteClient = client,
+                            breakpoints = breakpoints
                         )
-                    }
+                    )
                 }
             }
         }
@@ -88,12 +72,10 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
     @Suppress("UNUSED")
     @Subscribe(threadMode = ThreadMode.ASYNC)
     fun onContentChange(event: DocumentChangeEvent) {
-        val breakpoints = state.breakpoints
         clientScope.launch { breakpoints.change(event) }
     }
 
     fun toggleBreakpoint(file: File, line: Int) {
-        val breakpoints = state.breakpoints
         clientScope.launch { breakpoints.toggle(file, line) }
     }
 
@@ -127,18 +109,18 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         logger.debug("onStep: {}", event)
     }
 
-    override fun onAttach(client: RemoteClient): Unit = stateGuard.write {
+    override fun onAttach(client: RemoteClient): Unit {
         logger.debug("onAttach: client={}", client)
 
-        check(client !in state.clients) {
+        check(client !in clients) {
             "Already attached to client"
         }
 
-        state = state.copy(clients = state.clients + client)
+        clients += client
         viewModel?.onAttach()
 
         clientScope.launch {
-            val breakpoints = state.breakpoints.allBreakpoints
+            val breakpoints = breakpoints.allBreakpoints
             client.adapter.setBreakpoints(
                 BreakpointRequest(
                     remoteClient = client,
@@ -153,14 +135,14 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         // program has stopped execution for some reason
     }
 
-    override fun onDisconnect(client: RemoteClient) = stateGuard.write {
+    override fun onDisconnect(client: RemoteClient) {
         logger.debug("onDisconnect: client={}", client)
-        if (state.clients.size == 1 && state.clients.first() == client) {
+        if (clients.size == 1 && clients.first() == client) {
             // reset debugger UI
             viewModel?.setThreads(emptyList())
         }
 
-        state = state.copy(clients = state.clients - client)
+        clients -= client
         viewModel?.onDetach()
 
         Unit

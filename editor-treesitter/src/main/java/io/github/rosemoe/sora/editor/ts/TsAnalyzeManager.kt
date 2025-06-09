@@ -49,6 +49,18 @@ open class TsAnalyzeManager(val languageSpec: TsLanguageSpec, var theme: TsTheme
     }
   }
 
+  fun addBreakpoint(line: Int) {
+    analyzeWorker?.addBreakpoint(line)
+  }
+
+  fun removeBreakpoint(line: Int) {
+    analyzeWorker?.removeBreakpoint(line)
+  }
+
+  fun removeAllBreakpoints() {
+    analyzeWorker?.removeAllBreakpoints()
+  }
+
   fun toggleBreakpoint(line: Int) {
     analyzeWorker?.toggleBreakpoint(line)
   }
