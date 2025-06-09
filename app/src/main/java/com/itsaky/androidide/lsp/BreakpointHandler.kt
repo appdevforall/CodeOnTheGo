@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.properties.Delegates
 
 private interface BreakpointEvent {
@@ -35,6 +36,7 @@ class BreakpointHandler {
     private val events = Channel<BreakpointEvent>(capacity = Channel.UNLIMITED)
     private val breakpoints = HashBasedTable.create<String, Int, PositionalBreakpoint>()
     private var onSetBreakpoints: (List<BreakpointDefinition>) -> Unit by Delegates.notNull()
+    private val listeners = CopyOnWriteArrayList<EventListener>()
 
     val allBreakpoints: List<BreakpointDefinition>
         get() = ArrayList(breakpoints.rowMap().flatMap { (_, bp) -> bp.values })
@@ -51,6 +53,15 @@ class BreakpointHandler {
                 process(event)
             }
         }
+    }
+
+    fun listen(listener: EventListener) {
+        if (listeners.contains(listener)) {
+            logger.warn("listener {} is already added", listener)
+            return
+        }
+
+        listeners.add(listener)
     }
 
     suspend fun change(event: DocumentChangeEvent) {
@@ -83,6 +94,8 @@ class BreakpointHandler {
                 // create a copy, because 'breakpoints' may be cleared even before the
                 // coroutine is launched
                 val localBreakpoints = ArrayList(breakpoints.values)
+                localBreakpoints.forEach { notifyRemoved(path, it.line) }
+
                 onSetBreakpoints(localBreakpoints)
                 breakpoints.clear()
             }
@@ -110,6 +123,7 @@ class BreakpointHandler {
                     // then the breakpoint is no longer valid
                     // in such cases, remove all breakpoints which were in the edited region
                     logger.debug("removing breakpoint at line {} in file {} because the breakpoint line was removed by editing file", line, path)
+                    notifyRemoved(path, line)
                     continue
                 }
 
@@ -127,6 +141,7 @@ class BreakpointHandler {
                 val newLine = line + lineDelta
                 logger.debug("breakpoint at line {} moved to line {} in file {}", line, newLine, path)
                 newBreakpoints[newLine] = breakpoint.copy(line = newLine)
+                notifyMoved(path, line, newLine)
             }
 
             breakpoints.row(path).apply {
@@ -158,12 +173,47 @@ class BreakpointHandler {
 
         if (remove) {
             breakpoints.remove(path, line)
+            notifyRemoved(path, line)
         } else {
             breakpoints.put(path, line, breakpoint)
+            notifyAdded(path, line)
         }
+
+        notifyToggled(path, line)
 
         // if we're already connected to a client, update the client as well
         val fileBreakpoints = breakpoints.row(path)
         onSetBreakpoints(ArrayList(fileBreakpoints.values))
+    }
+
+    private fun notifyAdded(file: String, line: Int) {
+        for (listener in listeners) {
+            listener.onAddBreakpoint(file, line)
+        }
+    }
+
+    private fun notifyRemoved(file: String, line: Int) {
+        for (listener in listeners) {
+            listener.onRemoveBreakpoint(file, line)
+        }
+    }
+
+    private fun notifyToggled(file: String, line: Int) {
+        for (listener in listeners) {
+            listener.onToggle(file, line)
+        }
+    }
+
+    private fun notifyMoved(file: String, oldLine: Int, newLine: Int) {
+        for (listener in listeners) {
+            listener.onMoveBreakpoint(file, oldLine, newLine)
+        }
+    }
+
+    abstract class EventListener {
+        fun onAddBreakpoint(file: String, line: Int) {}
+        fun onRemoveBreakpoint(file: String, line: Int) {}
+        fun onToggle(file: String, line: Int) {}
+        fun onMoveBreakpoint(file: String, oldLine: Int, newLine: Int) {}
     }
 }
