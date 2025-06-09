@@ -39,7 +39,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
-import kotlin.math.log
 import com.itsaky.androidide.lsp.debug.events.StepEvent as LspStepEvent
 
 /**
@@ -130,6 +129,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             // TODO: Maybe add support for debugging multiple VMs?
             throw UnsupportedOperationException("Debugging multiple VMs is not supported yet")
         }
+
+        vm.setDebugTraceMode(VirtualMachine.TRACE_ALL)
 
         val vmCanBeModified = vm.canBeModified()
         val client = RemoteClient(
@@ -255,6 +256,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val suspendedThread = vm.threadState.current
             ?: return@withContext StepResponse(StepResult.Failure("No thread is currently suspended"))
 
+        logger.debug("Step {} thread {}", request.type, suspendedThread.thread.name())
+
         clearPreviousStep(vm.vm, suspendedThread.thread)
 
         val reqMgr = vm.vm.eventRequestManager()
@@ -329,6 +332,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val location = e.location()
         val thread = e.thread()
 
+        logger.debug("breakpoint hit in thread {} at {}", thread.name(), location)
+
         val response = listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
                 remoteClient = vm.client,
@@ -341,6 +346,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     }
 
     override fun stepEvent(e: StepEvent) {
+        logger.debug("stepEvent: {}", e)
         e.virtualMachine().checkIsCurrentVm()
 
         val vm = connVm()
@@ -357,6 +363,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     }
 
     override fun vmDisconnectEvent(e: VMDisconnectEvent) {
+        logger.debug("vmDisconnectedEvent: {}", e)
         e.virtualMachine().checkIsCurrentVm()
         val vm = connVm()
 
