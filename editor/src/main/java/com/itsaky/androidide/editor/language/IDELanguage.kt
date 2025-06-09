@@ -21,6 +21,7 @@ import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.ui.IDECompletionPublisher
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.ILanguageServer
+import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.progress.ICancelChecker
@@ -50,7 +51,12 @@ abstract class IDELanguage : Language {
     return EditorPreferences.tabSize
   }
 
-  open fun toggleBreakpoint(file: File, line: Int) {}
+  open fun addBreakpoint(line: Int) {}
+  open fun addBreakpoints(lines: Iterable<Int>) = lines.forEach(::addBreakpoint)
+  open fun removeBreakpoint(line: Int) {}
+  open fun removeBreakpoints(lines: Iterable<Int>) = lines.forEach(::removeBreakpoint)
+  open fun removeAllBreakpoints() {}
+  open fun toggleBreakpoint(line: Int) {}
 
   @Throws(CompletionCancelledException::class)
   override fun requireAutoComplete(

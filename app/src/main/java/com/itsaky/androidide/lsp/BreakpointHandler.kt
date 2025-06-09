@@ -45,6 +45,8 @@ class BreakpointHandler {
         private val logger = LoggerFactory.getLogger(BreakpointHandler::class.java)
     }
 
+    fun breakpointsInFile(path: String) = ArrayList(breakpoints.row(path).values)
+
     fun begin(consumer: (List<BreakpointDefinition>) -> Unit) {
         onSetBreakpoints = consumer
 
@@ -211,9 +213,9 @@ class BreakpointHandler {
     }
 
     abstract class EventListener {
-        fun onAddBreakpoint(file: String, line: Int) {}
-        fun onRemoveBreakpoint(file: String, line: Int) {}
-        fun onToggle(file: String, line: Int) {}
-        fun onMoveBreakpoint(file: String, oldLine: Int, newLine: Int) {}
+        open fun onAddBreakpoint(file: String, line: Int) {}
+        open fun onRemoveBreakpoint(file: String, line: Int) {}
+        open fun onToggle(file: String, line: Int) {}
+        open fun onMoveBreakpoint(file: String, oldLine: Int, newLine: Int) {}
     }
 }

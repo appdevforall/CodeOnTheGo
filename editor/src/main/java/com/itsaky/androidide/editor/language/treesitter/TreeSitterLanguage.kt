@@ -47,8 +47,9 @@ abstract class TreeSitterLanguage(
   private val langType: String
 ) : IDELanguage() {
 
-  private lateinit var tsTheme: TsTheme
-  private lateinit var languageSpec: TreeSitterLanguageSpec
+  private var languageSpec =
+    getLanguageSpec(context, langType, lang, newLocalCaptureSpec(langType))
+  private var tsTheme = TsTheme(languageSpec.spec.tsQuery)
   private lateinit var _indentProvider: TreeSitterIndentProvider
   private val analyzer by lazy { TreeSitterAnalyzeManager(languageSpec.spec, tsTheme) }
   private val newlineHandlersLazy by lazy { createNewlineHandlers() }
@@ -74,11 +75,6 @@ abstract class TreeSitterLanguage(
     private const val DEF_IDENT_ADV = 0
   }
 
-  init {
-    this.languageSpec = getLanguageSpec(context, langType, lang, newLocalCaptureSpec(langType))
-    this.tsTheme = TsTheme(languageSpec.spec.tsQuery)
-  }
-
   fun setupWith(scheme: IDEColorScheme?) {
     val langScheme = scheme?.languages?.get(langType)
     this.languageScheme = langScheme
@@ -86,7 +82,19 @@ abstract class TreeSitterLanguage(
     langScheme?.styles?.forEach { tsTheme.putStyleRule(it.key, it.value.makeStyle()) }
   }
 
-  override fun toggleBreakpoint(file: File, line: Int) {
+  override fun addBreakpoint(line: Int) {
+    this.analyzer.addBreakpoint(line)
+  }
+
+  override fun removeBreakpoint(line: Int) {
+    this.analyzer.removeBreakpoint(line)
+  }
+
+  override fun removeAllBreakpoints() {
+    this.analyzer.removeAllBreakpoints()
+  }
+
+  override fun toggleBreakpoint(line: Int) {
     this.analyzer.toggleBreakpoint(line)
   }
 
