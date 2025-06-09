@@ -4,7 +4,6 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
-import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
@@ -31,20 +30,12 @@ interface IDebugAdapter {
     suspend fun connectedRemoteClients(): Set<RemoteClient>
 
     /**
-     * Add breakpoints in the source code.
+     * Set breakpoints in source code.
      *
-     * @param request The request definition of the breakpoints to add.
-     * @return The response definition of the breakpoints add.
+     * @param request The request definition of the breakpoints to set.
+     * @return The response definition of the breakpoints set.
      */
-    suspend fun addBreakpoints(request: BreakpointRequest): BreakpointResponse
-
-    /**
-     * Remove breakpoints in the source code.
-     *
-     * @param request The request definition of the breakpoints to remove.
-     * @return The response definition of the breakpoints remove.
-     */
-    suspend fun removeBreakpoints(request: BreakpointRequest): BreakpointResponse
+    suspend fun setBreakpoints(request: BreakpointRequest): BreakpointResponse
 
     /**
      * Step through a suspended program.

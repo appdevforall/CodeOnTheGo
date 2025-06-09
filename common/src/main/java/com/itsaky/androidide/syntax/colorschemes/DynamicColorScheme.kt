@@ -18,6 +18,7 @@
 package com.itsaky.androidide.syntax.colorschemes
 
 import android.content.Context
+import androidx.core.graphics.toColorInt
 import com.itsaky.androidide.common.R.attr
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.resolveAttr
@@ -58,6 +59,9 @@ open class DynamicColorScheme : SchemeAndroidIDE() {
     setColor(COMPLETION_WND_TEXT_API, secondaryVariant)
     setColor(COMPLETION_WND_TEXT_TYPE, secondaryVariant)
 
+    setColor(BREAKPOINT_LINE_INDICATOR, 0xfff44336)
+    setColor(BREAKPOINT_LINE_BG, 0xfff44336)
+
     if (!isInDarkMode) {
       applyLightColors()
     }
@@ -86,6 +90,9 @@ open class DynamicColorScheme : SchemeAndroidIDE() {
     setColor(TODO_COMMENT, 0xffff6d00)
     setColor(FIXME_COMMENT, 0xffff6d00)
     setColor(COMMENT, 0xff9e9e9e)
+
+    setColor(BREAKPOINT_LINE_INDICATOR, 0xfff77b72)
+    setColor(BREAKPOINT_LINE_BG, 0xfff77b72)
   }
 
   private fun setColor(key: Int, value: Long) {

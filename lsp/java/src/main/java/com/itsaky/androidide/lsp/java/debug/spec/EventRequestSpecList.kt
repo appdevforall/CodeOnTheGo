@@ -66,7 +66,10 @@ internal class EventRequestSpecList(
         }
     }
 
-    fun addEagerlyResolve(spec: EventRequestSpec): Boolean = try {
+    fun addEagerlyResolve(
+        spec: EventRequestSpec,
+        rethrow: Boolean = false,
+    ): Boolean = try {
         requestSpecs.add(spec)
         val request = spec.resolveEagerly(vm)
         if (request != null) {
@@ -75,6 +78,7 @@ internal class EventRequestSpecList(
         true
     } catch (err: Exception) {
         logger.warn("Unable to set: {}", spec, err)
+        if (rethrow) throw err
         false
     }
 
