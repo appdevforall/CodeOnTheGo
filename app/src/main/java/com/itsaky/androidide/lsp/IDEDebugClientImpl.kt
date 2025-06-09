@@ -109,7 +109,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         logger.debug("onStep: {}", event)
     }
 
-    override fun onAttach(client: RemoteClient): Unit {
+    override fun onAttach(client: RemoteClient) {
         logger.debug("onAttach: client={}", client)
 
         check(client !in clients) {
@@ -118,6 +118,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
 
         clients += client
         viewModel?.onAttach()
+        breakpoints.unhighlightHighlightedLocation()
 
         clientScope.launch {
             val breakpoints = breakpoints.allBreakpoints
@@ -142,6 +143,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
             viewModel?.setThreads(emptyList())
         }
 
+        breakpoints.unhighlightHighlightedLocation()
         clients -= client
         viewModel?.onDetach()
 
@@ -155,10 +157,13 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         val position = Position(location.line, 0)
 
         val activity = IDELanguageClientImpl.getInstance().activity
+
         if (activity == null) {
             logger.error("Cannot open {}:{} because activity is null", file, position.line)
             return
         }
+
+        breakpoints.highlightLocation(file, position.line)
 
         withContext(Dispatchers.Main.immediate) {
             activity.openFileAndSelect(

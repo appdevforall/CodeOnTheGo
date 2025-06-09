@@ -98,6 +98,14 @@ abstract class TreeSitterLanguage(
     this.analyzer.toggleBreakpoint(line)
   }
 
+  override fun highlightLine(line: Int) {
+    this.analyzer.highlightLine(line)
+  }
+
+  override fun unhighlightLines() {
+    this.analyzer.unhighlightLines()
+  }
+
   override fun getAnalyzeManager(): AnalyzeManager {
     return this.analyzer
   }
