@@ -199,7 +199,7 @@ dependencies {
   implementation(projects.xmlInflater)
 
   implementation(projects.layouteditor.layouteditorApp)
-  //implementation(projects.layouteditor.vectormaster)
+  implementation(projects.idetooltips)
 
   //LaoutEditor
   //implementation(libs.desugar.jdk.libs)
