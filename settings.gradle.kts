@@ -161,7 +161,8 @@ include(
   ":testing:unit",
   ":layouteditor:layouteditor-app",
   ":layouteditor:vectormaster",
-  ":constants"
+  ":constants",
+  ":idetooltips",
 )
 
 val layoutEditorDir = rootDir.resolve("LayoutEditor")
