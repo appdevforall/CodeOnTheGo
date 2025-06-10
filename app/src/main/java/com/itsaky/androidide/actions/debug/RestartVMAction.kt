@@ -17,19 +17,18 @@ class RestartVMAction(
     override var label = context.getString(R.string.debugger_restart)
     override val order = 5
 
-    // VM control actions están habilitadas cuando el estado es mayor que DETACHED
-    override fun isEnabledForState(state: DebuggerConnectionState): Boolean {
+    override fun isDebuggerConectionEnabled(state: DebuggerConnectionState): Boolean {
         return state > DebuggerConnectionState.DETACHED
     }
 
     override suspend fun execAction(data: ActionData) {
-        val currentState = debugClient.viewModel?.connectionState?.value
-        if (currentState == null || !isEnabledForState(currentState)) {
-            Log.d("DebugAction", "RestartVMAction blocked - invalid state: $currentState")
+        val debugClientState = debugClient.viewModel?.connectionState?.value
+        if (debugClientState == null || !isDebuggerConectionEnabled(debugClientState)) {
+            Log.d("DebugAction", "RestartVMAction blocked - invalid state: $debugClientState")
             return
         }
 
-        Log.d("DebugAction", "RestartVMAction executed! state=$currentState")
+        Log.d("DebugAction", "RestartVMAction executed! state=$debugClientState")
         IDEDebugClientImpl.restartVM()
     }
 }

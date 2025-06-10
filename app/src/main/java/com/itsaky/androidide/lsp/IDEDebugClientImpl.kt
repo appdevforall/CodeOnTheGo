@@ -185,7 +185,6 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
 
     override fun onStop(event: StoppedEvent) {
         logger.debug("onStop: {}", event)
-        // program has stopped execution for some reason
     }
 
     override fun onDisconnect(client: RemoteClient) = stateGuard.write {
@@ -202,32 +201,22 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler {
     }
 
     fun pauseResumeVM() = withClient("pause/resume VM") { client ->
-        // Por ahora, implementación placeholder
         clientScope.launch {
-            // TODO: Implementar según los métodos disponibles en client.adapter
-            // Posibles opciones:
-            // - client.adapter.suspend() / client.adapter.resume()
-            // - O usar toggleBreakpoint para pausar/reanudar
+
             logger.debug("pauseResumeVM called - implementation pending")
         }
     }
 
     fun stopVM() = withClient("stop VM") { client ->
         clientScope.launch {
-            // TODO: Implementar según los métodos disponibles en client.adapter
-            // Posibles opciones:
-            // - client.adapter.disconnect()
-            // - client.adapter.terminate()
+
             logger.debug("stopVM called - implementation pending")
         }
     }
 
     fun restartVM() = withClient("restart VM") { client ->
         clientScope.launch {
-            // TODO: Implementar según los métodos disponibles en client.adapter
-            // Posibles opciones:
-            // - client.adapter.disconnect() seguido de reconnect
-            // - O un método específico de restart si existe
+
             logger.debug("restartVM called - implementation pending")
         }
     }

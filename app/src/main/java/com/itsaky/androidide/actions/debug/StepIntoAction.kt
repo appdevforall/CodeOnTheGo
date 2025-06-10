@@ -17,19 +17,18 @@ class StepIntoAction(
     override var label = context.getString(R.string.debugger_step_into)
     override val order = 2
 
-    // Step actions solo están habilitadas cuando el debugger está suspendido
-    override fun isEnabledForState(state: DebuggerConnectionState): Boolean {
+    override fun isDebuggerConectionEnabled(state: DebuggerConnectionState): Boolean {
         return state == DebuggerConnectionState.SUSPENDED
     }
 
     override suspend fun execAction(data: ActionData) {
-        val currentState = debugClient.viewModel?.connectionState?.value
-        if (currentState == null || !isEnabledForState(currentState)) {
-            Log.d("DebugAction", "StepIntoAction blocked - invalid state: $currentState")
+        val debugClientState = debugClient.viewModel?.connectionState?.value
+        if (debugClientState == null || !isDebuggerConectionEnabled(debugClientState)) {
+            Log.d("DebugAction", "StepIntoAction blocked - invalid state: $debugClientState")
             return
         }
 
-        Log.d("DebugAction", "StepIntoAction executed! state=$currentState")
+        Log.d("DebugAction", "StepIntoAction executed! state=$debugClientState")
         IDEDebugClientImpl.stepInto()
     }
 }

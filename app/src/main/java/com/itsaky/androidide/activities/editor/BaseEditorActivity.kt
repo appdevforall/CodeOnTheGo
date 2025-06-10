@@ -233,7 +233,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     fun ensureDebuggerServiceBound() {
-        if (!ENABLE_DEBUGGER_OVERLAY) return // ← Salir temprano si está desactivado
+        if (!ENABLE_DEBUGGER_OVERLAY) return
 
         if (debuggerService == null) {
             val intent = Intent(this, DebuggerService::class.java)
@@ -414,14 +414,11 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         setupMemUsageChart()
         watchMemory()
 
-        // Establecer la conexión entre IDEDebugClientImpl y DebuggerViewModel
         IDEDebugClientImpl.viewModel = debuggerViewModel
 
-        // Observar cambios en el estado del debugger para invalidar el menú de opciones
         lifecycleScope.launch {
             debuggerViewModel.connectionState.collectLatest { state ->
                 Log.d("BaseEditorActivity", "Debugger state changed to: $state")
-                // Invalidar las opciones del menú cuando cambie el estado
                 invalidateOptionsMenu()
                 postStopDebuggerServiceIfNotConnected()
             }

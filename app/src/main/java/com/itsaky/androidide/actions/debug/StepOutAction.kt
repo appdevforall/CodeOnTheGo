@@ -17,19 +17,18 @@ class StepOutAction(
     override var label = context.getString(R.string.debugger_step_out)
     override val order = 3
 
-    // Step actions solo están habilitadas cuando el debugger está suspendido
-    override fun isEnabledForState(state: DebuggerConnectionState): Boolean {
+    override fun isDebuggerConectionEnabled(state: DebuggerConnectionState): Boolean {
         return state == DebuggerConnectionState.SUSPENDED
     }
 
     override suspend fun execAction(data: ActionData) {
-        val currentState = debugClient.viewModel?.connectionState?.value
-        if (currentState == null || !isEnabledForState(currentState)) {
-            Log.d("DebugAction", "StepOutAction blocked - invalid state: $currentState")
+        val debugClientState = debugClient.viewModel?.connectionState?.value
+        if (debugClientState == null || !isDebuggerConectionEnabled(debugClientState)) {
+            Log.d("DebugAction", "StepOutAction blocked - invalid state: $debugClientState")
             return
         }
 
-        Log.d("DebugAction", "StepOutAction executed! state=$currentState")
+        Log.d("DebugAction", "StepOutAction executed! state=$debugClientState")
         IDEDebugClientImpl.stepOut()
     }
 }

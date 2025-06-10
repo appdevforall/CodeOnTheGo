@@ -18,18 +18,17 @@ class StopVMAction(
     override val order = 4
 
     override suspend fun execAction(data: ActionData) {
-        val currentState = debugClient.viewModel?.connectionState?.value
-        if (currentState == null || !isEnabledForState(currentState)) {
-            Log.d("DebugAction", "StopVMAction blocked - invalid state: $currentState")
+        val debugClientState = debugClient.viewModel?.connectionState?.value
+        if (debugClientState == null || !isDebuggerConectionEnabled(debugClientState)) {
+            Log.d("DebugAction", "StopVMAction blocked - invalid state: $debugClientState")
             return
         }
 
-        Log.d("DebugAction", "StopVMAction executed! state=$currentState")
+        Log.d("DebugAction", "StopVMAction executed! state=$debugClientState")
         IDEDebugClientImpl.stopVM()
     }
 
-    // VM control actions están habilitadas cuando el estado es mayor que DETACHED
-    override fun isEnabledForState(state: DebuggerConnectionState): Boolean {
+    override fun isDebuggerConectionEnabled(state: DebuggerConnectionState): Boolean {
         return state > DebuggerConnectionState.DETACHED
     }
 }

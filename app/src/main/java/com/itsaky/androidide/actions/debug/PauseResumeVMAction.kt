@@ -27,19 +27,18 @@ class PauseResumeVMAction(
         //    2. icon = ic_resume/ic_pause
     }
 
-    // VM control actions están habilitadas cuando el estado es mayor que DETACHED
-    override fun isEnabledForState(state: DebuggerConnectionState): Boolean {
+    override fun isDebuggerConectionEnabled(state: DebuggerConnectionState): Boolean {
         return state > DebuggerConnectionState.DETACHED
     }
 
     override suspend fun execAction(data: ActionData) {
-        val currentState = debugClient.viewModel?.connectionState?.value
-        if (currentState == null || !isEnabledForState(currentState)) {
-            Log.d("DebugAction", "PauseResumeVMAction blocked - invalid state: $currentState")
+        val debugClientState = debugClient.viewModel?.connectionState?.value
+        if (debugClientState == null || !isDebuggerConectionEnabled(debugClientState)) {
+            Log.d("DebugAction", "PauseResumeVMAction blocked - invalid state: $debugClientState")
             return
         }
 
-        Log.d("DebugAction", "PauseResumeVMAction executed! state=$currentState")
+        Log.d("DebugAction", "PauseResumeVMAction executed! state=$debugClientState")
         IDEDebugClientImpl.pauseResumeVM()
     }
 }

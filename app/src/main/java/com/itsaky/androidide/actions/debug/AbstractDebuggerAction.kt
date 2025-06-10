@@ -28,20 +28,17 @@ abstract class AbstractDebuggerAction(
     protected val debugClient: IDEDebugClientImpl
         get() = IDEDebugClientImpl
 
-    // Abstract method para determinar qué estados permiten esta acción
-    protected abstract fun isEnabledForState(state: DebuggerConnectionState): Boolean
+    protected abstract fun isDebuggerConectionEnabled(state: DebuggerConnectionState): Boolean
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
         icon = ContextCompat.getDrawable(data.requireContext(), iconRes)
 
-        // Actualizar el estado habilitado basado en el estado actual del debugger
-        // Usar el viewModel que ya está en IDEDebugClientImpl
         enabled = debugClient.viewModel?.connectionState?.value?.let { state ->
-            isEnabledForState(state)
+            isDebuggerConectionEnabled(state)
         } ?: false
 
-        // Log para debugging
-        Log.d("DebugAction", "${javaClass.simpleName}: enabled=$enabled, state=${debugClient.viewModel?.connectionState?.value}")
+        Log.d("DebugAction", "${javaClass.simpleName}: enabled=$enabled, " +
+                "state=${debugClient.viewModel?.connectionState?.value}")
     }
 }
