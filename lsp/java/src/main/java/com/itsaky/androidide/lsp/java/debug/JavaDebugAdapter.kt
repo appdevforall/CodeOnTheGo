@@ -211,7 +211,9 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             val spec = when (br) {
                 is PositionalBreakpoint -> specList.createBreakpoint(
                     source = br.source,
-                    lineNumber = br.line,
+                    // +1 because we receive 0-indexed line numbers from the IDE
+                    // while JDI expects 1-index line numbers
+                    lineNumber = br.line + 1,
                     suspendPolicy = br.suspendPolicy.asJdiInt()
                 )
 

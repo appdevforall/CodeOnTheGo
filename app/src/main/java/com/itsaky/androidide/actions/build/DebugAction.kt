@@ -51,7 +51,7 @@ class DebugAction(
         activity: EditorHandlerActivity
     ): TaskExecutionMessage {
         val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
-        log.info("Running task '{}' to assemble variant '{}' of project '{}'", taskName, variant.name, module.path)
+        log.info("Running task '{}' to debug variant '{}' of project '{}'", taskName, variant.name, module.path)
 
         val debugArgs = mutableListOf<String>()
         debugArgs.add("-P$PROP_JDWP_INJECT=${JdwpOptions.JDWP_ENABLED}")
