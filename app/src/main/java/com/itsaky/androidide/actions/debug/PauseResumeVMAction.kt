@@ -1,8 +1,11 @@
 package com.itsaky.androidide.actions.debug
 
 import android.content.Context
+import android.util.Log
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
+import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 
 /**
  * @author Akash Yadav
@@ -24,7 +27,19 @@ class PauseResumeVMAction(
         //    2. icon = ic_resume/ic_pause
     }
 
+    // VM control actions están habilitadas cuando el estado es mayor que DETACHED
+    override fun isEnabledForState(state: DebuggerConnectionState): Boolean {
+        return state > DebuggerConnectionState.DETACHED
+    }
+
     override suspend fun execAction(data: ActionData) {
-        // TODO: step into
+        val currentState = debugClient.viewModel?.connectionState?.value
+        if (currentState == null || !isEnabledForState(currentState)) {
+            Log.d("DebugAction", "PauseResumeVMAction blocked - invalid state: $currentState")
+            return
+        }
+
+        Log.d("DebugAction", "PauseResumeVMAction executed! state=$currentState")
+        IDEDebugClientImpl.pauseResumeVM()
     }
 }

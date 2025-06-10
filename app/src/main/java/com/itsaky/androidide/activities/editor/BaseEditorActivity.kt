@@ -37,6 +37,7 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -86,6 +87,7 @@ import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
@@ -231,6 +233,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     fun ensureDebuggerServiceBound() {
+        if (!ENABLE_DEBUGGER_OVERLAY) return // ← Salir temprano si está desactivado
+
         if (debuggerService == null) {
             val intent = Intent(this, DebuggerService::class.java)
             bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
@@ -246,6 +250,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private var optionsMenuInvalidator: Runnable? = null
 
     companion object {
+        private const val ENABLE_DEBUGGER_OVERLAY = false
 
         const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
@@ -408,6 +413,19 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
+
+        // Establecer la conexión entre IDEDebugClientImpl y DebuggerViewModel
+        IDEDebugClientImpl.viewModel = debuggerViewModel
+
+        // Observar cambios en el estado del debugger para invalidar el menú de opciones
+        lifecycleScope.launch {
+            debuggerViewModel.connectionState.collectLatest { state ->
+                Log.d("BaseEditorActivity", "Debugger state changed to: $state")
+                // Invalidar las opciones del menú cuando cambie el estado
+                invalidateOptionsMenu()
+                postStopDebuggerServiceIfNotConnected()
+            }
+        }
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
