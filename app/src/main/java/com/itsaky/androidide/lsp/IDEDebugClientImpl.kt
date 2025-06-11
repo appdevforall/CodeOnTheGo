@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp
 
 import android.annotation.SuppressLint
+import android.os.Debug
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lsp.debug.IDebugClient
@@ -50,11 +51,83 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
 
     val breakpoints = BreakpointHandler()
 
+    var connectionState: DebuggerConnectionState
+        get() = viewModel?.connectionState?.value ?: DebuggerConnectionState.DETACHED
+        private set(value) {
+            logger.debug("move to connection state: {}", value)
+            viewModel?.setConnectionState(value)
+        }
+
     val requireClient: RemoteClient
         get() = clients.first()
 
     val clientOrNull: RemoteClient?
         get() = clients.firstOrNull()
+
+    /**
+     * Returns true if the client is connected.
+     *
+     * @return `true` if the client is connected, `false` otherwise.
+     */
+    fun isVmConnected() = connectionState >= DebuggerConnectionState.ATTACHED
+
+    /**
+     * Returns true if the client is connected and suspended.
+     *
+     * The VM may or may not be able to view/alter its state. Check [connectionState]
+     * to get the actual state.
+     *
+     * @return `true` if the client is connected and suspended, `false` otherwise.
+     */
+    fun isVmSuspended() = connectionState >= DebuggerConnectionState.SUSPENDED
+
+    fun suspendVm() = withClient("suspend vm") { client ->
+        if (!client.capabilities.suspensionSupport) {
+            logger.error("Remote client does not support suspending")
+            return@withClient
+        }
+
+        if (isVmSuspended()) {
+            logger.warn("Ignoring attempt to suspend VM when it is already suspended")
+            return@withClient
+        }
+
+        logger.debug("suspending client: {}", client.name)
+        clientScope.launch {
+            if (client.adapter.suspendClient(client)) {
+                connectionState = DebuggerConnectionState.SUSPENDED
+            }
+        }
+    }
+
+    fun resumeVm() = withClient("resume vm") { client ->
+        if (!client.capabilities.suspensionSupport) {
+            logger.error("Remote client does not support resuming")
+            return@withClient
+        }
+
+        if (!isVmSuspended()) {
+            logger.warn("Ignoring attempt to resume VM when it is not suspended")
+            return@withClient
+        }
+
+        logger.debug("resuming client: {}", client.name)
+        clientScope.launch {
+            if (client.adapter.resumeClient(client)) {
+                connectionState = DebuggerConnectionState.ATTACHED
+            }
+        }
+    }
+
+    fun killVm() = withClient("kill vm") { client ->
+        if (!client.capabilities.killSupport) {
+            logger.error("Remote client does not support killing debug application")
+            return@withClient
+        }
+
+        logger.debug("killing client: {}", client.name)
+        clientScope.launch { client.adapter.killClient(client) }
+    }
 
     fun stepOver() = doStep(type = StepType.Over)
     fun stepInto() = doStep(type = StepType.Into)
@@ -82,9 +155,8 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
             )
 
             val response = client.adapter.step(params)
-            logger.debug("step response: {}", response)
-            if (response.result == StepResult.Success) {
-                viewModel?.setConnectionState(DebuggerConnectionState.AWAITING)
+            if (response.result != StepResult.Success) {
+                logger.error("Failed to perform step action, result={}", response.result)
             }
         }
     }
@@ -126,22 +198,11 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
     }
 
     override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
+        logger.debug("onBreakpointHit: {}", event)
+
         clientScope.launch {
-            val adapter = event.remoteClient.adapter
-            val threadResponse = adapter.allThreads(
-                ThreadListRequestParams(
-                    remoteClient = event.remoteClient
-                )
-            )
-
-            val threads = threadResponse.threads
-            if (threads.isEmpty()) {
-                logger.error("Failed to get info about thread: {}", event.threadId)
-                return@launch
-            }
-
-            logger.debug("threads({}): {}", threads.size, threads)
-            viewModel?.setThreads(threads)
+            updateThreadInfo(event.remoteClient)
+            connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
 
             openLocation(event)
         }
@@ -154,6 +215,30 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
 
     override fun onStep(event: StepEvent) {
         logger.debug("onStep: {}", event)
+
+        clientScope.launch {
+            updateThreadInfo(event.remoteClient)
+            connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
+
+            openLocation(event)
+        }
+    }
+
+    private suspend fun updateThreadInfo(client: RemoteClient) {
+        val adapter = client.adapter
+        val threadResponse = adapter.allThreads(
+            ThreadListRequestParams(
+                remoteClient = client
+            )
+        )
+
+        val threads = threadResponse.threads
+        if (threads.isEmpty()) {
+            logger.error("Failed to get info about active threads in VM: {}", client.name)
+            return
+        }
+
+        viewModel?.setThreads(threads)
     }
 
     override fun onAttach(client: RemoteClient) {
@@ -164,8 +249,9 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         }
 
         clients += client
-        viewModel?.setConnectionState(DebuggerConnectionState.ATTACHED)
+        connectionState = DebuggerConnectionState.ATTACHED
         breakpoints.unhighlightHighlightedLocation()
+        viewModel?.setThreads(emptyList())
 
         clientScope.launch {
             val breakpoints = breakpoints.allBreakpoints
@@ -178,11 +264,6 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         }
     }
 
-    override fun onStop(event: StoppedEvent) {
-        logger.debug("onStop: {}", event)
-        // program has stopped execution for some reason
-    }
-
     override fun onDisconnect(client: RemoteClient) {
         logger.debug("onDisconnect: client={}", client)
         if (clients.size == 1 && clients.first() == client) {
@@ -192,9 +273,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
 
         breakpoints.unhighlightHighlightedLocation()
         clients -= client
-        viewModel?.setConnectionState(DebuggerConnectionState.DETACHED)
-
-        Unit
+        connectionState = DebuggerConnectionState.DETACHED
     }
 
     private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)
