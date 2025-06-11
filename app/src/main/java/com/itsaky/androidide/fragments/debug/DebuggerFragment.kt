@@ -85,7 +85,9 @@ class DebuggerFragment :
         }
 
         binding.threadLayoutSelector.spinnerText.setOnItemClickListener { _, _, index, _ ->
-            viewModel.setSelectedThreadIndex(index)
+            viewLifecycleScope.launch {
+                viewModel.setSelectedThreadIndex(index)
+            }
         }
 
         viewLifecycleScope.launch {
