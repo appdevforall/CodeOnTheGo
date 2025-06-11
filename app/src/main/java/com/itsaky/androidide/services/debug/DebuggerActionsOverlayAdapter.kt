@@ -40,6 +40,7 @@ class DebuggerActionsOverlayAdapter(
         action.prepare(data)
 
         binding.root.icon = action.icon
+        binding.root.isEnabled = action.enabled
         TooltipCompat.setTooltipText(binding.root, action.label)
 
         binding.root.setOnClickListener {
