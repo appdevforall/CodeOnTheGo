@@ -28,6 +28,7 @@ import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.ThreadReference
+import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
@@ -429,13 +430,15 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             // notify client that the VM has disconnected
             _listenerState?.client?.onDisconnect(vm.client)
         } catch (err: Throwable) {
-            // ignored
+            logger.error("Failed to notify client of VM disconnect", err)
         }
 
         try {
             vm.close()
         } catch (err: Throwable) {
-            logger.error("Failed to disconnect from VM '{}'", vm.client.name, err)
+            if (err !is VMDisconnectedException) {
+                logger.error("Failed to disconnect from VM '{}'", vm.client.name, err)
+            }
         } finally {
             vms.remove(vm)
         }

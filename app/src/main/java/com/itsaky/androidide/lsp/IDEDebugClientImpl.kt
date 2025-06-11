@@ -1,7 +1,6 @@
 package com.itsaky.androidide.lsp
 
 import android.annotation.SuppressLint
-import com.itsaky.androidide.editor.language.IDELanguage
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lookup.Lookup

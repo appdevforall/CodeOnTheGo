@@ -142,8 +142,10 @@ class DebugOverlayManager private constructor(
             scope.launch {
                 IDEDebugClientImpl.requireInstance().connectionStateFlow
                     .collectLatest {
+                        logger.debug("connection state updated to: {}", it)
                         withContext(Dispatchers.Main) {
-                            adapter.notifyItemRangeChanged(0, actions.size)
+                            // noinspection NotifyDataSetChanged
+                            adapter.notifyDataSetChanged()
                         }
                     }
             }
