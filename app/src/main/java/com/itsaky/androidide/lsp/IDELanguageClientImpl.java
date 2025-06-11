@@ -81,7 +81,6 @@ public class IDELanguageClientImpl implements ILanguageClient {
   private static IDELanguageClientImpl mInstance;
   private final Map<File, List<DiagnosticItem>> diagnostics = new HashMap<>();
 
-  protected final IDEDebugClientImpl debugClient = IDEDebugClientImpl.INSTANCE;
   protected EditorHandlerActivity activity;
 
   private IDELanguageClientImpl(EditorHandlerActivity provider) {
@@ -90,7 +89,6 @@ public class IDELanguageClientImpl implements ILanguageClient {
 
   public void setActivity(EditorHandlerActivity provider) {
     this.activity = provider;
-    this.debugClient.setViewModel(provider.getDebuggerViewModel());
   }
 
   public static IDELanguageClientImpl initialize(EditorHandlerActivity provider) {
@@ -114,7 +112,6 @@ public class IDELanguageClientImpl implements ILanguageClient {
   public static void shutdown() {
     if (mInstance != null) {
       mInstance.activity = null;
-      mInstance.debugClient.setViewModel(null);
     }
     mInstance = null;
   }
@@ -125,7 +122,7 @@ public class IDELanguageClientImpl implements ILanguageClient {
 
   @Override
   public IDEDebugClientImpl getDebugClient() {
-    return debugClient;
+    return IDEDebugClientImpl.getInstance();
   }
 
   @Override
