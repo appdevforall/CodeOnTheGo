@@ -4,7 +4,6 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
-import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
@@ -29,6 +28,31 @@ interface IDebugAdapter {
      * @return The set of remote clients.
      */
     suspend fun connectedRemoteClients(): Set<RemoteClient>
+
+    /**
+     * Suspend the execution of the given client. Has no effect if the VM is already suspended.
+     *
+     * @param client The client to suspend.
+     * @return `true` if the client was suspended, `false` otherwise.
+     */
+    suspend fun suspendClient(client: RemoteClient): Boolean
+
+    /**
+     * Resume the execution of the given client. Has no effect if the VM is not suspended.
+     *
+     * @param client The client to resume.
+     * @return `true` if the client was resumed, `false` otherwise.
+     */
+    suspend fun resumeClient(client: RemoteClient): Boolean
+
+    /**
+     * Kill the client process. This may be called when the user wants to stop or restart the
+     * debug session.
+     *
+     * @param client The client to kill.
+     * @return `true` if the client was killed, `false` otherwise.
+     */
+    suspend fun killClient(client: RemoteClient): Boolean
 
     /**
      * Set breakpoints in source code.

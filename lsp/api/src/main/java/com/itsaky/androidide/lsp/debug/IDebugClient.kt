@@ -1,7 +1,5 @@
 package com.itsaky.androidide.lsp.debug
 
-import com.itsaky.androidide.lsp.debug.events.StoppedEvent
-
 /**
  * Represents a debugger client, usually the IDE.
  *
@@ -15,13 +13,6 @@ interface IDebugClient : IDebugEventHandler {
      * @param client The client being debugged.
      */
     fun onAttach(client: RemoteClient)
-
-    /**
-     * Called when the application being debugged has stopped execution.
-     *
-     * @param event The event describing the stopped execution.
-     */
-    fun onStop(event: StoppedEvent)
 
     /**
      * Called when the application being debugged has been disconnected.

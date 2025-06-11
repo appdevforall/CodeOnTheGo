@@ -8,14 +8,14 @@ import com.itsaky.androidide.lsp.IDEDebugClientImpl
 /**
  * @author Akash Yadav
  */
-class StepOverAction(
+class KillVmAction(
     context: Context
-) : AbstractStepAction(R.drawable.ic_step_over) {
-    override val id = "ide.debug.step-over"
-    override var label = context.getString(R.string.debugger_step_over)
-    override val order = 1
+) : AbstractDebuggerAction(R.drawable.ic_stop) {
+    override val id = "ide.debug.stop-vm"
+    override var label = context.getString(R.string.debugger_kill)
+    override val order = 4
 
     override suspend fun execAction(data: ActionData) {
-        IDEDebugClientImpl.stepOver()
+        IDEDebugClientImpl.killVm()
     }
 }
