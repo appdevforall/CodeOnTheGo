@@ -140,8 +140,8 @@ class DebugOverlayManager private constructor(
             layout.actions.adapter = adapter
 
             scope.launch {
-                IDEDebugClientImpl.connectionStateFlow
-                    ?.collectLatest {
+                IDEDebugClientImpl.requireInstance().connectionStateFlow
+                    .collectLatest {
                         withContext(Dispatchers.Main) {
                             adapter.notifyItemRangeChanged(0, actions.size)
                         }
