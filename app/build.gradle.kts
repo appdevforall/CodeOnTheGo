@@ -279,7 +279,7 @@ tasks.register("downloadDocDb") {
         val destinationPath = project.rootProject.projectDir.resolve("libs_source/${dbName}").toPath()
 
 
-        project.logger.lifecycle("Downloading: $assetUrl as ${destinationPath}")
+        project.logger.lifecycle("Downloading : $assetUrl as ${destinationPath}")
 
         URL(assetUrl).openStream().use { input ->
           Files.copy(input, destinationPath, StandardCopyOption.REPLACE_EXISTING)
