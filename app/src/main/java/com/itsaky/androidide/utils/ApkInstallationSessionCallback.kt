@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory
 /** @author Akash Yadav */
 class ApkInstallationSessionCallback(
   private var activity: BaseEditorActivity?,
-  private val onInstallSuccess: () -> Unit
 ) : SingleSessionCallback() {
 
   private var sessionId = -1
@@ -56,9 +55,7 @@ class ApkInstallationSessionCallback(
     activity?._binding?.content?.apply {
       bottomSheet.showChild(EditorBottomSheet.CHILD_HEADER)
       bottomSheet.setActionProgress(0)
-      if (success) {
-        onInstallSuccess()
-      } else {
+      if (!success) {
         activity?.flashError(string.title_installation_failed)
       }
 

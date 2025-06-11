@@ -514,6 +514,7 @@ internal class JDWPListenerThread(
         listenerState.startListening()
         while (isAlive && !isInterrupted) {
             try {
+                logger.debug("Waiting for VM connection")
                 onConnect(listenerState.accept())
             } catch (timeout: TransportTimeoutException) {
                 logger.warn("Timeout waiting for VM connection")
