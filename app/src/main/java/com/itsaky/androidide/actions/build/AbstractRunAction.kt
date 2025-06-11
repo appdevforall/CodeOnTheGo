@@ -1,6 +1,7 @@
 package com.itsaky.androidide.actions.build
 
 import android.content.Context
+import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.actions.ActionData
@@ -116,10 +117,12 @@ abstract class AbstractRunAction(
 
             ApkInstaller.installApk(
                 activity,
-                InstallationResultHandler.createEditorActivitySender(activity),
+                InstallationResultHandler.createEditorActivitySender(activity, ::onCreateLaunchIntent),
                 apk,
                 activity.installationSessionCallback()
             )
         }
     }
+
+    protected open fun onCreateLaunchIntent() = Intent()
 }

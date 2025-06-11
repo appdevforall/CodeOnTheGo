@@ -37,6 +37,7 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -47,6 +48,7 @@ import androidx.activity.result.contract.ActivityResultContracts.StartActivityFo
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.annotation.StringRes
+import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
 import androidx.core.graphics.Insets
@@ -72,6 +74,7 @@ import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
+import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
@@ -118,6 +121,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -212,14 +216,28 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
     }
 
+    private var isDebuggerStarting = false
+        @UiThread set(value) {
+            field = value
+            onUpdateProgressBarVisibility()
+        }
+
     private var debuggerService: DebuggerService? = null
+    private var debuggerPostConnectionAction: (suspend () -> Unit)? = null
     private val debuggerServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             debuggerService = (service as DebuggerService.Binder).getService()
             debuggerService!!.showOverlay()
+
+            isDebuggerStarting = false
+            activityScope.launch(Dispatchers.Main.immediate) {
+                doSetStatus(getString(R.string.debugger_started))
+                debuggerPostConnectionAction?.invoke()
+            }
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             debuggerService = null
+            isDebuggerStarting = false
         }
     }
 
@@ -230,11 +248,35 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
+    private fun startDebuggerAndDo(action: suspend () -> Unit) {
+        activityScope.launch(Dispatchers.Main.immediate) {
+            if (debuggerService != null) {
+                action()
+            } else {
+                debuggerPostConnectionAction = action
+                ensureDebuggerServiceBound()
+            }
+        }
+    }
+
     fun ensureDebuggerServiceBound() {
-        if (debuggerService == null) {
-            val intent = Intent(this, DebuggerService::class.java)
-            bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)
+        if (debuggerService != null) return
+
+        if (isDebuggerStarting) {
+            log.info("Debugger service is already starting, ignoring...")
+            return
+        }
+
+        isDebuggerStarting = true
+
+        val intent = Intent(this, DebuggerService::class.java)
+        if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
             postStopDebuggerServiceIfNotConnected()
+            doSetStatus(getString(string.debugger_starting))
+        } else {
+            isDebuggerStarting = false
+            log.error("Debugger service doesn't exist or the IDE is not allowed to access it.")
+            doSetStatus(getString(string.debugger_starting_failed))
         }
     }
 
@@ -357,6 +399,21 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
 
         val packageName = onResult(this, intent) ?: return
+        val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
+        if (!isDebugging) {
+            doLaunchApp(packageName)
+            return
+        }
+
+        startDebuggerAndDo {
+            debuggerService!!.targetPackage = packageName
+            withContext(Dispatchers.Main.immediate) {
+                doLaunchApp(packageName)
+            }
+        }
+    }
+
+    private fun doLaunchApp(packageName: String) {
         debuggerService?.targetPackage = packageName
 
         if (BuildPreferences.launchAppAfterInstall) {
@@ -648,7 +705,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         return filesTreeFragment
     }
 
-    fun doSetStatus(text: CharSequence, @GravityInt gravity: Int) {
+    fun doSetStatus(text: CharSequence, @GravityInt gravity: Int = Gravity.CENTER) {
         editorViewModel.statusText = text
         editorViewModel.statusGravity = gravity
     }
@@ -720,11 +777,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-    private fun onBuildStatusChanged() {
-        log.debug(
-            "onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}"
-        )
-        val visible = editorViewModel.isBuildInProgress || editorViewModel.isInitializing
+    private fun onUpdateProgressBarVisibility() {
+        log.debug("onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}")
+        val visible = editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
         content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
         invalidateOptionsMenu()
     }
@@ -736,8 +791,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             }
         }
 
-        editorViewModel._isBuildInProgress.observe(this) { onBuildStatusChanged() }
-        editorViewModel._isInitializing.observe(this) { onBuildStatusChanged() }
+        editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
+        editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
         editorViewModel._statusText.observe(this) {
             content.bottomSheet.setStatus(
                 it.first,
@@ -913,9 +968,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     open fun installationSessionCallback(): SessionCallback {
-        return ApkInstallationSessionCallback(this) {
-            ensureDebuggerServiceBound()
-        }.also { installationCallback = it }
+        return ApkInstallationSessionCallback(this).also { installationCallback = it }
     }
 }
 
