@@ -41,6 +41,7 @@ class DebuggerActionsOverlayAdapter(
 
         binding.root.icon = action.icon
         binding.root.isEnabled = action.enabled
+        binding.root.alpha = if (action.enabled) 1f else 0.5f
         TooltipCompat.setTooltipText(binding.root, action.label)
 
         binding.root.setOnClickListener {
