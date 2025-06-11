@@ -19,6 +19,7 @@ package com.itsaky.androidide.handlers
 
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
+import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 
@@ -37,6 +38,10 @@ object LspHandler {
   
   fun connectClient(client: ILanguageClient) {
     ILanguageServerRegistry.getDefault().connectClient(client)
+  }
+
+  fun connectDebugClient(client: IDebugClient) {
+    ILanguageServerRegistry.getDefault().connectDebugClient(client)
   }
 
   fun destroyLanguageServers(isConfigurationChange: Boolean) {

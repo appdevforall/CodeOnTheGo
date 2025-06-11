@@ -115,7 +115,9 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         )
 
         this._listenerState = ListenerState(
-            client = client, connector = connector, args = args
+            client = client,
+            connector = connector,
+            args = args
         )
 
         this.listenerThread = JDWPListenerThread(

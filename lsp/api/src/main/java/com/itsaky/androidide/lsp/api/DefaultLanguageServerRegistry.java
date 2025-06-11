@@ -20,6 +20,7 @@ package com.itsaky.androidide.lsp.api;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.eventbus.events.project.ProjectInitializedEvent;
+import com.itsaky.androidide.lsp.debug.IDebugClient;
 import com.itsaky.androidide.projects.api.Project;
 import com.itsaky.androidide.utils.ILogger;
 import java.util.HashMap;
@@ -64,6 +65,19 @@ public class DefaultLanguageServerRegistry extends ILanguageServerRegistry {
     try {
       for (final var server : mRegister.values()) {
         server.connectClient(client);
+      }
+    } finally {
+      lock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public void connectDebugClient(@NonNull final IDebugClient client) {
+    Objects.requireNonNull(client);
+    lock.readLock().lock();
+    try {
+      for (final var server : mRegister.values()) {
+        server.connectDebugClient(client);
       }
     } finally {
       lock.readLock().unlock();

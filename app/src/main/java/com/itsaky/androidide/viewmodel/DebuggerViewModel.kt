@@ -81,8 +81,9 @@ enum class DebuggerConnectionState {
 class DebuggerViewModel : ViewModel() {
 
     private val _connectionState = MutableStateFlow(DebuggerConnectionState.DETACHED)
+    private val _debugeePackage = MutableStateFlow("")
     private val state = MutableStateFlow(DebuggerState.DEFAULT)
-    private val debugClient = IDEDebugClientImpl(this)
+    internal val debugClient = IDEDebugClientImpl(this)
 
     init {
         Lookup.getDefault().register(IDEDebugClientImpl::class.java, debugClient)
@@ -91,9 +92,20 @@ class DebuggerViewModel : ViewModel() {
     val connectionState: StateFlow<DebuggerConnectionState>
         get() = _connectionState.asStateFlow()
 
+    val debugeePackageFlow: StateFlow<String>
+        get() = _debugeePackage.asStateFlow()
+
+    var debugeePackage: String
+        get() = _debugeePackage.value
+        set(value) {
+            _debugeePackage.update { value }
+        }
+
     val allThreads: StateFlow<List<ResolvableThreadInfo>>
         get() = state.map { it.threads }.stateIn(
-            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
         )
 
     val selectedThread: StateFlow<Pair<ResolvableThreadInfo?, Int>>
