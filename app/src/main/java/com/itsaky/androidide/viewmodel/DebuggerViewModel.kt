@@ -51,10 +51,26 @@ private data class DebuggerState(
 
 enum class DebuggerConnectionState {
     // order of the enum constants matter
+
+    /**
+     * Not connected to any remote client.
+     */
     DETACHED,
+
+    /**
+     * Connected to a remote client, but not yet suspended.
+     */
     ATTACHED,
+
+    /**
+     * Connected to a remote client and suspended, but not due to a breakpoint hit or step.
+     */
     SUSPENDED,
-    AWAITING,
+
+    /**
+     * Connected to a remote client and suspended due to a breakpoint hit or step.
+     */
+    AWAITING_BREAKPOINT,
 }
 
 /**

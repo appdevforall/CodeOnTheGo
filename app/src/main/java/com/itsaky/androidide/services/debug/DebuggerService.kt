@@ -9,12 +9,12 @@ import android.os.IBinder
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
-import com.itsaky.androidide.actions.debug.PauseResumeVMAction
-import com.itsaky.androidide.actions.debug.RestartVMAction
+import com.itsaky.androidide.actions.debug.SuspendResumeVmAction
+import com.itsaky.androidide.actions.debug.RestartVmAction
 import com.itsaky.androidide.actions.debug.StepIntoAction
 import com.itsaky.androidide.actions.debug.StepOutAction
 import com.itsaky.androidide.actions.debug.StepOverAction
-import com.itsaky.androidide.actions.debug.StopVMAction
+import com.itsaky.androidide.actions.debug.KillVmAction
 import com.itsaky.androidide.buildinfo.BuildInfo
 import org.slf4j.LoggerFactory
 
@@ -60,12 +60,12 @@ class DebuggerService : Service() {
 
         val context = this
         actionsList = mutableListOf<ActionItem>().apply {
-            add(PauseResumeVMAction(context))
+            add(SuspendResumeVmAction(context))
             add(StepOverAction(context))
             add(StepIntoAction(context))
             add(StepOutAction(context))
-            add(StopVMAction(context))
-            add(RestartVMAction(context))
+            add(KillVmAction(context))
+            add(RestartVmAction(context))
         }
 
         this.actionsList.forEach(actionsRegistry::registerAction)

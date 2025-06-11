@@ -7,14 +7,14 @@ import com.itsaky.androidide.actions.ActionData
 /**
  * @author Akash Yadav
  */
-class StopVMAction(
+class RestartVmAction(
     context: Context
-) : AbstractDebuggerAction(R.drawable.ic_stop) {
-    override val id = "ide.debug.stop-vm"
-    override var label = context.getString(R.string.debugger_stop)
-    override val order = 4
+) : AbstractDebuggerAction(R.drawable.ic_restart) {
+    override val id = "ide.debug.restart-vm"
+    override var label = context.getString(R.string.debugger_restart)
+    override val order = 5
 
     override suspend fun execAction(data: ActionData) {
-        // TODO: Stop VM
+        // TODO: Restart VM
     }
 }

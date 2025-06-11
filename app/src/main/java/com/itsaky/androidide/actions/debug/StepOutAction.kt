@@ -10,7 +10,7 @@ import com.itsaky.androidide.lsp.IDEDebugClientImpl
  */
 class StepOutAction(
     context: Context
-) : AbstractDebuggerAction(R.drawable.ic_step_out) {
+) : AbstractStepAction(R.drawable.ic_step_out) {
     override val id = "ide.debug.step-out"
     override var label = context.getString(R.string.debugger_step_out)
     override val order = 3
