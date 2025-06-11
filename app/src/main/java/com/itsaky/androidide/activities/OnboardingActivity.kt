@@ -373,14 +373,10 @@ class OnboardingActivity : AppIntro2() {
                 FileUtils.delete(Environment.TOOLING_API_JAR)
             }
 
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, Environment.TOOLING_API_JAR.parentFile, tooling_api_jar)
-            } else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(tooling_api_jar),
-                    Environment.TOOLING_API_JAR.absolutePath
-                )
-            }
+            ResourceUtils.copyFileFromAssets(
+                ToolsManager.getCommonAsset(tooling_api_jar),
+                Environment.TOOLING_API_JAR.absolutePath
+            )
         } catch (e: IOException) {
             println("Tooling API jar copy failed + ${e.message}")
         }
