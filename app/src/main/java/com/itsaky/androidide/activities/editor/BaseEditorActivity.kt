@@ -233,7 +233,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
             isDebuggerStarting = false
             activityScope.launch(Dispatchers.Main.immediate) {
-                doSetStatus(getString(R.string.debugger_started))
+                doSetStatus(getString(string.debugger_started))
                 debuggerPostConnectionAction?.invoke()
             }
         }
@@ -340,6 +340,12 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             memoryUsageWatcher.stopWatching(true)
             memoryUsageWatcher.listener = null
             editorActivityScope.cancelIfActive("Activity is being destroyed")
+
+            try {
+                unbindService(debuggerServiceConnection)
+            } catch (e: Throwable) {
+                log.error("Failed to stop debugger service", e)
+            }
         }
     }
 
