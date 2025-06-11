@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.withContext
@@ -50,6 +51,9 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
     private val clients = CopyOnWriteArraySet<RemoteClient>()
 
     val breakpoints = BreakpointHandler()
+
+    val connectionStateFlow: StateFlow<DebuggerConnectionState>?
+        get() = viewModel?.connectionState
 
     var connectionState: DebuggerConnectionState
         get() = viewModel?.connectionState?.value ?: DebuggerConnectionState.DETACHED

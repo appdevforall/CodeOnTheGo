@@ -16,6 +16,9 @@ import com.itsaky.androidide.actions.debug.StepOutAction
 import com.itsaky.androidide.actions.debug.StepOverAction
 import com.itsaky.androidide.actions.debug.KillVmAction
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.tasks.cancelIfActive
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.slf4j.LoggerFactory
 
 /**
@@ -31,6 +34,7 @@ class DebuggerService : Service() {
     private lateinit var actionsList: List<ActionItem>
     private lateinit var overlayManager: DebugOverlayManager
     private val binder = Binder()
+    private val serviceScope = CoroutineScope(Dispatchers.Default)
 
     internal var targetPackage: String? = null
 
@@ -69,7 +73,7 @@ class DebuggerService : Service() {
         }
 
         this.actionsList.forEach(actionsRegistry::registerAction)
-        this.overlayManager = DebugOverlayManager.create(this)
+        this.overlayManager = DebugOverlayManager.create(serviceScope, this)
 
         ContextCompat.registerReceiver(
             this,
@@ -82,9 +86,12 @@ class DebuggerService : Service() {
     override fun onDestroy() {
         logger.debug("onDestroy()")
         targetPackage = null
+        serviceScope.cancelIfActive("DebuggerService is being destroyed")
+
+        super.onDestroy()
+
         unregisterReceiver(foregroundAppReceiver)
         actionsList.forEach(actionsRegistry::unregisterAction)
-        super.onDestroy()
     }
 
     fun showOverlay() {
