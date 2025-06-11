@@ -65,12 +65,6 @@ android {
     generateLocaleConfig = true
   }
 
-  buildTypes {
-    release {
-      isShrinkResources = true
-    }
-  }
-
   android {
     sourceSets {
       getByName("androidTest") {
