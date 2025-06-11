@@ -10,7 +10,7 @@ import com.itsaky.androidide.lsp.IDEDebugClientImpl
  */
 class StepIntoAction(
     context: Context
-) : AbstractDebuggerAction(R.drawable.ic_step_into) {
+) : AbstractStepAction(R.drawable.ic_step_into) {
     override val id = "ide.debug.step-into"
     override var label = context.getString(R.string.debugger_step_into)
     override val order = 2

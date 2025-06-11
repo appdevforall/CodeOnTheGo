@@ -22,10 +22,16 @@ data class RemoteClient(
  *
  * @property breakpointSupport Whether the remote client supports setting/unsetting breakpoints.
  * @property stepSupport Whether the remote client can step through code execution.
+ * @property threadInfoSupport Whether the remote client supports getting thread information.
+ * @property threadListSupport Whether the remote client supports getting a list of threads.
+ * @property suspensionSupport Whether the remote client supports suspending and resuming execution.
+ * @property killSupport Whether the remote client supports killing the debug application process.
  */
 data class RemoteClientCapabilities(
     val breakpointSupport: Boolean,
     val stepSupport: Boolean,
     val threadInfoSupport: Boolean,
     val threadListSupport: Boolean,
+    val suspensionSupport: Boolean,
+    val killSupport: Boolean
 )

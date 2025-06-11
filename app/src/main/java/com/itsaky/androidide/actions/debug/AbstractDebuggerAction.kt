@@ -26,9 +26,12 @@ abstract class AbstractDebuggerAction(
     protected val debugClient: IDEDebugClientImpl
         get() = IDEDebugClientImpl
 
+    protected open fun checkEnabled(data: ActionData): Boolean = IDEDebugClientImpl.isVmConnected()
+
     override fun prepare(data: ActionData) {
         super.prepare(data)
 
         icon = ContextCompat.getDrawable(data.requireContext(), iconRes)
+        enabled = checkEnabled(data)
     }
 }

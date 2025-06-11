@@ -130,18 +130,17 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             throw UnsupportedOperationException("Debugging multiple VMs is not supported yet")
         }
 
-        vm.setDebugTraceMode(VirtualMachine.TRACE_ALL)
-
-        val vmCanBeModified = vm.canBeModified()
         val client = RemoteClient(
             adapter = this,
             name = vm.name(),
             version = vm.version(),
             capabilities = RemoteClientCapabilities(
-                breakpointSupport = vmCanBeModified,
-                stepSupport = vmCanBeModified,
-                threadInfoSupport = vmCanBeModified,
-                threadListSupport = vmCanBeModified,
+                breakpointSupport = true,
+                stepSupport = true,
+                threadInfoSupport = true,
+                threadListSupport = true,
+                suspensionSupport = true,
+                killSupport = true,
             ),
         )
 
@@ -182,6 +181,62 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
     override suspend fun connectedRemoteClients(): Set<RemoteClient> =
         vms.map(VmConnection::client).toSet()
 
+    override suspend fun suspendClient(client: RemoteClient) = doSuspensionIfEnabled(client) { vm ->
+        try {
+            vm.vm.suspend()
+            true
+        } catch (e: Throwable) {
+            logger.error("Failed to suspend VM '{}'", vm.client.name, e)
+            false
+        }
+    } ?: false
+
+    override suspend fun resumeClient(client: RemoteClient) = doSuspensionIfEnabled(client) { vm ->
+        try {
+            vm.vm.resume()
+            true
+        } catch (e: Throwable) {
+            logger.error("Failed to suspend VM '{}'", vm.client.name, e)
+            false
+        }
+    } ?: false
+
+    private suspend inline fun <T> doSuspensionIfEnabled(client: RemoteClient, crossinline action: (VmConnection) -> T): T? = withContext(Dispatchers.IO) {
+        val vm = connVm()
+
+        check(vm.client == client) {
+            "Received request for suspending a different client"
+        }
+
+        if (!vm.isHandlingEvents || !vm.client.capabilities.suspensionSupport) {
+            logger.debug("Suspension support is not enabled, or the VM is not handling events")
+            return@withContext null
+        }
+
+        action(vm)
+    }
+
+    override suspend fun killClient(client: RemoteClient) = withContext(Dispatchers.IO) {
+        val vm = connVm()
+
+        check(vm.client == client) {
+            "Received request for restarting a different client"
+        }
+
+        if (!vm.isHandlingEvents || !vm.client.capabilities.suspensionSupport) {
+            logger.debug("Restart support is not enabled, or the VM is not handling events")
+            return@withContext false
+        }
+
+        return@withContext try {
+            vm.vm.exit(1)
+            true
+        } catch (e: Throwable) {
+            logger.error("Failed to kill client: {}", client.name, e)
+            false
+        }
+    }
+
     override suspend fun setBreakpoints(request: BreakpointRequest): BreakpointResponse = withContext(Dispatchers.IO) {
         val vm = connVm()
 
@@ -207,6 +262,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         }
 
         return@withContext BreakpointResponse(request.breakpoints.map { br ->
+            logger.debug("add breakpoint {}", br)
 
             val spec = when (br) {
                 is PositionalBreakpoint -> specList.createBreakpoint(
