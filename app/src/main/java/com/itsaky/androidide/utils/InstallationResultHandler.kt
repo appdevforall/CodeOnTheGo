@@ -38,8 +38,12 @@ object InstallationResultHandler {
   private val log = LoggerFactory.getLogger(InstallationResultHandler::class.java)
 
   @JvmStatic
-  fun createEditorActivitySender(context: Context): IntentSender {
-    val intent = Intent(context, InstallationResultReceiver::class.java)
+  fun createEditorActivitySender(
+    context: Context,
+    createIntent: () -> Intent = { Intent() },
+  ): IntentSender {
+    val intent = createIntent()
+    intent.setClass(context, InstallationResultReceiver::class.java)
     intent.action = INSTALL_PACKAGE_ACTION
     return PendingIntent.getBroadcast(
       context,

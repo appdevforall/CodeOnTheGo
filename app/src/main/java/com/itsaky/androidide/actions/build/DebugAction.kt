@@ -1,6 +1,7 @@
 package com.itsaky.androidide.actions.build
 
 import android.content.Context
+import android.content.Intent
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
@@ -31,7 +32,11 @@ class DebugAction(
     iconRes = R.drawable.ic_db_startdebugger
 ) {
 
-    override val id = "ide.editor.build.debug"
+    override val id = ID
+
+    companion object {
+        const val ID = "ide.editor.build.debug"
+    }
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
@@ -66,5 +71,11 @@ class DebugAction(
         )
 
         return executionMessage
+    }
+
+    override fun onCreateLaunchIntent(): Intent = super.onCreateLaunchIntent().apply {
+        // add an extra value to indicate that the debugger should be started before launching
+        // this application
+        putExtra(ID, true)
     }
 }
