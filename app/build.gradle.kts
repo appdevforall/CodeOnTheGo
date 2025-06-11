@@ -14,6 +14,7 @@ import java.util.Locale
 import kotlin.reflect.jvm.javaMethod
 
 import java.net.URL
+import java.net.URI
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.json.JSONObject
@@ -257,7 +258,7 @@ tasks.register("downloadDocDb") {
 
     project.logger.lifecycle("Fetching latest release metadata...")
     try {
-      val jsonResponse = URL(latestReleaseApiUrl).readText()
+      val jsonResponse = URI(latestReleaseApiUrl).toURL().readText()
       val jsonObject = JSONObject(jsonResponse)
 
       val assets = jsonObject.getJSONArray("assets")
@@ -279,7 +280,7 @@ tasks.register("downloadDocDb") {
         val destinationPath = project.rootProject.projectDir.resolve("libs_source/${dbName}").toPath()
 
 
-        project.logger.lifecycle("Downloading: $assetUrl as ${destinationPath}")
+        project.logger.lifecycle("Downloading : $assetUrl as ${destinationPath}")
 
         URL(assetUrl).openStream().use { input ->
           Files.copy(input, destinationPath, StandardCopyOption.REPLACE_EXISTING)
@@ -312,7 +313,6 @@ fun createAssetsZip(zipName: String, archDir: String) {
       "android-sdk.zip" to sourceDir.resolve("androidsdk/android-sdk.zip"),
       "localMvnRepository.zip" to sourceDir.resolve("gradle/localMvnRepository.zip"),
       "gradle-8.7-bin.zip" to sourceDir.resolve("gradle-8.7-bin.zip"),
-      "tooling-api-all.jar" to project.rootDir.resolve("subprojects/tooling-api-impl/build/libs/tooling-api-all.jar"),
       "documentation.db" to sourceDir.resolve("documentation.db")
     ).forEach { (fileName, filePath) ->
       if (filePath.exists()) {
