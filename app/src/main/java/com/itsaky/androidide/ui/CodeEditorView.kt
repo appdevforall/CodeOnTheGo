@@ -134,7 +134,9 @@ class CodeEditorView(
   }
 
   init {
-    IDEDebugClientImpl.breakpoints.addListener(this)
+    val debugClient = IDEDebugClientImpl.requireInstance()
+    debugClient.breakpoints.addListener(this)
+
     _binding = LayoutCodeEditorBinding.inflate(LayoutInflater.from(context))
 
     binding.editor.apply {
@@ -144,7 +146,7 @@ class CodeEditorView(
       colorScheme = SchemeAndroidIDE.newInstance(context)
       lineSeparator = LineSeparator.LF
 
-      subscribeEvent(ClickEvent::class.java) { event, unsubscribe ->
+      subscribeEvent(ClickEvent::class.java) { event, _ ->
         // if the editor is not backed by a file, then there's no point in adding a breakpoint
         val editorFile = this.file ?: return@subscribeEvent
         val region = IntPair.getFirst(resolveTouchRegion(event.causingEvent))
@@ -157,20 +159,20 @@ class CodeEditorView(
             // If we already have a breakpoint added, we won't have received this event
             // this is because the click is consumed by the SideIconClickEvent for the breakpoint would have consumed this event
             // as a result, it's safe to assume that there aren't any breakpoints on this line
-            IDEDebugClientImpl.toggleBreakpoint(editorFile, event.line)
+            debugClient.toggleBreakpoint(editorFile, event.line)
             language.toggleBreakpoint(event.line)
             postInvalidate()
           }
         }
       }
 
-      subscribeEvent(LanguageUpdateEvent::class.java) { event, unsubscribe ->
+      subscribeEvent(LanguageUpdateEvent::class.java) { _, _ ->
         this.file?.also { file ->
           resetBreakpointsInFile(file)
         }
       }
 
-      subscribeEvent(FileUpdateEvent::class.java) { event, unsubscribe ->
+      subscribeEvent(FileUpdateEvent::class.java) { _, _ ->
         this.file?.also { file ->
           resetBreakpointsInFile(file)
         }
@@ -205,7 +207,7 @@ class CodeEditorView(
   }
 
   private fun resetBreakpointsInFile(file: File) {
-    val handler = IDEDebugClientImpl.breakpoints
+    val handler = IDEDebugClientImpl.requireInstance().breakpoints
     val breakpoints = handler.breakpointsInFile(file.canonicalPath)
     val highlightedLine = handler.highlightedLocation?.takeIf { it.first == file.canonicalPath }?.second
     editor?.apply {
@@ -563,7 +565,7 @@ class CodeEditorView(
 
   override fun close() {
     codeEditorScope.cancelIfActive("Cancellation was requested")
-    IDEDebugClientImpl.breakpoints.removeListener(this)
+    IDEDebugClientImpl.getInstance()?.breakpoints?.removeListener(this)
     _binding?.editor?.apply {
       notifyClose()
       release()

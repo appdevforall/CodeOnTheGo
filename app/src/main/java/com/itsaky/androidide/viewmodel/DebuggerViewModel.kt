@@ -6,6 +6,8 @@ import com.itsaky.androidide.fragments.debug.ResolvableStackFrame
 import com.itsaky.androidide.fragments.debug.ResolvableThreadInfo
 import com.itsaky.androidide.fragments.debug.ResolvableVariable
 import com.itsaky.androidide.fragments.debug.VariableTreeNodeGenerator
+import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.debug.model.StackFrame
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import io.github.dingyi222666.view.treeview.Tree
@@ -80,6 +82,11 @@ class DebuggerViewModel : ViewModel() {
 
     private val _connectionState = MutableStateFlow(DebuggerConnectionState.DETACHED)
     private val state = MutableStateFlow(DebuggerState.DEFAULT)
+    private val debugClient = IDEDebugClientImpl(this)
+
+    init {
+        Lookup.getDefault().register(IDEDebugClientImpl::class.java, debugClient)
+    }
 
     val connectionState: StateFlow<DebuggerConnectionState>
         get() = _connectionState.asStateFlow()
@@ -131,6 +138,11 @@ class DebuggerViewModel : ViewModel() {
             started = SharingStarted.Eagerly,
             initialValue = DebuggerState.DEFAULT.variablesTree
         )
+
+    override fun onCleared() {
+        super.onCleared()
+        Lookup.getDefault().unregister(IDEDebugClientImpl::class.java)
+    }
 
     fun setConnectionState(state: DebuggerConnectionState) {
         _connectionState.update { state }

@@ -5,7 +5,6 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
-import com.itsaky.androidide.lsp.IDEDebugClientImpl
 
 /**
  * @author Akash Yadav
@@ -21,7 +20,7 @@ class SuspendResumeVmAction(
     override fun prepare(data: ActionData) {
         super.prepare(data)
         val context = data.requireContext()
-        val isSuspended = IDEDebugClientImpl.isVmSuspended()
+        val isSuspended = debugClient.isVmSuspended()
         if (isSuspended) {
             label = context.getString(R.string.debugger_resume)
             icon = ContextCompat.getDrawable(context, R.drawable.ic_run)
@@ -32,10 +31,10 @@ class SuspendResumeVmAction(
     }
 
     override suspend fun execAction(data: ActionData) {
-        if (IDEDebugClientImpl.isVmSuspended()) {
-            IDEDebugClientImpl.resumeVm()
+        if (debugClient.isVmSuspended()) {
+            debugClient.resumeVm()
         } else {
-            IDEDebugClientImpl.suspendVm()
+            debugClient.suspendVm()
         }
     }
 }

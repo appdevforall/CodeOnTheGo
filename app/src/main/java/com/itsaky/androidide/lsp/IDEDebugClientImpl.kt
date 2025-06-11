@@ -1,16 +1,16 @@
 package com.itsaky.androidide.lsp
 
 import android.annotation.SuppressLint
-import android.os.Debug
+import com.itsaky.androidide.editor.language.IDELanguage
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
 import com.itsaky.androidide.lsp.debug.events.StepEvent
-import com.itsaky.androidide.lsp.debug.events.StoppedEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.LocatableEvent
 import com.itsaky.androidide.lsp.debug.model.Location
@@ -40,32 +40,39 @@ import java.util.concurrent.CopyOnWriteArraySet
 /**
  * @author Akash Yadav
  */
-object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
+class IDEDebugClientImpl(
+    private val viewModel: DebuggerViewModel,
+) : IDebugClient, IDebugEventHandler, EventReceiver {
 
-    var viewModel: DebuggerViewModel? = null
     private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
 
     @OptIn(DelicateCoroutinesApi::class)
     private val clientContext = newFixedThreadPoolContext(4, "IDEDebugClient")
     private val clientScope = CoroutineScope(clientContext + SupervisorJob())
     private val clients = CopyOnWriteArraySet<RemoteClient>()
-
     val breakpoints = BreakpointHandler()
 
-    val connectionStateFlow: StateFlow<DebuggerConnectionState>?
-        get() = viewModel?.connectionState
+    companion object {
+        @JvmStatic
+        fun getInstance() = Lookup.getDefault().lookup(IDEDebugClientImpl::class.java)
+
+        @JvmStatic
+        fun requireInstance() = checkNotNull(getInstance()) {
+            "Cannot lookup IDEDebugClientImpl"
+        }
+    }
+
+    val connectionStateFlow: StateFlow<DebuggerConnectionState>
+        get() = viewModel.connectionState
 
     var connectionState: DebuggerConnectionState
-        get() = viewModel?.connectionState?.value ?: DebuggerConnectionState.DETACHED
+        get() = viewModel.connectionState.value
         private set(value) {
             logger.debug("move to connection state: {}", value)
-            viewModel?.setConnectionState(value)
+            viewModel.setConnectionState(value)
         }
 
-    val requireClient: RemoteClient
-        get() = clients.first()
-
-    val clientOrNull: RemoteClient?
+    private val clientOrNull: RemoteClient?
         get() = clients.firstOrNull()
 
     /**
@@ -242,7 +249,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
             return
         }
 
-        viewModel?.setThreads(threads)
+        viewModel.setThreads(threads)
     }
 
     override fun onAttach(client: RemoteClient) {
@@ -255,7 +262,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         clients += client
         connectionState = DebuggerConnectionState.ATTACHED
         breakpoints.unhighlightHighlightedLocation()
-        viewModel?.setThreads(emptyList())
+        viewModel.setThreads(emptyList())
 
         clientScope.launch {
             val breakpoints = breakpoints.allBreakpoints
@@ -272,7 +279,7 @@ object IDEDebugClientImpl : IDebugClient, IDebugEventHandler, EventReceiver {
         logger.debug("onDisconnect: client={}", client)
         if (clients.size == 1 && clients.first() == client) {
             // reset debugger UI
-            viewModel?.setThreads(emptyList())
+            viewModel.setThreads(emptyList())
         }
 
         breakpoints.unhighlightHighlightedLocation()
