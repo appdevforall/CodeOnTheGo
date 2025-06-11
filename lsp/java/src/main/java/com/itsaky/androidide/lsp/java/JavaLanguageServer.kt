@@ -28,6 +28,7 @@ import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
+import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.internal.model.CachedCompletion
 import com.itsaky.androidide.lsp.java.actions.JavaCodeActionsMenu
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
@@ -130,10 +131,11 @@ class JavaLanguageServer : ILanguageServer {
 
   override fun connectClient(client: ILanguageClient?) {
     this.client = client
+  }
 
-    val debugClient = client?.debugClient
-    if (JdwpOptions.JDWP_ENABLED && debugClient != null) {
-      this.debugAdapter.connectDebugClient(debugClient)
+  override fun connectDebugClient(client: IDebugClient) {
+    if (JdwpOptions.JDWP_ENABLED) {
+      this.debugAdapter.connectDebugClient(client)
     }
   }
 

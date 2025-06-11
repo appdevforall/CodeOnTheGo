@@ -71,6 +71,9 @@ class IDEDebugClientImpl(
             viewModel.setConnectionState(value)
         }
 
+    val debugeePackage: String
+        get() = viewModel.debugeePackage
+
     private val clientOrNull: RemoteClient?
         get() = clients.firstOrNull()
 
