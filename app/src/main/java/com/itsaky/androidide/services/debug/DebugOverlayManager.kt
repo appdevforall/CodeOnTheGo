@@ -13,6 +13,12 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -113,7 +119,10 @@ class DebugOverlayManager private constructor(
          * @param ctx The [Context] to use for creating the [DebugOverlayManager].
          * @return A new [DebugOverlayManager].
          */
-        fun create(ctx: Context): DebugOverlayManager {
+        fun create(
+            scope: CoroutineScope,
+            ctx: Context
+        ): DebugOverlayManager {
             // IMPORTANT!
             // Wrap the context with a theme, so we could use MaterialButtons!
             val context = ContextThemeWrapper(ctx, R.style.Theme_AndroidIDE)
@@ -126,8 +135,18 @@ class DebugOverlayManager private constructor(
             val actionsRegistry = ActionsRegistry.getInstance()
             val debuggerActions = actionsRegistry.getActions(ActionItem.Location.DEBUGGER_ACTIONS)
 
-            val adapter = DebuggerActionsOverlayAdapter(debuggerActions.values.toList())
+            val actions = debuggerActions.values.toList()
+            val adapter = DebuggerActionsOverlayAdapter(actions)
             layout.actions.adapter = adapter
+
+            scope.launch {
+                IDEDebugClientImpl.connectionStateFlow
+                    ?.collectLatest {
+                        withContext(Dispatchers.Main) {
+                            adapter.notifyItemRangeChanged(0, actions.size)
+                        }
+                    }
+            }
 
             return DebugOverlayManager(
                 windowManager,
