@@ -57,7 +57,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.blankj.utilcode.util.FileUtils
@@ -406,7 +408,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
 
         startDebuggerAndDo {
-            debuggerService!!.targetPackage = packageName
+            debuggerViewModel.debugeePackage = packageName
             withContext(Dispatchers.Main.immediate) {
                 doLaunchApp(packageName)
             }
@@ -414,8 +416,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private fun doLaunchApp(packageName: String) {
-        debuggerService?.targetPackage = packageName
-
         if (BuildPreferences.launchAppAfterInstall) {
             IntentUtils.launchApp(this, packageName)
             return
@@ -786,8 +786,14 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun setupViews() {
         lifecycleScope.launch {
-            debuggerViewModel.connectionState.collectLatest {
-                postStopDebuggerServiceIfNotConnected()
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                debuggerViewModel.connectionState.collectLatest {
+                    postStopDebuggerServiceIfNotConnected()
+                }
+
+                debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
+                    debuggerService?.targetPackage = newPackage
+                }
             }
         }
 
