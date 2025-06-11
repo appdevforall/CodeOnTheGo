@@ -88,6 +88,12 @@ class DebuggerService : Service() {
         targetPackage = null
         serviceScope.cancelIfActive("DebuggerService is being destroyed")
 
+        try {
+            overlayManager.hide()
+        } catch (err: Throwable) {
+            logger.error("Failed to hide debugger overlay", err)
+        }
+
         super.onDestroy()
 
         unregisterReceiver(foregroundAppReceiver)
