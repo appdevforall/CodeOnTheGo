@@ -3,7 +3,11 @@ package com.itsaky.androidide.actions.debug
 import android.content.Context
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.requireContext
+import com.itsaky.androidide.utils.IntentUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -21,8 +25,17 @@ class RestartVmAction(
     }
 
     override suspend fun execAction(data: ActionData) {
+        val context = data.requireContext()
+
+        // kill the current VM
         debugClient.killVm()
+
+        // wait for some time
         delay(RESTART_DELAY)
 
+        // then launch the debugee again
+        withContext(Dispatchers.Main.immediate) {
+            IntentUtils.launchApp(context, debugClient.debugeePackage)
+        }
     }
 }
