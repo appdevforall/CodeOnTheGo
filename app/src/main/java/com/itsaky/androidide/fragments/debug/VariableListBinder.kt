@@ -10,6 +10,7 @@ import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.debug.DialogUtilsDebug
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
@@ -31,6 +32,7 @@ class VariableListBinder(
 
     companion object {
         private val logger = LoggerFactory.getLogger(VariableListBinder::class.java)
+        private const val TAG = "VariableListBinder"
     }
 
     override fun createView(parent: ViewGroup, viewType: Int): View {
@@ -64,7 +66,7 @@ class VariableListBinder(
             chevron.rotation = if (node.isExpanded) 90f else 0f
         }
 
-        Log.d("VariableListBinder", "bindView: node.data=${node.data}")
+        Log.d(TAG, "bindView: node.data=${node.data}")
         if (node.data?.isResolved != true) {
             binding.label.text = binding.root.context.getString(R.string.debugger_status_resolving)
         }
@@ -93,10 +95,43 @@ class VariableListBinder(
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
+
+                    setupLabelLongPress(binding, descriptor, strValue)
                 }
             }
         }
     }
+
+    private fun setupLabelLongPress(
+        binding: DebuggerVariableItemBinding,
+        descriptor: VariableDescriptor,
+        value: String
+    ) {
+        binding.label.setOnLongClickListener {
+            val labelText = binding.label.text?.toString()
+
+            if (labelText.isNullOrBlank()) return@setOnLongClickListener false
+
+            val hasValidValue = value.isNotBlank() &&
+                    value != "<unavailable>" &&
+                    value != "<error>" &&
+                    value != "null"
+
+            if (!hasValidValue) return@setOnLongClickListener false
+
+            DialogUtilsDebug.newTextFieldDialog(
+                context = binding.root.context,
+                title = "${descriptor.name}: ${descriptor.typeName}",
+                hint = "Variable value",
+                defaultValue = value,
+                onSetClick = {
+                    // TODO: add change variable value method
+                }
+            ).show()
+            true
+        }
+    }
+
 }
 
 private fun VariableDescriptor.icon(context: Context): Int? = when (kind) {
