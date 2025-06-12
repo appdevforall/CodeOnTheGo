@@ -20,8 +20,8 @@ import java.sql.Connection
  */
 data class ServerConfig(
     val port: Int = 8081,
-    val documentRoot: File = File("/home/eisen/src/kotlin-web-server/static"),
-    val sqliteDbPath: File = File("/home/eisen/src/kotlin-web-server/data/content.db"),
+    val documentRoot: File = File("/data/data/com.itsaky.androidide/files/www-static"),
+    val sqliteDbPath: File = File("/data/data/com.itsaky.androidide/databases/documnetation.sqlite"),
 )
 
 /**
