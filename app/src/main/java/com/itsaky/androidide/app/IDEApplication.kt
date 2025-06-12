@@ -46,7 +46,7 @@ import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.idetooltips.IDETooltipDao
 import com.itsaky.androidide.idetooltips.TooltipDaoProvider
 import com.itsaky.androidide.localHTTPServer.LocalServerUtil
-import com.itsaky.androidide.localWEBServer.WebServer
+import com.itsaky.androidide.localWEBserver.WebServer
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
