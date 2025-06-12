@@ -1,4 +1,4 @@
-package org.appdevforall.localwebserver
+package com.itsaky.androidide.localWEBserver
 
 import java.net.ServerSocket
 import java.net.Socket
