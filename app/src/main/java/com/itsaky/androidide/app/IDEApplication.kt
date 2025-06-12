@@ -46,6 +46,7 @@ import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.idetooltips.IDETooltipDao
 import com.itsaky.androidide.idetooltips.TooltipDaoProvider
 import com.itsaky.androidide.localHTTPServer.LocalServerUtil
+import com.itsaky.androidide.localWEBServer.WebServer
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -78,6 +79,7 @@ class IDEApplication : TermuxApplication() {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
     private var localServerUtil: LocalServerUtil? = null
+    private var localWebServer: WebServer? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
@@ -114,6 +116,10 @@ class IDEApplication : TermuxApplication() {
             //Start the local HTTP server for CoGo tooltips
             val localServerUtil = LocalServerUtil()
             localServerUtil.startServer(6174)
+
+            //Start the local WEB server for CoGo tooltips & documentation
+            val localWebServer = WebServer() // class, defaults to port 8081
+            localWebServer.start()
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -149,6 +155,7 @@ class IDEApplication : TermuxApplication() {
 
         try {
             localServerUtil!!.stopServer()
+            localWebServer!!.stop()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
