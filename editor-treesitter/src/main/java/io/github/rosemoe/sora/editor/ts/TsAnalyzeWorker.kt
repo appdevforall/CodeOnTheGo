@@ -34,6 +34,7 @@ import io.github.rosemoe.sora.lang.styling.Styles
 import io.github.rosemoe.sora.lang.styling.line.LineBackground
 import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
+import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -160,9 +161,13 @@ class TsAnalyzeWorker(
     }
 
     if (notify) {
-        // calling updateStyles does a lot of unnecessary work
-        // instead, just reset the same styles to the receiver
-        stylesReceiver?.setStyles(analyzer, styles)
+      // Mark styles ready for rendering
+      styles.finishBuilding()
+
+      // Call setStyles with UI invalidation as pre-action
+      stylesReceiver?.setStyles(analyzer, styles) {
+        (stylesReceiver as? CodeEditor)?.invalidate()
+      }
     }
   }
 
