@@ -27,7 +27,7 @@ data class ServerConfig(
 /**
  * Main web server class.
  */
-class WebServer(private val config: ServerConfig) {
+class WebServer(private val config: ServerConfig = ServerConfig()) {
     private var running = false
     private lateinit var serverSocket: ServerSocket
 
