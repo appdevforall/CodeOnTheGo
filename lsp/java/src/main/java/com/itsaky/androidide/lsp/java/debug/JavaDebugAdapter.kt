@@ -12,7 +12,6 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.BreakpointResult
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
-import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
 import com.itsaky.androidide.lsp.debug.model.StepResult
@@ -405,19 +404,12 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         logger.debug("breakpoint hit in thread {} at {} (suspendCount={})", thread.name(), location, thread.suspendCount())
 
-        val response = listenerState.client.onBreakpointHit(
+        listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
                 remoteClient = vm.client,
                 location = location.asLspLocation(),
                 threadId = thread.uniqueID().toString()
             )
-        )
-
-        handleSuspendPolicyTransition(
-            vm = vm.vm,
-            thread = e.thread(),
-            eventSuspendPolicy = e.request().suspendPolicy(),
-            desiredResumePolicy = response.resumePolicy
         )
     }
 
@@ -429,7 +421,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val location = e.location()
         val thread = e.thread()
 
-        val response = listenerState.client.onStep(
+        listenerState.client.onStep(
             event = LspStepEvent(
                 remoteClient = vm.client,
                 location = location.asLspLocation(),
@@ -477,56 +469,6 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 logger.error("Failed to disconnect from VM '{}'", vm.client.name, err)
             } finally {
                 vms.remove(vm)
-            }
-        }
-    }
-
-    private fun handleSuspendPolicyTransition(
-        vm: VirtualMachine,
-        thread: ThreadReference,
-        eventSuspendPolicy: Int,
-        desiredResumePolicy: ResumePolicy
-    ) {
-        val vmSuspendedByEvent = eventSuspendPolicy == EventRequest.SUSPEND_ALL
-        val threadSuspendedByEvent =
-            eventSuspendPolicy == EventRequest.SUSPEND_EVENT_THREAD || vmSuspendedByEvent
-
-        logger.debug("Event suspended - VM: {}, Thread: {}", vmSuspendedByEvent, threadSuspendedByEvent)
-
-        when (desiredResumePolicy) {
-            ResumePolicy.SUSPEND_THREAD -> {
-                if (vmSuspendedByEvent) {
-                    // VM was suspended, but we only want the thread suspended
-                    vm.resume()
-                } else if (!threadSuspendedByEvent) {
-                    thread.suspend()
-                }
-            }
-
-            ResumePolicy.SUSPEND_CLIENT -> {
-                if (!vmSuspendedByEvent) {
-                    // VM wasn't suspended by event, suspend it now
-                    vm.suspend()
-                }
-            }
-
-            ResumePolicy.RESUME_THREAD -> {
-                if (vmSuspendedByEvent) {
-                    // VM was suspended, but we only want the thread to run
-                    // This is complex - for simplicity, resume the whole VM
-                    vm.resume()
-                } else if (threadSuspendedByEvent) {
-                    // Only thread was suspended, resume it
-                    thread.resume()
-                }
-            }
-
-            ResumePolicy.RESUME_CLIENT -> {
-                if (vmSuspendedByEvent) {
-                    vm.resume()
-                } else if (threadSuspendedByEvent) {
-                    thread.resume()
-                }
             }
         }
     }
