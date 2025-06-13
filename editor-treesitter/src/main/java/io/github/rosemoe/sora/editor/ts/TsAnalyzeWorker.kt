@@ -161,13 +161,8 @@ class TsAnalyzeWorker(
     }
 
     if (notify) {
-      // Mark styles ready for rendering
       styles.finishBuilding()
-
-      // Call setStyles with UI invalidation as pre-action
-      stylesReceiver?.setStyles(analyzer, styles) {
-        (stylesReceiver as? CodeEditor)?.invalidate()
-      }
+      stylesReceiver?.setStyles(analyzer, styles)
     }
   }
 
