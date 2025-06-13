@@ -539,9 +539,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             } catch (th: Throwable) {
                 manager.projectDir.name
             }
-            
+
             val initFailed = if (projectName.isNotEmpty()) {
-                getString(string.msg_project_initialization_failed) + " for \"$projectName\""
+                getString(string.msg_project_initialization_failed_with_name, projectName)
             } else {
                 getString(string.msg_project_initialization_failed)
             }
