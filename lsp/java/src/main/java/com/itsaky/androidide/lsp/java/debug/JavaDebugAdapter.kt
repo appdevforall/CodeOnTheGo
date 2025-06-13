@@ -34,6 +34,7 @@ import com.sun.jdi.connect.TransportTimeoutException
 import com.sun.jdi.event.BreakpointEvent
 import com.sun.jdi.event.StepEvent
 import com.sun.jdi.event.VMDisconnectEvent
+import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
 import kotlinx.coroutines.Dispatchers
@@ -317,6 +318,14 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val suspendedThread = vm.threadState.current
             ?: return@withContext StepResponse(StepResult.Failure("No thread is currently suspended"))
 
+        // Verify thread is actually suspended
+        val suspendCount = suspendedThread.thread.suspendCount()
+        logger.debug("Thread {} suspend count: {}", suspendedThread.thread.name(), suspendCount)
+
+        if (suspendCount == 0) {
+            return@withContext StepResponse(StepResult.Failure("Thread is not suspended"))
+        }
+
         logger.debug("Step {} thread {}", request.type, suspendedThread.thread.name())
 
         clearPreviousStep(vm.vm, suspendedThread.thread)
@@ -332,10 +341,11 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             req.addClassExclusionFilter(pattern)
         }
 
+        req.setSuspendPolicy(EventRequest.SUSPEND_ALL)
         req.addCountFilter(request.countFilter)
         req.enable()
+        suspendedThread.thread.resume()
         vm.threadState.invalidateAll()
-        vm.vm.resume()
 
         return@withContext StepResponse(StepResult.Success)
     }
@@ -380,8 +390,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val reqMgr = vm.eventRequestManager()
         for (stepReq in reqMgr.stepRequests()) {
             if (stepReq.thread() == thread) {
+                stepReq.disable()
                 reqMgr.deleteEventRequest(stepReq)
-                break
             }
         }
     }
@@ -393,7 +403,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val location = e.location()
         val thread = e.thread()
 
-        logger.debug("breakpoint hit in thread {} at {}", thread.name(), location)
+        logger.debug("breakpoint hit in thread {} at {} (suspendCount={})", thread.name(), location, thread.suspendCount())
 
         val response = listenerState.client.onBreakpointHit(
             event = BreakpointHitEvent(
@@ -403,7 +413,12 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             )
         )
 
-        response.resumePolicy.doResume(vm.vm, e.thread())
+        handleSuspendPolicyTransition(
+            vm = vm.vm,
+            thread = e.thread(),
+            eventSuspendPolicy = e.request().suspendPolicy(),
+            desiredResumePolicy = response.resumePolicy
+        )
     }
 
     override fun stepEvent(e: StepEvent) {
@@ -466,28 +481,53 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         }
     }
 
-    private fun ResumePolicy.doResume(
+    private fun handleSuspendPolicyTransition(
         vm: VirtualMachine,
-        thread: ThreadReference? = null
-    ) = when (this) {
-        ResumePolicy.SUSPEND_THREAD -> {
-            logger.debug("ResumePolicy.SUSPEND_THREAD -> suspend thread")
-            checkNotNull(thread) { "Cannot suspend thread without a thread reference" }.suspend()
-        }
+        thread: ThreadReference,
+        eventSuspendPolicy: Int,
+        desiredResumePolicy: ResumePolicy
+    ) {
+        val vmSuspendedByEvent = eventSuspendPolicy == EventRequest.SUSPEND_ALL
+        val threadSuspendedByEvent =
+            eventSuspendPolicy == EventRequest.SUSPEND_EVENT_THREAD || vmSuspendedByEvent
 
-        ResumePolicy.RESUME_THREAD -> {
-            logger.debug("ResumePolicy.RESUME_THREAD -> resume thread")
-            checkNotNull(thread) { "Cannot resume thread without a thread reference" }.resume()
-        }
+        logger.debug("Event suspended - VM: {}, Thread: {}", vmSuspendedByEvent, threadSuspendedByEvent)
 
-        ResumePolicy.SUSPEND_CLIENT -> {
-            logger.debug("ResumePolicy.SUSPEND -> keep suspended")
-            vm.suspend()
-        }
+        when (desiredResumePolicy) {
+            ResumePolicy.SUSPEND_THREAD -> {
+                if (vmSuspendedByEvent) {
+                    // VM was suspended, but we only want the thread suspended
+                    vm.resume()
+                } else if (!threadSuspendedByEvent) {
+                    thread.suspend()
+                }
+            }
 
-        ResumePolicy.RESUME_CLIENT -> {
-            logger.debug("ResumePolicy.RESUME_CLIENT -> resume client")
-            vm.resume()
+            ResumePolicy.SUSPEND_CLIENT -> {
+                if (!vmSuspendedByEvent) {
+                    // VM wasn't suspended by event, suspend it now
+                    vm.suspend()
+                }
+            }
+
+            ResumePolicy.RESUME_THREAD -> {
+                if (vmSuspendedByEvent) {
+                    // VM was suspended, but we only want the thread to run
+                    // This is complex - for simplicity, resume the whole VM
+                    vm.resume()
+                } else if (threadSuspendedByEvent) {
+                    // Only thread was suspended, resume it
+                    thread.resume()
+                }
+            }
+
+            ResumePolicy.RESUME_CLIENT -> {
+                if (vmSuspendedByEvent) {
+                    vm.resume()
+                } else if (threadSuspendedByEvent) {
+                    thread.resume()
+                }
+            }
         }
     }
 
