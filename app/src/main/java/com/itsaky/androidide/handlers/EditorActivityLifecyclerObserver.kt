@@ -64,7 +64,7 @@ class EditorActivityLifecyclerObserver : DefaultLifecycleObserver {
   }
 
   override fun onPause(owner: LifecycleOwner) {
-    EditorActivityActions.clear()
+    EditorActivityActions.clearActions()
     dispatchEvent(OnPauseEvent())
   }
 
