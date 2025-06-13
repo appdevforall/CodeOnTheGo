@@ -153,10 +153,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     AddFileToAssetsTask::outputDirectory
                 )
 
-                if (SPLIT_ASSETS) {
-                    copyToolingApiJar.configure { enabled = false }
-                }
-
                 val copyCogoPluginJar = tasks.register(
                     "copy${variantNameCapitalized}CogoPluginJar",
                     AddFileToAssetsTask::class.java
