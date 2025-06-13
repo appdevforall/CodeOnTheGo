@@ -64,9 +64,7 @@ data class ThreadDescriptor(
     val id: String,
     val name: String,
     val group: String,
-
-    // TODO: Maybe this could be converted to an enum value instead?
-    val state: String,
+    val state: ThreadState,
 )
 
 /**
@@ -83,4 +81,17 @@ interface ThreadInfo {
      * Get the call frames of this thread.
      */
     suspend fun getFrames(): List<StackFrame>
+}
+
+/**
+ * The state of a thread.
+ */
+enum class ThreadState {
+    UNKNOWN,
+    ZOMBIE,
+    RUNNING,
+    SLEEPING,
+    MONITOR,
+    WAITING,
+    NOT_STARTED,
 }
