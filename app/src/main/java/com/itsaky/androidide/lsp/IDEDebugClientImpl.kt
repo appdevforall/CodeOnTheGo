@@ -224,7 +224,7 @@ class IDEDebugClientImpl(
 
         return BreakpointHitResponse(
             remoteClient = event.remoteClient,
-            resumePolicy = ResumePolicy.SUSPEND_THREAD
+            resumePolicy = ResumePolicy.SUSPEND_CLIENT
         )
     }
 
