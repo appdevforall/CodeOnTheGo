@@ -160,24 +160,24 @@ class DebuggerViewModel : ViewModel() {
         _connectionState.update { state }
     }
 
-    fun setThreads(threads: List<ThreadInfo>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val threadIndex = if (threads.isNotEmpty()) 0 else -1
-            val frameIndex =
-                if (threads.firstOrNull()?.getFrames()?.firstOrNull() != null) 0 else -1
-            val newState = DebuggerState(
-                threads = threads.map { ResolvableThreadInfo.create(it) },
-                threadIndex = threadIndex,
-                frameIndex = frameIndex,
-                variablesTree = createVariablesTree(
-                    threads.map { ResolvableThreadInfo.create(it) },
-                    threadIndex,
-                    frameIndex
-                )
-            )
+    suspend fun setThreads(threads: List<ThreadInfo>) = withContext(Dispatchers.IO) {
+        val resolvableThreads = threads.map(ResolvableThreadInfo::create)
+        resolvableThreads.forEach { it.resolve() }
 
-            state.update { newState }
-        }
+        val threadIndex = if (resolvableThreads.isNotEmpty()) 0 else -1
+        val frameIndex = if (resolvableThreads.firstOrNull()?.getFrames()?.firstOrNull() != null) 0 else -1
+        val newState = DebuggerState(
+            threads = resolvableThreads,
+            threadIndex = threadIndex,
+            frameIndex = frameIndex,
+            variablesTree = createVariablesTree(
+                resolvableThreads,
+                threadIndex,
+                frameIndex
+            )
+        )
+
+        state.update { newState }
     }
 
     private suspend fun createVariablesTree(
@@ -219,22 +219,20 @@ class DebuggerViewModel : ViewModel() {
         }
     }
 
-    fun setSelectedThreadIndex(index: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            state.update { current ->
-                check(index in 0..<current.threads.size) {
-                    "Invalid thread index: $index"
-                }
-
-                val frameIndex = if (current.threads.getOrNull(index)?.getFrames()
-                        ?.firstOrNull() != null
-                ) 0 else -1
-                current.copy(
-                    threadIndex = index,
-                    frameIndex = frameIndex,
-                    variablesTree = createVariablesTree(current.threads, index, frameIndex)
-                )
+    suspend fun setSelectedThreadIndex(index: Int) = withContext(Dispatchers.IO) {
+        state.update { current ->
+            check(index in 0..<current.threads.size) {
+                "Invalid thread index: $index"
             }
+
+            val frameIndex = if (current.threads.getOrNull(index)?.getFrames()
+                    ?.firstOrNull() != null
+            ) 0 else -1
+            current.copy(
+                threadIndex = index,
+                frameIndex = frameIndex,
+                variablesTree = createVariablesTree(current.threads, index, frameIndex)
+            )
         }
     }
 
@@ -272,18 +270,16 @@ class DebuggerViewModel : ViewModel() {
         }
     }
 
-    fun setSelectedFrameIndex(index: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            state.update { current ->
-                check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
-                    "Invalid frame index: $index"
-                }
-
-                current.copy(
-                    frameIndex = index,
-                    variablesTree = createVariablesTree(current.threads, current.threadIndex, index)
-                )
+    suspend fun setSelectedFrameIndex(index: Int) = withContext(Dispatchers.IO) {
+        state.update { current ->
+            check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
+                "Invalid frame index: $index"
             }
+
+            current.copy(
+                frameIndex = index,
+                variablesTree = createVariablesTree(current.threads, current.threadIndex, index)
+            )
         }
     }
 
