@@ -528,7 +528,23 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     ) {
         val manager = ProjectManagerImpl.getInstance()
         if (!isSuccessful) {
-            val initFailed = getString(string.msg_project_initialization_failed)
+            // Get project name for error message
+            val projectName = try {
+                val project = manager.rootProject
+                if (project != null) {
+                    project.rootProject.name.takeIf { it.isNotEmpty() } ?: manager.projectDir.name
+                } else {
+                    manager.projectDir.name
+                }
+            } catch (th: Throwable) {
+                manager.projectDir.name
+            }
+            
+            val initFailed = if (projectName.isNotEmpty()) {
+                getString(string.msg_project_initialization_failed) + " for \"$projectName\""
+            } else {
+                getString(string.msg_project_initialization_failed)
+            }
             setStatus(initFailed)
 
             val msg = when (failure) {
