@@ -19,7 +19,7 @@ import java.sql.Connection
  * Configuration data class holding static default values.
  */
 data class ServerConfig(
-    val port: Int = 8081,
+    val port: Int = 6174,
     val documentRoot: File = File("/data/data/com.itsaky.androidide/files/www-static"),
     val sqliteDbPath: File = File("/data/data/com.itsaky.androidide/databases/documentation.sqlite"),
 )
