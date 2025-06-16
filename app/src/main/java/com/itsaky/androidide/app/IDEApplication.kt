@@ -114,8 +114,8 @@ class IDEApplication : TermuxApplication() {
             checkForSecondDisplay()
 
             //Start the local HTTP server for CoGo tooltips
-            val localServerUtil = LocalServerUtil()
-            localServerUtil.startServer(6174)
+            //val localServerUtil = LocalServerUtil()
+            //localServerUtil.startServer(6174)
 
             //Start the local WEB server for CoGo tooltips & documentation
             val localWebServer = WebServer() // class, defaults to port 8081
