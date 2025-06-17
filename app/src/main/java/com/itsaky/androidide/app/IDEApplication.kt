@@ -23,6 +23,7 @@ import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.StrictMode
+import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -118,8 +119,9 @@ class IDEApplication : TermuxApplication() {
             //localServerUtil.startServer(6174)
 
             //Start the local WEB server for CoGo tooltips & documentation
-            val localWebServer = WebServer() // class, defaults to port 8081
-            localWebServer.start()
+            localWebServer = WebServer() // class, defaults to port 8081
+            localWebServer?.start()
+            Log.i("IDEApplication", "Local web server started")
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -148,6 +150,12 @@ class IDEApplication : TermuxApplication() {
         applicationScope.launch {
             ideTooltipDao.getCount()
         }
+    }
+
+    override fun onTerminate() {
+        super.onTerminate()
+        localWebServer?.stop()
+        Log.i("IDEApplication", "Local web server stopped")
     }
 
     private fun handleCrash(thread: Thread, th: Throwable) {
