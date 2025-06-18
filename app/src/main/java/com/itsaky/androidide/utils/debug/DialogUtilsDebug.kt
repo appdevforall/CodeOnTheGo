@@ -21,6 +21,7 @@ import android.widget.LinearLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.DialogUtils
 
 /**
@@ -58,7 +59,7 @@ object DialogUtilsDebug {
         }
 
         val textInputLayout = TextInputLayout(context).apply {
-            this.hint = hint ?: "Enter value"
+            this.hint = hint ?: context.getString(R.string.debugger_dialog_hint_enter_value)
             boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
         }
 
@@ -75,12 +76,12 @@ object DialogUtilsDebug {
         return DialogUtils.newMaterialDialogBuilder(context)
             .setTitle(title)
             .setView(layout)
-            .setPositiveButton("SET") { dialog, _ ->
+            .setPositiveButton(context.getString(R.string.debugger_dialog_button_set)) { dialog, _ ->
                 val value = editText.text?.toString() ?: ""
                 dialog.dismiss()
                 onSetClick(value)
             }
-            .setNegativeButton("CANCEL") { dialog, _ ->
+            .setNegativeButton(context.getString(R.string.debugger_dialog_button_cancel)) { dialog, _ ->
                 dialog.dismiss()
                 onCancelClick?.invoke()
             }

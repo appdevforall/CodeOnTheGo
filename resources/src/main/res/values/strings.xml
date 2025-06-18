@@ -66,6 +66,8 @@
     <string name="gradle" translatable="false">Gradle</string>
     <string name="action_start_debugger">Debug</string>
 
+
+
   <!-- Project -->
   <string name="title_first_build">Setting up your new project</string>
   <string name="msg_first_build">Code on the Go is setting up your new project\'s files and directories. Please be patient!\n\nWhen setup is finished, \"Project Initialized\" will be displayed at the bottom of the screen.</string>
@@ -651,6 +653,16 @@
   <string name="debugger_resume">Resume</string>
   <string name="debugger_restart">Restart</string>
   <string name="debugger_status_resolving">Resolving…</string>
+
+  <string name="tag_variable_list_binder">VariableListBinder</string>
+  <string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
+  <string name="debugger_value_error">&lt;error&gt;</string>
+  <string name="debugger_variable_value_hint">Variable value</string>
+  <string name="debugger_variable_dialog_title">%1$s: %2$s</string>
+  <string name="debugger_value_null">null</string>
+  <string name="debugger_dialog_hint_enter_value">Enter value</string>
+  <string name="debugger_dialog_button_set">SET</string>
+  <string name="debugger_dialog_button_cancel">CANCEL</string>
 
   <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
