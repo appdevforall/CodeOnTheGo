@@ -65,7 +65,7 @@ class VariableListBinder(
             chevron.rotation = if (node.isExpanded) 90f else 0f
         }
 
-        Log.d(context.getString(R.string.tag_variable_list_binder), "bindView: node.data=${node.data}")
+        Log.d("VariableListBinder", "bindView: node.data=${node.data}")
         if (node.data?.isResolved != true) {
             binding.label.text = context.getString(R.string.debugger_status_resolving)
         }

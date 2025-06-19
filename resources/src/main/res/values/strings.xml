@@ -654,7 +654,6 @@
   <string name="debugger_restart">Restart</string>
   <string name="debugger_status_resolving">Resolving…</string>
 
-  <string name="tag_variable_list_binder">VariableListBinder</string>
   <string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
   <string name="debugger_value_error">&lt;error&gt;</string>
   <string name="debugger_variable_value_hint">Variable value</string>
