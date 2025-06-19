@@ -17,8 +17,10 @@
 
 package com.itsaky.androidide.plugins.tasks
 
+import com.google.common.io.Files
 import org.adfa.constants.ASSETS_COMMON_FOLDER
 import org.adfa.constants.LOCAL_GRADLE_8_0_0_CACHES_PATH
+import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR
 import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
 import org.gradle.api.DefaultTask
@@ -53,10 +55,11 @@ abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
          * folder.
          */
         val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_GRADLE_8_0_0_CACHES_PATH
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator +
+                    LOCAL_GRADLE_8_0_0_CACHES_PATH + File.separator + LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR
 
         try {
-            copyFolderWithInnerFolders(Path(sourceFilePath), Path(outputDirectory.path))
+            Files.copy(File(sourceFilePath), outputDirectory.resolve(LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR))
         } catch (e: IOException) {
             e.message?.let { throw GradleException(it) }
         }
