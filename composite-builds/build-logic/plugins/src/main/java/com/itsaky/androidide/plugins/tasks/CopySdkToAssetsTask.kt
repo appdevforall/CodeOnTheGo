@@ -17,10 +17,13 @@
 
 package com.itsaky.androidide.plugins.tasks
 
+import com.google.common.io.Files
 import org.adfa.constants.ASSETS_COMMON_FOLDER
 import org.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
+import org.adfa.constants.ANDROID_SDK_ZIP_BR
 import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils.Companion.copyFolderWithInnerFolders
+import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
@@ -43,8 +46,16 @@ abstract class CopySdkToAssetsTask : DefaultTask() {
         val outputDirectory = this.outputDirectory.get()
             .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_SDK).asFile
         val sourceFilePath =
-            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_SDK
-        copy(sourceFilePath, outputDirectory)
+            this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator +
+                    LOCAL_SOURCE_ANDROID_SDK + File.separator + ANDROID_SDK_ZIP_BR
+
+        if (!outputDirectory.exists()) {
+            outputDirectory.mkdirs()
+        }
+
+        Files.copy(File(sourceFilePath), outputDirectory.resolve(
+            ANDROID_SDK_ZIP_BR
+        ))
     }
 
     private fun copy(sourceFilePath: String, outputDirectory: File) {
