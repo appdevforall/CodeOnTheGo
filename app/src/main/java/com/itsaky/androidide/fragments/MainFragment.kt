@@ -25,7 +25,7 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipDbReader
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -139,8 +139,7 @@ class MainFragment : BaseFragment() {
         val view = action.view
         val tag = action.id.toString()
         CoroutineScope(Dispatchers.IO).launch {
-            val item =
-                TooltipManager.getTooltip(context = requireContext(), category = "ide", tag = tag)
+            val item = TooltipDbReader.getTooltip(requireContext(), "ide", tag)
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipManager.showIDETooltip(
@@ -426,7 +425,7 @@ class MainFragment : BaseFragment() {
             dlg.dismiss()
             showChooseAlternativeCloneLocation(targetDir)
         }
-        builder?.setNegativeButton(android.R.string.cancel) { dlg, _ -> dlg.dismiss() }
+        builder?.setNegativeButton(R.string.cancel) { dlg, _ -> dlg.dismiss() }
         builder?.show()
     }
 

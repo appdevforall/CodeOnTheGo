@@ -44,9 +44,7 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.idetooltips.IDETooltipDao
-import com.itsaky.androidide.idetooltips.TooltipDaoProvider
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
+import com.itsaky.androidide.idetooltips.TooltipDbReader
 import com.itsaky.androidide.localWEBserver.WebServer
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
@@ -79,7 +77,6 @@ class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
-    private var localServerUtil: LocalServerUtil? = null
     private var localWebServer: WebServer? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
@@ -114,12 +111,8 @@ class IDEApplication : TermuxApplication() {
 
             checkForSecondDisplay()
 
-            //Start the local HTTP server for CoGo tooltips
-            //val localServerUtil = LocalServerUtil()
-            //localServerUtil.startServer(6174)
-
             //Start the local WEB server for CoGo tooltips & documentation
-            localWebServer = WebServer() // class, defaults to port 8081
+            localWebServer = WebServer() // class, defaults to port 6174
             localWebServer?.start()
             Log.i("IDEApplication", "Local web server started")
         }
@@ -143,12 +136,11 @@ class IDEApplication : TermuxApplication() {
             IDEColorSchemeProvider.init()
         }
 
-        TooltipDaoProvider.init(this)
-        ideTooltipDao = TooltipDaoProvider.ideTooltipDao
-
-        //Trigger a lightweight database access to force initialization
+        // No need to initialize tooltip database - it's external and immutable
+        // Just verify it exists for debugging
         applicationScope.launch {
-            ideTooltipDao.getCount()
+            val count = TooltipDbReader.getCount(this@IDEApplication)
+            Log.d("IDEApplication", "Tooltip database contains $count items")
         }
     }
 
@@ -162,7 +154,6 @@ class IDEApplication : TermuxApplication() {
         writeException(th)
 
         try {
-            localServerUtil!!.stopServer()
             localWebServer!!.stop()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
@@ -305,9 +296,6 @@ class IDEApplication : TermuxApplication() {
 
         @JvmStatic
         lateinit var instance: IDEApplication
-            private set
-
-        lateinit var ideTooltipDao: IDETooltipDao
             private set
     }
 

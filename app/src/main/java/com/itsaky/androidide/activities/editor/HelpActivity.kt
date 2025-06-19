@@ -55,9 +55,26 @@ class HelpActivity : EdgeToEdgeIDEActivity() {
 
             // Enable JavaScript if required
             webView.settings.javaScriptEnabled = true
+            webView.settings.allowFileAccess = true
+            webView.settings.allowFileAccessFromFileURLs = true
+            webView.settings.allowUniversalAccessFromFileURLs = true
+            webView.settings.domStorageEnabled = true
+            webView.settings.databaseEnabled = true
+            webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
             // Set WebViewClient to handle page navigation within the WebView
-            webView.webViewClient = WebViewClient()
+            webView.webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+                    url?.let {
+                        // Allow localhost URLs to load directly
+                        if (it.startsWith("http://localhost:6174/")) {
+                            view?.loadUrl(it)
+                            return true
+                        }
+                    }
+                    return super.shouldOverrideUrlLoading(view, url)
+                }
+            }
 
             // Load the HTML file from the assets folder
             htmlContent?.let { webView.loadUrl(it) }

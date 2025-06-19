@@ -78,20 +78,39 @@ class IDETooltipWebviewFragment : Fragment() {
         // Set a WebViewClient to handle loading pages
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val url = request.url.toString()
+                Log.d(TAG, "WebView trying to load URL: $url")
+                
                 // Allow loading of local assets files
-                if (request.url.toString().startsWith("file:///android_asset/")) {
-                    view.loadUrl(request.url.toString())
+                if (url.startsWith("file:///android_asset/")) {
+                    Log.d(TAG, "Loading local asset: $url")
+                    view.loadUrl(url)
                     return true
                 }
+                // Allow loading of localhost URLs (our local web server)
+                if (url.startsWith("http://localhost:6174/")) {
+                    Log.d(TAG, "Loading localhost URL: $url")
+                    view.loadUrl(url)
+                    return true
+                }
+                Log.d(TAG, "Not handling URL: $url")
                 return super.shouldOverrideUrlLoading(view, request)
+            }
+            
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                Log.e(TAG, "WebView error: $errorCode - $description for URL: $failingUrl")
+                super.onReceivedError(view, errorCode, description, failingUrl)
             }
         }
 
         // Set up WebChromeClient to support JavaScript
 //        webView.webChromeClient = WebChromeClient()
-        webView.settings.allowFileAccessFromFileURLs
-        webView.settings.allowFileAccess
-        webView.settings.allowUniversalAccessFromFileURLs
+        webView.settings.allowFileAccessFromFileURLs = true
+        webView.settings.allowFileAccess = true
+        webView.settings.allowUniversalAccessFromFileURLs = true
+        webView.settings.domStorageEnabled = true
+        webView.settings.databaseEnabled = true
+        webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         webView.scrollBarStyle = WebView.SCROLLBARS_OUTSIDE_OVERLAY
         webView.scrollBarDefaultDelayBeforeFade = 1000
 

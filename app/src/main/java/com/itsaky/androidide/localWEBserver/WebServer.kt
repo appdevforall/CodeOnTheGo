@@ -11,14 +11,10 @@ import java.nio.file.Files
 import java.io.File
 import java.io.ByteArrayInputStream
 import org.brotli.dec.BrotliInputStream
-//import org.sqlite.SQLiteDataSource
+import org.slf4j.LoggerFactory
 
 import android.database.sqlite.SQLiteDatabase
 import android.database.Cursor
-import android.util.Log
-
-import java.sql.DriverManager
-import java.sql.Connection
 
 /**
  * Configuration data class holding static default values.
@@ -37,59 +33,60 @@ class WebServer(private val config: ServerConfig = ServerConfig()) {
     private var running = false
     private lateinit var serverSocket: ServerSocket
     private lateinit var serverThread: Thread
+    private val log = LoggerFactory.getLogger(WebServer::class.java)
 
-
-        // TODO: disabled until document root is populated - jm 2025-06-16
-        //if (!config.documentRoot.exists()) {
-        //    println("Error: Document root directory does not exist: ${config.documentRoot}")
-        //    return
-        //}
-
+    // TODO: disabled until document root is populated - jm 2025-06-16
+    //if (!config.documentRoot.exists()) {
+    //    println("Error: Document root directory does not exist: ${config.documentRoot}")
+    //    return
+    //}
 
     fun start() {
         if (running) {
-            Log.i("WebServer", "Server already running, ignoring start request")
+            log.info("Server already running, ignoring start request")
             return
         }
 
         if (!config.sqliteDbPath.exists()) {
-            Log.e("WebServer", "SQLite database file does not exist: ${config.sqliteDbPath}")
+            log.error("SQLite database file does not exist: ${config.sqliteDbPath}")
             return
         }
 
-        Log.i("WebServer", "Starting web server...")
+        log.info("Starting web server on port ${config.port}...")
+        log.info("Database path: ${config.sqliteDbPath}")
+        log.info("Database exists: ${config.sqliteDbPath.exists()}")
         running = true
         serverThread = Thread {
             try {
-                serverSocket = ServerSocket(config.port, 0, InetAddress.getLoopbackAddress())
-                Log.i("WebServer", "Server socket created successfully")
-                Log.i("WebServer", "Server started on port ${config.port}")
-                Log.i("WebServer", "Document root: ${config.documentRoot}")
-                Log.i("WebServer", "SQLite database: ${config.sqliteDbPath}")
+                serverSocket = ServerSocket(config.port, 0, InetAddress.getByName("0.0.0.0"))
+                log.info("Server socket created successfully")
+                log.info("Server started on port ${config.port}")
+                log.info("Document root: ${config.documentRoot}")
+                log.info("SQLite database: ${config.sqliteDbPath}")
 
                 serverSocket.use {
                     while (running) {
                         try {
-                            Log.i("WebServer", "Waiting for client connection...")
+                            log.info("Waiting for client connection on port ${config.port}...")
                             val client: Socket = it.accept()
-                            Log.i("WebServer", "New client connected from: ${client.inetAddress.hostAddress}")
+                            log.info("New client connected from: ${client.inetAddress.hostAddress}")
                             handleClient(client)
                         } catch (e: Exception) {
                             if (running) {
-                                Log.e("WebServer", "Error handling client connection", e)
+                                log.error("Error handling client connection", e)
                             }
                             break
                         }
                     }
                 }
             } catch (e: Exception) {
-                Log.e("WebServer", "Fatal server error", e)
+                log.error("Fatal server error", e)
             } finally {
                 stop()
             }
         }
         serverThread.start()
-        Log.i("WebServer", "Server thread started successfully")
+        log.info("Server thread started successfully")
     }
 
     private fun handleClient(clientSocket: Socket) {
@@ -99,35 +96,35 @@ class WebServer(private val config: ServerConfig = ServerConfig()) {
             val output = clientSocket.getOutputStream()
 
             val requestLine = reader.readLine()
-            Log.i("WebServer", "Received request: $requestLine")
+            log.info("Received request: $requestLine")
 
             if (requestLine == null) {
-                Log.w("WebServer", "Empty request received")
+                log.warn("Empty request received")
                 return
             }
 
             val parts = requestLine.split(" ")
             if (parts.size != 3) {
-                Log.w("WebServer", "Invalid request format: $requestLine")
+                log.warn("Invalid request format: $requestLine")
                 sendError(writer, 400, "Bad Request")
                 return
             }
 
             val method = parts[0]
             val path = parts[1]
-            Log.i("WebServer", "Processing $method request for path: $path")
+            log.info("Processing $method request for path: $path")
 
             if (method != "GET") {
-                Log.w("WebServer", "Unsupported method: $method")
+                log.warn("Unsupported method: $method")
                 sendError(writer, 501, "Not Implemented")
                 return
             }
 
             val filePath = config.documentRoot.resolve(path.substring(1)).normalize()
-            Log.i("WebServer", "Looking for static file at: $filePath")
+            log.info("Looking for static file at: $filePath")
 
             if (!filePath.startsWith(config.documentRoot)) {
-                Log.w("WebServer", "Access attempt outside document root: $filePath")
+                log.warn("Access attempt outside document root: $filePath")
                 sendError(writer, 403, "Forbidden")
                 return
             }
@@ -135,7 +132,7 @@ class WebServer(private val config: ServerConfig = ServerConfig()) {
             // TODO: disabled until document root is populated - jm 2025-06-16
             //       take out false to enable
             if (filePath.exists() && filePath.isFile && false) {
-                println("Found static file, serving from filesystem")
+                log.info("Found static file, serving from filesystem")
                 val content = filePath.readBytes()
                 val contentType = when {
                     filePath.toString().endsWith(".png") -> "image/png"
@@ -161,12 +158,12 @@ class WebServer(private val config: ServerConfig = ServerConfig()) {
                 output.write(content)
                 output.flush()
             } else {
-                Log.i("WebServer", "Static file not found, checking database for path: $path")
+                log.info("Static file not found, checking database for path: $path")
                 val dbPath = config.sqliteDbPath
-                Log.i("WebServer", "Using database at: $dbPath")
+                log.info("Using database at: $dbPath")
 
                 val db: SQLiteDatabase = SQLiteDatabase.openDatabase(dbPath.path, null, SQLiteDatabase.OPEN_READONLY)
-                Log.i("WebServer", "Database connection opened")
+                log.info("Database connection opened")
 
                 val selection = "c.path = ? OR c.path = ?"
                 val selectionArgs = arrayOf(path, path.substring(1))
@@ -182,17 +179,17 @@ class WebServer(private val config: ServerConfig = ServerConfig()) {
                 val cursor = db.rawQuery(query, selectionArgs)
 
                 if (cursor.moveToFirst()) {
-                    Log.i("WebServer", "Found content in database")
+                    log.info("Found content in database")
                     var dbContent = cursor.getBlob(cursor.getColumnIndexOrThrow("content"))
                     val dbMimeType = cursor.getString(cursor.getColumnIndexOrThrow("mime_type"))
                     val compression = cursor.getString(cursor.getColumnIndexOrThrow("compression"))
 
                     if (compression == "brotli") {
                         try {
-                            Log.i("WebServer", "Decompressing Brotli content")
+                            log.info("Decompressing Brotli content")
                             dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                         } catch (e: Exception) {
-                            Log.e("WebServer", "Error decompressing Brotli content", e)
+                            log.error("Error decompressing Brotli content", e)
                             sendError(writer, 500, "Internal Server Error")
                             return
                         }
@@ -206,75 +203,27 @@ class WebServer(private val config: ServerConfig = ServerConfig()) {
                     writer.flush()
                     output.write(dbContent)
                     output.flush()
-                    Log.i("WebServer", "Content sent successfully")
+                    log.info("Content sent successfully")
                 } else {
-                    Log.i("WebServer", "No content found in database for path: $path")
+                    log.info("No content found in database for path: $path")
                     sendError(writer, 404, "Not Found")
                 }
 
                 cursor.close()
                 db.close()
-                Log.i("WebServer", "Database connection closed")
-
-
-//                val conn = DriverManager.getConnection("jdbc:sqlite:$dbPath")
-//
-//                val query = """
-//                    SELECT c.content, ct.value AS mime_type, ct.compression
-//                    FROM Content c
-//                    JOIN ContentTypes ct ON c.contentTypeID = ct.id
-//                    WHERE c.path = ? OR c.path = ?
-//                    LIMIT 1
-//                """
-//                val pstmt = conn.prepareStatement(query)
-//                pstmt.setString(1, path)
-//                pstmt.setString(2, path.substring(1))
-//                val rs = pstmt.executeQuery()
-//                if (rs.next()) {
-//                    println("Found content in database")
-//                    var dbContent = rs.getBytes("content")
-//                    val dbMimeType = rs.getString("mime_type")
-//                    val compression = rs.getString("compression")
-//
-//                    if (compression == "brotli") {
-//                        try {
-//                            println("Decompressing Brotli content")
-//                            dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
-//                        } catch (e: Exception) {
-//                            println("Error decompressing Brotli content: ${e.message}")
-//                            sendError(writer, 500, "Internal Server Error")
-//                            return
-//                        }
-//                    }
-//
-//                    writer.println("HTTP/1.1 200 OK")
-//                    writer.println("Content-Type: $dbMimeType")
-//                    writer.println("Content-Length: ${dbContent.size}")
-//                    writer.println("Connection: close")
-//                    writer.println()
-//                    writer.flush()
-//                    output.write(dbContent)
-//                    output.flush()
-//                    println("Content sent successfully")
-//                } else {
-//                    println("No content found in database for path: $path")
-//                    sendError(writer, 404, "Not Found")
-//                }
-//                rs.close()
-//                pstmt.close()
-//                conn.close()
+                log.info("Database connection closed")
             }
         } catch (e: Exception) {
-            Log.e("WebServer", "Error handling client request", e)
+            log.error("Error handling client request", e)
             sendError(PrintWriter(clientSocket.getOutputStream(), true), 500, "Internal Server Error")
         } finally {
             clientSocket.close()
-            Log.i("WebServer", "Client connection closed")
+            log.info("Client connection closed")
         }
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String) {
-        Log.i("WebServer", "Sending error response: $code $message")
+        log.info("Sending error response: $code $message")
         writer.println("HTTP/1.1 $code $message")
         writer.println("Content-Type: text/plain")
         writer.println("Connection: close")
@@ -283,16 +232,16 @@ class WebServer(private val config: ServerConfig = ServerConfig()) {
     }
 
     fun stop() {
-        Log.i("WebServer", "Stopping server...")
+        log.info("Stopping server...")
         running = false
         if (::serverSocket.isInitialized) {
             serverSocket.close()
-            Log.i("WebServer", "Server socket closed")
+            log.info("Server socket closed")
         }
         if (::serverThread.isInitialized) {
             serverThread.interrupt()
-            Log.i("WebServer", "Server thread interrupted")
+            log.info("Server thread interrupted")
         }
-        Log.i("WebServer", "Server stopped successfully")
+        log.info("Server stopped successfully")
     }
 }

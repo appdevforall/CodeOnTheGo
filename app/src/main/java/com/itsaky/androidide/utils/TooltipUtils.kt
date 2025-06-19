@@ -28,10 +28,9 @@ import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.fragments.IDETooltipWebviewFragment
 import com.itsaky.androidide.fragments.MainFragment
-import com.itsaky.androidide.idetooltips.IDETooltipDatabase
 import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipDaoProvider
-import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipDbReader
+import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -85,14 +84,12 @@ object TooltipUtils {
     /**
      * Dumps tooltip database content to Logcat for debugging.
      */
-    suspend fun dumpDatabase(context: Context, database: IDETooltipDatabase) {
-        // No changes needed here
+    suspend fun dumpDatabase(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
-            val records =
-                TooltipDaoProvider.ideTooltipDao.getTooltipItems()
+            val records = TooltipDbReader.getAllTooltips(context)
             withContext(Dispatchers.Main) {
                 if (records.isEmpty()) {
-                    Log.d("DumpIDEDatabase", "No records found in IDETooltipDatabase.")
+                    Log.d("DumpIDEDatabase", "No records found in tooltip database.")
                 } else {
                     for (item: IDETooltipItem in records) {
                         Log.d(

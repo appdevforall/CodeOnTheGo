@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import com.itsaky.androidide.idetooltips.TooltipDbReader
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -579,7 +580,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     override suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
-          TooltipManager.getTooltip(this@EditorHandlerActivity, category, tag)
+            TooltipDbReader.getTooltip(this@EditorHandlerActivity, category, tag)
         }
     }
 
