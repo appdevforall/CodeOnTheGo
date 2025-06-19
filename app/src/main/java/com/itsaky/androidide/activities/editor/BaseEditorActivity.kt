@@ -246,7 +246,15 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
     private val debuggerServiceStopRunnable = Runnable {
         if (debuggerService != null && debuggerViewModel.connectionState.value < DebuggerConnectionState.ATTACHED) {
+            unbindDebuggerService()
+        }
+    }
+
+    private fun unbindDebuggerService() {
+        try {
             unbindService(debuggerServiceConnection)
+        } catch (e: Throwable) {
+            log.error("Failed to stop debugger service", e)
         }
     }
 
@@ -341,11 +349,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             memoryUsageWatcher.listener = null
             editorActivityScope.cancelIfActive("Activity is being destroyed")
 
-            try {
-                unbindService(debuggerServiceConnection)
-            } catch (e: Throwable) {
-                log.error("Failed to stop debugger service", e)
-            }
+            unbindDebuggerService()
         }
     }
 
