@@ -1,0 +1,102 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.plugins.manager
+
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import java.io.File
+import java.io.InputStreamReader
+import java.util.jar.JarFile
+
+data class PluginManifest(
+    @SerializedName("id")
+    val id: String,
+    
+    @SerializedName("name")
+    val name: String,
+    
+    @SerializedName("version")
+    val version: String,
+    
+    @SerializedName("description")
+    val description: String,
+    
+    @SerializedName("author")
+    val author: String,
+    
+    @SerializedName("main_class")
+    val mainClass: String,
+    
+    @SerializedName("min_ide_version")
+    val minIdeVersion: String,
+    
+    @SerializedName("max_ide_version")
+    val maxIdeVersion: String? = null,
+    
+    @SerializedName("permissions")
+    val permissions: List<String> = emptyList(),
+    
+    @SerializedName("dependencies")
+    val dependencies: List<String> = emptyList(),
+    
+    @SerializedName("extensions")
+    val extensions: List<ExtensionInfo> = emptyList()
+)
+
+data class ExtensionInfo(
+    @SerializedName("type")
+    val type: String,
+    
+    @SerializedName("class")
+    val className: String,
+    
+    @SerializedName("priority")
+    val priority: Int = 0
+)
+
+object PluginManifestParser {
+    private val gson = Gson()
+    
+    fun parseFromJar(jarFile: File): PluginManifest? {
+        return try {
+            JarFile(jarFile).use { jar ->
+                val entry = jar.getJarEntry("plugin.json")
+                    ?: jar.getJarEntry("META-INF/plugin.json")
+                    ?: return null
+                
+                val inputStream = jar.getInputStream(entry)
+                val reader = InputStreamReader(inputStream)
+                gson.fromJson(reader, PluginManifest::class.java)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    fun parseFromString(json: String): PluginManifest? {
+        return try {
+            gson.fromJson(json, PluginManifest::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    fun toJson(manifest: PluginManifest): String {
+        return gson.toJson(manifest)
+    }
+}
