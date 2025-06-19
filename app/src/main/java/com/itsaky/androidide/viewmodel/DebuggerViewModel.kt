@@ -6,10 +6,13 @@ import com.itsaky.androidide.fragments.debug.ResolvableStackFrame
 import com.itsaky.androidide.fragments.debug.ResolvableThreadInfo
 import com.itsaky.androidide.fragments.debug.ResolvableVariable
 import com.itsaky.androidide.fragments.debug.VariableTreeNodeGenerator
+import com.itsaky.androidide.fragments.debug.resolvedOrNull
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.debug.model.StackFrame
+import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo
+import com.itsaky.androidide.lsp.debug.model.ThreadState
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +29,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 
 private data class DebuggerState(
     val threads: List<ResolvableThreadInfo>,
@@ -87,6 +91,10 @@ class DebuggerViewModel : ViewModel() {
 
     init {
         Lookup.getDefault().register(IDEDebugClientImpl::class.java, debugClient)
+    }
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(DebuggerViewModel::class.java)
     }
 
     val connectionState: StateFlow<DebuggerConnectionState>
@@ -162,10 +170,18 @@ class DebuggerViewModel : ViewModel() {
 
     suspend fun setThreads(threads: List<ThreadInfo>) = withContext(Dispatchers.IO) {
         val resolvableThreads = threads.map(ResolvableThreadInfo::create)
-        resolvableThreads.forEach { it.resolve() }
+            .filter { thread ->
+                val descriptor = thread.resolve()
+                if (descriptor == null) {
+                    logger.warn("Unable to resolve descriptor for thread: $thread")
+                    return@filter false
+                }
 
-        val threadIndex = if (resolvableThreads.isNotEmpty()) 0 else -1
-        val frameIndex = if (resolvableThreads.firstOrNull()?.getFrames()?.firstOrNull() != null) 0 else -1
+                descriptor.state.isInteractable
+            }
+
+        val threadIndex = resolvableThreads.indexOfFirst { it.resolvedOrNull?.state?.isInteractable == true }
+        val frameIndex = if (resolvableThreads.getOrNull(threadIndex)?.getFrames()?.firstOrNull() != null) 0 else -1
         val newState = DebuggerState(
             threads = resolvableThreads,
             threadIndex = threadIndex,
@@ -223,6 +239,14 @@ class DebuggerViewModel : ViewModel() {
         state.update { current ->
             check(index in 0..<current.threads.size) {
                 "Invalid thread index: $index"
+            }
+
+            val thread = current.threads[index]
+            if (thread.resolvedOrNull?.state?.isInteractable != true) {
+                // thread is non-interactive
+                // do not change the thread index
+                logger.warn("Attempt to interact with non-interactive thread: $thread")
+                return@update current
             }
 
             val frameIndex = if (current.threads.getOrNull(index)?.getFrames()

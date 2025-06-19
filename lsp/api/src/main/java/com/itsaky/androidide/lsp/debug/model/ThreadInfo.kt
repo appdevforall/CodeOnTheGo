@@ -85,13 +85,17 @@ interface ThreadInfo {
 
 /**
  * The state of a thread.
+ *
+ * @property isInteractable Whether the thread can be interacted with.
  */
-enum class ThreadState {
-    UNKNOWN,
-    ZOMBIE,
+enum class ThreadState(
+    val isInteractable: Boolean = true
+) {
+    UNKNOWN(false),
+    ZOMBIE (false),
     RUNNING,
     SLEEPING,
     MONITOR,
     WAITING,
-    NOT_STARTED,
+    NOT_STARTED(false),
 }
