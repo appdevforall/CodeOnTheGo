@@ -46,6 +46,7 @@ import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.idetooltips.IDETooltipDao
 import com.itsaky.androidide.idetooltips.TooltipDaoProvider
 import com.itsaky.androidide.localHTTPServer.LocalServerUtil
+import com.itsaky.androidide.plugins.manager.PluginManager
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -78,6 +79,7 @@ class IDEApplication : TermuxApplication() {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
     private var localServerUtil: LocalServerUtil? = null
+    private var pluginManager: PluginManager? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
@@ -141,6 +143,46 @@ class IDEApplication : TermuxApplication() {
         //Trigger a lightweight database access to force initialization
         applicationScope.launch {
             ideTooltipDao.getCount()
+        }
+        
+        // Initialize plugin system
+        initializePluginSystem()
+    }
+
+    private fun initializePluginSystem() {
+        try {
+            log.info("Initializing plugin system...")
+            
+            // Create a plugin logger adapter
+            val pluginLogger = object : com.itsaky.androidide.plugins.PluginLogger {
+                override val pluginId = "system"
+                override fun debug(message: String) = log.debug(message)
+                override fun debug(message: String, error: Throwable) = log.debug(message, error)
+                override fun info(message: String) = log.info(message)
+                override fun info(message: String, error: Throwable) = log.info(message, error)
+                override fun warn(message: String) = log.warn(message)
+                override fun warn(message: String, error: Throwable) = log.warn(message, error)
+                override fun error(message: String) = log.error(message)
+                override fun error(message: String, error: Throwable) = log.error(message, error)
+            }
+            
+            pluginManager = PluginManager.getInstance(
+                context = this,
+                eventBus = EventBus.getDefault(),
+                logger = pluginLogger
+            )
+            
+            // Load plugins asynchronously
+            applicationScope.launch {
+                try {
+                    pluginManager?.loadPlugins()
+                    log.info("Plugin system initialized successfully")
+                } catch (e: Exception) {
+                    log.error("Failed to load plugins", e)
+                }
+            }
+        } catch (e: Exception) {
+            log.error("Failed to initialize plugin system", e)
         }
     }
 
@@ -294,6 +336,10 @@ class IDEApplication : TermuxApplication() {
 
         lateinit var ideTooltipDao: IDETooltipDao
             private set
+            
+        fun getPluginManager(): PluginManager? {
+            return instance.pluginManager
+        }
     }
 
 }

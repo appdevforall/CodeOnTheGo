@@ -53,6 +53,9 @@ import com.itsaky.androidide.actions.github.GitHubPullAction
 import com.itsaky.androidide.actions.github.GitHubPushAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
+import com.itsaky.androidide.actions.PluginActionItem
+import com.itsaky.androidide.plugins.manager.PluginManager
+import com.itsaky.androidide.plugins.extensions.UIExtension
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.
@@ -92,6 +95,9 @@ class EditorActivityActions {
       registry.registerAction(GitHubPushAction(context, order++))
       registry.registerAction(GitHubFetchAction(context, order++))
       registry.registerAction(GitHubPullAction(context, order++))
+
+      // Plugin contributions
+      order = registerPluginActions(context, registry, order)
 
       // editor text actions
       registry.registerAction(ExpandSelectionAction(context, order++))
@@ -140,6 +146,54 @@ class EditorActivityActions {
         action.id == "ide.editor.build.runTasks" || 
         action.id == "ide.editor.build.sync"
       }
+    }
+
+    /**
+     * Register plugin UI contributions to the actions registry.
+     * 
+     * @param context The application context
+     * @param registry The actions registry
+     * @param startOrder The starting order for plugin actions
+     * @return The next available order number
+     */
+    @JvmStatic
+    private fun registerPluginActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
+      var order = startOrder
+      try {
+        val pluginManager = PluginManager.getInstance()
+        if (pluginManager == null) {
+          android.util.Log.d("EditorActivityActions", "PluginManager not initialized, skipping plugin UI registration")
+          return order
+        }
+
+        val loadedPlugins = pluginManager.getAllPluginInstances()
+        android.util.Log.d("EditorActivityActions", "Found ${loadedPlugins.size} loaded plugins")
+        
+        for (plugin in loadedPlugins) {
+          try {
+            if (plugin is UIExtension) {
+              android.util.Log.d("EditorActivityActions", "Processing UIExtension plugin: ${plugin.javaClass.simpleName}")
+              
+              // Register main menu contributions
+              val menuItems = plugin.contributeToMainMenu()
+              android.util.Log.d("EditorActivityActions", "Plugin ${plugin.javaClass.simpleName} contributed ${menuItems.size} menu items")
+              
+              for (menuItem in menuItems) {
+                val action = PluginActionItem(context, menuItem, order++)
+                registry.registerAction(action)
+                android.util.Log.d("EditorActivityActions", "Registered plugin action: ${action.id} - ${action.label}")
+              }
+            }
+          } catch (e: Exception) {
+            // Log error but continue with other plugins
+            android.util.Log.e("EditorActivityActions", "Error registering plugin UI for ${plugin.javaClass.simpleName}: ${e.message}", e)
+          }
+        }
+      } catch (e: Exception) {
+        // Log error but don't break the menu system
+        android.util.Log.e("EditorActivityActions", "Error in plugin integration: ${e.message}", e)
+      }
+      return order
     }
   }
 }

@@ -29,7 +29,7 @@ import java.io.File
 
 // TODO: get value from BuildConfig.DEBUG -- jm 2025-05-28
 //       import com.itsaky.androidide.BuildConfig
-const val SPLIT_ASSETS = /* false */ true
+const val SPLIT_ASSETS = /* false */ false
 
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.5.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.0.0"

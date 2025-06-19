@@ -670,4 +670,23 @@
   <string name="halt">Halt</string>
   <string name="breakpoint">Breakpoint</string>
   <string name="project_name">Project name</string>
+  
+  <!-- Plugin System -->
+  <string name="plugin_manager">Plugin Manager</string>
+  <string name="plugin_manager_title">Plugin Manager</string>
+  <string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+  <string name="plugins">Plugins</string>
+  <string name="no_plugins_installed">No plugins installed</string>
+  <string name="install_plugin">Install Plugin</string>
+  <string name="plugin_installed">Plugin installed successfully</string>
+  <string name="plugin_install_failed">Failed to install plugin</string>
+  <string name="plugin_enabled">Plugin enabled</string>
+  <string name="plugin_disabled">Plugin disabled</string>
+  <string name="plugin_uninstalled">Plugin uninstalled</string>
+  <string name="enable_plugin">Enable</string>
+  <string name="disable_plugin">Disable</string>
+  <string name="uninstall_plugin">Uninstall</string>
+  <string name="plugin_details">Plugin Details</string>
+  <string name="plugin_permissions">Permissions</string>
+  <string name="plugin_dependencies">Dependencies</string>
 </resources>

@@ -1,4 +1,4 @@
-<p align="center">
+ <p align="center">
   <img src="./images/icon.png" alt="Code On The Go" width="80" height="80"/>
 </p>
 
@@ -159,3 +159,9 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
+Click here Daniel's changes
+
+This is a test
+
+Hello world, testing 

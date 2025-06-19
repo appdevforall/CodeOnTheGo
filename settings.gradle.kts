@@ -125,6 +125,9 @@ include(
   ":logsender",
   ":logsender-sample",
   ":lookup",
+  ":plugin-api",
+  ":plugin-api-java",
+  ":plugin-manager",
   ":preferences",
   ":resources",
   ":shared",
@@ -163,6 +166,7 @@ include(
   ":layouteditor:vectormaster",
   ":constants",
   ":idetooltips",
+  ":sample-plugin",
 )
 
 val layoutEditorDir = rootDir.resolve("LayoutEditor")

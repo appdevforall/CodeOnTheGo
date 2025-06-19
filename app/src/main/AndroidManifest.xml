@@ -74,6 +74,7 @@
             android:configChanges="orientation|screenSize|uiMode"
             android:launchMode="singleTop" />
         <activity android:name=".activities.PreferencesActivity" />
+        <activity android:name=".activities.PluginManagerActivity" />
         <activity android:name=".activities.AboutActivity" />
         <activity android:name=".activities.editor.FAQActivity" />
         <activity android:name=".activities.editor.HelpActivity" />
