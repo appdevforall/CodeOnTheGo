@@ -8,12 +8,10 @@ import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
-import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
 import com.itsaky.androidide.lsp.debug.events.StepEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.LocatableEvent
 import com.itsaky.androidide.lsp.debug.model.Location
-import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResult
 import com.itsaky.androidide.lsp.debug.model.StepType
@@ -212,7 +210,7 @@ class IDEDebugClientImpl(
         clientScope.launch { breakpoints.toggle(file, line) }
     }
 
-    override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
+    override fun onBreakpointHit(event: BreakpointHitEvent) {
         logger.debug("onBreakpointHit: {}", event)
 
         clientScope.launch {
@@ -221,11 +219,6 @@ class IDEDebugClientImpl(
 
             openLocation(event)
         }
-
-        return BreakpointHitResponse(
-            remoteClient = event.remoteClient,
-            resumePolicy = ResumePolicy.SUSPEND_CLIENT
-        )
     }
 
     override fun onStep(event: StepEvent) {
