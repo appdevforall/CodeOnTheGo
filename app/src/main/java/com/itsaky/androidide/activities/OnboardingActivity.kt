@@ -344,7 +344,7 @@ class OnboardingActivity : AppIntro2() {
             ZipUtils.unzipFile(mavenZipFile, outputDirectory)
             mavenZipFile.delete()
 
-            if (SPLIT_ASSETS) {
+            if (!SPLIT_ASSETS) {
                 mavenBrotliFile.delete()
             }
 
