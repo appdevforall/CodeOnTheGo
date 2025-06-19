@@ -651,6 +651,7 @@
   <string name="debugger_resume">Resume</string>
   <string name="debugger_restart">Restart</string>
   <string name="debugger_status_resolving">Resolving…</string>
+  <string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
 
   <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
