@@ -187,15 +187,17 @@ class IDEDebugClientImpl(
 
                 clientScope.launch {
                     clientOrNull?.also { client ->
-                        client.adapter.setBreakpoints(
+                        val response = client.adapter.setBreakpoints(
                             BreakpointRequest(
                                 remoteClient = client,
                                 breakpoints = breakpoints
                             )
                         )
-                    }
+
+                        logger.debug("breakpoint result: {}", response.results)
+                    } ?: logger.info("client ${client.name} disconnected while updating breakpoints")
                 }
-            }
+            } ?: logger.info("deferring breakpoint update, no clients connected")
         }
     }
 
