@@ -10,8 +10,10 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
@@ -79,6 +81,14 @@ class DebuggerFragment :
 
             emptyStateViewModel.isEmpty.value = message != null
             emptyStateViewModel.emptyMessage.value = message
+
+            if (state == DebuggerConnectionState.ATTACHED) {
+                (activity as? BaseEditorActivity?)
+                    ?.showBottomSheetFragment(
+                        fragmentClass = DebuggerFragment::class.java,
+                        sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED
+                    )
+            }
         }
 
         viewModel.observeLatestThreads(
