@@ -28,6 +28,8 @@ class VariableListBinder(
 
     private var treeIndent = 0
 
+    private var varValue: String = ""
+
     companion object {
         private val logger = LoggerFactory.getLogger(VariableListBinder::class.java)
     }
@@ -77,7 +79,7 @@ class VariableListBinder(
 
         coroutineScope.launch(Dispatchers.IO) {
             val descriptor = data.resolve()
-            val strValue = data.resolvedValue()?.toString()
+            varValue = data.resolvedValue()?.toString()
                 ?: context.getString(R.string.debugger_value_unavailable)
 
             withContext(Dispatchers.Main) {
@@ -92,12 +94,12 @@ class VariableListBinder(
 
                     // noinspection SetTextI18n
                     label.text =
-                        "${descriptor.name}: ${descriptor.typeName} = $strValue"
+                        "${descriptor.name}: ${descriptor.typeName} = $varValue"
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    setupLabelLongPress(binding, descriptor, strValue, context, node)
+                    setupLabelLongPress(binding, descriptor, varValue, context, node)
                 }
             }
         }
@@ -134,7 +136,17 @@ class VariableListBinder(
                 hint = context.getString(R.string.debugger_variable_value_hint),
                 defaultValue = value,
                 onSetClick = { newValue ->
-                    println("______ newValue: $newValue")
+                    // update node value
+                    node.data?.updateValue(newValue)
+                    varValue = newValue
+
+                    binding.label.post {
+                        binding.label.text = "${descriptor.name}: ${descriptor.typeName} = $varValue"
+                        binding.label.requestLayout()
+                        binding.label.invalidate()
+                    }
+
+                    // update treeView
                     (binding.root.parent as? TreeView<ResolvableVariable<*>>)?.let { treeView ->
                         treeView.coroutineScope.launch {
                             treeView.refresh(fastRefresh = true, node = node)
