@@ -91,6 +91,8 @@ class ResolvableVariable<T : Value> private constructor(
 
     internal val deferredValue = CompletableDeferred<T?>()
 
+    private var overriddenValue: String? = null
+
     /**
      * Whether the variable is resolved.
      */
@@ -109,6 +111,10 @@ class ResolvableVariable<T : Value> private constructor(
     fun resolvedValue() = deferredValue.getValue(
         defaultValue = null,
     )
+
+    fun updateValue(newValueStr: String) {
+        overriddenValue = newValueStr
+    }
 
     companion object {
 
@@ -154,9 +160,8 @@ class ResolvableVariable<T : Value> private constructor(
                 create(variable)
             }.toSet()
 
-    fun updateValue(newValueStr: String) {
-        val current = deferredValue.getCompleted()
-        deferredValue.complete(current)
+    override fun toString(): String {
+        return overriddenValue ?: resolvedValue()?.toString() ?: "<unavailable>"
     }
 }
 
