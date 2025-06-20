@@ -35,7 +35,7 @@ import java.io.IOException
 @Database(entities = [IDETooltipItem::class], version = 2, exportSchema = false)
 @TypeConverters(ButtonsConverters::class)
 abstract class IDETooltipDatabase : RoomDatabase() {
-    abstract fun idetooltipDao(): IDETooltipDao
+    abstract fun ideTooltipDao(): IDETooltipDao
 
 
     companion object {
@@ -60,7 +60,7 @@ abstract class IDETooltipDatabase : RoomDatabase() {
         CoroutineScope(Dispatchers.IO).launch {
 
             val db = getDatabase(context)
-            val dao = db.idetooltipDao()
+            val dao = db.ideTooltipDao()
 
             val jsonString: String =  loadJsonFromAssets(context, "CoGoTooltips/misc/CoGoTooltips.json")
             if(jsonString.isBlank()) {
