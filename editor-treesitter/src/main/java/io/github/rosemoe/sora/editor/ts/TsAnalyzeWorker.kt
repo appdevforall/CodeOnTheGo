@@ -17,7 +17,6 @@
 
 package io.github.rosemoe.sora.editor.ts
 
-import android.graphics.Color
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
@@ -34,7 +33,6 @@ import io.github.rosemoe.sora.lang.styling.Styles
 import io.github.rosemoe.sora.lang.styling.line.LineBackground
 import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
-import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -139,6 +137,7 @@ class TsAnalyzeWorker(
       styles.lineStyles?.forEach { style ->
           style.eraseStyle(LineGutterBackground::class.java)
       }
+      refreshLineStyles()
   }
 
   fun toggleBreakpoint(line: Int, addOnly: Boolean = false, removeOnly: Boolean = false) {
@@ -161,13 +160,7 @@ class TsAnalyzeWorker(
     }
 
     if (notify) {
-      // Mark styles ready for rendering
-      styles.finishBuilding()
-
-      // Call setStyles with UI invalidation as pre-action
-      stylesReceiver?.setStyles(analyzer, styles) {
-        (stylesReceiver as? CodeEditor)?.invalidate()
-      }
+      refreshLineStyles()
     }
   }
 
@@ -178,7 +171,7 @@ class TsAnalyzeWorker(
       styles.addLineStyle(LineBackground(line) { scheme ->
         scheme.getColor(SchemeAndroidIDE.BREAKPOINT_LINE_BG)
       })
-      stylesReceiver?.setStyles(this.analyzer, styles)
+      refreshLineStyles()
     }
   }
 
@@ -186,7 +179,16 @@ class TsAnalyzeWorker(
     styles.lineStyles?.forEach { style ->
       style.eraseStyle(LineBackground::class.java)
     }
-    stylesReceiver?.setStyles(this.analyzer, styles)
+    refreshLineStyles()
+  }
+
+  private fun refreshLineStyles() {
+    // We can call styles.finishBuilding() instead of sorting lineStyles manually
+    // but finishBuilding() performs some unnecessary tasks like iterating over and sorting
+    // blockLines as well, which we don't need to do here
+    // As a result, we manually sort the line styles to avoid that unnecessary processing
+    styles.lineStyles?.sort()
+    stylesReceiver?.setStyles(analyzer, styles)
   }
 
   private fun processNextMessage() {
