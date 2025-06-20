@@ -153,6 +153,11 @@ class ResolvableVariable<T : Value> private constructor(
                 // members of an eagerly-resolved variable are also eagerly-resolved
                 create(variable)
             }.toSet()
+
+    fun updateValue(newValueStr: String) {
+        val current = deferredValue.getCompleted()
+        deferredValue.complete(current)
+    }
 }
 
 /**
