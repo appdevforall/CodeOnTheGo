@@ -97,7 +97,7 @@ class VariableListBinder(
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    setupLabelLongPress(binding, descriptor, strValue, context)
+                    setupLabelLongPress(binding, descriptor, strValue, descriptor.typeName ,context)
                 }
             }
         }
@@ -107,6 +107,7 @@ class VariableListBinder(
         binding: DebuggerVariableItemBinding,
         descriptor: VariableDescriptor,
         value: String,
+        variableType: String,
         context: Context
     ) {
         binding.label.setOnLongClickListener {
@@ -132,6 +133,7 @@ class VariableListBinder(
                 title = title,
                 hint = context.getString(R.string.debugger_variable_value_hint),
                 defaultValue = value,
+                variableType = variableType,
                 onSetClick = {
                     // TODO: add change variable value method
                 }
