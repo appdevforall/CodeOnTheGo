@@ -201,7 +201,7 @@ dependencies {
   implementation(projects.xmlInflater)
 
   implementation(projects.layouteditor.layouteditorApp)
-  //implementation(projects.layouteditor.vectormaster)
+  implementation(projects.idetooltips)
 
   //LaoutEditor
   //implementation(libs.desugar.jdk.libs)
@@ -238,6 +238,9 @@ dependencies {
   androidTestImplementation(projects.testing.android)
 
   androidTestImplementation(libs.tests.androidx.test.runner)
+
+  // brotli
+  implementation(libs.common.orgbrotli.dec)
 
 }
 

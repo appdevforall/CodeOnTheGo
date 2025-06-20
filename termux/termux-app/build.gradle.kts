@@ -12,6 +12,10 @@ plugins {
     id("kotlin-android")
 }
 
+apply {
+    plugin(TerminalBootstrapPackagesPlugin::class.java)
+}
+
 val packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "apt-android-7" // Default: "apt-android-7"
 
 android {
@@ -104,16 +108,6 @@ tasks.register("versionName") {
     doLast {
         print(project.rootProject.version)
     }
-}
-
-tasks.register("applyTerminalBootstrapPackagesPlugin") {
-    doFirst {
-        project.pluginManager.apply(TerminalBootstrapPackagesPlugin::class.java)
-    }
-}
-
-tasks.named("preBuild").configure {
-    dependsOn("applyTerminalBootstrapPackagesPlugin")
 }
 
 val copyV8TermuxCache = tasks.register<CopyTermuxCacheAbiTask>("copyV8TermuxCache")

@@ -19,7 +19,6 @@ package com.itsaky.androidide.idetooltips
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 @Entity(primaryKeys = ["tooltipCategory", "tooltipTag"], tableName = "ide_tooltip_table")
 data class IDETooltipItem(
