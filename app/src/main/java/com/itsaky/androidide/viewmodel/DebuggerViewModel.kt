@@ -168,6 +168,23 @@ class DebuggerViewModel : ViewModel() {
         _connectionState.update { state }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
+    fun observeConnectionState(
+        observeOn: CoroutineDispatcher = Dispatchers.Default,
+        notifyOn: CoroutineDispatcher? = null,
+        consume: suspend (DebuggerConnectionState) -> Unit
+    ) = viewModelScope.launch(observeOn) {
+        connectionState.collectLatest { state ->
+            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+                withContext(notifyOn) {
+                    consume(state)
+                }
+            } else {
+                consume(state)
+            }
+        }
+    }
+
     suspend fun setThreads(threads: List<ThreadInfo>) = withContext(Dispatchers.IO) {
         val resolvableThreads = threads.map(ResolvableThreadInfo::create)
             .filter { thread ->

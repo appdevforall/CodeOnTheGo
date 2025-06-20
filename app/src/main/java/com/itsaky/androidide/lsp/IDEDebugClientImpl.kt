@@ -72,7 +72,7 @@ class IDEDebugClientImpl(
     val debugeePackage: String
         get() = viewModel.debugeePackage
 
-    private val clientOrNull: RemoteClient?
+    internal val clientOrNull: RemoteClient?
         get() = clients.firstOrNull()
 
     /**
