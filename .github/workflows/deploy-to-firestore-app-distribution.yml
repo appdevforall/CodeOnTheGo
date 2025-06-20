@@ -72,11 +72,6 @@ jobs:
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
-      - name: Disable SPLIT_ASSETS in CI
-        run: |
-          sed -i 's/const val SPLIT_ASSETS = \/\* false \*\/ true/const val SPLIT_ASSETS = \/\* false \*\/ false/' ./composite-builds/build-deps-common/constants/src/main/java/org/adfa/constants/constants.kt
-
-
       - name: Assemble Universal APK
         run: |
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon

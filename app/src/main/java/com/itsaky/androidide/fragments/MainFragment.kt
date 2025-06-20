@@ -7,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -19,13 +18,14 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.activities.TerminalActivity
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.MainActionsListAdapter
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
-import com.itsaky.androidide.idetooltips.IDETooltipDatabase
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
@@ -42,13 +42,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import org.eclipse.jgit.api.CloneCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.ProgressMonitor
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.text.MessageFormat
 import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
@@ -56,7 +57,9 @@ class MainFragment : BaseFragment() {
     private val viewModel by viewModels<MainViewModel>(
         ownerProducer = { requireActivity() })
     private var binding: FragmentMainBinding? = null
+
     private data class CloneRequest(val url: String, val targetDir: File)
+
     private var currentCloneRequest: CloneRequest? = null
 
     companion object {
@@ -136,11 +139,11 @@ class MainFragment : BaseFragment() {
         val view = action.view
         val tag = action.id.toString()
         CoroutineScope(Dispatchers.IO).launch {
-            val dao = IDETooltipDatabase.getDatabase(requireContext()).idetooltipDao()
-            val item = dao.getTooltip("ide", tag)
+            val item =
+                TooltipManager.getTooltip(context = requireContext(), category = "ide", tag = tag)
             withContext((Dispatchers.Main)) {
                 (context?.let {
-                    TooltipUtils.showIDETooltip(
+                    TooltipManager.showIDETooltip(
                         it,
                         view!!,
                         0,
@@ -150,7 +153,15 @@ class MainFragment : BaseFragment() {
                             detail = item?.detail ?: "",
                             summary = item?.summary ?: "",
                             buttons = item?.buttons ?: arrayListOf(),
-                        )
+                        ),
+                        { context, url, title ->
+                            val intent = Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                            context.startActivity(intent)
+
+                        }
                     )
                 })
             }
@@ -170,7 +181,8 @@ class MainFragment : BaseFragment() {
                 .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
                 .setPositiveButton(android.R.string.ok) { dialog, _ ->
                     run {
-                        val stackTrace = Exception().stackTrace.asList().toString().replace(",", "\n")
+                        val stackTrace =
+                            Exception().stackTrace.asList().toString().replace(",", "\n")
                         val feedbackMessage = getString(
                             R.string.feedback_message,
                             BuildConfig.VERSION_NAME,
@@ -210,7 +222,10 @@ class MainFragment : BaseFragment() {
                                     putExtra(Intent.EXTRA_TEXT, feedbackMessage)
                                 }
                                 shareActivityResultLauncher.launch(
-                                    Intent.createChooser(fallbackIntent, getString(R.string.send_feedback))
+                                    Intent.createChooser(
+                                        fallbackIntent,
+                                        getString(R.string.send_feedback)
+                                    )
                                 )
                             } catch (e2: Exception) {
                                 requireActivity().flashError(R.string.no_email_apps)
@@ -362,7 +377,12 @@ class MainFragment : BaseFragment() {
     private fun showCloneDirExistsError(targetDir: File) {
         val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
         builder?.setTitle(string.title_warning)
-        builder?.setMessage(getString(R.string.git_clone_dir_exists_detailed, targetDir.absolutePath))
+        builder?.setMessage(
+            getString(
+                R.string.git_clone_dir_exists_detailed,
+                targetDir.absolutePath
+            )
+        )
         builder?.setPositiveButton(R.string.delete_and_clone) { _, _ ->
             val progressBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
             val progressBinding = LayoutDialogProgressBinding.inflate(layoutInflater)
@@ -376,7 +396,8 @@ class MainFragment : BaseFragment() {
 
             val progressDialog = progressBuilder.show()
 
-            val coroutineScope = (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
+            val coroutineScope =
+                (activity as? BaseIDEActivity?)?.activityScope ?: viewLifecycleScope
             coroutineScope.launch(Dispatchers.IO) {
                 try {
                     targetDir.deleteRecursively()
@@ -389,7 +410,12 @@ class MainFragment : BaseFragment() {
                         progressDialog.dismiss()
                         val errorBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
                         errorBuilder.setTitle(R.string.error)
-                        errorBuilder.setMessage(getString(R.string.error_deleting_directory, e.localizedMessage))
+                        errorBuilder.setMessage(
+                            getString(
+                                R.string.error_deleting_directory,
+                                e.localizedMessage
+                            )
+                        )
                         errorBuilder.setPositiveButton(android.R.string.ok, null)
                         errorBuilder.show()
                     }
