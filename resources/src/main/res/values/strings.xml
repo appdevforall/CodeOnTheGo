@@ -641,7 +641,6 @@
   <string name="debugger_started">Debugger started</string>
   <string name="debugger_variables">Variables</string>
   <string name="debugger_call_stack">Call stack</string>
-  <string name="debugger_msg_not_connected">Not connected to a debuggable application.</string>
   <string name="debugger_thread">Thread</string>
   <string name="debugger_step_into">Step into</string>
   <string name="debugger_step_out">Step out</string>
@@ -652,6 +651,10 @@
   <string name="debugger_restart">Restart</string>
   <string name="debugger_status_resolving">Resolving…</string>
   <string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
+
+  <!-- Connected to <VM-name> (<VM-version>) -->
+  <string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
+  <string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
 
   <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
