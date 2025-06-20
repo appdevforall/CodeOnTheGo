@@ -57,6 +57,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -677,16 +678,17 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-    open fun showSearchResults() {
-        if (editorBottomSheet?.state != BottomSheetBehavior.STATE_EXPANDED) {
-            editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
-        }
+    open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
 
-        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(
-            SearchResultFragment::class.java
-        )
-
+    open fun showBottomSheetFragment(
+        fragmentClass: Class<out Fragment>,
+        sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+    ) {
+        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
         if (index >= 0 && index < content.bottomSheet.binding.tabs.tabCount) {
+            if (editorBottomSheet?.state != sheetState) {
+                editorBottomSheet?.state = sheetState
+            }
             content.bottomSheet.binding.tabs.getTabAt(index)?.select()
         }
     }
