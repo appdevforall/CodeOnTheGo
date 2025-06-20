@@ -27,7 +27,7 @@ import java.io.File
  * Moved from template-api in case of a roor repo merge we have to manuall move changes here.
  */
 
-// TODO: get value from BuildConfig.DEBUG -- jm 2025-05-28
+// TODO: get the value from BuildConfig.DEBUG -- jm 2025-05-28
 //       import com.itsaky.androidide.BuildConfig
 const val SPLIT_ASSETS = /* false */ true
 
@@ -49,6 +49,7 @@ const val SOURCE_LIB_FOLDER = "libs_source"
 const val HOME_PATH = "home"
 const val ANDROID_SDK_PATH = "android-sdk"
 const val ANDROID_SDK_ZIP = "android-sdk.zip"
+const val ANDROID_SDK_ZIP_BR = "$ANDROID_SDK_ZIP.br"
 const val USR = "usr"
 
 // Gradle folder
@@ -62,7 +63,9 @@ const val LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION = "8.7"
 const val GRADLE_VERSION = "gradle-$LOCAL_GRADLE_DISTRIBUTION_VERSION"
 const val COMPOSE_GRADLE_VERSION = "gradle-$LOCAL_COMPOSE_GRADLE_DISTRIBUTION_VERSION"
 const val GRADLE_WRAPPER_FILE_NAME = "$GRADLE_VERSION-bin.zip"
+const val GRADLE_WRAPPER_FILE_NAME_BR = "$GRADLE_WRAPPER_FILE_NAME.br"
 const val COMPOSE_GRADLE_WRAPPER_FILE_NAME = "$COMPOSE_GRADLE_VERSION-bin.zip"
+const val COMPOSE_GRADLE_WRAPPER_FILE_NAME_BR = "$COMPOSE_GRADLE_WRAPPER_FILE_NAME.br"
 val GRADLE_WRAPPER_PATH_SUFFIX = GRADLE_FOLDER_NAME + File.separator + "wrapper" + File.separator
 
 // AGP
@@ -130,6 +133,7 @@ const val LOCAL_SOURCE_AGP_8_5_1_CACHES = "files-2.1-8.5.1/files-2.1"
 
 //Local maven repo
 const val LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME = "localMvnRepository.zip"
+const val LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR = "${LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME}.br"
 val LOCAL_MAVEN_CACHES_DEST = HOME_PATH + File.separator + "maven"
 const val LOCAL_MAVEN_REPO_FOLDER_DEST = "localMvnRepository"
 
