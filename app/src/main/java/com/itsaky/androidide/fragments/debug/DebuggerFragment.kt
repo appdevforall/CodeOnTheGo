@@ -16,6 +16,7 @@ import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
+import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -23,7 +24,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.slf4j.LoggerFactory
 
 /**
  * @author Akash Yadav
@@ -41,15 +41,44 @@ class DebuggerFragment :
             when (position) {
                 0 -> getString(R.string.debugger_variables) to VariableListFragment()
                 1 -> getString(R.string.debugger_call_stack) to CallStackFragment()
-                else -> throw IllegalStateException("Unknown position: $0")
+                else -> throw IllegalStateException("Unknown position: $position")
             }
         }
 
-        emptyStateViewModel.emptyMessage.value = getString(R.string.debugger_msg_not_connected)
+        emptyStateViewModel.emptyMessage.value = getString(R.string.debugger_state_not_connected)
         emptyStateViewModel.isEmpty.observe(viewLifecycleOwner) { isEmpty ->
             if (isEmpty) {
                 binding.threadLayoutSelector.spinnerText.clearListSelection()
             }
+        }
+
+        viewModel.observeConnectionState(
+            notifyOn = Dispatchers.Main
+        ) { state ->
+            val message = when (state) {
+                // not connected to a VM
+                DebuggerConnectionState.DETACHED -> getString(R.string.debugger_state_not_connected)
+
+                // connected, but not suspended
+                DebuggerConnectionState.ATTACHED -> {
+                    viewModel.debugClient.clientOrNull?.let { client ->
+                        getString(R.string.debugger_state_connected, client.name, client.version)
+                    }
+                }
+
+                // ----
+                // No need to show any message for below states
+                // the debugger UI will show the active threads, variables and call stack when the
+                // VM is in one of these states
+
+                // suspended, but not due to a breakpoint hit or step event
+                DebuggerConnectionState.SUSPENDED -> null
+                // suspended due to a breakpoint hit or step event
+                DebuggerConnectionState.AWAITING_BREAKPOINT -> null
+            }
+
+            emptyStateViewModel.isEmpty.value = message != null
+            emptyStateViewModel.emptyMessage.value = message
         }
 
         viewModel.observeLatestThreads(
