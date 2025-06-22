@@ -42,7 +42,7 @@ abstract class CopyGradleCachesToAssetsTask : DefaultTask() {
 
     @TaskAction
     fun copyGradleCachesToAssets() {
-        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_GRADLE_8_0_0_CACHES_PATH).asFile
+        val outputDirectory = this.outputDirectory.get().file(ASSETS_COMMON_FOLDER).asFile
         if (!outputDirectory.exists()) {
             outputDirectory.mkdirs()
         }
