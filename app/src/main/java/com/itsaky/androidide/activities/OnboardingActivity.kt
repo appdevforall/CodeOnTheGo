@@ -287,8 +287,8 @@ class OnboardingActivity : AppIntro2() {
                 ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, ANDROID_SDK_ZIP) }
             else {
                 ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_SOURCE_ANDROID_SDK),
-                    outputDirectory.path
+                    ToolsManager.getCommonAsset(ANDROID_SDK_ZIP_BR),
+                    brotliFile.path
                 )
 
                 if (!brotliFile.exists()) {
@@ -330,8 +330,8 @@ class OnboardingActivity : AppIntro2() {
                 ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME) }
             else {
                 ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_SOURCE_AGP_8_0_0_CACHES),
-                    outputDirectory.path
+                    ToolsManager.getCommonAsset(LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR),
+                    mavenBrotliFile.path
                 )
 
                 decompressBrotli(mavenBrotliFile.path, mavenZipFile.path)
