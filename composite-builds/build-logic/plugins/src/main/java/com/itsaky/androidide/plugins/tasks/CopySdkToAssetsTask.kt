@@ -44,7 +44,7 @@ abstract class CopySdkToAssetsTask : DefaultTask() {
     @TaskAction
     fun copySdkToAssets() {
         val outputDirectory = this.outputDirectory.get()
-            .file(ASSETS_COMMON_FOLDER + File.separator + LOCAL_SOURCE_ANDROID_SDK).asFile
+            .file(ASSETS_COMMON_FOLDER).asFile
         val sourceFilePath =
             this.project.projectDir.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator +
                     LOCAL_SOURCE_ANDROID_SDK + File.separator + ANDROID_SDK_ZIP_BR
