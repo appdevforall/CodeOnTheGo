@@ -36,7 +36,9 @@ import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.StepRequest
 import com.sun.tools.jdi.SocketListeningConnector
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CopyOnWriteArraySet
@@ -49,6 +51,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     private val vmm = Bootstrap.virtualMachineManager()
     private val vms = CopyOnWriteArraySet<VmConnection>()
+    private val adapterScope = CoroutineScope(Dispatchers.Default)
 
     private var listenerThread: JDWPListenerThread? = null
     private var _listenerState: ListenerState? = null
@@ -461,14 +464,16 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             logger.error("Unable to stop VM connection listener", err)
         }
 
-        while (vms.isNotEmpty()) {
-            val vm = vms.first()
-            try {
-                vm.close()
-            } catch (err: Throwable) {
-                logger.error("Failed to disconnect from VM '{}'", vm.client.name, err)
-            } finally {
-                vms.remove(vm)
+        adapterScope.launch(Dispatchers.IO) {
+            while (vms.isNotEmpty()) {
+                val vm = vms.first()
+                try {
+                    vm.close()
+                } catch (err: Throwable) {
+                    logger.error("Failed to disconnect from VM '{}'", vm.client.name, err)
+                } finally {
+                    vms.remove(vm)
+                }
             }
         }
     }
