@@ -61,8 +61,10 @@ public class DebugManager {
             }
 
             final String status = cursor.getString(0);
-            if (!"active".equals(status)) {
-                throw new IllegalStateException("Debugger is not active");
+            switch (status) {
+                case "active": break;
+                case "attached": throw new IllegalStateException("Debugger is already attached to a client");
+                default: throw new IllegalStateException("Unknown debugger status: " + status);
             }
         }
     }
