@@ -167,6 +167,7 @@ data class VariableDescriptor(
     val typeName: String,
     val kind: VariableKind,
     val isMutable: Boolean,
+    val primitiveKind: PrimitiveKind? = null,
 )
 
 /**
