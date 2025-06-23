@@ -35,8 +35,13 @@ class DebuggerStatusProvider : ContentProvider() {
             return null
         }
 
+        var status = "active"
+        if (debugClient.isVmConnected()) {
+            status = "connected"
+        }
+
         val cursor = MatrixCursor(arrayOf("status"))
-        cursor.addRow(arrayOf("active"))
+        cursor.addRow(arrayOf(status))
         return cursor
     }
 
