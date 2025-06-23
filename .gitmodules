@@ -7,6 +7,3 @@
 	url = https://github.com/CoGoAdmin/CoGoTooltips.git
 	branch=main
 
-[submodule "oj-libjdwp"]
-	path = oj-libjdwp
-	url = https://github.com/appdevforall/oj-libjdwp.git
