@@ -140,11 +140,8 @@ class VariableListBinder(
                     node.data?.updateValue(newValue)
                     varValue = newValue
 
-                    binding.label.post {
-                        binding.label.text = "${descriptor.name}: ${descriptor.typeName} = $varValue"
-                        binding.label.requestLayout()
-                        binding.label.invalidate()
-                    }
+                    binding.label.text = "${descriptor.name}: ${descriptor.typeName} = $varValue"
+                    binding.label.requestLayout()
 
                     // update treeView
                     (binding.root.parent as? TreeView<ResolvableVariable<*>>)?.let { treeView ->
