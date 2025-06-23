@@ -23,6 +23,8 @@ import com.sun.jdi.FloatType
 import com.sun.jdi.FloatValue
 import com.sun.jdi.IntegerType
 import com.sun.jdi.IntegerValue
+import com.sun.jdi.InternalException
+import com.sun.jdi.InvalidStackFrameException
 import com.sun.jdi.LocalVariable
 import com.sun.jdi.LongType
 import com.sun.jdi.LongValue
@@ -146,29 +148,45 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
             val valInstance = jdiValue()
             val type = valInstance.type()
 
-            println("_____ resolveKind → name: $name, runtimeValue.class: ${valInstance.javaClass.name}, jdiType: ${type.name()}")
-
             when (valInstance) {
-                is com.sun.jdi.PrimitiveValue -> VariableKind.PRIMITIVE
-                is com.sun.jdi.StringReference -> VariableKind.STRING
-                is com.sun.jdi.ArrayReference -> VariableKind.ARRAYLIKE
+                is PrimitiveValue -> VariableKind.PRIMITIVE
+                is StringReference -> VariableKind.STRING
+                is ArrayReference -> VariableKind.ARRAYLIKE
 
-                is com.sun.jdi.ObjectReference -> {
+                is ObjectReference -> {
                     val refType = type as? ReferenceType
                     val methodNames = refType?.methods()?.map { it.name() }?.toSet().orEmpty()
 
                     val isBoxedPrimitive = methodNames.any { it.matches(Regex("^(boolean|byte|short|char|int|long|float|double)Value$")) }
 
-                    println("_____ resolveKind → methods: $methodNames, isBoxedPrimitive: $isBoxedPrimitive")
-
-                    if (isBoxedPrimitive) VariableKind.PRIMITIVE else VariableKind.REFERENCE
+                    if (isBoxedPrimitive) {
+                        val subtype = resolvePrimitiveSubtype(type)
+                        println("_____ resolveKind → PRIMITIVE: $subtype - type: $type")
+                        return VariableKind.REFERENCE
+                    } else return VariableKind.REFERENCE
                 }
 
                 else -> VariableKind.UNKNOWN
             }
         } catch (e: Exception) {
-            println("_____ resolveKind → ERROR: ${e.message}")
             VariableKind.UNKNOWN
+        }
+    }
+
+    private fun resolvePrimitiveSubtype(type: Type): PrimitiveKind? {
+        val regex = Regex("\\b(boolean|byte|short|char|int|long|float|double)\\b", RegexOption.IGNORE_CASE)
+        val match = regex.find(type.name())?.groupValues?.get(1)?.lowercase()
+
+        return when (match) {
+            "boolean" -> PrimitiveKind.BOOLEAN
+            "byte" -> PrimitiveKind.BYTE
+            "char" -> PrimitiveKind.CHAR
+            "short" -> PrimitiveKind.SHORT
+            "int" -> PrimitiveKind.INT
+            "long" -> PrimitiveKind.LONG
+            "float" -> PrimitiveKind.FLOAT
+            "double" -> PrimitiveKind.DOUBLE
+            else -> null
         }
     }
 
@@ -238,8 +256,24 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
     @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueType? = withContext(Dispatchers.IO) {
         try {
-            // TODO: find out if we can distinguish between opaque and non-opaque stack frames
-            stackFrame.getValue(variable).toLspValue() as ValueType
+            if (!stackFrame.thread().isSuspended) {
+                logger.warn("Thread is not suspended; cannot access variable '{}'", variable.name())
+                return@withContext null
+            }
+            val rawValue = stackFrame.getValue(variable)
+            rawValue?.let {
+                it.toLspValue() as ValueType
+            }
+        } catch (e: InternalException) {
+            if (e.message?.contains("JDWP Error: 32") == true) {
+                logger.warn("JDWP Error 32: Invalid frame when accessing variable '{}'", variable.name())
+            } else {
+                logger.error("Unexpected JDWP error when accessing '{}'", variable.name(), e)
+            }
+            null
+        } catch (e: InvalidStackFrameException) {
+            logger.warn("Stack frame invalid or no longer available for variable '{}'", variable.name())
+            null
         } catch (e: Exception) {
             logger.error(
                 "Failed to get value of variable '{}' in {}",
