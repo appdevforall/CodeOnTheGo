@@ -141,12 +141,29 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
     protected abstract suspend fun jdiValue(): Value
     protected open suspend fun isMutable(): Boolean = false
 
-    override suspend fun descriptor() = VariableDescriptor(
-        name = name,
-        typeName = typeName,
-        kind = kind,
-        isMutable = isMutable()
-    )
+    suspend fun resolveKind(): VariableKind {
+        return try {
+            when (val valInstance = jdiValue()) {
+                is com.sun.jdi.PrimitiveValue -> VariableKind.PRIMITIVE
+                is com.sun.jdi.StringReference -> VariableKind.STRING
+                is com.sun.jdi.ArrayReference -> VariableKind.ARRAYLIKE
+                is com.sun.jdi.ObjectReference -> VariableKind.REFERENCE
+                else -> VariableKind.UNKNOWN
+            }
+        } catch (e: Exception) {
+            VariableKind.UNKNOWN
+        }
+    }
+
+    override suspend fun descriptor(): VariableDescriptor {
+        val resolvedKind = resolveKind()
+        return VariableDescriptor(
+            name = name,
+            typeName = typeName,
+            kind = resolvedKind,
+            isMutable = isMutable()
+        )
+    }
 
     override suspend fun objectMembers(): Set<Variable<*>> = withContext(Dispatchers.IO) {
         val value = jdiValue()

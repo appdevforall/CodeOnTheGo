@@ -79,6 +79,7 @@ class VariableListBinder(
             val descriptor = data.resolve()
             val strValue = data.resolvedValue()?.toString()
                 ?: context.getString(R.string.debugger_value_unavailable)
+            val variableKind = data.resolvedKind()
 
             withContext(Dispatchers.Main) {
                 binding.apply {
@@ -92,12 +93,12 @@ class VariableListBinder(
 
                     // noinspection SetTextI18n
                     label.text =
-                        "${descriptor.name}: ${descriptor.typeName} = $strValue"
+                        "${descriptor.name}: $variableKind - ${descriptor.kind}= $strValue"
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    setupLabelLongPress(binding, descriptor, strValue, descriptor.typeName ,context)
+                    setupLabelLongPress(binding, descriptor, strValue, variableKind.toString(), context)
                 }
             }
         }
