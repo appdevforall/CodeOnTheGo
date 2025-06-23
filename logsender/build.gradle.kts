@@ -28,7 +28,7 @@ android {
   namespace = "${BuildConfig.packageName}.logsender"
 
   defaultConfig {
-    minSdk = 16
+    minSdk = BuildConfig.minSdkForAppsBuiltInCogo
 
     vectorDrawables {
       useSupportLibrary = true
