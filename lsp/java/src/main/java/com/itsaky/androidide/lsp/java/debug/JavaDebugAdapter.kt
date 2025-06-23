@@ -432,6 +432,11 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override fun vmDisconnectEvent(e: VMDisconnectEvent) {
         logger.debug("vmDisconnectedEvent: {}", e)
+        if (!isConnected()) {
+            logger.warn("Got VM disconnect event when not connected")
+            return
+        }
+
         e.virtualMachine().checkIsCurrentVm()
         val vm = connVm()
 
@@ -473,7 +478,9 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         }
     }
 
-    private fun checkIsConnected() = check(vms.isNotEmpty()) {
+    private fun isConnected() = vms.isNotEmpty()
+
+    private fun checkIsConnected() = check(isConnected()) {
         "No connected VMs"
     }
 
