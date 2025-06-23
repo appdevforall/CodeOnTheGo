@@ -79,7 +79,6 @@ class VariableListBinder(
             val descriptor = data.resolve()
             val strValue = data.resolvedValue()?.toString()
                 ?: context.getString(R.string.debugger_value_unavailable)
-            val variableKind = data.resolvedKind()
 
             withContext(Dispatchers.Main) {
                 binding.apply {
@@ -89,11 +88,13 @@ class VariableListBinder(
                         return@apply
                     }
 
+                    val variableKind = if(descriptor.primitiveKind== null) data.resolvedKind() else descriptor.primitiveKind
+
                     val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
 
                     // noinspection SetTextI18n
                     label.text =
-                        "${descriptor.name}: $variableKind - ${descriptor.kind}= $strValue"
+                        "${descriptor.name}: $variableKind = $strValue"
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
