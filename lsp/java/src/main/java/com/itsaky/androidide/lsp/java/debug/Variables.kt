@@ -143,14 +143,31 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
 
     suspend fun resolveKind(): VariableKind {
         return try {
-            when (val valInstance = jdiValue()) {
+            val valInstance = jdiValue()
+            val type = valInstance.type()
+
+            println("_____ resolveKind → name: $name, runtimeValue.class: ${valInstance.javaClass.name}, jdiType: ${type.name()}")
+
+            when (valInstance) {
                 is com.sun.jdi.PrimitiveValue -> VariableKind.PRIMITIVE
                 is com.sun.jdi.StringReference -> VariableKind.STRING
                 is com.sun.jdi.ArrayReference -> VariableKind.ARRAYLIKE
-                is com.sun.jdi.ObjectReference -> VariableKind.REFERENCE
+
+                is com.sun.jdi.ObjectReference -> {
+                    val refType = type as? ReferenceType
+                    val methodNames = refType?.methods()?.map { it.name() }?.toSet().orEmpty()
+
+                    val isBoxedPrimitive = methodNames.any { it.matches(Regex("^(boolean|byte|short|char|int|long|float|double)Value$")) }
+
+                    println("_____ resolveKind → methods: $methodNames, isBoxedPrimitive: $isBoxedPrimitive")
+
+                    if (isBoxedPrimitive) VariableKind.PRIMITIVE else VariableKind.REFERENCE
+                }
+
                 else -> VariableKind.UNKNOWN
             }
         } catch (e: Exception) {
+            println("_____ resolveKind → ERROR: ${e.message}")
             VariableKind.UNKNOWN
         }
     }
