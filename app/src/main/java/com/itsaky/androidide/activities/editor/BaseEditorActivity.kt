@@ -796,7 +796,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private fun setupViews() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                debuggerViewModel.connectionState.collectLatest {
+                debuggerViewModel.connectionState.collectLatest { state ->
+                    if (state == DebuggerConnectionState.ATTACHED) {
+                        ensureDebuggerServiceBound()
+                    }
                     postStopDebuggerServiceIfNotConnected()
                 }
 
