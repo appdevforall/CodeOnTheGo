@@ -149,23 +149,16 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
             val type = valInstance.type()
 
             when (valInstance) {
-                is PrimitiveValue -> VariableKind.PRIMITIVE
-                is StringReference -> VariableKind.STRING
-                is ArrayReference -> VariableKind.ARRAYLIKE
-
-                is ObjectReference -> {
+                is com.sun.jdi.PrimitiveValue -> VariableKind.PRIMITIVE
+                is com.sun.jdi.StringReference -> VariableKind.STRING
+                is com.sun.jdi.ArrayReference -> VariableKind.ARRAYLIKE
+                is com.sun.jdi.ObjectReference -> {
                     val refType = type as? ReferenceType
                     val methodNames = refType?.methods()?.map { it.name() }?.toSet().orEmpty()
-
                     val isBoxedPrimitive = methodNames.any { it.matches(Regex("^(boolean|byte|short|char|int|long|float|double)Value$")) }
 
-                    if (isBoxedPrimitive) {
-                        val subtype = resolvePrimitiveSubtype(type)
-                        println("_____ resolveKind → PRIMITIVE: $subtype - type: $type")
-                        return VariableKind.REFERENCE
-                    } else return VariableKind.REFERENCE
+                    if (isBoxedPrimitive) VariableKind.PRIMITIVE else VariableKind.REFERENCE
                 }
-
                 else -> VariableKind.UNKNOWN
             }
         } catch (e: Exception) {
@@ -173,16 +166,18 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
         }
     }
 
-    private fun resolvePrimitiveSubtype(type: Type): PrimitiveKind? {
-        val regex = Regex("\\b(boolean|byte|short|char|int|long|float|double)\\b", RegexOption.IGNORE_CASE)
+    fun resolvePrimitiveSubtype(type: Type): PrimitiveKind? {
+        val regex = Regex("\\b(boolean|byte|short|char|character|int|integer|long|float|double)\\b", RegexOption.IGNORE_CASE)
         val match = regex.find(type.name())?.groupValues?.get(1)?.lowercase()
 
         return when (match) {
             "boolean" -> PrimitiveKind.BOOLEAN
             "byte" -> PrimitiveKind.BYTE
             "char" -> PrimitiveKind.CHAR
+            "character" -> PrimitiveKind.CHAR
             "short" -> PrimitiveKind.SHORT
             "int" -> PrimitiveKind.INT
+            "integer" -> PrimitiveKind.INT
             "long" -> PrimitiveKind.LONG
             "float" -> PrimitiveKind.FLOAT
             "double" -> PrimitiveKind.DOUBLE
@@ -192,11 +187,16 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
 
     override suspend fun descriptor(): VariableDescriptor {
         val resolvedKind = resolveKind()
+        val primitiveKind = if (resolvedKind == VariableKind.PRIMITIVE) {
+            resolvePrimitiveSubtype(type)
+        } else null
+
         return VariableDescriptor(
             name = name,
             typeName = typeName,
             kind = resolvedKind,
-            isMutable = isMutable()
+            isMutable = isMutable(),
+            primitiveKind = primitiveKind
         )
     }
 
