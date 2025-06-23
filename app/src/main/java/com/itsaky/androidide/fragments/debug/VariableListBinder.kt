@@ -10,6 +10,7 @@ import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.debug.DialogUtilsDebug
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
@@ -19,9 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
-import kotlin.time.Duration.Companion.seconds
 
 class VariableListBinder(
     private val coroutineScope: CoroutineScope,
@@ -47,8 +46,10 @@ class VariableListBinder(
         listener: TreeNodeEventListener<ResolvableVariable<*>>
     ) {
         val binding = DebuggerVariableItemBinding.bind(holder.itemView)
+        val context = binding.root.context
+
         if (treeIndent == 0) {
-            treeIndent = binding.root.context.resources.getDimensionPixelSize(
+            treeIndent = context.resources.getDimensionPixelSize(
                 R.dimen.content_padding_double
             )
         }
@@ -66,7 +67,7 @@ class VariableListBinder(
 
         Log.d("VariableListBinder", "bindView: node.data=${node.data}")
         if (node.data?.isResolved != true) {
-            binding.label.text = binding.root.context.getString(R.string.debugger_status_resolving)
+            binding.label.text = context.getString(R.string.debugger_status_resolving)
         }
 
         val data = node.data ?: run {
@@ -76,16 +77,18 @@ class VariableListBinder(
 
         coroutineScope.launch(Dispatchers.IO) {
             val descriptor = data.resolve()
-            val strValue = data.resolvedValue()?.toString() ?: "<unavailable>"
+            val strValue = data.resolvedValue()?.toString()
+                ?: context.getString(R.string.debugger_value_unavailable)
+
             withContext(Dispatchers.Main) {
                 binding.apply {
                     if (descriptor == null) {
                         logger.error("Unable to resolve node: {}", data)
-                        label.text = "<error>"
+                        label.text = context.getString(R.string.debugger_value_error)
                         return@apply
                     }
 
-                    val ic = descriptor.icon(root.context)?.let { ContextCompat.getDrawable(root.context, it) }
+                    val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
 
                     // noinspection SetTextI18n
                     label.text =
@@ -93,10 +96,50 @@ class VariableListBinder(
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
+
+                    setupLabelLongPress(binding, descriptor, strValue, context)
                 }
             }
         }
     }
+
+    private fun setupLabelLongPress(
+        binding: DebuggerVariableItemBinding,
+        descriptor: VariableDescriptor,
+        value: String,
+        context: Context
+    ) {
+        binding.label.setOnLongClickListener {
+            val labelText = binding.label.text?.toString()
+
+            if (labelText.isNullOrBlank()) return@setOnLongClickListener false
+
+            val hasValidValue = value.isNotBlank() &&
+                    value != context.getString(R.string.debugger_value_unavailable) &&
+                    value != context.getString(R.string.debugger_value_error) &&
+                    value != context.getString(R.string.debugger_value_null)
+
+            if (!hasValidValue) return@setOnLongClickListener false
+
+            val title = context.getString(
+                R.string.debugger_variable_dialog_title,
+                descriptor.name,
+                descriptor.typeName
+            )
+
+            DialogUtilsDebug.newTextFieldDialog(
+                context = context,
+                title = title,
+                hint = context.getString(R.string.debugger_variable_value_hint),
+                defaultValue = value,
+                onSetClick = {
+                    // TODO: add change variable value method
+                }
+            ).show()
+            true
+        }
+    }
+
 }
 
 private fun VariableDescriptor.icon(context: Context): Int? = when (kind) {
