@@ -53,7 +53,7 @@ interface InputValueKind {
     val primitiveKind: PrimitiveKind?
 }
 
-data class SimpleInputValueKind(
+data class AllInputValueKinds(
     override val kind: VariableKind,
     override val primitiveKind: PrimitiveKind? = null
 ) : InputValueKind

@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
 import com.itsaky.androidide.lsp.debug.model.InputValueKind
-import com.itsaky.androidide.lsp.debug.model.SimpleInputValueKind
+import com.itsaky.androidide.lsp.debug.model.AllInputValueKinds
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
@@ -91,9 +91,9 @@ class VariableListBinder(
                     }
 
                     val variableKind: InputValueKind = if (descriptor.primitiveKind != null) {
-                        SimpleInputValueKind(VariableKind.PRIMITIVE, descriptor.primitiveKind)
+                        AllInputValueKinds(VariableKind.PRIMITIVE, descriptor.primitiveKind)
                     } else {
-                        SimpleInputValueKind(data.resolvedKind())
+                        AllInputValueKinds(data.resolvedKind())
                     }
 
                     val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
