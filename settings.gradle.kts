@@ -141,6 +141,7 @@ include(
   ":subprojects:framework-stubs",
   ":subprojects:javac-services",
   ":subprojects:libjdwp",
+  ":subprojects:libjdwp-remote",
   ":subprojects:projects",
   ":subprojects:tooling-api",
   ":subprojects:tooling-api-events",
