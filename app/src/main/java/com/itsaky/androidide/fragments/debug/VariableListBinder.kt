@@ -7,6 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
+import com.itsaky.androidide.lsp.debug.model.InputValueKind
+import com.itsaky.androidide.lsp.debug.model.SimpleInputValueKind
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
@@ -88,7 +90,11 @@ class VariableListBinder(
                         return@apply
                     }
 
-                    val variableKind = if(descriptor.primitiveKind== null) data.resolvedKind() else descriptor.primitiveKind
+                    val variableKind: InputValueKind = if (descriptor.primitiveKind != null) {
+                        SimpleInputValueKind(VariableKind.PRIMITIVE, descriptor.primitiveKind)
+                    } else {
+                        SimpleInputValueKind(data.resolvedKind())
+                    }
 
                     val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
 
@@ -99,7 +105,7 @@ class VariableListBinder(
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    setupLabelLongPress(binding, descriptor, strValue, variableKind.toString(), context)
+                    setupLabelLongPress(binding, descriptor, strValue, variableKind, context)
                 }
             }
         }
@@ -109,7 +115,7 @@ class VariableListBinder(
         binding: DebuggerVariableItemBinding,
         descriptor: VariableDescriptor,
         value: String,
-        variableType: String,
+        variableType: InputValueKind,
         context: Context
     ) {
         binding.label.setOnLongClickListener {
