@@ -88,11 +88,10 @@ object DialogUtilsDebug {
                     Toast.makeText(context,context.getString(R.string.debugger_variable_value_invalid),Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
+
+                Log.i("DialogUtilsDebug", context.getString(R.string.debug_variable_set, variableType, value))
                 onSetClick(value)
                 dialog.dismiss()
-                Log.i("DialogUtilsDebug", "Variable value set successfully. Type: '$variableType', Value: '$value'")
-                // TODO: implement set value change on treeView
-
             }
             .setNegativeButton(context.getString(R.string.debugger_dialog_button_cancel)) { dialog, _ ->
                 dialog.dismiss()
