@@ -90,6 +90,6 @@ interface IDebugAdapter {
      * @param newValue The new value to assign.
      * @return true if successful, false otherwise.
      */
-    suspend fun setVariable(variableReference: Int, newValue: String): Boolean
+    suspend fun setVariable(nameVar: String, newValue: String): Boolean
 
 }

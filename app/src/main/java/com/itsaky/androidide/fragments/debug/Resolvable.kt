@@ -124,9 +124,8 @@ class ResolvableVariable<T : Value> private constructor(
     }
 
     suspend fun updateRemoteValue(debugAdapter: IDebugAdapter): Boolean {
-        val ref = resolved.variablesReference
         val value = overriddenValue ?: return false
-        return debugAdapter.setVariable(ref, value)
+        return debugAdapter.setVariable(deferred.completedOrNull?.name ?: "", value)
     }
 
 
