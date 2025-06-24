@@ -19,8 +19,16 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.json.JSONObject
 
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.nio.file.attribute.FileTime
+import java.util.zip.Deflater
+
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.util.zip.ZipInputStream
 
 
 plugins {
@@ -238,6 +246,9 @@ dependencies {
 
   androidTestImplementation(libs.tests.androidx.test.runner)
 
+  // brotli
+  implementation(libs.common.orgbrotli.dec)
+
 }
 
 
@@ -332,6 +343,7 @@ fun createAssetsZip(zipName: String, archDir: String) {
     println("Created ${zipName} successfully at ${zipFile.parentFile.absolutePath}")
   }
 }
+
 tasks.register("assembleV8Assets") {
   dependsOn("assembleV8Debug")
 
@@ -350,4 +362,155 @@ tasks.register("assembleV7Assets") {
 
 tasks.register("assembleAssets") {
   dependsOn("assembleV8Assets", "assembleV7Assets")
+}
+
+tasks.register("recompressApk") {
+  doLast {
+    val abi: String = extensions.extraProperties["abi"].toString()
+    val buildName: String = extensions.extraProperties["buildName"].toString()
+
+    project.logger.lifecycle("Calling recompressApk abi:${abi} buildName:${buildName}")
+
+    recompressApk(abi, buildName)
+  }
+}
+
+afterEvaluate {
+  tasks.named("assembleV8Debug").configure {
+    finalizedBy("recompressApk")
+
+    doLast {
+      tasks.named("recompressApk").configure {
+        extensions.extraProperties["abi"] = "v8"
+        extensions.extraProperties["buildName"] = "debug"
+      }
+    }
+  }
+
+  tasks.named("assembleV8Release").configure {
+    finalizedBy("recompressApk")
+
+    doLast {
+      tasks.named("recompressApk").configure {
+        extensions.extraProperties["abi"] = "v8"
+        extensions.extraProperties["buildName"] = "release"
+      }
+    }
+  }
+
+  tasks.named("assembleV7Debug").configure {
+    finalizedBy("recompressApk")
+
+    doLast {
+      tasks.named("recompressApk").configure {
+        extensions.extraProperties["abi"] = "v7"
+        extensions.extraProperties["buildName"] = "debug"
+      }
+    }
+  }
+
+  tasks.named("assembleV7Release").configure {
+    finalizedBy("recompressApk")
+
+    doLast {
+      tasks.named("recompressApk").configure {
+        extensions.extraProperties["abi"] = "v7"
+        extensions.extraProperties["buildName"] = "release"
+      }
+    }
+  }
+
+}
+
+
+fun recompressApk(abi: String, buildName: String) {
+  val apkDir: File = layout.buildDirectory.dir("outputs/apk/$abi/$buildName").get().asFile
+  project.logger.lifecycle("Recompressing APK Dir: ${apkDir.path}")
+
+  apkDir.walk().filter { it.extension == "apk" }.forEach { apkFile ->
+    project.logger.lifecycle("Recompressing APK: ${apkFile.name}")
+    val tempZipFile = File(apkFile.parentFile, "${apkFile.name}.tmp")
+    recompressZip(apkFile, tempZipFile)
+    signApk(tempZipFile)
+    if (apkFile.delete()) {
+      tempZipFile.renameTo(apkFile)
+    }
+  }
+}
+
+fun recompressZip( inputZip: File, outputZip: File) {
+  ZipInputStream(BufferedInputStream(FileInputStream(inputZip))).use { zis ->
+    ZipOutputStream(BufferedOutputStream(FileOutputStream(outputZip))).use { zos ->
+      zos.setLevel(Deflater.BEST_COMPRESSION)
+
+      var entry = zis.nextEntry
+      while (entry != null) {
+        if (!entry.isDirectory) {
+          val newEntry = ZipEntry(entry.name)
+
+          // Remove timestamps for deterministic output (-X)
+          newEntry.time = 0L
+          try {
+            newEntry.creationTime = FileTime.fromMillis(0)
+            newEntry.lastModifiedTime = FileTime.fromMillis(0)
+            newEntry.lastAccessTime = FileTime.fromMillis(0)
+          } catch (_: Throwable) {} // In case JVM doesn't support them
+
+          zos.putNextEntry(newEntry)
+          zis.copyTo(zos)
+          zos.closeEntry()
+        }
+        entry = zis.nextEntry
+      }
+    }
+  }
+}
+
+fun signApk(apkFile: File) {
+  project.logger.lifecycle("Signing APK: ${apkFile.name}")
+
+  val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+  var signerExec = "apksigner"
+  if (isWindows) {
+    signerExec = "apksigner.bat"
+  }
+
+  val signingConfig = android.signingConfigs.getByName("debug") // 🔥 Get existing signing config
+
+  val keystorePath = signingConfig.storeFile?.absolutePath ?: error("Keystore not found!")
+  val keystorePassword = signingConfig.storePassword ?: error("Keystore password missing!")
+  val keyAlias = signingConfig.keyAlias ?: error("Key alias missing!")
+  val keyPassword = signingConfig.keyPassword ?: error("Key password missing!")
+
+  val androidSdkDir = android.sdkDirectory.absolutePath
+  val apkSignerPath: File = File(androidSdkDir, "build-tools")
+    .listFiles()
+    ?.filter { it.isDirectory && File(it, signerExec).exists() }
+    ?.maxByOrNull { it.name }  // pick the highest version
+    ?.resolve(signerExec)
+    ?: error("Could not find apksigner in any build-tools directory")
+
+  //val apkSignerPath = File(android.sdkDirectory.absolutePath + File.separator +
+  //        "build-tools" + File.separator + "34.0.0" + File.separator + signerExec)
+
+  project.logger.lifecycle("APK Signer: ${apkSignerPath.absolutePath}")
+
+  ant.withGroovyBuilder {
+    "exec"(
+      "executable" to apkSignerPath.absolutePath,
+      "failonerror" to "true"
+    ) {
+      "arg"("value" to "sign")
+      "arg"("value" to "--ks")
+      "arg"("value" to keystorePath)
+      "arg"("value" to "--ks-key-alias")
+      "arg"("value" to keyAlias)
+      "arg"("value" to "--ks-pass")
+      "arg"("value" to "pass:$keystorePassword")
+      "arg"("value" to "--key-pass")
+      "arg"("value" to "pass:$keyPassword")
+      "arg"("value" to apkFile.absolutePath)
+    }
+  }
+
 }
