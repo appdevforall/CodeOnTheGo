@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
+import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.model.StackFrame
 import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
@@ -112,8 +113,10 @@ class ResolvableVariable<T : Value> private constructor(
         defaultValue = null,
     )
 
-    fun updateValue(newValueStr: String) {
+    suspend fun updateRemoteValue(debugAdapter: IDebugAdapter, newValueStr: String): Boolean {
         overriddenValue = newValueStr
+        val value = overriddenValue ?: return false
+        return debugAdapter.setVariable(deferred.completedOrNull?.name ?: "", value)
     }
 
     companion object {

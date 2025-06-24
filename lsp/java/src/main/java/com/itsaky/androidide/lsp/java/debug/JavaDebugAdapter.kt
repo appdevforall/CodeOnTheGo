@@ -45,7 +45,7 @@ import com.itsaky.androidide.lsp.debug.events.StepEvent as LspStepEvent
 /**
  * @author Akash Yadav
  */
-internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
+class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     private val vmm = Bootstrap.virtualMachineManager()
     private val vms = CopyOnWriteArraySet<VmConnection>()
@@ -179,6 +179,51 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
         this.vms.add(vmConnection)
         this._listenerState!!.client.onAttach(client)
+    }
+
+    override suspend fun setVariable(nameVar: String, newValue: String): Boolean = withContext(Dispatchers.IO) {
+        val vm = connVm()
+
+        try {
+            println("______ vm.threadState.current: ${vm.threadState.current}")
+            val threadInfo = vm.threadState.current ?: return@withContext false
+            val frame = threadInfo.frame(0) // obtenemos el primer frame de la pila (top)
+            val visibleVariables = frame.visibleVariables()
+            println("______ visibleVariables: ${visibleVariables.get(0)}")
+
+            val variableToCHange = visibleVariables.get(0).name()
+
+            println("______ variableToCHange: $variableToCHange - realHashCode: ${visibleVariables.get(0).hashCode()}")
+
+            val variable = visibleVariables.find { it.name() == nameVar }
+                ?: return@withContext false
+
+            println("______ $variable passed!")
+            val newVal = vm.vm.mirrorOf(newValue)
+
+            frame.setValue(variable, newVal)
+
+            // get frame again, and print
+            val NewthreadInfo = vm.threadState.current ?: return@withContext false
+            val Newframe = threadInfo.frame(0)
+            val NewvisibleVariables = frame.visibleVariables()
+
+            println("______ NewvisibleVariables: ${NewvisibleVariables.get(0)}")
+            println("========= frame: ${Newframe.hashCode()}")
+            println("========= newthreadInfo: ${NewthreadInfo.hashCode()}")
+
+            val Newvariable = visibleVariables.find { it.name() == nameVar }
+                ?: return@withContext false
+
+            val newValueVar = Newframe.getValue(Newvariable)
+            println("-=-=-=--=-=-=-=- $Newvariable - $newValueVar")
+
+            logger.debug("✅ Variable updated in VM: {} = {}", variable.name(), newValue)
+            return@withContext true
+
+        } catch (e: Exception) {
+            return@withContext false
+        }
     }
 
     override suspend fun connectedRemoteClients(): Set<RemoteClient> =
