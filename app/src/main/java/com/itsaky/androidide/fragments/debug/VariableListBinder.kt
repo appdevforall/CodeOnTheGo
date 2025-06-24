@@ -142,7 +142,7 @@ class VariableListBinder(
                             // TODO: Update variable tree to reflect newly set value
                             //      Use DebuggerViewModel.refreshVariables()
                         } else {
-                            inputField.error = context.getString(R.string.debugger_value_error)
+                            inputField.error = context.getString(R.string.debugger_variable_value_invalid)
                         }
                     }
                 }
