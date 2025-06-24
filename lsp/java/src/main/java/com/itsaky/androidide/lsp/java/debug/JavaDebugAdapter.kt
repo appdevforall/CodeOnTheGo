@@ -214,7 +214,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val vm = connVm()
 
         check(vm.client == client) {
-            "Received request for suspending a different client"
+            "Received request to suspend client=$client, but the current client is ${vm.client}"
         }
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.suspensionSupport) {
@@ -229,7 +229,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val vm = connVm()
 
         check(vm.client == client) {
-            "Received request for restarting a different client"
+            "Received request to kill client=$client, but the current client is ${vm.client}"
         }
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.suspensionSupport) {
@@ -251,7 +251,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             val vm = connVm()
 
             check(vm.client == request.remoteClient) {
-                "Received request for breakpoints from a different client"
+                "Received request to set breakpoints in client=${request.remoteClient}, but the current client is ${vm.client}"
             }
 
             if (!vm.isHandlingEvents || !vm.client.capabilities.breakpointSupport) {
@@ -272,51 +272,50 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 }
             }
 
-            return@withContext BreakpointResponse(request.breakpoints.map { br ->
-                logger.debug("add breakpoint {}", br)
+            return@withContext BreakpointResponse(request.breakpoints.map { breakpoint ->
+                logger.debug("add breakpoint {}", breakpoint)
 
                 val qualifiedName =
                     ProjectManagerImpl.getInstance().rootProject?.subProjects?.filterIsInstance<ModuleProject>()
                         ?.firstNotNullOfOrNull { module ->
                             module.compileJavaSourceClasses
-                                .findSource(Paths.get(br.source.path))?.qualifiedName
+                                .findSource(Paths.get(breakpoint.source.path))?.qualifiedName
                         }
 
                 logger.debug("qualified name: {}", qualifiedName)
 
-                val spec = when (br) {
+                val spec = when (breakpoint) {
                     is PositionalBreakpoint -> specList.createBreakpoint(
-                        source = br.source,
+                        source = breakpoint.source,
                         // +1 because we receive 0-indexed line numbers from the IDE
                         // while JDI expects 1-index line numbers
-                        lineNumber = br.line + 1,
+                        lineNumber = breakpoint.line + 1,
                         qualifiedName = qualifiedName,
-                        suspendPolicy = br.suspendPolicy.asJdiInt(),
+                        suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
                     )
 
                     is MethodBreakpoint -> specList.createBreakpoint(
-                        source = br.source,
-                        methodId = br.methodId,
-                        methodArgs = br.methodArgs,
+                        source = breakpoint.source,
+                        methodId = breakpoint.methodId,
+                        methodArgs = breakpoint.methodArgs,
                         qualifiedName = qualifiedName,
-                        suspendPolicy = br.suspendPolicy.asJdiInt()
+                        suspendPolicy = breakpoint.suspendPolicy.asJdiInt()
                     )
 
-                    else -> throw IllegalArgumentException("Unsupported breakpoint type: $br")
+                    else -> throw IllegalArgumentException("Unsupported breakpoint type: $breakpoint")
                 }
 
-                var failure: Throwable? = null
-                val resolveSuccess = try {
+                val result = kotlin.runCatching {
                     specList.addEagerlyResolve(spec, rethrow = true)
-                } catch (e: Throwable) {
-                    failure = e
-                    false
                 }
+
+                val failure = result.exceptionOrNull()
+                val resolveSuccess = result.getOrDefault(false)
 
                 when {
-                    resolveSuccess && spec.isResolved -> BreakpointResult.Success(br, false)
-                    resolveSuccess && !spec.isResolved -> BreakpointResult.Success(br, true)
-                    else -> BreakpointResult.Failure(br, failure)
+                    resolveSuccess && spec.isResolved -> BreakpointResult.Success(breakpoint, false)
+                    resolveSuccess && !spec.isResolved -> BreakpointResult.Success(breakpoint, true)
+                    else -> BreakpointResult.Failure(breakpoint, failure)
                 }
             })
         }
@@ -326,7 +325,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             val vm = connVm()
 
             check(vm.client == request.remoteClient) {
-                "Received request for breakpoints from a different client"
+                "Received request to step in client=${request.remoteClient}, but the current client is ${vm.client}"
             }
 
             if (!vm.isHandlingEvents || !vm.client.capabilities.stepSupport) {
@@ -375,7 +374,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val vm = connVm()
 
         check(vm.client == request.remoteClient) {
-            "Received request for breakpoints from a different client"
+            "Received request for thread info from client=${request.remoteClient}, but the current client is ${vm.client}"
         }
 
         if (!vm.isHandlingEvents || !vm.client.capabilities.threadInfoSupport) {
@@ -394,7 +393,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         withContext(Dispatchers.IO) {
             val vm = connVm()
             check(vm.client == request.remoteClient) {
-                "Received request for thread list from a different client"
+                "Received request to list threads in client=${request.remoteClient}, but the current client is ${vm.client}"
             }
 
             if (!vm.isHandlingEvents || !vm.client.capabilities.threadListSupport) {
