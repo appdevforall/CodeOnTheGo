@@ -145,7 +145,8 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
         name = name,
         typeName = typeName,
         kind = kind,
-        isMutable = isMutable()
+        isMutable = isMutable(),
+        variablesReference = this.hashCode() // o usa otro identificador único
     )
 
     override suspend fun objectMembers(): Set<Variable<*>> = withContext(Dispatchers.IO) {

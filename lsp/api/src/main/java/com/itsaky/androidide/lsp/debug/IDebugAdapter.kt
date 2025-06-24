@@ -71,8 +71,8 @@ interface IDebugAdapter {
      * Get the information about a thread.
      *
      * @param request The request definition of the thread.
-     * @return The information about the thread, or `null` if the thread does not exist.
-     */
+         * @return The information about the thread, or `null` if the thread does not exist.
+         */
     suspend fun threadInfo(request: ThreadInfoRequestParams): ThreadInfoResponse
 
     /**
@@ -82,4 +82,14 @@ interface IDebugAdapter {
      * @return A [ThreadListResponse] containing a list of all known threads of the requested VM.
      */
     suspend fun allThreads(request: ThreadListRequestParams): ThreadListResponse
+
+    /**
+     * Set the value of a variable.
+     *
+     * @param variableReference The reference ID of the variable.
+     * @param newValue The new value to assign.
+     * @return true if successful, false otherwise.
+     */
+    suspend fun setVariable(variableReference: Int, newValue: String): Boolean
+
 }

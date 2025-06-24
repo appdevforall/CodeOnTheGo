@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
+import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.model.StackFrame
 import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
@@ -114,7 +115,20 @@ class ResolvableVariable<T : Value> private constructor(
 
     fun updateValue(newValueStr: String) {
         overriddenValue = newValueStr
+        invalidate()
     }
+
+    private fun invalidate() {
+        if (!deferredValue.isCompleted) return
+        deferredValue.complete(null)
+    }
+
+    suspend fun updateRemoteValue(debugAdapter: IDebugAdapter): Boolean {
+        val ref = resolved.variablesReference
+        val value = overriddenValue ?: return false
+        return debugAdapter.setVariable(ref, value)
+    }
+
 
     companion object {
 
@@ -159,7 +173,6 @@ class ResolvableVariable<T : Value> private constructor(
                 // members of an eagerly-resolved variable are also eagerly-resolved
                 create(variable)
             }.toSet()
-
     override fun toString(): String {
         return overriddenValue ?: resolvedValue()?.toString() ?: "<unavailable>"
     }

@@ -201,25 +201,38 @@ class TreeView<T : Any> @JvmOverloads constructor(
      * @see [AbstractTree.toSortedList]
      */
     suspend fun refresh(
-        fastRefresh: Boolean = false, node: TreeNode<T>? = null, withExpandable: Boolean = false
+        fastRefresh: Boolean = false,
+        node: TreeNode<T>? = null,
+        withExpandable: Boolean = false,
+        onRefreshComplete: (() -> Unit)? = null
     ) {
+        println("🌀 START refresh()")
         if (!this::_adapter.isInitialized) {
+            println("🧩 initAdapter()")
             initAdapter()
         }
 
         nodeEventListener.onRefresh(true)
+        println("🟢 nodeEventListener.onRefresh(true)")
 
         var fastRefreshOnLocal = fastRefresh
 
         if (node != null) {
+            println("🌲 refreshWithChild for node ${node.id}")
             tree.refreshWithChild(node, withExpandable)
             fastRefreshOnLocal = true
         }
 
+        println("📋 Generating sorted list...")
         val list = tree.toSortedList(fastVisit = fastRefreshOnLocal)
 
+        println("✅ Submitting list of size ${list.size}")
         _adapter.submitList(list)
 
+        println("📣 Calling callback...")
+        onRefreshComplete?.invoke()
+
+        println("🔚 nodeEventListener.onRefresh(false)")
         nodeEventListener.onRefresh(false)
     }
 
@@ -1033,6 +1046,10 @@ abstract class TreeViewBinder<T : Any> : DiffUtil.ItemCallback<TreeNode<T>>() {
         node: TreeNode<T>,
         listener: TreeNodeEventListener<T>
     )
+
+    fun markNodeAsChanged(node: TreeNode<T>) {
+        changeNodes.add(node)
+    }
 
     /**
      * like [RecyclerView.Adapter.getItemViewType]
