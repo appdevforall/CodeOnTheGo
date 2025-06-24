@@ -21,14 +21,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
+
+
 
 class VariableListBinder(
     private val coroutineScope: CoroutineScope,
 ) : TreeViewBinder<ResolvableVariable<*>>() {
 
     private var treeIndent = 0
-
-    private var varValue: String = ""
 
     companion object {
         private val logger = LoggerFactory.getLogger(VariableListBinder::class.java)
@@ -68,9 +69,8 @@ class VariableListBinder(
         }
 
         Log.d("VariableListBinder", "bindView: node.data=${node.data}")
-        if (node.data?.isResolved != true) {
-            binding.label.text = context.getString(R.string.debugger_status_resolving)
-        }
+        binding.label.text = context.getString(R.string.debugger_status_resolving)
+
 
         val data = node.data ?: run {
             logger.error("No data set to node: {}", node)
@@ -79,7 +79,7 @@ class VariableListBinder(
 
         coroutineScope.launch(Dispatchers.IO) {
             val descriptor = data.resolve()
-            varValue = data.resolvedValue()?.toString()
+            val resolvedValue = data.resolvedValue()?.toString()
                 ?: context.getString(R.string.debugger_value_unavailable)
 
             withContext(Dispatchers.Main) {
@@ -89,17 +89,14 @@ class VariableListBinder(
                         label.text = context.getString(R.string.debugger_value_error)
                         return@apply
                     }
-
-                    val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
-
+                    val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it)}
                     // noinspection SetTextI18n
-                    label.text =
-                        "${descriptor.name}: ${descriptor.typeName} = $varValue"
-                    icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
-
-                    chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
-
-                    setupLabelLongPress(binding, descriptor, varValue, context, node)
+                    label.text = "${descriptor.name}: ${descriptor.typeName} = $resolvedValue"
+                    icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(),
+                        true))
+                    chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE
+                    else View.VISIBLE
+                    setupLabelLongPress(binding, descriptor, resolvedValue, context, node)
                 }
             }
         }
@@ -121,7 +118,6 @@ class VariableListBinder(
                     value != context.getString(R.string.debugger_value_unavailable) &&
                     value != context.getString(R.string.debugger_value_error) &&
                     value != context.getString(R.string.debugger_value_null)
-
             if (!hasValidValue) return@setOnLongClickListener false
 
             val title = context.getString(
@@ -136,16 +132,12 @@ class VariableListBinder(
                 hint = context.getString(R.string.debugger_variable_value_hint),
                 defaultValue = value,
                 onSetClick = { newValue ->
-                    // update node value
-                    node.data?.updateValue(newValue)
-                    varValue = newValue
 
-                    binding.label.text = "${descriptor.name}: ${descriptor.typeName} = $varValue"
-                    binding.label.requestLayout()
+                    coroutineScope.launch {
+                        val adapter = JavaDebugAdapter.currentInstance() ?: return@launch
+                        node.data?.updateRemoteValue(adapter, newValue)
 
-                    // update treeView
-                    (binding.root.parent as? TreeView<ResolvableVariable<*>>)?.let { treeView ->
-                        treeView.coroutineScope.launch {
+                        (binding.root.parent as? TreeView<ResolvableVariable<*>>)?.let { treeView ->
                             treeView.refresh(fastRefresh = true, node = node)
                         }
                     }
@@ -154,7 +146,6 @@ class VariableListBinder(
             true
         }
     }
-
 }
 
 private fun VariableDescriptor.icon(context: Context): Int? = when (kind) {
