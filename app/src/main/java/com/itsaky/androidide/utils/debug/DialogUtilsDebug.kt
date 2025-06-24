@@ -24,6 +24,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
+import com.itsaky.androidide.lsp.debug.model.InputValueKind
+import com.itsaky.androidide.lsp.debug.utils.isValid
 import com.itsaky.androidide.utils.DialogUtils
 
 /**
@@ -51,7 +53,7 @@ object DialogUtilsDebug {
         title: String,
         hint: String? = null,
         defaultValue: String = "",
-        variableType: String = "",
+        variableType: InputValueKind,
         onSetClick: (String) -> Unit,
         onCancelClick: (() -> Unit)? = null
     ): MaterialAlertDialogBuilder {
@@ -81,22 +83,7 @@ object DialogUtilsDebug {
             .setView(layout)
             .setPositiveButton(context.getString(R.string.debugger_dialog_button_set)) { dialog, _ ->
                 val value = editText.text?.toString() ?: ""
-                val isValid =
-                    when (variableType) {
-                    "int", "java.lang.Integer" ->
-                        value.toIntOrNull() != null
-                    "float", "double", "java.lang.Float", "java.lang.Double" ->
-                        value.toDoubleOrNull() != null
-                    "boolean", "java.lang.Boolean" ->
-                        value == "true" || value == "false"
-                    "long", "java.lang.Long" ->
-                        value.toLongOrNull() != null
-                    "char", "java.lang.Character" ->
-                        value.length == 1
-                    "java.lang.String" ->
-                        isAStringValidate(value)
-                    else -> false
-                }
+                val isValid = isValid(value, variableType)
                 if (!isValid) {
                     Toast.makeText(context,context.getString(R.string.debugger_variable_value_invalid),Toast.LENGTH_LONG).show()
                     return@setPositiveButton
@@ -112,15 +99,5 @@ object DialogUtilsDebug {
                 onCancelClick?.invoke()
             }
             .setCancelable(true)
-    }
-    private fun isAStringValidate(value: String): Boolean {
-        val trimmed = value.trim()
-
-        val blacklist = listOf("<script", "</script", "javascript:", "onerror", "onload", "eval(", "alert(")
-        if (blacklist.any { it in trimmed.lowercase() }) return false
-
-        val regex = Regex("^[a-zA-Z0-9 ]+$")
-        if (!regex.matches(trimmed)) return false
-        return true
     }
 }

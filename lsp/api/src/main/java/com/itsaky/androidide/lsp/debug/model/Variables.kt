@@ -46,6 +46,20 @@ enum class PrimitiveKind {
 }
 
 /**
+ * A PRIMITIVE variable kind details structure for [Variable].
+ */
+interface InputValueKind {
+    val kind: VariableKind
+    val primitiveKind: PrimitiveKind?
+}
+
+data class SimpleInputValueKind(
+    override val kind: VariableKind,
+    override val primitiveKind: PrimitiveKind? = null
+) : InputValueKind
+
+
+/**
  * A value assigned to a [Variable].
  */
 interface Value {
