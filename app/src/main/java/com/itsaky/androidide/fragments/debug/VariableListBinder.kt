@@ -7,8 +7,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
-import com.itsaky.androidide.lsp.debug.model.InputValueKind
-import com.itsaky.androidide.lsp.debug.model.AllInputValueKinds
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
@@ -90,66 +88,57 @@ class VariableListBinder(
                         return@apply
                     }
 
-                    val variableKind: InputValueKind = if (descriptor.primitiveKind != null) {
-                        AllInputValueKinds(VariableKind.PRIMITIVE, descriptor.primitiveKind)
-                    } else {
-                        AllInputValueKinds(data.resolvedKind())
-                    }
-
                     val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
 
                     // noinspection SetTextI18n
                     label.text =
-                        "${descriptor.name}: $variableKind = $strValue"
+                        "${descriptor.name}: ${descriptor.typeName} = $strValue"
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    setupLabelLongPress(binding, descriptor, strValue, variableKind, context)
+                    binding.root.setOnLongClickListener {
+                        val labelText = binding.label.text?.toString()
+
+                        if (labelText.isNullOrBlank()) return@setOnLongClickListener false
+
+                        val hasValidValue = strValue.isNotBlank() &&
+                                strValue != context.getString(R.string.debugger_value_unavailable) &&
+                                strValue != context.getString(R.string.debugger_value_error) &&
+                                strValue != context.getString(R.string.debugger_value_null)
+
+                        if (!hasValidValue) return@setOnLongClickListener false
+
+                        val title = context.getString(
+                            R.string.debugger_variable_dialog_title,
+                            descriptor.name,
+                            descriptor.typeName
+                        )
+
+                        DialogUtilsDebug.newTextFieldDialog(
+                            context = context,
+                            title = title,
+                            hint = context.getString(R.string.debugger_variable_value_hint),
+                            defaultValue = strValue,
+                            onSetClick = { dialog, inputField, newValue ->
+                                coroutineScope.launch {
+                                    val isSet = data.setValue(newValue)
+                                    logger.debug("is new value set: {}", isSet)
+                                    if (isSet) {
+                                        inputField.error = null
+                                        dialog.dismiss()
+                                    } else {
+                                        inputField.error = context.getString(R.string.debugger_value_error)
+                                    }
+                                }
+                            }
+                        ).show()
+                        true
+                    }
                 }
             }
         }
     }
-
-    private fun setupLabelLongPress(
-        binding: DebuggerVariableItemBinding,
-        descriptor: VariableDescriptor,
-        value: String,
-        variableType: InputValueKind,
-        context: Context
-    ) {
-        binding.label.setOnLongClickListener {
-            val labelText = binding.label.text?.toString()
-
-            if (labelText.isNullOrBlank()) return@setOnLongClickListener false
-
-            val hasValidValue = value.isNotBlank() &&
-                    value != context.getString(R.string.debugger_value_unavailable) &&
-                    value != context.getString(R.string.debugger_value_error) &&
-                    value != context.getString(R.string.debugger_value_null)
-
-            if (!hasValidValue) return@setOnLongClickListener false
-
-            val title = context.getString(
-                R.string.debugger_variable_dialog_title,
-                descriptor.name,
-                descriptor.typeName
-            )
-
-            DialogUtilsDebug.newTextFieldDialog(
-                context = context,
-                title = title,
-                hint = context.getString(R.string.debugger_variable_value_hint),
-                defaultValue = value,
-                variableType = variableType,
-                onSetClick = {
-                    // TODO: add change variable value method
-                }
-            ).show()
-            true
-        }
-    }
-
 }
 
 private fun VariableDescriptor.icon(context: Context): Int? = when (kind) {

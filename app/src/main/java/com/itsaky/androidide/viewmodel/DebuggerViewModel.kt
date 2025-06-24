@@ -180,6 +180,15 @@ class DebuggerViewModel : ViewModel() {
         }
     }
 
+    fun refreshVariables() {
+        viewModelScope.launch {
+            val currentState = state.value
+            val tree = createVariablesTree(currentState.threads, currentState.threadIndex, currentState.frameIndex)
+            val newState = currentState.copy(variablesTree = tree)
+            state.update { newState }
+        }
+    }
+
     private suspend fun createVariablesTree(
         threads: List<ResolvableThreadInfo>,
         threadIndex: Int,

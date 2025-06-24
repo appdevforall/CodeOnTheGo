@@ -17,15 +17,12 @@
 package com.itsaky.androidide.utils.debug
 
 import android.content.Context
-import android.util.Log
+import android.content.DialogInterface
 import android.widget.LinearLayout
-import android.widget.Toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
-import com.itsaky.androidide.lsp.debug.model.InputValueKind
-import com.itsaky.androidide.lsp.debug.utils.isValid
 import com.itsaky.androidide.utils.DialogUtils
 
 /**
@@ -53,8 +50,7 @@ object DialogUtilsDebug {
         title: String,
         hint: String? = null,
         defaultValue: String = "",
-        variableType: InputValueKind,
-        onSetClick: (String) -> Unit,
+        onSetClick: (DialogInterface, TextInputLayout, String) -> Unit,
         onCancelClick: (() -> Unit)? = null
     ): MaterialAlertDialogBuilder {
 
@@ -83,15 +79,7 @@ object DialogUtilsDebug {
             .setView(layout)
             .setPositiveButton(context.getString(R.string.debugger_dialog_button_set)) { dialog, _ ->
                 val value = editText.text?.toString() ?: ""
-                val isValid = isValid(value, variableType)
-                if (!isValid) {
-                    Toast.makeText(context,context.getString(R.string.debugger_variable_value_invalid),Toast.LENGTH_LONG).show()
-                    return@setPositiveButton
-                }
-
-                Log.i("DialogUtilsDebug", context.getString(R.string.debug_variable_set, variableType, value))
-                onSetClick(value)
-                dialog.dismiss()
+                onSetClick(dialog, textInputLayout, value)
             }
             .setNegativeButton(context.getString(R.string.debugger_dialog_button_cancel)) { dialog, _ ->
                 dialog.dismiss()

@@ -46,20 +46,6 @@ enum class PrimitiveKind {
 }
 
 /**
- * A PRIMITIVE variable kind details structure for [Variable].
- */
-interface InputValueKind {
-    val kind: VariableKind
-    val primitiveKind: PrimitiveKind?
-}
-
-data class AllInputValueKinds(
-    override val kind: VariableKind,
-    override val primitiveKind: PrimitiveKind? = null
-) : InputValueKind
-
-
-/**
  * A value assigned to a [Variable].
  */
 interface Value {
@@ -181,7 +167,6 @@ data class VariableDescriptor(
     val typeName: String,
     val kind: VariableKind,
     val isMutable: Boolean,
-    val primitiveKind: PrimitiveKind? = null,
 )
 
 /**
@@ -203,6 +188,14 @@ interface Variable<ValueType: Value> {
      * Get the members of of the object that this variable references. May be empty.
      */
     suspend fun objectMembers(): Set<Variable<*>>
+
+    /**
+     * Set the value of the variable.
+     *
+     * @param value The new value of the variable.
+     * @return The result of the operation.
+     */
+    suspend fun setValue(value: String): Boolean
 }
 
 /**
