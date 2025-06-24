@@ -97,46 +97,57 @@ class VariableListBinder(
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    binding.root.setOnLongClickListener {
-                        val labelText = binding.label.text?.toString()
-
-                        if (labelText.isNullOrBlank()) return@setOnLongClickListener false
-
-                        val hasValidValue = strValue.isNotBlank() &&
-                                strValue != context.getString(R.string.debugger_value_unavailable) &&
-                                strValue != context.getString(R.string.debugger_value_error) &&
-                                strValue != context.getString(R.string.debugger_value_null)
-
-                        if (!hasValidValue) return@setOnLongClickListener false
-
-                        val title = context.getString(
-                            R.string.debugger_variable_dialog_title,
-                            descriptor.name,
-                            descriptor.typeName
-                        )
-
-                        DialogUtilsDebug.newTextFieldDialog(
-                            context = context,
-                            title = title,
-                            hint = context.getString(R.string.debugger_variable_value_hint),
-                            defaultValue = strValue,
-                            onSetClick = { dialog, inputField, newValue ->
-                                coroutineScope.launch {
-                                    val isSet = data.setValue(newValue)
-                                    logger.debug("is new value set: {}", isSet)
-                                    if (isSet) {
-                                        inputField.error = null
-                                        dialog.dismiss()
-                                    } else {
-                                        inputField.error = context.getString(R.string.debugger_value_error)
-                                    }
-                                }
-                            }
-                        ).show()
-                        true
-                    }
+                    showSetValueDialogOnLongClick(binding, data, descriptor, strValue)
                 }
             }
+        }
+    }
+
+    private fun showSetValueDialogOnLongClick(
+        binding: DebuggerVariableItemBinding,
+        variable: ResolvableVariable<*>,
+        descriptor: VariableDescriptor,
+        currentValue: String
+    ) {
+        val context = binding.root.context
+        binding.root.setOnLongClickListener {
+            val labelText = binding.label.text?.toString()
+
+            if (labelText.isNullOrBlank()) return@setOnLongClickListener false
+
+            val hasValidValue = currentValue.isNotBlank() &&
+                    currentValue != context.getString(R.string.debugger_value_unavailable) &&
+                    currentValue != context.getString(R.string.debugger_value_error) &&
+                    currentValue != context.getString(R.string.debugger_value_null)
+
+            if (!hasValidValue) return@setOnLongClickListener false
+
+            val title = context.getString(
+                R.string.debugger_variable_dialog_title,
+                descriptor.name,
+                descriptor.typeName
+            )
+
+            DialogUtilsDebug.newTextFieldDialog(
+                context = context,
+                title = title,
+                hint = context.getString(R.string.debugger_variable_value_hint),
+                defaultValue = currentValue,
+                onSetClick = { dialog, inputField, newValue ->
+                    coroutineScope.launch {
+                        val isSet = variable.setValue(newValue)
+                        if (isSet) {
+                            inputField.error = null
+                            dialog.dismiss()
+                            // TODO: Update variable tree to reflect newly set value
+                            //      Use DebuggerViewModel.refreshVariables()
+                        } else {
+                            inputField.error = context.getString(R.string.debugger_value_error)
+                        }
+                    }
+                }
+            ).show()
+            true
         }
     }
 }
