@@ -49,7 +49,7 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
 
         binding.root.apply {
             val originalText = context.getString(action.text)
-            setText(AndroidUtils.capitalizeWords(originalText))
+            text = originalText
             setIconResource(action.icon)
             setOnClickListener {
                 action.onClick?.invoke(action, it)
