@@ -15,16 +15,9 @@ sealed interface BreakpointResult {
      *
      * @property isDeferred Whether the breakpoint resolution was deferred.
      */
-    data class Added(
+    data class Success(
         override val definition: BreakpointDefinition,
         val isDeferred: Boolean,
-    ): BreakpointResult
-
-    /**
-     * A breakpoint was removed.
-     */
-    data class Removed(
-        override val definition: BreakpointDefinition,
     ): BreakpointResult
 
     /**
