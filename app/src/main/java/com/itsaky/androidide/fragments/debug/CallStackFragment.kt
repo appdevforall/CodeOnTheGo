@@ -45,7 +45,9 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
     }
 
     override fun onCreateAdapter() = CallStackAdapter(viewLifecycleScope, viewHolder.allFrames.value) { newPosition ->
-        viewHolder.setSelectedFrameIndex(newPosition)
+        viewLifecycleScope.launch {
+            viewHolder.setSelectedFrameIndex(newPosition)
+        }
     }
 }
 

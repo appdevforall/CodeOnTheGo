@@ -57,6 +57,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -246,7 +247,15 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
     private val debuggerServiceStopRunnable = Runnable {
         if (debuggerService != null && debuggerViewModel.connectionState.value < DebuggerConnectionState.ATTACHED) {
+            unbindDebuggerService()
+        }
+    }
+
+    private fun unbindDebuggerService() {
+        try {
             unbindService(debuggerServiceConnection)
+        } catch (e: Throwable) {
+            log.error("Failed to stop debugger service", e)
         }
     }
 
@@ -341,11 +350,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             memoryUsageWatcher.listener = null
             editorActivityScope.cancelIfActive("Activity is being destroyed")
 
-            try {
-                unbindService(debuggerServiceConnection)
-            } catch (e: Throwable) {
-                log.error("Failed to stop debugger service", e)
-            }
+            unbindDebuggerService()
         }
     }
 
@@ -673,16 +678,17 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-    open fun showSearchResults() {
-        if (editorBottomSheet?.state != BottomSheetBehavior.STATE_EXPANDED) {
-            editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
-        }
+    open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
 
-        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(
-            SearchResultFragment::class.java
-        )
-
+    open fun showBottomSheetFragment(
+        fragmentClass: Class<out Fragment>,
+        sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+    ) {
+        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
         if (index >= 0 && index < content.bottomSheet.binding.tabs.tabCount) {
+            if (editorBottomSheet?.state != sheetState) {
+                editorBottomSheet?.state = sheetState
+            }
             content.bottomSheet.binding.tabs.getTabAt(index)?.select()
         }
     }
@@ -731,9 +737,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private fun handleUiDesignerResult(result: ActivityResult) {
-        if (this is EditorHandlerActivity) {
-            this.closeCurrentFile()
-        }
         if (result.resultCode != RESULT_OK || result.data == null) {
             log.warn(
                 "UI Designer returned invalid result: resultCode={}, data={}", result.resultCode,
@@ -793,7 +796,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private fun setupViews() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                debuggerViewModel.connectionState.collectLatest {
+                debuggerViewModel.connectionState.collectLatest { state ->
+                    if (state == DebuggerConnectionState.ATTACHED) {
+                        ensureDebuggerServiceBound()
+                    }
                     postStopDebuggerServiceIfNotConnected()
                 }
 

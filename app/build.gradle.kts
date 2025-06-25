@@ -182,7 +182,6 @@ dependencies {
   implementation(projects.idestats)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
-  implementation(projects.subprojects.libjdwp)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)
@@ -201,7 +200,7 @@ dependencies {
   implementation(projects.xmlInflater)
 
   implementation(projects.layouteditor.layouteditorApp)
-  //implementation(projects.layouteditor.vectormaster)
+  implementation(projects.idetooltips)
 
   //LaoutEditor
   //implementation(libs.desugar.jdk.libs)
@@ -228,6 +227,7 @@ dependencies {
   // This is to build the tooling-api-impl project before the app is built
   // So we always copy the latest JAR file to assets
   compileOnly(projects.subprojects.toolingApiImpl)
+  compileOnly(projects.subprojects.libjdwpRemote)
 
   androidTestImplementation(libs.tests.kaspresso)
   androidTestImplementation(libs.tests.junit.kts)
@@ -238,6 +238,9 @@ dependencies {
   androidTestImplementation(projects.testing.android)
 
   androidTestImplementation(libs.tests.androidx.test.runner)
+
+  // brotli
+  implementation(libs.common.orgbrotli.dec)
 
 }
 
