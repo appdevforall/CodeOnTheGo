@@ -89,11 +89,11 @@ class VariableListBinder(
                         label.text = context.getString(R.string.debugger_value_error)
                         return@apply
                     }
-                    val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it)}
+                    val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
                     // noinspection SetTextI18n
-                    label.text = "${descriptor.name}: ${descriptor.typeName} = $resolvedValue"
-                    icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(),
-                        true))
+                    label.text =
+                        "${descriptor.name}: ${descriptor.typeName} = $resolvedValue"
+                    icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE
                     else View.VISIBLE
                     setupLabelLongPress(binding, descriptor, resolvedValue, context, node)
@@ -118,6 +118,7 @@ class VariableListBinder(
                     value != context.getString(R.string.debugger_value_unavailable) &&
                     value != context.getString(R.string.debugger_value_error) &&
                     value != context.getString(R.string.debugger_value_null)
+
             if (!hasValidValue) return@setOnLongClickListener false
 
             val title = context.getString(
