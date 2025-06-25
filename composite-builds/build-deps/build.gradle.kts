@@ -16,6 +16,7 @@
  */
 
 import com.android.build.gradle.BaseExtension
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -36,8 +37,8 @@ subprojects {
       }
 
       compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
       }
 
       buildTypes.register("dev") {
@@ -46,8 +47,17 @@ subprojects {
       }
     }
   }
+}
 
-  tasks.withType(KotlinCompile::class.java) {
-    kotlinOptions.jvmTarget = "11"
+allprojects {
+  plugins.withId("java-library") {
+    extensions.configure<JavaPluginExtension> {
+      sourceCompatibility = JavaVersion.VERSION_17
+      targetCompatibility = JavaVersion.VERSION_17
+    }
+  }
+
+  tasks.withType<KotlinCompile> {
+    compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
   }
 }
