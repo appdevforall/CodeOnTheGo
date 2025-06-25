@@ -192,26 +192,12 @@ class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 ?: return@withContext false
 
             val newVal = vm.vm.mirrorOf(newValue)
-
             frame.setValue(variable, newVal)
 
-            // get frame again, and print
-            val newThreadInfo = vm.threadState.current ?: return@withContext false
-            val newFrame = newThreadInfo.frame(0)
-            val newVisibleVariables = newFrame.visibleVariables()
-
-            println("______ NewvisibleVariables: ${newVisibleVariables.get(0)}")
-
-            val newVariable = newVisibleVariables.find { it.name() == nameVar }
-                ?: return@withContext false
-
-            val newValueVar = newFrame.getValue(newVariable)
-            println("-=-=-=--=-=-=-=- $newVariable - $newValueVar")
-
-            logger.debug("✅ Variable updated in VM: {} = {}", variable.name(), newValue)
             return@withContext true
 
         } catch (e: Exception) {
+            logger.error("Failed to set variable value", e)
             return@withContext false
         }
     }
