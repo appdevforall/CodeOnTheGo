@@ -185,38 +185,28 @@ class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         val vm = connVm()
 
         try {
-            println("______ vm.threadState.current: ${vm.threadState.current}")
             val threadInfo = vm.threadState.current ?: return@withContext false
-            val frame = threadInfo.frame(0) // obtenemos el primer frame de la pila (top)
+            val frame = threadInfo.frame(0)
             val visibleVariables = frame.visibleVariables()
-            println("______ visibleVariables: ${visibleVariables.get(0)}")
-
-            val variableToCHange = visibleVariables.get(0).name()
-
-            println("______ variableToCHange: $variableToCHange - realHashCode: ${visibleVariables.get(0).hashCode()}")
-
             val variable = visibleVariables.find { it.name() == nameVar }
                 ?: return@withContext false
 
-            println("______ $variable passed!")
             val newVal = vm.vm.mirrorOf(newValue)
 
             frame.setValue(variable, newVal)
 
             // get frame again, and print
-            val NewthreadInfo = vm.threadState.current ?: return@withContext false
-            val Newframe = threadInfo.frame(0)
-            val NewvisibleVariables = frame.visibleVariables()
+            val newThreadInfo = vm.threadState.current ?: return@withContext false
+            val newFrame = newThreadInfo.frame(0)
+            val newVisibleVariables = newFrame.visibleVariables()
 
-            println("______ NewvisibleVariables: ${NewvisibleVariables.get(0)}")
-            println("========= frame: ${Newframe.hashCode()}")
-            println("========= newthreadInfo: ${NewthreadInfo.hashCode()}")
+            println("______ NewvisibleVariables: ${newVisibleVariables.get(0)}")
 
-            val Newvariable = visibleVariables.find { it.name() == nameVar }
+            val newVariable = newVisibleVariables.find { it.name() == nameVar }
                 ?: return@withContext false
 
-            val newValueVar = Newframe.getValue(Newvariable)
-            println("-=-=-=--=-=-=-=- $Newvariable - $newValueVar")
+            val newValueVar = newFrame.getValue(newVariable)
+            println("-=-=-=--=-=-=-=- $newVariable - $newValueVar")
 
             logger.debug("✅ Variable updated in VM: {} = {}", variable.name(), newValue)
             return@withContext true
