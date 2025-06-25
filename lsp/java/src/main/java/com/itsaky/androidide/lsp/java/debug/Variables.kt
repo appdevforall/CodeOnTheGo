@@ -164,7 +164,12 @@ internal class JavaFieldVariable<ValueT : LspValue>(
         private val logger = LoggerFactory.getLogger(JavaFieldVariable::class.java)
     }
 
-    override suspend fun isMutable(): Boolean = !field.isFinal
+    override suspend fun isMutable(): Boolean = !field.isFinal && when (type) {
+        is PrimitiveType -> true
+
+        // TODO: Allow mutating other types of variables
+        else -> false
+    }
     override suspend fun jdiValue(): Value = ref
 
     @Suppress("UNCHECKED_CAST")
@@ -207,7 +212,12 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
         }
     }
 
-    override suspend fun isMutable(): Boolean = true
+    override suspend fun isMutable(): Boolean = when (type) {
+        is PrimitiveType -> true
+
+        // TODO: Allow mutating other types of variables
+        else -> false
+    }
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueType? = withContext(Dispatchers.IO) {
