@@ -660,8 +660,7 @@
   <string name="debugger_variable_dialog_title">%1$s: %2$s</string>
   <string name="debugger_value_null">null</string>
   <string name="debugger_dialog_hint_enter_value">Enter value</string>
-  <string name="debugger_dialog_button_set">SET</string>
-  <string name="debugger_dialog_button_cancel">CANCEL</string>
+  <string name="debugger_dialog_button_set">Set</string>
   <string name="debugger_variable_value_invalid">Invalid value for this variable</string>
 
   <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
