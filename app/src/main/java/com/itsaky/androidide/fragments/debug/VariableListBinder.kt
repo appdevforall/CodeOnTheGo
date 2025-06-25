@@ -13,6 +13,7 @@ import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeNode
@@ -115,6 +116,12 @@ class VariableListBinder(
     ) {
         val context = binding.root.context
         binding.root.setOnLongClickListener {
+            if (!descriptor.isMutable) {
+                // variable is immutable
+                flashError(context.getString(R.string.debugger_error_immutable_variable, descriptor.name))
+                return@setOnLongClickListener false
+            }
+
             val labelText = binding.label.text?.toString()
 
             if (labelText.isNullOrBlank()) return@setOnLongClickListener false
