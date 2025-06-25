@@ -5,13 +5,16 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.debug.DialogUtilsDebug
+import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
 import io.github.dingyi222666.view.treeview.TreeView
@@ -24,6 +27,7 @@ import org.slf4j.LoggerFactory
 
 class VariableListBinder(
     private val coroutineScope: CoroutineScope,
+    private val viewModel: DebuggerViewModel
 ) : TreeViewBinder<ResolvableVariable<*>>() {
 
     private var treeIndent = 0
@@ -122,33 +126,63 @@ class VariableListBinder(
 
             if (!hasValidValue) return@setOnLongClickListener false
 
-            val title = context.getString(
-                R.string.debugger_variable_dialog_title,
-                descriptor.name,
-                descriptor.typeName
-            )
+            showSetValueDialog(context, variable, descriptor, currentValue)
+            true
+        }
+    }
 
-            DialogUtilsDebug.newTextFieldDialog(
-                context = context,
-                title = title,
-                hint = context.getString(R.string.debugger_variable_value_hint),
-                defaultValue = currentValue,
-                onSetClick = { dialog, inputField, newValue ->
-                    coroutineScope.launch {
-                        val isSet = variable.setValue(newValue)
-                        if (isSet) {
-                            inputField.error = null
-                            dialog.dismiss()
-                            // TODO: Update variable tree to reflect newly set value
-                            //      Use DebuggerViewModel.refreshVariables()
-                        } else {
-                            inputField.error = context.getString(R.string.debugger_variable_value_invalid)
+    private fun showSetValueDialog(
+        context: Context,
+        variable: ResolvableVariable<*>,
+        descriptor: VariableDescriptor,
+        currentValue: String
+    ) {
+        val title = context.getString(
+            R.string.debugger_variable_dialog_title,
+            descriptor.name,
+            descriptor.typeName
+        )
+
+        val inflater = LayoutInflater.from(context)
+        val binding = DebuggerSetVariableValueBinding.inflate(inflater)
+        binding.input.setText(currentValue)
+        if (currentValue.isNotEmpty()) {
+            binding.input.selectAll()
+        }
+
+        DialogUtils.newMaterialDialogBuilder(context)
+            .setTitle(title)
+            .setView(binding.root)
+            .setPositiveButton(context.getString(R.string.debugger_dialog_button_set), null)
+            .setNegativeButton(context.getString(android.R.string.cancel), null)
+            .setCancelable(true)
+            .create()
+            .apply {
+                setOnShowListener { dialog ->
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val inputLayout = binding.inputLayout
+                        val input = binding.input
+                        val newValue = input.text?.toString()?.takeIf(String::isNotBlank) ?: run {
+                            binding.inputLayout.error = context.getString(R.string.debugger_variable_value_invalid)
+                            return@setOnClickListener
+                        }
+
+                        coroutineScope.launch {
+                            val isSet = variable.setValue(newValue)
+                            if (isSet) {
+                                inputLayout.error = null
+                                dialog.dismiss()
+                                // TODO: Update variable tree to reflect newly set value
+                                //      Use DebuggerViewModel.refreshVariables()
+                            } else {
+                                inputLayout.error =
+                                    context.getString(R.string.debugger_variable_value_invalid)
+                            }
                         }
                     }
                 }
-            ).show()
-            true
-        }
+            }
+            .show()
     }
 }
 
