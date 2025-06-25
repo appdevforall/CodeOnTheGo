@@ -115,10 +115,11 @@ internal class EventRequestSpecList(
     fun createBreakpoint(
         source: Source,
         lineNumber: Int,
+        qualifiedName: String? = null,
         suspendPolicy: Int = BreakpointRequest.SUSPEND_NONE,
-        threadFilter: ThreadReference? = null
+        threadFilter: ThreadReference? = null,
     ): BreakpointSpec {
-        val refType = SourceReferenceTypeSpec(source)
+        val refType = SourceReferenceTypeSpec(source, qualifiedName)
         return BreakpointSpec(refType, suspendPolicy, lineNumber, threadFilter)
     }
 
@@ -126,10 +127,11 @@ internal class EventRequestSpecList(
         source: Source,
         methodId: String,
         methodArgs: List<String> = emptyList(),
+        qualifiedName: String? = null,
         suspendPolicy: Int = BreakpointRequest.SUSPEND_NONE,
         threadFilter: ThreadReference? = null
     ): BreakpointSpec {
-        val refType = SourceReferenceTypeSpec(source)
+        val refType = SourceReferenceTypeSpec(source, qualifiedName)
         return BreakpointSpec(
             refType,
             suspendPolicy,
