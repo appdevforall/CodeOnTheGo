@@ -483,7 +483,7 @@ class Style: Value() {
   override fun toString(): String {
     val sb = StringBuilder(parent?.name.toString() +"\n")
     for (entry in entries) {
-      sb.appendln(entry.key.name.toString() + "    " + entry.value?.toString())
+      sb.appendLine(entry.key.name.toString() + "    " + entry.value?.toString())
     }
     return sb.toString()
   }
