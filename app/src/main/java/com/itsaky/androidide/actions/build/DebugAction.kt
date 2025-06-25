@@ -8,15 +8,12 @@ import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_DIR
 import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_INJECT
-import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_LIBDIR
 import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_OPTIONS
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
-import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.Environment
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * Run the application to
@@ -61,7 +58,7 @@ class DebugAction(
         val debugArgs = mutableListOf<String>()
         debugArgs.add("-P$PROP_JDWP_INJECT=${JdwpOptions.JDWP_ENABLED}")
         if (JdwpOptions.JDWP_ENABLED) {
-            debugArgs.add("-P$PROP_JDWP_LIBDIR=${Environment.JDWP_LIB_DIR.absolutePath}")
+            debugArgs.add("-P$PROP_JDWP_DIR=${Environment.JDWP_DIR.absolutePath}")
             debugArgs.add("-P$PROP_JDWP_OPTIONS=${JdwpOptions.JDWP_OPTIONS}")
         }
 

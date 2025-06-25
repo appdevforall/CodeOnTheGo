@@ -5,19 +5,25 @@ import com.itsaky.androidide.lsp.debug.model.PrimitiveValue
 import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
 import com.itsaky.androidide.lsp.debug.model.StringValue
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
+import com.itsaky.androidide.lsp.debug.model.ThreadState
 import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.sun.jdi.StackFrame
+import com.sun.jdi.ThreadReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import com.itsaky.androidide.lsp.debug.model.StackFrame as LspStackFrame
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo as LspThreadInfo
+import com.itsaky.androidide.lsp.debug.model.ThreadState as LspThreadState
 import com.itsaky.androidide.lsp.debug.model.Variable as LspVariable
 
 class JavaStackFrame(
     val frame: StackFrame,
 ) : LspStackFrame {
+
+    private val logger = LoggerFactory.getLogger(JavaStackFrame::class.java)
 
     override suspend fun descriptor() = withContext(Dispatchers.IO) {
         val location = frame.location()
@@ -91,6 +97,10 @@ internal class LspThreadInfo(
     val thread: ThreadInfo
 ) : LspThreadInfo {
 
+    companion object {
+        private val logger = LoggerFactory.getLogger(LspThreadInfo::class.java)
+    }
+
     override suspend fun descriptor(): ThreadDescriptor = withContext(Dispatchers.IO) {
         val thread = thread.thread
         val group = thread.threadGroup()
@@ -99,11 +109,23 @@ internal class LspThreadInfo(
             id = thread.uniqueID().toString(),
             name = thread.name(),
             group = group.name(),
-            state = thread.status().toString()
+            state = threadStateOf(thread.status())
         )
     }
 
-    override suspend fun getFrames(): List<LspStackFrame> =
-        thread.frames()
+    override suspend fun getFrames(): List<LspStackFrame> {
+        return thread.frames()
             .map(::JavaStackFrame)
+    }
+}
+
+private fun threadStateOf(state: Int) = when (state) {
+    ThreadReference.THREAD_STATUS_UNKNOWN -> LspThreadState.UNKNOWN
+    ThreadReference.THREAD_STATUS_ZOMBIE -> LspThreadState.ZOMBIE
+    ThreadReference.THREAD_STATUS_RUNNING -> LspThreadState.RUNNING
+    ThreadReference.THREAD_STATUS_SLEEPING -> LspThreadState.SLEEPING
+    ThreadReference.THREAD_STATUS_MONITOR -> LspThreadState.MONITOR
+    ThreadReference.THREAD_STATUS_WAIT -> LspThreadState.WAITING
+    ThreadReference.THREAD_STATUS_NOT_STARTED -> LspThreadState.NOT_STARTED
+    else -> ThreadState.UNKNOWN
 }

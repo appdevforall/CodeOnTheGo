@@ -8,12 +8,10 @@ import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.debug.IDebugEventHandler
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.debug.events.BreakpointHitEvent
-import com.itsaky.androidide.lsp.debug.events.BreakpointHitResponse
 import com.itsaky.androidide.lsp.debug.events.StepEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.LocatableEvent
 import com.itsaky.androidide.lsp.debug.model.Location
-import com.itsaky.androidide.lsp.debug.model.ResumePolicy
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResult
 import com.itsaky.androidide.lsp.debug.model.StepType
@@ -74,7 +72,7 @@ class IDEDebugClientImpl(
     val debugeePackage: String
         get() = viewModel.debugeePackage
 
-    private val clientOrNull: RemoteClient?
+    internal val clientOrNull: RemoteClient?
         get() = clients.firstOrNull()
 
     /**
@@ -109,6 +107,7 @@ class IDEDebugClientImpl(
         clientScope.launch {
             if (client.adapter.suspendClient(client)) {
                 connectionState = DebuggerConnectionState.SUSPENDED
+                updateThreadInfo(client)
             }
         }
     }
@@ -128,6 +127,7 @@ class IDEDebugClientImpl(
         clientScope.launch {
             if (client.adapter.resumeClient(client)) {
                 connectionState = DebuggerConnectionState.ATTACHED
+                updateThreadInfo(client)
             }
         }
     }
@@ -210,48 +210,26 @@ class IDEDebugClientImpl(
         clientScope.launch { breakpoints.toggle(file, line) }
     }
 
-    override fun onBreakpointHit(event: BreakpointHitEvent): BreakpointHitResponse {
+    override fun onBreakpointHit(event: BreakpointHitEvent) {
         logger.debug("onBreakpointHit: {}", event)
 
         clientScope.launch {
-            updateThreadInfo(event.remoteClient)
             connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
+            updateThreadInfo(event.remoteClient, event.threadId)
 
             openLocation(event)
         }
-
-        return BreakpointHitResponse(
-            remoteClient = event.remoteClient,
-            resumePolicy = ResumePolicy.SUSPEND_THREAD
-        )
     }
 
     override fun onStep(event: StepEvent) {
         logger.debug("onStep: {}", event)
 
         clientScope.launch {
-            updateThreadInfo(event.remoteClient)
+            updateThreadInfo(event.remoteClient, event.threadId)
             connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
 
             openLocation(event)
         }
-    }
-
-    private suspend fun updateThreadInfo(client: RemoteClient) {
-        val adapter = client.adapter
-        val threadResponse = adapter.allThreads(
-            ThreadListRequestParams(
-                remoteClient = client
-            )
-        )
-
-        val threads = threadResponse.threads
-        if (threads.isEmpty()) {
-            logger.error("Failed to get info about active threads in VM: {}", client.name)
-            return
-        }
-
-        viewModel.setThreads(threads)
     }
 
     override fun onAttach(client: RemoteClient) {
@@ -264,9 +242,10 @@ class IDEDebugClientImpl(
         clients += client
         connectionState = DebuggerConnectionState.ATTACHED
         breakpoints.unhighlightHighlightedLocation()
-        viewModel.setThreads(emptyList())
 
         clientScope.launch {
+            updateThreadInfo(client)
+
             val breakpoints = breakpoints.allBreakpoints
             client.adapter.setBreakpoints(
                 BreakpointRequest(
@@ -279,14 +258,52 @@ class IDEDebugClientImpl(
 
     override fun onDisconnect(client: RemoteClient) {
         logger.debug("onDisconnect: client={}", client)
-        if (clients.size == 1 && clients.first() == client) {
-            // reset debugger UI
-            viewModel.setThreads(emptyList())
-        }
-
         breakpoints.unhighlightHighlightedLocation()
         clients -= client
         connectionState = DebuggerConnectionState.DETACHED
+        clientScope.launch { updateThreadInfo(client) }
+    }
+
+    private suspend fun updateThreadInfo(
+        client: RemoteClient,
+        selectedThreadId: String? = null,
+    ) {
+        val adapter = client.adapter
+        var selectedThreadIndex = -1
+        val threads = when (connectionState) {
+            DebuggerConnectionState.DETACHED,
+            DebuggerConnectionState.ATTACHED -> emptyList()
+
+            DebuggerConnectionState.SUSPENDED,
+            DebuggerConnectionState.AWAITING_BREAKPOINT -> {
+                val threadResponse = adapter.allThreads(
+                    ThreadListRequestParams(
+                        remoteClient = client
+                    )
+                )
+
+                val threads = threadResponse.threads
+                if (threads.isEmpty()) {
+                    logger.error("Failed to get info about active threads in VM: {}", client.name)
+                } else if (selectedThreadId != null) {
+                    selectedThreadIndex = threads.indexOfFirst {
+                        it.descriptor().id == selectedThreadId
+                    }
+                }
+
+                threads
+            }
+        }
+
+        if (threads.isNotEmpty() && selectedThreadIndex < 0) {
+            selectedThreadIndex = 0
+        }
+
+        viewModel.setThreads(threads)
+
+        if (selectedThreadIndex >= 0) {
+            viewModel.setSelectedThreadIndex(selectedThreadIndex)
+        }
     }
 
     private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)
