@@ -116,12 +116,6 @@ class ResolvableVariable<T : Value> private constructor(
 
     fun resolvedKind(): VariableKind = deferred.completedOrNull?.kind ?: VariableKind.UNKNOWN
 
-    suspend fun updateRemoteValue(debugAdapter: IDebugAdapter, newValueStr: String): Boolean {
-        overriddenValue = newValueStr
-        val value = overriddenValue ?: return false
-        return debugAdapter.setVariable(deferred.completedOrNull?.name ?: "", value)
-    }
-
     companion object {
 
         private val logger = LoggerFactory.getLogger(ResolvableVariable::class.java)

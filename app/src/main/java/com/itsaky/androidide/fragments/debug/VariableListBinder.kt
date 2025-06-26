@@ -187,19 +187,7 @@ class VariableListBinder(
                                 // TODO: Update variable tree to reflect newly set value
                                 //      Use DebuggerViewModel.refreshVariables()
 
-                                viewModel.refreshVariables() // esto tengo que usar ahora
-
-                                // este es mi implementacion anterior
-                                coroutineScope.launch {
-
-                                    val adapter = JavaDebugAdapter.currentInstance() ?: return@launch
-                                    node.data?.updateRemoteValue(adapter, newValue)
-
-                                    (binding.root.parent as? TreeView<ResolvableVariable<*>>)?.let { treeView ->
-                                        treeView.refresh(fastRefresh = true, node = node)
-                                    }
-                                }
-
+                                viewModel.refreshVariables()
                             } else {
                                 inputLayout.error =
                                     context.getString(R.string.debugger_variable_value_invalid)
