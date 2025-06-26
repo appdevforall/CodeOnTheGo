@@ -202,9 +202,10 @@ class DebuggerViewModel : ViewModel() {
             threadIndex = threadIndex,
             frameIndex = frameIndex,
             variablesTree = createVariablesTree(
-                resolvableThreads,
-                threadIndex,
-                frameIndex
+                threads = resolvableThreads,
+                threadIndex = threadIndex,
+                frameIndex = frameIndex,
+                resolve = false
             )
         )
 
@@ -223,15 +224,16 @@ class DebuggerViewModel : ViewModel() {
     private suspend fun createVariablesTree(
         threads: List<ResolvableThreadInfo>,
         threadIndex: Int,
-        frameIndex: Int
+        frameIndex: Int,
+        resolve: Boolean = true,
     ): Tree<ResolvableVariable<*>> = coroutineScope {
 
-        // resolve the data we need to render the UI
-        threads.map { thread ->
-            async {
+        if (resolve) {
+            // resolve the data we need to render the UI
+            threads.forEach { thread ->
                 thread.resolve()
             }
-        }.awaitAll()
+        }
 
         val roots =
             threads.getOrNull(threadIndex)

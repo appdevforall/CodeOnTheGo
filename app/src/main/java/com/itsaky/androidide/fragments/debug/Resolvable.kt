@@ -12,9 +12,13 @@ import com.itsaky.androidide.lsp.java.utils.completedOrNull
 import com.itsaky.androidide.lsp.java.utils.getValue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -50,15 +54,18 @@ abstract class AbstractResolvable<T> : Resolvable<T> {
     companion object {
         @JvmStatic
         protected val logger: Logger = LoggerFactory.getLogger(AbstractResolvable::class.java)
+        private val resolutionDispatcher = Dispatchers.IO.limitedParallelism(1)
     }
 
     final override suspend fun resolve(): T? {
-        val result = try {
-            doResolve()?.also(_deferred::complete)
-        } catch (err: Throwable) {
-            logger.error("Resolution failure", err)
-            _deferred.completeExceptionally(err)
-            null
+        val result = withContext(resolutionDispatcher) {
+            try {
+                doResolve()?.also(_deferred::complete)
+            } catch (err: Throwable) {
+                logger.error("Resolution failure", err)
+                _deferred.completeExceptionally(err)
+                null
+            }
         }
 
         return result
@@ -135,19 +142,16 @@ class ResolvableVariable<T : Value> private constructor(
     /**
      * Resolve the variable state.
      */
-    override suspend fun doResolve(): VariableDescriptor = coroutineScope {
+    override suspend fun doResolve(): VariableDescriptor {
         logger.debug("Resolving variable: {}", delegate.descriptor().name)
         // NOTE:
         // Care must be taken to only resolve values which are absolutely needed
         // to render the UI. Resolution of values which are not immediately required must be deferred.
 
-        val value = async {
-            delegate.value()
-        }
-
+        val value = delegate.value()
         val descriptor = delegate.descriptor()
-        deferredValue.complete(value.await())
-        return@coroutineScope descriptor
+        deferredValue.complete(value)
+        return descriptor
     }
 
     override suspend fun objectMembers(): Set<ResolvableVariable<*>> =
