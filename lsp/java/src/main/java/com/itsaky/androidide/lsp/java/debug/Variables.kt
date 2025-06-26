@@ -3,13 +3,11 @@ package com.itsaky.androidide.lsp.java.debug
 import com.itsaky.androidide.lsp.debug.model.ArrayLikeValue
 import com.itsaky.androidide.lsp.debug.model.PrimitiveKind
 import com.itsaky.androidide.lsp.debug.model.PrimitiveVariable
-import com.itsaky.androidide.lsp.debug.model.ReferenceValue
-import com.itsaky.androidide.lsp.debug.model.StringVariable
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
+import com.itsaky.androidide.lsp.java.debug.utils.VariableValues
 import com.itsaky.androidide.lsp.java.debug.utils.mirrorOf
-import com.itsaky.androidide.lsp.java.debug.utils.parseValue
 import com.sun.jdi.ArrayReference
 import com.sun.jdi.ArrayType
 import com.sun.jdi.BooleanType
@@ -30,29 +28,46 @@ import com.sun.jdi.ReferenceType
 import com.sun.jdi.ShortType
 import com.sun.jdi.StackFrame
 import com.sun.jdi.StringReference
+import com.sun.jdi.ThreadReference
 import com.sun.jdi.Type
 import com.sun.jdi.Value
+import com.sun.jdi.VoidValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue as LspPrimitiveValue
-import com.itsaky.androidide.lsp.debug.model.StringValue as LspStringValue
+import com.itsaky.androidide.lsp.debug.model.ReferenceValue as LspReferenceValue
 import com.itsaky.androidide.lsp.debug.model.Value as LspValue
 
-private fun Value.toLspValue(): LspValue = when (this) {
-    is PrimitiveValue -> JavaPrimitiveValue(this)
-    is StringReference -> JavaStringValue(this)
-    is ArrayReference -> JavaArrayLikeValue(this)
-    else -> JavaReferenceValue(this)
+private suspend fun toLspValue(thread: ThreadReference, value: Value): LspValue = when (value) {
+    is PrimitiveValue -> JavaPrimitiveValue.create(value)
+    is VoidValue -> JavaVoidValue.create(value)
+    is ArrayReference -> JavaArrayLikeValue.create(thread, value)
+    is ObjectReference -> JavaReferenceValue.create(thread, value)
+    else -> throw IllegalArgumentException("Unsupported value type: $value")
 }
 
 sealed class BaseJavaValue(
     override val value: Any
 ) : LspValue
 
-internal class JavaPrimitiveValue(
+internal class JavaVoidValue private constructor(
+    void: VoidValue
+) : BaseJavaValue(void) {
+    companion object {
+        fun create(void: VoidValue) = JavaVoidValue(void)
+    }
+
+    override fun toString(): String = "void"
+}
+
+internal class JavaPrimitiveValue private constructor(
     private val primitive: PrimitiveValue
 ) : BaseJavaValue(primitive), LspPrimitiveValue {
+
+    companion object {
+        fun create(primitive: PrimitiveValue) = JavaPrimitiveValue(primitive)
+    }
 
     override val kind: PrimitiveKind by lazy {
         when (primitive.type()) {
@@ -80,31 +95,100 @@ internal class JavaPrimitiveValue(
     override fun toString(): String = asString()
 }
 
-internal class JavaStringValue(
-    private val jdi: StringReference
-) : BaseJavaValue(jdi), LspStringValue {
-    override fun asString(): String = jdi.value()
-    override fun toString(): String = asString()
+internal class JavaReferenceValue private constructor(
+    ref: ObjectReference,
+    private val stringRepr: String,
+) : BaseJavaValue(ref), LspReferenceValue {
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(JavaReferenceValue::class.java)
+
+        suspend fun create(thread: ThreadReference, ref: ObjectReference): JavaReferenceValue {
+            val str = runCatching {
+                if (ref is StringReference) {
+                    return@runCatching ref.value()
+                }
+
+                // TODO: Call toString() on reference to get its String representation
+                //    However, if we try to invoke any method on the reference, the remote VM will resume
+                //    the thread, which may result in other variable resolutions to fail because the
+                //    thread would been resumed
+
+                val invocationContext = JavaDebugAdapter.requireInstance()
+                    .evalContext()
+
+                val result = invocationContext.evaluate(thread) {
+                    val type = ref.referenceType()
+                    val method = type.methodsByName(
+                        "toString",
+                        "()Ljava/lang/String;",
+                    ).firstOrNull() ?: return@evaluate null
+
+                    ref.invokeMethod(
+                        thread,
+                        method,
+                        emptyList(),
+                        ObjectReference.INVOKE_SINGLE_THREADED
+                    )
+                }
+
+                (result as? StringReference?)?.value() ?: ref.toString()
+
+//                val type = ref.referenceType()
+//                val method = type.methodsByName("toString", "()Ljava/lang/String;")
+//                    .firstOrNull() ?: run {
+//                    logger.error("No toString method found for type {}", type)
+//                    // use the default string representation
+//                    return@runCatching ref.toString()
+//                }
+//
+//                val result = (ref.invokeMethod(
+//                    thread,
+//                    method,
+//                    emptyList(),
+//
+//                    // INVOKE_SINGLE_THREADED is required to ensure that the thread is suspended
+//                    // again after method invocation
+//                    ObjectReference.INVOKE_SINGLE_THREADED
+//                ) as StringReference).value()
+//
+//                result
+            }
+
+            if (str.isFailure) {
+                logger.error(
+                    "Failed to get string representation of object {}",
+                    ref,
+                    str.exceptionOrNull()
+                )
+            }
+
+            return JavaReferenceValue(ref, str.getOrDefault(ref.toString()))
+        }
+    }
+
+    override fun toString(): String = stringRepr
 }
 
-internal class JavaReferenceValue(
-    private val jdi: Value
-) : BaseJavaValue(jdi), ReferenceValue {
-
-    override fun toString(): String = jdi.toString()
-}
-
-internal class JavaArrayLikeValue(
+internal class JavaArrayLikeValue private constructor(
+    private val thread: ThreadReference,
     private val jdi: ArrayReference
 ) : BaseJavaValue(jdi), ArrayLikeValue {
+
+    companion object {
+        suspend fun create(thread: ThreadReference, jdi: ArrayReference) =
+            JavaArrayLikeValue(thread, jdi)
+    }
 
     override val size: ULong
         get() = jdi.length().toULong()
 
-    override fun get(index: ULong): LspValue = jdi.getValue(index.toInt()).toLspValue()
+    override suspend fun get(index: ULong): LspValue =
+        toLspValue(thread, jdi.getValue(index.toInt()))
 }
 
 internal abstract class AbstractJavaVariable<ValueT : LspValue>(
+    protected val thread: ThreadReference,
     protected val name: String,
     protected val typeName: String,
     protected val type: Type,
@@ -122,7 +206,7 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
     }
 
     protected abstract suspend fun jdiValue(): Value
-    protected open suspend fun isMutable(): Boolean = false
+    protected open suspend fun isMutable(): Boolean = VariableValues.canMutate(type)
 
     override suspend fun descriptor(): VariableDescriptor {
         return VariableDescriptor(
@@ -135,58 +219,62 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
 
     override suspend fun objectMembers(): Set<Variable<*>> = withContext(Dispatchers.IO) {
         val value = jdiValue()
-        val type = value.type()
         if (value !is ObjectReference) {
             // TODO: We can provide other information as 'members' for other types of variables.
             return@withContext emptySet()
         }
 
-        type as ReferenceType
+        val evaluationContext = JavaDebugAdapter.requireInstance()
+            .evalContext()
+        val type = value.referenceType()
+        val fields = evaluationContext.evaluate(thread) { type.allFields() } ?: emptyList()
 
-        val fields = type.allFields()
         fields.map { field ->
-            JavaFieldVariable<ValueT>(value, type, field)
+            JavaFieldVariable<ValueT>(thread, value, type, field)
         }.toSet()
     }
 }
 
 internal class JavaFieldVariable<ValueT : LspValue>(
+    thread: ThreadReference,
     private val ref: ObjectReference,
     private val refType: ReferenceType,
     private val field: Field,
 ) : AbstractJavaVariable<ValueT>(
+    thread = thread,
     name = field.name(),
     typeName = field.typeName(),
-    type = field.type()
+    type = refType
 ) {
 
     companion object {
         private val logger = LoggerFactory.getLogger(JavaFieldVariable::class.java)
     }
 
-    override suspend fun isMutable(): Boolean = !field.isFinal && when (type) {
-        is PrimitiveType -> true
-
-        // TODO: Allow mutating other types of variables
-        else -> false
-    }
     override suspend fun jdiValue(): Value = ref
 
     @Suppress("UNCHECKED_CAST")
-    override suspend fun value(): ValueT = withContext(Dispatchers.IO) {
-        (if (field.isStatic) refType.getValue(field) else ref.getValue(field)).toLspValue() as ValueT
+    override suspend fun value(): ValueT {
+        val evalContext = JavaDebugAdapter.requireInstance().evalContext()
+        return toLspValue(thread, evalContext.evaluate(thread) {
+            if (field.isStatic) refType.getValue(field) else ref.getValue(field)
+        }!!) as ValueT
     }
 
     override suspend fun setValue(value: String): Boolean {
-        val newValue = this.field.parseValue(type, value) ?: run {
+        val newValue = VariableValues.parseValue(field, type, value) ?: run {
             logger.error("Failed to parse value '{}' for variable '{}'", value, name)
             return false
         }
 
+        val evalContext = JavaDebugAdapter.requireInstance().evalContext()
+
         return withContext(Dispatchers.IO) {
             try {
-                ref.setValue(field, newValue)
-                true
+                evalContext.evaluate(thread) {
+                    ref.setValue(field, newValue)
+                    true
+                } ?: false
             } catch (err: Throwable) {
                 logger.error("Failed to set value of variable '{}'", name, err)
                 false
@@ -195,50 +283,63 @@ internal class JavaFieldVariable<ValueT : LspValue>(
     }
 }
 
-internal abstract class JavaLocalVariable<ValueType : LspValue>(
+internal open class JavaLocalVariable<ValueType : LspValue>(
+    thread: ThreadReference,
     protected val stackFrame: StackFrame,
     protected val variable: LocalVariable,
 ) : AbstractJavaVariable<ValueType>(
-    name = variable.name(), typeName = variable.typeName(), type = variable.type()
+    thread = thread,
+    name = variable.name(),
+    typeName = variable.typeName(),
+    type = if (variable is ObjectReference) variable.referenceType() else variable.type()
 ) {
 
     companion object {
         private val logger = LoggerFactory.getLogger(JavaLocalVariable::class.java)
         internal fun forVariable(
-            stackFrame: StackFrame, variable: LocalVariable
+            stackFrame: StackFrame,
+            variable: LocalVariable,
+            thread: ThreadReference = stackFrame.thread(),
         ): JavaLocalVariable<*> = when (variable.type()) {
-            is PrimitiveType -> JavaPrimitiveVariable(stackFrame, variable)
-            else -> JavaStringVariable(stackFrame, variable)
+            is PrimitiveType -> JavaPrimitiveVariable(thread, stackFrame, variable)
+            else -> JavaLocalVariable<LspValue>(thread, stackFrame, variable)
         }
     }
 
-    override suspend fun isMutable(): Boolean = when (type) {
-        is PrimitiveType -> true
-
-        // TODO: Allow mutating other types of variables
-        else -> false
-    }
-
     @Suppress("UNCHECKED_CAST")
-    override suspend fun value(): ValueType? = withContext(Dispatchers.IO) {
-        try {
-            if (!stackFrame.thread().isSuspended) {
-                logger.warn("Thread is not suspended; cannot access variable '{}'", variable.name())
-                return@withContext null
+    override suspend fun value(): ValueType? {
+        if (!stackFrame.thread().isSuspended) {
+            logger.warn("Thread is not suspended; cannot access variable '{}'", variable.name())
+            return null
+        }
+
+        return try {
+            val evalContext = JavaDebugAdapter.requireInstance()
+                .evalContext()
+
+            val thread = stackFrame.thread()
+            val rawValue = evalContext.evaluate(thread) {
+                stackFrame.getValue(variable)
             }
-            val rawValue = stackFrame.getValue(variable)
-            rawValue?.let {
-                it.toLspValue() as ValueType
+
+            rawValue?.let { value ->
+                toLspValue(thread, value) as ValueType
             }
         } catch (e: InternalException) {
             if (e.message?.contains("JDWP Error: 32") == true) {
-                logger.warn("JDWP Error 32: Invalid frame when accessing variable '{}'", variable.name())
+                logger.warn(
+                    "JDWP Error 32: Invalid frame when accessing variable '{}'",
+                    variable.name()
+                )
             } else {
                 logger.error("Unexpected JDWP error when accessing '{}'", variable.name(), e)
             }
             null
         } catch (e: InvalidStackFrameException) {
-            logger.warn("Stack frame invalid or no longer available for variable '{}'", variable.name())
+            logger.warn(
+                "Stack frame invalid or no longer available for variable '{}'",
+                variable.name()
+            )
             null
         } catch (e: Exception) {
             logger.error(
@@ -251,7 +352,10 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
         }
     }
 
-    override suspend fun jdiValue(): Value = stackFrame.getValue(variable)
+    override suspend fun jdiValue(): Value =
+        JavaDebugAdapter.requireInstance().evalContext().evaluate(thread) {
+            stackFrame.getValue(variable)
+        }!!
 
     protected inline fun <reified T : Type> requireType(action: () -> Unit) {
         check(type is T) {
@@ -261,7 +365,7 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
     }
 
     override suspend fun setValue(value: String): Boolean {
-        val newValue = this.variable.parseValue(type, value) ?: run {
+        val newValue = VariableValues.parseValue(variable, type, value) ?: run {
             logger.error("Failed to parse value '{}' for variable '{}'", value, name)
             return false
         }
@@ -275,9 +379,10 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
         }
     }
 
-    protected suspend fun setValue(value: Value) = withContext(Dispatchers.IO) {
-        stackFrame.setValue(variable, value)
-    }
+    protected suspend fun setValue(value: Value) =
+        JavaDebugAdapter.requireInstance().evalContext().evaluate(thread) {
+            stackFrame.setValue(variable, value)
+        }
 
     override suspend fun objectMembers(): Set<Variable<*>> {
         return super.objectMembers()
@@ -285,9 +390,10 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
 }
 
 internal class JavaPrimitiveVariable(
+    thread: ThreadReference,
     stackFrame: StackFrame,
     variable: LocalVariable,
-) : JavaLocalVariable<LspPrimitiveValue>(stackFrame, variable), PrimitiveVariable {
+) : JavaLocalVariable<LspPrimitiveValue>(thread, stackFrame, variable), PrimitiveVariable {
 
     override val primitiveKind: PrimitiveKind by lazy {
         when (type) {
@@ -333,14 +439,5 @@ internal class JavaPrimitiveVariable(
 
     internal suspend fun doSetValue(double: Double) = requireType<ByteType> {
         setValue(variable.mirrorOf(double))
-    }
-}
-
-internal class JavaStringVariable(
-    stackFrame: StackFrame,
-    variable: LocalVariable,
-) : JavaLocalVariable<LspStringValue>(stackFrame, variable), StringVariable {
-    internal suspend fun doSetValue(string: String) = requireType<ByteType> {
-        setValue(variable.mirrorOf(string))
     }
 }
