@@ -7,6 +7,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
+import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.utils.completedOrNull
 import com.itsaky.androidide.lsp.java.utils.getValue
 import kotlinx.coroutines.CompletableDeferred
@@ -109,6 +110,8 @@ class ResolvableVariable<T : Value> private constructor(
     fun resolvedValue() = deferredValue.getValue(
         defaultValue = null,
     )
+
+    fun resolvedKind(): VariableKind = deferred.completedOrNull?.kind ?: VariableKind.UNKNOWN
 
     companion object {
 

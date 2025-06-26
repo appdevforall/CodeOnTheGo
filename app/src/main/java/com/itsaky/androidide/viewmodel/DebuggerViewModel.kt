@@ -10,9 +10,7 @@ import com.itsaky.androidide.fragments.debug.resolvedOrNull
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.debug.model.StackFrame
-import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo
-import com.itsaky.androidide.lsp.debug.model.ThreadState
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -211,6 +209,15 @@ class DebuggerViewModel : ViewModel() {
         )
 
         state.update { newState }
+    }
+
+    fun refreshVariables() {
+        viewModelScope.launch {
+            val currentState = state.value
+            val tree = createVariablesTree(currentState.threads, currentState.threadIndex, currentState.frameIndex)
+            val newState = currentState.copy(variablesTree = tree)
+            state.update { newState }
+        }
     }
 
     private suspend fun createVariablesTree(
