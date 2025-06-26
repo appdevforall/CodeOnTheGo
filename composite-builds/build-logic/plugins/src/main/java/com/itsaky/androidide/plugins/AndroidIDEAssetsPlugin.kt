@@ -27,6 +27,7 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
 import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
+import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyDocDbToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleCachesToAssetsTask
@@ -137,7 +138,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 // Tooling API JAR copier
                 val copyToolingApiJar = tasks.register(
                     "copy${variantNameCapitalized}ToolingApiJar",
-                    AddFileToAssetsTask::class.java
+                    AddBrotliFileToAssetsTask::class.java
                 ) {
                     val toolingApi = rootProject.findProject(":subprojects:tooling-api-impl")!!
                     dependsOn(toolingApi.tasks.getByName("copyJar"))
@@ -150,7 +151,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     copyToolingApiJar,
-                    AddFileToAssetsTask::outputDirectory
+                    AddBrotliFileToAssetsTask::outputDirectory
                 )
 
                 val copyCogoPluginJar = tasks.register(

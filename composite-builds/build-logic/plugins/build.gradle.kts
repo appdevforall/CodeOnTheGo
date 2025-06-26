@@ -39,6 +39,13 @@ dependencies {
   implementation(libs.common.antlr4)
   implementation(libs.google.gson)
   implementation(libs.google.java.format)
+
+  implementation("com.aayushatharva.brotli4j:brotli4j:1.18.0")
+  implementation("com.aayushatharva.brotli4j:native-linux-x86_64:1.18.0")
+  implementation("com.aayushatharva.brotli4j:native-windows-x86_64:1.18.0")
+  implementation("com.aayushatharva.brotli4j:native-osx-aarch64:1.18.0")
+
+
 }
 
 gradlePlugin {
