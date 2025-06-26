@@ -4,18 +4,19 @@ import com.itsaky.androidide.lsp.debug.model.Source
 import com.sun.jdi.ReferenceType
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.request.ClassPrepareRequest
-import org.slf4j.LoggerFactory
 
 /**
  * @author Akash Yadav
  */
 class SourceReferenceTypeSpec(
     internal val source: Source,
+    internal val qualifiedName: String?
 ) : ReferenceTypeSpec {
 
-    companion object {
-        private val logger = LoggerFactory.getLogger(SourceReferenceTypeSpec::class.java)
-    }
+    override fun matchingRefTypes(vm: VirtualMachine): List<ReferenceType> =
+        qualifiedName?.let { name ->
+            vm.classesByName(name)
+        } ?: emptyList()
 
     override fun matches(vm: VirtualMachine, refType: ReferenceType): Boolean {
         try {

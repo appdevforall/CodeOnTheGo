@@ -8,36 +8,30 @@ import com.itsaky.androidide.lsp.debug.model.StringVariable
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
+import com.itsaky.androidide.lsp.java.debug.utils.mirrorOf
+import com.itsaky.androidide.lsp.java.debug.utils.parseValue
 import com.sun.jdi.ArrayReference
 import com.sun.jdi.ArrayType
 import com.sun.jdi.BooleanType
-import com.sun.jdi.BooleanValue
 import com.sun.jdi.ByteType
-import com.sun.jdi.ByteValue
 import com.sun.jdi.CharType
-import com.sun.jdi.CharValue
 import com.sun.jdi.DoubleType
-import com.sun.jdi.DoubleValue
 import com.sun.jdi.Field
 import com.sun.jdi.FloatType
-import com.sun.jdi.FloatValue
 import com.sun.jdi.IntegerType
-import com.sun.jdi.IntegerValue
+import com.sun.jdi.InternalException
+import com.sun.jdi.InvalidStackFrameException
 import com.sun.jdi.LocalVariable
 import com.sun.jdi.LongType
-import com.sun.jdi.LongValue
-import com.sun.jdi.Mirror
 import com.sun.jdi.ObjectReference
 import com.sun.jdi.PrimitiveType
 import com.sun.jdi.PrimitiveValue
 import com.sun.jdi.ReferenceType
 import com.sun.jdi.ShortType
-import com.sun.jdi.ShortValue
 import com.sun.jdi.StackFrame
 import com.sun.jdi.StringReference
 import com.sun.jdi.Type
 import com.sun.jdi.Value
-import com.sun.jdi.VoidValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -51,17 +45,6 @@ private fun Value.toLspValue(): LspValue = when (this) {
     is ArrayReference -> JavaArrayLikeValue(this)
     else -> JavaReferenceValue(this)
 }
-
-private fun Mirror.mirrorOf(value: Boolean): BooleanValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: Byte): ByteValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: Char): CharValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: Short): ShortValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: Int): IntegerValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: Long): LongValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: Float): FloatValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: Double): DoubleValue = virtualMachine().mirrorOf(value)
-private fun Mirror.mirrorOf(value: String): StringReference = virtualMachine().mirrorOf(value)
-private fun Mirror.void(): VoidValue = virtualMachine().mirrorOfVoid()
 
 sealed class BaseJavaValue(
     override val value: Any
@@ -141,12 +124,14 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
     protected abstract suspend fun jdiValue(): Value
     protected open suspend fun isMutable(): Boolean = false
 
-    override suspend fun descriptor() = VariableDescriptor(
-        name = name,
-        typeName = typeName,
-        kind = kind,
-        isMutable = isMutable()
-    )
+    override suspend fun descriptor(): VariableDescriptor {
+        return VariableDescriptor(
+            name = name,
+            typeName = typeName,
+            kind = kind,
+            isMutable = isMutable(),
+        )
+    }
 
     override suspend fun objectMembers(): Set<Variable<*>> = withContext(Dispatchers.IO) {
         val value = jdiValue()
@@ -170,15 +155,43 @@ internal class JavaFieldVariable<ValueT : LspValue>(
     private val refType: ReferenceType,
     private val field: Field,
 ) : AbstractJavaVariable<ValueT>(
-    name = field.name(), typeName = field.typeName(), type = field.type()
+    name = field.name(),
+    typeName = field.typeName(),
+    type = field.type()
 ) {
 
-    override suspend fun isMutable(): Boolean = !field.isFinal
+    companion object {
+        private val logger = LoggerFactory.getLogger(JavaFieldVariable::class.java)
+    }
+
+    override suspend fun isMutable(): Boolean = !field.isFinal && when (type) {
+        is PrimitiveType -> true
+
+        // TODO: Allow mutating other types of variables
+        else -> false
+    }
     override suspend fun jdiValue(): Value = ref
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueT = withContext(Dispatchers.IO) {
         (if (field.isStatic) refType.getValue(field) else ref.getValue(field)).toLspValue() as ValueT
+    }
+
+    override suspend fun setValue(value: String): Boolean {
+        val newValue = this.field.parseValue(type, value) ?: run {
+            logger.error("Failed to parse value '{}' for variable '{}'", value, name)
+            return false
+        }
+
+        return withContext(Dispatchers.IO) {
+            try {
+                ref.setValue(field, newValue)
+                true
+            } catch (err: Throwable) {
+                logger.error("Failed to set value of variable '{}'", name, err)
+                false
+            }
+        }
     }
 }
 
@@ -199,13 +212,34 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
         }
     }
 
-    override suspend fun isMutable(): Boolean = true
+    override suspend fun isMutable(): Boolean = when (type) {
+        is PrimitiveType -> true
+
+        // TODO: Allow mutating other types of variables
+        else -> false
+    }
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueType? = withContext(Dispatchers.IO) {
         try {
-            // TODO: find out if we can distinguish between opaque and non-opaque stack frames
-            stackFrame.getValue(variable).toLspValue() as ValueType
+            if (!stackFrame.thread().isSuspended) {
+                logger.warn("Thread is not suspended; cannot access variable '{}'", variable.name())
+                return@withContext null
+            }
+            val rawValue = stackFrame.getValue(variable)
+            rawValue?.let {
+                it.toLspValue() as ValueType
+            }
+        } catch (e: InternalException) {
+            if (e.message?.contains("JDWP Error: 32") == true) {
+                logger.warn("JDWP Error 32: Invalid frame when accessing variable '{}'", variable.name())
+            } else {
+                logger.error("Unexpected JDWP error when accessing '{}'", variable.name(), e)
+            }
+            null
+        } catch (e: InvalidStackFrameException) {
+            logger.warn("Stack frame invalid or no longer available for variable '{}'", variable.name())
+            null
         } catch (e: Exception) {
             logger.error(
                 "Failed to get value of variable '{}' in {}",
@@ -226,7 +260,24 @@ internal abstract class JavaLocalVariable<ValueType : LspValue>(
         action()
     }
 
-    protected fun setValue(value: Value) = stackFrame.setValue(variable, value)
+    override suspend fun setValue(value: String): Boolean {
+        val newValue = this.variable.parseValue(type, value) ?: run {
+            logger.error("Failed to parse value '{}' for variable '{}'", value, name)
+            return false
+        }
+
+        return try {
+            setValue(newValue)
+            true
+        } catch (err: Throwable) {
+            logger.error("Failed to set value of variable '{}'", name, err)
+            false
+        }
+    }
+
+    protected suspend fun setValue(value: Value) = withContext(Dispatchers.IO) {
+        stackFrame.setValue(variable, value)
+    }
 
     override suspend fun objectMembers(): Set<Variable<*>> {
         return super.objectMembers()
@@ -252,35 +303,35 @@ internal class JavaPrimitiveVariable(
         }
     }
 
-    internal fun setValue(boolean: Boolean) = requireType<ByteType> {
+    internal suspend fun doSetValue(boolean: Boolean) = requireType<ByteType> {
         setValue(variable.mirrorOf(boolean))
     }
 
-    internal fun setValue(byte: Byte) = requireType<ByteType> {
+    internal suspend fun doSetValue(byte: Byte) = requireType<ByteType> {
         setValue(variable.mirrorOf(byte))
     }
 
-    internal fun setValue(short: Short) = requireType<ByteType> {
+    internal suspend fun doSetValue(short: Short) = requireType<ByteType> {
         setValue(variable.mirrorOf(short))
     }
 
-    internal fun setValue(char: Char) = requireType<ByteType> {
+    internal suspend fun doSetValue(char: Char) = requireType<ByteType> {
         setValue(variable.mirrorOf(char))
     }
 
-    internal fun setValue(int: Int) = requireType<ByteType> {
+    internal suspend fun doSetValue(int: Int) = requireType<ByteType> {
         setValue(variable.mirrorOf(int))
     }
 
-    internal fun setValue(long: Long) = requireType<ByteType> {
+    internal suspend fun doSetValue(long: Long) = requireType<ByteType> {
         setValue(variable.mirrorOf(long))
     }
 
-    internal fun setValue(float: Float) = requireType<ByteType> {
+    internal suspend fun doSetValue(float: Float) = requireType<ByteType> {
         setValue(variable.mirrorOf(float))
     }
 
-    internal fun setValue(double: Double) = requireType<ByteType> {
+    internal suspend fun doSetValue(double: Double) = requireType<ByteType> {
         setValue(variable.mirrorOf(double))
     }
 }
@@ -289,7 +340,7 @@ internal class JavaStringVariable(
     stackFrame: StackFrame,
     variable: LocalVariable,
 ) : JavaLocalVariable<LspStringValue>(stackFrame, variable), StringVariable {
-    internal fun setValue(string: String) = requireType<ByteType> {
+    internal suspend fun doSetValue(string: String) = requireType<ByteType> {
         setValue(variable.mirrorOf(string))
     }
 }
