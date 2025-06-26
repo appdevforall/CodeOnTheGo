@@ -151,7 +151,7 @@ class TreeView<T : Any> @JvmOverloads constructor(
     private lateinit var _adapter: Adapter
     private val _itemTouchHelperCallback: ItemTouchHelperCallback
 
-    var coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+    private var coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 
     private var isHorizontalScrolling = false
     private var initialTouchX = 0f
