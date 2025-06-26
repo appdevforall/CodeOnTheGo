@@ -71,8 +71,8 @@ interface IDebugAdapter {
      * Get the information about a thread.
      *
      * @param request The request definition of the thread.
-         * @return The information about the thread, or `null` if the thread does not exist.
-         */
+     * @return The information about the thread, or `null` if the thread does not exist.
+     */
     suspend fun threadInfo(request: ThreadInfoRequestParams): ThreadInfoResponse
 
     /**
