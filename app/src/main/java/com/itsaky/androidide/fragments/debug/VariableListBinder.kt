@@ -11,7 +11,6 @@ import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
-import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashError
@@ -106,7 +105,7 @@ class VariableListBinder(
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    showSetValueDialogOnLongClick(binding, data, descriptor, strValue)
+                    showSetValueDialogOnLongClick(binding, data, descriptor, strValue, node)
                 }
             }
         }
@@ -116,7 +115,8 @@ class VariableListBinder(
         binding: DebuggerVariableItemBinding,
         variable: ResolvableVariable<*>,
         descriptor: VariableDescriptor,
-        currentValue: String
+        currentValue: String,
+        node: TreeNode<ResolvableVariable<*>>
     ) {
         val context = binding.root.context
         binding.root.setOnLongClickListener {
@@ -137,7 +137,7 @@ class VariableListBinder(
 
             if (!hasValidValue) return@setOnLongClickListener false
 
-            showSetValueDialog(context, variable, descriptor, currentValue)
+            showSetValueDialog(context, variable, descriptor, currentValue, node)
             true
         }
     }
@@ -146,7 +146,8 @@ class VariableListBinder(
         context: Context,
         variable: ResolvableVariable<*>,
         descriptor: VariableDescriptor,
-        currentValue: String
+        currentValue: String,
+        node: TreeNode<ResolvableVariable<*>>
     ) {
         val title = context.getString(
             R.string.debugger_variable_dialog_title,
@@ -186,7 +187,11 @@ class VariableListBinder(
                                 // TODO: Update variable tree to reflect newly set value
                                 //      Use DebuggerViewModel.refreshVariables()
 
+                                viewModel.refreshVariables() // esto tengo que usar ahora
+
+                                // este es mi implementacion anterior
                                 coroutineScope.launch {
+
                                     val adapter = JavaDebugAdapter.currentInstance() ?: return@launch
                                     node.data?.updateRemoteValue(adapter, newValue)
 
