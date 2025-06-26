@@ -187,27 +187,6 @@ class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         this._listenerState!!.client.onAttach(client)
     }
 
-    override suspend fun setVariable(nameVar: String, newValue: String): Boolean = withContext(Dispatchers.IO) {
-        val vm = connVm()
-
-        try {
-            val threadInfo = vm.threadState.current ?: return@withContext false
-            val frame = threadInfo.frame(0)
-            val visibleVariables = frame.visibleVariables()
-            val variable = visibleVariables.find { it.name() == nameVar }
-                ?: return@withContext false
-
-            val newVal = vm.vm.mirrorOf(newValue)
-            frame.setValue(variable, newVal)
-
-            return@withContext true
-
-        } catch (e: Exception) {
-            logger.error("Failed to set variable value", e)
-            return@withContext false
-        }
-    }
-
     override suspend fun connectedRemoteClients(): Set<RemoteClient> =
         vms.map(VmConnection::client).toSet()
 
