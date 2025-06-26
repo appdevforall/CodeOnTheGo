@@ -22,6 +22,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
+import com.itsaky.androidide.lsp.java.debug.utils.EvaluationContext
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
@@ -103,6 +104,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
      * Get the connected VM.
      */
     fun vm() = connVm().vm
+    fun evalContext() = connVm().evalContext
 
     override fun connectDebugClient(client: IDebugClient) {
         val connector = vmm.listeningConnectors().firstOrNull() as? SocketListeningConnector?
@@ -173,7 +175,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             client = client,
             vm = vm,
             threadState = threadState,
-            eventHandler = eventHandler,
+            eventHandler = eventHandler
         )
 
         // Start listening for events

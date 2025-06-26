@@ -181,6 +181,7 @@ class VariableListBinder(
                                 dialog.dismiss()
                                 // TODO: Update variable tree to reflect newly set value
                                 //      Use DebuggerViewModel.refreshVariables()
+                                viewModel.refreshVariables()
                             } else {
                                 inputLayout.error =
                                     context.getString(R.string.debugger_variable_value_invalid)
