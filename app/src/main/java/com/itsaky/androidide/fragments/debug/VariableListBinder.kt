@@ -179,9 +179,6 @@ class VariableListBinder(
                             if (isSet) {
                                 inputLayout.error = null
                                 dialog.dismiss()
-                                // TODO: Update variable tree to reflect newly set value
-                                //      Use DebuggerViewModel.refreshVariables()
-
                                 viewModel.refreshVariables()
                             } else {
                                 inputLayout.error =
