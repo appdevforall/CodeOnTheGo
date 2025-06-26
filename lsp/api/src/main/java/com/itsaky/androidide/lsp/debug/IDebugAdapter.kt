@@ -82,14 +82,4 @@ interface IDebugAdapter {
      * @return A [ThreadListResponse] containing a list of all known threads of the requested VM.
      */
     suspend fun allThreads(request: ThreadListRequestParams): ThreadListResponse
-
-    /**
-     * Set the value of a variable.
-     *
-     * @param variableReference The reference ID of the variable.
-     * @param newValue The new value to assign.
-     * @return true if successful, false otherwise.
-     */
-    suspend fun setVariable(nameVar: String, newValue: String): Boolean
-
 }
