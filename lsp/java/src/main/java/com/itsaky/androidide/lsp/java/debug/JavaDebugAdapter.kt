@@ -50,7 +50,7 @@ import com.itsaky.androidide.lsp.debug.events.StepEvent as LspStepEvent
 /**
  * @author Akash Yadav
  */
-class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
+internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     private val vmm = Bootstrap.virtualMachineManager()
     private val vms = CopyOnWriteArraySet<VmConnection>()

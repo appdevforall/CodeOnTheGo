@@ -93,8 +93,6 @@ class ResolvableVariable<T : Value> private constructor(
 
     internal val deferredValue = CompletableDeferred<T?>()
 
-    private var overriddenValue: String? = null
-
     /**
      * Whether the variable is resolved.
      */
