@@ -11,11 +11,6 @@ enum class VariableKind {
     PRIMITIVE,
 
     /**
-     * A string variable.
-     */
-    STRING,
-
-    /**
      * An array-like variable with fixed size, known element types and indices.
      */
     ARRAYLIKE,
@@ -113,17 +108,6 @@ interface PrimitiveValue: Value {
 }
 
 /**
- * A string value.
- */
-interface StringValue: Value {
-
-    /**
-     * The value of the variable as a [String].
-     */
-    fun asString(): String
-}
-
-/**
  * A reference value.
  */
 interface ReferenceValue : Value {
@@ -132,6 +116,7 @@ interface ReferenceValue : Value {
      */
     override fun toString(): String
 }
+
 
 /**
  * An array-like value with fixed size, known element types and indices.
@@ -151,7 +136,7 @@ interface ArrayLikeValue : Value {
     /**
      * Get the value of the element at the given [index].
      */
-    operator fun get(index: ULong): Value
+    suspend fun get(index: ULong): Value
 }
 
 /**
@@ -208,18 +193,3 @@ interface PrimitiveVariable: Variable<PrimitiveValue> {
      */
     val primitiveKind: PrimitiveKind
 }
-
-/**
- * A variable that has a string value.
- */
-interface StringVariable: Variable<StringValue>
-
-/**
- * A variable that has an array-like value.
- */
-interface ArrayLikeVariable: Variable<ArrayLikeValue>
-
-/**
- * A variable that has a reference value.
- */
-interface ReferenceVariable: Variable<ReferenceValue>

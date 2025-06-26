@@ -3,7 +3,6 @@ package com.itsaky.androidide.lsp.java.debug
 import com.itsaky.androidide.lsp.debug.model.PrimitiveKind
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue
 import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
-import com.itsaky.androidide.lsp.debug.model.StringValue
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
 import com.itsaky.androidide.lsp.debug.model.Value
@@ -39,22 +38,26 @@ class JavaStackFrame(
         )
     }
 
-    override suspend fun getVariables(): List<LspVariable<*>> {
-        val method = frame.location().method()
-        if (method == null || method.isAbstract || method.isNative) {
-            // non-concrete method
-            // does not have any variables
-            return emptyList()
-        }
+    override suspend fun getVariables(): List<LspVariable<*>> =
+        JavaDebugAdapter.requireInstance().evalContext().evaluate(frame.thread()) {
+            val method = frame.location().method()
+            if (method == null || method.isAbstract || method.isNative) {
+                // non-concrete method
+                // does not have any variables
+                return@evaluate emptyList()
+            }
 
-        val variables = withContext(Dispatchers.IO) {
-            frame.visibleVariables()
-
-                // some opaque frames in core Android classes have empty variable names (like ZygoteInit)
+            val variables = frame.visibleVariables()
+                // some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
                 .filter { it.name().isNotBlank() }
-        }
-        return variables.map { variable -> JavaLocalVariable.forVariable(frame, variable) }
-    }
+
+            return@evaluate variables.map { variable ->
+                JavaLocalVariable.forVariable(
+                    frame,
+                    variable
+                )
+            }
+        } ?: emptyList()
 
     override suspend fun <Val : Value> setValue(variable: Variable<Val>, value: Val) =
         withContext(Dispatchers.IO) {
@@ -76,15 +79,6 @@ class JavaStackFrame(
                         PrimitiveKind.FLOAT -> variable.doSetValue(value.asFloat())
                         PrimitiveKind.DOUBLE -> variable.doSetValue(value.asDouble())
                     }
-                }
-
-                VariableKind.STRING -> {
-                    check(value is StringValue) {
-                        "Value $value is not a string value"
-                    }
-
-                    variable as JavaStringVariable
-                    variable.doSetValue(value.asString())
                 }
 
                 // TODO: Support other types of variable values
@@ -113,10 +107,10 @@ internal class LspThreadInfo(
         )
     }
 
-    override suspend fun getFrames(): List<LspStackFrame> {
-        return thread.frames()
-            .map(::JavaStackFrame)
-    }
+    override suspend fun getFrames(): List<LspStackFrame> =
+        JavaDebugAdapter.requireInstance().evalContext().evaluate(thread.thread) {
+            thread.frames().map(::JavaStackFrame)
+        } ?: emptyList()
 }
 
 private fun threadStateOf(state: Int) = when (state) {
