@@ -25,9 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
-
-
 
 class VariableListBinder(
     private val coroutineScope: CoroutineScope,

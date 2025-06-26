@@ -1,6 +1,5 @@
 package com.itsaky.androidide.fragments.debug
 
-import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.model.StackFrame
 import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
