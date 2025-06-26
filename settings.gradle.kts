@@ -141,6 +141,7 @@ include(
   ":subprojects:framework-stubs",
   ":subprojects:javac-services",
   ":subprojects:libjdwp",
+  ":subprojects:libjdwp-remote",
   ":subprojects:projects",
   ":subprojects:tooling-api",
   ":subprojects:tooling-api-events",
@@ -159,7 +160,8 @@ include(
   ":testing:unit",
   ":layouteditor:layouteditor-app",
   ":layouteditor:vectormaster",
-  ":constants"
+  ":constants",
+  ":idetooltips",
 )
 
 val layoutEditorDir = rootDir.resolve("LayoutEditor")

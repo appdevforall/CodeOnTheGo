@@ -1,36 +1,31 @@
 package com.itsaky.androidide.lsp.java.debug.utils
 
-import com.sun.jdi.BooleanValue
-import com.sun.jdi.ByteValue
-import com.sun.jdi.CharValue
-import com.sun.jdi.DoubleValue
-import com.sun.jdi.FloatValue
-import com.sun.jdi.IntegerValue
-import com.sun.jdi.LongValue
-import com.sun.jdi.ShortValue
-import com.sun.jdi.VirtualMachine
+import com.sun.jdi.BooleanType
+import com.sun.jdi.ByteType
+import com.sun.jdi.CharType
+import com.sun.jdi.DoubleType
+import com.sun.jdi.FloatType
+import com.sun.jdi.IntegerType
+import com.sun.jdi.LongType
+import com.sun.jdi.Mirror
+import com.sun.jdi.ShortType
+import com.sun.jdi.StringReference
+import com.sun.jdi.Type
+import com.sun.jdi.Value
 
-fun VirtualMachine.booleanValue(str: String): BooleanValue? =
-    str.toBooleanStrictOrNull()?.let(::mirrorOf)
-
-fun VirtualMachine.byteValue(str: String): ByteValue? =
-    str.toByteOrNull()?.let(::mirrorOf)
-
-fun VirtualMachine.charValue(str: String): CharValue? =
-    str.takeIf { it.length == 1 }?.getOrNull(0)?.let(::mirrorOf)
-
-fun VirtualMachine.shortValue(str: String): ShortValue? =
-    str.toShortOrNull()?.let(::mirrorOf)
-
-fun VirtualMachine.intValue(str: String): IntegerValue? =
-    str.toIntOrNull()?.let(::mirrorOf)
-
-fun VirtualMachine.longValue(str: String): LongValue? =
-    str.toLongOrNull()?.let(::mirrorOf)
-
-fun VirtualMachine.floatValue(str: String): FloatValue? =
-    str.toFloatOrNull()?.let(::mirrorOf)
-
-fun VirtualMachine.doubleValue(str: String): DoubleValue? =
-    str.toDoubleOrNull()?.let(::mirrorOf)
+fun Mirror.parseValue(
+    type: Type,
+    value: String
+): Value? = when (type) {
+    is BooleanType -> value.toBooleanStrictOrNull()?.let(this::mirrorOf)
+    is ByteType -> value.toByteOrNull()?.let(this::mirrorOf)
+    is CharType -> value.singleOrNull()?.let(this::mirrorOf)
+    is ShortType -> value.toShortOrNull()?.let(this::mirrorOf)
+    is IntegerType -> value.toIntOrNull()?.let(this::mirrorOf)
+    is LongType -> value.toLongOrNull()?.let(this::mirrorOf)
+    is FloatType -> value.toFloatOrNull()?.let(this::mirrorOf)
+    is DoubleType -> value.toDoubleOrNull()?.let(this::mirrorOf)
+    is StringReference -> mirrorOf(value)
+    else -> null
+}
 
