@@ -188,6 +188,14 @@ interface Variable<ValueType: Value> {
      * Get the members of of the object that this variable references. May be empty.
      */
     suspend fun objectMembers(): Set<Variable<*>>
+
+    /**
+     * Set the value of the variable.
+     *
+     * @param value The new value of the variable.
+     * @return The result of the operation.
+     */
+    suspend fun setValue(value: String): Boolean
 }
 
 /**
