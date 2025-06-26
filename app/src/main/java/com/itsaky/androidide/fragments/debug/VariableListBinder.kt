@@ -105,7 +105,7 @@ class VariableListBinder(
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    showSetValueDialogOnLongClick(binding, data, descriptor, strValue, node)
+                    showSetValueDialogOnLongClick(binding, data, descriptor, strValue)
                 }
             }
         }
@@ -115,8 +115,7 @@ class VariableListBinder(
         binding: DebuggerVariableItemBinding,
         variable: ResolvableVariable<*>,
         descriptor: VariableDescriptor,
-        currentValue: String,
-        node: TreeNode<ResolvableVariable<*>>
+        currentValue: String
     ) {
         val context = binding.root.context
         binding.root.setOnLongClickListener {
@@ -137,7 +136,7 @@ class VariableListBinder(
 
             if (!hasValidValue) return@setOnLongClickListener false
 
-            showSetValueDialog(context, variable, descriptor, currentValue, node)
+            showSetValueDialog(context, variable, descriptor, currentValue)
             true
         }
     }
@@ -146,8 +145,7 @@ class VariableListBinder(
         context: Context,
         variable: ResolvableVariable<*>,
         descriptor: VariableDescriptor,
-        currentValue: String,
-        node: TreeNode<ResolvableVariable<*>>
+        currentValue: String
     ) {
         val title = context.getString(
             R.string.debugger_variable_dialog_title,
