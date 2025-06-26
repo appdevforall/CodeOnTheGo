@@ -5,6 +5,7 @@ import com.sun.jdi.VirtualMachine
 import com.sun.jdi.event.ClassPrepareEvent
 import com.sun.jdi.request.ClassPrepareRequest
 import com.sun.jdi.request.EventRequest
+import org.slf4j.LoggerFactory
 
 /**
  * @author Akash Yadav
@@ -13,6 +14,10 @@ internal abstract class EventRequestSpec(
     val refSpec: ReferenceTypeSpec,
     var suspendPolicy: Int = EventRequest.SUSPEND_ALL,
 ) {
+    companion object {
+        private val logger = LoggerFactory.getLogger(EventRequestSpec::class.java)
+    }
+
     var resolved: EventRequest? = null
     var prepareRequest: ClassPrepareRequest? = null
 
@@ -74,13 +79,25 @@ internal abstract class EventRequestSpec(
     }
 
     @Throws(Exception::class)
-    private fun resolveAgainstPreparedClasses(vm: VirtualMachine): EventRequest {
-        for (refType in vm.allClasses()) {
+    private fun resolveAgainstPreparedClasses(vm: VirtualMachine): EventRequest? {
+        // check if the class is already prepared by first checking the matching reference types
+        // if the spec cannot be resolved in matching ref types, then check all classes
+        val matchingRefTypes = refSpec.matchingRefTypes(vm)
+        logger.debug("matching ref types: {}", matchingRefTypes)
+        return resolveAgainstClasses(vm, matchingRefTypes) ?: resolveAgainstClasses(vm, vm.allClasses())
+    }
+
+    @Throws
+    private fun resolveAgainstClasses(vm: VirtualMachine, classes: List<ReferenceType>): EventRequest? {
+        classes.firstOrNull { refType ->
             if (refType.isPrepared && refSpec.matches(vm, refType)) {
                 resolved = resolveEventRequest(vm, refType)
             }
+
+            resolved != null
         }
-        return resolved!!
+
+        return resolved
     }
 
     @Synchronized
@@ -94,9 +111,9 @@ internal abstract class EventRequestSpec(
 
             // Try to resolve in case the class is already loaded.
             // TODO: The vm.allClasses() method takes some time
-            //     As a result, the VM is suspend for noticeable delays
+            //     As a result, the VM is suspended for noticeable delays
             //     We need to see if we can defer this, or maybe remove this?
-            // resolveAgainstPreparedClasses(vm)
+             resolveAgainstPreparedClasses(vm)
 
             if (resolved != null) {
                 prepareRequest!!.disable()

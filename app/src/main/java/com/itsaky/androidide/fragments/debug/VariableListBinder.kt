@@ -5,13 +5,18 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
+import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.debug.DialogUtilsDebug
+import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
 import io.github.dingyi222666.view.treeview.TreeView
@@ -27,6 +32,7 @@ import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
 
 class VariableListBinder(
     private val coroutineScope: CoroutineScope,
+    private val viewModel: DebuggerViewModel
 ) : TreeViewBinder<ResolvableVariable<*>>() {
 
     private var treeIndent = 0
@@ -69,8 +75,9 @@ class VariableListBinder(
         }
 
         Log.d("VariableListBinder", "bindView: node.data=${node.data}")
-        binding.label.text = context.getString(R.string.debugger_status_resolving)
-
+        if (node.data?.isResolved != true) {
+            binding.label.text = context.getString(R.string.debugger_status_resolving)
+        }
 
         val data = node.data ?: run {
             logger.error("No data set to node: {}", node)
@@ -79,7 +86,9 @@ class VariableListBinder(
 
         coroutineScope.launch(Dispatchers.IO) {
             val descriptor = data.resolve()
-            val strValue = data.resolvedValue()?.toString() ?: context.getString(R.string.debugger_value_unavailable)
+            val strValue = data.resolvedValue()?.toString()
+                ?: context.getString(R.string.debugger_value_unavailable)
+
             withContext(Dispatchers.Main) {
                 binding.apply {
                     if (descriptor == null) {
@@ -88,7 +97,7 @@ class VariableListBinder(
                         return@apply
                     }
 
-                    val ic = descriptor.icon(root.context)?.let { ContextCompat.getDrawable(root.context, it) }
+                    val ic = descriptor.icon(context)?.let { ContextCompat.getDrawable(context, it) }
 
                     // noinspection SetTextI18n
                     label.text =
@@ -96,56 +105,105 @@ class VariableListBinder(
                     icon.setImageDrawable(ic ?: CircleCharDrawable(descriptor.kind.name.first(), true))
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
-                    setupLabelLongPress(binding, descriptor, strValue, context, node)
+
+                    showSetValueDialogOnLongClick(binding, data, descriptor, strValue)
                 }
             }
         }
     }
 
-    private fun setupLabelLongPress(
+    private fun showSetValueDialogOnLongClick(
         binding: DebuggerVariableItemBinding,
+        variable: ResolvableVariable<*>,
         descriptor: VariableDescriptor,
-        value: String,
-        context: Context,
-        node: TreeNode<ResolvableVariable<*>>
+        currentValue: String
     ) {
-        binding.label.setOnLongClickListener {
+        val context = binding.root.context
+        binding.root.setOnLongClickListener {
+            if (!descriptor.isMutable) {
+                // variable is immutable
+                flashError(context.getString(R.string.debugger_error_immutable_variable, descriptor.name))
+                return@setOnLongClickListener false
+            }
+
             val labelText = binding.label.text?.toString()
 
             if (labelText.isNullOrBlank()) return@setOnLongClickListener false
 
-            val hasValidValue = value.isNotBlank() &&
-                    value != context.getString(R.string.debugger_value_unavailable) &&
-                    value != context.getString(R.string.debugger_value_error) &&
-                    value != context.getString(R.string.debugger_value_null)
+            val hasValidValue = currentValue.isNotBlank() &&
+                    currentValue != context.getString(R.string.debugger_value_unavailable) &&
+                    currentValue != context.getString(R.string.debugger_value_error) &&
+                    currentValue != context.getString(R.string.debugger_value_null)
 
             if (!hasValidValue) return@setOnLongClickListener false
 
-            val title = context.getString(
-                R.string.debugger_variable_dialog_title,
-                descriptor.name,
-                descriptor.typeName
-            )
+            showSetValueDialog(context, variable, descriptor, currentValue)
+            true
+        }
+    }
 
-            DialogUtilsDebug.newTextFieldDialog(
-                context = context,
-                title = title,
-                hint = context.getString(R.string.debugger_variable_value_hint),
-                defaultValue = value,
-                onSetClick = { newValue ->
+    private fun showSetValueDialog(
+        context: Context,
+        variable: ResolvableVariable<*>,
+        descriptor: VariableDescriptor,
+        currentValue: String
+    ) {
+        val title = context.getString(
+            R.string.debugger_variable_dialog_title,
+            descriptor.name,
+            descriptor.typeName
+        )
 
-                    coroutineScope.launch {
-                        val adapter = JavaDebugAdapter.currentInstance() ?: return@launch
-                        node.data?.updateRemoteValue(adapter, newValue)
+        val inflater = LayoutInflater.from(context)
+        val binding = DebuggerSetVariableValueBinding.inflate(inflater)
+        binding.input.setText(currentValue)
+        if (currentValue.isNotEmpty()) {
+            binding.input.selectAll()
+        }
 
-                        (binding.root.parent as? TreeView<ResolvableVariable<*>>)?.let { treeView ->
-                            treeView.refresh(fastRefresh = true, node = node)
+        DialogUtils.newMaterialDialogBuilder(context)
+            .setTitle(title)
+            .setView(binding.root)
+            .setPositiveButton(context.getString(R.string.debugger_dialog_button_set), null)
+            .setNegativeButton(context.getString(android.R.string.cancel), null)
+            .setCancelable(true)
+            .create()
+            .apply {
+                setOnShowListener { dialog ->
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val inputLayout = binding.inputLayout
+                        val input = binding.input
+                        val newValue = input.text?.toString()?.takeIf(String::isNotBlank) ?: run {
+                            binding.inputLayout.error = context.getString(R.string.debugger_variable_value_invalid)
+                            return@setOnClickListener
+                        }
+
+                        coroutineScope.launch {
+                            val isSet = variable.setValue(newValue)
+                            if (isSet) {
+                                inputLayout.error = null
+                                dialog.dismiss()
+                                // TODO: Update variable tree to reflect newly set value
+                                //      Use DebuggerViewModel.refreshVariables()
+
+                                coroutineScope.launch {
+                                    val adapter = JavaDebugAdapter.currentInstance() ?: return@launch
+                                    node.data?.updateRemoteValue(adapter, newValue)
+
+                                    (binding.root.parent as? TreeView<ResolvableVariable<*>>)?.let { treeView ->
+                                        treeView.refresh(fastRefresh = true, node = node)
+                                    }
+                                }
+
+                            } else {
+                                inputLayout.error =
+                                    context.getString(R.string.debugger_variable_value_invalid)
+                            }
                         }
                     }
                 }
-            ).show()
-            true
-        }
+            }
+            .show()
     }
 }
 

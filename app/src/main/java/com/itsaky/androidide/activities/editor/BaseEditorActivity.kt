@@ -737,9 +737,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private fun handleUiDesignerResult(result: ActivityResult) {
-        if (this is EditorHandlerActivity) {
-            this.closeCurrentFile()
-        }
         if (result.resultCode != RESULT_OK || result.data == null) {
             log.warn(
                 "UI Designer returned invalid result: resultCode={}, data={}", result.resultCode,
@@ -799,7 +796,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private fun setupViews() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                debuggerViewModel.connectionState.collectLatest {
+                debuggerViewModel.connectionState.collectLatest { state ->
+                    if (state == DebuggerConnectionState.ATTACHED) {
+                        ensureDebuggerServiceBound()
+                    }
                     postStopDebuggerServiceIfNotConnected()
                 }
 

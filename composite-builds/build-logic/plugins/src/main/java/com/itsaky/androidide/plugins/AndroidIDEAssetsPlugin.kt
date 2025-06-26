@@ -26,7 +26,6 @@ import org.adfa.constants.SPLIT_ASSETS
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
-import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyDocDbToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleCachesToAssetsTask
@@ -36,10 +35,9 @@ import com.itsaky.androidide.plugins.tasks.CopyTermuxCacheAndManifestTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
-import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
+import com.itsaky.androidide.plugins.util.capitalized
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.tasks.TaskProvider
 import org.gradle.configurationcache.extensions.capitalized
 
 /**
@@ -150,6 +148,26 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     copyToolingApiJar,
+                    AddFileToAssetsTask::outputDirectory
+                )
+
+                // libjdwp-remote AAR copier
+                val copyLibJdwpAar = tasks.register(
+                    "copy${variantNameCapitalized}LibJdwpAar",
+                    AddFileToAssetsTask::class.java
+                ) {
+                    val flavor = variant.flavorName!!
+                    val libjdwpRemote = rootProject.findProject(":subprojects:libjdwp-remote")!!
+                    dependsOn(libjdwpRemote.tasks.getByName("assemble${flavor.capitalized()}Release"))
+
+                    val libjdwpRemoteAar = libjdwpRemote.layout.buildDirectory.file("outputs/aar/libjdwp-remote-$flavor-release.aar")
+
+                    inputFile.set(libjdwpRemoteAar)
+                    baseAssetsPath.set("data/common")
+                }
+
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    copyLibJdwpAar,
                     AddFileToAssetsTask::outputDirectory
                 )
 
