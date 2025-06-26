@@ -16,6 +16,7 @@
  */
 
 import com.itsaky.androidide.build.config.BuildConfig
+import org.adfa.constants.SPLIT_ASSETS
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
@@ -64,14 +65,23 @@ tasks.register("copyJar") {
   }
 }
 
-project.tasks.getByName("jar") {
+project.tasks.getByName<Jar>("jar") {
   dependsOn("deleteExistingJarFiles")
   finalizedBy("shadowJar")
+  // isZip64 = true  // enable support for large files
+  if (!SPLIT_ASSETS) {
+    entryCompression = ZipEntryCompression.STORED
+  }
 }
 
-project.tasks.getByName("shadowJar") {
+project.tasks.getByName<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
+  if (!SPLIT_ASSETS) {
+    entryCompression = ZipEntryCompression.STORED
+  }
+
   finalizedBy("copyJar")
 }
+
 
 dependencies {
   kapt(libs.google.auto.service)
