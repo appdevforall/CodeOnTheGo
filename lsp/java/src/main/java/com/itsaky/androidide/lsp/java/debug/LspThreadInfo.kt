@@ -67,14 +67,14 @@ class JavaStackFrame(
 
                     variable as JavaPrimitiveVariable
                     when (variable.primitiveKind) {
-                        PrimitiveKind.BOOLEAN -> variable.setValue(value.asBoolean())
-                        PrimitiveKind.BYTE -> variable.setValue(value.asByte())
-                        PrimitiveKind.CHAR -> variable.setValue(value.asChar())
-                        PrimitiveKind.SHORT -> variable.setValue(value.asShort())
-                        PrimitiveKind.INT -> variable.setValue(value.asInt())
-                        PrimitiveKind.LONG -> variable.setValue(value.asLong())
-                        PrimitiveKind.FLOAT -> variable.setValue(value.asFloat())
-                        PrimitiveKind.DOUBLE -> variable.setValue(value.asDouble())
+                        PrimitiveKind.BOOLEAN -> variable.doSetValue(value.asBoolean())
+                        PrimitiveKind.BYTE -> variable.doSetValue(value.asByte())
+                        PrimitiveKind.CHAR -> variable.doSetValue(value.asChar())
+                        PrimitiveKind.SHORT -> variable.doSetValue(value.asShort())
+                        PrimitiveKind.INT -> variable.doSetValue(value.asInt())
+                        PrimitiveKind.LONG -> variable.doSetValue(value.asLong())
+                        PrimitiveKind.FLOAT -> variable.doSetValue(value.asFloat())
+                        PrimitiveKind.DOUBLE -> variable.doSetValue(value.asDouble())
                     }
                 }
 
@@ -84,7 +84,7 @@ class JavaStackFrame(
                     }
 
                     variable as JavaStringVariable
-                    variable.setValue(value.asString())
+                    variable.doSetValue(value.asString())
                 }
 
                 // TODO: Support other types of variable values
