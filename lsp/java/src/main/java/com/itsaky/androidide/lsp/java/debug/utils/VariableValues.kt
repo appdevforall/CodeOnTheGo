@@ -15,8 +15,6 @@ import com.sun.jdi.ShortType
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.Type
 import com.sun.jdi.Value
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 object VariableValues {
@@ -70,9 +68,6 @@ object VariableValues {
         is FloatType -> value.jdiFloat(mirror = mirror)
         is DoubleType -> value.jdiDouble(mirror = mirror)
 
-        // creating new reference types requires a new mirror to be created in the remote VM
-        // hence, communication is required over the socket connection, which should be performed
-        // on the IO dispatcher
         is ReferenceType -> {
             val result = when (type.name()) {
                 JdiTypes.BOOLEAN -> value.jdiBool(mirror)
