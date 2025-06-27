@@ -174,17 +174,19 @@ class VariableListBinder(
                             return@setOnClickListener
                         }
 
-                        coroutineScope.launch {
+                        coroutineScope.launch(Dispatchers.IO) {
                             val isSet = variable.setValue(newValue)
-                            if (isSet) {
-                                inputLayout.error = null
-                                dialog.dismiss()
-                                // TODO: Update variable tree to reflect newly set value
-                                //      Use DebuggerViewModel.refreshVariables()
-                                viewModel.refreshVariables()
-                            } else {
-                                inputLayout.error =
-                                    context.getString(R.string.debugger_variable_value_invalid)
+                            withContext(Dispatchers.Main) {
+                                if (isSet) {
+                                    inputLayout.error = null
+                                    dialog.dismiss()
+                                    // TODO: Update variable tree to reflect newly set value
+                                    //      Use DebuggerViewModel.refreshVariables()
+                                    viewModel.refreshState()
+                                } else {
+                                    inputLayout.error =
+                                        context.getString(R.string.debugger_variable_value_invalid)
+                                }
                             }
                         }
                     }
