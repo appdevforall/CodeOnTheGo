@@ -103,8 +103,10 @@ abstract class AddBrotliFileToAssetsTask : DefaultTask() {
 
       val start = System.nanoTime()
 
+      val params = Encoder.Parameters().setQuality(11).setWindow(24)
+
       val inputBytes = inFile.readBytes()
-      val outputBytes = Encoder.compress(inputBytes)
+      val outputBytes = Encoder.compress(inputBytes, params)
       outFile.writeBytes(outputBytes)
 
       val end = System.nanoTime()
