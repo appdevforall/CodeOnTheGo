@@ -12,12 +12,8 @@ import com.itsaky.androidide.lsp.java.utils.completedOrNull
 import com.itsaky.androidide.lsp.java.utils.getValue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -148,8 +144,8 @@ class ResolvableVariable<T : Value> private constructor(
         // Care must be taken to only resolve values which are absolutely needed
         // to render the UI. Resolution of values which are not immediately required must be deferred.
 
-        val value = delegate.value()
         val descriptor = delegate.descriptor()
+        val value = delegate.value()
         deferredValue.complete(value)
         return descriptor
     }
