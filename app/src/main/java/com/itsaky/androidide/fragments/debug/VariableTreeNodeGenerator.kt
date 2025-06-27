@@ -4,14 +4,12 @@ import io.github.dingyi222666.view.treeview.AbstractTree
 import io.github.dingyi222666.view.treeview.Tree
 import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeGenerator
-import org.slf4j.LoggerFactory
 
 class VariableTreeNodeGenerator private constructor(
     private val rootNodes: Set<ResolvableVariable<*>> = emptySet()
 ) : TreeNodeGenerator<ResolvableVariable<*>> {
 
     companion object {
-        private val logger = LoggerFactory.getLogger(VariableTreeNodeGenerator::class.java)
         fun newInstance(
             rootNodes: Set<ResolvableVariable<*>> = emptySet()
         ): TreeNodeGenerator<ResolvableVariable<*>> = VariableTreeNodeGenerator(rootNodes)

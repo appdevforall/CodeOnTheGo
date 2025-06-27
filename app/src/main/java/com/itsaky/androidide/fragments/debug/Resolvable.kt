@@ -196,7 +196,6 @@ class ResolvableStackFrame private constructor(
     }
 
     override suspend fun doResolve(): StackFrameDescriptor {
-        getVariables().forEach { it.resolve() }
         return delegate.descriptor()
     }
 
@@ -229,7 +228,6 @@ class ResolvableThreadInfo private constructor(
     }
 
     override suspend fun doResolve(): ThreadDescriptor {
-        getFrames().forEach { it.resolve() }
         return delegate.descriptor()
     }
 
