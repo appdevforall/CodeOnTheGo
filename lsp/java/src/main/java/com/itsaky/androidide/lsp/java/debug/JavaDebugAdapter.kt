@@ -204,6 +204,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override suspend fun resumeClient(client: RemoteClient) = doSuspensionIfEnabled(client) { vm ->
         try {
+            logger.debug("resuming client: {}", client.name)
             vm.vm.resume()
             true
         } catch (e: Throwable) {
@@ -327,6 +328,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override suspend fun step(request: StepRequestParams): StepResponse =
         withContext(Dispatchers.IO) {
+            logger.debug("step: {}", request)
+
             val vm = connVm()
 
             check(vm.client == request.remoteClient) {
@@ -406,7 +409,9 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             }
 
             return@withContext ThreadListResponse(
-                threads = vm.threadState.threads.map { thread -> LspThreadInfo(thread) }
+                threads = vm.threadState.threads.map {
+                    thread -> LspThreadInfo(thread)
+                }
             )
         }
 

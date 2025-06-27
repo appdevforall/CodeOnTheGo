@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp
 
 import android.annotation.SuppressLint
+import android.widget.RemoteViews.RemoteView
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lookup.Lookup
@@ -71,6 +72,9 @@ class IDEDebugClientImpl(
 
     val debugeePackage: String
         get() = viewModel.debugeePackage
+
+    internal val requireClient: RemoteClient
+        get() = checkNotNull(clientOrNull)
 
     internal val clientOrNull: RemoteClient?
         get() = clients.firstOrNull()
@@ -266,7 +270,7 @@ class IDEDebugClientImpl(
         clientScope.launch { updateThreadInfo(client) }
     }
 
-    private suspend fun updateThreadInfo(
+    suspend fun updateThreadInfo(
         client: RemoteClient,
         selectedThreadId: String? = null,
     ) {

@@ -11,6 +11,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.actor
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicLong
 
 internal typealias Evaluator<R> = suspend () -> R
 
@@ -18,8 +19,13 @@ private sealed interface EvaluationMessage {
     data class EvaluateRequest<R>(
         val thread: ThreadReference,
         val evaluator: Evaluator<R>,
-        val deferred: CompletableDeferred<R?>
-    ) : EvaluationMessage
+        val deferred: CompletableDeferred<R?>,
+        val id: Long = Companion.id.getAndIncrement()
+    ) : EvaluationMessage {
+        companion object {
+            private val id = AtomicLong(0)
+        }
+    }
 
     data object Shutdown : EvaluationMessage
 }
@@ -108,11 +114,14 @@ class EvaluationContext : AutoCloseable {
             try {
                 @Suppress("UNCHECKED_CAST")
                 val typedRequest = request as EvaluationMessage.EvaluateRequest<Any?>
+                logger.debug("Evaluating request {} for thread {}", request.id, thread)
                 val result = typedRequest.evaluator()
                 typedRequest.deferred.complete(result)
             } catch (e: Exception) {
                 logger.error("Failed to execute evaluation for thread {}", thread.name(), e)
                 request.deferred.completeExceptionally(e)
+            } finally {
+                logger.debug("Evaluated request {} for thread {}", request.id, thread)
             }
         }
     }

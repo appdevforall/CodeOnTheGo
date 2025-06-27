@@ -14,8 +14,6 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -212,12 +210,11 @@ class DebuggerViewModel : ViewModel() {
         state.update { newState }
     }
 
-    fun refreshVariables() {
+    fun refreshState() {
         viewModelScope.launch {
-            val currentState = state.value
-            val tree = createVariablesTree(currentState.threads, currentState.threadIndex, currentState.frameIndex)
-            val newState = currentState.copy(variablesTree = tree)
-            state.update { newState }
+            debugClient.updateThreadInfo(
+                debugClient.requireClient,
+            )
         }
     }
 
