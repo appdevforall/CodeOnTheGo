@@ -57,6 +57,7 @@ import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.LineSeparator
 import io.github.rosemoe.sora.util.IntPair
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.DirectAccessProps
 import io.github.rosemoe.sora.widget.REGION_LINE_NUMBER
 import io.github.rosemoe.sora.widget.component.Magnifier
 import io.github.rosemoe.sora.widget.resolveTouchRegion
@@ -141,10 +142,15 @@ class CodeEditorView(
 
     binding.editor.apply {
       isHighlightCurrentBlock = true
-      props.autoCompletionOnComposing = true
       dividerWidth = SizeUtils.dp2px(2f).toFloat()
       colorScheme = SchemeAndroidIDE.newInstance(context)
       lineSeparator = LineSeparator.LF
+
+      props.apply {
+        autoCompletionOnComposing = true
+        drawCustomLineBgOnCurrentLine = true
+        cursorLineBgOverlapBehavior = DirectAccessProps.CURSOR_LINE_BG_OVERLAP_MIXED
+      }
 
       subscribeEvent(ClickEvent::class.java) { event, _ ->
         // if the editor is not backed by a file, then there's no point in adding a breakpoint
