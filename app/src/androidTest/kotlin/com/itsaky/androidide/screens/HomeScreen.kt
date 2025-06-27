@@ -1,6 +1,7 @@
 package com.itsaky.androidide.screens
 
 import android.view.View
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
@@ -9,6 +10,7 @@ import io.github.kakaocup.kakao.recycler.KRecyclerView
 import io.github.kakaocup.kakao.text.KButton
 import io.github.kakaocup.kakao.text.KTextView
 import org.hamcrest.Matcher
+import org.hamcrest.Matchers
 
 object HomeScreen : KScreen<HomeScreen>() {
 
@@ -30,13 +32,21 @@ object HomeScreen : KScreen<HomeScreen>() {
     }
 
     fun TestContext<Unit>.clickCreateProjectHomeScreen() {
+
+        val createProjectLabel = "Create Project"
+        val getStartedLabel = "Get started"
+
         step("Click create project") {
             flakySafely(60000) {
                 HomeScreen {
                     try {
                         title {
                             isVisible()
-                            containsText("Get started")
+                            withText(
+                                Matchers.equalToIgnoringCase(
+                                    getStartedLabel
+                                )
+                            )
                         }
                     } catch (e: Exception) {
                         println("Get Started title not visible: ${e.message}")
@@ -44,7 +54,13 @@ object HomeScreen : KScreen<HomeScreen>() {
 
                     rvActions {
                         scrollTo(0)
-                        childWith<ActionItem> { withText("Create Project") } perform {
+                        childWith<ActionItem> {
+                            withText(
+                                Matchers.equalToIgnoringCase(
+                                    createProjectLabel
+                                )
+                            )
+                        } perform {
                             isDisplayed()
                             click()
                         }
