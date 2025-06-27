@@ -26,7 +26,6 @@ import com.sun.jdi.PrimitiveType
 import com.sun.jdi.PrimitiveValue
 import com.sun.jdi.ReferenceType
 import com.sun.jdi.ShortType
-import com.sun.jdi.StackFrame
 import com.sun.jdi.StringReference
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.Type
@@ -49,7 +48,7 @@ private fun toLspValue(thread: ThreadReference, value: Value): LspValue = when (
 }
 
 sealed class BaseJavaValue(
-    override val value: Any
+    override val value: Any?
 ) : LspValue
 
 internal class JavaVoidValue private constructor(
@@ -116,21 +115,11 @@ internal class JavaReferenceValue private constructor(
                     "()Ljava/lang/String;",
                 ).firstOrNull() ?: return@runCatching ref.toString()
 
-                logger.debug(
-                    "thread suspend count before invoking toString(): {}",
-                    thread.suspendCount()
-                )
-
                 val result = ref.invokeMethod(
                     thread,
                     method,
                     emptyList(),
                     ObjectReference.INVOKE_SINGLE_THREADED
-                )
-
-                logger.debug(
-                    "thread suspend count after invoking toString(): {}",
-                    thread.suspendCount()
                 )
 
                 (result as? StringReference?)?.value() ?: ref.toString()
@@ -173,8 +162,12 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
     protected val name: String,
     protected val typeName: String,
     protected val type: Type,
-    protected val value: Value,
+    protected val value: Value?,
 ) : Variable<ValueT> {
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(AbstractJavaVariable::class.java)
+    }
 
     internal val kind by lazy {
         when (type) {
@@ -187,7 +180,7 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
         }
     }
 
-    protected abstract suspend fun jdiValue(): Value
+    protected abstract suspend fun jdiValue(): Value?
     protected open suspend fun isMutable(): Boolean = VariableValues.canMutate(type)
 
     override suspend fun descriptor(): VariableDescriptor {
@@ -209,16 +202,15 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
         val evaluationContext = JavaDebugAdapter.requireInstance()
             .evalContext()
         val refType = ref.referenceType()
-        val fields = evaluationContext.evaluate(thread) {
+
+        return evaluationContext.evaluate(thread) {
             refType.allFields()
                 .associateWith { field ->
                     if (field.isStatic) refType.getValue(field) else ref.getValue(field)
-                }
-        } ?: emptyMap()
-
-        return fields.map { (field, value) ->
-            JavaFieldVariable<ValueT>(thread, ref, refType, field, value)
-        }.toSet()
+                }.map { (field, value) ->
+                    JavaFieldVariable<ValueT>(thread, ref, refType, field, value)
+                }.toSet()
+        } ?: emptySet()
     }
 }
 
@@ -227,7 +219,7 @@ internal class JavaFieldVariable<ValueT : LspValue>(
     private val ref: ObjectReference,
     refType: ReferenceType,
     private val field: Field,
-    value: Value,
+    value: Value?,
 ) : AbstractJavaVariable<ValueT>(
     thread = thread,
     name = field.name(),
@@ -240,10 +232,14 @@ internal class JavaFieldVariable<ValueT : LspValue>(
         private val logger = LoggerFactory.getLogger(JavaFieldVariable::class.java)
     }
 
-    override suspend fun jdiValue(): Value = ref
+    override suspend fun jdiValue() = value
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun value(): ValueT {
+        if (this.value == null) {
+            return LspValue.UNDEFINED as ValueT
+        }
+
         val evalContext = JavaDebugAdapter.requireInstance().evalContext()
         return evalContext.evaluate(thread) {
             toLspValue(thread, value)
@@ -274,7 +270,7 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
     thread: ThreadReference,
     protected val stackFrame: JavaStackFrame,
     protected val variable: LocalVariable,
-    value: Value,
+    value: Value?,
 ) : AbstractJavaVariable<ValueType>(
     thread = thread,
     name = variable.name(),
@@ -301,6 +297,10 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
         if (!thread.isSuspended) {
             logger.warn("Thread is not suspended; cannot access variable '{}'", variable.name())
             return null
+        }
+
+        if (this.value == null) {
+            return LspValue.UNDEFINED as ValueType
         }
 
         return try {
@@ -337,7 +337,7 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
         }
     }
 
-    override suspend fun jdiValue(): Value = value
+    override suspend fun jdiValue() = value
 
     protected inline fun <reified T : Type> requireType(action: () -> Unit) {
         check(type is T) {
@@ -386,10 +386,6 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
             newFrame.setValue(newVariable, value)
             true
         } ?: false
-
-    override suspend fun objectMembers(): Set<Variable<*>> {
-        return super.objectMembers()
-    }
 }
 
 internal class JavaPrimitiveVariable(
