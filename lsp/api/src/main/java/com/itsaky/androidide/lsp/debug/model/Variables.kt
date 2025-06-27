@@ -48,7 +48,17 @@ interface Value {
     /**
      * The value of the variable.
      */
-    val value: Any
+    val value: Any?
+
+    companion object {
+
+        val UNDEFINED = object : Value {
+            override val value = null
+            override fun toString(): String = "null"
+            override fun equals(other: Any?): Boolean = other is Value && other.value == null
+            override fun hashCode(): Int = 0
+        }
+    }
 }
 
 /**

@@ -28,6 +28,7 @@ import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
+import com.itsaky.androidide.utils.withStopWatch
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
@@ -408,11 +409,13 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 return@withContext ThreadListResponse(emptyList())
             }
 
-            return@withContext ThreadListResponse(
-                threads = vm.threadState.threads.map {
-                    thread -> LspThreadInfo(thread)
-                }
-            )
+            return@withContext withStopWatch("create thread list") {
+                ThreadListResponse(
+                    threads = vm.threadState.threads.map {
+                            thread -> LspThreadInfo(thread)
+                    }
+                )
+            }
         }
 
     private fun clearPreviousStep(vm: VirtualMachine, thread: ThreadReference) {

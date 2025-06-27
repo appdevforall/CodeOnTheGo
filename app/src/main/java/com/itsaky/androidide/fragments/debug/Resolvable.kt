@@ -11,6 +11,7 @@ import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.utils.completedOrNull
 import com.itsaky.androidide.lsp.java.utils.getValue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -50,10 +51,16 @@ abstract class AbstractResolvable<T> : Resolvable<T> {
     companion object {
         @JvmStatic
         protected val logger: Logger = LoggerFactory.getLogger(AbstractResolvable::class.java)
-        private val resolutionDispatcher = Dispatchers.IO.limitedParallelism(1)
+        private val resolutionDispatcher = Dispatchers.IO
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     final override suspend fun resolve(): T? {
+        deferred.completedOrNull?.also { completed ->
+            // already resolved
+            return completed
+        }
+
         val result = withContext(resolutionDispatcher) {
             try {
                 doResolve()?.also(_deferred::complete)
@@ -66,6 +73,9 @@ abstract class AbstractResolvable<T> : Resolvable<T> {
 
         return result
     }
+
+    protected suspend fun <T> withContext(action: suspend CoroutineScope.() -> T): T =
+        withContext(resolutionDispatcher, action)
 
     protected abstract suspend fun doResolve(): T
 }
@@ -139,7 +149,6 @@ class ResolvableVariable<T : Value> private constructor(
      * Resolve the variable state.
      */
     override suspend fun doResolve(): VariableDescriptor {
-        logger.debug("Resolving variable: {}", delegate.descriptor().name)
         // NOTE:
         // Care must be taken to only resolve values which are absolutely needed
         // to render the UI. Resolution of values which are not immediately required must be deferred.
@@ -150,12 +159,13 @@ class ResolvableVariable<T : Value> private constructor(
         return descriptor
     }
 
-    override suspend fun objectMembers(): Set<ResolvableVariable<*>> =
+    override suspend fun objectMembers(): Set<ResolvableVariable<*>> = withContext {
         delegate.objectMembers()
             .map { variable ->
                 // members of an eagerly-resolved variable are also eagerly-resolved
                 create(variable)
             }.toSet()
+    }
 }
 
 /**
