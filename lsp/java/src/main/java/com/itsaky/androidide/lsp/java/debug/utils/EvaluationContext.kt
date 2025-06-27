@@ -57,7 +57,11 @@ class EvaluationContext : AutoCloseable {
                     delay(10) // Small delay to allow batching
 
                     if (channel.isEmpty) {
-                        processBatches(threadBatches)
+                        try {
+                            processBatches(threadBatches)
+                        } catch (e: Throwable) {
+                            logger.error("Failed to process evaluator batches", e)
+                        }
                     }
                 }
 
