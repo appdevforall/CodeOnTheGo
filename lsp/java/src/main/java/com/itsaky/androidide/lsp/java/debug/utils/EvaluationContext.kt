@@ -93,16 +93,17 @@ class EvaluationContext : AutoCloseable {
         thread: ThreadReference,
         requests: List<EvaluationMessage.EvaluateRequest<*>>
     ) {
+        val threadName = thread.name()
         logger.debug(
             "Processing batch of {} requests for thread {}",
             requests.size,
-            thread.name()
+            threadName
         )
 
         // Ensure thread is still suspended
         if (!thread.isSuspended) {
-            logger.warn("Thread ${thread.name()} is not suspended, failing batch for thread {}", thread.name())
-            val exception = IllegalStateException("Thread ${thread.name()} is not suspended")
+            logger.warn("Thread $threadName is not suspended, failing batch for thread {}", threadName)
+            val exception = IllegalStateException("Thread $threadName is not suspended")
             requests.forEach { request ->
                 request.deferred.completeExceptionally(exception)
             }
@@ -114,14 +115,11 @@ class EvaluationContext : AutoCloseable {
             try {
                 @Suppress("UNCHECKED_CAST")
                 val typedRequest = request as EvaluationMessage.EvaluateRequest<Any?>
-                logger.debug("Evaluating request {} for thread {}", request.id, thread)
                 val result = typedRequest.evaluator()
                 typedRequest.deferred.complete(result)
             } catch (e: Exception) {
-                logger.error("Failed to execute evaluation for thread {}", thread.name(), e)
+                logger.error("Failed to execute evaluation for thread {}", threadName, e)
                 request.deferred.completeExceptionally(e)
-            } finally {
-                logger.debug("Evaluated request {} for thread {}", request.id, thread)
             }
         }
     }

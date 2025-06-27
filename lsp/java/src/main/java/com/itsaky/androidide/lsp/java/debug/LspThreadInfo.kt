@@ -9,7 +9,6 @@ import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.debug.utils.isOpaque
-import com.sun.jdi.LocalVariable
 import com.sun.jdi.Location
 import com.sun.jdi.Method
 import com.sun.jdi.StackFrame
@@ -29,12 +28,7 @@ class JavaStackFrame(
     val method: Method? = location.method(),
     val sourceName: String = location.sourceName(),
     val lineNumber: Long = location.lineNumber().toLong(),
-    val variables: List<LocalVariable> = if (method?.isOpaque == true) emptyList() else frame.visibleVariables(),
 ) : LspStackFrame {
-
-    companion object {
-        private val logger = LoggerFactory.getLogger(JavaStackFrame::class.java)
-    }
 
     private lateinit var cachedVariables: List<JavaLocalVariable<*>>
 
@@ -60,8 +54,9 @@ class JavaStackFrame(
                     return@evaluate emptyList()
                 }
 
-                return@evaluate variables
-                    .mapNotNull { variable ->
+                return@evaluate thread.frames().firstOrNull { it.location() == location }
+                    ?.visibleVariables()
+                    ?.mapNotNull { variable ->
                         if (variable.name().isBlank()) {
                             // some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
                             return@mapNotNull null
