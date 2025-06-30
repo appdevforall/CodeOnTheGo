@@ -255,11 +255,13 @@ class Tree<T : Any> internal constructor() : AbstractTree<T> {
                 continue
             }
             val childNodes = refreshInternal(currentRefreshNode)
-            for (childNode in childNodes) {
-                if (withExpandable && !childNode.isExpanded) {
-                    continue
+            if (withExpandable) {
+                for (childNode in childNodes) {
+                    if (!childNode.isExpanded) {
+                        continue
+                    }
+                    willRefreshNodes.addLast(childNode)
                 }
-                willRefreshNodes.addLast(childNode)
             }
         }
 
