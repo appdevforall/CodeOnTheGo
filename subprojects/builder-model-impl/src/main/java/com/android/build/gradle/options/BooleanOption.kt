@@ -762,7 +762,7 @@ enum class BooleanOption(
     @Suppress("unused")
     ENABLE_BUILD_CACHE(
         "android.enableBuildCache",
-        false,
+        true,
         FeatureStage.Removed(VERSION_7_0, "The Android-specific build caches were superseded by the Gradle build cache (https://docs.gradle.org/current/userguide/build_cache.html).")
     ),
 
