@@ -34,8 +34,7 @@ class VariableTreeNodeGenerator private constructor(
         }
 
         val data = targetNode.data ?: return emptySet()
-        val members = data.objectMembers()
-        return members
+        return data.objectMembers()
     }
 
     override fun createRootNode(): TreeNode<ResolvableVariable<*>> {
