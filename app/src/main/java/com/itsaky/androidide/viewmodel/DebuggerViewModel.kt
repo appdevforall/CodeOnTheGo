@@ -14,8 +14,6 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -202,36 +200,37 @@ class DebuggerViewModel : ViewModel() {
             threadIndex = threadIndex,
             frameIndex = frameIndex,
             variablesTree = createVariablesTree(
-                resolvableThreads,
-                threadIndex,
-                frameIndex
+                threads = resolvableThreads,
+                threadIndex = threadIndex,
+                frameIndex = frameIndex,
+                resolve = false
             )
         )
 
         state.update { newState }
     }
 
-    fun refreshVariables() {
+    fun refreshState() {
         viewModelScope.launch {
-            val currentState = state.value
-            val tree = createVariablesTree(currentState.threads, currentState.threadIndex, currentState.frameIndex)
-            val newState = currentState.copy(variablesTree = tree)
-            state.update { newState }
+            debugClient.updateThreadInfo(
+                debugClient.requireClient,
+            )
         }
     }
 
     private suspend fun createVariablesTree(
         threads: List<ResolvableThreadInfo>,
         threadIndex: Int,
-        frameIndex: Int
+        frameIndex: Int,
+        resolve: Boolean = true,
     ): Tree<ResolvableVariable<*>> = coroutineScope {
 
-        // resolve the data we need to render the UI
-        threads.map { thread ->
-            async {
+        if (resolve) {
+            // resolve the data we need to render the UI
+            threads.forEach { thread ->
                 thread.resolve()
             }
-        }.awaitAll()
+        }
 
         val roots =
             threads.getOrNull(threadIndex)

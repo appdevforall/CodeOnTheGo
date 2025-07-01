@@ -14,7 +14,8 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfo as LspThreadInfo
  * @property thread The thread reference.
  */
 internal class ThreadInfo(
-    val thread: ThreadReference
+    val thread: ThreadReference,
+    val threadGroup: ThreadGroupReference?
 ) {
 
     private var _currentFrame = 0
@@ -143,7 +144,9 @@ internal class ThreadState(
 
     internal fun initThreads() {
         if (!gotInitialThreads) {
-            _threads.addAll(vm.allThreads().map(::ThreadInfo))
+            _threads.addAll(vm.allThreads().map { thread ->
+                ThreadInfo(thread, thread.threadGroup())
+            })
             gotInitialThreads = true
         }
     }
@@ -159,7 +162,7 @@ internal class ThreadState(
             initThreads()
             if (getThreadInfo(thread) == null) {
                 logger.debug("addThread: {}", thread)
-                _threads.add(ThreadInfo(thread))
+                _threads.add(ThreadInfo(thread, thread.threadGroup()))
                 return true
             }
 
