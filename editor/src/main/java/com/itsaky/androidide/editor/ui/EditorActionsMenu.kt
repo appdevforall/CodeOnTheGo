@@ -36,14 +36,12 @@ import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
 import com.blankj.utilcode.util.SizeUtils
-import com.google.android.material.button.MaterialButton
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.EditorActionItem
 import com.itsaky.androidide.actions.FillMenuParams
-import com.itsaky.androidide.editor.R.layout
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
@@ -359,32 +357,6 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     )
   }
 
-  @SuppressLint("InflateParams")
-  private fun findWidestItem(): Int {
-    var widest = 0
-    val text =
-      LayoutInflater.from(editor.context).inflate(layout.layout_popup_menu_item, null)
-          as MaterialButton
-    val dp30 = SizeUtils.dp2px(30f)
-    val paddingHorizontal = text.paddingStart + text.paddingEnd
-    val drawablePadding = text.iconPadding
-    val extraWidth = dp30 * 2 // 30dp for start and end drawables both
-
-    for (i in 0 until getMenu().size()) {
-      val item = getMenu().getItem(i)
-      val title = item.title.toString()
-      var width = paddingHorizontal + (drawablePadding * 2)
-      width += text.paint.measureText(title).toInt()
-      width += extraWidth
-
-      if (width > widest) {
-        widest = width
-      }
-    }
-
-    return widest
-  }
-
   private class ActionsListAdapter(val menu: Menu?, val forceShowTitle: Boolean = false) :
     RecyclerView.Adapter<VH>() {
 
@@ -402,16 +374,26 @@ open class EditorActionsMenu(val editor: IDEEditor) :
 
     override fun onBindViewHolder(holder: VH, position: Int) {
       val item = getItem(position) ?: return
-      holder.binding.root.text = if (forceShowTitle) item.title else ""
-      holder.binding.root.tooltipText = item.title
-      holder.binding.root.icon =
-        item.icon
-          ?: run {
-            holder.binding.root.text = item.title
-            holder.binding.root.layoutParams.apply { width = ViewGroup.LayoutParams.WRAP_CONTENT }
-            null
-          }
-      holder.binding.root.setOnClickListener { (item as MenuItemImpl).invoke() }
+      val button = holder.binding.root
+      button.text = if (forceShowTitle) item.title else ""
+      button.tooltipText = item.title
+
+      button.icon =
+        item.icon ?: run {
+          button.text = item.title
+
+          val widthSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+          val heightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+          button.measure(widthSpec, heightSpec)
+
+          button.layoutParams.width = button.measuredWidth
+
+          null
+        }
+
+      button.setOnClickListener {
+        (item as MenuItemImpl).invoke()
+      }
     }
 
     inner class VH(val binding: LayoutPopupMenuItemBinding) : ViewHolder(binding.root)
@@ -433,8 +415,11 @@ open class EditorActionsMenu(val editor: IDEEditor) :
       this.list.layoutManager = LinearLayoutManager(editor.context)
       this.list.adapter = ActionsListAdapter(item.subMenu, true)
 
-      measureActionsList()
-      popup.update(findWidestItem(), this.list.measuredHeight)
+      this.list.post {
+        measureActionsList()
+        val safeItemWidth = this.list.measuredWidth + this.list.paddingEnd + this.list.paddingStart
+        popup.update(safeItemWidth, this.list.measuredHeight)
+      }
     }
 
     return true
