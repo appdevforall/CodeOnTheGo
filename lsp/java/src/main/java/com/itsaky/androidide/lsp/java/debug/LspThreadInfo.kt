@@ -3,12 +3,14 @@ package com.itsaky.androidide.lsp.java.debug
 import com.itsaky.androidide.lsp.debug.model.PrimitiveKind
 import com.itsaky.androidide.lsp.debug.model.PrimitiveValue
 import com.itsaky.androidide.lsp.debug.model.StackFrameDescriptor
-import com.itsaky.androidide.lsp.debug.model.StringValue
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
 import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
+import com.itsaky.androidide.lsp.java.debug.utils.isOpaque
+import com.sun.jdi.Location
+import com.sun.jdi.Method
 import com.sun.jdi.StackFrame
 import com.sun.jdi.ThreadReference
 import kotlinx.coroutines.Dispatchers
@@ -20,40 +22,57 @@ import com.itsaky.androidide.lsp.debug.model.ThreadState as LspThreadState
 import com.itsaky.androidide.lsp.debug.model.Variable as LspVariable
 
 class JavaStackFrame(
+    val thread: ThreadReference,
     val frame: StackFrame,
+    val location: Location = frame.location(),
+    val method: Method? = location.method(),
+    val sourceName: String = location.sourceName(),
+    val lineNumber: Long = location.lineNumber().toLong(),
 ) : LspStackFrame {
 
-    private val logger = LoggerFactory.getLogger(JavaStackFrame::class.java)
+    private lateinit var cachedVariables: List<JavaLocalVariable<*>>
 
     override suspend fun descriptor() = withContext(Dispatchers.IO) {
-        val location = frame.location()
-        val method = checkNotNull(location.method()) {
+        val method = checkNotNull(method) {
             "Method not found for location: $location"
         }
 
         StackFrameDescriptor(
             method = method.name(),
             methodSignature = method.signature(),
-            sourceFile = location.sourceName(),
-            lineNumber = location.lineNumber().toLong()
+            sourceFile = sourceName,
+            lineNumber = lineNumber
         )
     }
 
     override suspend fun getVariables(): List<LspVariable<*>> {
-        val method = frame.location().method()
-        if (method == null || method.isAbstract || method.isNative) {
-            // non-concrete method
-            // does not have any variables
-            return emptyList()
+        if (!::cachedVariables.isInitialized) {
+            cachedVariables = JavaDebugAdapter.requireInstance().evalContext().evaluate(thread) {
+                if (method?.isOpaque == true) {
+                    // non-concrete method
+                    // does not have any variables
+                    return@evaluate emptyList()
+                }
+
+                return@evaluate thread.frames().firstOrNull { it.location() == location }
+                    ?.visibleVariables()
+                    ?.mapNotNull { variable ->
+                        if (variable.name().isBlank()) {
+                            // some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
+                            return@mapNotNull null
+                        }
+
+                        JavaLocalVariable.forVariable(
+                            thread = thread,
+                            stackFrame = this,
+                            variable = variable,
+                            value = frame.getValue(variable)
+                        )
+                    }
+            } ?: emptyList()
         }
 
-        val variables = withContext(Dispatchers.IO) {
-            frame.visibleVariables()
-
-                // some opaque frames in core Android classes have empty variable names (like ZygoteInit)
-                .filter { it.name().isNotBlank() }
-        }
-        return variables.map { variable -> JavaLocalVariable.forVariable(frame, variable) }
+        return cachedVariables
     }
 
     override suspend fun <Val : Value> setValue(variable: Variable<Val>, value: Val) =
@@ -78,15 +97,6 @@ class JavaStackFrame(
                     }
                 }
 
-                VariableKind.STRING -> {
-                    check(value is StringValue) {
-                        "Value $value is not a string value"
-                    }
-
-                    variable as JavaStringVariable
-                    variable.doSetValue(value.asString())
-                }
-
                 // TODO: Support other types of variable values
                 else -> throw IllegalStateException("Unsupported variable kind: ${variable.kind}")
             }
@@ -94,12 +104,15 @@ class JavaStackFrame(
 }
 
 internal class LspThreadInfo(
-    val thread: ThreadInfo
+    val thread: ThreadInfo,
+    val frames: List<StackFrame> = thread.frames(),
 ) : LspThreadInfo {
 
     companion object {
         private val logger = LoggerFactory.getLogger(LspThreadInfo::class.java)
     }
+
+    private lateinit var cachedFrames: List<JavaStackFrame>
 
     override suspend fun descriptor(): ThreadDescriptor = withContext(Dispatchers.IO) {
         val thread = thread.thread
@@ -113,9 +126,19 @@ internal class LspThreadInfo(
         )
     }
 
-    override suspend fun getFrames(): List<LspStackFrame> {
-        return thread.frames()
-            .map(::JavaStackFrame)
+    override suspend fun getFrames(): List<JavaStackFrame> {
+        if (!::cachedFrames.isInitialized) {
+            cachedFrames = JavaDebugAdapter.requireInstance().evalContext().evaluate(thread.thread) {
+                frames.map { frame ->
+                    JavaStackFrame(
+                        thread = thread.thread,
+                        frame = frame,
+                    )
+                }
+            } ?: emptyList()
+        }
+
+        return cachedFrames
     }
 }
 

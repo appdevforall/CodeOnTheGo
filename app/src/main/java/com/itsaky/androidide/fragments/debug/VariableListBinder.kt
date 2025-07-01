@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.content.Context
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -70,7 +69,6 @@ class VariableListBinder(
             chevron.rotation = if (node.isExpanded) 90f else 0f
         }
 
-        Log.d("VariableListBinder", "bindView: node.data=${node.data}")
         if (node.data?.isResolved != true) {
             binding.label.text = context.getString(R.string.debugger_status_resolving)
         }
@@ -174,15 +172,17 @@ class VariableListBinder(
                             return@setOnClickListener
                         }
 
-                        coroutineScope.launch {
+                        coroutineScope.launch(Dispatchers.IO) {
                             val isSet = variable.setValue(newValue)
-                            if (isSet) {
-                                inputLayout.error = null
-                                dialog.dismiss()
-                                viewModel.refreshVariables()
-                            } else {
-                                inputLayout.error =
-                                    context.getString(R.string.debugger_variable_value_invalid)
+                            withContext(Dispatchers.Main) {
+                                if (isSet) {
+                                    inputLayout.error = null
+                                    dialog.dismiss()
+                                    viewModel.refreshState()
+                                } else {
+                                    inputLayout.error =
+                                        context.getString(R.string.debugger_variable_value_invalid)
+                                }
                             }
                         }
                     }
