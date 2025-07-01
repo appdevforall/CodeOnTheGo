@@ -58,7 +58,7 @@ object BuildPreferences {
 
   /** Switch for Gradle `--build-cache` option. */
   var isBuildCacheEnabled: Boolean
-    get() = prefManager.getBoolean(BUILD_CACHE)
+    get() = prefManager.getBoolean(BUILD_CACHE, true)
     set(enabled) {
       prefManager.putBoolean(BUILD_CACHE, enabled)
     }
@@ -79,7 +79,7 @@ object BuildPreferences {
 
   /** Switch for Gradle `--info` option. */
   var isInfoEnabled: Boolean
-    get() = prefManager.getBoolean(INFO, true)
+    get() = prefManager.getBoolean(INFO, false)
     set(enabled) {
       prefManager.putBoolean(INFO, enabled)
     }

@@ -51,8 +51,8 @@ constructor(
     val task = data.data
 
     binding.check.isChecked = data.isChecked
-    binding.taskPath.text = AndroidUtils.capitalizeWords(task.path)
-    binding.taskDesc.text = AndroidUtils.capitalizeWords(task.description)
+    binding.taskPath.text = task.path
+    binding.taskDesc.text = task.description
 
     binding.root.setOnClickListener {
       data.isChecked = !data.isChecked
