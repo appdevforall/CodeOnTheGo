@@ -22,11 +22,13 @@ import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
+import com.itsaky.androidide.lsp.java.debug.utils.EvaluationContext
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
+import com.itsaky.androidide.utils.withStopWatch
 import com.sun.jdi.Bootstrap
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
@@ -103,6 +105,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
      * Get the connected VM.
      */
     fun vm() = connVm().vm
+    fun evalContext() = connVm().evalContext
 
     override fun connectDebugClient(client: IDebugClient) {
         val connector = vmm.listeningConnectors().firstOrNull() as? SocketListeningConnector?
@@ -173,7 +176,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
             client = client,
             vm = vm,
             threadState = threadState,
-            eventHandler = eventHandler,
+            eventHandler = eventHandler
         )
 
         // Start listening for events
@@ -202,6 +205,7 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override suspend fun resumeClient(client: RemoteClient) = doSuspensionIfEnabled(client) { vm ->
         try {
+            logger.debug("resuming client: {}", client.name)
             vm.vm.resume()
             true
         } catch (e: Throwable) {
@@ -325,6 +329,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override suspend fun step(request: StepRequestParams): StepResponse =
         withContext(Dispatchers.IO) {
+            logger.debug("step: {}", request)
+
             val vm = connVm()
 
             check(vm.client == request.remoteClient) {
@@ -403,9 +409,13 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
                 return@withContext ThreadListResponse(emptyList())
             }
 
-            return@withContext ThreadListResponse(
-                threads = vm.threadState.threads.map { thread -> LspThreadInfo(thread) }
-            )
+            return@withContext withStopWatch("create thread list") {
+                ThreadListResponse(
+                    threads = vm.threadState.threads.map {
+                            thread -> LspThreadInfo(thread)
+                    }
+                )
+            }
         }
 
     private fun clearPreviousStep(vm: VirtualMachine, thread: ThreadReference) {
