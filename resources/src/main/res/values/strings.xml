@@ -102,7 +102,7 @@
   <string name="save">Save</string>
   <string name="menu_find">Find</string>
   <string name="menu_find_file">Find in file</string>
-  <string name="menu_find_project">Find in Project</string>
+  <string name="menu_find_project">Find in project</string>
   <string name="msg_search_modules">Search in modules</string>
   <string name="msg_no_modules">No modules found in project</string>
   <string name="hint_find_project_filter">Filter file extensions (optional)</string>
