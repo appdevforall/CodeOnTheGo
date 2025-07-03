@@ -232,7 +232,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     protected abstract fun getOpenedFiles(): List<OpenedFile>
     internal abstract fun doConfirmProjectClose()
-  internal abstract fun doOpenHelp()
+    internal abstract fun doOpenHelp()
 
     protected open fun preDestroy() {
         _binding = null
@@ -299,6 +299,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                     start = editorToolbar.paddingStart + insets.left,
                     end = editorToolbar.paddingEnd + insets.right
                 )
+                customToolbar.setContentInsetsRelative(0,0)
             }
         }
     }
@@ -345,6 +346,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         lifecycle.addObserver(mLifecycleObserver)
 
         setSupportActionBar(content.editorToolbar)
+        setupToolbar()
 
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
@@ -361,6 +363,32 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
+    }
+
+    private fun setupToolbar() {
+        content.customToolbar.apply {
+            setTitleText(getString(string.app_name))
+            setSubtitleText("My Application")
+
+            val toggle = object : ActionBarDrawerToggle(
+                this@BaseEditorActivity,
+                binding.editorDrawerLayout,
+                content.customToolbar,
+                string.app_name,
+                string.app_name
+            ) {
+                override fun onDrawerOpened(drawerView: View) {
+                    super.onDrawerOpened(drawerView)
+                    // Hide the keyboard when the drawer opens.
+                    closeKeyboard()
+                }
+            }
+
+
+            binding.editorDrawerLayout.addDrawerListener(toggle)
+            toggle.syncState()
+        }
+
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -765,7 +793,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         content.noEditorSummary.text = sb
     }
-
 
 
     private fun appendClickableSpan(
