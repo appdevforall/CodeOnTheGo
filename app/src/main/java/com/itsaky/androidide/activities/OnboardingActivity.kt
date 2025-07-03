@@ -397,6 +397,9 @@ class OnboardingActivity : AppIntro2() {
                 brotliFile.delete()
             }
 
+            ZipUtils.unzipFile(zipFile, outputDirectory)
+            zipFile.delete()
+
         } catch (e: IOException) {
             Log.e("OnboardingActivityInstall", "Gradle Dists copy failed: ${e.message}")
         }
