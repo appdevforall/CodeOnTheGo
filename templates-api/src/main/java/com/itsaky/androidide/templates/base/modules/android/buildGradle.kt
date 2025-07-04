@@ -59,8 +59,8 @@ android {
     buildToolsVersion = "34.0.4" 
     
     // disable linter
-    lintOptions {
-        isCheckReleaseBuilds = false
+    lint {
+        checkReleaseBuilds = false
     }
     
     
@@ -159,7 +159,7 @@ fun composeConfigGroovy(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion '$compose_kotlinCompilerExtensionVersion'
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
@@ -215,7 +215,7 @@ fun composeConfigKts(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion = "$compose_kotlinCompilerExtensionVersion"
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
