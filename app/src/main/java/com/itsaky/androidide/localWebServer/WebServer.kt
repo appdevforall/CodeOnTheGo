@@ -8,14 +8,13 @@ import java.io.PrintWriter
 import java.io.File
 import org.brotli.dec.BrotliInputStream
 import java.io.ByteArrayInputStream
-import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 
 
 data class ServerConfig(
-    val port: Int = 6175,
-    val context: Context
+    val port: Int = 6174,
+    val databasePath: String = "/data/data/com.itsaky.androidide/databases/documentation.db"
 )
 
 class WebServer(private val config: ServerConfig) {
@@ -28,9 +27,8 @@ class WebServer(private val config: ServerConfig) {
             Log.d(TAG, "Starting WebServer on port ${config.port}")
             
             // Verify database access
-            val dbPath = "/data/data/com.itsaky.androidide/databases/documentation.db"
             try {
-                val testDb = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
+                val testDb = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
                 testDb.close()
             } catch (e: Exception) {
                 Log.e(TAG, "Cannot open database: ${e.message}")
@@ -81,7 +79,7 @@ class WebServer(private val config: ServerConfig) {
                 return
             }
 
-            val db = SQLiteDatabase.openDatabase("/data/data/com.itsaky.androidide/databases/documentation.db", null, SQLiteDatabase.OPEN_READONLY)
+            val db = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
             val query = """
                 SELECT c.content, ct.value AS mime_type, ct.compression
                 FROM Content c

@@ -276,7 +276,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             }
             
             Log.i(TAG, "Starting WebServer - database file exists at: $dbPath")
-            val webServer = WebServer(ServerConfig(context = this))
+            val webServer = WebServer(ServerConfig())
             Thread { webServer.start() }.start()
             
         } catch (e: Exception) {

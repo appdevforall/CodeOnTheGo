@@ -45,7 +45,7 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.idetooltips.IDETooltipDao
 import com.itsaky.androidide.idetooltips.TooltipDaoProvider
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
+
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -77,7 +77,6 @@ class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
-    private var localServerUtil: LocalServerUtil? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
@@ -111,9 +110,7 @@ class IDEApplication : TermuxApplication() {
 
             checkForSecondDisplay()
 
-            //Start the local HTTP server for CoGo tooltips
-            val localServerUtil = LocalServerUtil()
-            localServerUtil.startServer(6174)
+
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -148,7 +145,6 @@ class IDEApplication : TermuxApplication() {
         writeException(th)
 
         try {
-            localServerUtil!!.stopServer()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
