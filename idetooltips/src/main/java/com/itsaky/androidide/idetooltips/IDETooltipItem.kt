@@ -17,15 +17,11 @@
 
 package com.itsaky.androidide.idetooltips
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-
-@Entity(primaryKeys = ["tooltipCategory", "tooltipTag"], tableName = "ide_tooltip_table")
 data class IDETooltipItem(
-    @ColumnInfo(name = "tooltipCategory") val tooltipCategory : String,
-    @ColumnInfo(name = "tooltipTag") val tooltipTag : String,
-    @ColumnInfo(name = "tooltipSummary") val summary: String,
-    @ColumnInfo(name = "tooltipDetail")  val detail: String,
-    @ColumnInfo(name = "tooltipButtons") val buttons: ArrayList<Pair<String, String>>
+    val tooltipCategory: String,
+    val tooltipTag: String,
+    val summary: String,
+    val detail: String,
+    val buttons: ArrayList<Pair<String, String>>
 )
 

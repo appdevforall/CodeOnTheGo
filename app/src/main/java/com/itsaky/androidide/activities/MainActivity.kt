@@ -47,6 +47,8 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
+import org.appdevforall.localwebserver.WebServer
+import org.appdevforall.localwebserver.ServerConfig
 
 import java.io.File
 import java.io.FileOutputStream
@@ -101,6 +103,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Start WebServer after installation is complete
+        startWebServer()
+        
         openLastProject()
         setupSecondaryDisplay()
 
@@ -258,6 +263,25 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         )
 
         fileOrDirectory.delete()
+    }
+
+    private fun startWebServer() {
+        try {
+            val dbPath = "/data/data/com.itsaky.androidide/databases/documentation.db"
+            val dbFile = File(dbPath)
+            
+            if (!dbFile.exists()) {
+                Log.w(TAG, "Database file not found at: $dbPath - WebServer will not start")
+                return
+            }
+            
+            Log.i(TAG, "Starting WebServer - database file exists at: $dbPath")
+            val webServer = WebServer(ServerConfig())
+            Thread { webServer.start() }.start()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start WebServer", e)
+        }
     }
 
     override fun onDestroy() {
