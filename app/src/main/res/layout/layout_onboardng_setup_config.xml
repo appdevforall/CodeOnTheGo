@@ -27,7 +27,6 @@
         android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp"
         android:orientation="vertical"
-        app:layout_constraintBottom_toTopOf="@id/auto_install_switch"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -74,7 +73,7 @@
         android:checked="true"
         android:text="@string/action_install_git"
         android:visibility="gone"
-        app:layout_constraintStart_toStartOf="@id/auto_install_switch"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/jdk_version_layout" />
 
     <com.google.android.material.checkbox.MaterialCheckBox
@@ -84,19 +83,8 @@
         android:checked="true"
         android:text="@string/action_install_openssh"
         android:visibility="gone"
-        app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-        app:layout_constraintTop_toBottomOf="@id/install_git" />
-
-    <com.google.android.material.materialswitch.MaterialSwitch
-        android:id="@+id/auto_install_switch"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:checked="true"
-        android:text="@string/action_auto_install"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/connection_info_container" />
+        app:layout_constraintTop_toBottomOf="@id/install_git" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/jdk_version_layout"
@@ -107,8 +95,8 @@
         android:hint="@string/hin_jdk_version"
         android:labelFor="@id/jdk_version"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="@id/auto_install_switch"
-        app:layout_constraintStart_toStartOf="@id/auto_install_switch"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/sdk_version_layout">
 
         <com.google.android.material.textfield.MaterialAutoCompleteTextView
@@ -129,9 +117,9 @@
         android:hint="@string/hint_android_sdk_version"
         android:labelFor="@id/sdk_version"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="@id/auto_install_switch"
-        app:layout_constraintStart_toStartOf="@id/auto_install_switch"
-        app:layout_constraintTop_toBottomOf="@id/auto_install_switch">
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/connection_info_container">
 
         <com.google.android.material.textfield.MaterialAutoCompleteTextView
             android:id="@+id/sdk_version"

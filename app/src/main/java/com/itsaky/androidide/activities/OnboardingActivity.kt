@@ -222,13 +222,12 @@ class OnboardingActivity : AppIntro2() {
 
                 runOnUiThread {
                     val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
-                    if (currentFragment.isAutoInstall()) {
-                        intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
-                        intent.putExtra(
-                            TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
-                            currentFragment.buildIdeSetupArguments()
-                        )
-                    }
+                    intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
+                    intent.putExtra(
+                        TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
+                        currentFragment.buildIdeSetupArguments()
+                    )
+
                     terminalActivityCallback.launch(intent)
                 }
             }
@@ -398,6 +397,9 @@ class OnboardingActivity : AppIntro2() {
                 brotliFile.delete()
             }
 
+            ZipUtils.unzipFile(zipFile, outputDirectory)
+            zipFile.delete()
+
         } catch (e: IOException) {
             Log.e("OnboardingActivityInstall", "Gradle Dists copy failed: ${e.message}")
         }
@@ -432,16 +434,38 @@ class OnboardingActivity : AppIntro2() {
 
     private fun copyToolingApi() {
         val tooling_api_jar = "tooling-api-all.jar"
+        val tooling_api_jar_br = "${tooling_api_jar}.br"
 
         try {
             if (Environment.TOOLING_API_JAR.exists()) {
                 FileUtils.delete(Environment.TOOLING_API_JAR)
             }
 
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(tooling_api_jar),
-                Environment.TOOLING_API_JAR.absolutePath
-            )
+            if (SPLIT_ASSETS) {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getCommonAsset(tooling_api_jar),
+                    Environment.TOOLING_API_JAR.absolutePath
+                )
+            } else {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getCommonAsset(tooling_api_jar_br),
+                    Environment.TOOLING_API_JAR.parentFile.resolve(tooling_api_jar_br).absolutePath
+                )
+
+                val brotliFile = Environment.TOOLING_API_JAR.parentFile.resolve(tooling_api_jar_br)
+                val jarFile = Environment.TOOLING_API_JAR.parentFile.resolve(tooling_api_jar)
+                if (!brotliFile.exists()) {
+                    Log.e("OnboardingActivityInstall",
+                        "Brotli file ${brotliFile.path} doesn't exist!")
+                }
+
+                decompressBrotli(brotliFile.absolutePath, jarFile.absolutePath)
+
+                if (!jarFile.exists()) {
+                    Log.e("OnboardingActivityInstall", "Brotli decompression of ${jarFile.path} failed!")
+                }
+            }
+
         } catch (e: IOException) {
             Log.e("OnboardingActivityInstall", "Tooling API jar copy failed: ${e.message}")
         }

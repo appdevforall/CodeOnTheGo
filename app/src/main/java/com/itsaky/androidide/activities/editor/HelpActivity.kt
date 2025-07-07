@@ -53,14 +53,57 @@ class HelpActivity : EdgeToEdgeIDEActivity() {
 
             supportActionBar?.title = pageTitle ?: getString(R.string.help)
 
-            // Enable JavaScript if required
+            // Configure WebView settings for localhost access
             webView.settings.javaScriptEnabled = true
+            webView.settings.allowFileAccess = true
+            webView.settings.allowFileAccessFromFileURLs = true
+            webView.settings.allowUniversalAccessFromFileURLs = true
+            webView.settings.domStorageEnabled = true
+            webView.settings.databaseEnabled = true
+            webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
             // Set WebViewClient to handle page navigation within the WebView
-            webView.webViewClient = WebViewClient()
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: android.webkit.WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    android.util.Log.d("HelpActivity", "Page started loading: $url")
+                }
+                
+                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    android.util.Log.d("HelpActivity", "Page finished loading: $url")
+                }
+                
+                override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+                    url?.let {
+                        // Allow localhost URLs to load directly
+                        if (it.startsWith("http://localhost:6174/")) {
+                            view?.loadUrl(it)
+                            return true
+                        }
+                    }
+                    return super.shouldOverrideUrlLoading(view, url)
+                }
+                
+                override fun onReceivedError(view: android.webkit.WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                    super.onReceivedError(view, errorCode, description, failingUrl)
+                    android.util.Log.e("HelpActivity", "Error loading URL: $failingUrl, Error: $description")
+                    // Show error message to user
+                    view?.loadData("""
+                        <html><body>
+                        <h3>Error Loading Content</h3>
+                        <p>Unable to load: $failingUrl</p>
+                        <p>Error: $description</p>
+                        </body></html>
+                    """.trimIndent(), "text/html", "UTF-8")
+                }
+            }
 
             // Load the HTML file from the assets folder
-            htmlContent?.let { webView.loadUrl(it) }
+            htmlContent?.let { url ->
+                android.util.Log.d("HelpActivity", "Loading URL: $url")
+                webView.loadUrl(url)
+            }
         }
     }
 

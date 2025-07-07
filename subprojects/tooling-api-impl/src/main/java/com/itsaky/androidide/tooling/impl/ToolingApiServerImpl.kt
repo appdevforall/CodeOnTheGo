@@ -128,7 +128,9 @@ internal class ToolingApiServerImpl(private val project: ProjectImpl) :
       try {
         log.debug("Received project initialization request with params: {}", params)
 
-        Main.checkGradleWrapper()
+        if (params.gradleDistribution.type == GradleDistributionType.GRADLE_WRAPPER) {
+          Main.checkGradleWrapper()
+        }
 
         if (buildCancellationToken != null) {
           cancelCurrentBuild().get()
