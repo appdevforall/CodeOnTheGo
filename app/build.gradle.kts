@@ -346,16 +346,12 @@ fun createAssetsZip(zipName: String, archDir: String) {
 }
 
 tasks.register("assembleV8Assets") {
-  dependsOn("assembleV8Debug")
-
   doLast {
     createAssetsZip("assets-v8.zip","termux/v8")
   }
 }
 
 tasks.register("assembleV7Assets") {
-  dependsOn("assembleV7Debug")
-
   doLast {
     createAssetsZip("assets-v7.zip","termux/v7")
   }
