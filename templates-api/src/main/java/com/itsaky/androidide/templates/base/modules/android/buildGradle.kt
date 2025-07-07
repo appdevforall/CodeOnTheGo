@@ -116,8 +116,8 @@ android {
     buildToolsVersion = "34.0.4"
     
     // disable linter
-    lintOptions {
-        checkReleaseBuilds  false
+    lint {
+        checkReleaseBuilds =  false
     }
     
     defaultConfig {
