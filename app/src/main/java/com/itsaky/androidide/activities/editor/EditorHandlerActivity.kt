@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup.LayoutParams
@@ -31,11 +32,13 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.ImageUtils
+import com.google.gson.Gson
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -217,7 +220,9 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     open fun prepareOptionsMenu(menu: Menu) {
+        val registry = getInstance() as DefaultActionsRegistry
         val data = createToolbarActionData()
+        content.customToolbar.clearMenu()
         val actions = getInstance().getActions(EDITOR_TOOLBAR)
         actions.forEach { (_, action) ->
             menu.findItem(action.itemId)?.let { item ->
@@ -253,7 +258,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                     content.customToolbar.addMenuItem(
                         icon = action.icon,
                         hint = item.title.toString(),
-                        onClick = { lifecycleScope.launch { action.execAction(data) } }
+                        onClick = {
+                            val action = registry.findAction(EDITOR_TOOLBAR, action.id)
+                            registry.executeAction(action!!, data)
+                        }
                     )
                 }
             }

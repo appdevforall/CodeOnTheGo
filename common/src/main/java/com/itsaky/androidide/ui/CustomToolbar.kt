@@ -70,4 +70,8 @@ class CustomToolbar @JvmOverloads constructor(
         )
         setBackgroundResource(resourceId)
     }
+
+    fun clearMenu() {
+        menuContainer.removeAllViews()
+    }
 }
