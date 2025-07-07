@@ -49,6 +49,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_L
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import org.appdevforall.localwebserver.WebServer
 import org.appdevforall.localwebserver.ServerConfig
+import com.itsaky.androidide.utils.DatabasePathProvider
 
 import java.io.File
 import java.io.FileOutputStream
@@ -267,7 +268,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     private fun startWebServer() {
         try {
-            val dbPath = "/data/data/com.itsaky.androidide/databases/documentation.db"
+            val dbPath = DatabasePathProvider.getDatabasePath(this)
             val dbFile = File(dbPath)
             
             if (!dbFile.exists()) {
@@ -276,7 +277,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             }
             
             Log.i(TAG, "Starting WebServer - database file exists at: $dbPath")
-            val webServer = WebServer(ServerConfig())
+            val webServer = WebServer(ServerConfig(databasePath = dbPath))
             Thread { webServer.start() }.start()
             
         } catch (e: Exception) {

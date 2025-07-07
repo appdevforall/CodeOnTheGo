@@ -25,7 +25,7 @@ object TooltipManager {
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
             try {
-                val dbPath = "/data/data/com.itsaky.androidide/databases/documentation.db"
+                val dbPath = context.getDatabasePath("documentation.db").absolutePath
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
                 
                 val query = """

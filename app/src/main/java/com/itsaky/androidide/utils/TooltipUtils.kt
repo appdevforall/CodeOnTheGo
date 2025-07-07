@@ -89,7 +89,7 @@ object TooltipUtils {
     suspend fun dumpDatabase(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val dbPath = "/data/data/com.itsaky.androidide/databases/documentation.db"
+                val dbPath = context.getDatabasePath("documentation.db").absolutePath
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
                 
                 val query = "SELECT COUNT(*) as count FROM ide_tooltip_table"
