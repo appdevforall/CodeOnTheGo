@@ -222,13 +222,12 @@ class OnboardingActivity : AppIntro2() {
 
                 runOnUiThread {
                     val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
-                    if (currentFragment.isAutoInstall()) {
-                        intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
-                        intent.putExtra(
-                            TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
-                            currentFragment.buildIdeSetupArguments()
-                        )
-                    }
+                    intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
+                    intent.putExtra(
+                        TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
+                        currentFragment.buildIdeSetupArguments()
+                    )
+
                     terminalActivityCallback.launch(intent)
                 }
             }
@@ -397,6 +396,9 @@ class OnboardingActivity : AppIntro2() {
 
                 brotliFile.delete()
             }
+
+            ZipUtils.unzipFile(zipFile, outputDirectory)
+            zipFile.delete()
 
         } catch (e: IOException) {
             Log.e("OnboardingActivityInstall", "Gradle Dists copy failed: ${e.message}")

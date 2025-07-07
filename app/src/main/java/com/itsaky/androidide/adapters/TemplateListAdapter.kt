@@ -63,8 +63,7 @@ class TemplateListAdapter(
         root.visibility = View.INVISIBLE
         return@apply
       }
-      val originalText = templateName.context.getString(template.templateName)
-      templateName.text = AndroidUtils.capitalizeWords(originalText)
+      templateName.text = templateName.context.getString(template.templateName)
       templateIcon.setImageResource(template.thumb)
       templateIcon.shapeAppearanceModel =
         templateIcon.shapeAppearanceModel.toBuilder()
