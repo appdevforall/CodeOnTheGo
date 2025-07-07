@@ -17,15 +17,10 @@
 
 package com.itsaky.androidide.plugins
 
-import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
-import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
-import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
-import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
-import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
-import org.adfa.constants.SPLIT_ASSETS
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
+import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyDocDbToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleCachesToAssetsTask
@@ -36,9 +31,14 @@ import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
 import com.itsaky.androidide.plugins.util.capitalized
+import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
+import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.SPLIT_ASSETS
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.configurationcache.extensions.capitalized
 
 /**
  * Handles asset copying and generation.
@@ -135,7 +135,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 // Tooling API JAR copier
                 val copyToolingApiJar = tasks.register(
                     "copy${variantNameCapitalized}ToolingApiJar",
-                    AddFileToAssetsTask::class.java
+                    AddBrotliFileToAssetsTask::class.java
                 ) {
                     val toolingApi = rootProject.findProject(":subprojects:tooling-api-impl")!!
                     dependsOn(toolingApi.tasks.getByName("copyJar"))
@@ -148,7 +148,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     copyToolingApiJar,
-                    AddFileToAssetsTask::outputDirectory
+                    AddBrotliFileToAssetsTask::outputDirectory
                 )
 
                 // libjdwp-remote AAR copier

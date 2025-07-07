@@ -43,9 +43,9 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.idetooltips.IDETooltipDao
-import com.itsaky.androidide.idetooltips.TooltipDaoProvider
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
+
+
+
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -78,7 +78,6 @@ class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
-    private var localServerUtil: LocalServerUtil? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
@@ -112,9 +111,7 @@ class IDEApplication : TermuxApplication() {
 
             checkForSecondDisplay()
 
-            //Start the local HTTP server for CoGo tooltips
-            localServerUtil = LocalServerUtil()
-            localServerUtil!!.startServer(6174)
+
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -136,20 +133,15 @@ class IDEApplication : TermuxApplication() {
             IDEColorSchemeProvider.init()
         }
 
-        TooltipDaoProvider.init(this)
-        ideTooltipDao = TooltipDaoProvider.ideTooltipDao
 
-        //Trigger a lightweight database access to force initialization
-        applicationScope.launch {
-            ideTooltipDao.getCount()
-        }
+
+        //Tooltip database access is now handled by direct SQLite queries
     }
 
     private fun handleCrash(thread: Thread, th: Throwable) {
         writeException(th)
 
         try {
-            localServerUtil!!.stopServer()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
@@ -291,9 +283,6 @@ class IDEApplication : TermuxApplication() {
 
         @JvmStatic
         lateinit var instance: IDEApplication
-            private set
-
-        lateinit var ideTooltipDao: IDETooltipDao
             private set
     }
 
