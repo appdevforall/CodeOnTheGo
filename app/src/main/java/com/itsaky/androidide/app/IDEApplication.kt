@@ -23,6 +23,7 @@ import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.StrictMode
+import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -58,6 +59,7 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -81,13 +83,18 @@ class IDEApplication : TermuxApplication() {
     private val applicationScope = CoroutineScope(SupervisorJob())
 
     init {
-        if (!VMUtils.isJvm()) {
-            TreeSitter.loadLibrary()
+        if (!VMUtils.isJvm() && !isTestMode()) {
+            try {
+                TreeSitter.loadLibrary()
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
+            }
         }
 
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
+  
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         instance = this
