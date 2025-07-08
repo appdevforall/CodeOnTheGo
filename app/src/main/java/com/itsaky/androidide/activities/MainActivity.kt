@@ -49,7 +49,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_L
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import org.appdevforall.localwebserver.WebServer
 import org.appdevforall.localwebserver.ServerConfig
-import com.itsaky.androidide.utils.DatabasePathProvider
+import com.itsaky.androidide.utils.Environment
 
 import java.io.File
 import java.io.FileOutputStream
@@ -268,16 +268,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     private fun startWebServer() {
         try {
-            val dbPath = DatabasePathProvider.getDatabasePath(this)
-            val dbFile = File(dbPath)
+            val dbFile = Environment.DOC_DB
             
             if (!dbFile.exists()) {
-                Log.w(TAG, "Database file not found at: $dbPath - WebServer will not start")
+                Log.w(TAG, "Database file not found at: ${dbFile.absolutePath} - WebServer will not start")
                 return
             }
             
-            Log.i(TAG, "Starting WebServer - database file exists at: $dbPath")
-            val webServer = WebServer(ServerConfig(databasePath = dbPath))
+            Log.i(TAG, "Starting WebServer - database file exists at: ${dbFile.absolutePath}")
+            val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
             Thread { webServer.start() }.start()
             
         } catch (e: Exception) {
