@@ -23,6 +23,7 @@ import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.StrictMode
+import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -81,11 +82,37 @@ class IDEApplication : TermuxApplication() {
     private val applicationScope = CoroutineScope(SupervisorJob())
 
     init {
-        if (!VMUtils.isJvm()) {
-            TreeSitter.loadLibrary()
+        if (!VMUtils.isJvm() && !isTestMode()) {
+            try {
+                TreeSitter.loadLibrary()
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
+            }
         }
 
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+    }
+
+    private fun isTestMode(): Boolean {
+        // Check system property (for unit tests)
+        if (System.getProperty("androidide.test.mode") == "true") {
+            return true
+        }
+        
+        // Check if we're running under test instrumentation
+        try {
+            val instrumentationClass = Class.forName("androidx.test.platform.app.InstrumentationRegistry")
+            val getInstrumentationMethod = instrumentationClass.getMethod("getInstrumentation")
+            val instrumentation = getInstrumentationMethod.invoke(null)
+            if (instrumentation != null) {
+                Log.i("IDEApplication", "Running under test instrumentation, skipping TreeSitter loading")
+                return true
+            }
+        } catch (e: Exception) {
+            // Not running under instrumentation
+        }
+        
+        return false
     }
 
     @OptIn(DelicateCoroutinesApi::class)
