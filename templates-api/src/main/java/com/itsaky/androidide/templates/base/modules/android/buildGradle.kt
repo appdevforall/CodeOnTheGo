@@ -94,6 +94,11 @@ android {
     }
     ${composeConfigKts()}
 }
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:deprecation")
+}
+
 ${ktJvmTarget()}
 ${dependencies()}
 """
@@ -149,6 +154,9 @@ android {
         ${if (isComposeModule) "compose true" else ""}
     }
     ${composeConfigGroovy()}
+}
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:deprecation")
 }
 ${ktJvmTarget()}
 ${dependencies()}
