@@ -304,7 +304,14 @@ constructor(
   }
 
   fun appendBuildOut(str: String?) {
+    if (str != null && shouldFilter(str)) return
     pagerAdapter.buildOutputFragment?.appendOutput(str)
+  }
+
+  private fun shouldFilter(msg: String): Boolean {
+    return msg.contains("Transforming transform-api-2.0.0-deprecated-use-gradle-api.jar") ||
+            msg.contains("Deprecated Gradle features were used in this build") ||
+            msg.contains("is deprecated")
   }
 
   fun clearBuildOutput() {
