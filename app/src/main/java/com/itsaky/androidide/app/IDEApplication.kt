@@ -59,6 +59,7 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -93,28 +94,7 @@ class IDEApplication : TermuxApplication() {
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
-    private fun isTestMode(): Boolean {
-        // Check system property (for unit tests)
-        if (System.getProperty("androidide.test.mode") == "true") {
-            return true
-        }
-        
-        // Check if we're running under test instrumentation
-        try {
-            val instrumentationClass = Class.forName("androidx.test.platform.app.InstrumentationRegistry")
-            val getInstrumentationMethod = instrumentationClass.getMethod("getInstrumentation")
-            val instrumentation = getInstrumentationMethod.invoke(null)
-            if (instrumentation != null) {
-                Log.i("IDEApplication", "Running under test instrumentation, skipping TreeSitter loading")
-                return true
-            }
-        } catch (e: Exception) {
-            // Not running under instrumentation
-        }
-        
-        return false
-    }
-
+  
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         instance = this
