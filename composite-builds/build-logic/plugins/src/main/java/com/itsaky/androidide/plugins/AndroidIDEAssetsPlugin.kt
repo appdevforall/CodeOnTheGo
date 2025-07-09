@@ -27,6 +27,7 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
 import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
+import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyDocDbToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyGradleCachesToAssetsTask
@@ -40,7 +41,6 @@ import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.TaskProvider
-import org.gradle.configurationcache.extensions.capitalized
 
 /**
  * Handles asset copying and generation.
@@ -102,7 +102,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
             androidComponentsExtension.onVariants { variant ->
 
-                val variantNameCapitalized = variant.name.capitalized()
+                val variantName = variant.name
 
                 variant.sources.jniLibs?.addGeneratedSourceDirectory(
                     setupAapt2TaskTaskProvider,
@@ -122,7 +122,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 // Init script generator
                 val generateInitScript = tasks.register(
-                    "generate${variantNameCapitalized}InitScript",
+                    "generate${variantName}InitScript",
                     GenerateInitScriptTask::class.java
                 ) {
                     mavenGroupId.set(BuildConfig.packageName)
@@ -136,8 +136,8 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 // Tooling API JAR copier
                 val copyToolingApiJar = tasks.register(
-                    "copy${variantNameCapitalized}ToolingApiJar",
-                    AddFileToAssetsTask::class.java
+                    "copy${variantName}ToolingApiJar",
+                    AddBrotliFileToAssetsTask::class.java
                 ) {
                     val toolingApi = rootProject.findProject(":subprojects:tooling-api-impl")!!
                     dependsOn(toolingApi.tasks.getByName("copyJar"))
@@ -150,15 +150,11 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     copyToolingApiJar,
-                    AddFileToAssetsTask::outputDirectory
+                    AddBrotliFileToAssetsTask::outputDirectory
                 )
 
-                if (SPLIT_ASSETS) {
-                    copyToolingApiJar.configure { enabled = false }
-                }
-
                 val copyCogoPluginJar = tasks.register(
-                    "copy${variantNameCapitalized}CogoPluginJar",
+                    "copy${variantName}CogoPluginJar",
                     AddFileToAssetsTask::class.java
                 ) {
 

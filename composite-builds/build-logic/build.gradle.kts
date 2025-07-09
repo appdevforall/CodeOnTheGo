@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 /*
 *  This file is part of AndroidIDE.
 *
@@ -17,21 +19,20 @@
 
 plugins {
     id("java")
-    kotlin("jvm") version "1.9.22"
+    alias(libs.plugins.kotlin.jvm)
 }
 
 allprojects {
     plugins.withId("java-library") {
         java {
-            toolchain {
-                languageVersion = JavaLanguageVersion.of(17)
-            }
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
         }
     }
 
     plugins.withId("org.jetbrains.kotlin.jvm") {
         kotlin {
-            jvmToolchain(17)
+            compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
         }
     }
 }

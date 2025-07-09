@@ -23,6 +23,7 @@ import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.StrictMode
+import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -43,9 +44,9 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.idetooltips.IDETooltipDao
-import com.itsaky.androidide.idetooltips.IDETooltipDatabase
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
+
+
+
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -58,6 +59,7 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -77,18 +79,22 @@ class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
-    private var localServerUtil: LocalServerUtil? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
     init {
-        if (!VMUtils.isJvm()) {
-            TreeSitter.loadLibrary()
+        if (!VMUtils.isJvm() && !isTestMode()) {
+            try {
+                TreeSitter.loadLibrary()
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
+            }
         }
 
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
+  
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         instance = this
@@ -111,9 +117,7 @@ class IDEApplication : TermuxApplication() {
 
             checkForSecondDisplay()
 
-            //Start the local HTTP server for CoGo tooltips
-            val localServerUtil = LocalServerUtil()
-            localServerUtil.startServer(6174)
+
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -135,19 +139,15 @@ class IDEApplication : TermuxApplication() {
             IDEColorSchemeProvider.init()
         }
 
-        idetooltipDao = IDETooltipDatabase.getDatabase(this).idetooltipDao()
 
-        //Trigger a lightweight database access to force initialization
-        applicationScope.launch {
-            idetooltipDao.getCount()
-        }
+
+        //Tooltip database access is now handled by direct SQLite queries
     }
 
     private fun handleCrash(thread: Thread, th: Throwable) {
         writeException(th)
 
         try {
-            localServerUtil!!.stopServer()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
@@ -289,9 +289,6 @@ class IDEApplication : TermuxApplication() {
 
         @JvmStatic
         lateinit var instance: IDEApplication
-            private set
-
-        lateinit var idetooltipDao: IDETooltipDao
             private set
     }
 
