@@ -228,6 +228,7 @@ fun Project.configureAndroidModule(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            consumerProguardFiles("consumer-rules.pro")
         }
 
         // development build type

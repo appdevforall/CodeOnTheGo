@@ -17,16 +17,9 @@
 
 package com.itsaky.androidide.plugins
 
-import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
-import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
-import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
-import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
-import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
-import org.adfa.constants.SPLIT_ASSETS
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
-import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyDocDbToAssetsTask
@@ -37,7 +30,13 @@ import com.itsaky.androidide.plugins.tasks.CopyTermuxCacheAndManifestTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
-import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
+import com.itsaky.androidide.plugins.util.capitalized
+import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
+import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.SPLIT_ASSETS
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.TaskProvider
@@ -102,7 +101,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
             androidComponentsExtension.onVariants { variant ->
 
-                val variantName = variant.name
+                val variantNameCapitalized = variant.name.capitalized()
 
                 variant.sources.jniLibs?.addGeneratedSourceDirectory(
                     setupAapt2TaskTaskProvider,
@@ -122,7 +121,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 // Init script generator
                 val generateInitScript = tasks.register(
-                    "generate${variantName}InitScript",
+                    "generate${variantNameCapitalized}InitScript",
                     GenerateInitScriptTask::class.java
                 ) {
                     mavenGroupId.set(BuildConfig.packageName)
@@ -136,7 +135,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
                 // Tooling API JAR copier
                 val copyToolingApiJar = tasks.register(
-                    "copy${variantName}ToolingApiJar",
+                    "copy${variantNameCapitalized}ToolingApiJar",
                     AddBrotliFileToAssetsTask::class.java
                 ) {
                     val toolingApi = rootProject.findProject(":subprojects:tooling-api-impl")!!
@@ -153,8 +152,28 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     AddBrotliFileToAssetsTask::outputDirectory
                 )
 
+                // libjdwp-remote AAR copier
+                val copyLibJdwpAar = tasks.register(
+                    "copy${variantNameCapitalized}LibJdwpAar",
+                    AddFileToAssetsTask::class.java
+                ) {
+                    val flavor = variant.flavorName!!
+                    val libjdwpRemote = rootProject.findProject(":subprojects:libjdwp-remote")!!
+                    dependsOn(libjdwpRemote.tasks.getByName("assemble${flavor.capitalized()}Release"))
+
+                    val libjdwpRemoteAar = libjdwpRemote.layout.buildDirectory.file("outputs/aar/libjdwp-remote-$flavor-release.aar")
+
+                    inputFile.set(libjdwpRemoteAar)
+                    baseAssetsPath.set("data/common")
+                }
+
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    copyLibJdwpAar,
+                    AddFileToAssetsTask::outputDirectory
+                )
+
                 val copyCogoPluginJar = tasks.register(
-                    "copy${variantName}CogoPluginJar",
+                    "copy${variantNameCapitalized}CogoPluginJar",
                     AddFileToAssetsTask::class.java
                 ) {
 

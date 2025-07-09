@@ -23,8 +23,9 @@ import com.itsaky.androidide.ui.EditorBottomSheet
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
-class ApkInstallationSessionCallback(private var activity: BaseEditorActivity?) :
-  SingleSessionCallback() {
+class ApkInstallationSessionCallback(
+  private var activity: BaseEditorActivity?,
+) : SingleSessionCallback() {
 
   private var sessionId = -1
 
