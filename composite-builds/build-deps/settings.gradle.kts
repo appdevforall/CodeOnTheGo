@@ -54,6 +54,7 @@ include(
   ":jdk-jdeps",
   ":jdt",
   ":layoutlib-api",
+  ":treeview",
 )
 
 rootProject.name = "build-deps"
