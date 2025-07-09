@@ -54,6 +54,7 @@ dependencies {
     implementation(projects.editorApi)
     implementation(projects.resources)
     implementation(projects.lsp.api)
+    implementation(projects.subprojects.libjdwp)
     implementation(projects.subprojects.javacServices)
 
     implementation(libs.composite.javac)
