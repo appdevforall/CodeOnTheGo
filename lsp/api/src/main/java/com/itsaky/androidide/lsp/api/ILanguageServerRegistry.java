@@ -20,6 +20,8 @@ package com.itsaky.androidide.lsp.api;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.itsaky.androidide.lsp.debug.IDebugClient;
+
 /**
  * A language server registry which keeps track of registered language servers.
  *
@@ -46,6 +48,12 @@ public abstract class ILanguageServerRegistry {
 
   /** Connects client to all the registered {@link ILanguageServer}s. */
   public abstract void connectClient(@NonNull ILanguageClient client);
+
+  /**
+   *  Connects debug client to all the registered {@link ILanguageServer}s.
+   * @param client The debug client to register.
+   */
+  public abstract void connectDebugClient(@NonNull IDebugClient client);
 
   /**
    * Unregister the given server. If any server is registered with the given server ID, a shutdown
