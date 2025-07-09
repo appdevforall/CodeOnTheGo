@@ -40,7 +40,7 @@ public final class Environment {
 
   private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
-  public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
+  public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/lib/jvm/java-21-openjdk";
   private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
   private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
   public static File ROOT;
