@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.plugins
 
+import com.itsaky.androidide.plugins.util.DownloadUtils
 import org.adfa.constants.BOOTSTRAP_SOURCE_FOLDER
 import org.adfa.constants.SOURCE_LIB_FOLDER
 import com.itsaky.androidide.plugins.util.FolderCopyUtils
@@ -24,6 +25,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.internal.os.OperatingSystem
 import java.io.File
+import java.net.URI
 
 /**
  * Gradle plugin which downloads the bootstrap packages for the terminal.
@@ -38,16 +40,15 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
      * The bootstrap packages, mapped with the CPU ABI as the key and the ZIP file's sha256sum as the value.
      */
     private val BOOTSTRAP_PACKAGES = mapOf(
-      "aarch64" to "68da03ed270d59cafcd37981b00583c713b42cb440adf03d1bf980f39a55181d",
-      "arm" to "f3d9f2da7338bd00b02a8df192bdc22ad431a5eef413cecf4cd78d7a54ffffbf",
+      "aarch64" to "bcfbda90805fd1d3be105f707380e5f68855ddb79b87afc51e7708b366bd2097",
+      "arm" to "287fbd4b84c3dd39e09f3057b596f160a948d4ed3ed0007097f9e1446af5cc82",
     )
 
     /**
      * The bootstrap packages version, basically the tag name of the GitHub release.
      */
-    private const val BOOTSTRAP_PACKAGES_VERSION = "16.12.2023"
-
-    private const val PACKAGES_DOWNLOAD_URL = "https://github.com/AndroidIDEOfficial/terminal-packages/releases/download/bootstrap-%1\$s/bootstrap-%2\$s.zip"
+    private const val BOOTSTRAP_PACKAGES_VERSION = "2025.07.08"
+    private const val PACKAGES_DOWNLOAD_URL = "https://github.com/appdevforall/terminal-packages/releases/download/%1\$s/bootstrap-%2\$s.9.zip"
   }
 
   override fun apply(target: Project) {
@@ -60,10 +61,12 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
         val file = File(bootstrapOut, "bootstrap-${arch}.zip")
         file.parentFile.mkdirs()
 
-        val sourceFilePath =
-          this.project.projectDir.parentFile.parentFile.path + File.separator + SOURCE_LIB_FOLDER + File.separator + BOOTSTRAP_SOURCE_FOLDER
-
-        FolderCopyUtils.copy(sourceFilePath, bootstrapOut)
+        DownloadUtils.downloadFile(
+          logger = logger,
+          url = URI.create(PACKAGES_DOWNLOAD_URL.format(BOOTSTRAP_PACKAGES_VERSION, arch)).toURL(),
+          sha256Checksum = sha256,
+          destination = file
+        )
 
         return@map arch to file
       }.toMap()

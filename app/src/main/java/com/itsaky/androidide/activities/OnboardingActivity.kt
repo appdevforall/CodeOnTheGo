@@ -46,6 +46,7 @@ import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.TerminalInstaller
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -65,25 +66,23 @@ import org.adfa.constants.HOME_PATH
 import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR
-import org.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
-import org.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
 import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
 import org.adfa.constants.MANIFEST_FILE_NAME
 import org.adfa.constants.SPLIT_ASSETS
 import org.adfa.constants.TERMUX_DEBS_PATH
+import org.brotli.dec.BrotliInputStream
+import org.slf4j.LoggerFactory
 import java.io.File
-import java.io.IOException
 import java.io.FileInputStream
 import java.io.FileOutputStream
-
-import org.brotli.dec.BrotliInputStream;
+import java.io.IOException
 
 class OnboardingActivity : AppIntro2() {
 
     private val terminalActivityCallback = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        Log.d(TAG, "TerminalActivity: resultCode=${it.resultCode}")
+        logger.debug("TerminalActivity: resultCode={}", it.resultCode)
         if (!isFinishing) {
             reloadJdkDistInfo {
                 tryNavigateToMainIfSetupIsCompleted()
@@ -97,8 +96,7 @@ class OnboardingActivity : AppIntro2() {
     private var listJdkInstallationsJob: Job? = null
 
     companion object {
-
-        private const val TAG = "OnboardingActivity"
+        private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
         private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
             "ide.archConfig.experimentalWarning.isShown"
     }
@@ -213,22 +211,25 @@ class OnboardingActivity : AppIntro2() {
                 runOnUiThread {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
-                copyTermuxDebsAndManifest()
+
                 copyAndroidSDK()
                 copyMavenLocalRepoFiles()
                 copyGradleDists()
                 copyToolingApi()
                 copyDocumentation()
 
-                runOnUiThread {
-                    val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
-                    intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
-                    intent.putExtra(
-                        TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
-                        currentFragment.buildIdeSetupArguments()
-                    )
+                val result = TerminalInstaller.installIfNeeded(this@OnboardingActivity) { progressType ->
+                    logger.debug("Terminal installer progress: {}", progressType)
+                }
 
-                    terminalActivityCallback.launch(intent)
+                logger.info("bootstrap installation result: {}", result)
+
+                if (result !is TerminalInstaller.InstallResult.Success) {
+                    return@launchAsyncWithProgress
+                }
+
+                withContext(Dispatchers.Main) {
+                    tryNavigateToMainIfSetupIsCompleted()
                 }
             }
             return
