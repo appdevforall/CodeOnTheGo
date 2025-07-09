@@ -39,6 +39,7 @@ import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
 import org.adfa.constants.SPLIT_ASSETS
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.TaskProvider
 
 /**
  * Handles asset copying and generation.

@@ -15,6 +15,7 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
+import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -25,7 +26,7 @@ object TooltipManager {
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
             try {
-                val dbPath = "/data/data/com.itsaky.androidide/databases/documentation.db"
+                val dbPath = Environment.DOC_DB.absolutePath
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
                 
                 val query = """

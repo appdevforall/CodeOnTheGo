@@ -20,4 +20,5 @@ dependencies {
     implementation(libs.google.material)
 
     implementation(projects.resources)
+    implementation(projects.common)
 }
