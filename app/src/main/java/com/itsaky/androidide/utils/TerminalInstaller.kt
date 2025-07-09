@@ -20,10 +20,8 @@ package com.itsaky.androidide.utils
 import android.content.Context
 import android.system.Os
 import android.system.OsConstants
-import com.android.utils.cxx.os.exe
 import com.itsaky.androidide.resources.R
 import com.termux.app.TermuxInstaller
-import com.termux.app.TermuxInstaller.showBootstrapErrorDialog
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.errors.Error
 import com.termux.shared.file.FileUtils
@@ -38,15 +36,13 @@ import com.termux.shared.termux.file.TermuxFileUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.commons.compress.archivers.zip.ZipFile
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import kotlin.math.log
 
 
 /**
@@ -69,12 +65,13 @@ object TerminalInstaller {
 
     private val executableDirs = arrayOf(
         "bin/",
-        "etc/termux/termux-bootstrap/second-stage/termux-bootstrap-second-stage.sh",
         "libexec",
         "lib/apt/apt-helper",
         "lib/apt/methods",
-        "lib/jvm/java-21-openjdk/bin/",
-        "lib/jvm/java-17-openjdk/bin/",
+    )
+
+    private val executableFiles = arrayOf(
+        "etc/termux/termux-bootstrap/second-stage/termux-bootstrap-second-stage.sh",
     )
 
     /**
@@ -133,228 +130,215 @@ object TerminalInstaller {
         context: Context,
         dryRun: Boolean = false,
         onProgress: (ProgressType) -> Unit = {},
-    ): InstallResult =
-        withContext(Dispatchers.IO) {
-            onProgress(ProgressType.Preparing)
+    ): InstallResult = withContext(Dispatchers.IO) {
+        onProgress(ProgressType.Preparing)
 
-            val filesDirAccessibleErr =
-                TermuxFileUtils.isTermuxFilesDirectoryAccessible(
-                    // context =
-                    context,
-                    // createDirectoryIfMissing =
-                    true,
-                    // setMissingPermissions =
-                    true,
-                )
+        val filesDirAccessibleErr = TermuxFileUtils.isTermuxFilesDirectoryAccessible(
+            // context =
+            context,
+            // createDirectoryIfMissing =
+            true,
+            // setMissingPermissions =
+            true,
+        )
 
-            val isFilesDirAccessible = filesDirAccessibleErr == null
+        val isFilesDirAccessible = filesDirAccessibleErr == null
 
-            if (!PackageUtils.isCurrentUserThePrimaryUser(context)) {
-                val errorMessage =
-                    context.getString(
-                        R.string.bootstrap_error_not_primary_user_message,
-                        MarkdownUtils.getMarkdownCodeForString(
-                            TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                            false,
-                        ),
-                    )
-
-                logger.error("isFilesDirAccessible: $isFilesDirAccessible")
-                logger.error(errorMessage)
-                return@withContext InstallResult.Error.IsSecondaryUser
-            }
-
-            if (!isFilesDirAccessible) {
-                var errorMessage = Error.getMinimalErrorString(filesDirAccessibleErr)
-
-                // noinspection SdCardPath
-                if (PackageUtils.isAppInstalledOnExternalStorage(context) &&
-                    TermuxConstants.TERMUX_FILES_DIR_PATH !=
-                    context.filesDir.absolutePath.replace(
-                        "^/data/user/0".toRegex(),
-                        "/data/data/",
-                    )
-                ) {
-                    errorMessage += "\n\n" +
-                            context.getString(
-                                R.string.bootstrap_error_installed_on_portable_sd,
-                                MarkdownUtils.getMarkdownCodeForString(
-                                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                                    false,
-                                ),
-                            )
-                }
-
-                logger.error(errorMessage)
-                return@withContext InstallResult.Error.Interactive(
-                    title = context.getString(R.string.bootstrap_error_title),
-                    message = errorMessage,
-                )
-            }
-
-            if (FileUtils.directoryFileExists(TermuxConstants.TERMUX_PREFIX_DIR_PATH, true)) {
-                if (TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
-                    logger.info(
-                        "The termux prefix directory {} exists but is empty or only contains specific unimportant files.",
-                        TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    )
-                } /*else {
-                    return@withContext InstallResult.Success
-                }*/
-            } else if (FileUtils.fileExists(TermuxConstants.TERMUX_PREFIX_DIR_PATH, false)) {
-                logger.info(
-                    "The termux prefix directory {} does not exist but another file exists at its destination.",
+        if (!PackageUtils.isCurrentUserThePrimaryUser(context)) {
+            val errorMessage = context.getString(
+                R.string.bootstrap_error_not_primary_user_message,
+                MarkdownUtils.getMarkdownCodeForString(
                     TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                )
-            }
-
-            if (dryRun) {
-                // halt actual installation
-                return@withContext InstallResult.NotInstalled
-            }
-
-            logger.info("Installing {} bootstrap packages.", TermuxConstants.TERMUX_APP_NAME)
-
-            var error = FileUtils.createDirectoryFile(TermuxConstants.TERMUX_HOME_DIR_PATH)
-            if (error != null) {
-                return@withContext InstallResult.Error.Interactive(
-                    title = context.getString(R.string.bootstrap_error_title),
-                    message = Error.getErrorMarkdownString(error),
-                )
-            }
-
-            error =
-                FileUtils.deleteFile(
-                    "termux prefix staging directory",
-                    TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
-                    true,
-                )
-            if (error != null) {
-                return@withContext InstallResult.Error.Interactive(
-                    title = context.getString(R.string.bootstrap_error_title),
-                    message = Error.getErrorMarkdownString(error),
-                )
-            }
-
-            error =
-                FileUtils.deleteFile(
-                    "termux prefix directory",
-                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    true,
-                )
-            if (error != null) {
-                return@withContext InstallResult.Error.Interactive(
-                    title = context.getString(R.string.bootstrap_error_title),
-                    message = Error.getErrorMarkdownString(error),
-                )
-            }
-
-            error = TermuxFileUtils.isTermuxPrefixStagingDirectoryAccessible(true, true)
-            if (error != null) {
-                return@withContext InstallResult.Error.Interactive(
-                    title = context.getString(R.string.bootstrap_error_title),
-                    message = Error.getErrorMarkdownString(error),
-                )
-            }
-
-            error = TermuxFileUtils.isTermuxPrefixDirectoryAccessible(true, true)
-            if (error != null) {
-                return@withContext InstallResult.Error.Interactive(
-                    title = context.getString(R.string.bootstrap_error_title),
-                    message = Error.getErrorMarkdownString(error),
-                )
-            }
-
-            logger.info(
-                "Extracting bootstrap zip to prefix staging directory {}.",
-                TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
+                    false,
+                ),
             )
 
-            return@withContext doInstall(context, onProgress)
+            logger.error("isFilesDirAccessible: $isFilesDirAccessible")
+            logger.error(errorMessage)
+            return@withContext InstallResult.Error.IsSecondaryUser
         }
 
+        if (!isFilesDirAccessible) {
+            var errorMessage = Error.getMinimalErrorString(filesDirAccessibleErr)
+
+            // noinspection SdCardPath
+            if (PackageUtils.isAppInstalledOnExternalStorage(context) && TermuxConstants.TERMUX_FILES_DIR_PATH != context.filesDir.absolutePath.replace(
+                    "^/data/user/0".toRegex(),
+                    "/data/data/",
+                )
+            ) {
+                errorMessage += "\n\n" + context.getString(
+                    R.string.bootstrap_error_installed_on_portable_sd,
+                    MarkdownUtils.getMarkdownCodeForString(
+                        TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+                        false,
+                    ),
+                )
+            }
+
+            logger.error(errorMessage)
+            return@withContext InstallResult.Error.Interactive(
+                title = context.getString(R.string.bootstrap_error_title),
+                message = errorMessage,
+            )
+        }
+
+        if (FileUtils.directoryFileExists(TermuxConstants.TERMUX_PREFIX_DIR_PATH, true)) {
+            if (TermuxFileUtils.isTermuxPrefixDirectoryEmpty()) {
+                logger.info(
+                    "The termux prefix directory {} exists but is empty or only contains specific unimportant files.",
+                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+                )
+            } /*else {
+                    return@withContext InstallResult.Success
+                }*/
+        } else if (FileUtils.fileExists(TermuxConstants.TERMUX_PREFIX_DIR_PATH, false)) {
+            logger.info(
+                "The termux prefix directory {} does not exist but another file exists at its destination.",
+                TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+            )
+        }
+
+        if (dryRun) {
+            // halt actual installation
+            return@withContext InstallResult.NotInstalled
+        }
+
+        logger.info("Installing {} bootstrap packages.", TermuxConstants.TERMUX_APP_NAME)
+
+        var error = FileUtils.createDirectoryFile(TermuxConstants.TERMUX_HOME_DIR_PATH)
+        if (error != null) {
+            return@withContext InstallResult.Error.Interactive(
+                title = context.getString(R.string.bootstrap_error_title),
+                message = Error.getErrorMarkdownString(error),
+            )
+        }
+
+        error = FileUtils.deleteFile(
+            "termux prefix staging directory",
+            TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
+            true,
+        )
+        if (error != null) {
+            return@withContext InstallResult.Error.Interactive(
+                title = context.getString(R.string.bootstrap_error_title),
+                message = Error.getErrorMarkdownString(error),
+            )
+        }
+
+        error = FileUtils.deleteFile(
+            "termux prefix directory",
+            TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+            true,
+        )
+        if (error != null) {
+            return@withContext InstallResult.Error.Interactive(
+                title = context.getString(R.string.bootstrap_error_title),
+                message = Error.getErrorMarkdownString(error),
+            )
+        }
+
+        error = TermuxFileUtils.isTermuxPrefixStagingDirectoryAccessible(true, true)
+        if (error != null) {
+            return@withContext InstallResult.Error.Interactive(
+                title = context.getString(R.string.bootstrap_error_title),
+                message = Error.getErrorMarkdownString(error),
+            )
+        }
+
+        error = TermuxFileUtils.isTermuxPrefixDirectoryAccessible(true, true)
+        if (error != null) {
+            return@withContext InstallResult.Error.Interactive(
+                title = context.getString(R.string.bootstrap_error_title),
+                message = Error.getErrorMarkdownString(error),
+            )
+        }
+
+        logger.info(
+            "Extracting bootstrap zip to prefix staging directory {}.",
+            TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
+        )
+
+        return@withContext doInstall(context, onProgress)
+    }
+
     private fun doInstall(
-        context: Context,
-        onProgress: (ProgressType) -> Unit
+        context: Context, onProgress: (ProgressType) -> Unit
     ): InstallResult {
         var error: Error?
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         val symlinks = mutableListOf<Pair<String, String>>()
 
-        val zipBytes = TermuxInstaller.loadZipBytes()
-        ZipInputStream(ByteArrayInputStream(zipBytes)).use { zipInput ->
-            var zipEntry: ZipEntry?
-            while ((zipInput.nextEntry.also { zipEntry = it }) != null) {
-                val entry = zipEntry!!
-                if (entry.name == "SYMLINKS.txt") {
-                    val symlinksReader = BufferedReader(InputStreamReader(zipInput))
-                    var line: String?
-                    while ((symlinksReader.readLine().also { line = it }) != null) {
-                        val parts =
-                            line!!
-                                .split("←".toRegex())
-                                .dropLastWhile { segment -> segment.isEmpty() }
-                                .toTypedArray()
+        ZipFile.builder()
+            .setSeekableByteChannel(SeekableInMemoryByteChannel(TermuxInstaller.loadZipBytes()))
+            .get().use { zipFile ->
+                zipFile.entries.asSequence().forEach { entry ->
+                    val entryStream = zipFile.getInputStream(entry)
+                    if (entry.name == "SYMLINKS.txt") {
+                        val symlinksReader = BufferedReader(InputStreamReader(entryStream))
+                        var line: String?
+                        while ((symlinksReader.readLine().also { line = it }) != null) {
+                            val parts = line!!.split("←".toRegex())
+                                .dropLastWhile { segment -> segment.isEmpty() }.toTypedArray()
 
-                        if (parts.size != 2) {
-                            throw RuntimeException("Malformed symlink line: $line")
-                        }
+                            if (parts.size != 2) {
+                                throw RuntimeException("Malformed symlink line: $line")
+                            }
 
-                        val oldPath = parts[0]
-                        val newPath =
-                            buildString {
+                            val oldPath = parts[0]
+                            val newPath = buildString {
                                 append(TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH)
                                 append("/")
                                 append(parts[1])
                             }
 
-                        symlinks.add(oldPath to newPath)
+                            symlinks.add(oldPath to newPath)
 
-                        error = ensureDirectoryExists(File(newPath).parentFile!!)
+                            error = ensureDirectoryExists(File(newPath).parentFile!!)
+                            if (error != null) {
+                                return@use InstallResult.Error.Interactive(
+                                    title = context.getString(R.string.bootstrap_error_title),
+                                    message = Error.getErrorMarkdownString(error),
+                                )
+                            }
+                        }
+                    } else {
+                        val zipEntryName = entry.name
+                        onProgress(ProgressType.Unzipping(zipEntryName))
+
+                        val targetFile =
+                            File(TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH, zipEntryName)
+                        val isDirectory = entry.isDirectory
+
+                        error =
+                            ensureDirectoryExists(if (isDirectory) targetFile else targetFile.parentFile)
                         if (error != null) {
                             return InstallResult.Error.Interactive(
                                 title = context.getString(R.string.bootstrap_error_title),
                                 message = Error.getErrorMarkdownString(error),
                             )
                         }
-                    }
-                } else {
-                    val zipEntryName = entry.name
-                    onProgress(ProgressType.Unzipping(zipEntryName))
 
-                    val targetFile =
-                        File(TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH, zipEntryName)
-                    val isDirectory = entry.isDirectory
-
-                    error =
-                        ensureDirectoryExists(if (isDirectory) targetFile else targetFile.parentFile)
-                    if (error != null) {
-                        return InstallResult.Error.Interactive(
-                            title = context.getString(R.string.bootstrap_error_title),
-                            message = Error.getErrorMarkdownString(error),
-                        )
-                    }
-
-                    if (!isDirectory) {
-                        FileOutputStream(targetFile).use { outStream ->
-                            var readBytes: Int
-                            while ((
-                                        zipInput
-                                            .read(buffer)
-                                            .also { len -> readBytes = len }
-                                        ) != -1
-                            ) {
-                                outStream.write(buffer, 0, readBytes)
+                        if (!isDirectory) {
+                            FileOutputStream(targetFile).use { outStream ->
+                                var readBytes: Int
+                                while ((entryStream.read(buffer)
+                                        .also { len -> readBytes = len }) != -1
+                                ) {
+                                    outStream.write(buffer, 0, readBytes)
+                                }
                             }
-                        }
 
-                        if (executableDirs.any { dir -> zipEntryName.startsWith(dir) }) {
-                            Os.chmod(targetFile.absolutePath, OsConstants.S_IRWXU)
+                            if (executableDirs.any { dir -> zipEntryName.startsWith(dir) }
+                                || executableFiles.any { file -> file == zipEntryName }) {
+                                Os.chmod(targetFile.absolutePath, OsConstants.S_IRWXU)
+                            } else {
+                                Os.chmod(targetFile.absolutePath, entry.unixMode)
+                            }
                         }
                     }
                 }
             }
-        }
 
         if (symlinks.isEmpty()) {
             throw java.lang.RuntimeException("No SYMLINKS.txt encountered")
@@ -390,26 +374,26 @@ object TerminalInstaller {
 
             val executionCommand = ExecutionCommand(
                 -1,
-                termuxBootstrapSecondStageFile, null, null,
-                null, Runner.APP_SHELL.runnerName, false
+                termuxBootstrapSecondStageFile,
+                null,
+                null,
+                null,
+                Runner.APP_SHELL.runnerName,
+                false
             )
 
             executionCommand.commandLabel = "Termux Bootstrap Second Stage Command"
             executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_NORMAL
 
             val shell = AppShell.execute(
-                context,
-                executionCommand,
-                null,
-                TermuxShellEnvironment(),
-                hashMapOf(),
-                true
+                context, executionCommand, null, TermuxShellEnvironment(), hashMapOf(), true
             )
 
             if (shell == null || !executionCommand.isSuccessful || executionCommand.resultData.exitCode != 0) {
 
                 // Delete prefix directory as otherwise when app is restarted, the broken prefix directory would be used and logged into.
-                error = FileUtils.deleteFile("termux prefix directory", TERMUX_PREFIX_DIR_PATH, true)
+                error =
+                    FileUtils.deleteFile("termux prefix directory", TERMUX_PREFIX_DIR_PATH, true)
                 logger.error("Failed to run Termux second-stage command: {}", executionCommand)
                 logger.error("Failed to run Termux second-stage command: {}", error)
                 return InstallResult.Error.Interactive(
