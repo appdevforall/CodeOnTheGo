@@ -10,6 +10,11 @@ import com.sun.jdi.request.ClassPrepareRequest
 interface ReferenceTypeSpec {
 
     /**
+     * Get all [ReferenceType]s that match this spec.
+     */
+    fun matchingRefTypes(vm: VirtualMachine): List<ReferenceType>
+
+    /**
      * Whether this spec matches the given reference type.
      */
     fun matches(vm: VirtualMachine, refType: ReferenceType): Boolean

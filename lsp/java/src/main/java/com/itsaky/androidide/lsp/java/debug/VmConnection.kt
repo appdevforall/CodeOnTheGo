@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.java.debug
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.lsp.debug.RemoteClient
 import com.itsaky.androidide.lsp.java.debug.spec.EventRequestSpecList
+import com.itsaky.androidide.lsp.java.debug.utils.EvaluationContext
 import com.sun.jdi.VirtualMachine
 
 /**
@@ -17,6 +18,7 @@ internal data class VmConnection(
     val vm: VirtualMachine,
     val threadState: ThreadState = ThreadState(vm),
     val eventHandler: EventHandler? = null,
+    val evalContext: EvaluationContext = EvaluationContext(),
 ) : AutoCloseable {
 
     val isHandlingEvents: Boolean
@@ -39,5 +41,6 @@ internal data class VmConnection(
     override fun close() {
         eventHandler?.close()
         vm.dispose()
+        evalContext.close()
     }
 }

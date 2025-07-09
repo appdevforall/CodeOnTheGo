@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.java.debug.utils
 
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.sun.jdi.AbsentInformationException
+import com.sun.jdi.Method
 import com.sun.jdi.ReferenceType
 import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.VirtualMachine
@@ -63,3 +64,5 @@ fun EventQueue.tryRemove(): EventSet? = try {
     null
 }
 
+val Method.isOpaque: Boolean
+    get() = isAbstract || isNative

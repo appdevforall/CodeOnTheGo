@@ -28,6 +28,7 @@ internal class EventRequestSpecList(
      * @return `true` if all requests were resolved, `false` otherwise.
      */
     fun resolve(prepareEvent: ClassPrepareEvent): Boolean {
+        logger.debug("resolve prepare event (class={}): {}", prepareEvent.referenceType(), prepareEvent)
         var failure = false
         synchronized(requestSpecs) {
             for (spec in requestSpecs) {
@@ -38,7 +39,7 @@ internal class EventRequestSpecList(
                 try {
                     val request = spec.resolve(vm, prepareEvent)
                     if (request != null) {
-                        logger.info("resolve: set (deferrred): {}", spec)
+                        logger.info("resolve: set (deferred): {}", spec)
                     }
                 } catch (err: Exception) {
                     // TODO: Add something get specific error messages for these exceptions
@@ -48,6 +49,7 @@ internal class EventRequestSpecList(
             }
         }
 
+        logger.debug("resolve(prepareEvent): failure={}", failure)
         return !failure
     }
 
@@ -64,7 +66,10 @@ internal class EventRequestSpecList(
         }
     }
 
-    fun addEagerlyResolve(spec: EventRequestSpec): Boolean = try {
+    fun addEagerlyResolve(
+        spec: EventRequestSpec,
+        rethrow: Boolean = false,
+    ): Boolean = try {
         requestSpecs.add(spec)
         val request = spec.resolveEagerly(vm)
         if (request != null) {
@@ -73,6 +78,7 @@ internal class EventRequestSpecList(
         true
     } catch (err: Exception) {
         logger.warn("Unable to set: {}", spec, err)
+        if (rethrow) throw err
         false
     }
 
@@ -109,10 +115,11 @@ internal class EventRequestSpecList(
     fun createBreakpoint(
         source: Source,
         lineNumber: Int,
+        qualifiedName: String? = null,
         suspendPolicy: Int = BreakpointRequest.SUSPEND_NONE,
-        threadFilter: ThreadReference? = null
+        threadFilter: ThreadReference? = null,
     ): BreakpointSpec {
-        val refType = SourceReferenceTypeSpec(source)
+        val refType = SourceReferenceTypeSpec(source, qualifiedName)
         return BreakpointSpec(refType, suspendPolicy, lineNumber, threadFilter)
     }
 
@@ -120,10 +127,11 @@ internal class EventRequestSpecList(
         source: Source,
         methodId: String,
         methodArgs: List<String> = emptyList(),
+        qualifiedName: String? = null,
         suspendPolicy: Int = BreakpointRequest.SUSPEND_NONE,
         threadFilter: ThreadReference? = null
     ): BreakpointSpec {
-        val refType = SourceReferenceTypeSpec(source)
+        val refType = SourceReferenceTypeSpec(source, qualifiedName)
         return BreakpointSpec(
             refType,
             suspendPolicy,
