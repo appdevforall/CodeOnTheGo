@@ -63,10 +63,20 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+    testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
   }
 
   testOptions {
     execution = "ANDROIDX_TEST_ORCHESTRATOR"
+    
+    unitTests {
+      isIncludeAndroidResources = true
+      all {
+        // Skip TreeSitter native library loading in tests
+        it.systemProperty("java.library.path", System.getProperty("java.library.path"))
+        it.systemProperty("androidide.test.mode", "true")
+      }
+    }
   }
 
   androidResources {
