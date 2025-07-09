@@ -40,14 +40,14 @@ class TerminalBootstrapPackagesPlugin : Plugin<Project> {
      * The bootstrap packages, mapped with the CPU ABI as the key and the ZIP file's sha256sum as the value.
      */
     private val BOOTSTRAP_PACKAGES = mapOf(
-      "aarch64" to "bcfbda90805fd1d3be105f707380e5f68855ddb79b87afc51e7708b366bd2097",
-      "arm" to "287fbd4b84c3dd39e09f3057b596f160a948d4ed3ed0007097f9e1446af5cc82",
+      "aarch64" to "9e247440678443348d4a63c6d693e430198c27a7fc88ca7a3ef8bc1898076e82",
+      "arm" to "e82d87072c9d5106f1d68ee8bc6c6720551c5e8f4b7aa2f14b43e964b271a601",
     )
 
     /**
      * The bootstrap packages version, basically the tag name of the GitHub release.
      */
-    private const val BOOTSTRAP_PACKAGES_VERSION = "2025.07.08"
+    private const val BOOTSTRAP_PACKAGES_VERSION = "2025.07.09"
     private const val PACKAGES_DOWNLOAD_URL = "https://github.com/appdevforall/terminal-packages/releases/download/%1\$s/bootstrap-%2\$s.9.zip"
   }
 

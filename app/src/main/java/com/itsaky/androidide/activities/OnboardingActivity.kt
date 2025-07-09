@@ -62,14 +62,10 @@ import org.adfa.constants.DESTINATION_ANDROID_SDK
 import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME_BR
-import org.adfa.constants.HOME_PATH
 import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR
-import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import org.adfa.constants.MANIFEST_FILE_NAME
 import org.adfa.constants.SPLIT_ASSETS
-import org.adfa.constants.TERMUX_DEBS_PATH
 import org.brotli.dec.BrotliInputStream
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -218,9 +214,7 @@ class OnboardingActivity : AppIntro2() {
                 copyToolingApi()
                 copyDocumentation()
 
-                val result = TerminalInstaller.installIfNeeded(this@OnboardingActivity) { progressType ->
-                    logger.debug("Terminal installer progress: {}", progressType)
-                }
+                val result = TerminalInstaller.installIfNeeded(this@OnboardingActivity) {}
 
                 logger.info("bootstrap installation result: {}", result)
 
@@ -229,46 +223,15 @@ class OnboardingActivity : AppIntro2() {
                 }
 
                 withContext(Dispatchers.Main) {
-                    tryNavigateToMainIfSetupIsCompleted()
+                    reloadJdkDistInfo {
+                        tryNavigateToMainIfSetupIsCompleted()
+                    }
                 }
             }
             return
         }
 
         tryNavigateToMainIfSetupIsCompleted()
-    }
-
-    private fun copyTermuxDebsAndManifest() {
-        val outputDirectory = File(application.dataDir.path + File.separator + TERMUX_DEBS_PATH)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, "packages/") }
-            else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME),
-                    outputDirectory.path
-                )
-            }
-        } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
-        }
-
-        try {
-            val manifestOutputDirectory =
-                File(application.filesDir.path + File.separator + HOME_PATH).resolve(
-                    MANIFEST_FILE_NAME
-                )
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(MANIFEST_FILE_NAME),
-                manifestOutputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux manifest copy failed + ${e.message}")
-        }
     }
 
     private fun copyAndroidSDK() {
