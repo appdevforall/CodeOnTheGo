@@ -142,6 +142,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             TSLanguageRegistry.instance.register(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
             IDEColorSchemeProvider.initIfNeeded()
         }
+
     }
 
     override fun onPause() {
@@ -251,19 +252,16 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
                 action.createActionView(data)?.let { item.actionView = it }
 
-                if (action.visible) {
-                    content.customToolbar.addMenuItem(
-                        icon = action.icon,
-                        hint = item.title.toString(),
-                        onClick = {
-                            val action = registry.findAction(EDITOR_TOOLBAR, action.id)
-                            registry.executeAction(action!!, data)
-                        }
-                    )
-                }
+                content.customToolbar.addMenuItem(
+                    icon = action.icon,
+                    hint = action.label,
+                    onClick = {
+                        val action = registry.findAction(EDITOR_TOOLBAR, action.id)
+                        registry.executeAction(action!!, data)
+                    }
+                )
             }
         }
-        content.editorToolbar.updateMenuDisplay()
     }
 
     private fun createToolbarActionData(): ActionData {

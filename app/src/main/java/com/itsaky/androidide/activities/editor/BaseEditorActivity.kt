@@ -42,13 +42,13 @@ import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.annotation.StringRes
 import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.widget.Toolbar
 import androidx.collection.MutableIntIntMap
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import androidx.core.view.updatePaddingRelative
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.blankj.utilcode.util.FileUtils
@@ -295,11 +295,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 editorAppBarLayout.updatePadding(
                     top = insets.top
                 )
-                editorToolbar.updatePaddingRelative(
-                    start = editorToolbar.paddingStart + insets.left,
-                    end = editorToolbar.paddingEnd + insets.right
-                )
-                customToolbar.setContentInsetsRelative(0,0)
+                customToolbar.setContentInsetsRelative(0, 0)
             }
         }
     }
@@ -347,7 +343,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setSupportActionBar(content.editorToolbar)
         setupToolbar()
-
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
 
@@ -674,7 +669,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         val toggle = object : ActionBarDrawerToggle(
             this,
             binding.editorDrawerLayout,
-            content.editorToolbar,
+            content.customToolbar,
             string.app_name,
             string.app_name
         ) {
