@@ -64,6 +64,9 @@
     <string name="msg_installing_gradlew">Gradle Wrapper is not available!\nInstalling default one. Gradle v7.4 will be downloaded if necessary.</string>
     <string name="run">Run</string>
     <string name="gradle" translatable="false">Gradle</string>
+    <string name="action_start_debugger">Debug</string>
+
+
 
   <!-- Project -->
   <string name="title_first_build">Setting up your new project</string>
@@ -596,8 +599,12 @@
   <string name="title_grant">Allow</string>
   <string name="permission_title_storage">Storage</string>
   <string name="permission_desc_storage">Allow Code on the Go to access files.</string>
-  <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
   <string name="permission_title_install_packages">Install packages</string>
+  <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
+  <string name="permission_title_overlay_window">Overlay window</string>
+  <string name="permission_title_accessibility">Accessibility</string>
+  <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
+  <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
   <string name="onboarding_title_permissions">Permissions</string>
   <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
   <string name="msg_grant_permissions">Please grant the permissions to continue.</string>
@@ -629,6 +636,40 @@
   <string name="idepref_jdkVersion_title">JDK version</string>
   <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
   <string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
+
+  <string name="debugger_title">Debugger</string>
+  <string name="debugger_foreground_detection_service_description">Code on the Go uses accessibility services to detect foreground applications for automatically show/hide the debugger overlay window.</string>
+  <string name="debugger_starting">Starting debugger…</string>
+  <string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
+  <string name="debugger_started">Debugger started</string>
+  <string name="debugger_variables">Variables</string>
+  <string name="debugger_call_stack">Call stack</string>
+  <string name="debugger_thread">Thread</string>
+  <string name="debugger_step_into">Step into</string>
+  <string name="debugger_step_out">Step out</string>
+  <string name="debugger_step_over">Step over</string>
+  <string name="debugger_kill">Kill</string>
+  <string name="debugger_suspend">Suspend</string>
+  <string name="debugger_resume">Resume</string>
+  <string name="debugger_restart">Restart</string>
+  <string name="debugger_status_resolving">Resolving…</string>
+  <string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
+
+  <!-- Connected to <VM-name> (<VM-version>) -->
+  <string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
+  <string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
+
+  <string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
+  <string name="debugger_value_error">&lt;error&gt;</string>
+  <string name="debugger_variable_value_hint">Variable value</string>
+  <string name="debugger_variable_dialog_title">%1$s: %2$s</string>
+  <string name="debugger_value_null">null</string>
+  <string name="debugger_dialog_hint_enter_value">Enter value</string>
+  <string name="debugger_dialog_button_set">Set</string>
+  <string name="debugger_variable_value_invalid">Invalid value for this variable</string>
+  <string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
+
+  <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
   <string name="file">File</string>
   <string name="actions">Actions</string>
