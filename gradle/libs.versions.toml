@@ -4,6 +4,7 @@ agp = "8.8.2"
 agp-tooling = "8.4.2"
 appcompat = "1.6.1"
 colorpickerview = "2.3.0"
+commonsCompress = "1.27.1"
 commonsText = "1.11.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
@@ -51,6 +52,7 @@ androidx-preference-ktx = { module = "androidx.preference:preference-ktx", versi
 androidx-recyclerview-v132 = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
 androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
 composite-appintro = { module = "com.itsaky.androidide.build:appintro" }
 composite-constants = { module = "com.itsaky.androidide.build:constants" }
