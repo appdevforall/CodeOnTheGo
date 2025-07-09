@@ -24,6 +24,7 @@ import java.util.List;
 
 import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
+import com.itsaky.androidide.app.BaseApplication;
 import java.io.File;
 import java.util.Map;
 import java.util.UUID;
@@ -42,6 +43,8 @@ public final class Environment {
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
   public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
   private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
+
+  private static final  String DATABASE_NAME = "documentation.db";
   private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
   public static File ROOT;
   public static File PREFIX;
@@ -77,6 +80,8 @@ public final class Environment {
   public static File LOGIN_SHELL;
 
   public static File GRADLE_DISTS;
+
+  public static File DOC_DB;
 
   public static void init() {
     var arch = getArchitecture();
@@ -119,6 +124,8 @@ public final class Environment {
     setExecutable(BASH_SHELL);
 
     System.setProperty("user.home", HOME.getAbsolutePath());
+
+    DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
   }
 
   public static File mkdirIfNotExits(File in) {

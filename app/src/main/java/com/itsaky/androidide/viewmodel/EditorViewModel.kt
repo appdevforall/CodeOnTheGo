@@ -17,7 +17,6 @@
 package com.itsaky.androidide.viewmodel
 
 import android.view.Gravity.CENTER
-import androidx.annotation.GravityInt
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
@@ -43,7 +42,7 @@ class EditorViewModel : ViewModel() {
 
   internal val _isBuildInProgress = MutableLiveData(false)
   internal val _isInitializing = MutableLiveData(false)
-  internal val _statusText = MutableLiveData<Pair<CharSequence, @GravityInt Int>>("" to CENTER)
+  internal val _statusText = MutableLiveData<Pair<CharSequence, Int>>("" to CENTER)
   internal val _displayedFile = MutableLiveData(-1)
   internal val _startDrawerOpened = MutableLiveData(false)
   internal val _isSyncNeeded = MutableLiveData(false)

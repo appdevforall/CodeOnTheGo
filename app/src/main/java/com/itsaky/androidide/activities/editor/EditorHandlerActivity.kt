@@ -37,7 +37,6 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.FillMenuParams
-import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -49,6 +48,7 @@ import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
@@ -579,7 +579,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     override suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
-          IDEApplication.idetooltipDao.getTooltip(category, tag)
+          TooltipManager.getTooltip(this@EditorHandlerActivity, category, tag)
         }
     }
 
@@ -695,7 +695,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     editorActivityScope.launch {
       val files = editorViewModel.getOpenedFiles()
       val dupliCount = mutableMapOf<String, Int>()
-      val names = MutableIntObjectMap<Pair<String, @receiver:DrawableRes Int>>()
+      val names = MutableIntObjectMap<Pair<String, Int>>()
       val nameBuilder = UniqueNameBuilder<File>("", File.separator)
 
       files.forEach {

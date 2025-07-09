@@ -75,7 +75,7 @@
   <string name="project_app_name">App name</string>
   <string name="msg_create_new_project_greeting">Learn about <b>Code on the Go</b> here!</string>
   <string name="title_confirm_open_project">Open last project?</string>
-  <string name="msg_confirm_open_project">Do you want to open last opened project? Opened project was:\n%s</string>
+  <string name="msg_confirm_open_project">Do you want to open the last opened project? Opened project was:\n%s</string>
   <string name="title_close_project">Close this project</string>
   <string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist!</string>
   <string name="msg_create_new_project">Create new project</string>
@@ -89,20 +89,20 @@
   <string name="save_and_close">Save files and close project</string>
   <!-- Templates -->
   <string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
-  <string name="template_basic">Basic Project</string>
-  <string name="template_empty">Empty project</string>
-  <string name="template_navigation_drawer">Navigation drawer project</string>
-  <string name="template_compose" translatable="false">Jetpack Compose</string>
-  <string name="template_navigation_tabs">Bottom Navigation Activity</string>
+  <string name="template_basic">Basic Activity</string>
+  <string name="template_empty">Empty Activity</string>
+  <string name="template_navigation_drawer">Navigation Drawer Activity</string>
+  <string name="template_compose" translatable="false">Compose Activity</string>
+  <string name="template_navigation_tabs">Bottom Nav Activity</string>
   <string name="template_tabs">Tabbed Activity</string>
   <string name="template_no_activity">No Activity</string>
-  <string name="template_no_AndroidX">No AndroidX</string>
+  <string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
 
   <!-- Files -->
   <string name="save">Save</string>
   <string name="menu_find">Find</string>
   <string name="menu_find_file">Find in file</string>
-  <string name="menu_find_project">Find in Project</string>
+  <string name="menu_find_project">Find in project</string>
   <string name="msg_search_modules">Search in modules</string>
   <string name="msg_no_modules">No modules found in project</string>
   <string name="hint_find_project_filter">Filter file extensions (optional)</string>
@@ -243,7 +243,8 @@
     <string name="title_cancel_build">Cancel build</string>
     <string name="msg_initializing_project">Initializing project</string>
     <string name="msg_project_initialized">Project initialized</string>
-    <string name="msg_project_initialization_failed">Project initialization failed</string>
+  <string name="msg_project_initialization_failed_with_name">Project initialization failed for %1$s</string>
+  <string name="msg_project_initialization_failed">Project initialization failed</string>
     <string name="msg_project_not_initialized">Project is not initialized</string>
     <string name="msg_replacement">Replacement</string>
     <string name="title_sync_project">Sync project</string>
@@ -588,7 +589,7 @@
   <string name="msg_project_dir_doesnt_exist">Project directory does not exist</string>
   <string name="msg_files_being_saved">A file save operation is already in progress!</string>
   <string name="title_install_tools">Install Development Tools</string>
-  <string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n\nManual installation is not recommended.</string>
+  <string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
   <string name="msg_install_tools"> </string>
   <string name="greeting_title">Welcome</string>
   <string name="greeting_subtitle">Learn, build, launch. All on your Android.</string>
