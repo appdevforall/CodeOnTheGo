@@ -24,54 +24,64 @@ import com.itsaky.androidide.plugins.AndroidIDEPlugin
 import com.itsaky.androidide.plugins.conf.configureAndroidModule
 import com.itsaky.androidide.plugins.conf.configureJavaModule
 import com.itsaky.androidide.plugins.conf.configureMavenPublish
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-  id("build-logic.root-project")
-  alias(libs.plugins.android.application) apply false
-  alias(libs.plugins.android.library) apply false
-  alias(libs.plugins.kotlin.android) apply false
-  alias(libs.plugins.kotlin.jvm) apply false
-  alias(libs.plugins.maven.publish) apply false
-  alias(libs.plugins.gradle.publish) apply false
+    id("build-logic.root-project")
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.maven.publish) apply false
+    alias(libs.plugins.gradle.publish) apply false
 }
 
 buildscript {
-  dependencies {
-    classpath(libs.kotlin.gradle.plugin)
-    classpath(libs.nav.safe.args.gradle.plugin)
-  }
+    dependencies {
+        classpath(libs.kotlin.gradle.plugin)
+        classpath(libs.nav.safe.args.gradle.plugin)
+    }
 }
 
 subprojects {
-  // Always load the F-Droid config
-  FDroidConfig.load(project)
+    // Always load the F-Droid config
+    FDroidConfig.load(project)
 
-  afterEvaluate {
-    apply { plugin(AndroidIDEPlugin::class.java) }
-  }
-
-  project.group = BuildConfig.packageName
-  project.version = rootProject.version
-
-  plugins.withId("com.android.application") {
-    configureAndroidModule(libs.androidx.libDesugaring)
-  }
-  plugins.withId("com.android.library") {
-    configureAndroidModule(libs.androidx.libDesugaring)
-  }
-  plugins.withId("java-library") { configureJavaModule() }
-  plugins.withId("com.vanniktech.maven.publish.base") { configureMavenPublish() }
-
-  plugins.withId("com.gradle.plugin-publish") {
-    configure<GradlePluginDevelopmentExtension> {
-      version = project.publishingVersion
+    afterEvaluate {
+        apply { plugin(AndroidIDEPlugin::class.java) }
     }
-  }
+}
 
-  tasks.withType<KotlinCompile>().configureEach {
-    kotlinOptions.jvmTarget = BuildConfig.javaVersion.toString()
-  }
+allprojects {
+    project.group = BuildConfig.packageName
+    project.version = rootProject.version
+
+    plugins.withId("com.android.application") {
+        configureAndroidModule(libs.androidx.libDesugaring)
+    }
+
+    plugins.withId("com.android.library") {
+        configureAndroidModule(libs.androidx.libDesugaring)
+    }
+
+    plugins.withId("java-library") {
+        configureJavaModule()
+    }
+
+    plugins.withId("com.vanniktech.maven.publish.base") {
+        configureMavenPublish()
+    }
+
+    plugins.withId("com.gradle.plugin-publish") {
+        configure<GradlePluginDevelopmentExtension> {
+            version = project.publishingVersion
+        }
+    }
+
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions.jvmTarget.set(JvmTarget.fromTarget(BuildConfig.javaVersion.majorVersion))
+    }
 }
 
 tasks.register<Delete>("clean") { delete(rootProject.layout.buildDirectory) }

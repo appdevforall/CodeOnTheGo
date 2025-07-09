@@ -126,5 +126,20 @@ class EditorActivityActions {
       val registry = ActionsRegistry.getInstance()
       locations.forEach(registry::clearActions)
     }
+
+    @JvmStatic
+    fun clearActions() {
+      // Clear actions but preserve build actions to prevent cancellation during onPause
+      val locations = arrayOf(EDITOR_FILE_TABS, EDITOR_FILE_TREE)
+      val registry = ActionsRegistry.getInstance()
+      locations.forEach(registry::clearActions)
+      
+      // Clear toolbar actions except build actions
+      registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
+        action.id == "ide.editor.build.quickRun" || 
+        action.id == "ide.editor.build.runTasks" || 
+        action.id == "ide.editor.build.sync"
+      }
+    }
   }
 }

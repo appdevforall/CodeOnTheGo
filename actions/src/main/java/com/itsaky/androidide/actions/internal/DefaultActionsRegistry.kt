@@ -112,6 +112,22 @@ class DefaultActionsRegistry : ActionsRegistry() {
     actions.clear()
   }
 
+  override fun clearActionsExceptWhere(location: ActionItem.Location, predicate: (ActionItem) -> Boolean) {
+    val actions = getActions(location)
+    val toRemove = mutableListOf<String>()
+    
+    actions.forEach { (key, action) ->
+      if (!predicate(action)) {
+        toRemove.add(key)
+      }
+    }
+    
+    toRemove.forEach { key ->
+      actions[key]?.destroy()
+      actions.remove(key)
+    }
+  }
+
   override fun registerActionExecListener(listener: ActionExecListener) {
     listeners.add(listener)
   }
