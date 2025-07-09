@@ -26,7 +26,7 @@ fun gradleWrapperPropsSrc(isToml: Boolean): String {
     return """
     distributionBase=GRADLE_USER_HOME
     distributionPath=wrapper/dists
-    distributionUrl=file:$GRADLE_DISTS/${gradleVersion}
+    distributionUrl=https\://services.gradle.org/distributions/${gradleVersion}
     networkTimeout=10000
     zipStoreBase=GRADLE_USER_HOME
     zipStorePath=wrapper/dists
