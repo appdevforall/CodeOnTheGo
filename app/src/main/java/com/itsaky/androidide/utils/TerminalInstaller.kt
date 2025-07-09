@@ -19,13 +19,21 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.system.Os
+import android.system.OsConstants
+import com.android.utils.cxx.os.exe
 import com.itsaky.androidide.resources.R
 import com.termux.app.TermuxInstaller
+import com.termux.app.TermuxInstaller.showBootstrapErrorDialog
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.errors.Error
 import com.termux.shared.file.FileUtils
+import com.termux.shared.logger.Logger
 import com.termux.shared.markdown.MarkdownUtils
+import com.termux.shared.shell.command.ExecutionCommand
+import com.termux.shared.shell.command.ExecutionCommand.Runner
+import com.termux.shared.shell.command.runner.app.AppShell
 import com.termux.shared.termux.TermuxConstants
+import com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR_PATH
 import com.termux.shared.termux.file.TermuxFileUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +46,8 @@ import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
+import kotlin.math.log
+
 
 /**
  * Install the Termux bootstrap packages if necessary by following the below steps:
@@ -56,6 +66,16 @@ import java.util.zip.ZipInputStream
  */
 object TerminalInstaller {
     private val logger = LoggerFactory.getLogger(TerminalInstaller::class.java)
+
+    private val executableDirs = arrayOf(
+        "bin/",
+        "etc/termux/termux-bootstrap/second-stage/termux-bootstrap-second-stage.sh",
+        "libexec",
+        "lib/apt/apt-helper",
+        "lib/apt/methods",
+        "lib/jvm/java-21-openjdk/bin/",
+        "lib/jvm/java-17-openjdk/bin/",
+    )
 
     /**
      * The result of the install operation.
@@ -328,12 +348,8 @@ object TerminalInstaller {
                             }
                         }
 
-                        if (zipEntryName.startsWith("bin/") ||
-                            zipEntryName.startsWith("libexec") ||
-                            zipEntryName.startsWith("lib/apt/apt-helper") ||
-                            zipEntryName.startsWith("lib/apt/methods")
-                        ) {
-                            Os.chmod(targetFile.absolutePath, 448)
+                        if (executableDirs.any { dir -> zipEntryName.startsWith(dir) }) {
+                            Os.chmod(targetFile.absolutePath, OsConstants.S_IRWXU)
                         }
                     }
                 }
@@ -355,6 +371,55 @@ object TerminalInstaller {
             throw RuntimeException("Moving termux prefix staging to prefix directory failed")
         }
 
+        // Run Termux bootstrap second stage.
+        val termuxBootstrapSecondStageFile =
+            "$TERMUX_PREFIX_DIR_PATH/etc/termux/termux-bootstrap/second-stage/termux-bootstrap-second-stage.sh"
+        if (!FileUtils.fileExists(termuxBootstrapSecondStageFile, false)) {
+            logger.info(
+                "Not running Termux bootstrap second stage since script not found at \"{}\" path.",
+                termuxBootstrapSecondStageFile
+            )
+        } else {
+            if (!FileUtils.fileExists(TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/bash", true)) {
+                logger.info(
+                    "Not running Termux bootstrap second stage since bash not found."
+                )
+            }
+
+            logger.info("Running Termux bootstrap second stage.")
+
+            val executionCommand = ExecutionCommand(
+                -1,
+                termuxBootstrapSecondStageFile, null, null,
+                null, Runner.APP_SHELL.runnerName, false
+            )
+
+            executionCommand.commandLabel = "Termux Bootstrap Second Stage Command"
+            executionCommand.backgroundCustomLogLevel = Logger.LOG_LEVEL_NORMAL
+
+            val shell = AppShell.execute(
+                context,
+                executionCommand,
+                null,
+                TermuxShellEnvironment(),
+                hashMapOf(),
+                true
+            )
+
+            if (shell == null || !executionCommand.isSuccessful || executionCommand.resultData.exitCode != 0) {
+
+                // Delete prefix directory as otherwise when app is restarted, the broken prefix directory would be used and logged into.
+                error = FileUtils.deleteFile("termux prefix directory", TERMUX_PREFIX_DIR_PATH, true)
+                logger.error("Failed to run Termux second-stage command: {}", executionCommand)
+                logger.error("Failed to run Termux second-stage command: {}", error)
+                return InstallResult.Error.Interactive(
+                    title = context.getString(R.string.bootstrap_error_title),
+                    message = Error.getErrorMarkdownString(error),
+                )
+            }
+        }
+
+
         logger.info("Bootstrap packages installed successfully.")
 
         // Recreate env file since termux prefix was wiped earlier
@@ -363,5 +428,6 @@ object TerminalInstaller {
         return InstallResult.Success
     }
 
-    private fun ensureDirectoryExists(directory: File): Error? = FileUtils.createDirectoryFile(directory.absolutePath)
+    private fun ensureDirectoryExists(directory: File): Error? =
+        FileUtils.createDirectoryFile(directory.absolutePath)
 }
