@@ -25,14 +25,16 @@ import android.widget.CheckBox
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.HELP_PAGE_URL
+import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
+import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
+import com.itsaky.androidide.fragments.FindActionDialog
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
 import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
@@ -70,11 +72,13 @@ import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.HELP_PAGE_URL
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
-import kotlinx.coroutines.withContext
 
 /** @author Akash Yadav */
 @Suppress("MemberVisibilityCanBePrivate")
@@ -98,6 +102,20 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
             return mFindInProjectDialog!!
         }
+
+    fun findActionDialog(actionData: ActionData): FindActionDialog {
+        val shouldHideFindInFileAction = editorViewModel.getOpenedFileCount() == 0
+        return FindActionDialog(
+            anchor = content.customToolbar.findViewById(R.id.menu_container),
+            context = this,
+            actionData = actionData,
+            shouldMarkInvisible = shouldHideFindInFileAction,
+            onFindInFileClicked = { data ->
+                lifecycleScope.launch { FindInFileAction().execAction(data) }
+            },
+            onFindInProjectClicked = { findInProjectDialog.show() }
+        )
+    }
 
     protected val mBuildEventListener = EditorBuildEventListener()
 

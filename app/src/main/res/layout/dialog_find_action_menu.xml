@@ -1,0 +1,31 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/dialog_root"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/rounded_dialog_bg"
+    android:backgroundTint="@color/warm_grey"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/find_in_file"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:drawablePadding="8dp"
+        android:padding="8dp"
+        android:text="@string/menu_find_file"
+        android:textSize="16sp"
+        app:drawableStartCompat="@drawable/ic_search_file" />
+
+    <TextView
+        android:id="@+id/find_in_project"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:drawablePadding="8dp"
+        android:padding="8dp"
+        android:text="@string/menu_find_project"
+        android:textSize="16sp"
+        app:drawableStartCompat="@drawable/ic_search_project" />
+</LinearLayout>
