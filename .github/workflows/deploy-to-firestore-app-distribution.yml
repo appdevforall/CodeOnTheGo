@@ -4,7 +4,8 @@ permissions:
   actions: write
 on:
   pull_request:
-    branches: [ "stage", "feature/**" ]
+    branches: [ "stage" ]
+    types: [closed]
     paths-ignore:
       - '**.md'
       - 'fastlane/**'
@@ -32,6 +33,7 @@ env:
 jobs:
   build_apk:
     name: Build Universal APK
+    if: github.event.pull_request.merged == true
     runs-on: self-hosted
     timeout-minutes: 60
     steps:
@@ -43,6 +45,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: stage
           fetch-depth: 0
 
       - name: Install and Configure Git LFS - Selective pull
@@ -73,51 +76,13 @@ jobs:
         uses: flox/install-flox-action@v2
 
       - name: Set branch name
-        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+        run: echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
 
-      - name: Auto-merge stage changes and determine build type
+      - name: Set build type
         id: check_stage_sync
         run: |
-          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
-          HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
-          
-          # Default values
-          echo "HAS_LATEST_STAGE=false" >> $GITHUB_OUTPUT
-          echo "BUILD_TYPE=Feature Branch Build" >> $GITHUB_OUTPUT
-          echo "STAGE_MERGED=false" >> $GITHUB_OUTPUT
-          
-          if [[ "$BASE_BRANCH" == "stage" ]]; then
-            # Fetch the latest stage branch
-            git fetch origin stage
-            
-            # Check if current branch is up-to-date with stage
-            if [ "$(git merge-base HEAD origin/stage)" = "$(git rev-parse origin/stage)" ]; then
-              echo "HAS_LATEST_STAGE=true" >> $GITHUB_OUTPUT
-              echo "BUILD_TYPE=Stage-Integrated Build" >> $GITHUB_OUTPUT
-              echo "Branch already has latest stage changes"
-            else
-              echo "Branch is missing stage changes, merging stage..."
-              
-              # Configure git for the merge
-              git config user.name "GitHub Actions Bot"
-              git config user.email "actions@github.com"
-              
-              # Merge stage into current branch
-              if git merge origin/stage --no-edit; then
-                echo "HAS_LATEST_STAGE=true" >> $GITHUB_OUTPUT
-                echo "BUILD_TYPE=Stage-Integrated Build (Auto-merged)" >> $GITHUB_OUTPUT
-                echo "STAGE_MERGED=true" >> $GITHUB_OUTPUT
-                echo "Successfully merged stage changes"
-              else
-                echo "Failed to merge stage changes - merge conflicts detected"
-                # Reset to original state
-                git merge --abort
-                exit 1
-              fi
-            fi
-          else
-            echo "BUILD_TYPE=Feature Branch Build" >> $GITHUB_OUTPUT
-          fi
+          echo "BUILD_TYPE=Stage Build (Post-Merge)" >> $GITHUB_OUTPUT
+          echo "Building from stage after PR merge"
 
       - name: Assemble Universal APK
         run: |
