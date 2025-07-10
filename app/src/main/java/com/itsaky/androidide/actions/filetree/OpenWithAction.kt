@@ -42,7 +42,7 @@ class OpenWithAction(context: Context, override val order: Int) :
   override fun prepare(data: ActionData) {
     super.prepare(data)
     
-    // Hide "Open with..." option for directories
+    // Hide "Open with" option for directories
     val file = data.requireFile()
     if (file.isDirectory) {
       markInvisible()
