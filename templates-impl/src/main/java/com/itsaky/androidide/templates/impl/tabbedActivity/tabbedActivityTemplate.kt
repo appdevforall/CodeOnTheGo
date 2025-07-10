@@ -61,6 +61,8 @@ fun AndroidModuleTemplateBuilder.tabbedActivityProjectKt() {
   executor.apply {
     addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
     addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
+    addDependency(Dependency.AndroidX.ViewPager2)
+    addDependency(Dependency.Google.Material)
 
     sources {
       writeKtSrc("${data.packageName}.ui.main", "SectionsPagerAdapter",
@@ -77,6 +79,8 @@ fun AndroidModuleTemplateBuilder.tabbedActivityProjectJava() {
   executor.apply {
     addDependency(Dependency.AndroidX.LifeCycle_LiveData)
     addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
+    addDependency(Dependency.AndroidX.ViewPager2)
+    addDependency(Dependency.Google.Material)
 
     sources {
       writeJavaSrc("${data.packageName}.ui.main", "SectionsPagerAdapter",
