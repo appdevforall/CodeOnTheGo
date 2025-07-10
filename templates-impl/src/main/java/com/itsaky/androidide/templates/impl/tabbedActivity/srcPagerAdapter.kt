@@ -24,8 +24,8 @@ package ${data.packageName}.ui.main
 
 import android.content.Context
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.FragmentPagerAdapter
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
 import ${data.packageName}.R
 
 private val TAB_TITLES = arrayOf(
@@ -38,22 +38,15 @@ private val TAB_TITLES = arrayOf(
  * A [FragmentPagerAdapter] that returns a fragment corresponding to
  * one of the sections/tabs/pages.
  */
-class SectionsPagerAdapter(private val context: Context, fm: FragmentManager) :
-    FragmentPagerAdapter(fm) {
+class SectionsPagerAdapter(private val activity: FragmentActivity) : FragmentStateAdapter(activity) {
+    override fun getItemCount(): Int = TAB_TITLES.size
 
-    override fun getItem(position: Int): Fragment {
-        // getItem is called to instantiate the fragment for the given page.
-        // Return a PlaceholderFragment (defined as a static inner class below).
+    override fun createFragment(position: Int): Fragment {
         return PlaceholderFragment.newInstance(position + 1)
     }
-
-    override fun getPageTitle(position: Int): CharSequence? {
-        return context.resources.getString(TAB_TITLES[position])
-    }
-
-    override fun getCount(): Int {
-        // Show 3 total pages.
-        return 3
+    
+    fun getPageTitle(position: Int): CharSequence {
+        return activity.getString(TAB_TITLES[position])
     }
 }
 """.trim()
@@ -61,48 +54,43 @@ class SectionsPagerAdapter(private val context: Context, fm: FragmentManager) :
 internal fun AndroidModuleTemplateBuilder.tabbedPagerAdapterSrcJava() = """
 package ${data.packageName}.ui.main;
 
-import android.content.Context;
-
-import androidx.annotation.Nullable;
-import androidx.annotation.StringRes;
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentPagerAdapter;
-
+import androidx.fragment.app.FragmentActivity;
+import androidx.viewpager2.adapter.FragmentStateAdapter;
 import ${data.packageName}.R;
 
 /**
- * A [FragmentPagerAdapter] that returns a fragment corresponding to
+ * A [FragmentStateAdapter] that returns a fragment corresponding to
  * one of the sections/tabs/pages.
  */
-public class SectionsPagerAdapter extends FragmentPagerAdapter {
+public class SectionsPagerAdapter extends FragmentStateAdapter {
 
-    @StringRes
-    private static final int[] TAB_TITLES = new int[]{R.string.tab_text_1, R.string.tab_text_2, R.string.tab_text_3};
-    private final Context mContext;
+    private final FragmentActivity activity;
 
-    public SectionsPagerAdapter(Context context, FragmentManager fm) {
-        super(fm);
-        mContext = context;
+    public SectionsPagerAdapter(@NonNull FragmentActivity fragmentActivity) {
+        super(fragmentActivity);
+        this.activity = fragmentActivity;
     }
 
+    @NonNull
     @Override
-    public Fragment getItem(int position) {
-        // getItem is called to instantiate the fragment for the given page.
-        // Return a PlaceholderFragment (defined as a static inner class below).
+    public Fragment createFragment(int position) {
         return PlaceholderFragment.newInstance(position + 1);
     }
 
-    @Nullable
     @Override
-    public CharSequence getPageTitle(int position) {
-        return mContext.getResources().getString(TAB_TITLES[position]);
-    }
-
-    @Override
-    public int getCount() {
-        // Show 3 total pages.
+    public int getItemCount() {
         return 3;
+    }
+    
+    public CharSequence getPageTitle(int position) {
+        switch (position) {
+            case 0: return activity.getString(R.string.tab_text_1);
+            case 1: return activity.getString(R.string.tab_text_2);
+            case 2: return activity.getString(R.string.tab_text_3);
+            default: return "";
+        }
     }
 }
 """.trim()
