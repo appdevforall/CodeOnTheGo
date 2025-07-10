@@ -90,8 +90,8 @@ jobs:
             # Fetch the latest stage branch
             git fetch origin stage
             
-            # Check if current branch contains all commits from stage
-            if git merge-base --is-ancestor origin/stage HEAD; then
+            # Check if current branch is up-to-date with stage
+            if [ "$(git merge-base HEAD origin/stage)" = "$(git rev-parse origin/stage)" ]; then
               echo "HAS_LATEST_STAGE=true" >> $GITHUB_OUTPUT
               echo "BUILD_TYPE=Stage-Integrated Build" >> $GITHUB_OUTPUT
               echo "Branch already has latest stage changes"
