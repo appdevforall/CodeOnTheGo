@@ -31,6 +31,8 @@ import com.itsaky.androidide.editor.R.string
 import com.itsaky.androidide.editor.adapters.CompletionListAdapter
 import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.api.ILspEditor
+import com.itsaky.androidide.editor.events.FileUpdateEvent
+import com.itsaky.androidide.editor.events.LanguageUpdateEvent
 import com.itsaky.androidide.editor.language.IDELanguage
 import com.itsaky.androidide.editor.language.cpp.CppLanguage
 import com.itsaky.androidide.editor.language.groovy.GroovyLanguage
@@ -211,6 +213,8 @@ open class IDEEditor @JvmOverloads constructor(
     }
 
     this._file = file
+    dispatchEvent(FileUpdateEvent(file, this))
+
     file?.also {
       dispatchDocumentOpenEvent()
     }
@@ -647,6 +651,14 @@ open class IDEEditor @JvmOverloads constructor(
     }
 
     callback(lang)
+  }
+
+  override fun setEditorLanguage(lang: Language?) {
+    super.setEditorLanguage(lang)
+    if (isReleased) {
+      return
+    }
+    dispatchEvent(LanguageUpdateEvent(lang, this))
   }
 
   /**

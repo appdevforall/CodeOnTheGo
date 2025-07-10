@@ -61,6 +61,7 @@ import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
+import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.CoroutineScope

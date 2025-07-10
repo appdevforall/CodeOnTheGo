@@ -110,9 +110,8 @@ class FileTreeActionHandler : BaseEventHandler() {
     val fragment = OptionsListFragment()
     val registry = ActionsRegistry.getInstance()
     val actions = registry.getActions(EDITOR_FILE_TREE)
-    val data = ActionData()
+    val data = ActionData.create(context)
     data.apply {
-      put(Context::class.java, context)
       put(File::class.java, file)
       put(TreeNode::class.java, lastHeld)
     }

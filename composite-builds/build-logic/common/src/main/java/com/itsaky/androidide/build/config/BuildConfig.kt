@@ -33,9 +33,13 @@ object BuildConfig {
   /** The minimum SDK version. */
   const val minSdk = 28
 
+  /** The minimum SDK version for apps built in CoGo. */
+  const val minSdkForAppsBuiltInCogo = 16
+
   /** The target SDK version. */
   const val targetSdk = 28
 
+  /** The NDK version. */
   const val ndkVersion = "26.1.10909125"
 
   /** The source and target Java compatibility. */

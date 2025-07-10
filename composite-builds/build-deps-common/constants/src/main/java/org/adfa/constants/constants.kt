@@ -170,3 +170,5 @@ const val HELP_PAGE_URL =
 const val DOCUMENTATION_DB = "documentation.db"
 const val DATABASE_FOLDER = "database"
 const val COPY_DOC_DB_TO_ASSETS = "copyDocDbToAssets"
+
+const val JDWP_AAR_NAME = "libjdwp-remote.aar"
