@@ -40,7 +40,7 @@ class CustomToolbar @JvmOverloads constructor(
 
     private fun setupStartAndEndArrows() {
         startIcon = ImageView(context).apply {
-            setImageResource(R.drawable.ic_double_arrow_left)
+            setImageResource(R.drawable.ic_arrow_left)
             layoutParams = LinearLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
             ).apply {
@@ -50,7 +50,7 @@ class CustomToolbar @JvmOverloads constructor(
         }
 
         endIcon = ImageView(context).apply {
-            setImageResource(R.drawable.ic_double_arrow_right)
+            setImageResource(R.drawable.ic_arrow_right)
             layoutParams = LinearLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT
