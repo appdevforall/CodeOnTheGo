@@ -309,13 +309,16 @@ constructor(
   }
 
   private fun shouldFilter(msg: String): Boolean {
-    return msg.contains("The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/.androidide/aapt2' is experimental") ||
-            msg.contains("The org.gradle.api.plugins.BasePluginConvention type has been deprecated.") ||
-            msg.contains("The org.gradle.api.plugins.Convention type has been deprecated.") ||
-            msg.contains("The BasePluginExtension.archivesBaseName property has been deprecated.") ||
-            msg.contains("The Provider.forUseAtConfigurationTime method has been deprecated.") ||
-            msg.contains("The BuildIdentifier.getName() method has been deprecated.") ||
-            msg.contains("Deprecated Gradle features were used in this build")
+    val filters = listOf(
+      "The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/.androidide/aapt2' is experimental",
+      "The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
+      "The org.gradle.api.plugins.Convention type has been deprecated.",
+      "The BasePluginExtension.archivesBaseName property has been deprecated.",
+      "The Provider.forUseAtConfigurationTime method has been deprecated.",
+      "The BuildIdentifier.getName() method has been deprecated.",
+      "Deprecated Gradle features were used in this build"
+    )
+    return filters.any { msg.contains(it) }
   }
 
   fun clearBuildOutput() {
