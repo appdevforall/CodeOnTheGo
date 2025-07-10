@@ -91,7 +91,12 @@ jobs:
             git fetch origin stage
             
             # Check if current branch is up-to-date with stage
-            if [ "$(git merge-base HEAD origin/stage)" = "$(git rev-parse origin/stage)" ]; then
+            MERGE_BASE=$(git merge-base HEAD origin/stage)
+            STAGE_HEAD=$(git rev-parse origin/stage)
+            echo "Debug: Merge base: $MERGE_BASE"
+            echo "Debug: Stage head: $STAGE_HEAD"
+            
+            if [ "$MERGE_BASE" = "$STAGE_HEAD" ]; then
               echo "HAS_LATEST_STAGE=true" >> $GITHUB_OUTPUT
               echo "BUILD_TYPE=Stage-Integrated Build" >> $GITHUB_OUTPUT
               echo "Branch already has latest stage changes"
@@ -282,4 +287,4 @@ jobs:
           }' > payload.json
 
           # Send notification
-          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+#          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
