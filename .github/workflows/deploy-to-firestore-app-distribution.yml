@@ -72,6 +72,53 @@ jobs:
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
+      - name: Set branch name
+        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+
+      - name: Auto-merge stage changes and determine build type
+        id: check_stage_sync
+        run: |
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+          HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
+          
+          # Default values
+          echo "HAS_LATEST_STAGE=false" >> $GITHUB_OUTPUT
+          echo "BUILD_TYPE=Feature Branch Build" >> $GITHUB_OUTPUT
+          echo "STAGE_MERGED=false" >> $GITHUB_OUTPUT
+          
+          if [[ "$BASE_BRANCH" == "stage" ]]; then
+            # Fetch the latest stage branch
+            git fetch origin stage
+            
+            # Check if current branch contains all commits from stage
+            if git merge-base --is-ancestor origin/stage HEAD; then
+              echo "HAS_LATEST_STAGE=true" >> $GITHUB_OUTPUT
+              echo "BUILD_TYPE=Stage-Integrated Build" >> $GITHUB_OUTPUT
+              echo "Branch already has latest stage changes"
+            else
+              echo "Branch is missing stage changes, merging stage..."
+              
+              # Configure git for the merge
+              git config user.name "GitHub Actions Bot"
+              git config user.email "actions@github.com"
+              
+              # Merge stage into current branch
+              if git merge origin/stage --no-edit; then
+                echo "HAS_LATEST_STAGE=true" >> $GITHUB_OUTPUT
+                echo "BUILD_TYPE=Stage-Integrated Build (Auto-merged)" >> $GITHUB_OUTPUT
+                echo "STAGE_MERGED=true" >> $GITHUB_OUTPUT
+                echo "Successfully merged stage changes"
+              else
+                echo "Failed to merge stage changes - merge conflicts detected"
+                # Reset to original state
+                git merge --abort
+                exit 1
+              fi
+            fi
+          else
+            echo "BUILD_TYPE=Feature Branch Build" >> $GITHUB_OUTPUT
+          fi
+
       - name: Assemble Universal APK
         run: |
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
@@ -83,9 +130,6 @@ jobs:
           apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
           echo "Found APK at: $apk_path"
-
-      - name: Set branch name
-        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
       - name: Get PR and Commit Information
         id: pr_info
@@ -133,7 +177,7 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
           groups: testers
           file: ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
+          releaseNotes: "Build Type: ${{ steps.check_stage_sync.outputs.BUILD_TYPE }}\nTicket: ${{ steps.extract_jira.outputs.JIRA_URL }}"
 
       - name: Send Rich Slack Notification
         env:
@@ -147,6 +191,9 @@ jobs:
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+          BUILD_TYPE="${{ steps.check_stage_sync.outputs.BUILD_TYPE }}"
+          HAS_LATEST_STAGE="${{ steps.check_stage_sync.outputs.HAS_LATEST_STAGE }}"
+          STAGE_MERGED="${{ steps.check_stage_sync.outputs.STAGE_MERGED }}"
 
           # Create JSON payload
           echo '{
@@ -185,6 +232,13 @@ jobs:
                 "text": {
                   "type": "mrkdwn",
                   "text": "*Author:* @'"$PR_AUTHOR"'"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Build Type:* '"$BUILD_TYPE"'"
                 }
               },
               {
