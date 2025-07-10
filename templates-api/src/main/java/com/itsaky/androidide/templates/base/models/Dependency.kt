@@ -99,6 +99,9 @@ data class Dependency(val configuration: DependencyConfiguration,
       "androidx.navigation:navigation-ui-ktx:${navigationVersion}")
 
     @JvmStatic
+    val ViewPager2 = parseDependency("androidx.viewpager2:viewpager2:1.0.0")
+
+    @JvmStatic
     val Startup_Runtime = parseDependency("androidx.startup:startup-runtime:1.1.1")
 
     @JvmStatic
