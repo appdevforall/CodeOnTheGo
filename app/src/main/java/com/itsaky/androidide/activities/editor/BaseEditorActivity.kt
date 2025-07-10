@@ -42,7 +42,6 @@ import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.annotation.StringRes
 import androidx.appcompat.app.ActionBarDrawerToggle
-import androidx.appcompat.widget.Toolbar
 import androidx.collection.MutableIntIntMap
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
@@ -362,8 +361,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun setupToolbar() {
         content.customToolbar.apply {
-            setTitleText(getString(string.app_name))
-            setSubtitleText("My Application")
+            setTitleText(editorViewModel.getProjectName())
 
             val toggle = object : ActionBarDrawerToggle(
                 this@BaseEditorActivity,

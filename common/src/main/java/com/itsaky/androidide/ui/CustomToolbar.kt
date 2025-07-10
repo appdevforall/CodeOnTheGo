@@ -20,7 +20,6 @@ class CustomToolbar @JvmOverloads constructor(
 ) : MaterialToolbar(context, attrs) {
 
     private val titleText: TextView
-    private val subtitleText: TextView
     private val menuContainer: LinearLayout
     private val scrollView: HorizontalScrollView
     private lateinit var startIcon: ImageView
@@ -29,7 +28,6 @@ class CustomToolbar @JvmOverloads constructor(
     init {
         LayoutInflater.from(context).inflate(R.layout.custom_toolbar, this, true)
         titleText = findViewById(R.id.title_text)
-        subtitleText = findViewById(R.id.subtitle_text)
         menuContainer = findViewById(R.id.menu_container)
         scrollView = findViewById(R.id.horizontal_scroll_view)
 
@@ -38,10 +36,6 @@ class CustomToolbar @JvmOverloads constructor(
 
     fun setTitleText(title: String) {
         titleText.text = title
-    }
-
-    fun setSubtitleText(subtitle: String) {
-        subtitleText.text = subtitle
     }
 
     private fun setupStartAndEndArrows() {
