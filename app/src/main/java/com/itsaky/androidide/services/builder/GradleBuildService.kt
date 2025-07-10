@@ -25,8 +25,6 @@ import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
 import androidx.core.app.NotificationManagerCompat
-import org.adfa.constants.GRADLE_FOLDER_NAME
-import org.adfa.constants.TOML_FILE_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
@@ -68,6 +66,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import org.adfa.constants.GRADLE_FOLDER_NAME
+import org.adfa.constants.TOML_FILE_NAME
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -297,8 +297,9 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 
     // Override AAPT2 binary
     // The one downloaded from Maven is not built for Android
-    extraArgs.add("-Pandroid.aapt2FromMavenOverride=" + Environment.AAPT2.absolutePath)
+    extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
     extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
+
     if (BuildPreferences.isStacktraceEnabled) {
       extraArgs.add("--stacktrace")
     }
@@ -424,9 +425,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     }
   }
 
-  override fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> {
+  override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
     checkServerStarted()
-    val message = TaskExecutionMessage(listOf(*tasks))
 
     val future = performBuildTasks(server!!.executeTasks(message))
 
@@ -435,7 +435,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
         val cause = exception.cause
         if (cause is ScanPluginMissingException) {
           log.info("Retrying build without --scan option...")
-          return@handle executeTasks(*tasks).get()
+          return@handle executeTasks(message).get()
         }
         throw CompletionException(exception)
       }
@@ -582,7 +582,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     }
 
     outputReaderJob = buildServiceScope.launch(
-      Dispatchers.IO + CoroutineName("ToolingServerErrorReader")) {
+      Dispatchers.IO + CoroutineName("ToolingServerErrorReader")
+    ) {
       val reader = input.bufferedReader()
       try {
         reader.forEachLine { line ->
