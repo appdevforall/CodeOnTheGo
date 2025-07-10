@@ -508,7 +508,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         manager.cachedInitResult = result
         editorActivityScope.launch(Dispatchers.IO) {
             manager.setupProject()
-            manager.projectInitialized
             manager.notifyProjectUpdate()
             updateBuildVariants(manager.androidBuildVariants)
 
