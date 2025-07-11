@@ -30,7 +30,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import com.itsaky.androidide.resources.R;
-import com.itsaky.androidide.utils.ResourceUtilsKt;
+import com.itsaky.androidide.utils.ContextUtilsKt;
 import io.github.rosemoe.sora.widget.base.EditorPopupWindow;
 
 /**
@@ -72,7 +72,7 @@ public abstract class BaseEditorWindow extends AbstractPopupWindow {
 
     final var text = new TextView(context);
     text.setBackground(createBackground(context));
-    text.setTextColor(ResourceUtilsKt.resolveAttr(context, R.attr.colorOnPrimaryContainer));
+    text.setTextColor(ContextUtilsKt.resolveAttr(context, R.attr.colorOnPrimaryContainer));
     text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
     text.setClickable(false);
     text.setFocusable(false);
@@ -86,8 +86,8 @@ public abstract class BaseEditorWindow extends AbstractPopupWindow {
   protected Drawable createBackground(final Context context) {
     GradientDrawable background = new GradientDrawable();
     background.setShape(GradientDrawable.RECTANGLE);
-    background.setColor(ResourceUtilsKt.resolveAttr(context, R.attr.colorSurface));
-    background.setStroke(dp2px(1f), ResourceUtilsKt.resolveAttr(context, R.attr.colorOutline));
+    background.setColor(ContextUtilsKt.resolveAttr(context, R.attr.colorSurface));
+    background.setStroke(dp2px(1f), ContextUtilsKt.resolveAttr(context, R.attr.colorOutline));
     background.setCornerRadius(8);
     return background;
   }

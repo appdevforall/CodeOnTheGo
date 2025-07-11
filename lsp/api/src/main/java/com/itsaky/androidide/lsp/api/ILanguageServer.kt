@@ -33,6 +33,7 @@
 package com.itsaky.androidide.lsp.api
 
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
+import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.models.CodeFormatResult
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -88,6 +89,13 @@ interface ILanguageServer {
    * @param client The client to set.
    */
   fun connectClient(client: ILanguageClient?)
+
+  /**
+   * Set the debugger client.
+   *
+   * @param client The debugger client.
+   */
+  fun connectDebugClient(client: IDebugClient) = Unit
 
   /**
    * Apply settings to the language server. Its up to the language server how it applies these

@@ -38,6 +38,7 @@ import com.itsaky.androidide.fragments.FindActionDialog
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
 import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
+import com.itsaky.androidide.handlers.LspHandler.connectDebugClient
 import com.itsaky.androidide.handlers.LspHandler.destroyLanguageServers
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
@@ -143,7 +144,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     override fun doOpenHelp() {
         openHelpActivity()
     }
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -789,6 +789,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             IDELanguageClientImpl.initialize(this as EditorHandlerActivity)
         }
         connectClient(IDELanguageClientImpl.getInstance())
+        connectDebugClient(debuggerViewModel.debugClient)
     }
 
     open fun getProgressSheet(msg: Int): ProgressSheet? {
