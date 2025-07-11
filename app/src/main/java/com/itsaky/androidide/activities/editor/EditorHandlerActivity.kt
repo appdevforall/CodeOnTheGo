@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
@@ -68,7 +69,6 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.collections.set
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -211,13 +211,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         if (menu is MenuBuilder) {
             menu.setOptionalIconsVisible(true)
         }
-
-  private fun createToolbarActionData(): ActionData {
-    val data = ActionData.create(this)
-    val currentEditor = getCurrentEditor()
-
-    data.put(CodeEditorView::class.java, currentEditor)
-
         val data = createToolbarActionData()
         getInstance().fillMenu(FillMenuParams(data, EDITOR_TOOLBAR, menu))
         return true
@@ -271,7 +264,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     private fun createToolbarActionData(): ActionData {
-        val data = ActionData()
+        val data = ActionData.create(this)
         val currentEditor = getCurrentEditor()
 
         data.put(Context::class.java, this)

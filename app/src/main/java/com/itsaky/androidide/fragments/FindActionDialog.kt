@@ -1,19 +1,19 @@
 package com.itsaky.androidide.fragments
 
 import android.content.Context
+import android.content.res.Resources
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 
 class FindActionDialog(
     private val anchor: View,
-    private val context: Context,
+    context: Context,
     private val actionData: ActionData,
     shouldMarkInvisible: Boolean,
     private val onFindInFileClicked: ((ActionData) -> Unit),
@@ -46,21 +46,28 @@ class FindActionDialog(
             true
         ).apply {
             isOutsideTouchable = true
-            elevation = 8f
-            setBackgroundDrawable(ContextCompat.getDrawable(context, android.R.color.transparent))
+            elevation = 16f
         }
     }
 
     fun show() {
         anchor.post {
-            val location = IntArray(2)
-            anchor.getLocationOnScreen(location)
-            popupWindow.showAtLocation(
-                anchor,
-                Gravity.NO_GRAVITY,
-                location[0],
-                location[1] + anchor.height
+            val screenWidth = Resources.getSystem().displayMetrics.widthPixels
+            val offsetX = 0 // no horizontal padding
+            val offsetY = 0 // top of the screen
+
+            // Measure the popup width
+            popupWindow.contentView.measure(
+                View.MeasureSpec.UNSPECIFIED,
+                View.MeasureSpec.UNSPECIFIED
             )
+            val popupWidth = popupWindow.contentView.measuredWidth
+
+            // Calculate final X position for right alignment
+            val x = screenWidth - popupWidth - offsetX
+
+            // Show at top-right
+            popupWindow.showAtLocation(anchor, Gravity.TOP or Gravity.START, x, offsetY)
         }
     }
 }

@@ -83,7 +83,7 @@ class EditorActivityActions {
             registry.registerAction(RedoAction(context, order++))
             registry.registerAction(QuickRunAction(context, order++))
             registry.registerAction(DebugAction(context, order++))
-            registry.registerAction(QuickRunWithCancellationAction(context, order++))
+            registry.registerAction(QuickRunAction(context, order++))
             registry.registerAction(RunTasksAction(context, order++))
             registry.registerAction(SaveFileAction(context, order++))
             registry.registerAction(PreviewLayoutAction(context, order++))

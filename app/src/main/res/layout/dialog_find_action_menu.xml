@@ -3,10 +3,9 @@
     android:id="@+id/dialog_root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:background="@drawable/rounded_dialog_bg"
-    android:backgroundTint="@color/warm_grey"
+    android:background="@drawable/find_dialog_bg"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="8dp">
 
     <TextView
         android:id="@+id/find_in_file"
@@ -16,7 +15,8 @@
         android:padding="8dp"
         android:text="@string/menu_find_file"
         android:textSize="16sp"
-        app:drawableStartCompat="@drawable/ic_search_file" />
+        app:drawableStartCompat="@drawable/ic_search_file"
+        app:drawableTint="@color/black" />
 
     <TextView
         android:id="@+id/find_in_project"
@@ -27,5 +27,6 @@
         android:padding="8dp"
         android:text="@string/menu_find_project"
         android:textSize="16sp"
-        app:drawableStartCompat="@drawable/ic_search_project" />
+        app:drawableStartCompat="@drawable/ic_search_project"
+        app:drawableTint="@color/black" />
 </LinearLayout>
