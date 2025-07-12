@@ -13,7 +13,7 @@ import java.net.Socket
 
 data class ServerConfig(
     val port: Int = 6174,
-    val databasePath: String = "/data/data/com.itsaky.androidide/databases/documentation.db"
+    val databasePath: String
 )
 
 class WebServer(private val config: ServerConfig) {

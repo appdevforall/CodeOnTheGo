@@ -96,6 +96,9 @@ constructor(
   @SerializedName("end") var end: Position = Position(0, 0)
 ) : Comparable<Range> {
 
+  operator fun component1() = start
+  operator fun component2() = end
+
   constructor(src: Range) : this(Position(src.start.line, src.start.column),
     Position(src.end.line, src.end.column))
 

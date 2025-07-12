@@ -18,7 +18,6 @@
 package com.itsaky.androidide.editor.ui
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
@@ -295,8 +294,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
   protected open fun onGetActionLocation() = location
 
   protected open fun onCreateActionData(): ActionData {
-    val data = ActionData()
-    data.put(Context::class.java, editor.context)
+    val data = ActionData.create(editor.context)
     data.put(IDEEditor::class.java, this.editor)
     data.put(
       CodeEditor::class.java,

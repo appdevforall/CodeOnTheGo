@@ -20,7 +20,7 @@ playServicesOssLicenses = "17.1.0"
 preferenceKtxVersion = "1.2.1"
 recyclerview = "1.3.2"
 tree-sitter = "4.3.1"
-editor = "0.23.5"
+editor = "0.23.6"
 glide = "4.16.0"
 androidx-vectordrawable = "1.2.0"
 androidx-navigation = "2.7.7"
@@ -69,6 +69,7 @@ composite-javapoet = { module = "com.itsaky.androidide.build:javapoet" }
 composite-jaxp = { module = "com.itsaky.androidide.build:jaxp" }
 composite-jdt = { module = "com.itsaky.androidide.build:jdt" }
 composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" }
+composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
 gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }

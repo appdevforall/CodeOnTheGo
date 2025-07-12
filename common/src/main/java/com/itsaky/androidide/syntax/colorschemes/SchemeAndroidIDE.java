@@ -60,6 +60,8 @@ public class SchemeAndroidIDE extends EditorColorScheme {
   public static final int TYPE_NAME = ++endColorId;
   public static final int TODO_COMMENT = ++endColorId;
   public static final int FIXME_COMMENT = ++endColorId;
+  public static final int BREAKPOINT_LINE_INDICATOR = ++endColorId;
+  public static final int BREAKPOINT_LINE_BG = ++endColorId;
 
   /**
    * Delegates to {@link TextStyle#makeStyle(int)}
@@ -177,6 +179,9 @@ public class SchemeAndroidIDE extends EditorColorScheme {
     setColor(TODO_COMMENT, 0xffffc400);
     setColor(FIXME_COMMENT, 0xffffab00);
     setColor(COMMENT, 0xffbdbdbd);
+
+    setColor(BREAKPOINT_LINE_INDICATOR, 0xfff44336);
+    setColor(BREAKPOINT_LINE_BG, 0xfff44336);
   }
 
   @Override
