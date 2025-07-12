@@ -16,18 +16,22 @@
  */
 package com.itsaky.androidide.utils;
 
+import static org.adfa.constants.ConstantsKt.JDWP_AAR_NAME;
+
 import android.annotation.SuppressLint;
 
 import androidx.annotation.NonNull;
+
 import com.blankj.utilcode.util.FileUtils;
+import com.itsaky.androidide.app.BaseApplication;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 
-import java.io.File;
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.util.Map;
 
 @SuppressLint("SdCardPath")
 public final class Environment {
@@ -41,6 +45,8 @@ public final class Environment {
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
   public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/lib/jvm/java-21-openjdk";
   private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
+
+  private static final  String DATABASE_NAME = "documentation.db";
   private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
   public static File ROOT;
   public static File PREFIX;
@@ -51,8 +57,10 @@ public final class Environment {
   public static File ANDROID_HOME;
   public static File TMP_DIR;
   public static File BIN_DIR;
-  public static File LIB_DIR;
+  public static File OPT_DIR;
+  public static File JDWP_DIR;
   public static File JDWP_LIB_DIR;
+  public static File JDWP_AAR;
   public static File PROJECTS_DIR;
 
   // split assets vars
@@ -77,6 +85,8 @@ public final class Environment {
 
   public static File GRADLE_DISTS;
 
+  public static File DOC_DB;
+
   public static void init() {
     var arch = getArchitecture();
     DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
@@ -89,8 +99,10 @@ public final class Environment {
     ANDROIDIDE_HOME = mkdirIfNotExits(new File(HOME, ".androidide"));
     TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
     BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
-    LIB_DIR = mkdirIfNotExits(new File(PREFIX, "lib"));
-    JDWP_LIB_DIR = mkdirIfNotExits(new File(LIB_DIR, "oj-libjdwp"));
+    OPT_DIR = mkdirIfNotExits(new File(PREFIX, "opt"));
+    JDWP_DIR = mkdirIfNotExits(new File(OPT_DIR, "oj-libjdwp"));
+    JDWP_LIB_DIR = mkdirIfNotExits(new File(JDWP_DIR, "jniLibs"));
+    JDWP_AAR = mkdirIfNotExits(new File(JDWP_DIR, JDWP_AAR_NAME));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
     // NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
     //       and don't create the dir if it doesn't exist
@@ -118,6 +130,8 @@ public final class Environment {
     setExecutable(BASH_SHELL);
 
     System.setProperty("user.home", HOME.getAbsolutePath());
+
+    DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
   }
 
   public static File mkdirIfNotExits(File in) {

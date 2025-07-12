@@ -23,6 +23,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import com.itsaky.androidide.utils.Environment
 import androidx.fragment.app.FragmentTransaction
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
@@ -89,7 +90,7 @@ object TooltipUtils {
     suspend fun dumpDatabase(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val dbPath = "/data/data/com.itsaky.androidide/databases/documentation.db"
+                val dbPath = Environment.DOC_DB.absolutePath
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
                 
                 val query = "SELECT COUNT(*) as count FROM ide_tooltip_table"

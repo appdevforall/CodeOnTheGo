@@ -17,7 +17,11 @@
  */
 package com.itsaky.androidide.managers;
 
+import static org.adfa.constants.ConstantsKt.V7_KEY;
+import static org.adfa.constants.ConstantsKt.V8_KEY;
+
 import android.content.pm.PackageManager;
+import android.os.Build;
 
 import androidx.annotation.NonNull;
 
@@ -91,6 +95,18 @@ public class ToolsManager {
 
     private static void extractJdwp(final BaseApplication app) {
         try {
+            if (Environment.JDWP_AAR.exists()) {
+                FileUtils.delete(Environment.JDWP_AAR);
+            }
+
+            if (!Environment.JDWP_LIB_DIR.exists() && !Environment.JDWP_LIB_DIR.mkdirs()) {
+                throw new RuntimeException("Unable to create directory " + Environment.JDWP_LIB_DIR.getAbsolutePath());
+            }
+
+            final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
+            ResourceUtils.copyFileFromAssets(getCommonAsset("libjdwp-remote-" + variant + "-release.aar"),
+                    Environment.JDWP_AAR.getAbsolutePath());
+
             final var packageManager = app.getPackageManager();
             final var packageInfo = packageManager.getPackageInfo(app.getPackageName(), PackageManager.GET_META_DATA);
             Objects.requireNonNull(packageManager, "Unable to get package info for current context");

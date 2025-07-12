@@ -6,7 +6,7 @@ import android.content.res.TypedArray;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import com.itsaky.androidide.preferences.internal.GeneralPreferences;
-import com.itsaky.androidide.utils.ResourceUtilsKt;
+import com.itsaky.androidide.utils.ContextUtilsKt;
 
 public class ThemeUtils {
 
@@ -23,7 +23,7 @@ public class ThemeUtils {
     if (context == null) {
       return false;
     }
-    return ResourceUtilsKt.isSystemInDarkMode(context);
+    return ContextUtilsKt.isSystemInDarkMode(context);
   }
 
   /**

@@ -30,5 +30,7 @@ data class OnboardingPermissionItem(
 
   @StringRes
   val description: Int,
-  var isGranted: Boolean
+  var isGranted: Boolean,
+
+  var isOptional: Boolean = false
 )
