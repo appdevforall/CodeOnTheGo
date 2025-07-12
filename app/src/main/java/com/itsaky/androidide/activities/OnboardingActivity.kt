@@ -47,6 +47,7 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.TerminalInstaller
+import com.itsaky.androidide.utils.AssetsInstaller
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -66,11 +67,8 @@ import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR
 import org.adfa.constants.SPLIT_ASSETS
-import org.brotli.dec.BrotliInputStream
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.IOException
 
 class OnboardingActivity : AppIntro2() {
@@ -208,6 +206,10 @@ class OnboardingActivity : AppIntro2() {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
 
+                Environment.SPLIT_ASSETS_ZIP_BR.inputStream().use { input ->
+                    AssetsInstaller.install(input)
+                }
+
                 copyAndroidSDK()
                 copyMavenLocalRepoFiles()
                 copyGradleDists()
@@ -247,7 +249,7 @@ class OnboardingActivity : AppIntro2() {
 
         try {
             if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, ANDROID_SDK_ZIP) }
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP_BR, outputDirectory, ANDROID_SDK_ZIP) }
             else {
                 ResourceUtils.copyFileFromAssets(
                     ToolsManager.getCommonAsset(ANDROID_SDK_ZIP_BR),
@@ -290,7 +292,7 @@ class OnboardingActivity : AppIntro2() {
 
         try {
             if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME) }
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP_BR, outputDirectory, LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME) }
             else {
                 ResourceUtils.copyFileFromAssets(
                     ToolsManager.getCommonAsset(LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR),
@@ -329,7 +331,7 @@ class OnboardingActivity : AppIntro2() {
             val zipFile = outputDirectory.resolve(GRADLE_WRAPPER_FILE_NAME)
 
             if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, GRADLE_WRAPPER_FILE_NAME)
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP_BR, outputDirectory, GRADLE_WRAPPER_FILE_NAME)
             } else {
                 ResourceUtils.copyFileFromAssets(
                     ToolsManager.getCommonAsset(GRADLE_WRAPPER_FILE_NAME_BR),
@@ -380,7 +382,7 @@ class OnboardingActivity : AppIntro2() {
                 } else {
                     // second priority is the one contained in assets.zip
                     ZipUtils.unzipFileByKeyword(
-                        Environment.SPLIT_ASSETS_ZIP,
+                        Environment.SPLIT_ASSETS_ZIP_BR,
                         dbPath.parentFile,
                         DOCUMENTATION_DB
                     )
@@ -532,19 +534,6 @@ class OnboardingActivity : AppIntro2() {
         prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
 
     private fun decompressBrotli(inputPath: String, outputPath: String) {
-        FileInputStream(inputPath).use { input ->
-            BrotliInputStream(input).use { brotliIn ->
-                FileOutputStream(outputPath).use { output ->
-                    val buffer = ByteArray(1024 * 1024) // 1Mb buffer
-                    var bytesRead: Int
-
-                    while (brotliIn.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                    }
-
-                }
-            }
-        }
     }
 
 }
