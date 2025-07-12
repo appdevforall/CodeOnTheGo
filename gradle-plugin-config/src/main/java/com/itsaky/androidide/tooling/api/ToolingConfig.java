@@ -30,11 +30,11 @@ public final class ToolingConfig {
   public static final String PROP_JDWP_INJECT = "ide.property.jdwp.inject";
 
   /**
-   * The directory where the JDWP library is located. The direct children of this directory must be
-   * architecture-specific directories, which should contain the shared library (similar to how `jniLibs`
-   * directory works in Android projects).
+   * The directory where the JDWP library is located. This directory should contain a `jniLibs` directory
+   * whose direct children  must be architecture-specific directories, which should contain the shared
+   * library (similar to how `jniLibs` directory works in Android projects).
    */
-  public static final String PROP_JDWP_LIBDIR = "ide.property.jdwp.libdir";
+  public static final String PROP_JDWP_DIR = "ide.property.jdwp.dir";
 
   /**
    * The name of the JDWP library, without file extension or `lib` prefix.

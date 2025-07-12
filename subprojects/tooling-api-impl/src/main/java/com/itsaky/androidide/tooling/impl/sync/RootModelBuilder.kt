@@ -25,8 +25,8 @@ import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.util.AndroidModulePropertyCopier
 import com.itsaky.androidide.tooling.impl.Main
-import com.itsaky.androidide.tooling.impl.Main.finalizeLauncher
 import com.itsaky.androidide.tooling.impl.internal.ProjectImpl
+import com.itsaky.androidide.tooling.impl.util.configureFrom
 import org.gradle.tooling.ConfigurableLauncher
 import org.gradle.tooling.model.idea.IdeaProject
 import org.slf4j.LoggerFactory
@@ -105,7 +105,7 @@ class RootModelBuilder(initializationParams: InitializeProjectParams) :
       )
     }
 
-    finalizeLauncher(executor)
+    executor.configureFrom(initializationParams)
     applyAndroidModelBuilderProps(executor)
 
     if (cancellationToken != null) {

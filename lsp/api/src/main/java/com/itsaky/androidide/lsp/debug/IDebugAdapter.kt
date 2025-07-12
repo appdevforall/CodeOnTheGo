@@ -4,7 +4,6 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointRequest
 import com.itsaky.androidide.lsp.debug.model.BreakpointResponse
 import com.itsaky.androidide.lsp.debug.model.StepRequestParams
 import com.itsaky.androidide.lsp.debug.model.StepResponse
-import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadInfoResponse
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
@@ -31,20 +30,37 @@ interface IDebugAdapter {
     suspend fun connectedRemoteClients(): Set<RemoteClient>
 
     /**
-     * Add breakpoints in the source code.
+     * Suspend the execution of the given client. Has no effect if the VM is already suspended.
      *
-     * @param request The request definition of the breakpoints to add.
-     * @return The response definition of the breakpoints add.
+     * @param client The client to suspend.
+     * @return `true` if the client was suspended, `false` otherwise.
      */
-    suspend fun addBreakpoints(request: BreakpointRequest): BreakpointResponse
+    suspend fun suspendClient(client: RemoteClient): Boolean
 
     /**
-     * Remove breakpoints in the source code.
+     * Resume the execution of the given client. Has no effect if the VM is not suspended.
      *
-     * @param request The request definition of the breakpoints to remove.
-     * @return The response definition of the breakpoints remove.
+     * @param client The client to resume.
+     * @return `true` if the client was resumed, `false` otherwise.
      */
-    suspend fun removeBreakpoints(request: BreakpointRequest): BreakpointResponse
+    suspend fun resumeClient(client: RemoteClient): Boolean
+
+    /**
+     * Kill the client process. This may be called when the user wants to stop or restart the
+     * debug session.
+     *
+     * @param client The client to kill.
+     * @return `true` if the client was killed, `false` otherwise.
+     */
+    suspend fun killClient(client: RemoteClient): Boolean
+
+    /**
+     * Set breakpoints in source code.
+     *
+     * @param request The request definition of the breakpoints to set.
+     * @return The response definition of the breakpoints set.
+     */
+    suspend fun setBreakpoints(request: BreakpointRequest): BreakpointResponse
 
     /**
      * Step through a suspended program.
