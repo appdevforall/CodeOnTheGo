@@ -11,11 +11,6 @@ enum class VariableKind {
     PRIMITIVE,
 
     /**
-     * A string variable.
-     */
-    STRING,
-
-    /**
      * An array-like variable with fixed size, known element types and indices.
      */
     ARRAYLIKE,
@@ -53,7 +48,17 @@ interface Value {
     /**
      * The value of the variable.
      */
-    val value: Any
+    val value: Any?
+
+    companion object {
+
+        val UNDEFINED = object : Value {
+            override val value = null
+            override fun toString(): String = "null"
+            override fun equals(other: Any?): Boolean = other is Value && other.value == null
+            override fun hashCode(): Int = 0
+        }
+    }
 }
 
 /**
@@ -113,17 +118,6 @@ interface PrimitiveValue: Value {
 }
 
 /**
- * A string value.
- */
-interface StringValue: Value {
-
-    /**
-     * The value of the variable as a [String].
-     */
-    fun asString(): String
-}
-
-/**
  * A reference value.
  */
 interface ReferenceValue : Value {
@@ -132,6 +126,7 @@ interface ReferenceValue : Value {
      */
     override fun toString(): String
 }
+
 
 /**
  * An array-like value with fixed size, known element types and indices.
@@ -151,7 +146,7 @@ interface ArrayLikeValue : Value {
     /**
      * Get the value of the element at the given [index].
      */
-    operator fun get(index: ULong): Value
+    suspend fun get(index: ULong): Value
 }
 
 /**
@@ -180,14 +175,22 @@ interface Variable<ValueType: Value> {
     suspend fun descriptor(): VariableDescriptor
 
     /**
-     * Get the value of the variable as [ValueType].
+     * Get the value of the variable as [ValueType], or `null` if cannot be retrieved.
      */
-    suspend fun value(): ValueType
+    suspend fun value(): ValueType?
 
     /**
      * Get the members of of the object that this variable references. May be empty.
      */
     suspend fun objectMembers(): Set<Variable<*>>
+
+    /**
+     * Set the value of the variable.
+     *
+     * @param value The new value of the variable.
+     * @return The result of the operation.
+     */
+    suspend fun setValue(value: String): Boolean
 }
 
 /**
@@ -200,18 +203,3 @@ interface PrimitiveVariable: Variable<PrimitiveValue> {
      */
     val primitiveKind: PrimitiveKind
 }
-
-/**
- * A variable that has a string value.
- */
-interface StringVariable: Variable<StringValue>
-
-/**
- * A variable that has an array-like value.
- */
-interface ArrayLikeVariable: Variable<ArrayLikeValue>
-
-/**
- * A variable that has a reference value.
- */
-interface ReferenceVariable: Variable<ReferenceValue>

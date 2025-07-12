@@ -88,6 +88,14 @@ class SchemeParser(private val resolveFileRef: (String) -> File) {
     HIGHLIGHTED_DELIMITERS_FOREGROUND(
       "highlighted.delimiters.fg",
       EditorColorScheme.HIGHLIGHTED_DELIMITERS_FOREGROUND
+    ),
+    BREAKPOINT_INDICATOR(
+      "breakpoint.line.indicator",
+      SchemeAndroidIDE.BREAKPOINT_LINE_INDICATOR
+    ),
+    BREAKPOINT_LINE_BG(
+      "breakpoint.line.bg",
+      SchemeAndroidIDE.BREAKPOINT_LINE_BG
     );
 
     companion object {

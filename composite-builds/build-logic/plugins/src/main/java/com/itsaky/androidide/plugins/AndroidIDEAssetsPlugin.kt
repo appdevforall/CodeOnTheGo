@@ -17,16 +17,9 @@
 
 package com.itsaky.androidide.plugins
 
-import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
-import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
-import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
-import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
-import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
-import org.adfa.constants.SPLIT_ASSETS
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
-import com.itsaky.androidide.plugins.tasks.AddAndroidJarToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.CopyDocDbToAssetsTask
@@ -37,11 +30,16 @@ import com.itsaky.androidide.plugins.tasks.CopyTermuxCacheAndManifestTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
-import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
+import com.itsaky.androidide.plugins.util.capitalized
+import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
+import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
+import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
+import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.SPLIT_ASSETS
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.TaskProvider
-import org.gradle.configurationcache.extensions.capitalized
 
 /**
  * Handles asset copying and generation.
@@ -152,6 +150,26 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     copyToolingApiJar,
                     AddBrotliFileToAssetsTask::outputDirectory
+                )
+
+                // libjdwp-remote AAR copier
+                val copyLibJdwpAar = tasks.register(
+                    "copy${variantNameCapitalized}LibJdwpAar",
+                    AddFileToAssetsTask::class.java
+                ) {
+                    val flavor = variant.flavorName!!
+                    val libjdwpRemote = rootProject.findProject(":subprojects:libjdwp-remote")!!
+                    dependsOn(libjdwpRemote.tasks.getByName("assemble${flavor.capitalized()}Release"))
+
+                    val libjdwpRemoteAar = libjdwpRemote.layout.buildDirectory.file("outputs/aar/libjdwp-remote-$flavor-release.aar")
+
+                    inputFile.set(libjdwpRemoteAar)
+                    baseAssetsPath.set("data/common")
+                }
+
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    copyLibJdwpAar,
+                    AddFileToAssetsTask::outputDirectory
                 )
 
                 val copyCogoPluginJar = tasks.register(
