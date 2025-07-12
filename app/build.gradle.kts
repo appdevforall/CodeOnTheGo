@@ -247,9 +247,8 @@ dependencies {
 
   androidTestImplementation(libs.tests.androidx.test.runner)
 
-  // brotli
-  implementation(libs.common.orgbrotli.dec)
-
+  // brotli4j
+  implementation(libs.brotli4j)
 }
 
 

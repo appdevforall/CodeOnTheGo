@@ -17,16 +17,15 @@
 package com.itsaky.androidide.utils;
 
 import android.annotation.SuppressLint;
-import android.os.Build;
-
-import java.util.Arrays;
-import java.util.List;
 
 import androidx.annotation.NonNull;
 import com.blankj.utilcode.util.FileUtils;
+import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
+import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.io.File;
 import java.util.Map;
-import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +33,7 @@ import org.slf4j.LoggerFactory;
 public final class Environment {
 
   public static final String PROJECTS_FOLDER = "AndroidIDEProjects";
-  public static final String DEFAULT_ROOT = "/data/data/com.itsaky.androidide/files";
+  public static final String DEFAULT_ROOT = "/data/data/" + BuildInfo.PACKAGE_NAME + "/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
 
@@ -58,7 +57,7 @@ public final class Environment {
 
   // split assets vars
   public static File DOWNLOAD_DIR;
-  public static File SPLIT_ASSETS_ZIP;
+  public static File SPLIT_ASSETS_ZIP_BR;
 
   /**
    * Used by Java LSP until the project is initialized.
@@ -81,8 +80,8 @@ public final class Environment {
   public static void init() {
     var arch = getArchitecture();
     DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
-    var assets_zip = "assets-" + arch + ".zip";
-    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, assets_zip);
+    var assets_zip = "assets-" + arch + ".zip.br";
+    SPLIT_ASSETS_ZIP_BR = new File(DOWNLOAD_DIR, assets_zip);
 
     ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
     PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
@@ -131,7 +130,7 @@ public final class Environment {
 
   public static void setExecutable(@NonNull final File file) {
     if (!file.setExecutable(true)) {
-      LOG.error("Unable to set executable permissions to file", file);
+      LOG.error("Unable to set executable permissions to file: {}", file);
     }
   }
 
@@ -161,33 +160,8 @@ public final class Environment {
     return new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
   }
 
-  @NonNull
-  public static File createTempFile() {
-    var file = newTempFile();
-    while (file.exists()) {
-      file = newTempFile();
-    }
-
-    return file;
-  }
-
-  @NonNull
-  private static File newTempFile() {
-    return new File(TMP_DIR, "temp_" + UUID.randomUUID().toString().replace('-', 'X'));
-  }
-
   public static String getArchitecture() {
-    List<String> supportedAbis = Arrays.asList(Build.SUPPORTED_ABIS);
-
-    if (supportedAbis.contains("arm64-v8a")) {
-      return "v8";
-    } else if (supportedAbis.contains("armeabi-v7a") || supportedAbis.contains("armeabi")) {
-      return "v7";
-    } else if (supportedAbis.contains("x86") || supportedAbis.contains("x86_64")) {
-      return "x86";
-    } else {
-      return "unknown";
-    }
+    final var configProvider = IDEBuildConfigProvider.getInstance();
+    return configProvider.getCpuAbiName();
   }
-
 }
