@@ -304,7 +304,22 @@ constructor(
   }
 
   fun appendBuildOut(str: String?) {
+    if (str != null && shouldFilter(str)) return
     pagerAdapter.buildOutputFragment?.appendOutput(str)
+  }
+
+  private val suppressedGradleWarnings = listOf(
+    "The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/.androidide/aapt2' is experimental",
+    "The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
+    "The org.gradle.api.plugins.Convention type has been deprecated.",
+    "The BasePluginExtension.archivesBaseName property has been deprecated.",
+    "The Provider.forUseAtConfigurationTime method has been deprecated.",
+    "The BuildIdentifier.getName() method has been deprecated.",
+    "Deprecated Gradle features were used in this build"
+  )
+
+  private fun shouldFilter(msg: String): Boolean {
+    return suppressedGradleWarnings.any { msg.contains(it) }
   }
 
   fun clearBuildOutput() {
