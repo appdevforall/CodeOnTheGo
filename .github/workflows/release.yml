@@ -3,7 +3,10 @@ permissions:
   contents: read
   actions: write
 on:
-  workflow_dispatch: #
+ workflow_dispatch: #
+ push:
+   branches:
+     - 'ADFA-669-prod-support'
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
