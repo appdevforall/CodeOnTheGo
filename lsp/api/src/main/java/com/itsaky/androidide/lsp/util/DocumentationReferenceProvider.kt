@@ -24,15 +24,11 @@ import com.itsaky.androidide.lsp.models.MethodCompletionData
 import org.slf4j.LoggerFactory
 
 /**
- * Provides the documentation URL for classes, methods, fields, etc.
+ * Provides the documentation tag for classes, methods, fields, etc.
  *
  * @author Akash Yadav
  */
 object DocumentationReferenceProvider {
-
-  private val log = LoggerFactory.getLogger(DocumentationReferenceProvider::class.java)
-
-  const val DOCS_BASE_URL = "https://developer.android.com/reference/"
 
   /**
    * Package names whose documentation is most likely to be available on the Android Developers
@@ -46,20 +42,15 @@ object DocumentationReferenceProvider {
       "java" // Java APIs
     )
 
-  /**
-   * Get the documentation URL for given completion data.
-   *
-   * @return The URL or `null` if cannot be determined.
-   */
+
   @JvmStatic
-  fun getUrl(data: ICompletionData): String? {
+  fun getTag(data: ICompletionData): String? {
     val klass =
       when (data) {
         is ClassCompletionData -> data
         is MemberCompletionData -> data.classInfo
         else -> return null
       }
-    val url = StringBuilder(DOCS_BASE_URL)
     val baseName =
       if (klass.isNested) {
         klass.topLevelClass
@@ -70,27 +61,24 @@ object DocumentationReferenceProvider {
       return null
     }
 
-    url.append(baseName.replace('.', '/'))
+    val name = StringBuilder(baseName)
 
     if (klass.isNested) {
-      url.append('.')
-      url.append(klass.nameWithoutTopLevel)
+      name.append('.')
+      name.append(klass.nameWithoutTopLevel)
     }
 
     if (data is MemberCompletionData) {
-      url.append('#')
-      url.append(data.memberName)
+      name.append('#')
+      name.append(data.memberName)
     }
 
     if (data is MethodCompletionData) {
-      url.append('(')
-      url.append(data.parameterTypes.joinToString(separator = ", "))
-      url.append(')')
+      name.append('(')
+      name.append(data.parameterTypes.joinToString(separator = ", "))
+      name.append(')')
     }
 
-    log.debug("Documentation URL for {}#{} is {}", klass.className,
-      ((data as? MemberCompletionData?)?.memberName ?: "<self>"), url)
-
-    return url.toString()
+    return name.toString()
   }
 }
