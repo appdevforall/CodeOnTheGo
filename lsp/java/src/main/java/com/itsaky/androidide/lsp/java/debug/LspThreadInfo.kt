@@ -30,6 +30,10 @@ class JavaStackFrame(
     val lineNumber: Long = location.lineNumber().toLong(),
 ) : LspStackFrame {
 
+    companion object {
+        private val logger = LoggerFactory.getLogger(JavaStackFrame::class.java)
+    }
+
     private lateinit var cachedVariables: List<JavaLocalVariable<*>>
 
     override suspend fun descriptor() = withContext(Dispatchers.IO) {
@@ -62,12 +66,17 @@ class JavaStackFrame(
                             return@mapNotNull null
                         }
 
-                        JavaLocalVariable.forVariable(
-                            thread = thread,
-                            stackFrame = this,
-                            variable = variable,
-                            value = frame.getValue(variable)
-                        )
+                        try {
+                            JavaLocalVariable.forVariable(
+                                thread = thread,
+                                stackFrame = this,
+                                variable = variable,
+                                value = frame.getValue(variable)
+                            )
+                        } catch (err: Throwable) {
+                            logger.error("Failed to create variable wrapper for {}", variable.name(), err)
+                            null
+                        }
                     }
             } ?: emptyList()
         }
