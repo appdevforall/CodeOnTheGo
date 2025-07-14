@@ -155,8 +155,8 @@ android {
     }
     ${composeConfigGroovy()}
 }
-tasks.withType<JavaCompile> {
-    options.compilerArgs.add("-Xlint:deprecation")
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
 }
 ${ktJvmTarget()}
 ${dependencies()}
