@@ -42,7 +42,9 @@ import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.io.InputStreamReader
+import java.nio.channels.SeekableByteChannel
 
 
 /**
@@ -128,6 +130,7 @@ object TerminalInstaller {
      */
     suspend fun installIfNeeded(
         context: Context,
+        byteChannel: SeekableByteChannel,
         dryRun: Boolean = false,
         onProgress: (ProgressType) -> Unit = {},
     ): InstallResult = withContext(Dispatchers.IO) {
@@ -259,18 +262,20 @@ object TerminalInstaller {
             TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
         )
 
-        return@withContext doInstall(context, onProgress)
+        return@withContext doInstall(context, byteChannel, onProgress)
     }
 
     private fun doInstall(
-        context: Context, onProgress: (ProgressType) -> Unit
+        context: Context,
+        byteChannel: SeekableByteChannel,
+        onProgress: (ProgressType) -> Unit
     ): InstallResult {
         var error: Error?
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         val symlinks = mutableListOf<Pair<String, String>>()
 
         ZipFile.builder()
-            .setSeekableByteChannel(SeekableInMemoryByteChannel(TermuxInstaller.loadZipBytes()))
+            .setSeekableByteChannel(byteChannel)
             .get().use { zipFile ->
                 zipFile.entries.asSequence().forEach { entry ->
                     val entryStream = zipFile.getInputStream(entry)

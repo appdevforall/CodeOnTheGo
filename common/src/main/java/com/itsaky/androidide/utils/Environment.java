@@ -65,7 +65,7 @@ public final class Environment {
 
   // split assets vars
   public static File DOWNLOAD_DIR;
-  public static File SPLIT_ASSETS_ZIP_BR;
+  public static File SPLIT_ASSETS_ZIP;
 
   /**
    * Used by Java LSP until the project is initialized.
@@ -86,12 +86,12 @@ public final class Environment {
   public static File GRADLE_DISTS;
 
   public static File DOC_DB;
+  public static File LOCAL_MAVEN_DIR;
 
   public static void init() {
     var arch = getArchitecture();
     DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
-    var assets_zip = "assets-" + arch + ".zip.br";
-    SPLIT_ASSETS_ZIP_BR = new File(DOWNLOAD_DIR, assets_zip);
+    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets-" + arch + ".zip");
 
     ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
     PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
@@ -125,6 +125,7 @@ public final class Environment {
     LOGIN_SHELL = new File(BIN_DIR, "login");
 
     GRADLE_DISTS = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "gradle-dists"));
+    LOCAL_MAVEN_DIR = mkdirIfNotExits(new File(HOME, "maven"));
 
     setExecutable(JAVA);
     setExecutable(BASH_SHELL);

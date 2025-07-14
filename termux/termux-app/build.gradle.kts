@@ -1,15 +1,10 @@
 @file:Suppress("UnstableApiUsage")
 
 import com.itsaky.androidide.build.config.BuildConfig
-import com.itsaky.androidide.plugins.TerminalBootstrapPackagesPlugin
 
 plugins {
     id("com.android.library")
     id("kotlin-android")
-}
-
-apply {
-    plugin(TerminalBootstrapPackagesPlugin::class.java)
 }
 
 val packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "apt-android-7" // Default: "apt-android-7"
@@ -20,21 +15,8 @@ android {
 
     defaultConfig {
         buildConfigField("String", "TERMUX_PACKAGE_VARIANT", "\"" + packageVariant + "\"") // Used by TermuxApplication class
-
         manifestPlaceholders["TERMUX_PACKAGE_NAME"] = BuildConfig.packageName
         manifestPlaceholders["TERMUX_APP_NAME"] = "AndroidIDE"
-
-        externalNativeBuild {
-            ndkBuild {
-                cFlags("-std=c11", "-Wall", "-Wextra", "-Werror", "-Os", "-fno-stack-protector", "-Wl,--gc-sections")
-            }
-        }
-    }
-
-    externalNativeBuild {
-        ndkBuild {
-            path = file("src/main/cpp/Android.mk")
-        }
     }
 
     lint.disable += "ProtectedPermissions"
@@ -46,14 +28,6 @@ android {
     }
 
     packaging.jniLibs.useLegacyPackaging = true
-}
-
-android {
-    sourceSets {
-        getByName("main") {
-            jniLibs.srcDirs("src/main/jniLibs")
-        }
-    }
 }
 
 dependencies {

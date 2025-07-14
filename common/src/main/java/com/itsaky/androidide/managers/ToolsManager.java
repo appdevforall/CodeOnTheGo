@@ -74,6 +74,12 @@ public class ToolsManager {
         CompletableFuture.runAsync(() -> {
             // Load installed JDK distributions
             IJdkDistributionProvider.getInstance().loadDistributions();
+
+            ResourceUtils.copyFileFromAssets(
+                getCommonAsset("tooling-api-all.jar"),
+                Environment.TOOLING_API_JAR.getAbsolutePath()
+            );
+
             writeNoMediaFile();
             extractAapt2();
             extractCogoPlugin();
