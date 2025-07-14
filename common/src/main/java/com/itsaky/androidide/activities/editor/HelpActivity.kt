@@ -17,17 +17,16 @@
 
 package com.itsaky.androidide.activities.editor
 
-import androidx.core.graphics.Insets
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
 import org.adfa.constants.CONTENT_KEY
-import com.itsaky.androidide.R
-import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
-import com.itsaky.androidide.databinding.ActivityHelpBinding
+import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.app.BaseIDEActivity
+import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import org.adfa.constants.CONTENT_TITLE_KEY
 
-class HelpActivity : EdgeToEdgeIDEActivity() {
+class HelpActivity : BaseIDEActivity() {
 
     private var _binding: ActivityHelpBinding? = null
     private val binding: ActivityHelpBinding
@@ -107,21 +106,4 @@ class HelpActivity : EdgeToEdgeIDEActivity() {
         }
     }
 
-    override fun onApplySystemBarInsets(insets: Insets) {
-        val toolbar: View = binding.toolbar
-        toolbar.setPadding(
-            toolbar.paddingLeft + insets.left,
-            toolbar.paddingTop,
-            toolbar.paddingRight + insets.right,
-            toolbar.paddingBottom
-        )
-
-        val webview: View = binding.webView
-        webview.setPadding(
-            webview.paddingLeft + insets.left,
-            webview.paddingTop,
-            webview.paddingRight + insets.right,
-            webview.paddingBottom
-        )
-    }
 }
