@@ -5,6 +5,10 @@ permissions:
 on:
   workflow_dispatch: #
 
+  push:
+    branches:
+    - 'ADFA-669-prod-support'
+
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
