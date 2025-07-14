@@ -56,6 +56,8 @@ dependencies {
     implementation(projects.lsp.java)
     implementation(projects.lsp.xml)
     
+    implementation(projects.idetooltips)
+    
     testImplementation(libs.tests.junit)
     testImplementation(libs.tests.google.truth)
     testImplementation(libs.tests.robolectric)
