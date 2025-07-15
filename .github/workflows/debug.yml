@@ -34,7 +34,7 @@ env:
 
 jobs:
   build_apk:
-    name: Build & (Maybe) Deploy APK
+    name: Build Deploy APK
     runs-on: self-hosted
     timeout-minutes: 60
     outputs:
@@ -139,7 +139,7 @@ jobs:
           file: ${{ steps.find_apk.outputs.APK_PATH }}
           releaseNotes: |
             Stage Sync: ${{ steps.check_stage_sync.outputs.has_latest_stage == 'true' && '✅ Up to date with stage' || '⚠️ Branch is not up to date with stage' }}
-            Ticket:     ${{ steps.extract_jira.outputs.JIRA_URL }}
+            Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}
 
       - name: Send Rich Slack Notification
         env:
