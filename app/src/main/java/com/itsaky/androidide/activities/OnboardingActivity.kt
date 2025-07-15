@@ -71,6 +71,9 @@ import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
 import org.adfa.constants.MANIFEST_FILE_NAME
 import org.adfa.constants.SPLIT_ASSETS
 import org.adfa.constants.TERMUX_DEBS_PATH
+import org.adfa.constants.GRADLE_API_NAME_ZIP
+import org.adfa.constants.GRADLE_API_NAME_BR
+import org.adfa.constants.GRADLE_API_NAME
 import java.io.File
 import java.io.IOException
 import java.io.FileInputStream
@@ -218,6 +221,7 @@ class OnboardingActivity : AppIntro2() {
                 copyMavenLocalRepoFiles()
                 copyGradleDists()
                 copyToolingApi()
+                copyGradleApi()
                 copyDocumentation()
 
                 runOnUiThread {
@@ -460,6 +464,7 @@ class OnboardingActivity : AppIntro2() {
                 }
 
                 decompressBrotli(brotliFile.absolutePath, jarFile.absolutePath)
+                brotliFile.delete()
 
                 if (!jarFile.exists()) {
                     Log.e("OnboardingActivityInstall", "Brotli decompression of ${jarFile.path} failed!")
@@ -471,6 +476,46 @@ class OnboardingActivity : AppIntro2() {
         }
     }
 
+    private fun copyGradleApi() {
+        val outputDirectory =
+            File(Environment.GRADLE_GEN_JARS.absolutePath)
+        if (!outputDirectory.exists()) {
+            outputDirectory.mkdirs()
+        }
+
+        val brotliFile = outputDirectory.resolve(GRADLE_API_NAME_BR)
+        val zipFile = outputDirectory.resolve(GRADLE_API_NAME_ZIP)
+
+        try {
+
+            if (SPLIT_ASSETS) {
+                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, GRADLE_API_NAME_ZIP)
+                ZipUtils.unzipFile(zipFile, outputDirectory)
+                zipFile.delete()
+            } else {
+                ResourceUtils.copyFileFromAssets(
+                    ToolsManager.getCommonAsset(GRADLE_API_NAME_BR),
+                    Environment.GRADLE_GEN_JARS.resolve(GRADLE_API_NAME_BR).absolutePath
+                )
+
+                val jarFile = Environment.GRADLE_GEN_JARS.resolve(GRADLE_API_NAME)
+                if (!brotliFile.exists()) {
+                    Log.e("OnboardingActivityInstall",
+                        "Brotli file ${brotliFile.path} doesn't exist!")
+                }
+
+                decompressBrotli(brotliFile.absolutePath, jarFile.absolutePath)
+                brotliFile.delete()
+
+                if (!jarFile.exists()) {
+                    Log.e("OnboardingActivityInstall", "Brotli decompression of ${jarFile.path} failed!")
+                }
+            }
+
+        } catch (e: IOException) {
+            Log.e("OnboardingActivityInstall", "Gradle API jar copy failed: ${e.message}")
+        }
+    }
 
     private fun checkToolsIsInstalled(): Boolean {
         return IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty()

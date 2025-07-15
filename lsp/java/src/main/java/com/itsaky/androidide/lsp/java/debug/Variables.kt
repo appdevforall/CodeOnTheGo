@@ -285,7 +285,7 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
             thread: ThreadReference,
             stackFrame: JavaStackFrame,
             variable: LocalVariable,
-            value: Value,
+            value: Value?,
         ): JavaLocalVariable<*> = when (variable.type()) {
             is PrimitiveType -> JavaPrimitiveVariable(thread, stackFrame, variable, value)
             else -> JavaLocalVariable<LspValue>(thread, stackFrame, variable, value)
@@ -392,7 +392,7 @@ internal class JavaPrimitiveVariable(
     thread: ThreadReference,
     stackFrame: JavaStackFrame,
     variable: LocalVariable,
-    value: Value,
+    value: Value?,
 ) : JavaLocalVariable<LspPrimitiveValue>(thread, stackFrame, variable, value), PrimitiveVariable {
 
     override val primitiveKind: PrimitiveKind by lazy {
