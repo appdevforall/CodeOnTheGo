@@ -11,30 +11,29 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'fastlane/**'
-
-  workflow_dispatch: { }
+  workflow_dispatch: {}
 
 env:
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
-  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
-  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
-  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
-  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
-  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
-  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
-  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
-  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
-  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
+  GH_TOKEN:                         ${{ secrets.GITHUB_TOKEN }}
+  IDE_SIGNING_ALIAS:                ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS:            ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER:            ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS:             ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS:           ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL:                  ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN:              ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  ORG_GRADLE_PROJECT_mavenCentralUsername:    ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword:    ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey:      ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId:    ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
-  FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
-  FIREBASE_DISTRIBUTION_URL: ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
-  FIREBASE_DOWNLOAD_URL: ${{ secrets.FIREBASE_DOWNLOAD_URL }}
+  FIREBASE_CONSOLE_URL:             ${{ secrets.FIREBASE_CONSOLE_URL }}
+  FIREBASE_DISTRIBUTION_URL:        ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
+  FIREBASE_DOWNLOAD_URL:            ${{ secrets.FIREBASE_DOWNLOAD_URL }}
 
 jobs:
   build_apk:
-    name: Build Deploy APK
+    name: Build Universal APK
     runs-on: self-hosted
     timeout-minutes: 60
     outputs:
@@ -71,14 +70,14 @@ jobs:
         id: check_stage_sync
         run: |
           if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-            # after merge: is my branch tip now in stage?
+            # Post‑merge: has my branch tip landed in stage?
             if git merge-base --is-ancestor HEAD stage; then
               echo "has_latest_stage=true" >> $GITHUB_OUTPUT
             else
               echo "has_latest_stage=false" >> $GITHUB_OUTPUT
             fi
           else
-            # before merge: have I pulled in everything from stage?
+            # Pre‑merge: have I pulled in everything from stage?
             if git merge-base --is-ancestor stage HEAD; then
               echo "has_latest_stage=true" >> $GITHUB_OUTPUT
             else
@@ -112,14 +111,15 @@ jobs:
         id: pr_info
         run: |
           EVENT_PATH="${GITHUB_EVENT_PATH}"
-          echo "COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")" >> $GITHUB_OUTPUT
-          echo "PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")" >> $GITHUB_OUTPUT
-          echo "PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")" >> $GITHUB_OUTPUT
+          echo "COMMIT_MSG=$(jq -r '.pull_request.title' \"$EVENT_PATH\")" >> $GITHUB_OUTPUT
+          echo "PR_AUTHOR=$(jq -r '.pull_request.user.login' \"$EVENT_PATH\")" >> $GITHUB_OUTPUT
+          echo "PR_URL=$(jq -r '.pull_request.html_url' \"$EVENT_PATH\")" >> $GITHUB_OUTPUT
+          echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
 
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
-          BRANCH="${{ github.event.pull_request.head.ref }}"
+          BRANCH="${{ steps.pr_info.outputs.BRANCH_NAME }}"
           JIRA=$(echo "$BRANCH" | grep -o 'ADFA-[0-9]\+' | head -n1 || true)
           if [ -n "$JIRA" ]; then
             echo "JIRA_TICKET=$JIRA" >> $GITHUB_OUTPUT
@@ -133,44 +133,106 @@ jobs:
         if: github.event.pull_request.merged == true
         uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
+          appId:                         ${{ secrets.FIREBASE_APP_ID }}
           serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
-          groups: testers
-          file: ${{ steps.find_apk.outputs.APK_PATH }}
+          groups:                        testers
+          file:                          ${{ steps.find_apk.outputs.APK_PATH }}
           releaseNotes: |
             Stage Sync: ${{ steps.check_stage_sync.outputs.has_latest_stage == 'true' && '✅ Up to date with stage' || '⚠️ Branch is not up to date with stage' }}
-            Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}
+            Ticket:     ${{ steps.extract_jira.outputs.JIRA_URL }}
 
       - name: Send Rich Slack Notification
         env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK:     ${{ secrets.SLACK_WEBHOOK_URL }}
+          FIREBASE_URL:      ${{ secrets.FIREBASE_CONSOLE_URL }}
         run: |
-          if [ "${{ steps.check_stage_sync.outputs.has_latest_stage }}" = "true" ]; then
+          SYNC_FLAG="${{ steps.check_stage_sync.outputs.has_latest_stage }}"
+          if [ "$SYNC_FLAG" = "true" ]; then
             SYNC_MSG="✅ Up to date with stage"
           else
             SYNC_MSG="⚠️ Branch is not up to date with stage"
           fi
 
+          JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
+          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+          PR_AUTHOR="@${{ steps.pr_info.outputs.PR_AUTHOR }}"
+          BRANCH="${{ steps.pr_info.outputs.BRANCH_NAME }}"
+
+          # build valid JSON payload
           cat <<EOF > payload.json
           {
             "blocks": [
-              { "type": "header", "text": { "type": "plain_text", "text": ":rocket: Build Report", "emoji": true } },
-              { "type": "section", "text": { "type": "mrkdwn", "text": "*Stage Sync:* ${SYNC_MSG}" } },
-              { "type": "section", "text": { "type": "mrkdwn", "text": "*Jira Ticket:* ${{ steps.extract_jira.outputs.JIRA_URL }}" } },
-              { "type": "section", "text": { "type": "mrkdwn", "text": "*Commit:* ${{ steps.pr_info.outputs.COMMIT_MSG }}" } },
-              { "type": "section", "text": { "type": "mrkdwn", "text": "*Author:* @${{ steps.pr_info.outputs.PR_AUTHOR }}" } },
-              { "type": "actions", "elements": [
-                  { "type": "button", "text": { "type": "plain_text", "text": "View on Firebase" }, "url": "${FIREBASE_CONSOLE_URL}" },
-                  { "type": "button", "text": { "type": "plain_text", "text": "View Ticket"     }, "url": "${{ steps.extract_jira.outputs.JIRA_URL }}" }
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":rocket: Build Report",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Stage Sync:* ${SYNC_MSG}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Jira Ticket:* ${JIRA_URL}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Commit:* ${COMMIT_MSG}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Author:* ${PR_AUTHOR}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Branch:* \`${BRANCH}\`"
+                }
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View on Firebase",
+                      "emoji": true
+                    },
+                    "url": "${FIREBASE_URL}"
+                  },
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View Ticket",
+                      "emoji": true
+                    },
+                    "url": "${JIRA_URL}"
+                  }
                 ]
               },
-              { "type": "divider" },
-              { "type": "context", "elements": [
-                  { "type": "mrkdwn", "text": "Branch: \`${{ github.event.pull_request.head.ref }}\`" }
-                ]
+              {
+                "type": "divider"
               }
             ]
           }
           EOF
 
-          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+          curl -X POST -H "Content-Type: application/json" --data @payload.json "$SLACK_WEBHOOK"
