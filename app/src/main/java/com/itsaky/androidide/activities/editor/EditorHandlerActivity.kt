@@ -18,7 +18,6 @@
 package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
@@ -255,8 +254,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                     icon = action.icon,
                     hint = action.label,
                     onClick = {
-                        val action = registry.findAction(EDITOR_TOOLBAR, action.id)
-                        registry.executeAction(action!!, data)
+                        registry.executeAction(action, data)
                     }
                 )
             }
