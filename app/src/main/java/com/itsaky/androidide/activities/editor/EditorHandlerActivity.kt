@@ -267,7 +267,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         val data = ActionData.create(this)
         val currentEditor = getCurrentEditor()
 
-        data.put(Context::class.java, this)
         data.put(CodeEditorView::class.java, currentEditor)
 
         if (currentEditor != null) {
