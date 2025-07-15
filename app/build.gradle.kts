@@ -334,6 +334,7 @@ fun createAssetsZip(zipName: String, archDir: String) {
       "android-sdk.zip" to sourceDir.resolve("androidsdk/android-sdk.zip"),
       "localMvnRepository.zip" to sourceDir.resolve("gradle/localMvnRepository.zip"),
       "gradle-8.7-bin.zip" to sourceDir.resolve("gradle-8.7-bin.zip"),
+      "gradle-api-8.7.jar.zip" to sourceDir.resolve("gradle-api-8.7.jar.zip"),
       "documentation.db" to sourceDir.resolve("documentation.db")
     ).forEach { (fileName, filePath) ->
       if (filePath.exists()) {
