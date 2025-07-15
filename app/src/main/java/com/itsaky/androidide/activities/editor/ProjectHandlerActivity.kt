@@ -105,12 +105,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
 
     fun findActionDialog(actionData: ActionData): FindActionDialog {
-        val shouldHideFindInFileAction = editorViewModel.getOpenedFileCount() == 0
+        val shouldHideFindInFileAction = editorViewModel.getOpenedFileCount() != 0
         return FindActionDialog(
             anchor = content.customToolbar.findViewById(R.id.menu_container),
             context = this,
             actionData = actionData,
-            shouldMarkInvisible = shouldHideFindInFileAction,
+            shouldShowFindInFileAction = shouldHideFindInFileAction,
             onFindInFileClicked = { data ->
                 lifecycleScope.launch { FindInFileAction().execAction(data) }
             },

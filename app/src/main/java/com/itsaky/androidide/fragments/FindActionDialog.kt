@@ -15,7 +15,7 @@ class FindActionDialog(
     private val anchor: View,
     context: Context,
     private val actionData: ActionData,
-    shouldMarkInvisible: Boolean,
+    shouldShowFindInFileAction: Boolean,
     private val onFindInFileClicked: ((ActionData) -> Unit),
     private val onFindInProjectClicked: (() -> Unit)
 ) {
@@ -27,7 +27,7 @@ class FindActionDialog(
         val findInProjectText = view.findViewById<TextView>(R.id.find_in_project)
 
         // Hide find in file if no files are open
-        findInFileText.visibility = if (shouldMarkInvisible) View.GONE else View.VISIBLE
+        findInFileText.visibility = if (shouldShowFindInFileAction) View.VISIBLE else View.GONE
 
         findInFileText.setOnClickListener {
             popupWindow.dismiss()
