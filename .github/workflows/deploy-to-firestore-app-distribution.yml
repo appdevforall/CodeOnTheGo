@@ -1,13 +1,15 @@
 name: Build and deploy to firebase app distribution
+
 permissions:
   contents: read
   actions: write
+
 on:
   pull_request:
     branches: [ "stage" ]
-    types: [closed]
+    types: [ opened, synchronize, reopened, closed ]
     paths-ignore:
-      - '**.md'
+      - '**/*.md'
       - 'fastlane/**'
 
   workflow_dispatch: { }
@@ -32,23 +34,25 @@ env:
 
 jobs:
   build_apk:
-    name: Build Universal APK
-    if: github.event.pull_request.merged == true
+    name: Build & (Maybe) Deploy APK
     runs-on: self-hosted
     timeout-minutes: 60
+    outputs:
+      has_latest_stage: ${{ steps.check_stage_sync.outputs.has_latest_stage }}
+
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
-      - name: Checkout code
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: stage
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Install and Configure Git LFS - Selective pull
+      - name: Install and Configure Git LFS
         run: |
           sudo apt-get update
           sudo apt-get install -y git-lfs
@@ -60,191 +64,113 @@ jobs:
           git submodule init
           git submodule update --remote
 
+      - name: Fetch stage branch
+        run: git fetch origin stage:stage
+
+      - name: Check if branch is up to date with stage
+        id: check_stage_sync
+        run: |
+          if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+            # after merge: is my branch tip now in stage?
+            if git merge-base --is-ancestor HEAD stage; then
+              echo "has_latest_stage=true" >> $GITHUB_OUTPUT
+            else
+              echo "has_latest_stage=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            # before merge: have I pulled in everything from stage?
+            if git merge-base --is-ancestor stage HEAD; then
+              echo "has_latest_stage=true" >> $GITHUB_OUTPUT
+            else
+              echo "has_latest_stage=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Check if Nix is installed
         id: check_nix
         run: |
           if command -v nix >/dev/null 2>&1; then
-            echo "nix is installed"
             echo "nix_installed=true" >> $GITHUB_ENV
           else
-            echo "nix is not installed"
             echo "nix_installed=false" >> $GITHUB_ENV
           fi
 
-      - name: Install Flox
+      - name: Install Flox (if needed)
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
-      - name: Set branch name
-        run: echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
-
-      - name: Set build type
-        id: check_stage_sync
-        run: |
-          echo "BUILD_TYPE=Stage Build (Post-Merge)" >> $GITHUB_OUTPUT
-          echo "Building from stage after PR merge"
-
       - name: Assemble Universal APK
-        run: |
-          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+        run: flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
 
       - name: Find APK file
-        # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
           apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
-          echo "Found APK at: $apk_path"
 
       - name: Get PR and Commit Information
         id: pr_info
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            # Extract info from GitHub event file
-            EVENT_PATH="${GITHUB_EVENT_PATH}"
-            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
-            PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
-            PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
-            echo "PR_NUMBER=$(jq -r '.pull_request.number' "$EVENT_PATH")" >> $GITHUB_OUTPUT
-            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
-            echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
-            echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
-          else
-            # Fallback to git log for non-PR builds
-            COMMIT_MSG=$(git log -1 --pretty=%B)
-            COMMIT_AUTHOR=$(git log -1 --pretty=%an)
-            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
-            echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
-          fi
+          EVENT_PATH="${GITHUB_EVENT_PATH}"
+          echo "COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")" >> $GITHUB_OUTPUT
+          echo "PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")" >> $GITHUB_OUTPUT
+          echo "PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")" >> $GITHUB_OUTPUT
 
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
-          # Use regex to extract JIRA ticket in format ADFA-XXX
-          JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-
-          # If JIRA ticket was found, set the URL, otherwise set as N/A
-          if [ -n "$JIRA_TICKET" ]; then
-            JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          JIRA=$(echo "$BRANCH" | grep -o 'ADFA-[0-9]\+' | head -n1 || true)
+          if [ -n "$JIRA" ]; then
+            echo "JIRA_TICKET=$JIRA" >> $GITHUB_OUTPUT
+            echo "JIRA_URL=https://appdevforall.atlassian.net/browse/$JIRA" >> $GITHUB_OUTPUT
           else
-            JIRA_TICKET="N/A"
-            JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
+            echo "JIRA_TICKET=N/A" >> $GITHUB_OUTPUT
+            echo "JIRA_URL=https://github.com/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_OUTPUT
           fi
 
-          echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
-          echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
-
-      - name: Upload artifact to Firebase App Distribution
-        id: firebase_upload
+      - name: Upload to Firebase App Distribution
+        if: github.event.pull_request.merged == true
         uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
           serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
           groups: testers
           file: ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: "Build Type: ${{ steps.check_stage_sync.outputs.BUILD_TYPE }}\nTicket: ${{ steps.extract_jira.outputs.JIRA_URL }}"
+          releaseNotes: |
+            Stage Sync: ${{ steps.check_stage_sync.outputs.has_latest_stage == 'true' && '✅ Up to date with stage' || '⚠️ Branch is not up to date with stage' }}
+            Ticket:     ${{ steps.extract_jira.outputs.JIRA_URL }}
 
       - name: Send Rich Slack Notification
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
-          JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
-          FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
-          PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
-          BRANCH_NAME="${{ env.BRANCH_NAME }}"
-          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
-          BUILD_TYPE="${{ steps.check_stage_sync.outputs.BUILD_TYPE }}"
-          HAS_LATEST_STAGE="${{ steps.check_stage_sync.outputs.HAS_LATEST_STAGE }}"
-          STAGE_MERGED="${{ steps.check_stage_sync.outputs.STAGE_MERGED }}"
+          if [ "${{ steps.check_stage_sync.outputs.has_latest_stage }}" = "true" ]; then
+            SYNC_MSG="✅ Up to date with stage"
+          else
+            SYNC_MSG="⚠️ Branch is not up to date with stage"
+          fi
 
-          # Create JSON payload
-          echo '{
+          cat <<EOF > payload.json
+          {
             "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": ":rocket: New Build Available",
-                  "emoji": true
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "@here Please review and test this build."
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Jira Ticket:* '"$JIRA_URL"'"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Commit:* '"$COMMIT_MSG"'"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Author:* @'"$PR_AUTHOR"'"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Build Type:* '"$BUILD_TYPE"'"
-                }
-              },
-              {
-                "type": "actions",
-                "elements": [
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View on Firebase",
-                      "emoji": true
-                    },
-                    "url": "https://console.firebase.google.com/project/codeonthego-64a92/appdistribution",
-                    "action_id": "firebase-console"
-                  },
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View Ticket",
-                      "emoji": true
-                    },
-                    "url": "'"$JIRA_URL"'",
-                    "action_id": "firebase-download"
-                  }
+              { "type": "header", "text": { "type": "plain_text", "text": ":rocket: Build Report", "emoji": true } },
+              { "type": "section", "text": { "type": "mrkdwn", "text": "*Stage Sync:* ${SYNC_MSG}" } },
+              { "type": "section", "text": { "type": "mrkdwn", "text": "*Jira Ticket:* ${{ steps.extract_jira.outputs.JIRA_URL }}" } },
+              { "type": "section", "text": { "type": "mrkdwn", "text": "*Commit:* ${{ steps.pr_info.outputs.COMMIT_MSG }}" } },
+              { "type": "section", "text": { "type": "mrkdwn", "text": "*Author:* @${{ steps.pr_info.outputs.PR_AUTHOR }}" } },
+              { "type": "actions", "elements": [
+                  { "type": "button", "text": { "type": "plain_text", "text": "View on Firebase" }, "url": "${FIREBASE_CONSOLE_URL}" },
+                  { "type": "button", "text": { "type": "plain_text", "text": "View Ticket"     }, "url": "${{ steps.extract_jira.outputs.JIRA_URL }}" }
                 ]
               },
-              {
-                "type": "divider"
-              },
-              {
-                "type": "context",
-                "elements": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "Deployed from branch `'"$BRANCH_NAME"'`"
-                  }
+              { "type": "divider" },
+              { "type": "context", "elements": [
+                  { "type": "mrkdwn", "text": "Branch: \`${{ github.event.pull_request.head.ref }}\`" }
                 ]
               }
             ]
-          }' > payload.json
+          }
+          EOF
 
-          # Send notification
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
