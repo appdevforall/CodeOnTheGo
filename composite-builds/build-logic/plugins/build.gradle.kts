@@ -1,5 +1,3 @@
-import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
-
 /*
  *  This file is part of AndroidIDE.
  *
@@ -16,6 +14,8 @@ import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 
 plugins {
     `kotlin-dsl`
