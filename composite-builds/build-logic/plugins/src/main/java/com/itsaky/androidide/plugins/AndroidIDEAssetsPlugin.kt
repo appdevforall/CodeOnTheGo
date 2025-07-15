@@ -30,16 +30,17 @@ import com.itsaky.androidide.plugins.tasks.CopyTermuxCacheAndManifestTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
+import com.itsaky.androidide.plugins.tasks.CopyGradleApiToAssetsTask
 import com.itsaky.androidide.plugins.util.capitalized
 import org.adfa.constants.COPY_ANDROID_SDK_TO_ASSETS
 import org.adfa.constants.COPY_DOC_DB_TO_ASSETS
 import org.adfa.constants.COPY_GRADLE_CACHES_TO_ASSETS
 import org.adfa.constants.COPY_GRADLE_EXECUTABLE_TASK_NAME
 import org.adfa.constants.COPY_TERMUX_LIBS_TASK_NAME
+import org.adfa.constants.COPY_GRADLE_API_TO_ASSETS
 import org.adfa.constants.SPLIT_ASSETS
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.tasks.TaskProvider
 
 /**
  * Handles asset copying and generation.
@@ -92,11 +93,17 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 CopyDocDbToAssetsTask::class.java
             )
 
+            val gradleApiToAssetsTaskProvider = tasks.register(
+                COPY_GRADLE_API_TO_ASSETS,
+                CopyGradleApiToAssetsTask::class.java
+            )
+
             if (SPLIT_ASSETS) {
                 gradleExecutableToAssetsTaskProvider.configure { enabled = false }
                 gradleCachesToAssetsTaskProvider.configure { enabled = false }
                 androidSdkToAssetsTaskProvider.configure { enabled = false }
                 docDbToAssetsTaskProvider.configure { enabled = false }
+                gradleApiToAssetsTaskProvider.configure { enabled = false }
             }
 
             androidComponentsExtension.onVariants { variant ->
@@ -227,16 +234,22 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                     CopyGradleCachesToAssetsTask::outputDirectory
                 )
 
-                // documentation db copier
+                // Local android sdk version copier
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     androidSdkToAssetsTaskProvider,
                     CopySdkToAssetsTask::outputDirectory
                 )
 
-                // Local android sdk version copier
+                // documentation db copier
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     docDbToAssetsTaskProvider,
                     CopyDocDbToAssetsTask::outputDirectory
+                )
+
+                // generated gradle api jar copier
+                variant.sources.assets?.addGeneratedSourceDirectory(
+                    gradleApiToAssetsTaskProvider,
+                    CopyGradleApiToAssetsTask::outputDirectory
                 )
             }
         }
