@@ -176,7 +176,6 @@ public final class Environment {
   }
 
   public static String getArchitecture() {
-    final var configProvider = IDEBuildConfigProvider.getInstance();
-    return configProvider.getCpuAbiName();
+    return IDEBuildConfigProvider.getInstance().getCpuAbiName();
   }
 }

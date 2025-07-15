@@ -21,9 +21,11 @@ import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.WorkerThread;
 
 import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
@@ -32,14 +34,17 @@ import com.itsaky.androidide.app.BaseApplication;
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider;
 import com.itsaky.androidide.utils.Environment;
+import com.itsaky.androidide.utils.IoUtilsKt;
 
 import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.Arrays;
@@ -75,10 +80,7 @@ public class ToolsManager {
             // Load installed JDK distributions
             IJdkDistributionProvider.getInstance().loadDistributions();
 
-            ResourceUtils.copyFileFromAssets(
-                getCommonAsset("tooling-api-all.jar"),
-                Environment.TOOLING_API_JAR.getAbsolutePath()
-            );
+            updateToolingJar(app.getAssets());
 
             writeNoMediaFile();
             extractAapt2();
@@ -97,6 +99,42 @@ public class ToolsManager {
                 onFinish.run();
             }
         });
+    }
+
+    @WorkerThread
+    private static void updateToolingJar(AssetManager assets) {
+        final var toolingJarName = "tooling-api-all.jar";
+        InputStream toolingJarStream;
+        try {
+            toolingJarStream = assets.open(ToolsManager.getCommonAsset(toolingJarName));
+        } catch (IOException e) {
+            try {
+                toolingJarStream = assets.open(toolingJarName + ".br");
+            } catch (IOException e2) {
+                LOG.error("Tooling jar not found in assets");
+                return;
+            }
+        }
+
+        try {
+            final var toolingJarFile = Environment.TOOLING_API_JAR;
+            if (toolingJarFile.exists()) {
+                FileUtils.delete(toolingJarFile);
+            }
+
+            Objects.requireNonNull(toolingJarFile.getParentFile()).mkdirs();
+            try (final var fos = new FileOutputStream(toolingJarFile)) {
+                IoUtilsKt.transferToStream(toolingJarStream, fos);
+            }
+        } catch (Throwable err) {
+            LOG.error("Failed to copy tooling API jar", err);
+        } finally {
+            try {
+                toolingJarStream.close();
+            } catch (IOException e) {
+                LOG.error("Failed to close tooling API jar stream", e);
+            }
+        }
     }
 
     private static void extractJdwp(final BaseApplication app) {

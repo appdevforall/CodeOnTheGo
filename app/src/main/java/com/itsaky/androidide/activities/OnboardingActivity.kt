@@ -38,7 +38,7 @@ import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
-import com.itsaky.androidide.utils.AssetsInstaller
+import com.itsaky.androidide.utils.AssetsInstallationHelper
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.withStopWatch
@@ -170,11 +170,15 @@ class OnboardingActivity : AppIntro2() {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
 
-                withStopWatch("Assets installation") {
+                val result = withStopWatch("Assets installation") {
                     // TODO: When SPLIT_ASSETS is disabled, get the input stream for
                     //       `assets-<arch>.zip.br` directly from the APK assets
-                    AssetsInstaller.install(this@OnboardingActivity)
+                    AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
+                        logger.debug("Assets installation progress: {}", progress.message)
+                    }
                 }
+
+                logger.info("Assets installation result: {}", result)
 
                 withContext(Dispatchers.Main) {
                     reloadJdkDistInfo {

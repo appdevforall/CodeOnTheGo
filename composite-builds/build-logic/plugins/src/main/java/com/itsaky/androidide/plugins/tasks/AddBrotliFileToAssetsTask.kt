@@ -124,7 +124,6 @@ abstract class AddBrotliFileToAssetsTask : DefaultTask() {
           input.transferTo(output)
         }
       }
-
     }
   }
 }
