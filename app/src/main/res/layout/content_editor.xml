@@ -80,7 +80,7 @@
                 android:id="@+id/no_editor_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Project Options"
+                android:text="@string/project_options"
                 android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
                 android:textColor="?attr/colorOnSurface"
                 app:layout_constraintBottom_toBottomOf="parent"
