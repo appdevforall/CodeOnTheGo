@@ -135,7 +135,6 @@ public final class Environment {
 
     DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
 
-    // .gradle\caches\8.7\generated-gradle-jars
     GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/8.7/generated-gradle-jars"));
   }
 
