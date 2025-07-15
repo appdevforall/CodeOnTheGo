@@ -157,9 +157,8 @@ jobs:
           PR_AUTHOR="@${{ steps.pr_info.outputs.PR_AUTHOR }}"
           BRANCH="${{ steps.pr_info.outputs.BRANCH_NAME }}"
 
-          # build valid JSON payload
-          cat <<EOF > payload.json
-          {
+          # Create JSON payload
+          echo '{
             "blocks": [
               {
                 "type": "header",
@@ -173,35 +172,35 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Stage Sync:* ${SYNC_MSG}"
+                  "text": "*Stage Sync:* '"$SYNC_MSG"'"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Jira Ticket:* ${JIRA_URL}"
+                  "text": "*Jira Ticket:* '"$JIRA_URL"'"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Commit:* ${COMMIT_MSG}"
+                  "text": "*Commit:* '"$COMMIT_MSG"'"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Author:* ${PR_AUTHOR}"
+                  "text": "*Author:* '"$PR_AUTHOR"'"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Branch:* \`${BRANCH}\`"
+                  "text": "*Branch:* `'"$BRANCH"'`"
                 }
               },
               {
@@ -214,7 +213,8 @@ jobs:
                       "text": "View on Firebase",
                       "emoji": true
                     },
-                    "url": "${FIREBASE_URL}"
+                    "url": "'"$FIREBASE_URL"'",
+                    "action_id": "firebase-console"
                   },
                   {
                     "type": "button",
@@ -223,7 +223,8 @@ jobs:
                       "text": "View Ticket",
                       "emoji": true
                     },
-                    "url": "${JIRA_URL}"
+                    "url": "'"$JIRA_URL"'",
+                    "action_id": "firebase-download"
                   }
                 ]
               },
@@ -231,7 +232,6 @@ jobs:
                 "type": "divider"
               }
             ]
-          }
-          EOF
+          }' > payload.json
 
           curl -X POST -H "Content-Type: application/json" --data @payload.json "$SLACK_WEBHOOK"
