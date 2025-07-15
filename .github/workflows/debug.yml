@@ -130,7 +130,6 @@ jobs:
           fi
 
       - name: Upload to Firebase App Distribution
-        if: github.event.pull_request.merged == true
         uses: emertozd/Firebase-Distribution-Github-Action@v2
         with:
           appId:                         ${{ secrets.FIREBASE_APP_ID }}
