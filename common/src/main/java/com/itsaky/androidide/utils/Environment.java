@@ -40,7 +40,7 @@ public final class Environment {
   public static final String DEFAULT_ROOT = "/data/data/com.itsaky.androidide/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
-
+  public static final String GRADLE_CACHE_DIR = DEFAULT_HOME + "/.gradle";
   private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
   public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
@@ -87,6 +87,8 @@ public final class Environment {
 
   public static File DOC_DB;
 
+  public static File GRADLE_GEN_JARS;
+
   public static void init() {
     var arch = getArchitecture();
     DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
@@ -132,6 +134,8 @@ public final class Environment {
     System.setProperty("user.home", HOME.getAbsolutePath());
 
     DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
+
+    GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/8.7/generated-gradle-jars"));
   }
 
   public static File mkdirIfNotExits(File in) {
