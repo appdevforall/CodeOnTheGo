@@ -59,8 +59,8 @@ android {
     buildToolsVersion = "34.0.4" 
     
     // disable linter
-    lintOptions {
-        isCheckReleaseBuilds = false
+    lint {
+        checkReleaseBuilds = false
     }
     
     
@@ -94,6 +94,11 @@ android {
     }
     ${composeConfigKts()}
 }
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:deprecation")
+}
+
 ${ktJvmTarget()}
 ${dependencies()}
 """
@@ -116,8 +121,8 @@ android {
     buildToolsVersion = "34.0.4"
     
     // disable linter
-    lintOptions {
-        checkReleaseBuilds  false
+    lint {
+        checkReleaseBuilds =  false
     }
     
     defaultConfig {
@@ -150,6 +155,9 @@ android {
     }
     ${composeConfigGroovy()}
 }
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
+}
 ${ktJvmTarget()}
 ${dependencies()}
 """
@@ -159,7 +167,7 @@ fun composeConfigGroovy(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion '$compose_kotlinCompilerExtensionVersion'
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
@@ -215,7 +223,7 @@ fun composeConfigKts(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion = "$compose_kotlinCompilerExtensionVersion"
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")

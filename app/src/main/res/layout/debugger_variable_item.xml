@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="@dimen/content_padding_half">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/chevron"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_chevron_right"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="?attr/colorPrimary" />
+
+    <androidx.legacy.widget.Space
+        android:id="@+id/chevron_icon_space"
+        android:layout_width="@dimen/content_padding_half"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/icon"
+        app:layout_constraintStart_toEndOf="@id/chevron"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/icon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_step_over"
+        app:layout_constraintBottom_toBottomOf="@id/chevron"
+        app:layout_constraintStart_toEndOf="@id/chevron_icon_space"
+        app:layout_constraintTop_toTopOf="@id/chevron"
+        app:tint="?attr/colorPrimary" />
+
+    <androidx.legacy.widget.Space
+        android:id="@+id/icon_label_space"
+        android:layout_width="@dimen/content_padding"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@id/icon"
+        app:layout_constraintEnd_toStartOf="@id/label"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:maxLines="1"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/icon_label_space"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="myInt: Int = 123" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

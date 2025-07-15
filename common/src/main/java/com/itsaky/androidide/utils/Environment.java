@@ -16,6 +16,8 @@
  */
 package com.itsaky.androidide.utils;
 
+import static org.adfa.constants.ConstantsKt.JDWP_AAR_NAME;
+
 import android.annotation.SuppressLint;
 import android.os.Build;
 
@@ -38,7 +40,7 @@ public final class Environment {
   public static final String DEFAULT_ROOT = "/data/data/com.itsaky.androidide/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
-
+  public static final String GRADLE_CACHE_DIR = DEFAULT_HOME + "/.gradle";
   private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
   public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
@@ -55,8 +57,10 @@ public final class Environment {
   public static File ANDROID_HOME;
   public static File TMP_DIR;
   public static File BIN_DIR;
-  public static File LIB_DIR;
+  public static File OPT_DIR;
+  public static File JDWP_DIR;
   public static File JDWP_LIB_DIR;
+  public static File JDWP_AAR;
   public static File PROJECTS_DIR;
 
   // split assets vars
@@ -83,6 +87,8 @@ public final class Environment {
 
   public static File DOC_DB;
 
+  public static File GRADLE_GEN_JARS;
+
   public static void init() {
     var arch = getArchitecture();
     DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
@@ -95,8 +101,10 @@ public final class Environment {
     ANDROIDIDE_HOME = mkdirIfNotExits(new File(HOME, ".androidide"));
     TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
     BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
-    LIB_DIR = mkdirIfNotExits(new File(PREFIX, "lib"));
-    JDWP_LIB_DIR = mkdirIfNotExits(new File(LIB_DIR, "oj-libjdwp"));
+    OPT_DIR = mkdirIfNotExits(new File(PREFIX, "opt"));
+    JDWP_DIR = mkdirIfNotExits(new File(OPT_DIR, "oj-libjdwp"));
+    JDWP_LIB_DIR = mkdirIfNotExits(new File(JDWP_DIR, "jniLibs"));
+    JDWP_AAR = mkdirIfNotExits(new File(JDWP_DIR, JDWP_AAR_NAME));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
     // NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
     //       and don't create the dir if it doesn't exist
@@ -126,6 +134,8 @@ public final class Environment {
     System.setProperty("user.home", HOME.getAbsolutePath());
 
     DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
+
+    GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/8.7/generated-gradle-jars"));
   }
 
   public static File mkdirIfNotExits(File in) {

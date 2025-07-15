@@ -112,25 +112,6 @@ abstract class AppDebuggerConfigTask : DefaultTask() {
         logger.info("Set application class from '${manifestData.applicationClass}' to '$COGO_APP_CLASS'")
         (appNode as Element).setAttributeNS(ANDROID_NS, "android:name", COGO_APP_CLASS)
 
-        val internetPermNode = xpath.evaluate(EXPR_PERM_INTERNET, doc, XPathConstants.NODE)
-        if (internetPermNode == null) {
-            logger.info("Adding INTERNET permissiont to manifest")
-            val manifest = run {
-                val manifests = doc.getElementsByTagName("manifest")
-                if (manifests.length == 0) {
-                    throw GradleException("<manifest> tag not found in $manifestIn")
-                }
-
-                manifests.item(0)
-            }
-
-            val permNode = doc.createElement("uses-permission")
-            permNode.setAttributeNS(ANDROID_NS, "android:name", "android.permission.INTERNET")
-            manifest.appendChild(permNode)
-        } else {
-            logger.info("No need to add INTERNET permission to manifest")
-        }
-
         val transformerFactory = TransformerFactory.newInstance()
         val transformer = transformerFactory.newTransformer()
         transformer.transform(DOMSource(doc), StreamResult(manifestOut))
@@ -142,29 +123,12 @@ abstract class AppDebuggerConfigTask : DefaultTask() {
     ) = """
         package ${COGO_APP_PACKAGE};
         
-        import android.os.Build;
-        import android.os.Debug;
-        import android.util.Log;
-        
-        public class $COGO_APP_NAME extends ${if (manifestData.applicationClass.isNullOrBlank()) "android.app.Application" else "${manifestData.applicationClass}"} {
-        
-            private static final String TAG = "$COGO_APP_NAME";
+        public class $COGO_APP_NAME extends 
+            ${if (manifestData.applicationClass.isNullOrBlank()) "android.app.Application" else "${manifestData.applicationClass}"} {
         
             @Override
             public void onCreate() {
-                Log.d(TAG, "onCreate");
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    try {
-                        Log.i(TAG, "Attaching debugger agent: libName=${jdwpOptions.libName}, options=${jdwpOptions.options}");
-                        Debug.attachJvmtiAgent("lib${jdwpOptions.libName}.so", "${jdwpOptions.options}", getClassLoader());
-                    } catch (Throwable err) {
-                        Log.e(TAG, "Failed to attach JVM TI agent", err);
-                    }
-                } else {
-                    Log.i(TAG, "Debugger agent is only supported on API >= 28");
-                }
-                
+                org.adfa.cogo.debug.DebugManager.init(this, "${jdwpOptions.libName}", "${jdwpOptions.options}");
                 super.onCreate();
             }
         }

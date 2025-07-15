@@ -170,3 +170,11 @@ const val HELP_PAGE_URL =
 const val DOCUMENTATION_DB = "documentation.db"
 const val DATABASE_FOLDER = "database"
 const val COPY_DOC_DB_TO_ASSETS = "copyDocDbToAssets"
+
+const val JDWP_AAR_NAME = "libjdwp-remote.aar"
+
+// Generated Gradle Api Jar
+const val GRADLE_API_NAME = "gradle-api-8.7.jar"
+const val GRADLE_API_NAME_BR = "${GRADLE_API_NAME}.br"
+const val GRADLE_API_NAME_ZIP = "${GRADLE_API_NAME}.zip"
+const val COPY_GRADLE_API_TO_ASSETS = "copyGradleApiToAssets"
