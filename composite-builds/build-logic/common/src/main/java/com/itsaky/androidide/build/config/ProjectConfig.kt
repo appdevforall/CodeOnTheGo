@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.build.config
 
+import com.github.javaparser.utils.Log
 import org.gradle.api.Project
 import java.util.Locale
 
@@ -53,8 +54,13 @@ val Project.simpleVersionName: String
 
         val version = rootProject.version.toString()
         // Format: CodeOnTheGo-{debug|release}-MMDD-HHMM
-        val buildType =
-            if (hasProperty("release") && property("release") == "true") "release" else "debug"
+        val buildType = if (project.gradle.startParameter.taskNames.any {
+                it.contains(
+                    "debug",
+                    true
+                ) || it.contains("dev", true)
+            }) "debug" else "release"
+
         val calendar = java.util.Calendar.getInstance()
         val month = calendar.get(java.util.Calendar.MONTH) + 1
         val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
