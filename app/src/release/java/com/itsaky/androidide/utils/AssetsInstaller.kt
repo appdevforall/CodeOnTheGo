@@ -10,6 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
 import org.adfa.constants.DOCUMENTATION_DB
+import org.adfa.constants.GRADLE_API_NAME_JAR
+import org.adfa.constants.GRADLE_API_NAME_JAR_BR
+import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
@@ -41,6 +44,16 @@ object AssetsInstaller {
                 AssetsInstallationHelper.extractZipToDir(srcStream, destDir)
             }
 
+            GRADLE_API_NAME_JAR_ZIP -> {
+                val assetPath = ToolsManager.getCommonAsset(GRADLE_API_NAME_JAR_BR)
+                BrotliInputStream(assets.open(assetPath)).use { input ->
+                    val destFile = Environment.GRADLE_GEN_JARS.resolve(GRADLE_API_NAME_JAR)
+                    destFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+
             BOOTSTRAP_ENTRY_NAME -> {
                 val channel = Files.newByteChannel(stagingDir.resolve(BOOTSTRAP_ENTRY_NAME))
                 val result = TerminalInstaller.installIfNeeded(context, channel)
@@ -66,6 +79,7 @@ object AssetsInstaller {
         GRADLE_WRAPPER_FILE_NAME -> Environment.GRADLE_DISTS
         ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
+        GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
         else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
     }
 

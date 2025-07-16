@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
 import org.adfa.constants.DOCUMENTATION_DB
+import org.adfa.constants.GRADLE_API_NAME_JAR
+import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
@@ -31,7 +33,8 @@ object AssetsInstaller {
         when (entryName) {
             GRADLE_WRAPPER_FILE_NAME,
             ANDROID_SDK_ZIP,
-            LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> {
+            LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
+            GRADLE_API_NAME_JAR_ZIP -> {
                 val srcFile = stagingDir.resolve(entryName)
                 val destDir = destinationDirForArchiveEntry(entryName).toPath()
                 AssetsInstallationHelper.extractZipToDir(srcFile, destDir)
@@ -67,6 +70,7 @@ object AssetsInstaller {
         GRADLE_WRAPPER_FILE_NAME -> Environment.GRADLE_DISTS
         ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
+        GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
         else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
     }
 
@@ -93,7 +97,8 @@ object AssetsInstaller {
                 ANDROID_SDK_ZIP,
                 DOCUMENTATION_DB,
                 LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
-                BOOTSTRAP_ENTRY_NAME -> {
+                BOOTSTRAP_ENTRY_NAME,
+                GRADLE_API_NAME_JAR_ZIP -> {
                     val destFile = stagingDir.resolve(entry.name)
                     if (destFile.exists()) {
                         throw IllegalStateException("FATAL: file already exists: $destFile")
