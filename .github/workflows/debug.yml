@@ -146,32 +146,41 @@ jobs:
             echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
             echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-      - name: Upload to Firebase App Distribution
+      - name: Upload to Firebase App Distribution and Extract URL
         id: firebase_upload
-        uses: emertozd/Firebase-Distribution-Github-Action@v2
-        with:
-          appId:                         ${{ secrets.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
-          groups:                        testers
-          file:                          ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: |
-            Stage Sync: ${{ steps.check_stage_sync.outputs.has_latest_stage == 'true' && '✅ Up to date with stage' || '⚠️ Branch is not up to date with stage' }}
-            Ticket:     ${{ steps.extract_jira.outputs.JIRA_URL }}
-
-      - name: Extract Firebase Console URL
-        id: extract_firebase_url
         run: |
-          # Extract Firebase console URL from the action output, handle grep failure gracefully
-          FIREBASE_URL=$(echo "${{ steps.firebase_upload.outputs.result }}" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+          # Run Firebase distribution using the action in a way that captures output
+          # First, install firebase-tools if not already available
+          npm install -g firebase-tools@13.10.1
+          
+          # Set up service account
+          echo '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}' > service-account.json
+          export GOOGLE_APPLICATION_CREDENTIALS=service-account.json
+          
+          # Run Firebase distribution and capture output
+          firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+            --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --groups "adfa" \
+            --release-notes "Stage Sync: ${{ steps.check_stage_sync.outputs.has_latest_stage == 'true' && '✅ Up to date with stage' || '⚠️ Branch is not up to date with stage' }}
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" > firebase_output.txt 2>&1
+          
+          # Display the output for debugging
+          cat firebase_output.txt
+          
+          # Extract Firebase console URL from output
+          FIREBASE_URL=$(cat firebase_output.txt | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
           
           if [ -z "$FIREBASE_URL" ]; then
-            echo "Firebase URL not found in action output, using fallback URL"
+            echo "Firebase URL not found in output, using fallback URL"
             FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
           else
             echo "Successfully extracted Firebase URL: $FIREBASE_URL"
           fi
           
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+          
+          # Clean up
+          rm -f service-account.json firebase_output.txt
 
       - name: Send Rich Slack Notification
         env:
@@ -186,7 +195,7 @@ jobs:
 
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          FIREBASE_CONSOLE_URL="${{ steps.extract_firebase_url.outputs.FIREBASE_CONSOLE_URL }}"
+          FIREBASE_CONSOLE_URL="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
