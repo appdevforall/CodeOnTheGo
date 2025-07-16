@@ -27,6 +27,8 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.PopupMenu
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.itsaky.androidide.editor.databinding.LayoutFindInFileBinding
 import com.itsaky.androidide.editor.ui.ReplaceAction.doReplace
 import com.itsaky.androidide.resources.R
@@ -104,6 +106,11 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
       false
     }
     findInFileBinding.root.visibility = VISIBLE
+
+    findInFileBinding.searchInput.requestFocus()
+    findInFileBinding.searchInput.post {
+      ViewCompat.getWindowInsetsController(findInFileBinding.searchInput)?.show(WindowInsetsCompat.Type.ime())
+    }
   }
 
   private fun onSearchActionClick(v: View) {
