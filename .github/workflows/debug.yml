@@ -11,23 +11,23 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'fastlane/**'
-  workflow_dispatch: {}
+  workflow_dispatch: { }
 
 env:
-  GH_TOKEN:                         ${{ secrets.GITHUB_TOKEN }}
-  IDE_SIGNING_ALIAS:                ${{ secrets.IDE_SIGNING_ALIAS }}
-  IDE_SIGNING_AUTH_PASS:            ${{ secrets.IDE_SIGNING_AUTH_PASS }}
-  IDE_SIGNING_AUTH_USER:            ${{ secrets.IDE_SIGNING_AUTH_USER }}
-  IDE_SIGNING_KEY_PASS:             ${{ secrets.IDE_SIGNING_KEY_PASS }}
-  IDE_SIGNING_STORE_PASS:           ${{ secrets.IDE_SIGNING_STORE_PASS }}
-  IDE_SIGNING_URL:                  ${{ secrets.IDE_SIGNING_URL }}
-  IDE_SIGNING_KEY_BIN:              ${{ secrets.IDE_SIGNING_KEY_BIN }}
-  ORG_GRADLE_PROJECT_mavenCentralUsername:    ${{ secrets.MVN_USERNAME }}
-  ORG_GRADLE_PROJECT_mavenCentralPassword:    ${{ secrets.MVN_PASSWORD }}
-  ORG_GRADLE_PROJECT_signingInMemoryKey:      ${{ secrets.MVN_SIGNING_KEY }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyId:    ${{ secrets.MVN_SIGNING_KEY_ID }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
-  FIREBASE_CONSOLE_URL:             ${{ secrets.FIREBASE_CONSOLE_URL }}
+  FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
 
 jobs:
   build_apk:
@@ -132,19 +132,19 @@ jobs:
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
-            # Use regex to extract JIRA ticket in format ADFA-XXX
-            JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-            
-            # If JIRA ticket was found, set the URL, otherwise set as N/A
-            if [ -n "$JIRA_TICKET" ]; then
-              JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
-            else
-              JIRA_TICKET="N/A"
-              JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
-            fi
-            
-            echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
-            echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
+          # Use regex to extract JIRA ticket in format ADFA-XXX
+          JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+          
+          # If JIRA ticket was found, set the URL, otherwise set as N/A
+          if [ -n "$JIRA_TICKET" ]; then
+            JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
+          else
+            JIRA_TICKET="N/A"
+            JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
+          fi
+          
+          echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
+          echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -217,8 +217,15 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":rocket: Build Report",
+                  "text": ":rocket: New Build Available",
                   "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "@here Please review and test this build."
                 }
               },
               {
@@ -281,7 +288,7 @@ jobs:
                 "elements": [
                   {
                     "type": "mrkdwn",
-                    "text": "Deployed from branch `'"$BRANCH_NAME"'`"
+                    "text": "Deployed from branch \`$BRANCH_NAME_ESCAPED\`"
                   }
                 ]
               }
