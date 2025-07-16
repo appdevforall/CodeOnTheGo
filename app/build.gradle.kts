@@ -5,17 +5,11 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
-import okio.Path.Companion.toPath
 import java.nio.file.Files
-import java.nio.file.Paths
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.reflect.jvm.javaMethod
 
 import java.net.URL
 import java.net.URI
-import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.json.JSONObject
 
@@ -316,7 +310,7 @@ tasks.register("downloadDocDb") {
   }
 }
 
-fun createAssetsZip(zipName: String, archDir: String) {
+fun createAssetsZip(zipName: String) {
   val outputDir = project.layout.buildDirectory.dir("outputs/assets").get().asFile
   if (!outputDir.exists()) {
     outputDir.mkdirs()
@@ -325,45 +319,40 @@ fun createAssetsZip(zipName: String, archDir: String) {
 
   val zipFile = outputDir.resolve(zipName)
   val sourceDir = project.rootDir.resolve("libs_source")
-  val pkgDir = sourceDir.resolve(archDir)
-
 
   ZipOutputStream(zipFile.outputStream()).use { zipOut ->
 
-    mapOf(
-      "android-sdk.zip" to sourceDir.resolve("androidsdk/android-sdk.zip"),
-      "localMvnRepository.zip" to sourceDir.resolve("gradle/localMvnRepository.zip"),
-      "gradle-8.7-bin.zip" to sourceDir.resolve("gradle-8.7-bin.zip"),
-      "documentation.db" to sourceDir.resolve("documentation.db")
-    ).forEach { (fileName, filePath) ->
-      if (filePath.exists()) {
-        project.logger.lifecycle("Zipping ${fileName} from ${filePath.absolutePath}")
-        zipOut.putNextEntry(ZipEntry(fileName))
-        filePath.inputStream().copyTo(zipOut)
-        zipOut.closeEntry()
+    arrayOf(
+      "android-sdk.zip",
+      "localMvnRepository.zip",
+      "gradle-8.7-bin.zip",
+      "gradle-api-8.7.jar.zip",
+      "documentation.db",
+    ).forEach { fileName ->
+      val filePath = sourceDir.resolve(fileName)
+      if (!filePath.exists()) {
+        return@forEach
       }
-    }
 
-    pkgDir.walk().filter { it.isFile }.forEach { file ->
-      val relativePath = "packages/" + file.name
-      zipOut.putNextEntry(ZipEntry(relativePath))
-      file.inputStream().copyTo(zipOut)
+      project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
+      zipOut.putNextEntry(ZipEntry(fileName))
+      filePath.inputStream().use { input -> input.copyTo(zipOut) }
       zipOut.closeEntry()
     }
 
-    println("Created ${zipName} successfully at ${zipFile.parentFile.absolutePath}")
+    println("Created $zipName successfully at ${zipFile.parentFile.absolutePath}")
   }
 }
 
 tasks.register("assembleV8Assets") {
   doLast {
-    createAssetsZip("assets-v8.zip","termux/v8")
+    createAssetsZip("assets-v8.zip")
   }
 }
 
 tasks.register("assembleV7Assets") {
   doLast {
-    createAssetsZip("assets-v7.zip","termux/v7")
+    createAssetsZip("assets-v7.zip")
   }
 }
 

@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
 import org.adfa.constants.DOCUMENTATION_DB
+import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
@@ -71,7 +72,8 @@ object AssetsInstallationHelper {
             ANDROID_SDK_ZIP,
             DOCUMENTATION_DB,
             LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
-            BOOTSTRAP_ENTRY_NAME
+            BOOTSTRAP_ENTRY_NAME,
+            GRADLE_API_NAME_JAR_ZIP,
         )
 
         val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())

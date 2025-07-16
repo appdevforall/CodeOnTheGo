@@ -6,3 +6,4 @@ app/src/release/assets/data/common/localMvnRepository.zip.br filter=lfs diff=lfs
 app/src/v7Release/assets/data/common/bootstrap.zip.br filter=lfs diff=lfs merge=lfs -text
 app/src/v8Release/assets/data/common/bootstrap.zip.br filter=lfs diff=lfs merge=lfs -text
 app/src/release/assets/data/common/documentation.db filter=lfs diff=lfs merge=lfs -text
+app/src/release/assets/data/common/gradle-api-8.7.jar.br filter=lfs diff=lfs merge=lfs -text
