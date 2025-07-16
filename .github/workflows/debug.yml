@@ -162,7 +162,6 @@ jobs:
       - name: Send Rich Slack Notification
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-          FIREBASE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
         run: |
           SYNC_FLAG="${{ steps.check_stage_sync.outputs.has_latest_stage }}"
           if [ "$SYNC_FLAG" = "true" ]; then
