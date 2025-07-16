@@ -164,7 +164,7 @@ jobs:
           # Run Firebase distribution and capture output
           firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
-            --groups "adfa" \
+            --groups "testers" \
             --release-notes "Stage Sync: ${{ steps.check_stage_sync.outputs.has_latest_stage == 'true' && '✅ Up to date with stage' || '⚠️ Branch is not up to date with stage' }}
           Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" > firebase_output.txt 2>&1
           
@@ -250,13 +250,6 @@ jobs:
                 }
               },
               {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Branch:* \`$BRANCH_NAME_ESCAPED\`"
-                }
-              },
-              {
                 "type": "actions",
                 "elements": [
                   {
@@ -283,6 +276,14 @@ jobs:
               },
               {
                 "type": "divider"
+              },{
+                "type": "context",
+                "elements": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "Deployed from branch `'"$BRANCH_NAME"'`"
+                  }
+                ]
               }
             ]
           }
