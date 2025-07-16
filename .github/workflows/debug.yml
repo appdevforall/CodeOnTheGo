@@ -146,11 +146,15 @@ jobs:
             echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
             echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Upload to Firebase App Distribution and Extract URL
         id: firebase_upload
         run: |
-          # Run Firebase distribution using the action in a way that captures output
-          # First, install firebase-tools if not already available
+          # Install firebase-tools
           npm install -g firebase-tools@13.10.1
           
           # Set up service account
