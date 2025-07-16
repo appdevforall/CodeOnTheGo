@@ -161,8 +161,8 @@ jobs:
 
       - name: Send Rich Slack Notification
         env:
-          SLACK_WEBHOOK:     ${{ secrets.SLACK_WEBHOOK_URL }}
-          FIREBASE_URL:      ${{ secrets.FIREBASE_CONSOLE_URL }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          FIREBASE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
         run: |
           SYNC_FLAG="${{ steps.check_stage_sync.outputs.has_latest_stage }}"
           if [ "$SYNC_FLAG" = "true" ]; then
@@ -174,14 +174,18 @@ jobs:
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
           FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
-          FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
 
+          # Escape special characters in variables to prevent JSON issues
+          COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | sed 's/"/\\"/g' | sed "s/'/\\'/g")
+          PR_AUTHOR_ESCAPED=$(echo "$PR_AUTHOR" | sed 's/"/\\"/g')
+          BRANCH_NAME_ESCAPED=$(echo "$BRANCH_NAME" | sed 's/"/\\"/g')
+
           # Create JSON payload
-          echo '{
+          cat > payload.json << EOF
+          {
             "blocks": [
               {
                 "type": "header",
@@ -195,35 +199,35 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Stage Sync:* '"$SYNC_MSG"'"
+                  "text": "*Stage Sync:* $SYNC_MSG"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Jira Ticket:* '"$JIRA_URL"'"
+                  "text": "*Jira Ticket:* <$JIRA_URL|$JIRA_TICKET>"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Commit:* '"$COMMIT_MSG"'"
+                  "text": "*Commit:* $COMMIT_MSG_ESCAPED"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Author:* '"$PR_AUTHOR"'"
+                  "text": "*Author:* $PR_AUTHOR_ESCAPED"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Branch:* `'"$BRANCH"'`"
+                  "text": "*Branch:* \`$BRANCH_NAME_ESCAPED\`"
                 }
               },
               {
@@ -236,7 +240,7 @@ jobs:
                       "text": "View on Firebase",
                       "emoji": true
                     },
-                    "url": "'"$FIREBASE_URL"'",
+                    "url": "$FIREBASE_CONSOLE_URL",
                     "action_id": "firebase-console"
                   },
                   {
@@ -246,8 +250,8 @@ jobs:
                       "text": "View Ticket",
                       "emoji": true
                     },
-                    "url": "'"$JIRA_URL"'",
-                    "action_id": "firebase-download"
+                    "url": "$JIRA_URL",
+                    "action_id": "jira-ticket"
                   }
                 ]
               },
@@ -255,6 +259,12 @@ jobs:
                 "type": "divider"
               }
             ]
-          }' > payload.json
+          }
+          EOF
 
+          # Debug: Print the payload to logs (optional)
+          echo "Slack payload:"
+          cat payload.json
+
+          # Send to Slack
           curl -X POST -H "Content-Type: application/json" --data @payload.json "$SLACK_WEBHOOK"
