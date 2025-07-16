@@ -107,11 +107,14 @@ jobs:
           apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
 
+      - name: Set branch name
+        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+
       - name: Get PR and Commit Information
         id: pr_info
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            # Extract info from GitHub event file
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" && ( "${{ github.event.action }}" == "opened" || "${{ github.event.action }}" == "synchronize" ) ]]; then
+            # Extract info from GitHub event file for PR creation or updates
             EVENT_PATH="${GITHUB_EVENT_PATH}"
             COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
             PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
@@ -131,15 +134,19 @@ jobs:
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
-          BRANCH="${{ steps.pr_info.outputs.BRANCH_NAME }}"
-          JIRA=$(echo "$BRANCH" | grep -o 'ADFA-[0-9]\+' | head -n1 || true)
-          if [ -n "$JIRA" ]; then
-            echo "JIRA_TICKET=$JIRA" >> $GITHUB_OUTPUT
-            echo "JIRA_URL=https://appdevforall.atlassian.net/browse/$JIRA" >> $GITHUB_OUTPUT
-          else
-            echo "JIRA_TICKET=N/A" >> $GITHUB_OUTPUT
-            echo "JIRA_URL=https://github.com/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_OUTPUT
-          fi
+            # Use regex to extract JIRA ticket in format ADFA-XXX
+            JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+            
+            # If JIRA ticket was found, set the URL, otherwise set as N/A
+            if [ -n "$JIRA_TICKET" ]; then
+              JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
+            else
+              JIRA_TICKET="N/A"
+              JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
+            fi
+            
+            echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
+            echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
       - name: Upload to Firebase App Distribution
         uses: emertozd/Firebase-Distribution-Github-Action@v2
@@ -164,10 +171,14 @@ jobs:
             SYNC_MSG="⚠️ Branch is not up to date with stage"
           fi
 
+          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
+          FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
+          FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
+          PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
+          BRANCH_NAME="${{ env.BRANCH_NAME }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
-          PR_AUTHOR="@${{ steps.pr_info.outputs.PR_AUTHOR }}"
-          BRANCH="${{ steps.pr_info.outputs.BRANCH_NAME }}"
 
           # Create JSON payload
           echo '{
