@@ -161,10 +161,16 @@ jobs:
       - name: Extract Firebase Console URL
         id: extract_firebase_url
         run: |
-          FIREBASE_URL=$(echo "${{ steps.firebase_upload.outputs.result }}" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?')
+          # Extract Firebase console URL from the action output, handle grep failure gracefully
+          FIREBASE_URL=$(echo "${{ steps.firebase_upload.outputs.result }}" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+          
           if [ -z "$FIREBASE_URL" ]; then
+            echo "Firebase URL not found in action output, using fallback URL"
             FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          else
+            echo "Successfully extracted Firebase URL: $FIREBASE_URL"
           fi
+          
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
       - name: Send Rich Slack Notification
