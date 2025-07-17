@@ -96,8 +96,8 @@ jobs:
             echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           else
             # Fallback to git log for non-PR builds
-            COMMIT_MSG=$(git log -1 --pretty=%B)
-            COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+            COMMIT_MSG="N/A"
+            COMMIT_AUTHOR="N/A"
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           fi
