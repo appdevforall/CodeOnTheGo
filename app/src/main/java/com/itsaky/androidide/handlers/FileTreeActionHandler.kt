@@ -27,6 +27,7 @@ import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.eventbus.events.filetree.FileClickEvent
 import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
+import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
 import com.itsaky.androidide.events.ExpandTreeNodeRequestEvent
 import com.itsaky.androidide.events.FileContextMenuItemClickEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
@@ -159,7 +160,15 @@ class FileTreeActionHandler : BaseEventHandler() {
     requestExpandNode(lastHeld!!)
   }
 
+  private fun requestCollapseHeldNode() {
+    requestCollapseNode(lastHeld!!, true)
+  }
+
   private fun requestExpandNode(node: TreeNode) {
     EventBus.getDefault().post(ExpandTreeNodeRequestEvent(node))
+  }
+
+  private fun requestCollapseNode(node: TreeNode, includeSubnodes: Boolean) {
+    EventBus.getDefault().post(CollapseTreeNodeRequestEvent(node, includeSubnodes))
   }
 }
