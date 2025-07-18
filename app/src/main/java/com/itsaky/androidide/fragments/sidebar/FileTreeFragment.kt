@@ -33,6 +33,7 @@ import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutEditorFileTreeBinding
 import com.itsaky.androidide.eventbus.events.filetree.FileClickEvent
 import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
+import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
 import com.itsaky.androidide.events.ExpandTreeNodeRequestEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.projects.IProjectManager
@@ -131,14 +132,14 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
     updateChevron(node)
   }
 
-  private fun collapseNode(node: TreeNode, animate: Boolean = true) {
+  private fun collapseNode(node: TreeNode, animate: Boolean = true, includeSubnodes: Boolean = false) {
     if (fileTreeView == null) {
       return
     }
     if (animate) {
       TransitionManager.beginDelayedTransition(binding!!.root, ChangeBounds())
     }
-    fileTreeView!!.collapseNode(node)
+    fileTreeView!!.collapseNode(node, includeSubnodes)
     updateChevron(node)
   }
 
@@ -204,6 +205,20 @@ class FileTreeFragment : BottomSheetDialogFragment(), TreeNodeClickListener,
       event.node
     }
     expandNode(event.node)
+  }
+
+  @Suppress("unused")
+  @Subscribe(threadMode = MAIN)
+  fun onGetCollapseTreeNodeRequest(event: CollapseTreeNodeRequestEvent) {
+    if (!isVisible || context == null) {
+      return
+    } else {
+      event.node
+    }
+    collapseNode(event.node, event.includeSubnodes)
+
+    setLoading(event.node)
+    listNode(event.node) { expandNode(event.node) }
   }
 
   fun listProjectFiles() {
