@@ -593,6 +593,21 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             log.error("Failed to update files list", th)
             flashError(string.msg_failed_list_files)
         }
+        
+        val currentEditor = provideCurrentEditor()
+        val file = currentEditor?.file
+        if (file != null && file.exists()) {
+            try {
+                val method = currentEditor.javaClass.getDeclaredMethod("readFileAndApplySelection", File::class.java, Range::class.java)
+                method.isAccessible = true
+                method.invoke(currentEditor, file, Range.NONE)
+                log.debug("Force reloaded file content from disk: {}", file.absolutePath)
+            } catch (e: Exception) {
+                log.error("Failed to force reload file content", e)
+                // Fallback to the original updateFile method
+                currentEditor.updateFile(file)
+            }
+        }
     }
 
     override fun onStop() {
@@ -744,18 +759,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             )
             return
         }
-        val generated = result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
-        if (TextUtils.isEmpty(generated)) {
-            log.warn("UI Designer returned blank generated XML code")
-            return
-        }
-        val view = provideCurrentEditor()
-        val text = view?.editor?.text ?: run {
-            log.warn("No file opened to append UI designer result")
-            return
-        }
-        val endLine = text.lineCount - 1
-        text.replace(0, 0, endLine, text.getColumnCount(endLine), generated)
+        
+        // The file refresh is now handled automatically in onResume()
+        // when returning from the UI designer, so no additional action needed here
+        log.debug("UI Designer result handled successfully")
     }
 
     private fun setupDrawers() {
