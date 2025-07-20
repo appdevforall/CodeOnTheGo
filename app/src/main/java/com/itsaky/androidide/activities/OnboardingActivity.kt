@@ -171,8 +171,6 @@ class OnboardingActivity : AppIntro2() {
                 }
 
                 val result = withStopWatch("Assets installation") {
-                    // TODO: When SPLIT_ASSETS is disabled, get the input stream for
-                    //       `assets-<arch>.zip.br` directly from the APK assets
                     AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
                         logger.debug("Assets installation progress: {}", progress.message)
                     }
