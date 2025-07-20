@@ -26,8 +26,6 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import org.adfa.constants.JAVA_SOURCE_VERSION
 import org.adfa.constants.JAVA_TARGET_VERSION
 import org.adfa.constants.KOTLIN_VERSION
-import org.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
-import org.adfa.constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
 import org.adfa.constants.Sdk
 import org.adfa.constants.TARGET_SDK_VERSION
 import com.itsaky.androidide.templates.base.util.optonallyKts
@@ -168,19 +166,9 @@ enum class SrcSet(val folder: String) {
  * @property kotlin The Kotlin Plugin version.
  */
 open class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_VERSION,
-                              val gradle: String = GRADLE_DISTRIBUTION_VERSION, val kotlin: String = KOTLIN_VERSION
+                              val gradle: String = GRADLE_DISTRIBUTION_VERSION,
+                              val kotlin: String = KOTLIN_VERSION
 )
-
-/**
- * Version information for the project.
- *
- * Created to gradually replace ProjectVersionData without breaking the whole project.
- *
- * @property gradlePlugin The Android Gradle Plugin version.
- * @property gradle The Gradle version.
- * @property kotlin The Kotlin Plugin version.
- */
-class ProjectVersionLocalData : ProjectVersionData(LOCAL_ANDROID_GRADLE_PLUGIN_VERSION, LOCAL_GRADLE_DISTRIBUTION_VERSION, KOTLIN_VERSION)
 
 /**
  * Version information about a module.
@@ -188,9 +176,12 @@ class ProjectVersionLocalData : ProjectVersionData(LOCAL_ANDROID_GRADLE_PLUGIN_V
  * @property targetSdk The target SDK version for modules.
  * @property buildTools The build tools version for modules.
  */
-data class ModuleVersionData(val minSdk: Sdk, val targetSdk: Sdk = TARGET_SDK_VERSION,
-                             val compileSdk: Sdk = COMPILE_SDK_VERSION, val javaSource: String = JAVA_SOURCE_VERSION,
-                             val javaTarget: String = JAVA_TARGET_VERSION, val composeSdk: Sdk = COMPOSE_SDK_VERSION
+data class ModuleVersionData(val minSdk: Sdk,
+                             val targetSdk: Sdk = TARGET_SDK_VERSION,
+                             val compileSdk: Sdk = COMPILE_SDK_VERSION,
+                             val javaSource: String = JAVA_SOURCE_VERSION,
+                             val javaTarget: String = JAVA_TARGET_VERSION,
+                             val composeSdk: Sdk = COMPOSE_SDK_VERSION,
 ) {
 
   /**
