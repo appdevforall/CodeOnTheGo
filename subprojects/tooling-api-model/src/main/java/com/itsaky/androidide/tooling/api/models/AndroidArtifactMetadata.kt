@@ -35,10 +35,10 @@ data class AndroidArtifactMetadata(
   val maxSdkVersion: Int?,
   val minSdkVersion: Int,
   val signingConfigName: String?,
-  val sourceGenTaskName: String,
-  val assembleTaskName: String,
+  val sourceGenTaskName: String?,
+  val assembleTaskName: String?,
   val classJars: List<File>,
-  val compileTaskName: String,
+  val compileTaskName: String?,
   val targetSdkVersionOverride: Int
 ) : Serializable {
   private val gsonType: String = javaClass.name

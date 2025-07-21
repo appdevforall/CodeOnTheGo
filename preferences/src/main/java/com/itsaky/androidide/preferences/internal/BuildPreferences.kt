@@ -17,8 +17,9 @@
 
 package com.itsaky.androidide.preferences.internal
 
-import org.adfa.constants.GRADLE_DISTS
-import org.adfa.constants.GRADLE_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTIONS_DIR
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 
 /**
  * @author Akash Yadav
@@ -89,7 +90,7 @@ object BuildPreferences {
 
   /** Custom Gradle installation directory path. */
   var gradleInstallationDir: String
-    get() = prefManager.getString(CUSTOM_GRADLE_INSTALLATION, "${GRADLE_DISTS}/${GRADLE_VERSION}")
+    get() = prefManager.getString(CUSTOM_GRADLE_INSTALLATION, "${GRADLE_DISTRIBUTIONS_DIR}/${GRADLE_DISTRIBUTION_NAME}")
     set(value) {
       prefManager.putString(CUSTOM_GRADLE_INSTALLATION, value)
     }
