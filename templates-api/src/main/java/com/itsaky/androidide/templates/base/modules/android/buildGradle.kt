@@ -22,6 +22,8 @@ import com.itsaky.androidide.templates.ModuleType
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.dependencies
+import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
+import org.adfa.constants.KOTLIN_VERSION
 
 private const val compose_kotlinCompilerExtensionVersion = "1.5.10"
 
@@ -312,18 +314,20 @@ private fun AndroidModuleTemplateBuilder.ktPlugin(isToml: Boolean = false): Stri
     return if (data.useKts) ktPluginKts(isToml) else ktPluginGroovy()
 }
 
-private fun androidPluginKts(isToml: Boolean): String {
-    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "8.0.0" """
+private fun AndroidModuleTemplateBuilder.androidPluginKts(isToml: Boolean): String {
+    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
-private fun androidPluginGroovy(): String {
-    return """id "com.android.application" version "8.0.0" """
+private fun AndroidModuleTemplateBuilder. androidPluginGroovy(): String {
+    return """id "com.android.application" version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
 private fun ktPluginKts(isToml: Boolean): String {
-    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "1.9.22" """
+    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "$KOTLIN_VERSION" """
 }
 
 private fun ktPluginGroovy(): String {
-    return "id 'org.jetbrains.kotlin.android' version '1.9.22'"
+    // TODO: The version name must be fetched from ProjectVersionData instance and must not be
+    //       hardcoded like this
+    return "id 'org.jetbrains.kotlin.android' version '${KOTLIN_VERSION}'"
 }
