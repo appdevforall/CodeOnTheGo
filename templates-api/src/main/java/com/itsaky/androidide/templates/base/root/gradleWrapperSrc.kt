@@ -17,16 +17,13 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import org.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
-import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
-import org.adfa.constants.GRADLE_DISTS
+import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
-fun gradleWrapperPropsSrc(isToml: Boolean): String {
-    val gradleVersion = if(isToml) COMPOSE_GRADLE_WRAPPER_FILE_NAME else GRADLE_WRAPPER_FILE_NAME
+fun ProjectTemplateBuilder.gradleWrapperPropsSrc(): String {
     return """
     distributionBase=GRADLE_USER_HOME
     distributionPath=wrapper/dists
-    distributionUrl=https\://services.gradle.org/distributions/${gradleVersion}
+    distributionUrl=https\://services.gradle.org/distributions/gradle-${data.version.gradle}-bin.zip
     networkTimeout=10000
     zipStoreBase=GRADLE_USER_HOME
     zipStorePath=wrapper/dists

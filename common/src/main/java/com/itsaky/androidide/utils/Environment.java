@@ -127,7 +127,7 @@ public final class Environment {
     LOGIN_SHELL = new File(BIN_DIR, "login");
 
     GRADLE_DISTS = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "gradle-dists"));
-    LOCAL_MAVEN_DIR = mkdirIfNotExits(new File(HOME, "maven"));
+    LOCAL_MAVEN_DIR = mkdirIfNotExits(new File(HOME, "maven/localMvnRepository"));
 
     setExecutable(JAVA);
     setExecutable(BASH_SHELL);
