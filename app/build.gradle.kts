@@ -325,8 +325,8 @@ fun createAssetsZip(zipName: String) {
     arrayOf(
       "android-sdk.zip",
       "localMvnRepository.zip",
-      "gradle-8.7-bin.zip",
-      "gradle-api-8.7.jar.zip",
+      "gradle-8.14.3-bin.zip",
+      "gradle-api-8.14.3.jar.zip",
       "documentation.db",
     ).forEach { fileName ->
       val filePath = sourceDir.resolve(fileName)

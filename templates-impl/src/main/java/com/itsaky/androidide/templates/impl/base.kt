@@ -17,13 +17,11 @@
 
 package com.itsaky.androidide.templates.impl
 
-import org.adfa.constants.Sdk
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.EnumParameter
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectVersionData
-import com.itsaky.androidide.templates.ProjectVersionLocalData
 import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
@@ -34,6 +32,7 @@ import com.itsaky.androidide.templates.packageNameParameter
 import com.itsaky.androidide.templates.projectLanguageParameter
 import com.itsaky.androidide.templates.projectNameParameter
 import com.itsaky.androidide.templates.useKtsParameter
+import org.adfa.constants.Sdk
 
 /**
  * Indents the given string for the given [indentation level][level].
@@ -61,7 +60,7 @@ internal inline fun baseProjectImpl(
     useKts: BooleanParameter = useKtsParameter(),
     minSdk: EnumParameter<Sdk> = minSdkParameter(),
     language: EnumParameter<Language> = projectLanguageParameter(),
-    projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+    projectVersionData: ProjectVersionData = ProjectVersionData(),
     isToml: Boolean = false,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate =
