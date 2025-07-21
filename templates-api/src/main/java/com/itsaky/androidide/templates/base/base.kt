@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.templates.base
 
-import org.adfa.constants.Sdk
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
 import com.itsaky.androidide.templates.EnumParameter
@@ -36,7 +35,6 @@ import com.itsaky.androidide.templates.ParameterConstraint.NONEMPTY
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.ProjectTemplateData
 import com.itsaky.androidide.templates.ProjectVersionData
-import com.itsaky.androidide.templates.ProjectVersionLocalData
 import com.itsaky.androidide.templates.R
 import com.itsaky.androidide.templates.SpinnerWidget
 import com.itsaky.androidide.templates.StringParameter
@@ -52,6 +50,7 @@ import com.itsaky.androidide.templates.stringParameter
 import com.itsaky.androidide.templates.useKtsParameter
 import com.itsaky.androidide.utils.AndroidUtils
 import com.itsaky.androidide.utils.Environment
+import org.adfa.constants.Sdk
 import java.io.File
 
 typealias AndroidModuleTemplateConfigurator = AndroidModuleTemplateBuilder.() -> Unit
@@ -67,7 +66,7 @@ inline fun baseProject(
     useKts: BooleanParameter = useKtsParameter(),
     minSdk: EnumParameter<Sdk> = minSdkParameter(),
     language: EnumParameter<Language> = projectLanguageParameter(),
-    projectVersionData: ProjectVersionData = ProjectVersionLocalData(),
+    projectVersionData: ProjectVersionData = ProjectVersionData(),
     isToml: Boolean = false,
     crossinline block: ProjectTemplateBuilder.() -> Unit
 ): ProjectTemplate {

@@ -26,6 +26,7 @@ import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 
 /**
  * Adds the provided file to assets.
@@ -89,6 +90,13 @@ abstract class AddFileToAssetsTask : DefaultTask() {
       it.parentFile.mkdirs()
     }
 
+    doCopy(inFile, outFile)
+  }
+
+  protected open fun doCopy(
+    inFile: File,
+    outFile: File,
+  ) {
     inFile.inputStream().buffered().use { input ->
       outFile.outputStream().buffered().use { output ->
         input.transferTo(output)
