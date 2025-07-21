@@ -17,14 +17,10 @@
 
 package com.itsaky.androidide.activities.editor
 
-import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
-import android.view.Menu
-import android.view.MenuItem
 import android.view.ViewGroup.LayoutParams
-import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
@@ -33,7 +29,6 @@ import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
-import com.itsaky.androidide.actions.FillMenuParams
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
@@ -157,6 +152,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     override fun onResume() {
         super.onResume()
         isOpenedFilesSaved.set(false)
+        prepareOptionsMenu()
     }
 
     override fun saveOpenedFiles() {
@@ -200,64 +196,27 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         openFile(File(cache.selectedFile))
     }
 
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        prepareOptionsMenu(menu)
-        return true
-    }
-
-    @SuppressLint("RestrictedApi")
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        if (menu is MenuBuilder) {
-            menu.setOptionalIconsVisible(true)
-        }
-        val data = createToolbarActionData()
-        getInstance().fillMenu(FillMenuParams(data, EDITOR_TOOLBAR, menu))
-        return true
-    }
-
-    open fun prepareOptionsMenu(menu: Menu) {
+    fun prepareOptionsMenu() {
         val registry = getInstance() as DefaultActionsRegistry
         val data = createToolbarActionData()
         content.customToolbar.clearMenu()
         val actions = getInstance().getActions(EDITOR_TOOLBAR)
         actions.forEach { (_, action) ->
-            menu.findItem(action.itemId)?.let { item ->
-                action.prepare(data)
 
-                item.isVisible = action.visible
-                item.isEnabled = action.enabled
-                item.title = action.label
+            action.icon?.apply {
+                colorFilter = action.createColorFilter(data)
+                alpha = if (action.enabled) 255 else 76
+            }
 
-                item.icon = action.icon?.apply {
-                    colorFilter = action.createColorFilter(data)
-                    alpha = if (action.enabled) 255 else 76
-                }
-
-                var showAsAction = action.getShowAsActionFlags(data)
-                if (showAsAction == -1) {
-                    showAsAction = if (action.icon != null) {
-                        MenuItem.SHOW_AS_ACTION_IF_ROOM
-                    } else {
-                        MenuItem.SHOW_AS_ACTION_NEVER
-                    }
-                }
-
-                if (!action.enabled) {
-                    showAsAction = MenuItem.SHOW_AS_ACTION_NEVER
-                }
-
-                item.setShowAsAction(showAsAction)
-
-                action.createActionView(data)?.let { item.actionView = it }
-
-                content.customToolbar.addMenuItem(
-                    icon = action.icon,
-                    hint = action.label,
-                    onClick = {
+            content.customToolbar.addMenuItem(
+                icon = action.icon,
+                hint = action.label,
+                onClick = {
+                    if (action.enabled) {
                         registry.executeAction(action, data)
                     }
-                )
-            }
+                }
+            )
         }
     }
 

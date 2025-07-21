@@ -56,7 +56,6 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -238,6 +237,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 debuggerPostConnectionAction?.invoke()
             }
         }
+
         override fun onServiceDisconnected(name: ComponentName?) {
             debuggerService = null
             isDebuggerStarting = false
@@ -293,7 +293,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun postStopDebuggerServiceIfNotConnected() {
         debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
-        debuggerServiceStopHandler.postDelayed(debuggerServiceStopRunnable, DEBUGGER_SERVICE_STOP_DELAY_MS)
+        debuggerServiceStopHandler.postDelayed(
+            debuggerServiceStopRunnable,
+            DEBUGGER_SERVICE_STOP_DELAY_MS
+        )
     }
 
     private var optionsMenuInvalidator: Runnable? = null
@@ -456,7 +459,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
         lifecycle.addObserver(mLifecycleObserver)
 
-        setSupportActionBar(content.editorToolbar)
         setupToolbar()
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
@@ -810,7 +812,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun onUpdateProgressBarVisibility() {
         log.debug("onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}")
-        val visible = editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+        val visible =
+            editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
         content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
         invalidateOptionsMenu()
     }
