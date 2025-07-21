@@ -711,4 +711,11 @@
   <string name="halt">Halt</string>
   <string name="breakpoint">Breakpoint</string>
   <string name="project_name">Project name</string>
+
+  <!-- Message shown when the bootstrap installer is extract a file from the zip -->
+  <!--  The first parameter is the name of the zip entry  -->
+  <string name="bootstrap_installer_unzipping">Unzipping %1$s</string>
+
+  <!--  Message shown when the bootstrap installer is in the linking phase  -->
+  <string name="bootstrap_installer_linking">Resolving symlinks…</string>
 </resources>

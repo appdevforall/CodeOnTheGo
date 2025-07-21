@@ -29,7 +29,7 @@ class DefaultSourceProvider() : SourceProvider, Serializable {
   override var javaDirectories: Collection<File> = emptyList()
   override var jniLibsDirectories: Collection<File> = emptyList()
   override var kotlinDirectories: Collection<File> = emptyList()
-  override var manifestFile: File = NoFile
+  override var manifestFile: File? = NoFile
   override var mlModelsDirectories: Collection<File>? = null
   override var name: String = ""
   override var renderscriptDirectories: Collection<File>? = null
