@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import org.adfa.constants.DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
@@ -25,8 +24,8 @@ internal fun ProjectTemplateBuilder.buildGradleSrcKts(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
     plugins {
-        id("com.android.application") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
-        id("com.android.library") apply false version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION"
+        id("com.android.application") apply false version "${this.data.version.gradlePlugin}"
+        id("com.android.library") apply false version "${this.data.version.gradlePlugin}"
     }
 
     tasks.register<Delete>("clean") {
@@ -39,8 +38,8 @@ internal fun ProjectTemplateBuilder.buildGradleSrcGroovy(): String {
   return """
     // Top-level build file where you can add configuration options common to all sub-projects/modules.
     plugins {
-        id 'com.android.application' version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION" apply false
-        id 'com.android.library' version "$DEST_LOCAL_ANDROID_GRADLE_PLUGIN_VERSION" apply false
+        id 'com.android.application' version "${this.data.version.gradlePlugin}" apply false
+        id 'com.android.library' version "${this.data.version.gradlePlugin}" apply false
     }
 
     task clean(type: Delete) {
