@@ -44,35 +44,51 @@ object JdkUtils {
   fun findJavaInstallations(): List<JdkDistribution> {
 
     // a valid JDK can be installed anywhere in the file system
-    // however, we currently only check for installations that are located in $PREFIX/opt dir
+    // however, we currently only check for installations that are located in $PREFIX/lib/jvm dir
     // TODO: Find a way to efficiently list all JDK installations, including those which are located
-    //    outside of $PREFIX/opt
+    //    outside of $PREFIX/lib/jvm
     return try {
-      val optDir = File(Environment.PREFIX, "opt")
+      log.debug("Starting to find Java installations.")
+      val optDir = File(Environment.PREFIX, "lib/jvm")
+      log.debug("optDir: {}", optDir)
       if (!optDir.exists() || !optDir.isDirectory) {
+        log.debug("optDir does not exist or is not a directory. optDir.exists(): {}, optDir.isDirectory(): {}", optDir.exists(), optDir.isDirectory)
         emptyList()
       } else {
+        log.debug("optDir exists and is a directory.")
         optDir.listFiles()?.mapNotNull { dir ->
+          log.debug("Processing directory: {}", dir)
           if (Files.isSymbolicLink(dir.toPath())) {
             // ignore symbolic links
+            log.debug("Directory {} is a symbolic link. Ignoring.", dir)
             return@mapNotNull null
           }
+          log.debug("Directory {} is not a symbolic link.", dir)
 
           val java = File(dir, "bin/java")
+          log.debug("java: {}", java)
           if (!canExecute(java)) {
             // java binary does not exist or is not executable
+            log.debug("Java binary {} does not exist or is not executable. canExecute(java): {}", java, canExecute(java))
             return@mapNotNull null
           }
+          log.debug("Java binary {} exists and is executable.", java)
 
-          return@mapNotNull getDistFromJavaBin(java)
+          val dist = getDistFromJavaBin(java)
+          log.debug("Got JdkDistribution for java binary {}: {}", java, dist)
+          return@mapNotNull dist
         } ?: run {
           log.error("Failed to list files in {}", optDir)
+          log.debug("optDir.listFiles() returned null.")
           emptyList()
         }
       }
     } catch (e: Exception) {
       log.error("Failed to list java alternatives", e)
+      log.debug("Exception caught while finding Java installations: {}", e.message)
       emptyList()
+    }.also {
+      log.debug("Finished finding Java installations. Result: {}", it)
     }
   }
 
