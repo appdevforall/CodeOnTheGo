@@ -5,23 +5,18 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
-import okio.Path.Companion.toPath
 import java.nio.file.Files
-import java.nio.file.Paths
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.reflect.jvm.javaMethod
 
 import java.net.URL
 import java.net.URI
-import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.json.JSONObject
 
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.nio.file.attribute.FileTime
 import java.util.zip.Deflater
@@ -142,6 +137,7 @@ dependencies {
   implementation(libs.common.retrofit.gson)
   implementation(libs.common.charts)
   implementation(libs.common.hiddenApiBypass)
+  implementation(libs.commons.compress)
 
   implementation(libs.google.auto.service.annotations)
   implementation(libs.google.gson)
@@ -257,9 +253,8 @@ dependencies {
 
   androidTestImplementation(libs.tests.androidx.test.runner)
 
-  // brotli
-  implementation(libs.common.orgbrotli.dec)
-
+  // brotli4j
+  implementation(libs.brotli4j)
 }
 
 
@@ -316,55 +311,53 @@ tasks.register("downloadDocDb") {
   }
 }
 
-fun createAssetsZip(zipName: String, archDir: String) {
+fun createAssetsZip(
+  arch: String,
+) {
   val outputDir = project.layout.buildDirectory.dir("outputs/assets").get().asFile
   if (!outputDir.exists()) {
     outputDir.mkdirs()
     println("Creating output directory: ${outputDir.absolutePath}")
   }
 
-  val zipFile = outputDir.resolve(zipName)
+  val zipFile = outputDir.resolve("assets-$arch.zip")
   val sourceDir = project.rootDir.resolve("libs_source")
-  val pkgDir = sourceDir.resolve(archDir)
-
+  val bootstrapName = "bootstrap-$arch.zip"
 
   ZipOutputStream(zipFile.outputStream()).use { zipOut ->
-
-    mapOf(
-      "android-sdk.zip" to sourceDir.resolve("androidsdk/android-sdk.zip"),
-      "localMvnRepository.zip" to sourceDir.resolve("gradle/localMvnRepository.zip"),
-      "gradle-8.7-bin.zip" to sourceDir.resolve("gradle-8.7-bin.zip"),
-      "gradle-api-8.7.jar.zip" to sourceDir.resolve("gradle-api-8.7.jar.zip"),
-      "documentation.db" to sourceDir.resolve("documentation.db")
-    ).forEach { (fileName, filePath) ->
-      if (filePath.exists()) {
-        project.logger.lifecycle("Zipping ${fileName} from ${filePath.absolutePath}")
-        zipOut.putNextEntry(ZipEntry(fileName))
-        filePath.inputStream().copyTo(zipOut)
-        zipOut.closeEntry()
+    arrayOf(
+      "android-sdk.zip",
+      "localMvnRepository.zip",
+      "gradle-8.14.3-bin.zip",
+      "gradle-api-8.14.3.jar.zip",
+      "documentation.db",
+      bootstrapName,
+    ).forEach { fileName ->
+      val filePath = sourceDir.resolve(fileName)
+      if (!filePath.exists()) {
+        throw FileNotFoundException(filePath.absolutePath)
       }
-    }
 
-    pkgDir.walk().filter { it.isFile }.forEach { file ->
-      val relativePath = "packages/" + file.name
-      zipOut.putNextEntry(ZipEntry(relativePath))
-      file.inputStream().copyTo(zipOut)
+      project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
+      val entryName = if (fileName == bootstrapName) "bootstrap.zip" else fileName
+      zipOut.putNextEntry(ZipEntry(entryName))
+      filePath.inputStream().use { input -> input.copyTo(zipOut) }
       zipOut.closeEntry()
     }
 
-    println("Created ${zipName} successfully at ${zipFile.parentFile.absolutePath}")
+    println("Created ${zipFile.name} successfully at ${zipFile.parentFile.absolutePath}")
   }
 }
 
 tasks.register("assembleV8Assets") {
   doLast {
-    createAssetsZip("assets-v8.zip","termux/v8")
+    createAssetsZip("arm64-v8a")
   }
 }
 
 tasks.register("assembleV7Assets") {
   doLast {
-    createAssetsZip("assets-v7.zip","termux/v7")
+    createAssetsZip("armeabi-v7a")
   }
 }
 
