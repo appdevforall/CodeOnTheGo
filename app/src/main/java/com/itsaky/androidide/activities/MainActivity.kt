@@ -141,10 +141,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     private fun onScreenChanged(screen: Int?) {
         val previous = viewModel.previousScreen
         if (previous != -1) {
-            val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-            currentFocus?.let { view ->
-                inputMethodManager?.hideSoftInputFromWindow(view.windowToken, 0)
-            }
+            closeKeyboard()
 
             // template list -> template details
             // ------- OR -------
