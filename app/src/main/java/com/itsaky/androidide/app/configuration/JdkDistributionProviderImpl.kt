@@ -50,7 +50,8 @@ class JdkDistributionProviderImpl : IJdkDistributionProvider {
             if(distributions.isEmpty()) {
                 return emptyList()
             }
-            var selectedJavaHome = findDefaultDistribution(distributions)?.javaHome?.let { File(it) }
+
+            val selectedJavaHome = findDefaultDistribution(distributions)?.javaHome?.let { File(it) }
                 ?: distributions.first().javaHome.let { File(it) }
 
             log.debug("Setting Environment.JAVA_HOME to {}", selectedJavaHome.absolutePath)

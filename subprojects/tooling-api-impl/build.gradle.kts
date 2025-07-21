@@ -15,6 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import com.itsaky.androidide.build.config.BuildConfig
 import org.adfa.constants.SPLIT_ASSETS
 
@@ -74,7 +75,7 @@ project.tasks.getByName<Jar>("jar") {
   }
 }
 
-project.tasks.getByName<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
+project.tasks.getByName<ShadowJar>("shadowJar") {
   if (!SPLIT_ASSETS) {
     entryCompression = ZipEntryCompression.STORED
   }

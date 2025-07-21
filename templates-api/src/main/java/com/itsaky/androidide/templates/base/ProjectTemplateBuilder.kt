@@ -17,14 +17,6 @@
 
 package com.itsaky.androidide.templates.base
 
-import org.adfa.constants.ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
-import org.adfa.constants.COMPOSE_GRADLE_WRAPPER_FILE_NAME
-import org.adfa.constants.GRADLE_FOLDER_NAME
-import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
-import org.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
-import org.adfa.constants.LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME
-import org.adfa.constants.TOML_FILE_NAME
-import com.blankj.utilcode.util.ResourceUtils
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.templates.ModuleTemplate
 import com.itsaky.androidide.templates.ModuleTemplateData
@@ -40,6 +32,7 @@ import com.itsaky.androidide.templates.base.root.settingsGradleSrcStr
 import com.itsaky.androidide.templates.base.root.settingsGroovyGradleSrcStr
 import com.itsaky.androidide.templates.base.util.optonallyKts
 import com.itsaky.androidide.utils.transferToStream
+import org.adfa.constants.TOML_FILE_NAME
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -144,12 +137,6 @@ class ProjectTemplateBuilder :
     /**
      * Writes/copies the Gradle Wrapper related files in the project directory.
      *
-     * This method created gradle folder, child folders and copies gradleWrapper jar and
-     * gradle-wrapper.properties files.
-     * So anything that wshould be put under gradle folder should be called after this.
-     * We can change this behaviour by separating folder creation from file creation.
-     * But I will leave it as is for now.
-     *
      */
     fun gradleWrapper() {
 
@@ -182,6 +169,7 @@ class ProjectTemplateBuilder :
             }
 
         }
+
         gradleWrapperProps()
     }
 
@@ -193,45 +181,9 @@ class ProjectTemplateBuilder :
         executor.copyAsset(baseAsset("gitignore"), gitignore)
     }
 
-    /**
-     * Copies local gradle version from androidIDE to gradle folder inside the created project.
-     */
-    fun gradleZip(isToml: Boolean = false) {
-        val gradleFileName = if (isToml) COMPOSE_GRADLE_WRAPPER_FILE_NAME else GRADLE_WRAPPER_FILE_NAME
-
-        val result = ResourceUtils.copyFileFromAssets(
-            File(ToolsManager.getCommonAsset(gradleFileName)).path,
-            File(data.projectDir.absolutePath + File.separator + GRADLE_WRAPPER_PATH_SUFFIX + gradleFileName).path
-        )
-        if (!result) {
-            println("Gradle files copy failed + ${this.javaClass}")
-        }
-    }
-
-    fun agpJar(
-        agpFileName: String = LOCAL_ANDROID_GRADLE_PLUGIN_JAR_NAME,
-        kotlinAgpFileName: String = ANDROID_KOTLIN_GRADLE_PLUGIN_VERSION_NAME
-    ) {
-        val result = ResourceUtils.copyFileFromAssets(
-            File(ToolsManager.getCommonAsset(agpFileName)).path,
-            File(data.projectDir.absolutePath + File.separator + GRADLE_FOLDER_NAME + File.separator + agpFileName).path
-        )
-        val kotlinRresult = ResourceUtils.copyFileFromAssets(
-            File(ToolsManager.getCommonAsset(kotlinAgpFileName)).path,
-            File(data.projectDir.absolutePath + File.separator + GRADLE_FOLDER_NAME + File.separator + kotlinAgpFileName).path
-        )
-        if (!result && !kotlinRresult) {
-            println("Android Gradle files copy failed + ${this.javaClass}")
-        }
-    }
-
-    fun mavenCaches() {
-        executor.updateCaches()
-    }
-
     fun tomlFile() {
         val name = TOML_FILE_NAME
-        val tomlFileDest = File("${data.projectDir}${File.separator}$GRADLE_FOLDER_NAME", name)
+        val tomlFileDest = File("${data.projectDir}/gradle", name)
         executor.save(composeTomlFileSrc(), tomlFileDest)
     }
 
