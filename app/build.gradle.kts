@@ -16,6 +16,7 @@ import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.nio.file.attribute.FileTime
 import java.util.zip.Deflater
@@ -310,49 +311,53 @@ tasks.register("downloadDocDb") {
   }
 }
 
-fun createAssetsZip(zipName: String) {
+fun createAssetsZip(
+  arch: String,
+) {
   val outputDir = project.layout.buildDirectory.dir("outputs/assets").get().asFile
   if (!outputDir.exists()) {
     outputDir.mkdirs()
     println("Creating output directory: ${outputDir.absolutePath}")
   }
 
-  val zipFile = outputDir.resolve(zipName)
+  val zipFile = outputDir.resolve("assets-$arch.zip")
   val sourceDir = project.rootDir.resolve("libs_source")
+  val bootstrapName = "bootstrap-$arch.zip"
 
   ZipOutputStream(zipFile.outputStream()).use { zipOut ->
-
     arrayOf(
       "android-sdk.zip",
       "localMvnRepository.zip",
       "gradle-8.14.3-bin.zip",
       "gradle-api-8.14.3.jar.zip",
       "documentation.db",
+      bootstrapName,
     ).forEach { fileName ->
       val filePath = sourceDir.resolve(fileName)
       if (!filePath.exists()) {
-        return@forEach
+        throw FileNotFoundException(filePath.absolutePath)
       }
 
       project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
-      zipOut.putNextEntry(ZipEntry(fileName))
+      val entryName = if (fileName == bootstrapName) "bootstrap.zip" else fileName
+      zipOut.putNextEntry(ZipEntry(entryName))
       filePath.inputStream().use { input -> input.copyTo(zipOut) }
       zipOut.closeEntry()
     }
 
-    println("Created $zipName successfully at ${zipFile.parentFile.absolutePath}")
+    println("Created ${zipFile.name} successfully at ${zipFile.parentFile.absolutePath}")
   }
 }
 
 tasks.register("assembleV8Assets") {
   doLast {
-    createAssetsZip("assets-v8.zip")
+    createAssetsZip("arm64-v8a")
   }
 }
 
 tasks.register("assembleV7Assets") {
   doLast {
-    createAssetsZip("assets-v7.zip")
+    createAssetsZip("armeabi-v7a")
   }
 }
 
