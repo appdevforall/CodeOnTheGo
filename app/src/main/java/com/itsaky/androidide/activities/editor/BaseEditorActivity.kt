@@ -602,6 +602,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 method.isAccessible = true
                 method.invoke(currentEditor, file, Range.NONE)
                 log.debug("Force reloaded file content from disk: {}", file.absolutePath)
+                currentEditor.markUnmodified()
             } catch (e: Exception) {
                 log.error("Failed to force reload file content", e)
                 // Fallback to the original updateFile method
