@@ -270,7 +270,7 @@ jobs:
                 "elements": [
                   {
                     "type": "mrkdwn",
-                    "text": "Deployed from branch \`$BRANCH_NAME_ESCAPED\`"
+                    "text": "Deployed from branch \`$BRANCH_NAME\`"
                   }
                 ]
               }
