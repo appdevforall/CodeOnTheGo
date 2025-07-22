@@ -219,11 +219,11 @@ jobs:
                   "text": "*Commit:* '"$COMMIT_MSG"'"
                 }
               },
-          {
+              {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Build Type:* ${{ env.BUILD_TYPE }}"
+                  "text": "*Build Type:* '"$BUILD_TYPE"'"
                 }
               },
               {
@@ -231,7 +231,7 @@ jobs:
                 "text": {
                   "type": "mrkdwn",
                   "text": "*Author:* @'"$PR_AUTHOR"'"
-                },
+                }
               },
               {
                 "type": "actions",
@@ -255,12 +255,13 @@ jobs:
                     },
                     "url": "$JIRA_URL",
                     "action_id": "jira-ticket"
-                  },
+                  }
                 ]
               },
               {
                 "type": "divider"
-              },{
+              },
+              {
                 "type": "context",
                 "elements": [
                   {
