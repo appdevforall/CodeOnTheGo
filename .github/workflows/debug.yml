@@ -1,9 +1,7 @@
 name: Build and deploy to firebase app distribution
-
 permissions:
   contents: read
   actions: write
-
 on:
   pull_request:
     branches: [ "stage" ]
@@ -34,9 +32,6 @@ jobs:
     name: Build Universal APK
     runs-on: self-hosted
     timeout-minutes: 60
-    outputs:
-      has_latest_stage: ${{ steps.check_stage_sync.outputs.has_latest_stage }}
-
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
@@ -61,58 +56,51 @@ jobs:
           git submodule init
           git submodule update --remote
 
-      - name: Fetch stage branch
-        run: git fetch origin stage:stage
-
-      - name: Check if branch is up to date with stage
-        id: check_stage_sync
-        run: |
-          if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-            # Post‑merge: has my branch tip landed in stage?
-            if git merge-base --is-ancestor HEAD stage; then
-              echo "has_latest_stage=true" >> $GITHUB_OUTPUT
-            else
-              echo "has_latest_stage=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            # Pre‑merge: have I pulled in everything from stage?
-            if git merge-base --is-ancestor stage HEAD; then
-              echo "has_latest_stage=true" >> $GITHUB_OUTPUT
-            else
-              echo "has_latest_stage=false" >> $GITHUB_OUTPUT
-            fi
-          fi
-
       - name: Check if Nix is installed
         id: check_nix
         run: |
           if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
             echo "nix_installed=true" >> $GITHUB_ENV
           else
+            echo "nix is not installed"
             echo "nix_installed=false" >> $GITHUB_ENV
           fi
 
-      - name: Install Flox (if needed)
+      - name: Install Flox
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
       - name: Assemble Universal APK
-        run: flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
 
       - name: Find APK file
+        # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
           apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
+          echo "Found APK at: $apk_path"
 
-      - name: Set branch name
-        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+      - name: Set branch name and build type
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          
+          # Set build type based on branch name
+          if [[ "${BRANCH_NAME,,}" == "stage" ]]; then
+            BUILD_TYPE="STAGE"
+          else
+            BUILD_TYPE="BRANCH ($BRANCH_NAME)"
+          fi
+          echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
       - name: Get PR and Commit Information
         id: pr_info
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" && ( "${{ github.event.action }}" == "opened" || "${{ github.event.action }}" == "synchronize" ) ]]; then
-            # Extract info from GitHub event file for PR creation or updates
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            # Extract info from GitHub event file
             EVENT_PATH="${GITHUB_EVENT_PATH}"
             COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
             PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
@@ -134,7 +122,7 @@ jobs:
         run: |
           # Use regex to extract JIRA ticket in format ADFA-XXX
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-          
+
           # If JIRA ticket was found, set the URL, otherwise set as N/A
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
@@ -142,7 +130,7 @@ jobs:
             JIRA_TICKET="N/A"
             JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
           fi
-          
+
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
@@ -165,7 +153,7 @@ jobs:
           firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
-            --release-notes "Stage Sync: ${{ steps.check_stage_sync.outputs.has_latest_stage == 'true' && '✅ Up to date with stage' || '⚠️ Branch is not up to date with stage' }}
+            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
           Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" > firebase_output.txt 2>&1
           
           # Display the output for debugging
@@ -190,28 +178,17 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          SYNC_FLAG="${{ steps.check_stage_sync.outputs.has_latest_stage }}"
-          if [ "$SYNC_FLAG" = "true" ]; then
-            SYNC_MSG="✅ Up to date with stage"
-          else
-            SYNC_MSG="⚠️ Branch is not up to date with stage"
-          fi
-
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          FIREBASE_CONSOLE_URL="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}"
+          FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
+          FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
 
-          # Escape special characters in variables to prevent JSON issues
-          COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | sed 's/"/\\"/g' | sed "s/'/\\'/g")
-          PR_AUTHOR_ESCAPED=$(echo "$PR_AUTHOR" | sed 's/"/\\"/g')
-          BRANCH_NAME_ESCAPED=$(echo "$BRANCH_NAME" | sed 's/"/\\"/g')
-
           # Create JSON payload
-          cat > payload.json << EOF
-          {
+          echo '{
             "blocks": [
               {
                 "type": "header",
@@ -232,29 +209,29 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Stage Sync:* $SYNC_MSG"
+                  "text": "*Jira Ticket:* '"$JIRA_URL"'"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Jira Ticket:* <$JIRA_URL|$JIRA_TICKET>"
+                  "text": "*Commit:* '"$COMMIT_MSG"'"
+                }
+              },
+          {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Build Type:* ${{ env.BUILD_TYPE }}"
                 }
               },
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Commit:* $COMMIT_MSG_ESCAPED"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Author:* $PR_AUTHOR_ESCAPED"
-                }
+                  "text": "*Author:* @'"$PR_AUTHOR"'"
+                },
               },
               {
                 "type": "actions",
@@ -278,7 +255,7 @@ jobs:
                     },
                     "url": "$JIRA_URL",
                     "action_id": "jira-ticket"
-                  }
+                  },
                 ]
               },
               {
@@ -293,12 +270,7 @@ jobs:
                 ]
               }
             ]
-          }
-          EOF
+          }' > payload.json
 
-          # Debug: Print the payload to logs (optional)
-          echo "Slack payload:"
-          cat payload.json
-
-          # Send to Slack
-          curl -X POST -H "Content-Type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+          # Send notification
+          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
