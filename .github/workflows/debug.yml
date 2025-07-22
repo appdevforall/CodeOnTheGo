@@ -185,7 +185,11 @@ jobs:
           FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
+          BUILD_TYPE="${{ env.BUILD_TYPE }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+          
+          # Escape branch name for JSON
+          BRANCH_NAME_ESCAPED=$(echo "$BRANCH_NAME" | sed 's/[\"\\]/\\&/g')
 
           # Create JSON payload
           echo '{
