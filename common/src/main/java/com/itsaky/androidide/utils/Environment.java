@@ -108,7 +108,7 @@ public final class Environment {
     JDWP_DIR = mkdirIfNotExits(new File(OPT_DIR, "oj-libjdwp"));
     JDWP_LIB_DIR = mkdirIfNotExits(new File(JDWP_DIR, "jniLibs"));
     JDWP_AAR = mkdirIfNotExits(new File(JDWP_DIR, JDWP_AAR_NAME));
-    LOGSENDER_DIR = mkdirIfNotExits(new File(OPT_DIR, "logsender"));
+    LOGSENDER_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "logsender"));
     LOGSENDER_AAR = mkdirIfNotExits(new File(LOGSENDER_DIR, LOGSENDER_AAR_NAME));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
     // NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
