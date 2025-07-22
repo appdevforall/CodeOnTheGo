@@ -187,7 +187,7 @@ jobs:
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ env.BUILD_TYPE }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
-          
+
           # Escape branch name for JSON
           BRANCH_NAME_ESCAPED=$(echo "$BRANCH_NAME" | sed 's/[\"\\]/\\&/g')
 
@@ -247,7 +247,7 @@ jobs:
                       "text": "View on Firebase",
                       "emoji": true
                     },
-                    "url": "$FIREBASE_CONSOLE_URL",
+                    "url": "'"$FIREBASE_CONSOLE_URL"'",
                     "action_id": "firebase-console"
                   },
                   {
@@ -257,7 +257,7 @@ jobs:
                       "text": "View Ticket",
                       "emoji": true
                     },
-                    "url": "$JIRA_URL",
+                    "url": "'"$JIRA_URL"'",
                     "action_id": "jira-ticket"
                   }
                 ]
@@ -276,6 +276,8 @@ jobs:
               }
             ]
           }' > payload.json
-
+        
+          cat payload.json
+          
           # Send notification
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
