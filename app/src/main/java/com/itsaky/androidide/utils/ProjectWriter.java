@@ -87,6 +87,7 @@ public class ProjectWriter {
   }
 
   public static String getPackageName(File parentPath) {
+    // Returns the package name or the closest internal and if none is found, returns null
     Matcher pkgMatcher = Pattern.compile(SOURCE_PATH_REGEX).matcher(parentPath.getAbsolutePath());
 
     if (pkgMatcher.find()) {
