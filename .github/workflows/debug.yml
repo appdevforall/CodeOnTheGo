@@ -11,7 +11,7 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'fastlane/**'
-  workflow_dispatch: {}
+  workflow_dispatch: { }
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -200,6 +200,13 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
+                    text: "*Build Type:* \($build_type)"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
                     text: "*Jira Ticket:* \($jira_url)"
                   }
                 },
@@ -210,13 +217,7 @@ jobs:
                     text: "*Commit:* \($commit_msg)"
                   }
                 },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Build Type:* \($build_type)"
-                  }
-                },
+          
                 {
                   type: "section",
                   text: {
