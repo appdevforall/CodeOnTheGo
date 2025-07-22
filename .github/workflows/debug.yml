@@ -141,22 +141,23 @@ jobs:
           echo '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}' > service-account.json
           export GOOGLE_APPLICATION_CREDENTIALS=service-account.json
 
-          firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
             --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" > firebase_output.txt 2>&1
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
 
-          cat firebase_output.txt
+          echo "$output"
 
-          FIREBASE_URL=$(cat firebase_output.txt | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+
           if [ -z "$FIREBASE_URL" ]; then
             FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
           fi
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
-          rm -f service-account.json firebase_output.txt
+          rm -f service-account.json
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
