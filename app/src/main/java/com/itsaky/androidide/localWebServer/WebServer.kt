@@ -20,46 +20,52 @@ data class ServerConfig(
     val port: Int = 8888,
     val databasePath: String,
     val bindName: String = "0.0.0.0", // TODO: Change to "localhost" --DS, 21-Jul-2025
-    val debugDatabasePath: String = "/sdcard/Download/documentation.db"
+    val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+            "/Download/documentation.db"
 )
 
 class WebServer(private val config: ServerConfig) {
     private lateinit var serverSocket: ServerSocket
     private lateinit var database: SQLiteDatabase
     private var databaseTimestamp: Long = -1
-    private var debugDatabaseTimestamp: Long = -1
+    private var brotliSuppoerted = false
     private val TAG = "WebServer"
+
+    fun getDatabaseTimestamp(pathname: String, silent: Boolean = false): Long {
+        val dbFile = File(pathname)
+        var timestamp: Long = -1
+
+        if (dbFile.exists()) {
+            timestamp = dbFile.lastModified()
+
+            if (!silent) {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+                Log.d(
+                    TAG,
+                    "${pathname} was last modified at ${dateFormat.format(Date(timestamp))}.")
+            }
+        }
+
+        return timestamp
+    }
 
     fun start() {
         lateinit var clientSocket: Socket
         try {
-            Log.d(TAG, "Starting WebServer on port ${config.port}")
+            Log.d(TAG, "Starting WebServer on ${config.bindName}, port ${config.port}")
 
-            // Verify database access
+            databaseTimestamp = getDatabaseTimestamp(config.databasePath)
+
             try {
                 database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
-                //databaseTimestamp = THE MODIFICATION TIME OF THE FILE AT config.databasePath // TODO: Write this code.
-                val dbFile = File(config.debugDatabasePath)
-                if(dbFile.exists()) {
-                    debugDatabaseTimestamp = dbFile.lastModified()
-                    // Convert milliseconds to a readable date and time string
-                    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                    val lastModifiedDate = Date(debugDatabaseTimestamp)
-                    val formattedDate = dateFormat.format(lastModifiedDate)
-                    Log.d(
-                        TAG,
-                        "${config.databasePath} was last modified at $formattedDate"
-                    ) //for debugging only
-                } else {
-                    //do nothing
-                }
             } catch (e: Exception) {
                 Log.e(TAG, "Cannot open database: ${e.message}")
                 return
             }
 
             serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
-            Log.i(TAG, "WebServer started successfully on port ${config.port}")
+            Log.i(TAG, "WebServer started successfully.")
 
             while (true) {
                 try {
@@ -74,7 +80,7 @@ class WebServer(private val config: ServerConfig) {
                         Log.e(TAG, "Error sending error response: ${e.message}")
                     }
                 } finally {
-                    clientSocket.close()
+                    clientSocket.close() // TODO: What if the client socket isn't open? How to check? --DS, 22-Jul-2025
                 }
             }
         } catch (e: Exception) {
@@ -87,9 +93,10 @@ class WebServer(private val config: ServerConfig) {
     }
 
     private fun handleClient(clientSocket: Socket) {
-        val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
-        val writer = PrintWriter(clientSocket.getOutputStream(), true)
         val output = clientSocket.getOutputStream()
+        val writer = PrintWriter(output, true)
+        val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+        brotliSuppoerted = false //assume nothing
 
         // Read the request line
         val requestLine = reader.readLine()
@@ -100,30 +107,25 @@ class WebServer(private val config: ServerConfig) {
 
         // Parse the request
         val parts = requestLine.split(" ")
-        if (parts.size != 3) {
-            sendError(writer, 400, "Bad Request")
-            return
+        if (parts.size != 3) { // Request line should look like "GET /a/b/c.html HTTP/1.1"
+            return sendError(writer, 400, "Bad Request")
         }
 
         val method = parts[0]
-        val path = parts[1]
-        val pathParts = path.split("?")
-        // TODO: Split on ? and keep just the first part. --DS, 21-Jul-2025
-        //?file=foo.pdf.....
+        val path   = parts[1].split("?")[0] // Discard any HTTP query parameters.
 
         // Only support GET method
         if (method != "GET") {
-            sendError(writer, 501, "Not Implemented")
-            return
+            return sendError(writer, 501, "Not Implemented")
         }
 
-        // TODO: Implement the code below. --DS, 21-Jul-2025
-          //THE MODIFICATION TIME OF THE FILE AT config.debugDatabasePath
-//      if (debugDatabaseTimestamp > databaseTimestamp) {
-//          database.close()
-//          database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
-//          databaseTimestamp = debugDatabaseTimestamp
-//      }
+        val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
+        if (debugDatabaseTimestamp > databaseTimestamp) {
+            database.close()
+            database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+            databaseTimestamp = debugDatabaseTimestamp
+        }
+        // TODO: Get rid of the extra test in the SQL WHERE clause below by fixing all the paths. --DS, 22-Jul-2025
         val query = """
             SELECT c.content, ct.value, ct.compression
             FROM Content c
@@ -135,28 +137,23 @@ class WebServer(private val config: ServerConfig) {
         val rowCount = cursor.getCount()
 
         if (rowCount != 1) {
-            if (rowCount == 0) {
-                sendError(writer, 404, "Not Found")
-            } else {
-                sendError(writer, 406, "Not Acceptable")
-            }
-            return
+            return if (rowCount == 0) sendError(writer, 404, "Not Found") else sendError(writer, 406, "Not Acceptable")
         }
 
         cursor.moveToFirst()
-        var dbContent = cursor.getBlob(0)
-        val dbMimeType = cursor.getString(1)
+        var dbContent   = cursor.getBlob(0)
+        val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
 
-        // If content is Brotli compressed, decompress it
+        // TODO: If the Accept-Encoding header contains "br", send Brotli data as-is, without decompressing it here. --DS, 22-Jul-2025
+        // If content is Brotli compressed and the client can't handle Brotli, decompress the content here.
         if (compression == "brotli") {
             try {
                 dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                 compression = "none"
             } catch (e: Exception) {
                 Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
-                sendError(writer, 500, "Internal Server Error")
-                return
+                return sendError(writer, 500, "Internal Server Error")
             }
         }
 
