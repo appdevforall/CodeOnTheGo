@@ -17,6 +17,8 @@
 
 @file:Suppress("UnstableApiUsage")
 
+import com.diffplug.spotless.FormatterFunc
+import com.diffplug.spotless.LineEnding
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.FDroidConfig
 import com.itsaky.androidide.build.config.publishingVersion
@@ -26,6 +28,7 @@ import com.itsaky.androidide.plugins.conf.configureJavaModule
 import com.itsaky.androidide.plugins.conf.configureMavenPublish
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.io.Serializable
 
 plugins {
     id("build-logic.root-project")
@@ -35,6 +38,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.maven.publish) apply false
     alias(libs.plugins.gradle.publish) apply false
+    alias(libs.plugins.spotless)
 }
 
 buildscript {
@@ -49,7 +53,88 @@ subprojects {
     FDroidConfig.load(project)
 
     afterEvaluate {
-        apply { plugin(AndroidIDEPlugin::class.java) }
+        apply {
+            plugin(AndroidIDEPlugin::class.java)
+        }
+    }
+}
+
+spotless {
+    // Common directories to exclude
+    // These mainly contain module that are external and huge, but are built from source
+    val commonTargetExcludes =
+        arrayOf(
+            "composite-builds/build-deps/java-compiler/**/*",
+            "composite-builds/build-deps/jaxp/**/*",
+            "composite-builds/build-deps/jdk-compiler/**/*",
+            "composite-builds/build-deps/jdk-jdeps/**/*",
+            "composite-builds/build-deps/jdt/**/*",
+            "composite-builds/build-login/properties-parser/**/*",
+            "eventbus/**/*",
+            "subprojects/xml-dom/**/*",
+            "termux/**/*",
+        )
+
+    // ALWAYS use line feeds (LF -- '\n')
+    lineEndings = LineEnding.UNIX
+
+    java {
+        eclipse()
+            .configFile("spotless.eclipse.xml")
+            // Sort member variables in the following order
+            //   SF,SI,SM,F,I,C,M,T = Static Fields, Static Initializers, Static Methods, Fields, Initializers, Constructors, Methods, (Nested) Types
+            .sortMembersEnabled(true)
+            .sortMembersOrder("SF,SI,SM,F,I,C,M,T")
+            // Disable field sorting
+            .sortMembersDoNotSortFields(true)
+            // Sort members based on their visibility in the following order
+            //   B,R,D,V = Public, Protected, Package, Private
+            .sortMembersVisibilityOrderEnabled(true)
+            .sortMembersVisibilityOrder("B,R,D,V")
+
+        target("**/src/*/java/**/*.java")
+        targetExclude(*commonTargetExcludes)
+
+        // enable import ordering
+        importOrder()
+
+        removeUnusedImports()
+        removeWildcardImports()
+
+        // custom rule to fix lambda formatting
+        custom(
+            "Lambda fix",
+            object : Serializable, FormatterFunc {
+                override fun apply(input: String): String =
+                    input
+                        .replace("} )", "})")
+                        .replace("} ,", "},")
+            },
+        )
+    }
+
+    kotlin {
+        ktlint()
+        target("**/src/*/java/**/*.kt")
+        target("**/src/*/kotlin/**/*.kt")
+        targetExclude(*commonTargetExcludes)
+    }
+
+    kotlinGradle {
+        ktlint()
+        target("**/*.gradle.kts")
+        targetExclude(*commonTargetExcludes)
+    }
+
+    format("xml") {
+        prettier()
+        target("**/src/*/res/**/*.xml")
+        targetExclude(*commonTargetExcludes)
+    }
+
+    format("misc") {
+        target("**/.gitignore", "**/.gradle")
+        targetExclude(*commonTargetExcludes)
     }
 }
 
@@ -84,4 +169,8 @@ allprojects {
     }
 }
 
-tasks.register<Delete>("clean") { delete(rootProject.layout.buildDirectory) }
+tasks.named<Delete>("clean") {
+    doLast {
+        delete(rootProject.layout.buildDirectory)
+    }
+}
