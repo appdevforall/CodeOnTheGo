@@ -141,6 +141,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     private fun onScreenChanged(screen: Int?) {
         val previous = viewModel.previousScreen
         if (previous != -1) {
+            closeKeyboard()
+
             // template list -> template details
             // ------- OR -------
             // template details -> template list
