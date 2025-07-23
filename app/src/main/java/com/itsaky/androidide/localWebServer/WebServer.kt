@@ -3,6 +3,7 @@ package org.appdevforall.localwebserver
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import okhttp3.Request
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -99,11 +100,7 @@ class WebServer(private val config: ServerConfig) {
         brotliSuppoerted = false //assume nothing
 
         // Read the request line
-        val requestLine = reader.readLine()
-
-        if (requestLine == null) {
-            return
-        }
+        val requestLine = reader.readLine() ?: return
 
         // Parse the request
         val parts = requestLine.split(" ")
@@ -145,25 +142,28 @@ class WebServer(private val config: ServerConfig) {
         val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
 
-        // TODO: If the Accept-Encoding header contains "br", send Brotli data as-is, without decompressing it here. --DS, 22-Jul-2025
+        // If the Accept-Encoding header contains "br", send Brotli data as-is, without decompressing it here. --DS, 22-Jul-2025
         // If content is Brotli compressed and the client can't handle Brotli, decompress the content here.
         if (compression == "brotli") {
-            try {
-                dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
-                compression = "none"
-            } catch (e: Exception) {
-                Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
-                return sendError(writer, 500, "Internal Server Error")
+            if(!brotliSuppoerted) {
+                try {
+                    dbContent =
+                        BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                    compression = "none"
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
+                    return sendError(writer, 500, "Internal Server Error")
+                }
+            } else {
+                compression = "br"
             }
         }
 
         writer.println("HTTP/1.1 200 OK")
         writer.println("Content-Type: $dbMimeType")
         writer.println("Content-Length: ${dbContent.size}")
+        writer.println("Content-Encoding: ${compression}")
 
-        if (compression == "brotli") {
-            writer.println("Content-Encoding: br")
-        }
 
         writer.println("Connection: close")
         writer.println()
