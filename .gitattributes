@@ -16,3 +16,7 @@ app/src/release/assets/data/common/gradle-api-8.14.3.jar.br filter=lfs diff=lfs 
 libs_source/sdk filter=lfs diff=lfs merge=lfs -text
 libs_source/bootstrap-arm64-v8a.zip filter=lfs diff=lfs merge=lfs -text
 libs_source/bootstrap-armeabi-v7a.zip filter=lfs diff=lfs merge=lfs -text
+libs_source/android-sdk-arm64-v8a.zip filter=lfs diff=lfs merge=lfs -text
+libs_source/android-sdk-armeabi-v7a.zip filter=lfs diff=lfs merge=lfs -text
+app/src/v7Release/assets/data/common/android-sdk.zip.br filter=lfs diff=lfs merge=lfs -text
+app/src/v8Release/assets/data/common/android-sdk.zip.br filter=lfs diff=lfs merge=lfs -text
