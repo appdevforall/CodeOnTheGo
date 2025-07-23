@@ -14,6 +14,10 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = false
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

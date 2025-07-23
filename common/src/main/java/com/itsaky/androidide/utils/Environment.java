@@ -105,7 +105,7 @@ public final class Environment {
     TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
     BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
     OPT_DIR = mkdirIfNotExits(new File(PREFIX, "opt"));
-    JDWP_DIR = mkdirIfNotExits(new File(OPT_DIR, "oj-libjdwp"));
+    JDWP_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "oj-libjdwp"));
     JDWP_LIB_DIR = mkdirIfNotExits(new File(JDWP_DIR, "jniLibs"));
     JDWP_AAR = mkdirIfNotExits(new File(JDWP_DIR, JDWP_AAR_NAME));
     LOGSENDER_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "logsender"));
