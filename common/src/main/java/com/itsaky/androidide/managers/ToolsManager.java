@@ -17,6 +17,7 @@
  */
 package com.itsaky.androidide.managers;
 
+import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
@@ -81,6 +82,7 @@ public class ToolsManager {
             IJdkDistributionProvider.getInstance().loadDistributions();
 
             updateToolingJar(app.getAssets());
+            extractLogSender(app);
 
             writeNoMediaFile();
             extractAapt2();
@@ -99,6 +101,19 @@ public class ToolsManager {
                 onFinish.run();
             }
         });
+    }
+
+    @WorkerThread
+    private static void extractLogSender(BaseApplication app) {
+        if (Environment.LOGSENDER_AAR.exists()) {
+            FileUtils.delete(Environment.LOGSENDER_AAR);
+        }
+
+        Environment.mkdirIfNotExits(Environment.LOGSENDER_DIR);
+
+        final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
+        ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
+                Environment.LOGSENDER_AAR.getAbsolutePath());
     }
 
     @WorkerThread

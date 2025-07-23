@@ -78,6 +78,7 @@ const val HELP_PAGE_URL =
 const val DOCUMENTATION_DB = "documentation.db"
 
 const val JDWP_AAR_NAME = "libjdwp-remote.aar"
+const val LOGSENDER_AAR_NAME = "logsender.aar"
 
 // Generated Gradle Api Jar
 const val GRADLE_API_NAME_JAR = "gradle-api-$GRADLE_DISTRIBUTION_VERSION.jar"

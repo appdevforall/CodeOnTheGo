@@ -45,6 +45,7 @@ import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_AAR
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
@@ -295,6 +296,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     // The one downloaded from Maven is not built for Android
     extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
     extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
+    extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
     if (BuildPreferences.isStacktraceEnabled) {
       extraArgs.add("--stacktrace")

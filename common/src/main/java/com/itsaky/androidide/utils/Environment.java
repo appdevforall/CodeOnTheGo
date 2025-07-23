@@ -17,6 +17,7 @@
 package com.itsaky.androidide.utils;
 
 import static org.adfa.constants.ConstantsKt.JDWP_AAR_NAME;
+import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 
 import android.annotation.SuppressLint;
 
@@ -61,6 +62,8 @@ public final class Environment {
   public static File JDWP_DIR;
   public static File JDWP_LIB_DIR;
   public static File JDWP_AAR;
+  public static File LOGSENDER_DIR;
+  public static File LOGSENDER_AAR;
   public static File PROJECTS_DIR;
 
   // split assets vars
@@ -105,6 +108,8 @@ public final class Environment {
     JDWP_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "oj-libjdwp"));
     JDWP_LIB_DIR = mkdirIfNotExits(new File(JDWP_DIR, "jniLibs"));
     JDWP_AAR = mkdirIfNotExits(new File(JDWP_DIR, JDWP_AAR_NAME));
+    LOGSENDER_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "logsender"));
+    LOGSENDER_AAR = mkdirIfNotExits(new File(LOGSENDER_DIR, LOGSENDER_AAR_NAME));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
     // NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
     //       and don't create the dir if it doesn't exist
