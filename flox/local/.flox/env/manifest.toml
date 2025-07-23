@@ -15,7 +15,6 @@ version = 1
 ##  $ flox show gum     <- show all versions of a package
 ## -------------------------------------------------------------------
 [install]
-ktlint.pkg-path = "ktlint"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
