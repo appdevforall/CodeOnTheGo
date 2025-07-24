@@ -52,8 +52,9 @@ on-activate = '''
     hook=".git/hooks/$hook_name"
     if ! [ -f "$hook" ] || ! cat "$hook" | grep -q 'COGO_PRE_COMMIT_HOOK'; then
       echo "Updating $hook_name hook..."
-      cat .githooks/hook > "$hook"
-      echo "\n# -- COGO_PRE_COMMIT_HOOK" >> "$hook"
+      cat .githooks/hook >> "$hook"
+      echo  >> "$hook"
+      echo "# -- COGO_PRE_COMMIT_HOOK" >> "$hook"
       chmod +x "$hook"
     fi
   done
