@@ -5,6 +5,9 @@ import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
+import com.itsaky.androidide.helper.grantAccessibilityPermission
+import com.itsaky.androidide.helper.grantOverlayPermission
+import com.itsaky.androidide.helper.grantStoragePermissions
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
 import com.itsaky.androidide.screens.SystemPermissionsScreen
@@ -71,7 +74,7 @@ class PermissionsScreenTest : TestCase() {
 
                 // Make the size check flaky-safe with increased timeout
                 flakySafely(timeoutMs = 15000) {
-                    assertEquals(2, rvPermissions.getSize())
+                    assertEquals(4, rvPermissions.getSize())
                 }
 
                 rvPermissions {
@@ -110,6 +113,42 @@ class PermissionsScreenTest : TestCase() {
                             }
                         }
                     }
+
+                    flakySafely(timeoutMs = 10000) {
+                        childAt<PermissionScreen.PermissionItem>(2) {
+                            title {
+                                isVisible()
+                                hasText(R.string.permission_title_overlay_window)
+                            }
+                            description {
+                                isVisible()
+                                hasText(R.string.permission_desc_overlay_window)
+                            }
+                            grantButton {
+                                isVisible()
+                                isClickable()
+                                hasText(R.string.title_grant)
+                            }
+                        }
+                    }
+
+                    flakySafely(timeoutMs = 10000) {
+                        childAt<PermissionScreen.PermissionItem>(3) {
+                            title {
+                                isVisible()
+                                hasText(R.string.permission_title_accessibility)
+                            }
+                            description {
+                                isVisible()
+                                hasText(R.string.permission_desc_accessibility)
+                            }
+                            grantButton {
+                                isVisible()
+                                isClickable()
+                                hasText(R.string.title_grant)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -123,77 +162,9 @@ class PermissionsScreenTest : TestCase() {
                         }
                     }
 
-                    // Wait for system permission dialog to appear
-                    device.uiDevice.waitForIdle(3000)
-
-                    SystemPermissionsScreen {
-                        try {
-                            // Try the original permission text first
-                            storagePermissionView {
-                                isDisplayed()
-                                click()
-                            }
-                        } catch (e: Exception) {
-                            println("Trying alternative text for storage permission: ${e.message}")
-                            try {
-                                storagePermissionViewAlt1 {
-                                    isDisplayed()
-                                    click()
-                                }
-                            } catch (e1: Exception) {
-                                try {
-                                    storagePermissionViewAlt2 {
-                                        isDisplayed()
-                                        click()
-                                    }
-                                } catch (e2: Exception) {
-                                    try {
-                                        storagePermissionViewAlt3 {
-                                            isDisplayed()
-                                            click()
-                                        }
-                                    } catch (e3: Exception) {
-                                        try {
-                                            storagePermissionViewAlt4 {
-                                                isDisplayed()
-                                                click()
-                                            }
-                                        } catch (e4: Exception) {
-                                            try {
-                                                storagePermissionViewAlt5 {
-                                                    isDisplayed()
-                                                    click()
-                                                }
-                                            } catch (e5: Exception) {
-                                                try {
-                                                    storagePermissionViewAlt6 {
-                                                        isDisplayed()
-                                                        click()
-                                                    }
-                                                } catch (e6: Exception) {
-                                                    try {
-                                                        storagePermissionViewAlt7 {
-                                                            isDisplayed()
-                                                            click()
-                                                        }
-                                                    } catch (e7: Exception) {
-                                                        storagePermissionViewAlt8 {
-                                                            isDisplayed()
-                                                            click()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                    }
-
-                    // Wait after click and before going back
+                    grantStoragePermissions(device.uiDevice)
                     device.uiDevice.waitForIdle(2000)
+
                     device.uiDevice.pressBack()
                     device.uiDevice.waitForIdle(2000)
                 }
@@ -243,6 +214,40 @@ class PermissionsScreenTest : TestCase() {
             }
         }
 
+        step("Grant Overlay Window permission") {
+            flakySafely(timeoutMs = 30000) {
+                PermissionScreen {
+                    rvPermissions {
+                        childAt<PermissionScreen.PermissionItem>(2) {
+                            grantButton.click()
+                        }
+                    }
+
+                    grantOverlayPermission(device.uiDevice)
+
+                    device.uiDevice.waitForIdle(2000)
+                    device.uiDevice.pressBack()
+                }
+            }
+        }
+
+        step("Grant Accessibility permission") {
+            flakySafely(timeoutMs = 30000) {
+                PermissionScreen {
+                    rvPermissions {
+                        childAt<PermissionScreen.PermissionItem>(3) {
+                            grantButton.click()
+                        }
+                    }
+
+                    grantAccessibilityPermission(device.uiDevice)
+
+                    device.uiDevice.pressBack()
+                    device.uiDevice.waitForIdle(2000)
+                }
+            }
+        }
+
         step("Confirm that all menu items don't have allow text") {
             flakySafely(timeoutMs = 15000) {
                 device.uiDevice.waitForIdle(2000)
@@ -254,6 +259,18 @@ class PermissionsScreenTest : TestCase() {
                             }
                         }
                         childAt<PermissionScreen.PermissionItem>(1) {
+                            grantButton {
+                                isNotEnabled()
+                            }
+                        }
+
+                        childAt<PermissionScreen.PermissionItem>(2) {
+                            grantButton {
+                                isNotEnabled()
+                            }
+                        }
+
+                        childAt<PermissionScreen.PermissionItem>(3) {
                             grantButton {
                                 isNotEnabled()
                             }
