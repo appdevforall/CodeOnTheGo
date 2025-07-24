@@ -93,8 +93,8 @@ spotless {
             .sortMembersVisibilityOrderEnabled(true)
             .sortMembersVisibilityOrder("B,R,D,V")
 
-        target("**/src/*/java/**/*.java")
-        targetExclude(*commonTargetExcludes)
+        // use tabs
+        leadingSpacesToTabs()
 
         // enable import ordering
         importOrder()
@@ -112,10 +112,14 @@ spotless {
                         .replace("} ,", "},")
             },
         )
+
+        target("**/src/*/java/**/*.java")
+        targetExclude(*commonTargetExcludes)
     }
 
     kotlin {
         ktlint()
+        leadingSpacesToTabs()
 
         target("**/src/*/java/**/*.kt")
         target("**/src/*/kotlin/**/*.kt")
@@ -124,12 +128,14 @@ spotless {
 
     kotlinGradle {
         ktlint()
+        leadingSpacesToTabs()
 
         target("**/*.gradle.kts")
         targetExclude(*commonTargetExcludes)
     }
 
     format("xml") {
+        leadingSpacesToTabs()
         eclipseWtp(EclipseWtpFormatterStep.XML)
             .configFile("spotless.eclipse-xml.prefs")
         endWithNewline()
@@ -140,6 +146,7 @@ spotless {
     }
 
     format("misc") {
+        leadingSpacesToTabs()
         trimTrailingWhitespace()
         endWithNewline()
 
