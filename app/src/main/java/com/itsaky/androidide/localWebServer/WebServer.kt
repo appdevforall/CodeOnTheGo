@@ -16,9 +16,14 @@ import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+/**************************debugging***************/
+/* curl -vi http://127.0.0.1/READ,md              */
+/**************************debugging***************/
+
+
 
 data class ServerConfig(
-    val port: Int = 8888,
+    val port: Int = 6174,
     val databasePath: String,
     val bindName: String = "0.0.0.0", // TODO: Change to "localhost" --DS, 21-Jul-2025
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
@@ -31,6 +36,9 @@ class WebServer(private val config: ServerConfig) {
     private var databaseTimestamp: Long = -1
     private var brotliSuppoerted = false
     private val TAG = "WebServer"
+    private val enecodingHeader : String = "Accept-Encoding"
+    private val brotliCompression : String = "br"
+
 
     fun getDatabaseTimestamp(pathname: String, silent: Boolean = false): Long {
         val dbFile = File(pathname)
@@ -100,7 +108,7 @@ class WebServer(private val config: ServerConfig) {
         brotliSuppoerted = false //assume nothing
 
         // Read the request line
-        val requestLine = reader.readLine() ?: return
+        var requestLine = reader.readLine() ?: return
 
         // Parse the request
         val parts = requestLine.split(" ")
@@ -114,6 +122,19 @@ class WebServer(private val config: ServerConfig) {
         // Only support GET method
         if (method != "GET") {
             return sendError(writer, 501, "Not Implemented")
+        }
+
+        //headers follow the Gte line read until eof or 0 length
+        while(requestLine.length > 0) {
+            requestLine = reader.readLine() ?: break
+            if(requestLine.startsWith(enecodingHeader)) {
+                val parts = requestLine.split(":")[1].split(",")
+                if(parts.size == 0) {
+                    break
+                }
+                brotliSuppoerted = parts.contains(brotliCompression)
+                break
+            }
         }
 
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
