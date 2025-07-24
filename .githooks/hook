@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -e
+
+HOOK_NAME="$(basename "$0")"
+HOOKS_DIR=".githooks/${HOOK_NAME}"
+
+# Exit if hooks directory doesn't exist
+[ -d "$HOOKS_DIR" ] || exit 0
+
+# Find all executable files in the hooks directory and sort them
+for hook in $(find "$HOOKS_DIR" -type f -executable | sort); do
+    echo "[*] Running $(basename "$hook")..."
+    "$hook" || {
+        echo "[!] Hook $(basename "$hook") failed"
+        exit 1
+    }
+done
+
+echo "[*] All ${HOOK_NAME} hooks passed"

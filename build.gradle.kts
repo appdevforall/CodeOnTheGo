@@ -87,6 +87,8 @@ spotless {
             .sortMembersEnabled(true)
             .sortMembersOrder("SF,SI,SM,F,I,C,M,T")
             // Disable field sorting
+            // some fields reference other fields of the same class, which can cause compilation
+            // errors if re-ordered
             .sortMembersDoNotSortFields(true)
             // Sort members based on their visibility in the following order
             //   B,R,D,V = Public, Protected, Package, Private
@@ -95,6 +97,8 @@ spotless {
 
         // use tabs
         leadingSpacesToTabs()
+        trimTrailingWhitespace()
+        endWithNewline()
 
         // enable import ordering
         importOrder()
@@ -120,26 +124,39 @@ spotless {
     kotlin {
         ktlint()
         leadingSpacesToTabs()
+        trimTrailingWhitespace()
+        endWithNewline()
 
-        target("**/src/*/java/**/*.kt")
-        target("**/src/*/kotlin/**/*.kt")
+        target(
+            "**/src/*/java/**/*.kt",
+            "**/src/*/kotlin/**/*.kt"
+        )
         targetExclude(*commonTargetExcludes)
+
+        suppressLintsFor {
+            // suppress the 'file name <some-file> should conform PascalCase' errors
+            step = "ktlint"
+            shortCode = "standard:filename"
+        }
     }
 
     kotlinGradle {
         ktlint()
         leadingSpacesToTabs()
+        trimTrailingWhitespace()
+        endWithNewline()
 
         target("**/*.gradle.kts")
         targetExclude(*commonTargetExcludes)
     }
 
     format("xml") {
-        leadingSpacesToTabs()
         eclipseWtp(EclipseWtpFormatterStep.XML)
             .configFile("spotless.eclipse-xml.prefs")
-        endWithNewline()
+
+        leadingSpacesToTabs()
         trimTrailingWhitespace()
+        endWithNewline()
 
         target("**/src/*/res/**/*.xml")
         targetExclude(*commonTargetExcludes)
@@ -152,6 +169,17 @@ spotless {
 
         target("**/.gitignore", "**/.gradle")
         targetExclude(*commonTargetExcludes)
+    }
+
+    shell {
+        leadingSpacesToTabs()
+        trimTrailingWhitespace()
+        endWithNewline()
+
+        target(
+            ".githooks/**/*",
+            "scripts/**/*"
+        )
     }
 }
 
