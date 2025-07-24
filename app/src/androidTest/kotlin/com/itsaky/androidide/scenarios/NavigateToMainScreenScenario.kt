@@ -1,6 +1,9 @@
 package com.itsaky.androidide.scenarios
 
 import androidx.test.uiautomator.UiSelector
+import com.itsaky.androidide.helper.grantAccessibilityPermission
+import com.itsaky.androidide.helper.grantOverlayPermission
+import com.itsaky.androidide.helper.grantStoragePermissions
 import com.itsaky.androidide.screens.InstallToolsScreen
 import com.itsaky.androidide.screens.OnboardingScreen
 import com.itsaky.androidide.screens.PermissionScreen
@@ -29,61 +32,7 @@ class NavigateToMainScreenScenario : Scenario() {
                         }
                     }
 
-                    SystemPermissionsScreen {
-                        try {
-                            // Try the original permission text first
-                            storagePermissionView {
-                                click()
-                            }
-                        } catch (e: Exception) {
-                            println("Trying alternative text for storage permission")
-                            try {
-                                storagePermissionViewAlt1 {
-                                    click()
-                                }
-                            } catch (e1: Exception) {
-                                try {
-                                    storagePermissionViewAlt2 {
-                                        click()
-                                    }
-                                } catch (e2: Exception) {
-                                    try {
-                                        storagePermissionViewAlt3 {
-                                            click()
-                                        }
-                                    } catch (e3: Exception) {
-                                        try {
-                                            storagePermissionViewAlt4 {
-                                                click()
-                                            }
-                                        } catch (e4: Exception) {
-                                            try {
-                                                storagePermissionViewAlt5 {
-                                                    click()
-                                                }
-                                            } catch (e5: Exception) {
-                                                try {
-                                                    storagePermissionViewAlt6 {
-                                                        click()
-                                                    }
-                                                } catch (e6: Exception) {
-                                                    try {
-                                                        storagePermissionViewAlt7 {
-                                                            click()
-                                                        }
-                                                    } catch (e7: Exception) {
-                                                        storagePermissionViewAlt8 {
-                                                            click()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    grantStoragePermissions(device.uiDevice)
 
                     device.uiDevice.pressBack()
 
@@ -114,6 +63,27 @@ class NavigateToMainScreenScenario : Scenario() {
                     }
 
                     device.uiDevice.pressBack()
+
+                    rvPermissions {
+                        childAt<PermissionScreen.PermissionItem>(2) {
+                            grantButton.click()
+                        }
+                    }
+
+                    grantOverlayPermission(device.uiDevice)
+
+                    device.uiDevice.pressBack()
+
+                    rvPermissions {
+                        childAt<PermissionScreen.PermissionItem>(3) {
+                            grantButton.click()
+                        }
+                    }
+
+                    grantAccessibilityPermission(device.uiDevice)
+
+                    device.uiDevice.pressBack()
+
                 }
                 OnboardingScreen.nextButton {
                     isVisible()
