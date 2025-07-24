@@ -2,28 +2,11 @@
 
 set -e
 
-# Exit if not in a git repository
-git rev-parse --git-dir > /dev/null 2>&1 || exit 0
-
-# Exit if no Gradle build file exists
-[ -f "gradlew" ] || [ -f "build.gradle" ] || [ -f "build.gradle.kts" ] || exit 0
-
-# Get staged files that Spotless can format
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(java|kt|kts|gradle|xml|json|yaml|yml)$' 2>/dev/null || true)
-
-# Exit if no relevant files to format
-[ -n "$STAGED_FILES" ] || exit 0
-
-# Run Spotless apply to format files
-./gradlew spotlessApply --quiet || exit 1
-
-# Stage any files modified by Spotless
-echo "$STAGED_FILES" | while IFS= read -r file; do
-    [ -f "$file" ] && git add "$file"
-done
-
-# Run Spotless check to ensure all formatting rules are satisfied
-./gradlew spotlessCheck --quiet || {
-    echo "Spotless check failed. Code formatting issues detected."
+##### SPOTLESS HOOK START #####
+SPOTLESS_EXECUTOR=./gradlew
+if ! $SPOTLESS_EXECUTOR spotlessCheck ; then
+    echo 1>&2 "spotless found problems, running spotlessApply; commit the result and re-push"
+    $SPOTLESS_EXECUTOR spotlessApply
     exit 1
-}
+fi
+##### SPOTLESS HOOK END #####
