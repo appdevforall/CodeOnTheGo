@@ -134,12 +134,15 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Upload to Firebase App Distribution
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}'
+
+      - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
           npm install -g firebase-tools@13.10.1
-          echo '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}' > service-account.json
-          export GOOGLE_APPLICATION_CREDENTIALS=service-account.json
 
           output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
@@ -156,8 +159,6 @@ jobs:
           fi
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
-          rm -f service-account.json
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
