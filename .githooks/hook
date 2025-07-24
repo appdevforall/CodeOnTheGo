@@ -10,11 +10,11 @@ HOOKS_DIR=".githooks/${HOOK_NAME}"
 
 # Find all executable files in the hooks directory and sort them
 for hook in $(find "$HOOKS_DIR" -type f -executable | sort); do
-    echo "[*] Running $(basename "$hook")..."
-    "$hook" || {
-        echo "[!] Hook $(basename "$hook") failed"
-        exit 1
-    }
+	echo "[*] Running $(basename "$hook")..."
+	"$hook" || {
+		echo "[!] Hook $(basename "$hook") failed"
+		exit 1
+	}
 done
 
 echo "[*] All ${HOOK_NAME} hooks passed"
