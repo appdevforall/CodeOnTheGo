@@ -19,6 +19,7 @@
 
 import com.diffplug.spotless.FormatterFunc
 import com.diffplug.spotless.LineEnding
+import com.diffplug.spotless.extra.wtp.EclipseWtpFormatterStep
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.FDroidConfig
 import com.itsaky.androidide.build.config.publishingVersion
@@ -80,7 +81,7 @@ spotless {
 
     java {
         eclipse()
-            .configFile("spotless.eclipse.xml")
+            .configFile("spotless.eclipse-java.xml")
             // Sort member variables in the following order
             //   SF,SI,SM,F,I,C,M,T = Static Fields, Static Initializers, Static Methods, Fields, Initializers, Constructors, Methods, (Nested) Types
             .sortMembersEnabled(true)
@@ -115,6 +116,7 @@ spotless {
 
     kotlin {
         ktlint()
+
         target("**/src/*/java/**/*.kt")
         target("**/src/*/kotlin/**/*.kt")
         targetExclude(*commonTargetExcludes)
@@ -127,7 +129,11 @@ spotless {
     }
 
     format("xml") {
-        prettier()
+        eclipseWtp(EclipseWtpFormatterStep.XML)
+            .configFile("spotless.eclipse-xml.prefs")
+        endWithNewline()
+        trimTrailingWhitespace()
+
         target("**/src/*/res/**/*.xml")
         targetExclude(*commonTargetExcludes)
     }
