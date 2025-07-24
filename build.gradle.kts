@@ -124,6 +124,7 @@ spotless {
 
     kotlinGradle {
         ktlint()
+
         target("**/*.gradle.kts")
         targetExclude(*commonTargetExcludes)
     }
@@ -139,6 +140,9 @@ spotless {
     }
 
     format("misc") {
+        trimTrailingWhitespace()
+        endWithNewline()
+
         target("**/.gitignore", "**/.gradle")
         targetExclude(*commonTargetExcludes)
     }
