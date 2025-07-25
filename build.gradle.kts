@@ -21,6 +21,7 @@ import com.diffplug.spotless.FormatterFunc
 import com.diffplug.spotless.LineEnding
 import com.diffplug.spotless.extra.wtp.EclipseWtpFormatterStep
 import com.itsaky.androidide.build.config.BuildConfig
+import com.itsaky.androidide.build.config.CI
 import com.itsaky.androidide.build.config.FDroidConfig
 import com.itsaky.androidide.build.config.publishingVersion
 import com.itsaky.androidide.plugins.AndroidIDEPlugin
@@ -32,194 +33,196 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.Serializable
 
 plugins {
-    id("build-logic.root-project")
-    alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.android.library) apply false
-    alias(libs.plugins.kotlin.android) apply false
-    alias(libs.plugins.kotlin.jvm) apply false
-    alias(libs.plugins.maven.publish) apply false
-    alias(libs.plugins.gradle.publish) apply false
-    alias(libs.plugins.spotless)
+	id("build-logic.root-project")
+	alias(libs.plugins.android.application) apply false
+	alias(libs.plugins.android.library) apply false
+	alias(libs.plugins.kotlin.android) apply false
+	alias(libs.plugins.kotlin.jvm) apply false
+	alias(libs.plugins.maven.publish) apply false
+	alias(libs.plugins.gradle.publish) apply false
+	alias(libs.plugins.spotless)
 }
 
 buildscript {
-    dependencies {
-        classpath(libs.kotlin.gradle.plugin)
-        classpath(libs.nav.safe.args.gradle.plugin)
-    }
+	dependencies {
+		classpath(libs.kotlin.gradle.plugin)
+		classpath(libs.nav.safe.args.gradle.plugin)
+	}
 }
 
 subprojects {
-    // Always load the F-Droid config
-    FDroidConfig.load(project)
+	// Always load the F-Droid config
+	FDroidConfig.load(project)
 
-    afterEvaluate {
-        apply {
-            plugin(AndroidIDEPlugin::class.java)
-        }
-    }
+	afterEvaluate {
+		apply {
+			plugin(AndroidIDEPlugin::class.java)
+		}
+	}
 }
 
 spotless {
-    // Common directories to exclude
-    // These mainly contain module that are external and huge, but are built from source
-    val commonTargetExcludes =
-        arrayOf(
-            "composite-builds/build-deps/java-compiler/**/*",
-            "composite-builds/build-deps/jaxp/**/*",
-            "composite-builds/build-deps/jdk-compiler/**/*",
-            "composite-builds/build-deps/jdk-jdeps/**/*",
-            "composite-builds/build-deps/jdt/**/*",
-            "composite-builds/build-login/properties-parser/**/*",
-            "eventbus/**/*",
-            "LayoutEditor/**/*",
-            "subprojects/aaptcompiler/src/*/java/com/android/**/*",
-            "subprojects/builder-model-impl/src/*/java/com/android/**/*",
-            "subprojects/flashbar/**/*",
-            "subprojects/xml-dom/**/*",
-            "termux/**/*",
-        )
+	ratchetFrom = CI.branchName
 
-    // ALWAYS use line feeds (LF -- '\n')
-    lineEndings = LineEnding.UNIX
+	// Common directories to exclude
+	// These mainly contain module that are external and huge, but are built from source
+	val commonTargetExcludes =
+		arrayOf(
+			"composite-builds/build-deps/java-compiler/**/*",
+			"composite-builds/build-deps/jaxp/**/*",
+			"composite-builds/build-deps/jdk-compiler/**/*",
+			"composite-builds/build-deps/jdk-jdeps/**/*",
+			"composite-builds/build-deps/jdt/**/*",
+			"composite-builds/build-login/properties-parser/**/*",
+			"eventbus/**/*",
+			"LayoutEditor/**/*",
+			"subprojects/aaptcompiler/src/*/java/com/android/**/*",
+			"subprojects/builder-model-impl/src/*/java/com/android/**/*",
+			"subprojects/flashbar/**/*",
+			"subprojects/xml-dom/**/*",
+			"termux/**/*",
+		)
 
-    java {
-        eclipse()
-            .configFile("spotless.eclipse-java.xml")
-            // Sort member variables in the following order
-            //   SF,SI,SM,F,I,C,M,T = Static Fields, Static Initializers, Static Methods, Fields, Initializers, Constructors, Methods, (Nested) Types
-            .sortMembersEnabled(true)
-            .sortMembersOrder("SF,SI,SM,F,I,C,M,T")
-            // Disable field sorting
-            // some fields reference other fields of the same class, which can cause compilation
-            // errors if re-ordered
-            .sortMembersDoNotSortFields(true)
-            // Sort members based on their visibility in the following order
-            //   B,R,D,V = Public, Protected, Package, Private
-            .sortMembersVisibilityOrderEnabled(true)
-            .sortMembersVisibilityOrder("B,R,D,V")
+	// ALWAYS use line feeds (LF -- '\n')
+	lineEndings = LineEnding.UNIX
 
-        // use tabs
-        leadingSpacesToTabs()
-        trimTrailingWhitespace()
-        endWithNewline()
+	java {
+		eclipse()
+			.configFile("spotless.eclipse-java.xml")
+			// Sort member variables in the following order
+			//   SF,SI,SM,F,I,C,M,T = Static Fields, Static Initializers, Static Methods, Fields, Initializers, Constructors, Methods, (Nested) Types
+			.sortMembersEnabled(true)
+			.sortMembersOrder("SF,SI,SM,F,I,C,M,T")
+			// Disable field sorting
+			// some fields reference other fields of the same class, which can cause compilation
+			// errors if re-ordered
+			.sortMembersDoNotSortFields(true)
+			// Sort members based on their visibility in the following order
+			//   B,R,D,V = Public, Protected, Package, Private
+			.sortMembersVisibilityOrderEnabled(true)
+			.sortMembersVisibilityOrder("B,R,D,V")
 
-        // enable import ordering
-        importOrder()
+		// use tabs
+		leadingSpacesToTabs()
+		trimTrailingWhitespace()
+		endWithNewline()
 
-        removeUnusedImports()
-        removeWildcardImports()
+		// enable import ordering
+		importOrder()
 
-        // custom rule to fix lambda formatting
-        custom(
-            "Lambda fix",
-            object : Serializable, FormatterFunc {
-                override fun apply(input: String): String =
-                    input
-                        .replace("} )", "})")
-                        .replace("} ,", "},")
-            },
-        )
+		removeUnusedImports()
+		removeWildcardImports()
 
-        target("**/src/*/java/**/*.java")
-        targetExclude(*commonTargetExcludes)
-    }
+		// custom rule to fix lambda formatting
+		custom(
+			"Lambda fix",
+			object : Serializable, FormatterFunc {
+				override fun apply(input: String): String =
+					input
+						.replace("} )", "})")
+						.replace("} ,", "},")
+			},
+		)
 
-    kotlin {
-        ktlint()
-        leadingSpacesToTabs()
-        trimTrailingWhitespace()
-        endWithNewline()
+		target("**/src/*/java/**/*.java")
+		targetExclude(*commonTargetExcludes)
+	}
 
-        target(
-            "**/src/*/java/**/*.kt",
-            "**/src/*/kotlin/**/*.kt"
-        )
-        targetExclude(*commonTargetExcludes)
+	kotlin {
+		ktlint()
+		leadingSpacesToTabs()
+		trimTrailingWhitespace()
+		endWithNewline()
 
-        suppressLintsFor {
-            // suppress the 'file name <some-file> should conform PascalCase' errors
-            step = "ktlint"
-            shortCode = "standard:filename"
-        }
-    }
+		target(
+			"**/src/*/java/**/*.kt",
+			"**/src/*/kotlin/**/*.kt",
+		)
+		targetExclude(*commonTargetExcludes)
 
-    kotlinGradle {
-        ktlint()
-        leadingSpacesToTabs()
-        trimTrailingWhitespace()
-        endWithNewline()
+		suppressLintsFor {
+			// suppress the 'file name <some-file> should conform PascalCase' errors
+			step = "ktlint"
+			shortCode = "standard:filename"
+		}
+	}
 
-        target("**/*.gradle.kts")
-        targetExclude(*commonTargetExcludes)
-    }
+	kotlinGradle {
+		ktlint()
+		leadingSpacesToTabs()
+		trimTrailingWhitespace()
+		endWithNewline()
 
-    format("xml") {
-        eclipseWtp(EclipseWtpFormatterStep.XML)
-            .configFile("spotless.eclipse-xml.prefs")
+		target("**/*.gradle.kts")
+		targetExclude(*commonTargetExcludes)
+	}
 
-        leadingSpacesToTabs()
-        trimTrailingWhitespace()
-        endWithNewline()
+	format("xml") {
+		eclipseWtp(EclipseWtpFormatterStep.XML)
+			.configFile("spotless.eclipse-xml.prefs")
 
-        target("**/src/*/res/**/*.xml")
-        targetExclude(*commonTargetExcludes)
-    }
+		leadingSpacesToTabs()
+		trimTrailingWhitespace()
+		endWithNewline()
 
-    format("misc") {
-        leadingSpacesToTabs()
-        trimTrailingWhitespace()
-        endWithNewline()
+		target("**/src/*/res/**/*.xml")
+		targetExclude(*commonTargetExcludes)
+	}
 
-        target("**/.gitignore", "**/.gradle")
-        targetExclude(*commonTargetExcludes)
-    }
+	format("misc") {
+		leadingSpacesToTabs()
+		trimTrailingWhitespace()
+		endWithNewline()
 
-    shell {
-        leadingSpacesToTabs()
-        trimTrailingWhitespace()
-        endWithNewline()
+		target("**/.gitignore", "**/.gradle")
+		targetExclude(*commonTargetExcludes)
+	}
 
-        target(
-            ".githooks/**/*",
-            "scripts/**/*"
-        )
-    }
+	shell {
+		leadingSpacesToTabs()
+		trimTrailingWhitespace()
+		endWithNewline()
+
+		target(
+			".githooks/**/*",
+			"scripts/**/*",
+		)
+	}
 }
 
 allprojects {
-    project.group = BuildConfig.packageName
-    project.version = rootProject.version
+	project.group = BuildConfig.packageName
+	project.version = rootProject.version
 
-    plugins.withId("com.android.application") {
-        configureAndroidModule(libs.androidx.libDesugaring)
-    }
+	plugins.withId("com.android.application") {
+		configureAndroidModule(libs.androidx.libDesugaring)
+	}
 
-    plugins.withId("com.android.library") {
-        configureAndroidModule(libs.androidx.libDesugaring)
-    }
+	plugins.withId("com.android.library") {
+		configureAndroidModule(libs.androidx.libDesugaring)
+	}
 
-    plugins.withId("java-library") {
-        configureJavaModule()
-    }
+	plugins.withId("java-library") {
+		configureJavaModule()
+	}
 
-    plugins.withId("com.vanniktech.maven.publish.base") {
-        configureMavenPublish()
-    }
+	plugins.withId("com.vanniktech.maven.publish.base") {
+		configureMavenPublish()
+	}
 
-    plugins.withId("com.gradle.plugin-publish") {
-        configure<GradlePluginDevelopmentExtension> {
-            version = project.publishingVersion
-        }
-    }
+	plugins.withId("com.gradle.plugin-publish") {
+		configure<GradlePluginDevelopmentExtension> {
+			version = project.publishingVersion
+		}
+	}
 
-    tasks.withType<KotlinCompile>().configureEach {
-        compilerOptions.jvmTarget.set(JvmTarget.fromTarget(BuildConfig.javaVersion.majorVersion))
-    }
+	tasks.withType<KotlinCompile>().configureEach {
+		compilerOptions.jvmTarget.set(JvmTarget.fromTarget(BuildConfig.javaVersion.majorVersion))
+	}
 }
 
 tasks.named<Delete>("clean") {
-    doLast {
-        delete(rootProject.layout.buildDirectory)
-    }
+	doLast {
+		delete(rootProject.layout.buildDirectory)
+	}
 }
