@@ -21,14 +21,15 @@ import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.FilterConfiguration
+import com.android.build.api.variant.Variant
 import com.android.build.api.variant.impl.getFilter
+import com.android.build.gradle.AppExtension
 import com.android.build.gradle.BaseExtension
 import com.itsaky.androidide.build.config.BuildConfig
-import com.itsaky.androidide.build.config.FDroidConfig
-import com.itsaky.androidide.build.config.isFDroidBuild
 import com.itsaky.androidide.build.config.projectVersionCode
 import com.itsaky.androidide.build.config.simpleVersionName
 import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.artifacts.MinimalExternalModuleDependency
 import org.gradle.api.provider.Provider
@@ -45,7 +46,27 @@ import java.util.Date
  * flavor, the version code will be `100 * 270 + 1` i.e. `27001`
  */
 internal val flavorsAbis = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
-private val disableCoreLibDesugaringForModules = arrayOf(":logsender", ":logger")
+private val disableCoreLibDesugaringForModules = arrayOf(
+    ":logsender",
+    ":logger",
+    ":subprojects:libjdwp-remote" +
+            ""
+)
+
+/**
+ * The name of the build type used for automated testing.
+ */
+private const val INSTRUMENTATION_BUILD_TYPE = "instrumentation"
+
+/**
+ * Whether the given variant has bundled assets or not.
+ *
+ * This is `true` for non-debug builds and for [INSTRUMENTATION_BUILD_TYPE] builds. When updating this
+ * value, please update the corresponding value in `AssetsInstaller.kt` in `:app` module.
+ */
+internal fun hasBundledAssets(variant: Variant): Boolean {
+    return !variant.debuggable || variant.buildType == INSTRUMENTATION_BUILD_TYPE
+}
 
 fun Project.configureAndroidModule(
     coreLibDesugDep: Provider<MinimalExternalModuleDependency>
@@ -59,12 +80,15 @@ fun Project.configureAndroidModule(
 
     val androidJar = extensions.getByType(AndroidComponentsExtension::class.java)
         .getAndroidJar(assertExists = true)
-    val frameworkStubsJar = findProject(":subprojects:framework-stubs")!!.file("libs/android.jar")
-        .also { it.parentFile.mkdirs() }
 
-    if (!(frameworkStubsJar.exists() && frameworkStubsJar.isFile)) {
-        androidJar.copyTo(frameworkStubsJar)
-    }
+    findProject(":subprojects:framework-stubs")
+        ?.file("libs/android.jar")
+        .also { it?.parentFile?.mkdirs() }
+        ?.also { frameworkStubsJar ->
+            if (!(frameworkStubsJar.exists() && frameworkStubsJar.isFile)) {
+                androidJar.copyTo(frameworkStubsJar)
+            }
+        }
 
     extensions.getByType(CommonExtension::class.java).run {
         lint {
@@ -139,35 +163,38 @@ fun Project.configureAndroidModule(
                 )
             }
 
-//            splits {
-//                abi {
-//                    reset()
-//                    isEnable = true
-//                    isUniversalApk = false
-//                    if (isFDroidBuild) {
-//                        include(FDroidConfig.fDroidBuildArch!!)
-//                    } else {
-//                        include(*flavorsAbis.keys.toTypedArray())
-//                    }
-//                }
-//            }
-
             extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
                 onVariants { variant ->
                     variant.outputs.forEach { output ->
-
                         // version code increment
-                        val verCodeIncr = flavorsAbis[output.getFilter(
-                            FilterConfiguration.FilterType.ABI
-                        )?.identifier]
-                            ?: 10000
+                        val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
+                        val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 10000
+                        output.versionCode.set(100 * projectVersionCode + verCodeIncrement)
+                    }
 
-                        output.versionCode.set(100 * projectVersionCode + verCodeIncr)
+                    if (hasBundledAssets(variant)) {
+                        // include bundled assets in the APK
+                        val assetsDir = rootProject.file("assets/release")
+                        variant.sources.assets?.apply {
+                            val commonAssets = assetsDir.resolve("common")
+                            val flavorAssets = assetsDir.resolve(variant.flavorName!!)
+
+                            if (!commonAssets.isDirectory) {
+                                throw GradleException("${commonAssets.absolutePath} does not exist or is not a directory")
+                            }
+
+                            if (!flavorAssets.isDirectory) {
+                                throw GradleException("${flavorAssets.absolutePath} does not exist or is not a directory")
+                            }
+
+                            addStaticSourceDirectory(commonAssets.absolutePath)
+                            addStaticSourceDirectory(flavorAssets.absolutePath)
+                        }
                     }
                 }
             }
 
-            extensions.getByType(com.android.build.gradle.AppExtension::class.java).apply {
+            extensions.getByType(AppExtension::class.java).apply {
                 applicationVariants.all {
                     outputs.all {
                         val flavorName = productFlavors.firstOrNull()?.name ?: "default"
@@ -192,38 +219,32 @@ fun Project.configureAndroidModule(
         flavorDimensions("abi")
 
         productFlavors {
-
             create("v7") {
                 dimension = "abi"
-                ndk {
-                    abiFilters += "armeabi-v7a"
-                }
+
+                ndk.abiFilters.clear()
+                ndk.abiFilters += "armeabi-v7a"
             }
 
             create("v8") {
                 dimension = "abi"
-                ndk {
-                    abiFilters += "arm64-v8a"
-                }
-            }
 
-            // NOTE: disable x86_64 builds for now
-            //create("x86") {
-            //    dimension = "abi"
-            //    ndk {
-            //        abiFilters += "x86_64"
-            //    }
-            //}
+                ndk.abiFilters.clear()
+                ndk.abiFilters += "arm64-v8a"
+            }
         }
 
-        buildTypes.getByName("debug") { isMinifyEnabled = false }
+        buildTypes.getByName("debug") {
+            isMinifyEnabled = false
+        }
+
         buildTypes.getByName("release") {
             // TODO: disable minify until issues with minified release build is resolved -- jm 2025-06-06
             isAppModule = false
 
             isMinifyEnabled = isAppModule
             isShrinkResources = isAppModule
-            // isMinifyEnabled = false
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -231,14 +252,8 @@ fun Project.configureAndroidModule(
             consumerProguardFiles("consumer-rules.pro")
         }
 
-        // development build type
-        // similar to 'release', but disables proguard/r8
-        // this build type can be used to gain release-like performance at runtime
-        // the build are faster for this build type as compared to 'release'
-        buildTypes.register("dev") {
-            initWith(buildTypes.getByName("release"))
-
-            isMinifyEnabled = false
+        buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
+            initWith(buildTypes.getByName("debug"))
         }
 
         testOptions { unitTests.isIncludeAndroidResources = true }
