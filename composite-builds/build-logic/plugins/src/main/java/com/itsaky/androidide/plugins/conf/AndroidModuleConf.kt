@@ -198,7 +198,7 @@ fun Project.configureAndroidModule(
                     outputs.all {
                         val flavorName = productFlavors.firstOrNull()?.name ?: "default"
                         val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
-                        val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
+                        val buildTypeName = buildType.name
                         val newApkName = "CodeOnTheGo-${flavorName}-${buildTypeName}${date}.apk"
 
                         (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
