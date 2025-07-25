@@ -18,6 +18,7 @@ package com.itsaky.androidide.utils;
 
 import static org.adfa.constants.ConstantsKt.JDWP_AAR_NAME;
 import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
+import static org.adfa.constants.ConstantsKt.GRADLE_DISTRIBUTION_VERSION;
 
 import android.annotation.SuppressLint;
 
@@ -141,7 +142,8 @@ public final class Environment {
 
     DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
 
-    GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/8.14.3/generated-gradle-jars"));
+    GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/" +
+            GRADLE_DISTRIBUTION_VERSION + "/generated-gradle-jars"));
   }
 
   public static File mkdirIfNotExits(File in) {
