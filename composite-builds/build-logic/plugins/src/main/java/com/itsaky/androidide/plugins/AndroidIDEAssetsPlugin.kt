@@ -21,6 +21,7 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.Variant
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
+import com.itsaky.androidide.plugins.conf.hasBundledAssets
 import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
@@ -108,8 +109,9 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         val projectTask = "copyJar"
         val inputFile: (Project) -> Provider<RegularFile> =
             { project -> project.layout.buildDirectory.file("libs/tooling-api-all.jar") }
-        if (variant.debuggable) {
-            addProjectArtifactToAssets<AddFileToAssetsTask>(
+
+        if (hasBundledAssets(variant)) {
+            addProjectArtifactToAssets<AddBrotliFileToAssetsTask>(
                 variant = variant,
                 taskName = taskName,
                 projectPath = projectPath,
@@ -117,7 +119,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 onGetInputFile = inputFile
             )
         } else {
-            addProjectArtifactToAssets<AddBrotliFileToAssetsTask>(
+            addProjectArtifactToAssets<AddFileToAssetsTask>(
                 variant = variant,
                 taskName = taskName,
                 projectPath = projectPath,
