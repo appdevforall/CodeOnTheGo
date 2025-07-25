@@ -49,8 +49,7 @@ internal val flavorsAbis = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" 
 private val disableCoreLibDesugaringForModules = arrayOf(
     ":logsender",
     ":logger",
-    ":subprojects:libjdwp-remote" +
-            ""
+    ":subprojects:libjdwp-remote",
 )
 
 /**
