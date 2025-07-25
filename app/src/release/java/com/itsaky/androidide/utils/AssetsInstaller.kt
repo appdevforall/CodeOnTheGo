@@ -13,7 +13,7 @@ import org.adfa.constants.DOCUMENTATION_DB
 import org.adfa.constants.GRADLE_API_NAME_JAR
 import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
-import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
+import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -35,7 +35,7 @@ object AssetsInstaller {
     ): Unit = withContext(Dispatchers.IO) {
         val assets = context.assets
         when (entryName) {
-            GRADLE_WRAPPER_FILE_NAME,
+            GRADLE_DISTRIBUTION_ARCHIVE_NAME,
             ANDROID_SDK_ZIP,
             LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> {
                 val assetPath = ToolsManager.getCommonAsset("${entryName}.br")
@@ -76,7 +76,7 @@ object AssetsInstaller {
     }
 
     private fun destinationDirForArchiveEntry(entryName: String): File = when (entryName) {
-        GRADLE_WRAPPER_FILE_NAME -> Environment.GRADLE_DISTS
+        GRADLE_DISTRIBUTION_ARCHIVE_NAME -> Environment.GRADLE_DISTS
         ANDROID_SDK_ZIP -> Environment.ANDROID_HOME
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
         GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
