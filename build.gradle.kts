@@ -62,7 +62,7 @@ subprojects {
 }
 
 spotless {
-	ratchetFrom = CI.branchName
+	ratchetFrom = "origin/${CI.branchName}"
 
 	// Common directories to exclude
 	// These mainly contain module that are external and huge, but are built from source
