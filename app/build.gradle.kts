@@ -323,10 +323,11 @@ fun createAssetsZip(
   val zipFile = outputDir.resolve("assets-$arch.zip")
   val sourceDir = project.rootDir.resolve("libs_source")
   val bootstrapName = "bootstrap-$arch.zip"
+  val androidSdkName = "android-sdk-$arch.zip"
 
   ZipOutputStream(zipFile.outputStream()).use { zipOut ->
     arrayOf(
-      "android-sdk.zip",
+      androidSdkName,
       "localMvnRepository.zip",
       "gradle-8.14.3-bin.zip",
       "gradle-api-8.14.3.jar.zip",
@@ -339,7 +340,12 @@ fun createAssetsZip(
       }
 
       project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
-      val entryName = if (fileName == bootstrapName) "bootstrap.zip" else fileName
+      val entryName = when (fileName) {
+        bootstrapName -> "bootstrap.zip"
+        androidSdkName -> "android-sdk.zip"
+        else -> fileName
+      }
+
       zipOut.putNextEntry(ZipEntry(entryName))
       filePath.inputStream().use { input -> input.copyTo(zipOut) }
       zipOut.closeEntry()
