@@ -3,7 +3,6 @@ package org.appdevforall.localwebserver
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
-import okhttp3.Request
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -34,9 +33,9 @@ class WebServer(private val config: ServerConfig) {
     private lateinit var serverSocket: ServerSocket
     private lateinit var database: SQLiteDatabase
     private var databaseTimestamp: Long = -1
-    private var brotliSuppoerted = false
+    private var brotliSupported = false
     private val TAG = "WebServer"
-    private val enecodingHeader : String = "Accept-Encoding"
+    private val encodingHeader : String = "Accept-Encoding"
     private val brotliCompression : String = "br"
 
 
@@ -105,7 +104,7 @@ class WebServer(private val config: ServerConfig) {
         val output = clientSocket.getOutputStream()
         val writer = PrintWriter(output, true)
         val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
-        brotliSuppoerted = false //assume nothing
+        brotliSupported = false //assume nothing
 
         // Read the request line
         var requestLine = reader.readLine() ?: return
@@ -126,14 +125,15 @@ class WebServer(private val config: ServerConfig) {
 
         //headers follow the Gte line read until eof or 0 length
         while(requestLine.length > 0) {
-            requestLine = reader.readLine() ?: break
-            if(requestLine.startsWith(enecodingHeader)) {
-                val parts = requestLine.split(":")[1].split(",")
-                if(parts.size == 0) {
+            try {
+                requestLine = reader.readLine() ?: break
+                if (requestLine.startsWith(encodingHeader)) {
+                    brotliSupported =
+                        requestLine.split(":")[1].split(",").contains(brotliCompression)
                     break
                 }
-                brotliSuppoerted = parts.contains(brotliCompression)
-                break
+            } catch (e: Exception) {
+                break;
             }
         }
 
@@ -163,10 +163,15 @@ class WebServer(private val config: ServerConfig) {
         val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
 
-        // If the Accept-Encoding header contains "br", send Brotli data as-is, without decompressing it here. --DS, 22-Jul-2025
-        // If content is Brotli compressed and the client can't handle Brotli, decompress the content here.
+        // If the Accept-Encoding header contains "br", the client can handle
+        // Brotli. Send Brotli data as-is, without decompressing it here.
+        // If the client can't handle Brotli, and the content is Brotli-
+        // compressed, decompress the content here.
+
         if (compression == "brotli") {
-            if(!brotliSuppoerted) {
+            if (brotliSupported) {
+                compression = "br"
+            } else {
                 try {
                     dbContent =
                         BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
@@ -175,16 +180,16 @@ class WebServer(private val config: ServerConfig) {
                     Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
                     return sendError(writer, 500, "Internal Server Error")
                 }
-            } else {
-                compression = "br"
             }
         }
 
         writer.println("HTTP/1.1 200 OK")
         writer.println("Content-Type: $dbMimeType")
         writer.println("Content-Length: ${dbContent.size}")
-        writer.println("Content-Encoding: ${compression}")
 
+        if (compression != "none") {
+            writer.println("Content-Encoding: ${compression}")
+        }
 
         writer.println("Connection: close")
         writer.println()
