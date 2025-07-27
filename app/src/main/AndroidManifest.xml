@@ -58,7 +58,11 @@
     <activity
       android:exported="true"
       android:name=".activities.CrashHandlerActivity"
-      android:windowSoftInputMode="stateAlwaysHidden">
+      android:windowSoftInputMode="stateAlwaysHidden"
+        android:resizeableActivity="true"
+        android:screenOrientation="fullSensor"
+        android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+        >
       <intent-filter>
         <action android:name="com.itsaky.androidide.REPORT_CRASH" />
         <category android:name="android.intent.category.DEFAULT" />
@@ -68,7 +72,11 @@
         <activity
             android:name=".activities.SplashActivity"
             android:exported="true"
-            android:theme="@style/AppTheme.Splash">
+            android:theme="@style/AppTheme.Splash"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -80,16 +88,43 @@
         <activity
             android:name=".activities.MainActivity"
             android:exported="false"
-            android:theme="@style/Theme.AndroidIDE" />
+            android:theme="@style/Theme.AndroidIDE"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            />
         <activity
             android:name=".activities.editor.EditorActivityKt"
-            android:configChanges="orientation|screenSize|uiMode"
-            android:launchMode="singleTop" />
-        <activity android:name=".activities.PreferencesActivity" />
-        <activity android:name=".activities.AboutActivity" />
-        <activity android:name=".activities.editor.FAQActivity" />
-        <activity android:name=".activities.editor.HelpActivity" />
-        <activity android:name=".activities.ContributorsActivity" />
+            android:launchMode="singleTop"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            />
+        <activity android:name=".activities.PreferencesActivity"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            />
+        <activity android:name=".activities.AboutActivity"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            />
+        <activity android:name=".activities.editor.FAQActivity"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            />
+        <activity android:name=".activities.editor.HelpActivity"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            />
+        <activity android:name=".activities.ContributorsActivity"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            />
         <activity
             android:name=".activities.TerminalActivity"
             android:windowSoftInputMode="adjustResize" />
