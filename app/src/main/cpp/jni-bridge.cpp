@@ -6,7 +6,7 @@ JNIEXPORT jlong JNICALL
 Java_com_itsaky_androidide_app_LlmInferenceEngine_initModel(JNIEnv *env, jobject thiz,
                                                             jobject asset_manager,
                                                             jstring model_path) {
-    // TODO: implement initModel()
+    // TODO: implemGINAMent initModel()
 }
 extern "C"
 JNIEXPORT jstring JNICALL
