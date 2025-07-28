@@ -17,23 +17,12 @@
 
 package com.itsaky.androidide.utils
 
-import android.app.Dialog
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.TextPaint
-import android.text.method.LinkMovementMethod
-import android.text.style.ClickableSpan
-import android.util.TypedValue
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import androidx.annotation.IdRes
-import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.view.forEach
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
@@ -54,18 +43,16 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.FillMenuParams
 import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
-import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
 import com.itsaky.androidide.actions.sidebar.EmailSidebarAction
 import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
+import com.itsaky.androidide.actions.sidebar.GitSidebarAction
 import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
-import com.itsaky.androidide.databinding.ContactDialogBinding
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
-import androidx.core.net.toUri
 
 /**
  * Sets up the actions that are shown in the
@@ -88,7 +75,8 @@ internal object EditorSidebarActions {
 
         @Suppress("KotlinConstantConditions")
         registry.registerAction(FileTreeSidebarAction(context, ++order))
-        registry.registerAction(BuildVariantsSidebarAction(context, ++order))
+//        registry.registerAction(BuildVariantsSidebarAction(context, ++order))
+        registry.registerAction(GitSidebarAction(context, ++order))
         registry.registerAction(TerminalSidebarAction(context, ++order))
         registry.registerAction(PreferencesSidebarAction(context, ++order))
         registry.registerAction(CloseProjectSidebarAction(context, ++order))

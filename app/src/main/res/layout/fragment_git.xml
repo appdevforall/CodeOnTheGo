@@ -1,0 +1,31 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <Button
+        android:id="@+id/btnGitInit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Initialize Repository" />
+
+    <Button
+        android:id="@+id/btnGitCommit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Commit Changes" />
+
+    <Button
+        android:id="@+id/btnGitPush"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Push to Remote" />
+
+    <Button
+        android:id="@+id/btnGitPull"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Pull from Remote" />
+
+</LinearLayout>
