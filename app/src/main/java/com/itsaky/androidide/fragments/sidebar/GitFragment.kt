@@ -21,9 +21,10 @@ import android.os.Bundle
 import android.view.View
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
+import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentGitBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
-import com.itsaky.androidide.git.GitCommitTask
 import com.itsaky.androidide.git.GitInitTask
 import com.itsaky.androidide.git.GitPullTask
 import com.itsaky.androidide.git.GitPushTask
@@ -51,9 +52,8 @@ class GitFragment :
 
         // Set up the Commit button
         binding.btnGitCommit.setOnClickListener {
-            // This will automatically show a dialog for the commit message
-            // and then run the commit task with a progress dialog.
-            GitCommitTask.commit(requireContext())
+            // Use the NavController to navigate via the action defined in the graph
+            findNavController().navigate(R.id.action_gitFragment_to_gitCommitFragment)
         }
 
         // Set up the Push button

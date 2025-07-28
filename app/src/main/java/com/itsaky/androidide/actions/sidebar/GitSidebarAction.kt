@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
-import com.itsaky.androidide.fragments.sidebar.GitFragment
+import com.itsaky.androidide.fragments.sidebar.GitFragmentContainer
 import kotlin.reflect.KClass
 
 /**
@@ -15,7 +15,7 @@ import kotlin.reflect.KClass
 class GitSidebarAction(context: Context, override val order: Int) :
     AbstractSidebarAction() {
 
-    override val fragmentClass: KClass<out Fragment> = GitFragment::class
+    override val fragmentClass: KClass<out Fragment> = GitFragmentContainer::class
     override val id: String = "ide.editor.sidebar.git"
 
     init {
