@@ -15,38 +15,15 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import com.android.build.gradle.BaseExtension
+import com.itsaky.androidide.plugins.conf.configureAndroidModule
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
+  id("build-logic.root-project")
   alias(libs.plugins.android.application) apply false
   alias(libs.plugins.android.library) apply false
   alias(libs.plugins.kotlin.android) apply false
-}
-
-subprojects {
-  plugins.withId("com.android.library") {
-    extensions.getByType(BaseExtension::class.java).apply {
-      compileSdkVersion(35)
-
-      defaultConfig {
-        minSdk = 26
-        //noinspection ExpiredTargetSdkVersion
-        targetSdk = 28
-      }
-
-      compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-      }
-
-      buildTypes.register("dev") {
-        initWith(buildTypes.getByName("release"))
-        isMinifyEnabled = false
-      }
-    }
-  }
 }
 
 allprojects {
@@ -55,6 +32,10 @@ allprojects {
       sourceCompatibility = JavaVersion.VERSION_17
       targetCompatibility = JavaVersion.VERSION_17
     }
+  }
+
+  plugins.withId("com.android.library") {
+    configureAndroidModule(libs.androidx.libDesugaring)
   }
 
   tasks.withType<KotlinCompile> {
