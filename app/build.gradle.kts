@@ -59,6 +59,37 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
     testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+
+    externalNativeBuild {
+      cmake {
+        // Optional: Pass arguments to CMake.
+        // For example, to enable NEON optimizations explicitly.
+        arguments += "-DGGML_ARM_NEON=ON"
+      }
+    }
+
+    ndk {
+       abiFilters += listOf("arm64-v8a")
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      // Path to the CMakeLists.txt file, relative to the build.gradle.kts file.
+      path = file("src/main/cpp/CMakeLists.txt")
+      // Specifies the version of CMake to use. This should match a version
+      // installed via the SDK Manager.
+      version = "3.22.1"
+    }
+  }
+
+  // It is highly recommended to filter for specific ABIs (Application Binary Interfaces)
+  // to reduce APK size and build times. 'arm64-v8a' targets modern 64-bit ARM devices,
+  // which covers the vast majority of the current Android market.
+  packaging {
+    jniLibs {
+      useLegacyPackaging = false
+    }
   }
 
   testOptions {
