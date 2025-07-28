@@ -21,13 +21,8 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
-import android.util.Log
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.blankj.utilcode.util.FileUtils
-import com.blankj.utilcode.util.ResourceUtils
-import com.blankj.utilcode.util.ZipUtils
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.itsaky.androidide.R
@@ -39,13 +34,14 @@ import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
 import com.itsaky.androidide.fragments.onboarding.StatisticsFragment
-import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.withStopWatch
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -55,44 +51,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
-import org.adfa.constants.ANDROID_SDK_ZIP
-import org.adfa.constants.ANDROID_SDK_ZIP_BR
-import org.adfa.constants.DESTINATION_ANDROID_SDK
-import org.adfa.constants.DOCUMENTATION_DB
-import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME
-import org.adfa.constants.GRADLE_WRAPPER_FILE_NAME_BR
-import org.adfa.constants.HOME_PATH
-import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
-import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR
-import org.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
-import org.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
-import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import org.adfa.constants.MANIFEST_FILE_NAME
-import org.adfa.constants.SPLIT_ASSETS
-import org.adfa.constants.TERMUX_DEBS_PATH
-import org.adfa.constants.GRADLE_API_NAME_ZIP
-import org.adfa.constants.GRADLE_API_NAME_BR
-import org.adfa.constants.GRADLE_API_NAME
-import java.io.File
-import java.io.IOException
-import java.io.FileInputStream
-import java.io.FileOutputStream
-
-import org.brotli.dec.BrotliInputStream;
+import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
-
-    private val terminalActivityCallback = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        Log.d(TAG, "TerminalActivity: resultCode=${it.resultCode}")
-        if (!isFinishing) {
-            reloadJdkDistInfo {
-                tryNavigateToMainIfSetupIsCompleted()
-            }
-        }
-    }
 
     private val activityScope =
         CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
@@ -100,8 +61,7 @@ class OnboardingActivity : AppIntro2() {
     private var listJdkInstallationsJob: Job? = null
 
     companion object {
-
-        private const val TAG = "OnboardingActivity"
+        private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
         private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
             "ide.archConfig.experimentalWarning.isShown"
     }
@@ -171,13 +131,6 @@ class OnboardingActivity : AppIntro2() {
             return
         }
 
-        /******** TODO JMT deleted for offline mode
-        if (!StatPreferences.statConsentDialogShown) {
-        addSlide(StatisticsFragment.newInstance(this))
-        StatPreferences.statConsentDialogShown = true
-        }
-         **********/
-
         if (!PermissionsFragment.areAllPermissionsGranted(this)) {
             addSlide(PermissionsFragment.newInstance(this))
         }
@@ -216,305 +169,25 @@ class OnboardingActivity : AppIntro2() {
                 runOnUiThread {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
-                copyTermuxDebsAndManifest()
-                copyAndroidSDK()
-                copyMavenLocalRepoFiles()
-                copyGradleDists()
-                copyToolingApi()
-                copyGradleApi()
-                copyDocumentation()
 
-                runOnUiThread {
-                    val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
-                    intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
-                    intent.putExtra(
-                        TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
-                        currentFragment.buildIdeSetupArguments()
-                    )
+                val result = withStopWatch("Assets installation") {
+                    AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
+                        logger.debug("Assets installation progress: {}", progress.message)
+                    }
+                }
 
-                    terminalActivityCallback.launch(intent)
+                logger.info("Assets installation result: {}", result)
+
+                withContext(Dispatchers.Main) {
+                    reloadJdkDistInfo {
+                        tryNavigateToMainIfSetupIsCompleted()
+                    }
                 }
             }
             return
         }
 
         tryNavigateToMainIfSetupIsCompleted()
-    }
-
-    private fun copyTermuxDebsAndManifest() {
-        val outputDirectory = File(application.dataDir.path + File.separator + TERMUX_DEBS_PATH)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, "packages/") }
-            else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME),
-                    outputDirectory.path
-                )
-            }
-        } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
-        }
-
-        try {
-            val manifestOutputDirectory =
-                File(application.filesDir.path + File.separator + HOME_PATH).resolve(
-                    MANIFEST_FILE_NAME
-                )
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(MANIFEST_FILE_NAME),
-                manifestOutputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux manifest copy failed + ${e.message}")
-        }
-    }
-
-    private fun copyAndroidSDK() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK)
-        val zipFile =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK + File.separator + ANDROID_SDK_ZIP)
-        val brotliFile =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK + File.separator + ANDROID_SDK_ZIP_BR)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, ANDROID_SDK_ZIP) }
-            else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(ANDROID_SDK_ZIP_BR),
-                    brotliFile.path
-                )
-
-                if (!brotliFile.exists()) {
-                    Log.e("OnboardingActivityInstall", "Brotli file ${brotliFile.path} doesn't exist!")
-                }
-
-                decompressBrotli(brotliFile.path, zipFile.path)
-                if (!zipFile.exists()) {
-                    Log.e("OnboardingActivityInstall", "Brotli decompression of ${brotliFile.path} failed!")
-                }
-
-            }
-
-            ZipUtils.unzipFile(zipFile, outputDirectory)
-            zipFile.delete()
-
-            if (!SPLIT_ASSETS) {
-                brotliFile.delete()
-            }
-
-        } catch (e: IOException) {
-            Log.e("OnboardingActivityInstall", "Android SDK copy failed: ${e.message}")
-        }
-    }
-
-    private fun copyMavenLocalRepoFiles() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + LOCAL_MAVEN_CACHES_DEST)
-        val mavenZipFile =
-            File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
-        val mavenBrotliFile =
-            File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR")
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME) }
-            else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME_BR),
-                    mavenBrotliFile.path
-                )
-
-                decompressBrotli(mavenBrotliFile.path, mavenZipFile.path)
-                if (!mavenZipFile.exists()) {
-                    Log.e("OnboardingActivityInstall", "Brotli decompression of ${mavenBrotliFile.path} failed!")
-                }
-
-            }
-
-            ZipUtils.unzipFile(mavenZipFile, outputDirectory)
-            mavenZipFile.delete()
-
-            if (!SPLIT_ASSETS) {
-                mavenBrotliFile.delete()
-            }
-
-        } catch (e: IOException) {
-            Log.e("OnboardingActivityInstall", "Android Gradle caches copy failed: ${e.message}")
-        }
-    }
-
-    private fun copyGradleDists() {
-
-        try {
-            val outputDirectory =
-                File(Environment.GRADLE_DISTS.absolutePath)
-            if (!outputDirectory.exists()) {
-                outputDirectory.mkdirs()
-            }
-
-            val brotliFile = outputDirectory.resolve(GRADLE_WRAPPER_FILE_NAME_BR)
-            val zipFile = outputDirectory.resolve(GRADLE_WRAPPER_FILE_NAME)
-
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, GRADLE_WRAPPER_FILE_NAME)
-            } else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(GRADLE_WRAPPER_FILE_NAME_BR),
-                    brotliFile.absolutePath
-                )
-
-                decompressBrotli(brotliFile.absolutePath, zipFile.absolutePath)
-
-                if (!zipFile.exists()) {
-                    Log.e("OnboardingActivityInstall", "Brotli decompression of ${brotliFile.path} failed!")
-                }
-
-                // copy duplicate kotlin embeddable jar to local maven repo
-                val kotlin_embed_jar = "lib/kotlin-compiler-embeddable-1.9.22.jar"
-                Log.d("OnboardingActivityInstall", "Copying $kotlin_embed_jar to ${zipFile.parentFile?.path}")
-                ZipUtils.unzipFileByKeyword(zipFile, zipFile.parentFile, kotlin_embed_jar)
-                val jarSrc = File("${zipFile.parentFile?.path}/gradle-8.7/${kotlin_embed_jar}")
-                val jarDest = File("${application.filesDir.path}/$LOCAL_MAVEN_CACHES_DEST/" +
-                        "localMvnRepository/org/jetbrains/kotlin/kotlin-compiler-embeddable/1.9.22/${jarSrc.name}")
-                if (jarSrc.exists()) {
-                    Log.d("OnboardingActivityInstall", "Copying ${jarSrc.path} to ${jarDest.path}")
-                    jarSrc.copyTo(jarDest, overwrite = true)
-                    // delete source jar and parent folder
-                    zipFile.parentFile.resolve("gradle-8.7").deleteRecursively()
-                } else {
-                    Log.e("OnboardingActivityInstall", "${jarSrc.absolutePath} does not exist!")
-                }
-
-                brotliFile.delete()
-            }
-
-            ZipUtils.unzipFile(zipFile, outputDirectory)
-            zipFile.delete()
-
-        } catch (e: IOException) {
-            Log.e("OnboardingActivityInstall", "Gradle Dists copy failed: ${e.message}")
-        }
-    }
-
-    private fun copyDocumentation() {
-        val dbPath = getDatabasePath(DOCUMENTATION_DB)
-        val dbFile = File(Environment.DOWNLOAD_DIR, DOCUMENTATION_DB)
-        try {
-            if (SPLIT_ASSETS) {
-                if (dbFile.exists()) {
-                    // first priority to copy is documentation db in /sdcard/Download
-                    dbFile.copyTo(dbPath, overwrite = true)
-                } else {
-                    // second priority is the one contained in assets.zip
-                    ZipUtils.unzipFileByKeyword(
-                        Environment.SPLIT_ASSETS_ZIP,
-                        dbPath.parentFile,
-                        DOCUMENTATION_DB
-                    )
-                }
-            } else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getDatabaseAsset(DOCUMENTATION_DB),
-                    dbPath.path
-                )
-            }
-        } catch (e: IOException) {
-            println("Documentation DB copy failed + ${e.message}")
-        }
-    }
-
-    private fun copyToolingApi() {
-        val tooling_api_jar = "tooling-api-all.jar"
-        val tooling_api_jar_br = "${tooling_api_jar}.br"
-
-        try {
-            if (Environment.TOOLING_API_JAR.exists()) {
-                FileUtils.delete(Environment.TOOLING_API_JAR)
-            }
-
-            if (SPLIT_ASSETS) {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(tooling_api_jar),
-                    Environment.TOOLING_API_JAR.absolutePath
-                )
-            } else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(tooling_api_jar_br),
-                    Environment.TOOLING_API_JAR.parentFile.resolve(tooling_api_jar_br).absolutePath
-                )
-
-                val brotliFile = Environment.TOOLING_API_JAR.parentFile.resolve(tooling_api_jar_br)
-                val jarFile = Environment.TOOLING_API_JAR.parentFile.resolve(tooling_api_jar)
-                if (!brotliFile.exists()) {
-                    Log.e("OnboardingActivityInstall",
-                        "Brotli file ${brotliFile.path} doesn't exist!")
-                }
-
-                decompressBrotli(brotliFile.absolutePath, jarFile.absolutePath)
-                brotliFile.delete()
-
-                if (!jarFile.exists()) {
-                    Log.e("OnboardingActivityInstall", "Brotli decompression of ${jarFile.path} failed!")
-                }
-            }
-
-        } catch (e: IOException) {
-            Log.e("OnboardingActivityInstall", "Tooling API jar copy failed: ${e.message}")
-        }
-    }
-
-    private fun copyGradleApi() {
-        val outputDirectory =
-            File(Environment.GRADLE_GEN_JARS.absolutePath)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        val brotliFile = outputDirectory.resolve(GRADLE_API_NAME_BR)
-        val zipFile = outputDirectory.resolve(GRADLE_API_NAME_ZIP)
-
-        try {
-
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, GRADLE_API_NAME_ZIP)
-                ZipUtils.unzipFile(zipFile, outputDirectory)
-                zipFile.delete()
-            } else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(GRADLE_API_NAME_BR),
-                    Environment.GRADLE_GEN_JARS.resolve(GRADLE_API_NAME_BR).absolutePath
-                )
-
-                val jarFile = Environment.GRADLE_GEN_JARS.resolve(GRADLE_API_NAME)
-                if (!brotliFile.exists()) {
-                    Log.e("OnboardingActivityInstall",
-                        "Brotli file ${brotliFile.path} doesn't exist!")
-                }
-
-                decompressBrotli(brotliFile.absolutePath, jarFile.absolutePath)
-                brotliFile.delete()
-
-                if (!jarFile.exists()) {
-                    Log.e("OnboardingActivityInstall", "Brotli decompression of ${jarFile.path} failed!")
-                }
-            }
-
-        } catch (e: IOException) {
-            Log.e("OnboardingActivityInstall", "Gradle API jar copy failed: ${e.message}")
-        }
     }
 
     private fun checkToolsIsInstalled(): Boolean {
@@ -524,7 +197,6 @@ class OnboardingActivity : AppIntro2() {
 
     private fun isSetupCompleted(): Boolean {
         return checkToolsIsInstalled()
-                /* JMT && StatPreferences.statConsentDialogShown */
                 && PermissionsFragment.areAllPermissionsGranted(this)
     }
 
@@ -611,21 +283,4 @@ class OnboardingActivity : AppIntro2() {
 
     private fun archConfigExperimentalWarningIsShown() =
         prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
-
-    private fun decompressBrotli(inputPath: String, outputPath: String) {
-        FileInputStream(inputPath).use { input ->
-            BrotliInputStream(input).use { brotliIn ->
-                FileOutputStream(outputPath).use { output ->
-                    val buffer = ByteArray(1024 * 1024) // 1Mb buffer
-                    var bytesRead: Int
-
-                    while (brotliIn.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                    }
-
-                }
-            }
-        }
-    }
-
 }

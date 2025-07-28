@@ -27,6 +27,7 @@ import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.eventbus.events.Event
+import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
 import com.itsaky.androidide.events.ExpandTreeNodeRequestEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.unnamed.b.atv.model.TreeNode
@@ -86,5 +87,9 @@ abstract class BaseFileTreeAction(
 
   protected fun requestExpandNode(node: TreeNode) {
     EventBus.getDefault().post(ExpandTreeNodeRequestEvent(node))
+  }
+
+  protected fun requestCollapseNode(node: TreeNode, includeSubnodes: Boolean) {
+    EventBus.getDefault().post(CollapseTreeNodeRequestEvent(node, includeSubnodes))
   }
 }
