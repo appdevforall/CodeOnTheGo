@@ -28,4 +28,10 @@
         android:layout_height="wrap_content"
         android:text="Pull from Remote" />
 
+    <Button
+        android:id="@+id/btnManageRemotes"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Manage Remotes" />
+
 </LinearLayout>

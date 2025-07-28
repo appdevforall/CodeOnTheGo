@@ -15,6 +15,9 @@
             android:id="@+id/action_gitFragment_to_gitCommitFragment"
             app:destination="@id/gitCommitFragment" />
 
+        <action
+            android:id="@+id/action_gitFragment_to_gitRemotesListFragment"
+            app:destination="@id/gitRemotesListFragment" />
     </fragment>
 
     <fragment
@@ -23,4 +26,24 @@
         android:label="Commit Changes"
         tools:layout="@layout/fragment_git_commit" />
 
+    <fragment
+        android:id="@+id/gitRemotesListFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitRemotesListFragment"
+        android:label="Manage Remotes"
+        tools:layout="@layout/fragment_git_remotes_list">
+        <action
+            android:id="@+id/action_gitRemotesListFragment_to_gitEditRemoteFragment"
+            app:destination="@id/gitEditRemoteFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/gitEditRemoteFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitEditRemoteFragment"
+        android:label="Edit Remote"
+        tools:layout="@layout/fragment_git_edit_remote">
+        <argument
+            android:name="remoteName"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
+    </fragment>
 </navigation>

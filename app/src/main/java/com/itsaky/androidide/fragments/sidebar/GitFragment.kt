@@ -50,6 +50,9 @@ class GitFragment :
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
         emptyStateViewModel.isEmpty.value = false
 
+        binding.btnManageRemotes.setOnClickListener {
+            findNavController().navigate(R.id.action_gitFragment_to_gitRemotesListFragment)
+        }
         // Set up the Commit button
         binding.btnGitCommit.setOnClickListener {
             // Use the NavController to navigate via the action defined in the graph
