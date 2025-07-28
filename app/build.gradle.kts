@@ -287,7 +287,7 @@ tasks.register("downloadDocDb") {
 
       val dbName = "documentation.db"
       if (assetUrl != null && assetName != null) {
-        val destinationPath = project.rootProject.projectDir.resolve("libs_source/${dbName}").toPath()
+        val destinationPath = project.rootProject.projectDir.resolve("assets/${dbName}").toPath()
 
 
         project.logger.lifecycle("Downloading : $assetUrl as ${destinationPath}")
@@ -315,7 +315,7 @@ fun createAssetsZip(
   }
 
   val zipFile = outputDir.resolve("assets-$arch.zip")
-  val sourceDir = project.rootDir.resolve("libs_source")
+  val sourceDir = project.rootDir.resolve("assets")
   val bootstrapName = "bootstrap-$arch.zip"
   val androidSdkName = "android-sdk-$arch.zip"
 
