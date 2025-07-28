@@ -1,9 +1,11 @@
-package com.itsaky.androidide.utils
+package com.itsaky.androidide.assets
 
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.app.configuration.CpuArch
-import com.itsaky.androidide.utils.AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME
+import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.TerminalInstaller
+import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
@@ -18,12 +20,53 @@ import java.nio.file.Path
 import java.util.zip.ZipInputStream
 import kotlin.io.path.exists
 
-object AssetsInstaller {
+data object SplitAssetsInstaller : AssetsInstaller {
 
-    private val logger = LoggerFactory.getLogger(AssetsInstaller::class.java)
+    private val logger = LoggerFactory.getLogger(SplitAssetsInstaller::class.java)
+
+    override suspend fun preInstall(
+        context: Context,
+        stagingDir: Path,
+    ): Unit = withContext(Dispatchers.IO) {
+        val input = Environment.SPLIT_ASSETS_ZIP.inputStream()
+
+        // This ZIP data stream is the stream for the top-level ZIP file
+        // which contains all other ZIP files. We read this ZIP data stream using ZipInputStream and
+        // extract all the entries (like android-sdk.zip, bootstrap-*.zip, etc.) to a temporary
+        // directory. Once all the ZIP files have been extracted to the staging directory, we extract
+        // all of them (in parallel) to their appropriate locations.
+        ZipInputStream(input.buffered(bufferSize = DEFAULT_BUFFER_SIZE * 2)).useEntriesEach { zipInput, entry ->
+            if (entry.isDirectory) {
+                throw IllegalStateException("Directory entries are not allowed in the zip file")
+            }
+
+            when (entry.name) {
+                // TODO: The name of this variable must be changed.
+                //   It contains the name of the Gradle "distribution", NOT the "wrapper"!
+                GRADLE_DISTRIBUTION_ARCHIVE_NAME,
+                ANDROID_SDK_ZIP,
+                DOCUMENTATION_DB,
+                LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
+                AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME,
+                GRADLE_API_NAME_JAR_ZIP -> {
+                    val destFile = stagingDir.resolve(entry.name)
+                    if (destFile.exists()) {
+                        throw IllegalStateException("FATAL: file already exists: $destFile")
+                    }
+
+                    logger.debug("Extracting entry '{}' to file: {}", entry.name, destFile)
+                    Files.newOutputStream(destFile).use { dest ->
+                        zipInput.copyTo(dest)
+                    }
+                }
+
+                else -> throw IllegalStateException("Unknown entry: ${entry.name}")
+            }
+        }
+    }
 
     @WorkerThread
-    suspend fun doInstall(
+    override suspend fun doInstall(
         context: Context,
         stagingDir: Path,
         cpuArch: CpuArch,
@@ -39,8 +82,9 @@ object AssetsInstaller {
                 AssetsInstallationHelper.extractZipToDir(srcFile, destDir)
             }
 
-            BOOTSTRAP_ENTRY_NAME -> {
-                val channel = Files.newByteChannel(stagingDir.resolve(BOOTSTRAP_ENTRY_NAME))
+            AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+                val channel =
+                    Files.newByteChannel(stagingDir.resolve(AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME))
                 val result = TerminalInstaller.installIfNeeded(context, channel)
                 if (result !is TerminalInstaller.InstallResult.Success) {
                     throw IllegalStateException("Failed to install terminal: $result")
@@ -73,44 +117,7 @@ object AssetsInstaller {
         else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
     }
 
-    suspend fun preInstall(
-        context: Context,
-        stagingDir: Path,
-    ) = withContext(Dispatchers.IO) {
-        val input = Environment.SPLIT_ASSETS_ZIP.inputStream()
-
-        // This ZIP data stream is the stream for the top-level ZIP file
-        // which contains all other ZIP files. We read this ZIP data stream using ZipInputStream and
-        // extract all the entries (like android-sdk.zip, bootstrap-*.zip, etc.) to a temporary
-        // directory. Once all the ZIP files have been extracted to the staging directory, we extract
-        // all of them (in parallel) to their appropriate locations.
-        ZipInputStream(input.buffered(bufferSize = DEFAULT_BUFFER_SIZE * 2)).useEntriesEach { zipInput, entry ->
-            if (entry.isDirectory) {
-                throw IllegalStateException("Directory entries are not allowed in the zip file")
-            }
-
-            when (entry.name) {
-                // TODO: The name of this variable must be changed.
-                //   It contains the name of the Gradle "distribution", NOT the "wrapper"!
-                GRADLE_DISTRIBUTION_ARCHIVE_NAME,
-                ANDROID_SDK_ZIP,
-                DOCUMENTATION_DB,
-                LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
-                BOOTSTRAP_ENTRY_NAME,
-                GRADLE_API_NAME_JAR_ZIP -> {
-                    val destFile = stagingDir.resolve(entry.name)
-                    if (destFile.exists()) {
-                        throw IllegalStateException("FATAL: file already exists: $destFile")
-                    }
-
-                    logger.debug("Extracting entry '{}' to file: {}", entry.name, destFile)
-                    Files.newOutputStream(destFile).use { dest ->
-                        zipInput.copyTo(dest)
-                    }
-                }
-
-                else -> throw IllegalStateException("Unknown entry: ${entry.name}")
-            }
-        }
+    override suspend fun postInstall(context: Context, stagingDir: Path) {
+        // no-op
     }
 }
