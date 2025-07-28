@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.databinding.FragmentGitCommitBinding
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -108,8 +109,7 @@ class GitCommitFragment : Fragment() {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(requireContext(), "Commit successful!", Toast.LENGTH_SHORT)
                         .show()
-                    // Optionally, navigate back after commit
-                    // findNavController().popBackStack()
+                    findNavController().popBackStack()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
