@@ -68,10 +68,12 @@ tasks.register("copyJar") {
 project.tasks.getByName<Jar>("jar") {
   dependsOn("deleteExistingJarFiles")
   finalizedBy("shadowJar")
+  entryCompression = ZipEntryCompression.STORED
 }
 
 project.tasks.getByName<ShadowJar>("shadowJar") {
   finalizedBy("copyJar")
+  entryCompression = ZipEntryCompression.STORED
 }
 
 
