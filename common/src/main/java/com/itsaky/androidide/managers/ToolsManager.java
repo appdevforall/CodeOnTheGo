@@ -28,6 +28,9 @@ import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
 
+import com.aayushatharva.brotli4j.Brotli4jLoader;
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream;
+
 import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
 import com.blankj.utilcode.util.ResourceUtils;
@@ -118,15 +121,18 @@ public class ToolsManager {
 
     @WorkerThread
     private static void updateToolingJar(AssetManager assets) {
+        // Ensure relevant shared libraries are loaded
+        Brotli4jLoader.ensureAvailability();
+
         final var toolingJarName = "tooling-api-all.jar";
         InputStream toolingJarStream;
         try {
             toolingJarStream = assets.open(ToolsManager.getCommonAsset(toolingJarName));
         } catch (IOException e) {
             try {
-                toolingJarStream = assets.open(toolingJarName + ".br");
+                toolingJarStream = new BrotliInputStream(assets.open(ToolsManager.getCommonAsset(toolingJarName + ".br")));
             } catch (IOException e2) {
-                LOG.error("Tooling jar not found in assets");
+                LOG.error("Tooling jar not found in assets {}", e2.getMessage());
                 return;
             }
         }
