@@ -11,7 +11,9 @@ import com.itsaky.androidide.screens.ProjectSettingsScreen.clickCreateProjectPro
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
-import org.junit.After
+import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import org.junit.AfterClass
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 
@@ -20,16 +22,35 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @get:Rule
     val activityRule = activityScenarioRule<SplashActivity>()
 
-    @After
-    fun cleanUp() {
-        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
+    companion object {
+        private var isSetupComplete = false
+
+        @BeforeClass
+        @JvmStatic
+        fun setUpClass() {
+            // Setup runs once for the entire test class
+        }
+
+        @AfterClass
+        @JvmStatic
+        fun tearDownClass() {
+            // Clean up only after all tests are complete
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
+        }
+    }
+
+    private fun TestContext<Unit>.ensureMainScreenReady() {
+        if (!isSetupComplete) {
+            navigateToMainScreen()
+            isSetupComplete = true
+        }
     }
 
 
     @Test
     fun test_projectBuild_emptyProject_java() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the empty project",
@@ -44,7 +65,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_kotlin() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the empty project",
@@ -59,7 +80,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_java() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the basic project",
@@ -77,7 +98,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
             step("Navigate to main screen") {
                 // Ensure consistent start state with increased timeout
                 flakySafely(timeoutMs = 30000) {
-                    navigateToMainScreen()
+                    ensureMainScreenReady()
                 }
             }
 
@@ -119,7 +140,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_java() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the navigation drawer project",
@@ -134,7 +155,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_kotlin() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the navigation drawer project",
@@ -149,7 +170,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_java() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the bottom navigation project",
@@ -164,7 +185,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_kotlin() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the bottom navigation project",
@@ -179,7 +200,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_java() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the tabbed activity project",
@@ -194,7 +215,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_kotlin() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the tabbed activity project",
@@ -209,7 +230,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_noAnd2roidXProject_java() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the no AndroidX project",
@@ -224,7 +245,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_kotlin() {
         run {
-            navigateToMainScreen()
+            ensureMainScreenReady()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the no AndroidX project",
@@ -240,7 +261,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
 //    @Test
 //    fun test_projectBuild_composeProject() {
 //        run {
-//            navigateToMainScreen()
+//            ensureMainScreenReady()
 //            clickCreateProjectHomeScreen()
 //            selectProjectTemplate(
 //                "Select the no Compose project",

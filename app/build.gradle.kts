@@ -49,6 +49,7 @@ buildscript {
 
 android {
   namespace = BuildConfig.packageName
+  testBuildType = "instrumentation"
 
   defaultConfig {
     applicationId = BuildConfig.packageName

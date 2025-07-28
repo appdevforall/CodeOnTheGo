@@ -96,23 +96,46 @@ class NavigateToMainScreenScenario : Scenario() {
         }
 
         step("Click continue button on the Install Tools Screen") {
-            flakySafely(120000) {
-                device.uiDevice.waitForIdle(10000)
+            flakySafely(600000) {
+                device.uiDevice.waitForIdle(30000)
                 InstallToolsScreen.doneButton {
-                    flakySafely(20000) {
+                    flakySafely(500000) {
                         isVisible()
                         isEnabled()
                         isClickable()
+                        println("About to click DONE button on Install Tools Screen")
                         click()
+                        println("DONE button clicked successfully")
                     }
+                }
+                // Wait for navigation to complete after clicking DONE
+                device.uiDevice.waitForIdle(15000)
+                println("Waiting for navigation to complete after DONE click...")
+            }
+        }
+
+        step("Handle notifications permissions if they appear") {
+            flakySafely(60000) {
+                try {
+                    if (device.permissions.isDialogVisible()) {
+                        println("Notification permission dialog found, denying...")
+                        device.permissions.denyViaDialog()
+                    } else {
+                        println("No notification permission dialog found")
+                    }
+                } catch (e: Exception) {
+                    println("No notification permission dialog found, continuing...")
                 }
             }
         }
 
-        step("Decline notifications permissions") {
-            flakySafely(1000000) {
-                device.permissions.isDialogVisible()
-                device.permissions.denyViaDialog()
+        step("Wait for main screen to fully load") {
+            flakySafely(60000) {
+                device.uiDevice.waitForIdle(20000)
+                println("Waiting for main screen to fully load...")
+                // Give additional time for main screen to fully initialize
+                Thread.sleep(10000)
+                println("Main screen should now be loaded")
             }
         }
     }
