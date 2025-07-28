@@ -1,7 +1,9 @@
 package com.itsaky.androidide
 
-import androidx.test.ext.junit.rules.activityScenarioRule
+import android.content.Intent
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.navigateToMainScreen
@@ -15,22 +17,21 @@ import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.junit.AfterClass
 import org.junit.BeforeClass
-import org.junit.Rule
 import org.junit.Test
 
 
 class ProjectBuildTestWithGroovyGradle : TestCase() {
 
-    @get:Rule
-    val activityRule = activityScenarioRule<SplashActivity>()
-
     companion object {
-        private var isSetupComplete = false
-
         @BeforeClass
         @JvmStatic
         fun setUpClass() {
-            // Setup runs once for the entire test class
+            // Start the app once for the entire test class
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val intent = Intent(context, SplashActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
         }
 
         @AfterClass
@@ -41,17 +42,10 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
         }
     }
 
-    private fun TestContext<Unit>.ensureMainScreenReady() {
-        if (!isSetupComplete) {
-            navigateToMainScreen()
-            isSetupComplete = true
-        }
-    }
-
     @Test
     fun test_projectBuild_emptyProject_java_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the empty project",
@@ -67,7 +61,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_kotlin_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the empty project",
@@ -83,7 +77,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_java_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the basic project",
@@ -99,7 +93,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_kotlin_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the basic project",
@@ -115,7 +109,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_java_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the navigation drawer project",
@@ -131,7 +125,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_kotlin_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the navigation drawer project",
@@ -147,7 +141,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_java_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the bottom navigation project",
@@ -163,7 +157,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_kotlin_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the bottom navigation project",
@@ -179,7 +173,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_java_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the tabbed activity project",
@@ -195,7 +189,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_kotlin_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the tabbed activity project",
@@ -211,7 +205,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_java_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the no AndroidX project",
@@ -227,7 +221,7 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_kotlin_groovyGradle() {
         run {
-            ensureMainScreenReady()
+            navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
                 "Select the no AndroidX project",
