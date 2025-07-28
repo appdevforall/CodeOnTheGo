@@ -18,16 +18,6 @@ public class AndroidUtils {
   private static final int PACKAGE_LENGTH_LIMIT = 100;
 
   /**
-   * Checks if the given name is a valid Android application package (which has additional
-   * requirements beyond a normal Java package)
-   *
-   * @see #validateAndroidPackageName(String)
-   */
-  public static boolean isValidAndroidPackageName(@NotNull String name) {
-    return validateAndroidPackageName(name) == null;
-  }
-
-  /**
    * Validates a potential package name and returns null if the package name is valid, and otherwise
    * returns a description for why it is not valid.
    *
@@ -97,31 +87,6 @@ public class AndroidUtils {
         : BaseApplication.getBaseInstance().getString(R.string.msg_package_mus_have_dot);
   }
 
-  /**
-   * Checks if the given name is a valid general Java package name.
-   *
-   * <p>If validating the Android package name, use {@link #validateAndroidPackageName(String)}
-   * instead!
-   */
-  public static boolean isValidJavaPackageName(@NotNull String name) {
-    int index = 0;
-    while (true) {
-      int index1 = name.indexOf('.', index);
-      if (index1 < 0) index1 = name.length();
-      if (!isIdentifier(name.substring(index, index1))) return false;
-      if (index1 == name.length()) return true;
-      index = index1 + 1;
-    }
-  }
-
-  public static boolean isIdentifier(@NotNull String candidate) {
-    return StringUtil.isJavaIdentifier(candidate);
-  }
-
-  public static boolean validateNameChecker(@NotNull String name) {
-    return name.matches("^([a-zA-Z0-9_]*)$");
-  }
-
   @Nullable
   public static String validatePackageName(@Nullable String packageName) {
     packageName = (packageName == null) ? "" : packageName;
@@ -129,65 +94,6 @@ public class AndroidUtils {
       return BaseApplication.getBaseInstance().getString(R.string.msg_package_is_to_long);
     }
     return AndroidUtils.validateAndroidPackageName(packageName);
-  }
-
-  /**
-   * Converts a CamelCase word into an underlined_word
-   *
-   * @param string the CamelCase version of the word
-   * @return the underlined version of the word
-   */
-  @NotNull
-  public static String camelCaseToUnderlines(@NotNull String string) {
-    if (string.isEmpty()) {
-      return string;
-    }
-
-    StringBuilder sb = new StringBuilder(2 * string.length());
-    int n = string.length();
-    boolean lastWasUpperCase = Character.isUpperCase(string.charAt(0));
-    for (int i = 0; i < n; i++) {
-      char c = string.charAt(i);
-      boolean isUpperCase = Character.isUpperCase(c);
-      if (isUpperCase && !lastWasUpperCase) {
-        sb.append('_');
-      }
-      lastWasUpperCase = isUpperCase;
-      c = Character.toLowerCase(c);
-      sb.append(c);
-    }
-
-    return sb.toString();
-  }
-
-  /**
-   * Converts an underlined_word into a CamelCase word
-   *
-   * @param string the underlined word to convert
-   * @return the CamelCase version of the word
-   */
-  @NotNull
-  public static String underlinesToCamelCase(@NotNull String string) {
-    StringBuilder sb = new StringBuilder(string.length());
-    int n = string.length();
-
-    int i = 0;
-    @SuppressWarnings("SpellCheckingInspection")
-    boolean upcaseNext = true;
-    for (; i < n; i++) {
-      char c = string.charAt(i);
-      if (c == '_') {
-        upcaseNext = true;
-      } else {
-        if (upcaseNext) {
-          c = Character.toUpperCase(c);
-        }
-        upcaseNext = false;
-        sb.append(c);
-      }
-    }
-
-    return sb.toString();
   }
 
   public static String appNameToPackageName(String appName, String packageName) {
@@ -208,23 +114,5 @@ public class AndroidUtils {
       domain = "com.example";
     }
     return domain;
-  }
-
-  public static String capitalizeWords(String text) {
-    if (text == null || text.isEmpty()) {
-      return text;
-    }
-
-    String[] words = text.toLowerCase().split(" ");
-    StringBuilder result = new StringBuilder();
-
-    for (String word : words) {
-      if (!word.isEmpty()) {
-        String capitalizedWord = word.substring(0, 1).toUpperCase() + word.substring(1);
-        result.append(capitalizedWord).append(" ");
-      }
-    }
-
-    return result.toString().trim();
   }
 }

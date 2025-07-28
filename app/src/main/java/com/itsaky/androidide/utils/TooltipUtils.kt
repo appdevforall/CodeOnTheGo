@@ -19,18 +19,20 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.content.Intent
+import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import com.itsaky.androidide.utils.Environment
 import androidx.fragment.app.FragmentTransaction
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.fragments.IDETooltipWebviewFragment
 import com.itsaky.androidide.fragments.MainFragment
-import com.itsaky.androidide.idetooltips.IDETooltipDatabase
+
 import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipDaoProvider
+
 import com.itsaky.androidide.idetooltips.TooltipManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -85,21 +87,37 @@ object TooltipUtils {
     /**
      * Dumps tooltip database content to Logcat for debugging.
      */
-    suspend fun dumpDatabase(context: Context, database: IDETooltipDatabase) {
-        // No changes needed here
+    suspend fun dumpDatabase(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
-            val records =
-                TooltipDaoProvider.ideTooltipDao.getTooltipItems()
-            withContext(Dispatchers.Main) {
-                if (records.isEmpty()) {
-                    Log.d("DumpIDEDatabase", "No records found in IDETooltipDatabase.")
-                } else {
-                    for (item: IDETooltipItem in records) {
-                        Log.d(
-                            "DumpIDEDatabase",
-                            "tag = ${item.tooltipTag}\n\tsummary = ${item.summary}\n\tdetail = ${item.detail}\n\tbuttons = ${item.buttons}"
-                        )
+            try {
+                val dbPath = Environment.DOC_DB.absolutePath
+                val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
+                
+                val query = "SELECT COUNT(*) as count FROM ide_tooltip_table"
+                val cursor = db.rawQuery(query, null)
+                
+                if (cursor.moveToFirst()) {
+                    val count = cursor.getInt(cursor.getColumnIndexOrThrow("count"))
+                    cursor.close()
+                    db.close()
+                    
+                    withContext(Dispatchers.Main) {
+                        if (count == 0) {
+                            Log.d("DumpIDEDatabase", "No records found in ide_tooltip_table.")
+                        } else {
+                            Log.d("DumpIDEDatabase", "Found $count records in ide_tooltip_table.")
+                        }
                     }
+                } else {
+                    cursor.close()
+                    db.close()
+                    withContext(Dispatchers.Main) {
+                        Log.d("DumpIDEDatabase", "No records found in ide_tooltip_table.")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("DumpIDEDatabase", "Error accessing tooltip database: ${e.message}")
                 }
             }
         }

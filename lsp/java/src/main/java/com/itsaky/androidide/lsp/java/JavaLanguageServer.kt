@@ -27,10 +27,14 @@ import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clea
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.debug.IDebugAdapter
+import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.itsaky.androidide.lsp.internal.model.CachedCompletion
 import com.itsaky.androidide.lsp.java.actions.JavaCodeActionsMenu
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.compiler.SourceFileManager
+import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
+import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.lsp.java.models.JavaServerSettings
 import com.itsaky.androidide.lsp.java.providers.CodeFormatProvider
 import com.itsaky.androidide.lsp.java.providers.CompletionProvider
@@ -78,7 +82,7 @@ import java.util.Objects
 class JavaLanguageServer : ILanguageServer {
 
   private val completionProvider: CompletionProvider = CompletionProvider()
-  private val diagnosticProvider: JavaDiagnosticProvider?
+  private val diagnosticProvider = JavaDiagnosticProvider()
   override var client: ILanguageClient? = null
     private set
 
@@ -95,6 +99,8 @@ class JavaLanguageServer : ILanguageServer {
 
   override val serverId: String = SERVER_ID
 
+  override val debugAdapter: IDebugAdapter = JavaDebugAdapter()
+
   companion object {
 
     const val SERVER_ID = "ide.lsp.java"
@@ -102,7 +108,6 @@ class JavaLanguageServer : ILanguageServer {
   }
 
   init {
-    diagnosticProvider = JavaDiagnosticProvider()
     cachedCompletion = CachedCompletion.EMPTY
 
     applySettings(JavaServerSettings.getInstance())
@@ -115,6 +120,7 @@ class JavaLanguageServer : ILanguageServer {
   }
 
   override fun shutdown() {
+    (this.debugAdapter as? AutoCloseable?)?.close()
     JavaCompilerProvider.getInstance().destroy()
     SourceFileManager.clearCache()
     CacheFSInfoSingleton.clearCache()
@@ -125,6 +131,12 @@ class JavaLanguageServer : ILanguageServer {
 
   override fun connectClient(client: ILanguageClient?) {
     this.client = client
+  }
+
+  override fun connectDebugClient(client: IDebugClient) {
+    if (JdwpOptions.JDWP_ENABLED) {
+      this.debugAdapter.connectDebugClient(client)
+    }
   }
 
   override fun applySettings(settings: IServerSettings?) {
@@ -167,7 +179,7 @@ class JavaLanguageServer : ILanguageServer {
       return CompletionResult.EMPTY
     }
 
-    if (diagnosticProvider!!.isAnalyzing()) {
+    if (diagnosticProvider.isAnalyzing()) {
       log.warn("Cancelling source code analysis due to completion request")
       diagnosticProvider.cancel()
     }
@@ -215,7 +227,7 @@ class JavaLanguageServer : ILanguageServer {
 
     return if (!settings.codeAnalysisEnabled()) {
       DiagnosticResult.NO_UPDATE
-    } else diagnosticProvider!!.analyze(file)
+    } else diagnosticProvider.analyze(file)
   }
 
   override fun formatCode(params: FormatCodeParams?): CodeFormatResult {
@@ -295,7 +307,7 @@ class JavaLanguageServer : ILanguageServer {
   @Subscribe(threadMode = ThreadMode.ASYNC)
   @Suppress("unused")
   fun onFileClosed(event: DocumentCloseEvent) {
-    diagnosticProvider?.clearTimestamp(event.closedFile)
+    diagnosticProvider.clearTimestamp(event.closedFile)
 
     if (getActiveDocumentCount() == 0) {
       selectedFile = null

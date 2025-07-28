@@ -23,6 +23,7 @@ import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.StrictMode
+import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -43,10 +44,9 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.idetooltips.IDETooltipDao
-import com.itsaky.androidide.idetooltips.TooltipDaoProvider
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
 import com.itsaky.androidide.plugins.manager.PluginManager
+
+
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -59,7 +59,9 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
+import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.CoroutineScope
@@ -78,18 +80,22 @@ class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
-    private var localServerUtil: LocalServerUtil? = null
     private var pluginManager: PluginManager? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
     init {
-        if (!VMUtils.isJvm()) {
-            TreeSitter.loadLibrary()
+        if (!VMUtils.isJvm() && !isTestMode()) {
+            try {
+                TreeSitter.loadLibrary()
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
+            }
         }
 
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
+
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
@@ -113,9 +119,7 @@ class IDEApplication : TermuxApplication() {
 
             checkForSecondDisplay()
 
-            //Start the local HTTP server for CoGo tooltips
-            val localServerUtil = LocalServerUtil()
-            localServerUtil.startServer(6174)
+
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -137,14 +141,6 @@ class IDEApplication : TermuxApplication() {
             IDEColorSchemeProvider.init()
         }
 
-        TooltipDaoProvider.init(this)
-        ideTooltipDao = TooltipDaoProvider.ideTooltipDao
-
-        //Trigger a lightweight database access to force initialization
-        applicationScope.launch {
-            ideTooltipDao.getCount()
-        }
-        
         // Initialize plugin system
         initializePluginSystem()
     }
@@ -152,7 +148,7 @@ class IDEApplication : TermuxApplication() {
     private fun initializePluginSystem() {
         try {
             log.info("Initializing plugin system...")
-            
+
             // Create a plugin logger adapter
             val pluginLogger = object : com.itsaky.androidide.plugins.PluginLogger {
                 override val pluginId = "system"
@@ -165,13 +161,13 @@ class IDEApplication : TermuxApplication() {
                 override fun error(message: String) = log.error(message)
                 override fun error(message: String, error: Throwable) = log.error(message, error)
             }
-            
+
             pluginManager = PluginManager.getInstance(
                 context = this,
                 eventBus = EventBus.getDefault(),
                 logger = pluginLogger
             )
-            
+
             // Load plugins asynchronously
             applicationScope.launch {
                 try {
@@ -190,7 +186,6 @@ class IDEApplication : TermuxApplication() {
         writeException(th)
 
         try {
-            localServerUtil!!.stopServer()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
@@ -334,9 +329,6 @@ class IDEApplication : TermuxApplication() {
         lateinit var instance: IDEApplication
             private set
 
-        lateinit var ideTooltipDao: IDETooltipDao
-            private set
-            
         fun getPluginManager(): PluginManager? {
             return instance.pluginManager
         }

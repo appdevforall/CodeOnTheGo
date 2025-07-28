@@ -15,10 +15,10 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
+  id("java-library")
   kotlin("jvm")
 }
 
@@ -36,17 +36,4 @@ dependencies {
 
 sourceSets.main {
   java.srcDirs("src/main/kotlin")
-}
-
-tasks.withType<KotlinCompile> {
-  kotlinOptions.jvmTarget = "17"
-}
-
-kotlin {
-  jvmToolchain(17)
-}
-
-java {
-  sourceCompatibility = JavaVersion.VERSION_17
-  targetCompatibility = JavaVersion.VERSION_17
 }

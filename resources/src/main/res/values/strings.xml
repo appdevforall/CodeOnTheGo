@@ -64,6 +64,9 @@
     <string name="msg_installing_gradlew">Gradle Wrapper is not available!\nInstalling default one. Gradle v7.4 will be downloaded if necessary.</string>
     <string name="run">Run</string>
     <string name="gradle" translatable="false">Gradle</string>
+    <string name="action_start_debugger">Debug</string>
+
+
 
   <!-- Project -->
   <string name="title_first_build">Setting up your new project</string>
@@ -75,7 +78,7 @@
   <string name="project_app_name">App name</string>
   <string name="msg_create_new_project_greeting">Learn about <b>Code on the Go</b> here!</string>
   <string name="title_confirm_open_project">Open last project?</string>
-  <string name="msg_confirm_open_project">Do you want to open last opened project? Opened project was:\n%s</string>
+  <string name="msg_confirm_open_project">Do you want to open the last opened project? Opened project was:\n%s</string>
   <string name="title_close_project">Close this project</string>
   <string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist!</string>
   <string name="msg_create_new_project">Create new project</string>
@@ -89,20 +92,20 @@
   <string name="save_and_close">Save files and close project</string>
   <!-- Templates -->
   <string name="msg_confirm_project_close">When you close the project, all build tasks will be stopped and unsaved changes to your project file may be lost. Do you want to save the files before you close the project?</string>
-  <string name="template_basic">Basic Project</string>
-  <string name="template_empty">Empty project</string>
-  <string name="template_navigation_drawer">Navigation drawer project</string>
-  <string name="template_compose" translatable="false">Jetpack Compose</string>
-  <string name="template_navigation_tabs">Bottom Navigation Activity</string>
+  <string name="template_basic">Basic Activity</string>
+  <string name="template_empty">Empty Activity</string>
+  <string name="template_navigation_drawer">Navigation Drawer Activity</string>
+  <string name="template_compose" translatable="false">Compose Activity</string>
+  <string name="template_navigation_tabs">Bottom Nav Activity</string>
   <string name="template_tabs">Tabbed Activity</string>
   <string name="template_no_activity">No Activity</string>
-  <string name="template_no_AndroidX">No AndroidX</string>
+  <string name="template_no_AndroidX">Legacy Project (No AndroidX)</string>
 
   <!-- Files -->
   <string name="save">Save</string>
   <string name="menu_find">Find</string>
   <string name="menu_find_file">Find in file</string>
-  <string name="menu_find_project">Find in Project</string>
+  <string name="menu_find_project">Find in project</string>
   <string name="msg_search_modules">Search in modules</string>
   <string name="msg_no_modules">No modules found in project</string>
   <string name="hint_find_project_filter">Filter file extensions (optional)</string>
@@ -589,15 +592,19 @@
   <string name="msg_project_dir_doesnt_exist">Project directory does not exist</string>
   <string name="msg_files_being_saved">A file save operation is already in progress!</string>
   <string name="title_install_tools">Install Development Tools</string>
-  <string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n\nManual installation is not recommended.</string>
+  <string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
   <string name="msg_install_tools"> </string>
   <string name="greeting_title">Welcome</string>
   <string name="greeting_subtitle">Learn, build, launch. All on your Android.</string>
   <string name="title_grant">Allow</string>
   <string name="permission_title_storage">Storage</string>
   <string name="permission_desc_storage">Allow Code on the Go to access files.</string>
-  <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
   <string name="permission_title_install_packages">Install packages</string>
+  <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
+  <string name="permission_title_overlay_window">Overlay window</string>
+  <string name="permission_title_accessibility">Accessibility</string>
+  <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
+  <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
   <string name="onboarding_title_permissions">Permissions</string>
   <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
   <string name="msg_grant_permissions">Please grant the permissions to continue.</string>
@@ -629,6 +636,40 @@
   <string name="idepref_jdkVersion_title">JDK version</string>
   <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
   <string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
+
+  <string name="debugger_title">Debugger</string>
+  <string name="debugger_foreground_detection_service_description">Code on the Go uses accessibility services to detect foreground applications for automatically show/hide the debugger overlay window.</string>
+  <string name="debugger_starting">Starting debugger…</string>
+  <string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
+  <string name="debugger_started">Debugger started</string>
+  <string name="debugger_variables">Variables</string>
+  <string name="debugger_call_stack">Call stack</string>
+  <string name="debugger_thread">Thread</string>
+  <string name="debugger_step_into">Step into</string>
+  <string name="debugger_step_out">Step out</string>
+  <string name="debugger_step_over">Step over</string>
+  <string name="debugger_kill">Kill</string>
+  <string name="debugger_suspend">Suspend</string>
+  <string name="debugger_resume">Resume</string>
+  <string name="debugger_restart">Restart</string>
+  <string name="debugger_status_resolving">Resolving…</string>
+  <string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
+
+  <!-- Connected to <VM-name> (<VM-version>) -->
+  <string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
+  <string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
+
+  <string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
+  <string name="debugger_value_error">&lt;error&gt;</string>
+  <string name="debugger_variable_value_hint">Variable value</string>
+  <string name="debugger_variable_dialog_title">%1$s: %2$s</string>
+  <string name="debugger_value_null">null</string>
+  <string name="debugger_dialog_hint_enter_value">Enter value</string>
+  <string name="debugger_dialog_button_set">Set</string>
+  <string name="debugger_variable_value_invalid">Invalid value for this variable</string>
+  <string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
+
+  <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
   <string name="file">File</string>
   <string name="actions">Actions</string>
@@ -670,7 +711,7 @@
   <string name="halt">Halt</string>
   <string name="breakpoint">Breakpoint</string>
   <string name="project_name">Project name</string>
-  
+
   <!-- Plugin System -->
   <string name="plugin_manager">Plugin Manager</string>
   <string name="plugin_manager_title">Plugin Manager</string>
@@ -689,4 +730,11 @@
   <string name="plugin_details">Plugin Details</string>
   <string name="plugin_permissions">Permissions</string>
   <string name="plugin_dependencies">Dependencies</string>
+
+  <!-- Message shown when the bootstrap installer is extract a file from the zip -->
+  <!--  The first parameter is the name of the zip entry  -->
+  <string name="bootstrap_installer_unzipping">Unzipping %1$s</string>
+
+  <!--  Message shown when the bootstrap installer is in the linking phase  -->
+  <string name="bootstrap_installer_linking">Resolving symlinks…</string>
 </resources>

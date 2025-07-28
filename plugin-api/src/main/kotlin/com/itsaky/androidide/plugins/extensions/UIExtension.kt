@@ -17,46 +17,16 @@
 
 package com.itsaky.androidide.plugins.extensions
 
-import android.graphics.drawable.Drawable
-import android.view.View
-import android.view.ViewGroup
-import androidx.fragment.app.Fragment
 import com.itsaky.androidide.plugins.IPlugin
 
 interface UIExtension : IPlugin {
-    fun createToolWindow(): ToolWindow?
     fun contributeToMainMenu(): List<MenuItem>
     fun contributeToContextMenu(context: ContextMenuContext): List<MenuItem>
-    fun provideTheme(): Theme?
-    fun createStatusBarWidget(): StatusBarWidget?
-}
-
-interface ToolWindow {
-    val id: String
-    val title: String
-    val icon: Drawable?
-    val isCloseable: Boolean get() = true
-    val defaultPosition: ToolWindowPosition get() = ToolWindowPosition.RIGHT
-    
-    fun createContent(container: ViewGroup): View
-    fun createFragment(): Fragment?
-    fun onShow() {}
-    fun onHide() {}
-    fun onFocus() {}
-    fun onLostFocus() {}
-}
-
-enum class ToolWindowPosition {
-    LEFT,
-    RIGHT,
-    BOTTOM,
-    TOP
 }
 
 data class MenuItem(
     val id: String,
     val title: String,
-    val icon: Drawable?,
     val isEnabled: Boolean = true,
     val isVisible: Boolean = true,
     val shortcut: String? = null,
@@ -70,20 +40,3 @@ data class ContextMenuContext(
     val cursorPosition: Int?,
     val additionalData: Map<String, Any> = emptyMap()
 )
-
-data class Theme(
-    val id: String,
-    val name: String,
-    val isDark: Boolean,
-    val colors: Map<String, Int>,
-    val styles: Map<String, Any>
-)
-
-interface StatusBarWidget {
-    val id: String
-    val priority: Int get() = 0
-    
-    fun createView(container: ViewGroup): View
-    fun update(data: Map<String, Any>) {}
-    fun onClick() {}
-}

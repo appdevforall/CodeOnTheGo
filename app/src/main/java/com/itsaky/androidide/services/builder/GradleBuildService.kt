@@ -25,8 +25,6 @@ import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
 import androidx.core.app.NotificationManagerCompat
-import org.adfa.constants.GRADLE_FOLDER_NAME
-import org.adfa.constants.TOML_FILE_NAME
 import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
@@ -43,12 +41,11 @@ import com.itsaky.androidide.services.ToolingServerNotStartedException
 import com.itsaky.androidide.services.builder.ToolingServerRunner.OnServerStartListener
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tasks.runOnUiThread
-import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
-import com.itsaky.androidide.templates.base.root.gradleWrapperPropsSrc
 import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_AAR
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.LogMessageParams
@@ -297,8 +294,10 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 
     // Override AAPT2 binary
     // The one downloaded from Maven is not built for Android
-    extraArgs.add("-Pandroid.aapt2FromMavenOverride=" + Environment.AAPT2.absolutePath)
+    extraArgs.add("-Pandroid.aapt2FromMavenOverride=${Environment.AAPT2.absolutePath}")
     extraArgs.add("-P${PROPERTY_LOGSENDER_ENABLED}=${DevOpsPreferences.logsenderEnabled}")
+    extraArgs.add("-P${PROPERTY_LOGSENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+
     if (BuildPreferences.isStacktraceEnabled) {
       extraArgs.add("--stacktrace")
     }
@@ -348,15 +347,6 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     return CompletableFuture.supplyAsync { doInstallWrapper() }
   }
 
-  /**
-   * Keywords: [ create project, gradle, init, wrapper ]
-   * This metohd is executed fter porjectTemplate postRecipe and overwrites what was created in
-   * @see ProjectTemplateBuilder.gradleWrapper
-   * Call comes from
-   * @see ProjectHandlerActivity.initializeProject
-   * @see BuildVariantsFragment
-   * @see ProjectSyncAction.postExec
-   */
   private fun doInstallWrapper(): GradleWrapperCheckResult {
     val extracted = File(Environment.TMP_DIR, "gradle-wrapper.zip")
     if (!ResourceUtils.copyFileFromAssets(ToolsManager.getCommonAsset("gradle-wrapper.zip"),
@@ -369,27 +359,6 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
       val projectDir = ProjectManagerImpl.getInstance().projectDir
       val files = ZipUtils.unzipFile(extracted, projectDir)
       if (files != null && files.isNotEmpty()) {
-        /**
-         * @RomanL.
-         * Since
-         * @see doInstallWrapper
-         * overrides the properties files we have created during the project init
-         * we have 2 paths forward.
-         * 1) Change the properties inside the zip every time we want to change gradle version.
-         * 2) Controll resulting file contenst with code.
-         *
-         * I would like to implement path 2 here. So I search for properties files and
-         * change it contents to what it used to be during the project init.
-         *
-         * I really want that flexibility in the project. It will also help us in case
-         * we will add more than 1 supported gradle versions.
-         */
-        val propertiesFile = files.first { it.name.contains("properties") }
-        val path = File(projectDir.absolutePath + File.separator + GRADLE_FOLDER_NAME +File.separator + TOML_FILE_NAME)
-        val isTomlProject = path.exists()
-        println("hz path $path")
-        println("hz build $isTomlProject")
-        propertiesFile.writeText(gradleWrapperPropsSrc(isTomlProject))
         return GradleWrapperCheckResult(true)
       }
     } catch (e: IOException) {
@@ -424,9 +393,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     }
   }
 
-  override fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> {
+  override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
     checkServerStarted()
-    val message = TaskExecutionMessage(listOf(*tasks))
 
     val future = performBuildTasks(server!!.executeTasks(message))
 
@@ -435,7 +403,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
         val cause = exception.cause
         if (cause is ScanPluginMissingException) {
           log.info("Retrying build without --scan option...")
-          return@handle executeTasks(*tasks).get()
+          return@handle executeTasks(message).get()
         }
         throw CompletionException(exception)
       }
@@ -582,7 +550,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     }
 
     outputReaderJob = buildServiceScope.launch(
-      Dispatchers.IO + CoroutineName("ToolingServerErrorReader")) {
+      Dispatchers.IO + CoroutineName("ToolingServerErrorReader")
+    ) {
       val reader = input.bufferedReader()
       try {
         reader.forEachLine { line ->

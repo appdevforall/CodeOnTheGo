@@ -80,22 +80,19 @@ class PluginClassLoader(
             // Class not found in parent, try to load from plugin
         }
         
-        // Try DEX class loader first for Android bytecode
+        // For plugin classes, try DEX class loader first (Android bytecode)
+        // This works best for plugins built with DEX files
         try {
             return dexClassLoader.loadClass(name)
         } catch (dexException: Exception) {
-            // Fallback to URL class loader for standard JAR files
+            // Fallback to URL class loader for Java bytecode (legacy plugins)
             try {
                 return urlClassLoader.loadClass(name)
-            } catch (e: ClassNotFoundException) {
+            } catch (urlException: Exception) {
                 // Both loaders failed
                 println("PluginClassLoader: Both loaders failed for class $name")
                 println("DexClassLoader: ${dexException.message}")
-                println("URLClassLoader: ${e.message}")
-                throw ClassNotFoundException("Could not load class $name from plugin", dexException)
-            } catch (e: Exception) {
-                // URLClassLoader failed with non-ClassNotFoundException
-                println("PluginClassLoader: URLClassLoader failed with ${e::class.simpleName}: ${e.message}")
+                println("URLClassLoader: ${urlException.message}")
                 throw ClassNotFoundException("Could not load class $name from plugin", dexException)
             }
         }

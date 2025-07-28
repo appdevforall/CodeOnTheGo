@@ -21,13 +21,8 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
-import android.util.Log
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.blankj.utilcode.util.FileUtils
-import com.blankj.utilcode.util.ResourceUtils
-import com.blankj.utilcode.util.ZipUtils
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.itsaky.androidide.R
@@ -39,13 +34,14 @@ import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
 import com.itsaky.androidide.fragments.onboarding.StatisticsFragment
-import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
+import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.withStopWatch
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -55,33 +51,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
-import org.adfa.constants.ANDROID_SDK_ZIP
-import org.adfa.constants.DESTINATION_ANDROID_SDK
-import org.adfa.constants.DOCUMENTATION_DB
-import org.adfa.constants.HOME_PATH
-import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
-import org.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
-import org.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
-import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import org.adfa.constants.MANIFEST_FILE_NAME
-import org.adfa.constants.SPLIT_ASSETS
-import org.adfa.constants.TERMUX_DEBS_PATH
-import java.io.File
-import java.io.IOException
+import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
-
-    private val terminalActivityCallback = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        Log.d(TAG, "TerminalActivity: resultCode=${it.resultCode}")
-        if (!isFinishing) {
-            reloadJdkDistInfo {
-                tryNavigateToMainIfSetupIsCompleted()
-            }
-        }
-    }
 
     private val activityScope =
         CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
@@ -89,8 +61,7 @@ class OnboardingActivity : AppIntro2() {
     private var listJdkInstallationsJob: Job? = null
 
     companion object {
-
-        private const val TAG = "OnboardingActivity"
+        private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
         private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
             "ide.archConfig.experimentalWarning.isShown"
     }
@@ -160,13 +131,6 @@ class OnboardingActivity : AppIntro2() {
             return
         }
 
-        /******** TODO JMT deleted for offline mode
-        if (!StatPreferences.statConsentDialogShown) {
-        addSlide(StatisticsFragment.newInstance(this))
-        StatPreferences.statConsentDialogShown = true
-        }
-         **********/
-
         if (!PermissionsFragment.areAllPermissionsGranted(this)) {
             addSlide(PermissionsFragment.newInstance(this))
         }
@@ -205,23 +169,19 @@ class OnboardingActivity : AppIntro2() {
                 runOnUiThread {
                     flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
                 }
-                copyTermuxDebsAndManifest()
-                copyAndroidSDK()
-                copyMavenLocalRepoFiles()
-                copyGradleDists()
-                copyToolingApi()
-                copyDocumentation()
 
-                runOnUiThread {
-                    val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
-                    if (currentFragment.isAutoInstall()) {
-                        intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
-                        intent.putExtra(
-                            TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
-                            currentFragment.buildIdeSetupArguments()
-                        )
+                val result = withStopWatch("Assets installation") {
+                    AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
+                        logger.debug("Assets installation progress: {}", progress.message)
                     }
-                    terminalActivityCallback.launch(intent)
+                }
+
+                logger.info("Assets installation result: {}", result)
+
+                withContext(Dispatchers.Main) {
+                    reloadJdkDistInfo {
+                        tryNavigateToMainIfSetupIsCompleted()
+                    }
                 }
             }
             return
@@ -230,159 +190,6 @@ class OnboardingActivity : AppIntro2() {
         tryNavigateToMainIfSetupIsCompleted()
     }
 
-    private fun copyTermuxDebsAndManifest() {
-        val outputDirectory = File(application.dataDir.path + File.separator + TERMUX_DEBS_PATH)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, "packages/") }
-            else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME),
-                    outputDirectory.path
-                )
-            }
-        } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
-        }
-
-        try {
-            val manifestOutputDirectory =
-                File(application.filesDir.path + File.separator + HOME_PATH).resolve(
-                    MANIFEST_FILE_NAME
-                )
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(MANIFEST_FILE_NAME),
-                manifestOutputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux manifest copy failed + ${e.message}")
-        }
-    }
-
-    private fun copyAndroidSDK() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK)
-        val zipFile =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK + File.separator + ANDROID_SDK_ZIP)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, ANDROID_SDK_ZIP) }
-            else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_SOURCE_ANDROID_SDK),
-                    outputDirectory.path
-                )
-            }
-            ZipUtils.unzipFile(zipFile, outputDirectory)
-            zipFile.delete()
-        } catch (e: IOException) {
-            println("Android SDK copy failed + ${e.message}")
-        }
-    }
-
-    private fun copyMavenLocalRepoFiles() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + LOCAL_MAVEN_CACHES_DEST)
-        val mavenZipFile =
-            File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            if (SPLIT_ASSETS) {
-                ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME) }
-            else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getCommonAsset(LOCAL_SOURCE_AGP_8_0_0_CACHES),
-                    outputDirectory.path
-                )
-            }
-
-            ZipUtils.unzipFile(mavenZipFile, outputDirectory)
-            mavenZipFile.delete()
-        } catch (e: IOException) {
-            println("Android Gradle caches copy failed + ${e.message}")
-        }
-    }
-
-    private fun copyGradleDists() {
-
-        try {
-            val binToCopy = arrayOf("gradle-8.7-bin.zip")
-            for (binFile in binToCopy) {
-                val outputDirectory =
-                    File(Environment.GRADLE_DISTS.absolutePath)
-                if (!outputDirectory.exists()) {
-                    outputDirectory.mkdirs()
-                }
-                if (SPLIT_ASSETS) {
-                    ZipUtils.unzipFileByKeyword(Environment.SPLIT_ASSETS_ZIP, outputDirectory, binFile)
-                } else {
-                    ResourceUtils.copyFileFromAssets(
-                        ToolsManager.getCommonAsset(binFile),
-                        outputDirectory.resolve(binFile).absolutePath
-                    )
-                }
-            }
-        } catch (e: IOException) {
-            println("Gradle Dists copy failed + ${e.message}")
-        }
-    }
-
-    private fun copyDocumentation() {
-        val dbPath = getDatabasePath(DOCUMENTATION_DB)
-        val dbFile = File(Environment.DOWNLOAD_DIR, DOCUMENTATION_DB)
-        try {
-            if (SPLIT_ASSETS) {
-                if (dbFile.exists()) {
-                    // first priority to copy is documentation db in /sdcard/Download
-                    dbFile.copyTo(dbPath, overwrite = true)
-                } else {
-                    // second priority is the one contained in assets.zip
-                    ZipUtils.unzipFileByKeyword(
-                        Environment.SPLIT_ASSETS_ZIP,
-                        dbPath.parentFile,
-                        DOCUMENTATION_DB
-                    )
-                }
-            } else {
-                ResourceUtils.copyFileFromAssets(
-                    ToolsManager.getDatabaseAsset(DOCUMENTATION_DB),
-                    dbPath.path
-                )
-            }
-        } catch (e: IOException) {
-            println("Documentation DB copy failed + ${e.message}")
-        }
-    }
-
-    private fun copyToolingApi() {
-        val tooling_api_jar = "tooling-api-all.jar"
-
-        try {
-            if (Environment.TOOLING_API_JAR.exists()) {
-                FileUtils.delete(Environment.TOOLING_API_JAR)
-            }
-
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(tooling_api_jar),
-                Environment.TOOLING_API_JAR.absolutePath
-            )
-        } catch (e: IOException) {
-            println("Tooling API jar copy failed + ${e.message}")
-        }
-    }
-
-
     private fun checkToolsIsInstalled(): Boolean {
         return IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty()
                 && Environment.ANDROID_HOME.exists()
@@ -390,7 +197,6 @@ class OnboardingActivity : AppIntro2() {
 
     private fun isSetupCompleted(): Boolean {
         return checkToolsIsInstalled()
-                /* JMT && StatPreferences.statConsentDialogShown */
                 && PermissionsFragment.areAllPermissionsGranted(this)
     }
 

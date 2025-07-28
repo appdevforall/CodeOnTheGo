@@ -22,6 +22,8 @@ import com.itsaky.androidide.templates.ModuleType
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.dependencies
+import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
+import org.adfa.constants.KOTLIN_VERSION
 
 private const val compose_kotlinCompilerExtensionVersion = "1.5.10"
 
@@ -53,14 +55,10 @@ plugins {
 android {
     namespace = "${data.packageName}"
     compileSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api}
-    // currently this is hardcodede to make it work but we should probably make it dependant on the
-    // onboarding choice.
-    
-    buildToolsVersion = "34.0.4" 
     
     // disable linter
-    lintOptions {
-        isCheckReleaseBuilds = false
+    lint {
+        checkReleaseBuilds = false
     }
     
     
@@ -94,6 +92,11 @@ android {
     }
     ${composeConfigKts()}
 }
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:deprecation")
+}
+
 ${ktJvmTarget()}
 ${dependencies()}
 """
@@ -111,13 +114,10 @@ plugins {
 android {
     namespace '${data.packageName}'
     compileSdk ${data.versions.compileSdk.api}
-    // currently this is hardcodede to make it work but we should probably make it dependant on the
-    // onboarding choice.
-    buildToolsVersion = "34.0.4"
     
     // disable linter
-    lintOptions {
-        checkReleaseBuilds  false
+    lint {
+        checkReleaseBuilds =  false
     }
     
     defaultConfig {
@@ -150,6 +150,9 @@ android {
     }
     ${composeConfigGroovy()}
 }
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
+}
 ${ktJvmTarget()}
 ${dependencies()}
 """
@@ -159,7 +162,7 @@ fun composeConfigGroovy(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion '$compose_kotlinCompilerExtensionVersion'
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
@@ -215,7 +218,7 @@ fun composeConfigKts(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion = "$compose_kotlinCompilerExtensionVersion"
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
@@ -304,18 +307,20 @@ private fun AndroidModuleTemplateBuilder.ktPlugin(isToml: Boolean = false): Stri
     return if (data.useKts) ktPluginKts(isToml) else ktPluginGroovy()
 }
 
-private fun androidPluginKts(isToml: Boolean): String {
-    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "8.0.0" """
+private fun AndroidModuleTemplateBuilder.androidPluginKts(isToml: Boolean): String {
+    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
-private fun androidPluginGroovy(): String {
-    return """id "com.android.application" version "8.0.0" """
+private fun AndroidModuleTemplateBuilder. androidPluginGroovy(): String {
+    return """id "com.android.application" version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
 private fun ktPluginKts(isToml: Boolean): String {
-    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "1.9.22" """
+    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "$KOTLIN_VERSION" """
 }
 
 private fun ktPluginGroovy(): String {
-    return "id 'org.jetbrains.kotlin.android' version '1.9.22'"
+    // TODO: The version name must be fetched from ProjectVersionData instance and must not be
+    //       hardcoded like this
+    return "id 'org.jetbrains.kotlin.android' version '${KOTLIN_VERSION}'"
 }

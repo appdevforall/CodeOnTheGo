@@ -1,0 +1,271 @@
+name: Build and deploy to firebase app distribution
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  pull_request:
+    branches: [ "stage" ]
+    types: [ opened, synchronize, reopened, closed ]
+    paths-ignore:
+      - '**/*.md'
+      - 'fastlane/**'
+  workflow_dispatch: { }
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
+  FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+
+jobs:
+  build_apk:
+    name: Build Universal APK
+    runs-on: self-hosted
+    timeout-minutes: 60
+
+    steps:
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull
+
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Assemble Universal APK
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+
+      - name: Find APK file
+        id: find_apk
+        run: |
+          apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
+          echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
+
+      - name: Set branch name and build type
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          
+          if [[ "${BRANCH_NAME,,}" == "stage" ]]; then
+            BUILD_TYPE="STAGE"
+          else
+            BUILD_TYPE="BRANCH ($BRANCH_NAME)"
+          fi
+          echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
+
+      - name: Get PR and Commit Information
+        id: pr_info
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            EVENT_PATH="${GITHUB_EVENT_PATH}"
+            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
+            PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
+            PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
+            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
+            echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
+          else
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
+            echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract Jira Ticket
+        id: extract_jira
+        run: |
+          JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+
+          if [ -n "$JIRA_TICKET" ]; then
+            JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
+          else
+            JIRA_TICKET="N/A"
+            JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
+          fi
+
+          echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
+          echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}'
+
+      - name: Deploy to Firebase App Distribution
+        id: firebase_upload
+        run: |
+          npm install -g firebase-tools@13.10.1
+
+          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+            --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --groups "testers" \
+            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
+
+          echo "$output"
+
+          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+
+          if [ -z "$FIREBASE_URL" ]; then
+            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          fi
+
+          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Send Rich Slack Notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
+          PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
+          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+          FIREBASE_CONSOLE_URL="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}"
+          BRANCH_NAME="${{ env.BRANCH_NAME }}"
+          BUILD_TYPE="${{ env.BUILD_TYPE }}"
+
+          jq -n \
+            --arg jira_url "$JIRA_URL" \
+            --arg commit_msg "$COMMIT_MSG" \
+            --arg build_type "$BUILD_TYPE" \
+            --arg pr_author "$PR_AUTHOR" \
+            --arg firebase_url "$FIREBASE_CONSOLE_URL" \
+            --arg branch_name "$BRANCH_NAME" \
+            '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":rocket: New Build Available",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "@here Please review and test this build."
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Build Type:* \($build_type)"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Jira Ticket:* \($jira_url)"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Commit:* \($commit_msg)"
+                  }
+                },
+          
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Author:* @\($pr_author)"
+                  }
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: "View on Firebase",
+                        emoji: true
+                      },
+                      url: $firebase_url,
+                      action_id: "firebase-console"
+                    },
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: "View Ticket",
+                        emoji: true
+                      },
+                      url: $jira_url,
+                      action_id: "jira-ticket"
+                    }
+                  ]
+                },
+                {
+                  type: "divider"
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: "Deployed from branch `\($branch_name)`"
+                    }
+                  ]
+                }
+              ]
+            }' > payload.json
+
+          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+          rm -f payload.json

@@ -15,6 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import com.itsaky.androidide.build.config.BuildConfig
 
 @Suppress("JavaPluginLanguageLevel")
@@ -64,14 +65,17 @@ tasks.register("copyJar") {
   }
 }
 
-project.tasks.getByName("jar") {
+project.tasks.getByName<Jar>("jar") {
   dependsOn("deleteExistingJarFiles")
   finalizedBy("shadowJar")
+  entryCompression = ZipEntryCompression.STORED
 }
 
-project.tasks.getByName("shadowJar") {
+project.tasks.getByName<ShadowJar>("shadowJar") {
   finalizedBy("copyJar")
+  entryCompression = ZipEntryCompression.STORED
 }
+
 
 dependencies {
   kapt(libs.google.auto.service)

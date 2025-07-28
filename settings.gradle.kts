@@ -17,9 +17,6 @@
 
 @file:Suppress("UnstableApiUsage")
 
-include(":constants")
-
-
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -47,7 +44,8 @@ dependencyResolutionManagement {
       "jdk-compiler",
       "jdk-jdeps",
       "jdt",
-      "layoutlib-api"
+      "layoutlib-api",
+      "treeview"
     ),
 
     "build-deps-common" to arrayOf(
@@ -146,6 +144,7 @@ include(
   ":subprojects:framework-stubs",
   ":subprojects:javac-services",
   ":subprojects:libjdwp",
+  ":subprojects:libjdwp-remote",
   ":subprojects:projects",
   ":subprojects:tooling-api",
   ":subprojects:tooling-api-events",

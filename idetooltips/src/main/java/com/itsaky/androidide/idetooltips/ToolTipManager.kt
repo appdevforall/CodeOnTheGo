@@ -2,7 +2,9 @@ package com.itsaky.androidide.idetooltips
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.graphics.drawable.ColorDrawable
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -13,15 +15,79 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
+import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 object TooltipManager {
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
-            TooltipDaoProvider.init(context)
-            TooltipDaoProvider.ideTooltipDao.getTooltip(category, tag)
+            try {
+                val dbPath = Environment.DOC_DB.absolutePath
+                val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
+                
+                val query = """
+                    SELECT tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons
+                    FROM ide_tooltip_table
+                    WHERE tooltipCategory = ? AND tooltipTag = ?
+                    LIMIT 1
+                """
+                
+                val cursor = db.rawQuery(query, arrayOf(category, tag))
+                
+                if (cursor.moveToFirst()) {
+                    val tooltipCategory = cursor.getString(cursor.getColumnIndexOrThrow("tooltipCategory"))
+                    val tooltipTag = cursor.getString(cursor.getColumnIndexOrThrow("tooltipTag"))
+                    val summary = cursor.getString(cursor.getColumnIndexOrThrow("tooltipSummary"))
+                    val detail = cursor.getString(cursor.getColumnIndexOrThrow("tooltipDetail"))
+                    val buttonsJson = cursor.getString(cursor.getColumnIndexOrThrow("tooltipButtons"))
+                    
+                    // Parse buttons JSON
+                    val buttons = ArrayList<Pair<String, String>>()
+                    try {
+                        val jsonArray = JSONArray(buttonsJson)
+                        for (i in 0 until jsonArray.length()) {
+                            val buttonObj = jsonArray.getJSONObject(i)
+                            // Try both "label"/"url" and "first"/"second" formats
+                            val label = if (buttonObj.has("label")) {
+                                buttonObj.getString("label")
+                            } else if (buttonObj.has("first")) {
+                                buttonObj.getString("first")
+                            } else {
+                                continue
+                            }
+                            val url = if (buttonObj.has("url")) {
+                                buttonObj.getString("url")
+                            } else if (buttonObj.has("second")) {
+                                buttonObj.getString("second")
+                            } else {
+                                continue
+                            }
+                            buttons.add(Pair(label, url))
+                        }
+                        Log.d("TooltipManager", "Parsed ${buttons.size} buttons from JSON: $buttonsJson")
+                    } catch (e: Exception) {
+                        Log.e("TooltipManager", "Error parsing buttons JSON: ${e.message}")
+                        Log.e("TooltipManager", "Raw buttons JSON: $buttonsJson")
+                    }
+                    
+                    cursor.close()
+                    db.close()
+                    
+                    IDETooltipItem(tooltipCategory, tooltipTag, summary, detail, buttons)
+                } else {
+                    cursor.close()
+                    db.close()
+                    null
+                }
+                
+            } catch (e: Exception) {
+                Log.e("TooltipManager", "Error getting tooltip for category=$category, tag=$tag: ${e.message}")
+                null
+            }
         }
     }
 
@@ -86,17 +152,25 @@ object TooltipManager {
 
         var tooltipHtmlContent = when (level) {
             0 -> tooltipItem.summary
-            1 -> "${tooltipItem.summary}<br>${tooltipItem.detail}"
+            1 -> {
+                val detailContent = if (tooltipItem.detail.isNotBlank()) tooltipItem.detail else ""
+                if (tooltipItem.buttons.isNotEmpty()) {
+                    val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
+                        """<a href="$url" style="color:#233490;text-decoration:underline;">$label</a>"""
+                    }
+                    if (detailContent.isNotBlank()) {
+                        "$detailContent<br><br>$linksHtml"
+                    } else {
+                        linksHtml
+                    }
+                } else {
+                    detailContent
+                }
+            }
             else -> ""
         }
 
-        val isLastLevel = (level == 0 && tooltipItem.detail.isBlank()) || level == 1
-        if (isLastLevel && tooltipItem.buttons.isNotEmpty()) {
-            val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
-                """<a href="$url" style="color:#233490;text-decoration:underline;">$label</a>"""
-            }
-            tooltipHtmlContent += "<br><br>$linksHtml"
-        }
+        Log.d("TooltipManager", "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
         val styledHtml = """
         <!DOCTYPE html>
@@ -125,9 +199,11 @@ object TooltipManager {
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                url?.let {
+                url?.let { clickedUrl ->
                     popupWindow.dismiss()
-                    onActionButtonClick(popupWindow, Pair(it, tooltipItem.tooltipTag))
+                    // Find the button label for this URL to use as title
+                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first ?: tooltipItem.tooltipTag
+                    onActionButtonClick(popupWindow, Pair(clickedUrl, buttonLabel))
                 }
                 return true
             }
@@ -139,10 +215,19 @@ object TooltipManager {
 
         seeMore.setOnClickListener {
             popupWindow.dismiss()
-            onSeeMoreClicked(popupWindow, level + 1, tooltipItem)
+            val nextLevel = when {
+                level == 0 -> 1
+                else -> level + 1
+            }
+            Log.d("TooltipManager", "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
+            onSeeMoreClicked(popupWindow, nextLevel, tooltipItem)
         }
-        seeMore.visibility =
-            if (level == 0 && tooltipItem.detail.isNotBlank()) View.VISIBLE else View.GONE
+        val shouldShowSeeMore = when {
+            level == 0 && (tooltipItem.detail.isNotBlank() || tooltipItem.buttons.isNotEmpty()) -> true
+            else -> false
+        }
+        seeMore.visibility = if (shouldShowSeeMore) View.VISIBLE else View.GONE
+        Log.d("TooltipManager", "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
 
         val transparentColor = getColor(context, android.R.color.transparent)
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))

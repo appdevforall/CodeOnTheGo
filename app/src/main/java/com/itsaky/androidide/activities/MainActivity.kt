@@ -47,6 +47,9 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
+import org.appdevforall.localwebserver.WebServer
+import org.appdevforall.localwebserver.ServerConfig
+import com.itsaky.androidide.utils.Environment
 
 import java.io.File
 import java.io.FileOutputStream
@@ -101,6 +104,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Start WebServer after installation is complete
+        startWebServer()
+        
         openLastProject()
         setupSecondaryDisplay()
 
@@ -135,6 +141,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     private fun onScreenChanged(screen: Int?) {
         val previous = viewModel.previousScreen
         if (previous != -1) {
+            closeKeyboard()
+
             // template list -> template details
             // ------- OR -------
             // template details -> template list
@@ -258,6 +266,24 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         )
 
         fileOrDirectory.delete()
+    }
+
+    private fun startWebServer() {
+        try {
+            val dbFile = Environment.DOC_DB
+            
+            if (!dbFile.exists()) {
+                Log.w(TAG, "Database file not found at: ${dbFile.absolutePath} - WebServer will not start")
+                return
+            }
+            
+            Log.i(TAG, "Starting WebServer - database file exists at: ${dbFile.absolutePath}")
+            val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
+            Thread { webServer.start() }.start()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start WebServer", e)
+        }
     }
 
     override fun onDestroy() {

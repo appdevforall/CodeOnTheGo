@@ -47,7 +47,7 @@ android {
 }
 
 dependencies {
-    compileOnly(project(":plugin-api-java"))
+    compileOnly(project(":plugin-api"))
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
 }
 
@@ -57,6 +57,7 @@ tasks.register("pluginJar") {
         val aarFile = File(layout.buildDirectory.asFile.get(), "outputs/aar/sample-plugin-v7-release.aar")
         val jarFile = File(layout.buildDirectory.asFile.get(), "outputs/hello-world-plugin.jar")
         val tempDir = File(layout.buildDirectory.asFile.get(), "plugin-temp")
+        val dexDir = File(tempDir, "dex")
         
         if (aarFile.exists()) {
             // Clean temp directory
@@ -64,25 +65,60 @@ tasks.register("pluginJar") {
                 tempDir.deleteRecursively()
             }
             tempDir.mkdirs()
+            dexDir.mkdirs()
             
-            // Extract classes.jar from AAR
+            // Extract classes.jar from AAR (contains Java bytecode)
             copy {
                 from(zipTree(aarFile))
                 into(tempDir)
                 include("classes.jar")
             }
             
-            // Extract contents of classes.jar
             val classesJar = File(tempDir, "classes.jar")
             if (classesJar.exists()) {
-                copy {
-                    from(zipTree(classesJar))
-                    into(tempDir)
+                // Use D8 to convert Java bytecode to DEX
+                val d8Tool = File("${android.sdkDirectory}/build-tools/${android.buildToolsVersion}/d8")
+                if (d8Tool.exists()) {
+                    try {
+                        project.exec {
+                            commandLine(
+                                d8Tool.absolutePath,
+                                "--output", dexDir.absolutePath,
+                                "--min-api", android.defaultConfig.minSdk,
+                                classesJar.absolutePath
+                            )
+                        }
+                        
+                        // Move classes.dex to temp directory root
+                        val classesDex = File(dexDir, "classes.dex")
+                        if (classesDex.exists()) {
+                            classesDex.copyTo(File(tempDir, "classes.dex"), overwrite = true)
+                        }
+                        
+                        println("Successfully converted to DEX format")
+                    } catch (e: Exception) {
+                        println("Failed to convert to DEX, using Java bytecode: ${e.message}")
+                        // Fallback: extract Java bytecode
+                        copy {
+                            from(zipTree(classesJar))
+                            into(tempDir)
+                        }
+                    }
+                } else {
+                    println("D8 tool not found, using Java bytecode")
+                    // Fallback: extract Java bytecode
+                    copy {
+                        from(zipTree(classesJar))
+                        into(tempDir)
+                    }
                 }
+                
+                // Clean up
                 classesJar.delete()
+                dexDir.deleteRecursively()
             }
             
-            // Copy plugin.json
+            // Copy plugin.json to root
             val pluginJsonSrc = File(projectDir, "src/main/resources/plugin.json")
             if (pluginJsonSrc.exists()) {
                 pluginJsonSrc.copyTo(File(tempDir, "plugin.json"), overwrite = true)
@@ -94,6 +130,11 @@ tasks.register("pluginJar") {
             }
             
             println("Generated plugin JAR: ${jarFile.absolutePath}")
+            println("Plugin JAR contents:")
+            project.exec {
+                commandLine("jar", "-tf", jarFile.absolutePath)
+                standardOutput = System.out
+            }
         } else {
             println("AAR file not found: ${aarFile.absolutePath}")
         }

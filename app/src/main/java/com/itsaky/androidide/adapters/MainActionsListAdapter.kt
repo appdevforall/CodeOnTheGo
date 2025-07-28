@@ -49,6 +49,7 @@ constructor(val actions: List<MainScreenAction> = emptyList()) :
 
         binding.root.apply {
             val originalText = context.getString(action.text)
+            text = originalText
             setText(originalText)
             setIconResource(action.icon)
             setOnClickListener {

@@ -91,10 +91,18 @@ class PluginManager private constructor(
             }
             
             val permissions = try {
-                manifest.permissions.map { PluginPermission.valueOf(it) }.toSet()
-            } catch (e: IllegalArgumentException) {
-                logger.warn("Invalid permission in plugin manifest: ${e.message}")
-                // Use empty permissions set if there are invalid permissions
+                manifest.permissions.mapNotNull { permissionStr ->
+                    try {
+                        // Convert string to enum by replacing dots with underscores and making uppercase
+                        val enumName = permissionStr.uppercase().replace(".", "_")
+                        PluginPermission.valueOf(enumName)
+                    } catch (e: IllegalArgumentException) {
+                        logger.warn("Invalid permission in plugin manifest: $permissionStr")
+                        null
+                    }
+                }.toSet()
+            } catch (e: Exception) {
+                logger.warn("Error processing permissions: ${e.message}")
                 emptySet<PluginPermission>()
             }
             

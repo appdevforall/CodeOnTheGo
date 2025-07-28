@@ -16,32 +16,39 @@
  */
 package com.itsaky.androidide.utils;
 
-import android.annotation.SuppressLint;
-import android.os.Build;
+import static org.adfa.constants.ConstantsKt.JDWP_AAR_NAME;
+import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
+import static org.adfa.constants.ConstantsKt.GRADLE_DISTRIBUTION_VERSION;
 
-import java.util.Arrays;
-import java.util.List;
+import android.annotation.SuppressLint;
 
 import androidx.annotation.NonNull;
+
 import com.blankj.utilcode.util.FileUtils;
-import java.io.File;
-import java.util.Map;
-import java.util.UUID;
+import com.itsaky.androidide.app.BaseApplication;
+import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
+import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.util.Map;
 
 @SuppressLint("SdCardPath")
 public final class Environment {
 
   public static final String PROJECTS_FOLDER = "AndroidIDEProjects";
-  public static final String DEFAULT_ROOT = "/data/data/com.itsaky.androidide/files";
+  public static final String DEFAULT_ROOT = "/data/data/" + BuildInfo.PACKAGE_NAME + "/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
-
+  public static final String GRADLE_CACHE_DIR = DEFAULT_HOME + "/.gradle";
   private static final String ANDROID_JAR_HOME = DEFAULT_ANDROID_HOME + "/platforms/android-33";
   public static final String DEFAULT_PREFIX = DEFAULT_ROOT + "/usr";
-  public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/opt/openjdk";
+  public static final String DEFAULT_JAVA_HOME = DEFAULT_PREFIX + "/lib/jvm/java-21-openjdk";
   private static final String ANDROIDIDE_PROJECT_CACHE_DIR = ".androidide";
+
+  private static final  String DATABASE_NAME = "documentation.db";
   private static final Logger LOG = LoggerFactory.getLogger(Environment.class);
   public static File ROOT;
   public static File PREFIX;
@@ -52,8 +59,12 @@ public final class Environment {
   public static File ANDROID_HOME;
   public static File TMP_DIR;
   public static File BIN_DIR;
-  public static File LIB_DIR;
+  public static File OPT_DIR;
+  public static File JDWP_DIR;
   public static File JDWP_LIB_DIR;
+  public static File JDWP_AAR;
+  public static File LOGSENDER_DIR;
+  public static File LOGSENDER_AAR;
   public static File PROJECTS_DIR;
 
   // split assets vars
@@ -78,11 +89,15 @@ public final class Environment {
 
   public static File GRADLE_DISTS;
 
+  public static File DOC_DB;
+  public static File LOCAL_MAVEN_DIR;
+
+  public static File GRADLE_GEN_JARS;
+
   public static void init() {
     var arch = getArchitecture();
     DOWNLOAD_DIR = new File(FileUtil.getExternalStorageDir(), "Download");
-    var assets_zip = "assets-" + arch + ".zip";
-    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, assets_zip);
+    SPLIT_ASSETS_ZIP = new File(DOWNLOAD_DIR, "assets-" + arch + ".zip");
 
     ROOT = mkdirIfNotExits(new File(DEFAULT_ROOT));
     PREFIX = mkdirIfNotExits(new File(ROOT, "usr"));
@@ -90,8 +105,12 @@ public final class Environment {
     ANDROIDIDE_HOME = mkdirIfNotExits(new File(HOME, ".androidide"));
     TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
     BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
-    LIB_DIR = mkdirIfNotExits(new File(PREFIX, "lib"));
-    JDWP_LIB_DIR = mkdirIfNotExits(new File(LIB_DIR, "oj-libjdwp"));
+    OPT_DIR = mkdirIfNotExits(new File(PREFIX, "opt"));
+    JDWP_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "oj-libjdwp"));
+    JDWP_LIB_DIR = mkdirIfNotExits(new File(JDWP_DIR, "jniLibs"));
+    JDWP_AAR = mkdirIfNotExits(new File(JDWP_DIR, JDWP_AAR_NAME));
+    LOGSENDER_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "logsender"));
+    LOGSENDER_AAR = mkdirIfNotExits(new File(LOGSENDER_DIR, LOGSENDER_AAR_NAME));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
     // NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
     //       and don't create the dir if it doesn't exist
@@ -114,11 +133,17 @@ public final class Environment {
     LOGIN_SHELL = new File(BIN_DIR, "login");
 
     GRADLE_DISTS = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "gradle-dists"));
+    LOCAL_MAVEN_DIR = mkdirIfNotExits(new File(HOME, "maven/localMvnRepository"));
 
     setExecutable(JAVA);
     setExecutable(BASH_SHELL);
 
     System.setProperty("user.home", HOME.getAbsolutePath());
+
+    DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
+
+    GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/" +
+            GRADLE_DISTRIBUTION_VERSION + "/generated-gradle-jars"));
   }
 
   public static File mkdirIfNotExits(File in) {
@@ -131,7 +156,7 @@ public final class Environment {
 
   public static void setExecutable(@NonNull final File file) {
     if (!file.setExecutable(true)) {
-      LOG.error("Unable to set executable permissions to file", file);
+      LOG.error("Unable to set executable permissions to file: {}", file);
     }
   }
 
@@ -161,33 +186,7 @@ public final class Environment {
     return new File(projectDir, ANDROIDIDE_PROJECT_CACHE_DIR);
   }
 
-  @NonNull
-  public static File createTempFile() {
-    var file = newTempFile();
-    while (file.exists()) {
-      file = newTempFile();
-    }
-
-    return file;
-  }
-
-  @NonNull
-  private static File newTempFile() {
-    return new File(TMP_DIR, "temp_" + UUID.randomUUID().toString().replace('-', 'X'));
-  }
-
   public static String getArchitecture() {
-    List<String> supportedAbis = Arrays.asList(Build.SUPPORTED_ABIS);
-
-    if (supportedAbis.contains("arm64-v8a")) {
-      return "v8";
-    } else if (supportedAbis.contains("armeabi-v7a") || supportedAbis.contains("armeabi")) {
-      return "v7";
-    } else if (supportedAbis.contains("x86") || supportedAbis.contains("x86_64")) {
-      return "x86";
-    } else {
-      return "unknown";
-    }
+    return IDEBuildConfigProvider.getInstance().getCpuAbiName();
   }
-
 }
