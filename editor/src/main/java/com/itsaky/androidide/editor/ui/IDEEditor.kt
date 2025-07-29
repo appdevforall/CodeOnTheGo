@@ -38,6 +38,8 @@ import com.itsaky.androidide.editor.language.cpp.CppLanguage
 import com.itsaky.androidide.editor.language.groovy.GroovyLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
+import com.itsaky.androidide.editor.processing.ProcessContext
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
@@ -661,6 +663,8 @@ open class IDEEditor @JvmOverloads constructor(
     dispatchEvent(LanguageUpdateEvent(lang, this))
   }
 
+  private val textProcessorEngine = TextProcessorEngine()
+
   /**
    * Initialize the editor.
    */
@@ -725,30 +729,35 @@ open class IDEEditor @JvmOverloads constructor(
       editorScope.launch {
         dispatchDocumentChangeEvent(event)
         checkForSignatureHelp(event)
-        handleCustomTextReplacement()
+        handleCustomTextReplacement(event)
       }
     }
   }
 
-  private fun handleCustomTextReplacement() {
-    editorScope.launch(Dispatchers.Main) {
-      val editable = text
-      val originalText = editable.toString()
-      val target = "//abc "
-      val replacement = "//def "
+  // Replace your old method with this new one
+  private fun handleCustomTextReplacement(event: ContentChangeEvent) {
+    // We only care about simple text insertions
+    if (event.action != ContentChangeEvent.ACTION_INSERT) return
 
-      if (originalText.contains(target)) {
-        post {
-          val newText = originalText.replace(target, replacement)
-          setText(newText)
+    editorScope.launch {
+      val context = ProcessContext(text, file!!, text.cursor)
+      val result = textProcessorEngine.process(context)
 
-          val line = editable.cursor.rightLine
-          val column = editable.cursor.rightColumn
-          setSelection(line, column)
+      // If a processor returned a result, apply it
+      if (result != null) {
+        withContext(Dispatchers.Main) {
+          post {
+            val start = result.range.start
+            val end = result.range.end
+            text.replace(start.line, start.column, end.line, end.column, result.replacement)
+
+            setSelection(end.line, end.column - 1)
+          }
         }
       }
     }
   }
+
 
   private inline fun launchCancellableAsyncWithProgress(@StringRes message: Int,
     crossinline action: suspend CoroutineScope.(flashbar: Flashbar, cancelChecker: ICancelChecker) -> Unit): Job? {
