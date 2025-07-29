@@ -21,7 +21,46 @@ class SimpleMacroProcessor : TextProcessor {
         val endColumn = column
 
         return ProcessResult(
-            replacement = "//def ",
+            replacement = """
+                        // --- Input Data ---
+                        int[] sortedArray = {2, 5, 8, 12, 16, 23, 38, 56, 72, 91};
+                        
+                        // --- Sample 1: Target exists ---
+                        int targetToFind = 23;
+                        int resultIndex = binarySearch(sortedArray, targetToFind);
+                        System.out.println("Input Array: [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]");
+                        System.out.println("Searching for: " + targetToFind);
+                        System.out.println("Output (Index): " + resultIndex);
+                        
+                        System.out.println("------------------------------------");
+
+                        // --- Sample 2: Target does not exist ---
+                        int targetToMiss = 15;
+                        int missingIndex = binarySearch(sortedArray, targetToMiss);
+                        System.out.println("Input Array: [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]");
+                        System.out.println("Searching for: " + targetToMiss);
+                        System.out.println("Output (Index): " + missingIndex);
+                        
+                        }
+                        
+public static int binarySearch(int[] arr, int target) {
+    int low = 0;
+            int high = arr.length - 1;
+
+        while (low <= high) {
+            int mid = low + (high - low) / 2; // Prevents potential overflow
+
+            if (arr[mid] == target) {
+                return mid; // Found the target! 🎉
+            } else if (arr[mid] < target) {
+                low = mid + 1; // Target is in the right half
+            } else {
+                high = mid - 1; // Target is in the left half
+            }
+        }
+        return -1; // Target was not found
+    
+            """.trimIndent(),
             range = TextRange(
                 CharPosition(line, startColumn), CharPosition(line, endColumn)
             )
