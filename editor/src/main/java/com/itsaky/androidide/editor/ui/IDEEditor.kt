@@ -714,6 +714,40 @@ open class IDEEditor @JvmOverloads constructor(
     }
 
     EventBus.getDefault().register(this)
+    subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
+      if (isReleased) {
+        return@subscribeEvent
+      }
+
+      markModified()
+      file ?: return@subscribeEvent
+
+      editorScope.launch {
+        dispatchDocumentChangeEvent(event)
+        checkForSignatureHelp(event)
+        handleCustomTextReplacement()
+      }
+    }
+  }
+
+  private fun handleCustomTextReplacement() {
+    editorScope.launch(Dispatchers.Main) {
+      val editable = text
+      val originalText = editable.toString()
+      val target = "//abc "
+      val replacement = "//def "
+
+      if (originalText.contains(target)) {
+        post {
+          val newText = originalText.replace(target, replacement)
+          setText(newText)
+
+          val line = editable.cursor.rightLine
+          val column = editable.cursor.rightColumn
+          setSelection(line, column)
+        }
+      }
+    }
   }
 
   private inline fun launchCancellableAsyncWithProgress(@StringRes message: Int,
