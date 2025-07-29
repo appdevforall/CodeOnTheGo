@@ -428,7 +428,7 @@ File: AndroidManifest.xml
         android:networkSecurityConfig="@xml/network_security_config"
         android:preserveLegacyExternalStorage="true"
         android:requestLegacyExternalStorage="true"
-        android:resizeableActivity="false"
+        android:resizeableActivity="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.AndroidIDE"
         android:usesCleartextTraffic="true"
@@ -439,7 +439,7 @@ File: AndroidManifest.xml
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="stateAlwaysHidden">
             <intent-filter>
                 <action android:name="com.itsaky.androidide.REPORT_CRASH" />
@@ -452,7 +452,7 @@ File: AndroidManifest.xml
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:theme="@style/AppTheme.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -467,44 +467,83 @@ File: AndroidManifest.xml
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="false"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.editor.EditorActivityKt"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:launchMode="singleTop"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/text" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="application/javascript" />
+
+                <data android:pathPattern=".*\\.java" />
+                <data android:pathPattern=".*\\.kt" />
+                <data android:pathPattern=".*\\.kts" />
+                <data android:pathPattern=".*\\.gradle" />
+                <data android:pathPattern=".*\\.json" />
+                <data android:pathPattern=".*\\.xml" />
+                <data android:pathPattern=".*\\.html" />
+                <data android:pathPattern=".*\\.css" />
+                <data android:pathPattern=".*\\.js" />
+                <data android:pathPattern=".*\\.ts" />
+                <data android:pathPattern=".*\\.c" />
+                <data android:pathPattern=".*\\.cpp" />
+                <data android:pathPattern=".*\\.h" />
+                <data android:pathPattern=".*\\.hpp" />
+                <data android:pathPattern=".*\\.py" />
+                <data android:pathPattern=".*\\.rb" />
+                <data android:pathPattern=".*\\.sh" />
+                <data android:pathPattern=".*\\.md" />
+                <data android:pathPattern=".*\\.pro" />
+                <data android:pathPattern=".*\\.properties" />
+                <data android:pathPattern=".*\\.gitignore" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".activities.PreferencesActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.AboutActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.editor.FAQActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.editor.HelpActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.ContributorsActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.TerminalActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize" />
 
         <!--    &lt;!&ndash; Required: set your sentry.io project identifier (DSN) &ndash;&gt;-->
@@ -5956,7 +5995,6 @@ package com.itsaky.androidide.activities
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -5977,7 +6015,6 @@ import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.AssetsInstallationHelper
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.withStopWatch
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
@@ -6006,11 +6043,11 @@ class OnboardingActivity : AppIntro2() {
     @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
         IThemeManager.getInstance().applyTheme(this)
-        setOrientationFunction {
-            OrientationUtilities.setOrientation {
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            }
-        }
+//        setOrientationFunction {
+//            OrientationUtilities.setOrientation {
+//                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+//            }
+//        }
         super.onCreate(savedInstanceState)
 
         if (tryNavigateToMainIfSetupIsCompleted()) {
@@ -6727,7 +6764,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     protected abstract fun provideEditorAt(index: Int): CodeEditorView?
 
-    protected abstract fun doOpenFile(file: File, selection: Range?)
+    internal abstract fun doOpenFile(file: File, selection: Range?)
 
     protected abstract fun doDismissSearchProgress()
 
@@ -7449,12 +7486,14 @@ package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.text.TextUtils
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup.LayoutParams
-import androidx.annotation.DrawableRes
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
@@ -7489,7 +7528,9 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsvks.layouteditor.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -7497,8 +7538,11 @@ import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.set
+import com.google.gson.Gson
+import com.itsaky.androidide.app.BaseApplication
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -7506,6 +7550,10 @@ import kotlin.collections.set
  * @author Akash Yadav
  */
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
+
+  companion object {
+    const val PREF_KEY_OPEN_FILES_CACHE = "open_files_cache_v1"
+  }
 
   protected val isOpenedFilesSaved = AtomicBoolean(false)
 
@@ -7517,7 +7565,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     closeAll(runAfter)
   }
 
-  override fun provideCurrentEditor(): CodeEditorView? {
+  public override fun provideCurrentEditor(): CodeEditorView? {
     return getCurrentEditor()
   }
 
@@ -7570,7 +7618,74 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
       TSLanguageRegistry.instance.register(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
       TSLanguageRegistry.instance.register(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
       IDEColorSchemeProvider.initIfNeeded()
+
+      handleIncomingIntent(intent)
     }
+  }
+
+
+  override fun onNewIntent(intent: Intent?) {
+    super.onNewIntent(intent)
+    setIntent(intent) // Important to update the intent
+    handleIncomingIntent(intent)
+  }
+
+  private fun handleIncomingIntent(intent: Intent?) {
+    // Check if the activity was launched with a file to view or edit
+    if (intent?.action == Intent.ACTION_VIEW || intent?.action == Intent.ACTION_EDIT) {
+      intent.data?.let { uri ->
+        resolveUriAndOpenFile(uri)
+      }
+    }
+  }
+
+  private fun resolveUriAndOpenFile(uri: Uri) {
+    try {
+      // Get the original filename from the URI if possible
+      val originalFileName = getFileNameFromUri(uri) ?: "temp_${System.currentTimeMillis()}"
+
+      // Create a temporary file in the app's cache directory
+      val tempFile = File(cacheDir, originalFileName)
+
+      // Copy the content from the URI's input stream to our temporary file
+      contentResolver.openInputStream(uri)?.use { inputStream ->
+        FileOutputStream(tempFile).use { outputStream ->
+          inputStream.copyTo(outputStream)
+        }
+      }
+
+      // Now, open the copied file in the editor
+      // Note: This opens a copy. Changes saved will not affect the original file.
+      doOpenFile(tempFile, null)
+
+    } catch (e: Exception) {
+      Log.e("FileOpen", "Failed to open file from URI: $uri", e)
+      flashError(getString(R.string.msg_file_open_error))
+    }
+  }
+
+  @SuppressLint("Range")
+  private fun getFileNameFromUri(uri: Uri): String? {
+    var result: String? = null
+    if (uri.scheme == "content") {
+      val cursor = contentResolver.query(uri, null, null, null, null)
+      cursor?.use {
+        if (it.moveToFirst()) {
+          val displayNameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+          if (displayNameIndex != -1) {
+            result = it.getString(displayNameIndex)
+          }
+        }
+      }
+    }
+    if (result == null) {
+      result = uri.path
+      val cut = result?.lastIndexOf('/')
+      if (cut != null && cut != -1) {
+        result = result?.substring(cut + 1)
+      }
+    }
+    return result
   }
 
   override fun onPause() {
@@ -7589,23 +7704,30 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   }
 
   override fun saveOpenedFiles() {
-    writeOpenedFilesCache(getOpenedFiles(), getCurrentEditor()?.editor?.file)
+    val openFiles = getOpenedFiles()
+    val currentFile = getCurrentEditor()?.editor?.file
+    writeOpenedFilesCache(openFiles, currentFile)
   }
 
   private fun writeOpenedFilesCache(openedFiles: List<OpenedFile>, selectedFile: File?) {
+    val prefs = (application as BaseApplication).prefManager
+
     if (selectedFile == null || openedFiles.isEmpty()) {
-      editorViewModel.writeOpenedFiles(null)
-      editorViewModel.openedFilesCache = null
-      log.debug("[onPause] No opened files. Opened files cache reset to null.")
+      // If there are no files, clear the saved preference
+      prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
+      log.debug("[onPause] No opened files. Session cache cleared.")
       isOpenedFilesSaved.set(true)
       return
     }
 
     val cache = OpenedFilesCache(selectedFile = selectedFile.absolutePath, allFiles = openedFiles)
 
-    editorViewModel.writeOpenedFiles(cache)
-    editorViewModel.openedFilesCache = if (!isDestroying) cache else null
-    log.debug("[onPause] Opened files cache reset to {}", editorViewModel.openedFilesCache)
+    // --- MODIFIED PART: Save to SharedPreferences ---
+    val jsonCache = Gson().toJson(cache)
+    prefs.putString(PREF_KEY_OPEN_FILES_CACHE, jsonCache)
+    // --- END OF MODIFIED PART ---
+
+    log.debug("[onPause] Editor session saved to SharedPreferences.")
     isOpenedFilesSaved.set(true)
   }
 
@@ -7613,8 +7735,17 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     super.onStart()
 
     try {
-      editorViewModel.getOrReadOpenedFilesCache(this::onReadOpenedFilesCache)
-      editorViewModel.openedFilesCache = null
+      // --- MODIFIED PART: Load from SharedPreferences ---
+      val prefs = (application as BaseApplication).prefManager
+      val jsonCache = prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
+      if (jsonCache != null) {
+        val cache = Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
+        onReadOpenedFilesCache(cache)
+
+        // Clear the preference so it's only loaded once on startup
+        prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
+      }
+      // --- END OF MODIFIED PART ---
     } catch (err: Throwable) {
       log.error("Failed to reopen recently opened files", err)
     }
@@ -7622,10 +7753,22 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
   private fun onReadOpenedFilesCache(cache: OpenedFilesCache?) {
     cache ?: return
-    cache.allFiles.forEach { file ->
+
+    // Make sure we only attempt to open files that still exist
+    val existingFiles = cache.allFiles.filter { File(it.filePath).exists() }
+    val selectedFileExists = File(cache.selectedFile).exists()
+
+    if (existingFiles.isEmpty()) return
+
+    // Open all the files from the last session
+    existingFiles.forEach { file ->
       openFile(File(file.filePath), file.selection)
     }
-    openFile(File(cache.selectedFile))
+
+    // Activate the tab that was last selected
+    if (selectedFileExists) {
+      openFile(File(cache.selectedFile))
+    }
   }
 
   override fun onPrepareOptionsMenu(menu: Menu): Boolean {
@@ -8396,6 +8539,8 @@ import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity.Companion.PREF_KEY_OPEN_FILES_CACHE
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
@@ -8426,9 +8571,11 @@ import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
+import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
@@ -9086,6 +9233,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
             // reset the lastOpenedProject if the user explicitly chose to close the project
             GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
+            clearAllSharedPreferences()
         }
 
         // Make sure we close files
@@ -9152,6 +9300,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
         return mSearchingProgress
+    }
+
+    fun clearAllSharedPreferences() {
+        val prefs = (application as BaseApplication).prefManager
+        prefs.remove(PREF_KEY_OPEN_FILES_CACHE)
+        flashSuccess("Last session's open files cache has been cleared.")
     }
 }
 
@@ -17798,6 +17952,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.databinding.FragmentGitCommitBinding
+import com.itsaky.androidide.git.GitCommitTask
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17835,26 +17990,28 @@ class GitCommitFragment : Fragment() {
         // Load the changed files into the RecyclerView
         loadGitStatus()
 
-        // **MODIFIED:** The commit logic now lives here
         binding.btnCommit.setOnClickListener {
+            binding.btnCommit.isEnabled = false
             val stagedFiles = gitStatusAdapter.getStagedFiles()
             val message = binding.commitMessageInput.text.toString()
-
             if (message.isBlank()) {
                 Toast.makeText(
                     requireContext(),
                     "Commit message cannot be empty.",
                     Toast.LENGTH_SHORT
                 ).show()
+                binding.btnCommit.isEnabled = true
                 return@setOnClickListener
             }
             if (stagedFiles.isEmpty()) {
                 Toast.makeText(requireContext(), "No files selected to commit.", Toast.LENGTH_SHORT)
                     .show()
+                binding.btnCommit.isEnabled = true
                 return@setOnClickListener
             }
 
-            performCommit(stagedFiles, message)
+            GitCommitTask.commit(requireContext(),  selectedFiles = stagedFiles, commitMessage = message)
+            findNavController().popBackStack()
         }
     }
 
@@ -17876,34 +18033,6 @@ class GitCommitFragment : Fragment() {
                 binding.commitFilesRecyclerView.apply {
                     adapter = gitStatusAdapter
                     layoutManager = LinearLayoutManager(requireContext())
-                }
-            }
-        }
-    }
-
-    private fun performCommit(filesToCommit: List<String>, message: String) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                // Add each selected file to the index
-                val addCommand = git.add()
-                filesToCommit.forEach { addCommand.addFilepattern(it) }
-                addCommand.call()
-
-                // Now, commit the files that were just added
-                git.commit().setMessage(message).call()
-
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "Commit successful!", Toast.LENGTH_SHORT)
-                        .show()
-                    findNavController().popBackStack()
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        requireContext(),
-                        "Commit failed: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
                 }
             }
         }
@@ -18035,23 +18164,6 @@ data class GitFileStatus(
 ================================================
 File: java/com/itsaky/androidide/fragments/sidebar/GitFragment.kt
 ================================================
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.itsaky.androidide.fragments.sidebar
 
 import android.os.Bundle
@@ -18078,7 +18190,6 @@ class GitFragment :
 
     override fun onResume() {
         super.onResume()
-        // Update the UI every time the activity is shown
         updateGitButtonVisibility()
     }
 
@@ -18087,49 +18198,56 @@ class GitFragment :
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
         emptyStateViewModel.isEmpty.value = false
 
+        // --- Other button listeners remain the same ---
         binding.btnManageRemotes.setOnClickListener {
             findNavController().navigate(R.id.action_gitFragment_to_gitRemotesListFragment)
         }
-        // Set up the Commit button
         binding.btnGitCommit.setOnClickListener {
-            // Use the NavController to navigate via the action defined in the graph
             findNavController().navigate(R.id.action_gitFragment_to_gitCommitFragment)
         }
-
-        // Set up the Push button
         binding.btnGitPush.setOnClickListener {
-            // This runs the push task and shows progress via GitProgressMonitor.
             GitPushTask.push(requireContext())
         }
-
-        // Set up the Pull button
         binding.btnGitPull.setOnClickListener {
             GitPullTask.pull(requireContext())
         }
-        binding.btnGitInit.setOnClickListener {
-            GitInitTask.init(requireContext())
-            // After attempting to init, refresh the button visibility
-            updateGitButtonVisibility()
-        }
-
         binding.btnGitLog.setOnClickListener {
             findNavController().navigate(R.id.action_gitFragment_to_gitCommitListFragment)
+        }
+
+        // --- Updated Git Init button listener ---
+        binding.btnGitInit.setOnClickListener {
+            val userName = binding.gitUserNameInput.text?.toString()
+            val userEmail = binding.gitUserEmailInput.text?.toString()
+
+            // Pass the values to the init function.
+            // .takeIf { it.isNotBlank() } conveniently converts blank strings to null.
+            GitInitTask.init(
+                context = requireContext(),
+                userName = userName?.takeIf { it.isNotBlank() },
+                userEmail = userEmail?.takeIf { it.isNotBlank() }
+            )
+
+            // Refresh the UI after a short delay to allow the async task to complete
+            view.postDelayed({
+                updateGitButtonVisibility()
+            }, 1500)
         }
     }
 
     private fun updateGitButtonVisibility() {
         val projectDir = ProjectManagerImpl.getInstance().projectDir
 
-        val gitDir = File(projectDir, ".git")
-        val isGitRepo = gitDir.exists()
+        val isGitRepo = if (projectDir != null) {
+            val gitDir = File(projectDir, ".git")
+            gitDir.exists() && gitDir.isDirectory
+        } else {
+            false
+        }
 
-        // Show "Init" only if it's NOT a git repo
-        binding.btnGitInit.isVisible = !isGitRepo
-
-        // Show other Git actions only if it IS a git repo
-        binding.btnGitCommit.isVisible = isGitRepo
-        binding.btnGitPush.isVisible = isGitRepo
-        binding.btnGitPull.isVisible = isGitRepo
+        // Toggle visibility of the entire layouts based on repo status
+        binding.initLayout.isVisible = !isGitRepo
+        binding.actionsLayout.isVisible = isGitRepo
     }
 }
 
@@ -18515,279 +18633,377 @@ class RemotesAdapter(
 ================================================
 File: java/com/itsaky/androidide/git/GitCommitTask.kt
 ================================================
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.itsaky.androidide.git
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Typeface
-import android.net.Uri
-import android.os.Build
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.StyleSpan
+import android.text.InputType
 import android.view.LayoutInflater
 import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import com.blankj.utilcode.util.ThreadUtils
+import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.databinding.GitCommitDialogBinding
-import com.itsaky.androidide.preferences.internal.GITHUB_EMAIL
-import com.itsaky.androidide.preferences.internal.GITHUB_PAT
-import com.itsaky.androidide.preferences.internal.GITHUB_USERNAME
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.tasks.TaskExecutor.executeAsyncProvideError
-import org.eclipse.jgit.api.CommitCommand
+import com.itsaky.androidide.tasks.runOnUiThread
+import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.errors.RepositoryNotFoundException
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.storage.file.FileBasedConfig
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
+import org.eclipse.jgit.util.FS
 
 object GitCommitTask {
 
-        private val prefs = BaseApplication.getBaseInstance().prefManager
+    /**
+     * Main entry point to start the commit process.
+     */
+    fun commit(
+        context: Context,
+        selectedFiles: List<String>? = null,
+        commitMessage: String? = null
+    ) {
+        Thread {
+            try {
+                val projectDir = ProjectManagerImpl.getInstance().projectDir
+                val git = Git.open(projectDir)
+                val config = git.repository.config
 
-        //@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-        fun commit(/*project: Project,*/ context: Context) {
+                // --- MODIFIED CONFIG CHECK ---
+                // 1. JGit checks local config first, then falls back to global
+                var userName = config.getString("user", null, "name")
+                var userEmail = config.getString("user", null, "email")
 
-            val inflater =
-                LayoutInflater.from(context).context.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
-            inflater.inflate(R.layout.git_commit_dialog, null)
-
-            val binding = GitCommitDialogBinding.inflate(inflater, null, false)
-            val filesToCommit = ArrayList<String>()
-            val filesUntracked = ArrayList<String>()
-            val targetDir = ProjectManagerImpl.getInstance().projectDir
-
-
-            binding.fabSendFeedback.setOnClickListener {
-                val email = "thursdaynext@gmail.com"
-                val subject = "Git Commit Feedback"
-                val body = "Please Enter Your Feedback Below"
-                val urlString =
-                    "mailto:" + Uri.encode(email) + "?subject=" + Uri.encode(subject) + "&body=" + Uri.encode(
-                        body
-                    )
-                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = Uri.parse(urlString)
-                    putExtra(Intent.EXTRA_EMAIL, email)
-                    putExtra(Intent.EXTRA_SUBJECT, subject)
-                    putExtra(Intent.EXTRA_TEXT, body)
+                // 2. If JGit found nothing, use our command-line helper as a robust fallback for global config
+                if (userName.isNullOrBlank()) {
+                    userName = getGlobalGitConfig(context, "user.name")
                 }
-                val packageManager = context.packageManager
-                val activities = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    context.packageManager.queryIntentActivities(
-                        Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER),
-                        PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
-                    )
-                } else {
-                    context.packageManager.queryIntentActivities(
-                        Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER),
-                        PackageManager.GET_META_DATA
-                    )
+                if (userEmail.isNullOrBlank()) {
+                    userEmail = getGlobalGitConfig(context, "user.email")
                 }
-                if (activities.isNotEmpty()) {
-                    try {
-                        //start email intent
-                        //context.startActivity(createChooser(intent, "Choose Email Client..."))
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        //if any thing goes wrong for example no email client application or any exception
-                        //get and show exception message
-                        Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
+                // --- END OF MODIFIED CHECK ---
 
-            val git : Git = try {
-                 Git.open(targetDir)
-            } catch(e : RepositoryNotFoundException) {
-                null
-            } ?: TODO("add alert dialog here to explain missing repo")
-            val repo = git.repository
-            val branch = repo.branch
-            val result = git.status().call()
-            val cf = git.diff().setCached(false).setShowNameOnly(true).call()
-
-            if (cf.size == 0) {
-
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.commit_canceled_files_to_commit),
-                    Toast.LENGTH_LONG
-                )
-                    .show();
-                return;
-            } else {
-                for (name in cf) {
-                    if (!name.newPath.isNullOrBlank()) {
-                        filesToCommit.add(name.newPath)
-                    }
-                }
-            }
-
-            val sb: StringBuilder = StringBuilder()
-            sb.append("On Branch ")
-            var pos = sb.length
-            sb.append(branch)
-            val ssb = SpannableStringBuilder(sb)
-            val bi = StyleSpan(Typeface.BOLD_ITALIC)
-            ssb.setSpan(bi, pos, sb.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-            binding.tvOnBranch.text = ssb
-
-
-            val status = git.status().call()
-            sb.clear()
-            ssb.clear()
-            sb.append("Your branch is up to date with '")
-            pos = sb.length
-            sb.append("origin/master")
-            var pos1 = sb.length
-            sb.append("'")
-            ssb.append(sb)
-            ssb.setSpan(bi, pos, pos1, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-            binding.tvBranchStatus.text = ssb
-
-            binding.teCommitMessage.hint = "enter commit message here"
-            val adapter = ArrayAdapter<String>(
-                context,
-                android.R.layout.simple_list_item_multiple_choice,
-                filesToCommit
-            )
-            binding.lvFilesToCommit.adapter = adapter
-            binding.lvFilesToCommit.choiceMode = ListView.CHOICE_MODE_MULTIPLE
-            for (i in 0 until adapter.count) {
-                binding.lvFilesToCommit.setItemChecked(i, true)
-            }
-
-            // Set a listener to handle item check changes
-            binding.lvFilesToCommit.setOnItemClickListener { _, _, position, _ ->
-                // Handle the long click event
-                val item = binding.lvFilesToCommit.getItemAtPosition(position).toString()
-                val isChecked = binding.lvFilesToCommit.isItemChecked(position)
-                // Return true to consume the long click event
-                true
-            }
-
-
-            val builder = AlertDialog.Builder(context)
-            builder.setTitle(R.string.commit_changes)
-            builder.setView(binding.root)
-            builder.setPositiveButton(R.string.title_commit) { _, _ ->
-
-                val userName = prefs.getString(GITHUB_USERNAME, "")
-                val userEmail = prefs.getString(GITHUB_EMAIL, "")
-
-                val future =
-                    executeAsyncProvideError({
-
-                        val msg = binding.teCommitMessage.text?.toString()
-                        var file = File(targetDir, "/.git")
-                        var path = file.toString()
-
-                        if (userName.isNullOrBlank() && userEmail.isNullOrBlank()) {
-                            ThreadUtils.runOnUiThread {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.set_user_and_password),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else if (msg.isNullOrBlank()) {
-                            ThreadUtils.runOnUiThread {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.empty_commit),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else if (binding.lvFilesToCommit.checkedItemCount == 0) {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.commit_canceled_no_files_to_commit),
-                                Toast.LENGTH_LONG
-                            ).show()
-                        } else {
-
-                            val gitDir = Git.open(targetDir)
-                            val cmd: CommitCommand = gitDir.commit()
-                            for (i in 0 until adapter.count) {
-                                if (binding.lvFilesToCommit.isItemChecked(i)) {
-                                    cmd.setOnly(
-                                        binding.lvFilesToCommit.getItemAtPosition(i).toString()
-                                    )
-                                }
-                                cmd.setCommitter(userName.toString(), userEmail.toString())
-                                    .setMessage(msg)
-                                val token = prefs.getString(
-                                        GITHUB_PAT,
-                                        ""
-                                    )
-                                if (!token.isNullOrBlank()) {
-                                    cmd.setCredentialsProvider(
-                                        UsernamePasswordCredentialsProvider(
-                                            "<token>",
-                                            token
-                                        )
-                                    )
-                                }
-
-                                cmd.call()
-
-                                ThreadUtils.runOnUiThread {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(
-                                            R.string.committed_all_changes_to_repository_in,
-                                            path
-                                        ),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-
-                            }
+                if (userName.isNullOrBlank() || userEmail.isNullOrBlank()) {
+                    // Config is still missing, now we must prompt the user
+                    runOnUiThread {
+                        promptForGitUserInfo(context) { name, email ->
+                            continueCommitProcess(context, git, name, email, selectedFiles, commitMessage)
                         }
-
-                        return@executeAsyncProvideError
-                    }, { _, _ -> })
-
-                future.whenComplete { result, error ->
-                    ThreadUtils.runOnUiThread {
-                        //TODO error log
-//                        if (result == null || error != null) {
-//                            ErrorOutput.ShowError(error, context)
-//                        }
                     }
+                } else {
+                    // Config was found, proceed directly
+                    continueCommitProcess(context, git, userName, userEmail, selectedFiles, commitMessage)
                 }
-
+            } catch (e: Exception) {
+                runOnUiThread { flashError("Git Pre-check Error: ${e.message}") }
+                e.printStackTrace()
             }
+        }.start()
+    }
 
-            builder.setNegativeButton(android.R.string.cancel, null)
-            builder.show()
+    // Add this new function inside the GitCommitTask object
+    private fun getGlobalGitConfig(context: Context, key: String): String? {
+        return try {
+            val gitExecutable = File(context.filesDir, "usr/bin/git")
+            if (!gitExecutable.exists()) return null
 
+            val command = listOf(gitExecutable.absolutePath, "config", "--global", key)
+            val process = ProcessBuilder(command).start()
+
+            val output = BufferedReader(InputStreamReader(process.inputStream)).readLine()
+
+            val exitCode = process.waitFor()
+            if (exitCode == 0 && !output.isNullOrBlank()) {
+                output.trim()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 
+    /**
+     * Continues the commit process after user info has been verified or supplied.
+     */
+    private fun continueCommitProcess(
+        context: Context,
+        git: Git,
+        userName: String,
+        userEmail: String,
+        preselectedFiles: List<String>?,
+        prefilledMessage: String?
+    ) {
+        Thread {
+            try {
+                // If both a list of files and a non-blank message are provided, commit directly.
+                if (!preselectedFiles.isNullOrEmpty() && !prefilledMessage.isNullOrBlank()) {
+
+                    performCommitWithRetry(
+                        context,
+                        git,
+                        preselectedFiles,
+                        prefilledMessage,
+                        userName,
+                        userEmail
+                    )
+
+                } else {
+                    val filesToShow: List<String>
+                    if (preselectedFiles != null) {
+                        filesToShow = preselectedFiles
+                    } else {
+                        val status = git.status().call()
+                        if (status.isClean) {
+                            runOnUiThread { flashError("No changes to commit.") }
+                            return@Thread
+                        }
+                        filesToShow =
+                            (status.modified + status.untracked + status.added + status.changed + status.removed).sorted()
+                    }
+
+                    runOnUiThread {
+                        showCommitDialog(
+                            context,
+                            git,
+                            filesToShow,
+                            userName,
+                            userEmail,
+                            preselectedFiles,
+                            prefilledMessage
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { flashError("Git Status Error: ${e.message}") }
+            }
+        }.start()
+    }
+
+    /**
+     * Displays the commit dialog, pre-filling fields if data is provided.
+     */
+    private fun showCommitDialog(
+        context: Context,
+        git: Git,
+        allChangedFiles: List<String>,
+        userName: String,
+        userEmail: String,
+        preselectedFiles: List<String>?,
+        prefilledMessage: String?
+    ) {
+        val binding = GitCommitDialogBinding.inflate(LayoutInflater.from(context))
+
+        binding.tvOnBranch.text = "On Branch: ${git.repository.branch}"
+
+        // Pre-fill the commit message if it was passed
+        binding.teCommitMessage.setText(prefilledMessage ?: "")
+        binding.teCommitMessage.hint = "Commit message"
+
+        val adapter = ArrayAdapter(
+            context,
+            android.R.layout.simple_list_item_multiple_choice,
+            allChangedFiles
+        )
+        binding.lvFilesToCommit.adapter = adapter
+        binding.lvFilesToCommit.choiceMode = ListView.CHOICE_MODE_MULTIPLE
+
+        // Check items based on pre-selection or default to all
+        for (i in 0 until adapter.count) {
+            val currentFile = adapter.getItem(i)!!
+            val shouldCheck = preselectedFiles == null || currentFile in preselectedFiles
+            binding.lvFilesToCommit.setItemChecked(i, shouldCheck)
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle(R.string.commit_changes)
+            .setView(binding.root)
+            .setPositiveButton(R.string.title_commit) { _, _ ->
+                val message = binding.teCommitMessage.text.toString()
+                if (message.isBlank()) {
+                    flashError("Commit message cannot be empty.")
+                    return@setPositiveButton
+                }
+
+                val checkedPositions = binding.lvFilesToCommit.checkedItemPositions
+                val selectedFiles = (0 until adapter.count)
+                    .filter { checkedPositions[it] }
+                    .map { adapter.getItem(it)!! }
+
+                if (selectedFiles.isEmpty()) {
+                    flashError("No files selected to commit.")
+                    return@setPositiveButton
+                }
+
+                performCommitWithRetry(context, git, selectedFiles, message, userName, userEmail)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Displays a dialog to get user.name and user.email from the user.
+     * @param onConfigured Callback that provides the entered name and email upon saving.
+     */
+    private fun promptForGitUserInfo(
+        context: Context,
+        onConfigured: (name: String, email: String) -> Unit
+    ) {
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val padding = SizeUtils.dp2px(16f)
+            setPadding(padding, padding, padding, padding)
+        }
+
+        val nameInput = EditText(context).apply { hint = "User Name" }
+        val emailInput = EditText(context).apply {
+            hint = "Email"
+            inputType = InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        }
+
+        container.addView(nameInput)
+        container.addView(emailInput)
+
+        AlertDialog.Builder(context)
+            .setTitle("Git User Info Required")
+            .setMessage("Please set your global user name and email to continue.")
+            .setView(container)
+            .setCancelable(false)
+            .setPositiveButton("Save") { _, _ ->
+                val name = nameInput.text.toString().trim()
+                val email = emailInput.text.toString().trim()
+
+                if (name.isBlank() || email.isBlank()) {
+                    flashError("Name and email cannot be empty.")
+                    promptForGitUserInfo(context, onConfigured)
+                    return@setPositiveButton
+                }
+
+                // Save the config in the background using JGit's API
+                Thread {
+                    try {
+
+                        // Step 1: Find the user's home directory
+                        val userHome = FS.DETECTED.userHome()
+                            ?: throw Exception("Could not determine user home directory.")
+
+                        // Step 2: Manually construct the path to the global .gitconfig file
+                        val globalConfigFile = File(userHome, ".gitconfig")
+
+                        // --- MODIFIED CODE ENDS HERE ---
+
+                        val config = FileBasedConfig(globalConfigFile, FS.DETECTED)
+                        config.load()
+
+                        config.setString("user", null, "name", name)
+                        config.setString("user", null, "email", email)
+
+                        config.save()
+
+                        // --- Confirmation Snippet (No changes needed here) ---
+                        val newConfig = FileBasedConfig(globalConfigFile, FS.DETECTED)
+                        newConfig.load()
+                        val savedName = newConfig.getString("user", null, "name")
+                        val savedEmail = newConfig.getString("user", null, "email")
+
+                        if (savedName == name && savedEmail == email) {
+                            runOnUiThread {
+                                flashSuccess("Git user info saved globally.")
+                                onConfigured(name, email)
+                            }
+                        } else {
+                            throw Exception("Verification failed. Config was not saved correctly.")
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread { flashError("Failed to save Git config: ${e.message}") }
+                        e.printStackTrace()
+                    }
+                }.start()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                flashError("Commit canceled: user information is required.")
+            }
+            .show()
+    }
+
+    private fun performCommitWithRetry(
+        context: Context,
+        git: Git,
+        files: List<String>,
+        message: String,
+        userName: String,
+        userEmail: String
+    ) {
+        Thread {
+            var success = false
+            var attempt = 1
+            while (!success && attempt <= 2) {
+                try {
+                    val addCommand = git.add()
+                    files.forEach { addCommand.addFilepattern(it) }
+                    addCommand.call()
+
+                    git.commit()
+//                        .setCommitter(userName, userEmail)
+                        .setMessage(message)
+                        .call()
+
+                    success = true
+                    runOnUiThread { flashSuccess("Commit successful!") }
+
+                } catch (e: Exception) {
+                    val errorMessage = e.message ?: ""
+                    if (attempt == 1 && errorMessage.contains(
+                            "dubious ownership",
+                            ignoreCase = true
+                        )
+                    ) {
+                        runOnUiThread {
+                            Toast.makeText(
+                                context,
+                                "Fixing ownership issue...",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        val fixed = fixSafeDirectory(context, git.repository.directory.parentFile)
+                        if (!fixed) {
+                            runOnUiThread { flashError("Failed to fix ownership issue. Commit aborted.") }
+                            break
+                        }
+                    } else {
+                        runOnUiThread { flashError("Commit failed: $errorMessage") }
+                        break
+                    }
+                }
+                attempt++
+            }
+        }.start()
+    }
+
+    private fun fixSafeDirectory(context: Context, projectDir: File): Boolean {
+        return try {
+            val gitExecutable = File(context.filesDir, "usr/bin/git")
+            val command = listOf(
+                gitExecutable.absolutePath,
+                "config",
+                "--global",
+                "--add",
+                "safe.directory",
+                projectDir.absolutePath
+            )
+            ProcessBuilder(command).start().waitFor() == 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+}
 
 
 ================================================
@@ -18901,39 +19117,81 @@ package com.itsaky.androidide.git
 
 import android.content.Context
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.eclipse.jgit.api.Git
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
 
 object GitInitTask {
 
-    fun init(context: Context) {
+    fun init(context: Context, userName: String? = null, userEmail: String? = null) {
         val projectDir = ProjectManagerImpl.getInstance().projectDir
-        if (projectDir == null) {
-            flashError("No project is open.")
-            return
-        }
 
-        // Check if a .git directory already exists
         val gitDir = File(projectDir, ".git")
         if (gitDir.exists()) {
             flashError("Project is already a Git repository.")
             return
         }
 
-        try {
-            // Initialize the repository
-            Git.init().setDirectory(projectDir).call()
-            flashSuccess("Git repository initialized successfully!")
+        // Run file and process operations on a background thread
+        Thread {
+            try {
+                // Step 1: Initialize the repository with JGit
+                val git = Git.init().setDirectory(projectDir).call()
 
-            // Optional: You might want to refresh UI elements that depend on Git status
-            // For example, by sending an event or calling a method on a ViewModel.
+                // Step 2: Configure user.name and user.email
+                val config = git.repository.config
+                if (!userName.isNullOrBlank() && !userEmail.isNullOrBlank()) {
+                    // If parameters are provided, set them as LOCAL config for this repo
+                    config.setString("user", null, "name", userName)
+                    config.setString("user", null, "email", userEmail)
+                    config.save()
+                } else {
+                    // If no parameters, check for a GLOBAL config
+                    val globalName = config.getString("user", null, "name")
+                    val globalEmail = config.getString("user", null, "email")
+                    if (globalName.isNullOrBlank() || globalEmail.isNullOrBlank()) {
+                        // If global config is missing, throw an error
+                        throw IllegalStateException("Global Git user name/email not set. Please configure them in settings.")
+                    }
+                }
 
-        } catch (e: Exception) {
-            flashError("Failed to initialize repository: ${e.message}")
-            e.printStackTrace()
-        }
+                // Step 3: Add the project directory to Git's safe.directory list
+                val gitExecutable = File(context.filesDir, "usr/bin/git")
+                if (!gitExecutable.exists()) {
+                    throw IllegalStateException("Git executable not found. Please ensure the environment is set up.")
+                }
+
+                val command = listOf(
+                    gitExecutable.absolutePath,
+                    "config", "--global", "--add", "safe.directory",
+                    projectDir.absolutePath
+                )
+
+                val process = ProcessBuilder(command).start()
+                val exitCode = process.waitFor()
+
+                if (exitCode == 0) {
+                    // All steps were successful
+                    runOnUiThread {
+                        flashSuccess("Git repository initialized successfully!")
+                    }
+                } else {
+                    // The git config command failed
+                    val errorOutput = BufferedReader(InputStreamReader(process.errorStream)).readText()
+                    throw Exception("Failed to set safe.directory: $errorOutput")
+                }
+
+            } catch (e: Exception) {
+                runOnUiThread {
+                    flashError("Failed to initialize repository: ${e.message}")
+                }
+                e.printStackTrace()
+            }
+        }.start()
     }
 }
 
@@ -28758,6 +29016,7 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -28966,20 +29225,25 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+    // If the motion event is from a mouse or trackpad, do NOT intercept it.
+    // Let it pass through to the child views (the editor) so it can handle scrolling.
+    if (ev.isFromSource(InputDevice.SOURCE_MOUSE) || ev.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
+      return false
+    }
+
+    // Original touch handling logic for finger drags remains unchanged
     when (ev.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         val isInDragHandle = isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
         hasReceivedDownEvent = isInDragHandle
         return isInDragHandle && dragHelper.shouldInterceptTouchEvent(ev)
       }
-
       MotionEvent.ACTION_MOVE,
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_CANCEL -> {
         if (!hasReceivedDownEvent) {
           return false
         }
-
         val shouldIntercept = dragHelper.shouldInterceptTouchEvent(ev)
         if (ev.actionMasked == MotionEvent.ACTION_UP ||
           ev.actionMasked == MotionEvent.ACTION_CANCEL) {
