@@ -325,7 +325,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     protected abstract fun provideEditorAt(index: Int): CodeEditorView?
 
-    protected abstract fun doOpenFile(file: File, selection: Range?)
+    internal abstract fun doOpenFile(file: File, selection: Range?)
 
     protected abstract fun doDismissSearchProgress()
 

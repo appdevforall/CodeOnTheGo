@@ -19,12 +19,14 @@ package com.itsaky.androidide.activities.editor
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.text.TextUtils
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup.LayoutParams
-import androidx.annotation.DrawableRes
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
@@ -59,7 +61,9 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsvks.layouteditor.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,6 +71,7 @@ import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.set
 
@@ -140,7 +145,74 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
       TSLanguageRegistry.instance.register(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
       TSLanguageRegistry.instance.register(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
       IDEColorSchemeProvider.initIfNeeded()
+
+      handleIncomingIntent(intent)
     }
+  }
+
+
+  override fun onNewIntent(intent: Intent?) {
+    super.onNewIntent(intent)
+    setIntent(intent) // Important to update the intent
+    handleIncomingIntent(intent)
+  }
+
+  private fun handleIncomingIntent(intent: Intent?) {
+    // Check if the activity was launched with a file to view or edit
+    if (intent?.action == Intent.ACTION_VIEW || intent?.action == Intent.ACTION_EDIT) {
+      intent.data?.let { uri ->
+        resolveUriAndOpenFile(uri)
+      }
+    }
+  }
+
+  private fun resolveUriAndOpenFile(uri: Uri) {
+    try {
+      // Get the original filename from the URI if possible
+      val originalFileName = getFileNameFromUri(uri) ?: "temp_${System.currentTimeMillis()}"
+
+      // Create a temporary file in the app's cache directory
+      val tempFile = File(cacheDir, originalFileName)
+
+      // Copy the content from the URI's input stream to our temporary file
+      contentResolver.openInputStream(uri)?.use { inputStream ->
+        FileOutputStream(tempFile).use { outputStream ->
+          inputStream.copyTo(outputStream)
+        }
+      }
+
+      // Now, open the copied file in the editor
+      // Note: This opens a copy. Changes saved will not affect the original file.
+      doOpenFile(tempFile, null)
+
+    } catch (e: Exception) {
+      Log.e("FileOpen", "Failed to open file from URI: $uri", e)
+      flashError(getString(R.string.msg_file_open_error))
+    }
+  }
+
+  @SuppressLint("Range")
+  private fun getFileNameFromUri(uri: Uri): String? {
+    var result: String? = null
+    if (uri.scheme == "content") {
+      val cursor = contentResolver.query(uri, null, null, null, null)
+      cursor?.use {
+        if (it.moveToFirst()) {
+          val displayNameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+          if (displayNameIndex != -1) {
+            result = it.getString(displayNameIndex)
+          }
+        }
+      }
+    }
+    if (result == null) {
+      result = uri.path
+      val cut = result?.lastIndexOf('/')
+      if (cut != null && cut != -1) {
+        result = result?.substring(cut + 1)
+      }
+    }
+    return result
   }
 
   override fun onPause() {
