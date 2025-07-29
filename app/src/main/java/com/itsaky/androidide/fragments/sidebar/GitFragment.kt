@@ -70,7 +70,7 @@ class GitFragment :
             GitPullTask.pull(requireContext())
         }
         binding.btnGitInit.setOnClickListener {
-            GitInitTask.init(requireContext())
+            GitInitTask.init(requireContext(), "John", "john.c.calhoun@examplepetstore.com")
             // After attempting to init, refresh the button visibility
             updateGitButtonVisibility()
         }
