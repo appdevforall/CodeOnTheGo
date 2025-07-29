@@ -34,4 +34,10 @@
         android:layout_height="wrap_content"
         android:text="Manage Remotes" />
 
+    <Button
+        android:id="@+id/btnGitLog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Log" />
+
 </LinearLayout>

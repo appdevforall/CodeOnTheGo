@@ -18,6 +18,10 @@
         <action
             android:id="@+id/action_gitFragment_to_gitRemotesListFragment"
             app:destination="@id/gitRemotesListFragment" />
+
+        <action
+            android:id="@+id/action_gitFragment_to_gitCommitListFragment"
+            app:destination="@id/gitCommitListFragment" />
     </fragment>
 
     <fragment
@@ -42,6 +46,29 @@
         tools:layout="@layout/fragment_git_edit_remote">
         <argument
             android:name="remoteName"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
+    </fragment>
+
+
+    <fragment
+        android:id="@+id/gitCommitListFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitHistoryFragment"
+        android:label="Git Log"
+        tools:layout="@layout/fragment_git_commit_list">
+        <action
+            android:id="@+id/action_gitCommitListFragment_to_gitShowCommitFragment"
+            app:destination="@id/gitShowCommitFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/gitShowCommitFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitCommitDetailFragment"
+        android:label="Commit Details"
+        tools:layout="@layout/fragment_git_edit_remote">
+        <argument
+            android:name="commitHash"
             app:argType="string"
             app:nullable="true"
             android:defaultValue="@null" />

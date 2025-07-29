@@ -75,6 +75,9 @@ class GitFragment :
             updateGitButtonVisibility()
         }
 
+        binding.btnGitLog.setOnClickListener {
+            findNavController().navigate(R.id.action_gitFragment_to_gitCommitListFragment)
+        }
     }
 
     private fun updateGitButtonVisibility() {
