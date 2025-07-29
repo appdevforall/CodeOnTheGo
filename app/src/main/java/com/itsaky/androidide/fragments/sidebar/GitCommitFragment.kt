@@ -51,6 +51,7 @@ class GitCommitFragment : Fragment() {
         loadGitStatus()
 
         binding.btnCommit.setOnClickListener {
+            binding.btnCommit.isEnabled = false
             val stagedFiles = gitStatusAdapter.getStagedFiles()
             val message = binding.commitMessageInput.text.toString()
             if (message.isBlank()) {
@@ -59,11 +60,13 @@ class GitCommitFragment : Fragment() {
                     "Commit message cannot be empty.",
                     Toast.LENGTH_SHORT
                 ).show()
+                binding.btnCommit.isEnabled = true
                 return@setOnClickListener
             }
             if (stagedFiles.isEmpty()) {
                 Toast.makeText(requireContext(), "No files selected to commit.", Toast.LENGTH_SHORT)
                     .show()
+                binding.btnCommit.isEnabled = true
                 return@setOnClickListener
             }
 
