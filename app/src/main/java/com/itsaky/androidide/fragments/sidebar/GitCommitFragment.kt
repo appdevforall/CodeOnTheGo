@@ -50,7 +50,6 @@ class GitCommitFragment : Fragment() {
         // Load the changed files into the RecyclerView
         loadGitStatus()
 
-        // **MODIFIED:** The commit logic now lives here
         binding.btnCommit.setOnClickListener {
             val stagedFiles = gitStatusAdapter.getStagedFiles()
             val message = binding.commitMessageInput.text.toString()
@@ -69,6 +68,7 @@ class GitCommitFragment : Fragment() {
             }
 
             GitCommitTask.commit(requireContext(),  selectedFiles = stagedFiles, commitMessage = message)
+            findNavController().popBackStack()
         }
     }
 
@@ -90,34 +90,6 @@ class GitCommitFragment : Fragment() {
                 binding.commitFilesRecyclerView.apply {
                     adapter = gitStatusAdapter
                     layoutManager = LinearLayoutManager(requireContext())
-                }
-            }
-        }
-    }
-
-    private fun performCommit(filesToCommit: List<String>, message: String) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                // Add each selected file to the index
-                val addCommand = git.add()
-                filesToCommit.forEach { addCommand.addFilepattern(it) }
-                addCommand.call()
-
-                // Now, commit the files that were just added
-                git.commit().setMessage(message).call()
-
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "Commit successful!", Toast.LENGTH_SHORT)
-                        .show()
-                    findNavController().popBackStack()
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        requireContext(),
-                        "Commit failed: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
                 }
             }
         }
