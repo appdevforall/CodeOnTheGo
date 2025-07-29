@@ -33,8 +33,7 @@ object GitCommitTask {
     ) {
         Thread {
             try {
-                val projectDir = ProjectManagerImpl.getInstance().projectDir
-                    ?: throw IllegalStateException("No project is open.")
+                val projectDir = ProjectManagerImpl.getInstance().projectDirø
                 val git = Git.open(projectDir)
                 val config = git.repository.config
 
@@ -44,11 +43,25 @@ object GitCommitTask {
                 if (userName.isNullOrBlank() || userEmail.isNullOrBlank()) {
                     runOnUiThread {
                         promptForGitUserInfo(context) { name, email ->
-                            continueCommitProcess(context, git, name, email, selectedFiles, commitMessage)
+                            continueCommitProcess(
+                                context,
+                                git,
+                                name,
+                                email,
+                                selectedFiles,
+                                commitMessage
+                            )
                         }
                     }
                 } else {
-                    continueCommitProcess(context, git, userName, userEmail, selectedFiles, commitMessage)
+                    continueCommitProcess(
+                        context,
+                        git,
+                        userName,
+                        userEmail,
+                        selectedFiles,
+                        commitMessage
+                    )
                 }
             } catch (e: Exception) {
                 runOnUiThread { flashError("Git Pre-check Error: ${e.message}") }
@@ -73,7 +86,14 @@ object GitCommitTask {
                 // If both a list of files and a non-blank message are provided, commit directly.
                 if (!preselectedFiles.isNullOrEmpty() && !prefilledMessage.isNullOrBlank()) {
 
-                    performCommitWithRetry(context, git, preselectedFiles, prefilledMessage, userName, userEmail)
+                    performCommitWithRetry(
+                        context,
+                        git,
+                        preselectedFiles,
+                        prefilledMessage,
+                        userName,
+                        userEmail
+                    )
 
                 } else {
                     // **OLD LOGIC**: One or both parameters are missing, so show the dialog.
@@ -86,11 +106,20 @@ object GitCommitTask {
                             runOnUiThread { flashError("No changes to commit.") }
                             return@Thread
                         }
-                        filesToShow = (status.modified + status.untracked + status.added + status.changed + status.removed).sorted()
+                        filesToShow =
+                            (status.modified + status.untracked + status.added + status.changed + status.removed).sorted()
                     }
 
                     runOnUiThread {
-                        showCommitDialog(context, git, filesToShow, userName, userEmail, preselectedFiles, prefilledMessage)
+                        showCommitDialog(
+                            context,
+                            git,
+                            filesToShow,
+                            userName,
+                            userEmail,
+                            preselectedFiles,
+                            prefilledMessage
+                        )
                     }
                 }
             } catch (e: Exception) {
@@ -119,7 +148,11 @@ object GitCommitTask {
         binding.teCommitMessage.setText(prefilledMessage ?: "")
         binding.teCommitMessage.hint = "Commit message"
 
-        val adapter = ArrayAdapter(context, android.R.layout.simple_list_item_multiple_choice, allChangedFiles)
+        val adapter = ArrayAdapter(
+            context,
+            android.R.layout.simple_list_item_multiple_choice,
+            allChangedFiles
+        )
         binding.lvFilesToCommit.adapter = adapter
         binding.lvFilesToCommit.choiceMode = ListView.CHOICE_MODE_MULTIPLE
 
@@ -196,8 +229,24 @@ object GitCommitTask {
                 Thread {
                     try {
                         val gitExecutable = File(context.filesDir, "usr/bin/git")
-                        ProcessBuilder(listOf(gitExecutable.absolutePath, "config", "--global", "user.name", name)).start().waitFor()
-                        ProcessBuilder(listOf(gitExecutable.absolutePath, "config", "--global", "user.email", email)).start().waitFor()
+                        ProcessBuilder(
+                            listOf(
+                                gitExecutable.absolutePath,
+                                "config",
+                                "--global",
+                                "user.name",
+                                name
+                            )
+                        ).start().waitFor()
+                        ProcessBuilder(
+                            listOf(
+                                gitExecutable.absolutePath,
+                                "config",
+                                "--global",
+                                "user.email",
+                                email
+                            )
+                        ).start().waitFor()
                         runOnUiThread {
                             flashSuccess("Git user info saved globally.")
                             onConfigured(name, email)
@@ -213,7 +262,14 @@ object GitCommitTask {
             .show()
     }
 
-    private fun performCommitWithRetry(context: Context, git: Git, files: List<String>, message: String, userName: String, userEmail: String) {
+    private fun performCommitWithRetry(
+        context: Context,
+        git: Git,
+        files: List<String>,
+        message: String,
+        userName: String,
+        userEmail: String
+    ) {
         Thread {
             var success = false
             var attempt = 1
@@ -233,8 +289,18 @@ object GitCommitTask {
 
                 } catch (e: Exception) {
                     val errorMessage = e.message ?: ""
-                    if (attempt == 1 && errorMessage.contains("dubious ownership", ignoreCase = true)) {
-                        runOnUiThread { Toast.makeText(context, "Fixing ownership issue...", Toast.LENGTH_SHORT).show() }
+                    if (attempt == 1 && errorMessage.contains(
+                            "dubious ownership",
+                            ignoreCase = true
+                        )
+                    ) {
+                        runOnUiThread {
+                            Toast.makeText(
+                                context,
+                                "Fixing ownership issue...",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                         val fixed = fixSafeDirectory(context, git.repository.directory.parentFile)
                         if (!fixed) {
                             runOnUiThread { flashError("Failed to fix ownership issue. Commit aborted.") }
@@ -254,7 +320,12 @@ object GitCommitTask {
         return try {
             val gitExecutable = File(context.filesDir, "usr/bin/git")
             val command = listOf(
-                gitExecutable.absolutePath, "config", "--global", "--add", "safe.directory", projectDir.absolutePath
+                gitExecutable.absolutePath,
+                "config",
+                "--global",
+                "--add",
+                "safe.directory",
+                projectDir.absolutePath
             )
             ProcessBuilder(command).start().waitFor() == 0
         } catch (e: Exception) {
