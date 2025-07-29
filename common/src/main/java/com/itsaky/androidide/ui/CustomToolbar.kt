@@ -1,6 +1,7 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import android.graphics.PorterDuff
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.util.TypedValue
@@ -12,8 +13,10 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
+import com.itsaky.androidide.utils.isSystemInDarkMode
 
 class CustomToolbar @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
@@ -24,6 +27,7 @@ class CustomToolbar @JvmOverloads constructor(
     private val scrollView: HorizontalScrollView
     private lateinit var startIcon: ImageView
     private lateinit var endIcon: ImageView
+    private var isDarkMode = this.context.isSystemInDarkMode()
 
     init {
         LayoutInflater.from(context).inflate(R.layout.custom_toolbar, this, true)
@@ -39,8 +43,12 @@ class CustomToolbar @JvmOverloads constructor(
     }
 
     private fun setupStartAndEndArrows() {
+        val colorRes = if (isDarkMode) R.color.white else R.color.black
         startIcon = ImageView(context).apply {
             setImageResource(R.drawable.ic_arrow_left)
+            setColorFilter(
+                ContextCompat.getColor(context, colorRes), PorterDuff.Mode.SRC_IN
+            )
             layoutParams = LinearLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
             ).apply {
@@ -51,6 +59,9 @@ class CustomToolbar @JvmOverloads constructor(
 
         endIcon = ImageView(context).apply {
             setImageResource(R.drawable.ic_arrow_right)
+            setColorFilter(
+                ContextCompat.getColor(context, colorRes), PorterDuff.Mode.SRC_IN
+            )
             layoutParams = LinearLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT
