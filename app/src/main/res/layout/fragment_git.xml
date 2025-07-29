@@ -4,40 +4,96 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <Button
-        android:id="@+id/btnGitInit"
+    <LinearLayout
+        android:id="@+id/init_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Initialize Repository" />
+        android:orientation="vertical"
+        android:visibility="gone">
 
-    <Button
-        android:id="@+id/btnGitCommit"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Commit Changes" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/git_user_name_layout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="User Name (Optional)">
 
-    <Button
-        android:id="@+id/btnGitPush"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Push to Remote" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/git_user_name_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-    <Button
-        android:id="@+id/btnGitPull"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Pull from Remote" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/git_user_email_layout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Email (Optional)">
 
-    <Button
-        android:id="@+id/btnManageRemotes"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Manage Remotes" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/git_user_email_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textEmailAddress"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-    <Button
-        android:id="@+id/btnGitLog"
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="If left blank, global settings will be used."
+            android:textAppearance="?attr/textAppearanceCaption" />
+
+        <Button
+            android:id="@+id/btnGitInit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Initialize Repository" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/actions_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Log" />
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btnGitCommit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Commit Changes" />
+
+        <Button
+            android:id="@+id/btnGitPush"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Push to Remote" />
+
+        <Button
+            android:id="@+id/btnGitPull"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Pull from Remote" />
+
+        <Button
+            android:id="@+id/btnManageRemotes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Manage Remotes" />
+
+        <Button
+            android:id="@+id/btnGitLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="View Log / History" />
+
+    </LinearLayout>
 
 </LinearLayout>

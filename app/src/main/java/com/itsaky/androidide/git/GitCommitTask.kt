@@ -1,272 +1,188 @@
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.itsaky.androidide.git
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Typeface
-import android.net.Uri
-import android.os.Build
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.StyleSpan
 import android.view.LayoutInflater
 import android.widget.ArrayAdapter
 import android.widget.ListView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.databinding.GitCommitDialogBinding
-import com.itsaky.androidide.preferences.internal.GITHUB_EMAIL
-import com.itsaky.androidide.preferences.internal.GITHUB_PAT
-import com.itsaky.androidide.preferences.internal.GITHUB_USERNAME
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.tasks.TaskExecutor.executeAsyncProvideError
-import org.eclipse.jgit.api.CommitCommand
+import com.itsaky.androidide.tasks.runOnUiThread
+import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.errors.RepositoryNotFoundException
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 
 object GitCommitTask {
 
-        private val prefs = BaseApplication.getBaseInstance().prefManager
+    /**
+     * Main entry point to start the commit process.
+     * Performs pre-checks and then shows the UI.
+     */
+    fun commit(context: Context) {
+        // Run pre-checks on a background thread to avoid blocking the UI
+        Thread {
+            try {
+                val projectDir = ProjectManagerImpl.getInstance().projectDir
+                    ?: throw IllegalStateException("No project is open.")
+                val git = Git.open(projectDir)
 
-        //@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-        fun commit(/*project: Project,*/ context: Context) {
+                // --- PRE-COMMIT CHECKS ---
 
-            val inflater =
-                LayoutInflater.from(context).context.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
-            inflater.inflate(R.layout.git_commit_dialog, null)
-
-            val binding = GitCommitDialogBinding.inflate(inflater, null, false)
-            val filesToCommit = ArrayList<String>()
-            val filesUntracked = ArrayList<String>()
-            val targetDir = ProjectManagerImpl.getInstance().projectDir
-
-
-            binding.fabSendFeedback.setOnClickListener {
-                val email = "thursdaynext@gmail.com"
-                val subject = "Git Commit Feedback"
-                val body = "Please Enter Your Feedback Below"
-                val urlString =
-                    "mailto:" + Uri.encode(email) + "?subject=" + Uri.encode(subject) + "&body=" + Uri.encode(
-                        body
-                    )
-                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = Uri.parse(urlString)
-                    putExtra(Intent.EXTRA_EMAIL, email)
-                    putExtra(Intent.EXTRA_SUBJECT, subject)
-                    putExtra(Intent.EXTRA_TEXT, body)
+                // 1. Check for user.name and user.email configuration
+                val config = git.repository.config
+                val userName = config.getString("user", null, "name")
+                val userEmail = config.getString("user", null, "email")
+                if (userName.isNullOrBlank() || userEmail.isNullOrBlank()) {
+                    throw IllegalStateException("Git user name/email not set. Please configure them in settings.")
                 }
-                val packageManager = context.packageManager
-                val activities = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    context.packageManager.queryIntentActivities(
-                        Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER),
-                        PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
-                    )
-                } else {
-                    context.packageManager.queryIntentActivities(
-                        Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER),
-                        PackageManager.GET_META_DATA
-                    )
+
+                // 2. Check if there are any actual changes to commit
+                val status = git.status().call()
+                if (status.isClean) {
+                    runOnUiThread { flashError("No changes to commit.") }
+                    return@Thread
                 }
-                if (activities.isNotEmpty()) {
-                    try {
-                        //start email intent
-                        //context.startActivity(createChooser(intent, "Choose Email Client..."))
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        //if any thing goes wrong for example no email client application or any exception
-                        //get and show exception message
-                        Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
-                    }
+
+                // Get a list of all files with changes
+                val changedFiles =
+                    (status.modified + status.untracked + status.added + status.changed + status.removed).sorted()
+
+                // If all checks pass, show the commit dialog on the UI thread
+                runOnUiThread {
+                    showCommitDialog(context, git, changedFiles)
                 }
+
+            } catch (e: Exception) {
+                runOnUiThread { flashError("Git Error: ${e.message}") }
+                e.printStackTrace()
             }
+        }.start()
+    }
 
-            val git : Git = try {
-                 Git.open(targetDir)
-            } catch(e : RepositoryNotFoundException) {
-                null
-            } ?: TODO("add alert dialog here to explain missing repo")
-            val repo = git.repository
-            val branch = repo.branch
-            val result = git.status().call()
-            val cf = git.diff().setCached(false).setShowNameOnly(true).call()
+    /**
+     * Displays the commit dialog to the user.
+     */
+    private fun showCommitDialog(context: Context, git: Git, filesToCommit: List<String>) {
+        val binding = GitCommitDialogBinding.inflate(LayoutInflater.from(context))
 
-            if (cf.size == 0) {
+        binding.tvOnBranch.text = "On Branch: ${git.repository.branch}"
+        binding.teCommitMessage.hint = "Commit message"
 
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.commit_canceled_files_to_commit),
-                    Toast.LENGTH_LONG
-                )
-                    .show();
-                return;
-            } else {
-                for (name in cf) {
-                    if (!name.newPath.isNullOrBlank()) {
-                        filesToCommit.add(name.newPath)
-                    }
+        val adapter =
+            ArrayAdapter(context, android.R.layout.simple_list_item_multiple_choice, filesToCommit)
+        binding.lvFilesToCommit.adapter = adapter
+        binding.lvFilesToCommit.choiceMode = ListView.CHOICE_MODE_MULTIPLE
+        for (i in 0 until adapter.count) {
+            binding.lvFilesToCommit.setItemChecked(i, true)
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle(R.string.commit_changes)
+            .setView(binding.root)
+            .setPositiveButton(R.string.title_commit) { _, _ ->
+                val message = binding.teCommitMessage.text.toString()
+                if (message.isBlank()) {
+                    flashError("Commit message cannot be empty.")
+                    return@setPositiveButton
                 }
+
+                val checkedPositions = binding.lvFilesToCommit.checkedItemPositions
+                val selectedFiles = (0 until adapter.count)
+                    .filter { checkedPositions[it] }
+                    .map { adapter.getItem(it)!! }
+
+                if (selectedFiles.isEmpty()) {
+                    flashError("No files selected to commit.")
+                    return@setPositiveButton
+                }
+
+                performCommitWithRetry(context, git, selectedFiles, message)
             }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
 
-            val sb: StringBuilder = StringBuilder()
-            sb.append("On Branch ")
-            var pos = sb.length
-            sb.append(branch)
-            val ssb = SpannableStringBuilder(sb)
-            val bi = StyleSpan(Typeface.BOLD_ITALIC)
-            ssb.setSpan(bi, pos, sb.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-            binding.tvOnBranch.text = ssb
+    /**
+     * Executes the commit on a background thread with a retry mechanism for ownership errors.
+     */
+    private fun performCommitWithRetry(
+        context: Context,
+        git: Git,
+        files: List<String>,
+        message: String
+    ) {
+        Thread {
+            var success = false
+            var attempt = 1
+            while (!success && attempt <= 2) {
+                try {
+                    // Stage all selected files for commit
+                    val addCommand = git.add()
+                    files.forEach { addCommand.addFilepattern(it) }
+                    addCommand.call()
 
+                    // Perform the commit
+                    git.commit().setMessage(message).call()
 
-            val status = git.status().call()
-            sb.clear()
-            ssb.clear()
-            sb.append("Your branch is up to date with '")
-            pos = sb.length
-            sb.append("origin/master")
-            var pos1 = sb.length
-            sb.append("'")
-            ssb.append(sb)
-            ssb.setSpan(bi, pos, pos1, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-            binding.tvBranchStatus.text = ssb
+                    success = true // If we reach here, it worked.
+                    runOnUiThread { flashSuccess("Commit successful!") }
 
-            binding.teCommitMessage.hint = "enter commit message here"
-            val adapter = ArrayAdapter<String>(
-                context,
-                android.R.layout.simple_list_item_multiple_choice,
-                filesToCommit
-            )
-            binding.lvFilesToCommit.adapter = adapter
-            binding.lvFilesToCommit.choiceMode = ListView.CHOICE_MODE_MULTIPLE
-            for (i in 0 until adapter.count) {
-                binding.lvFilesToCommit.setItemChecked(i, true)
-            }
-
-            // Set a listener to handle item check changes
-            binding.lvFilesToCommit.setOnItemClickListener { _, _, position, _ ->
-                // Handle the long click event
-                val item = binding.lvFilesToCommit.getItemAtPosition(position).toString()
-                val isChecked = binding.lvFilesToCommit.isItemChecked(position)
-                // Return true to consume the long click event
-                true
-            }
-
-
-            val builder = AlertDialog.Builder(context)
-            builder.setTitle(R.string.commit_changes)
-            builder.setView(binding.root)
-            builder.setPositiveButton(R.string.title_commit) { _, _ ->
-
-                val userName = prefs.getString(GITHUB_USERNAME, "")
-                val userEmail = prefs.getString(GITHUB_EMAIL, "")
-
-                val future =
-                    executeAsyncProvideError({
-
-                        val msg = binding.teCommitMessage.text?.toString()
-                        var file = File(targetDir, "/.git")
-                        var path = file.toString()
-
-                        if (userName.isNullOrBlank() && userEmail.isNullOrBlank()) {
-                            ThreadUtils.runOnUiThread {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.set_user_and_password),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else if (msg.isNullOrBlank()) {
-                            ThreadUtils.runOnUiThread {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.empty_commit),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else if (binding.lvFilesToCommit.checkedItemCount == 0) {
+                } catch (e: Exception) {
+                    val errorMessage = e.message ?: ""
+                    // Check for the specific "dubious ownership" error on the first attempt
+                    if (attempt == 1 && errorMessage.contains(
+                            "dubious ownership",
+                            ignoreCase = true
+                        )
+                    ) {
+                        runOnUiThread {
                             Toast.makeText(
                                 context,
-                                context.getString(R.string.commit_canceled_no_files_to_commit),
-                                Toast.LENGTH_LONG
+                                "Fixing ownership issue...",
+                                Toast.LENGTH_SHORT
                             ).show()
-                        } else {
-
-                            val gitDir = Git.open(targetDir)
-                            val cmd: CommitCommand = gitDir.commit()
-                            for (i in 0 until adapter.count) {
-                                if (binding.lvFilesToCommit.isItemChecked(i)) {
-                                    cmd.setOnly(
-                                        binding.lvFilesToCommit.getItemAtPosition(i).toString()
-                                    )
-                                }
-                                cmd.setCommitter(userName.toString(), userEmail.toString())
-                                    .setMessage(msg)
-                                val token = prefs.getString(
-                                        GITHUB_PAT,
-                                        ""
-                                    )
-                                if (!token.isNullOrBlank()) {
-                                    cmd.setCredentialsProvider(
-                                        UsernamePasswordCredentialsProvider(
-                                            "<token>",
-                                            token
-                                        )
-                                    )
-                                }
-
-                                cmd.call()
-
-                                ThreadUtils.runOnUiThread {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(
-                                            R.string.committed_all_changes_to_repository_in,
-                                            path
-                                        ),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-
-                            }
                         }
-
-                        return@executeAsyncProvideError
-                    }, { _, _ -> })
-
-                future.whenComplete { result, error ->
-                    ThreadUtils.runOnUiThread {
-                        //TODO error log
-//                        if (result == null || error != null) {
-//                            ErrorOutput.ShowError(error, context)
-//                        }
+                        // Attempt to fix it
+                        val fixed = fixSafeDirectory(context, git.repository.directory.parentFile)
+                        if (!fixed) {
+                            runOnUiThread { flashError("Failed to fix ownership issue. Commit aborted.") }
+                            break // If the fix fails, stop trying.
+                        }
+                        // If fixed, the loop will continue for the second attempt.
+                    } else {
+                        // This is a different error, or the second attempt failed.
+                        runOnUiThread { flashError("Commit failed: $errorMessage") }
+                        break // Break the loop.
                     }
                 }
-
+                attempt++
             }
+        }.start()
+    }
 
-            builder.setNegativeButton(android.R.string.cancel, null)
-            builder.show()
-
+    /**
+     * Runs the 'git config' command to add the repository to the safe directories list.
+     * Returns true if successful, false otherwise.
+     */
+    private fun fixSafeDirectory(context: Context, projectDir: File): Boolean {
+        return try {
+            val gitExecutable = File(context.filesDir, "usr/bin/git")
+            val command = listOf(
+                gitExecutable.absolutePath,
+                "config",
+                "--global",
+                "--add",
+                "safe.directory",
+                projectDir.absolutePath
+            )
+            val process = ProcessBuilder(command).start()
+            process.waitFor() == 0 // Return true if exit code is 0 (success)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
+}

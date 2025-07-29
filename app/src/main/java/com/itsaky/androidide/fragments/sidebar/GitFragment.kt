@@ -1,20 +1,3 @@
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.itsaky.androidide.fragments.sidebar
 
 import android.os.Bundle
@@ -41,7 +24,6 @@ class GitFragment :
 
     override fun onResume() {
         super.onResume()
-        // Update the UI every time the activity is shown
         updateGitButtonVisibility()
     }
 
@@ -50,48 +32,55 @@ class GitFragment :
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
         emptyStateViewModel.isEmpty.value = false
 
+        // --- Other button listeners remain the same ---
         binding.btnManageRemotes.setOnClickListener {
             findNavController().navigate(R.id.action_gitFragment_to_gitRemotesListFragment)
         }
-        // Set up the Commit button
         binding.btnGitCommit.setOnClickListener {
-            // Use the NavController to navigate via the action defined in the graph
             findNavController().navigate(R.id.action_gitFragment_to_gitCommitFragment)
         }
-
-        // Set up the Push button
         binding.btnGitPush.setOnClickListener {
-            // This runs the push task and shows progress via GitProgressMonitor.
             GitPushTask.push(requireContext())
         }
-
-        // Set up the Pull button
         binding.btnGitPull.setOnClickListener {
             GitPullTask.pull(requireContext())
         }
-        binding.btnGitInit.setOnClickListener {
-            GitInitTask.init(requireContext(), "John", "john.c.calhoun@examplepetstore.com")
-            // After attempting to init, refresh the button visibility
-            updateGitButtonVisibility()
-        }
-
         binding.btnGitLog.setOnClickListener {
             findNavController().navigate(R.id.action_gitFragment_to_gitCommitListFragment)
+        }
+
+        // --- Updated Git Init button listener ---
+        binding.btnGitInit.setOnClickListener {
+            val userName = binding.gitUserNameInput.text?.toString()
+            val userEmail = binding.gitUserEmailInput.text?.toString()
+
+            // Pass the values to the init function.
+            // .takeIf { it.isNotBlank() } conveniently converts blank strings to null.
+            GitInitTask.init(
+                context = requireContext(),
+                userName = userName?.takeIf { it.isNotBlank() },
+                userEmail = userEmail?.takeIf { it.isNotBlank() }
+            )
+
+            // Refresh the UI after a short delay to allow the async task to complete
+            view.postDelayed({
+                updateGitButtonVisibility()
+            }, 1500)
         }
     }
 
     private fun updateGitButtonVisibility() {
         val projectDir = ProjectManagerImpl.getInstance().projectDir
 
-        val gitDir = File(projectDir, ".git")
-        val isGitRepo = gitDir.exists()
+        val isGitRepo = if (projectDir != null) {
+            val gitDir = File(projectDir, ".git")
+            gitDir.exists() && gitDir.isDirectory
+        } else {
+            false
+        }
 
-        // Show "Init" only if it's NOT a git repo
-        binding.btnGitInit.isVisible = !isGitRepo
-
-        // Show other Git actions only if it IS a git repo
-        binding.btnGitCommit.isVisible = isGitRepo
-        binding.btnGitPush.isVisible = isGitRepo
-        binding.btnGitPull.isVisible = isGitRepo
+        // Toggle visibility of the entire layouts based on repo status
+        binding.initLayout.isVisible = !isGitRepo
+        binding.actionsLayout.isVisible = isGitRepo
     }
 }
