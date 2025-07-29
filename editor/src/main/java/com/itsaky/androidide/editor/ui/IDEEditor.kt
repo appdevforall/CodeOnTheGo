@@ -183,27 +183,6 @@ open class IDEEditor @JvmOverloads constructor(
     }
   private var lastTrackpadY = 0f
 
-  override fun onTouchEvent(event: MotionEvent?): Boolean {
-    if (event != null && (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD))) {
-      when (event.actionMasked) {
-        MotionEvent.ACTION_DOWN -> {
-          lastTrackpadY = event.y
-          return true
-        }
-        MotionEvent.ACTION_MOVE -> {
-          val dy = lastTrackpadY - event.y // Y-axis is inverted for touch coordinates
-          if (abs(dy) > 0) { // Check for actual movement
-            scrollBy(0, dy.toInt())
-            invalidate() // This is the fix for the "blank lines" issue
-          }
-          lastTrackpadY = event.y
-          return true
-        }
-      }
-    }
-    // For all other events (like real finger touches), use the default behavior
-    return super.onTouchEvent(event)
-  }
   companion object {
     private const val TAG = "TrackpadScrollDebug"
     private const val SELECTION_CHANGE_DELAY = 500L
