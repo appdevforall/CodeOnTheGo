@@ -29,6 +29,8 @@ import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity.Companion.PREF_KEY_OPEN_FILES_CACHE
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
@@ -59,9 +61,11 @@ import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
+import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
@@ -719,6 +723,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
             // reset the lastOpenedProject if the user explicitly chose to close the project
             GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
+            clearAllSharedPreferences()
         }
 
         // Make sure we close files
@@ -785,5 +790,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
         return mSearchingProgress
+    }
+
+    fun clearAllSharedPreferences() {
+        val prefs = (application as BaseApplication).prefManager
+        prefs.remove(PREF_KEY_OPEN_FILES_CACHE)
+        flashSuccess("Last session's open files cache has been cleared.")
     }
 }

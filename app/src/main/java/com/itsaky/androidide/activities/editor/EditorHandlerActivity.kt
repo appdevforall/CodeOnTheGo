@@ -85,7 +85,7 @@ import com.itsaky.androidide.app.BaseApplication
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
   companion object {
-    private const val PREF_KEY_OPEN_FILES_CACHE = "open_files_cache_v1"
+    const val PREF_KEY_OPEN_FILES_CACHE = "open_files_cache_v1"
   }
 
   protected val isOpenedFilesSaved = AtomicBoolean(false)
