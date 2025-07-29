@@ -20,6 +20,7 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -228,20 +229,25 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+    // If the motion event is from a mouse or trackpad, do NOT intercept it.
+    // Let it pass through to the child views (the editor) so it can handle scrolling.
+    if (ev.isFromSource(InputDevice.SOURCE_MOUSE) || ev.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
+      return false
+    }
+
+    // Original touch handling logic for finger drags remains unchanged
     when (ev.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         val isInDragHandle = isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
         hasReceivedDownEvent = isInDragHandle
         return isInDragHandle && dragHelper.shouldInterceptTouchEvent(ev)
       }
-
       MotionEvent.ACTION_MOVE,
       MotionEvent.ACTION_UP,
       MotionEvent.ACTION_CANCEL -> {
         if (!hasReceivedDownEvent) {
           return false
         }
-
         val shouldIntercept = dragHelper.shouldInterceptTouchEvent(ev)
         if (ev.actionMasked == MotionEvent.ACTION_UP ||
           ev.actionMasked == MotionEvent.ACTION_CANCEL) {

@@ -23,7 +23,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
-import android.util.Log
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
@@ -100,8 +101,6 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
-import android.view.InputDevice
-import android.view.MotionEvent
 import kotlin.math.abs
 
 /**
@@ -182,36 +181,29 @@ open class IDEEditor @JvmOverloads constructor(
     get() {
       return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
     }
-
   private var lastTrackpadY = 0f
 
   override fun onTouchEvent(event: MotionEvent?): Boolean {
-    // Check if the event is from a mouse or trackpad
     if (event != null && (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD))) {
       when (event.actionMasked) {
         MotionEvent.ACTION_DOWN -> {
-          // Store the initial Y position when the "drag" starts
           lastTrackpadY = event.y
-          // Return true to tell the system we are handling this gesture
           return true
         }
         MotionEvent.ACTION_MOVE -> {
-          // Calculate the vertical distance moved since the last event
           val dy = lastTrackpadY - event.y // Y-axis is inverted for touch coordinates
           if (abs(dy) > 0) { // Check for actual movement
-            Log.d(TAG, "onTouchEvent scroll detected. Scrolling by: ${dy.toInt()}")
             scrollBy(0, dy.toInt())
+            invalidate() // This is the fix for the "blank lines" issue
           }
-          // Update the last position for the next move event
           lastTrackpadY = event.y
-          return true // Consume the move event so nothing else uses it
+          return true
         }
       }
     }
     // For all other events (like real finger touches), use the default behavior
     return super.onTouchEvent(event)
   }
-
   companion object {
     private const val TAG = "TrackpadScrollDebug"
     private const val SELECTION_CHANGE_DELAY = 500L
@@ -255,58 +247,6 @@ open class IDEEditor @JvmOverloads constructor(
     }
   }
 
-  override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
-    if (event != null && event.actionMasked == MotionEvent.ACTION_SCROLL) {
-      Log.d(TAG, "onGenericMotionEvent triggered with ACTION_SCROLL")
-
-      if (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
-        val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
-
-        // Log the raw scroll value from the trackpad
-        Log.d(TAG, "vScroll value: $vScroll")
-
-        if (vScroll != 0f) {
-          // Log the editor's state before scrolling
-          val currentScrollY = scrollY
-          Log.d(TAG, "Before scrollBy -> currentScrollY: $currentScrollY, rowHeight: $rowHeight")
-
-          // We multiply by a negative factor to scroll in the correct direction.
-          // Scrolling by 3 lines per event feels natural.
-          val scrollAmount = -vScroll * rowHeight * 3
-          Log.d(TAG, "Calculated scrollAmount: ${scrollAmount.toInt()}")
-
-          scrollBy(0, scrollAmount.toInt())
-
-          // Use post {} to log the scroll position *after* the change has been processed
-          post {
-            Log.d(TAG, "After scrollBy -> new scrollY: $scrollY")
-            if (scrollY == currentScrollY) {
-              Log.w(TAG, "Warning: scrollY did not change. scrollBy() may not be effective for this view.")
-            }
-          }
-
-          return true // Event was handled
-        }
-      }
-    }
-    return super.onGenericMotionEvent(event)
-  }
-
-  fun performTrackpadScroll(vScroll: Float) {
-    Log.d(TAG, "performTrackpadScroll called with vScroll: $vScroll")
-    val currentScrollY = scrollY
-    val scrollAmount = -vScroll * rowHeight * 3
-    Log.d(TAG, "Calculated scrollAmount: ${scrollAmount.toInt()} from rowHeight: $rowHeight")
-
-    scrollBy(0, scrollAmount.toInt())
-
-    post {
-      Log.d(TAG, "After scrollBy -> new scrollY: $scrollY")
-      if (scrollY == currentScrollY) {
-        Log.w(TAG, "Warning: scrollY did not change.")
-      }
-    }
-  }
   override fun setLanguageServer(server: ILanguageServer?) {
     if (isReleased) {
       return
