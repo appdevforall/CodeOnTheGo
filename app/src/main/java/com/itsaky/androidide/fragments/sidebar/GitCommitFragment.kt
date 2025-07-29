@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.databinding.FragmentGitCommitBinding
+import com.itsaky.androidide.git.GitCommitTask
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,7 +54,6 @@ class GitCommitFragment : Fragment() {
         binding.btnCommit.setOnClickListener {
             val stagedFiles = gitStatusAdapter.getStagedFiles()
             val message = binding.commitMessageInput.text.toString()
-
             if (message.isBlank()) {
                 Toast.makeText(
                     requireContext(),
@@ -68,7 +68,7 @@ class GitCommitFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            performCommit(stagedFiles, message)
+            GitCommitTask.commit(requireContext(),  selectedFiles = stagedFiles, commitMessage = message)
         }
     }
 
