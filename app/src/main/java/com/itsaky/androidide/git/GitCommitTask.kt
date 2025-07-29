@@ -17,14 +17,16 @@ import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.storage.file.FileBasedConfig
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import org.eclipse.jgit.util.FS
 
 object GitCommitTask {
 
     /**
-     * Overloaded entry point to start the commit process with pre-selected files and a message.
+     * Main entry point to start the commit process.
      */
     fun commit(
         context: Context,
@@ -33,41 +35,63 @@ object GitCommitTask {
     ) {
         Thread {
             try {
-                val projectDir = ProjectManagerImpl.getInstance().projectDirø
+                val projectDir = ProjectManagerImpl.getInstance().projectDir
                 val git = Git.open(projectDir)
                 val config = git.repository.config
 
-                val userName = config.getString("user", null, "name")
-                val userEmail = config.getString("user", null, "email")
+                // --- MODIFIED CONFIG CHECK ---
+                // 1. JGit checks local config first, then falls back to global
+                var userName = config.getString("user", null, "name")
+                var userEmail = config.getString("user", null, "email")
+
+                // 2. If JGit found nothing, use our command-line helper as a robust fallback for global config
+                if (userName.isNullOrBlank()) {
+                    userName = getGlobalGitConfig(context, "user.name")
+                }
+                if (userEmail.isNullOrBlank()) {
+                    userEmail = getGlobalGitConfig(context, "user.email")
+                }
+                // --- END OF MODIFIED CHECK ---
 
                 if (userName.isNullOrBlank() || userEmail.isNullOrBlank()) {
+                    // Config is still missing, now we must prompt the user
                     runOnUiThread {
                         promptForGitUserInfo(context) { name, email ->
-                            continueCommitProcess(
-                                context,
-                                git,
-                                name,
-                                email,
-                                selectedFiles,
-                                commitMessage
-                            )
+                            continueCommitProcess(context, git, name, email, selectedFiles, commitMessage)
                         }
                     }
                 } else {
-                    continueCommitProcess(
-                        context,
-                        git,
-                        userName,
-                        userEmail,
-                        selectedFiles,
-                        commitMessage
-                    )
+                    // Config was found, proceed directly
+                    continueCommitProcess(context, git, userName, userEmail, selectedFiles, commitMessage)
                 }
             } catch (e: Exception) {
                 runOnUiThread { flashError("Git Pre-check Error: ${e.message}") }
                 e.printStackTrace()
             }
         }.start()
+    }
+
+    // Add this new function inside the GitCommitTask object
+    private fun getGlobalGitConfig(context: Context, key: String): String? {
+        return try {
+            val gitExecutable = File(context.filesDir, "usr/bin/git")
+            if (!gitExecutable.exists()) return null
+
+            val command = listOf(gitExecutable.absolutePath, "config", "--global", key)
+            val process = ProcessBuilder(command).start()
+
+            val output = BufferedReader(InputStreamReader(process.inputStream)).readLine()
+
+            val exitCode = process.waitFor()
+            if (exitCode == 0 && !output.isNullOrBlank()) {
+                output.trim()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     /**
@@ -96,7 +120,6 @@ object GitCommitTask {
                     )
 
                 } else {
-                    // **OLD LOGIC**: One or both parameters are missing, so show the dialog.
                     val filesToShow: List<String>
                     if (preselectedFiles != null) {
                         filesToShow = preselectedFiles
@@ -189,9 +212,10 @@ object GitCommitTask {
             .show()
     }
 
-    // `promptForGitUserInfo`, `performCommitWithRetry`, and `fixSafeDirectory` remain unchanged.
-    // Make sure they are included in your object as provided in the previous step.
-
+    /**
+     * Displays a dialog to get user.name and user.email from the user.
+     * @param onConfigured Callback that provides the entered name and email upon saving.
+     */
     private fun promptForGitUserInfo(
         context: Context,
         onConfigured: (name: String, email: String) -> Unit
@@ -226,33 +250,44 @@ object GitCommitTask {
                     return@setPositiveButton
                 }
 
+                // Save the config in the background using JGit's API
                 Thread {
                     try {
-                        val gitExecutable = File(context.filesDir, "usr/bin/git")
-                        ProcessBuilder(
-                            listOf(
-                                gitExecutable.absolutePath,
-                                "config",
-                                "--global",
-                                "user.name",
-                                name
-                            )
-                        ).start().waitFor()
-                        ProcessBuilder(
-                            listOf(
-                                gitExecutable.absolutePath,
-                                "config",
-                                "--global",
-                                "user.email",
-                                email
-                            )
-                        ).start().waitFor()
-                        runOnUiThread {
-                            flashSuccess("Git user info saved globally.")
-                            onConfigured(name, email)
+
+                        // Step 1: Find the user's home directory
+                        val userHome = FS.DETECTED.userHome()
+                            ?: throw Exception("Could not determine user home directory.")
+
+                        // Step 2: Manually construct the path to the global .gitconfig file
+                        val globalConfigFile = File(userHome, ".gitconfig")
+
+                        // --- MODIFIED CODE ENDS HERE ---
+
+                        val config = FileBasedConfig(globalConfigFile, FS.DETECTED)
+                        config.load()
+
+                        config.setString("user", null, "name", name)
+                        config.setString("user", null, "email", email)
+
+                        config.save()
+
+                        // --- Confirmation Snippet (No changes needed here) ---
+                        val newConfig = FileBasedConfig(globalConfigFile, FS.DETECTED)
+                        newConfig.load()
+                        val savedName = newConfig.getString("user", null, "name")
+                        val savedEmail = newConfig.getString("user", null, "email")
+
+                        if (savedName == name && savedEmail == email) {
+                            runOnUiThread {
+                                flashSuccess("Git user info saved globally.")
+                                onConfigured(name, email)
+                            }
+                        } else {
+                            throw Exception("Verification failed. Config was not saved correctly.")
                         }
                     } catch (e: Exception) {
                         runOnUiThread { flashError("Failed to save Git config: ${e.message}") }
+                        e.printStackTrace()
                     }
                 }.start()
             }
@@ -280,7 +315,7 @@ object GitCommitTask {
                     addCommand.call()
 
                     git.commit()
-                        .setCommitter(userName, userEmail)
+//                        .setCommitter(userName, userEmail)
                         .setMessage(message)
                         .call()
 
