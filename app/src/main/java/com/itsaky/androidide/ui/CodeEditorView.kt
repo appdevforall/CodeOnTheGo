@@ -22,6 +22,7 @@ import android.app.Activity
 import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.isVisible
 import com.blankj.utilcode.util.SizeUtils
@@ -195,6 +196,13 @@ class CodeEditorView(
     readFileAndApplySelection(file, selection)
   }
 
+  override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
+    // Manually forward the generic motion event to the IDEEditor child view
+    if (editor?.onGenericMotionEvent(event) == true) {
+      return true
+    }
+    return super.onGenericMotionEvent(event)
+  }
   override fun onHighlightLine(file: String, line: Int) {
     if (file != this.file?.canonicalPath) {
       return

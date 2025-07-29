@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.util.Log
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
@@ -99,6 +100,8 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import android.view.InputDevice
+import android.view.MotionEvent
 
 /**
  * [CodeEditor] implementation for the IDE.
@@ -180,7 +183,7 @@ open class IDEEditor @JvmOverloads constructor(
     }
 
   companion object {
-
+    private const val TAG = "TrackpadScrollDebug"
     private const val SELECTION_CHANGE_DELAY = 500L
 
     internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
@@ -222,6 +225,58 @@ open class IDEEditor @JvmOverloads constructor(
     }
   }
 
+  override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
+    if (event != null && event.actionMasked == MotionEvent.ACTION_SCROLL) {
+      Log.d(TAG, "onGenericMotionEvent triggered with ACTION_SCROLL")
+
+      if (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
+        val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+
+        // Log the raw scroll value from the trackpad
+        Log.d(TAG, "vScroll value: $vScroll")
+
+        if (vScroll != 0f) {
+          // Log the editor's state before scrolling
+          val currentScrollY = scrollY
+          Log.d(TAG, "Before scrollBy -> currentScrollY: $currentScrollY, rowHeight: $rowHeight")
+
+          // We multiply by a negative factor to scroll in the correct direction.
+          // Scrolling by 3 lines per event feels natural.
+          val scrollAmount = -vScroll * rowHeight * 3
+          Log.d(TAG, "Calculated scrollAmount: ${scrollAmount.toInt()}")
+
+          scrollBy(0, scrollAmount.toInt())
+
+          // Use post {} to log the scroll position *after* the change has been processed
+          post {
+            Log.d(TAG, "After scrollBy -> new scrollY: $scrollY")
+            if (scrollY == currentScrollY) {
+              Log.w(TAG, "Warning: scrollY did not change. scrollBy() may not be effective for this view.")
+            }
+          }
+
+          return true // Event was handled
+        }
+      }
+    }
+    return super.onGenericMotionEvent(event)
+  }
+
+  fun performTrackpadScroll(vScroll: Float) {
+    Log.d(TAG, "performTrackpadScroll called with vScroll: $vScroll")
+    val currentScrollY = scrollY
+    val scrollAmount = -vScroll * rowHeight * 3
+    Log.d(TAG, "Calculated scrollAmount: ${scrollAmount.toInt()} from rowHeight: $rowHeight")
+
+    scrollBy(0, scrollAmount.toInt())
+
+    post {
+      Log.d(TAG, "After scrollBy -> new scrollY: $scrollY")
+      if (scrollY == currentScrollY) {
+        Log.w(TAG, "Warning: scrollY did not change.")
+      }
+    }
+  }
   override fun setLanguageServer(server: ILanguageServer?) {
     if (isReleased) {
       return

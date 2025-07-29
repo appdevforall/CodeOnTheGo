@@ -20,6 +20,7 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -29,6 +30,7 @@ import androidx.annotation.IdRes
 import androidx.customview.widget.ViewDragHelper
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import kotlin.math.max
 import kotlin.math.min
 
@@ -228,6 +230,16 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+    // START of new code for trackpad scrolling
+    // Check if the event source is a mouse or trackpad.
+    // If it is, we should NOT intercept the event, allowing it to be passed
+    // to the child views (the editor) for standard scrolling.
+    if (ev.isFromSource(InputDevice.SOURCE_MOUSE) || ev.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
+      return false // Do not intercept, let the editor handle scrolling.
+    }
+    // END of new code
+
+    // Original touch handling logic for finger drags
     when (ev.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         val isInDragHandle = isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
@@ -255,6 +267,19 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
+    // START of new code for trackpad scrolling
+    if (event.actionMasked == MotionEvent.ACTION_SCROLL &&
+      (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD))) {
+
+      val editor = (context as? EditorHandlerActivity)?.provideCurrentEditor()?.editor
+      val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+
+      if (editor != null && vScroll != 0f) {
+        editor.performTrackpadScroll(vScroll)
+        return true // Consume the event
+      }
+    }
+    // END of new code
     val x = event.x
     val xInt = x.toInt()
     val y = event.y
@@ -374,5 +399,17 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     val scrX = parentLoc[0] + x
     val scrY = parentLoc[1] + y
     return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width && scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
+  }
+
+  override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
+    // We must pass the event to the ViewDragHelper first.
+    // If the helper is not interested, we can then pass it to our children.
+    if (event != null) {
+      if (!dragHelper.shouldInterceptTouchEvent(event)) {
+        // Let the children handle the event
+        return super.onGenericMotionEvent(event)
+      }
+    }
+    return false
   }
 }

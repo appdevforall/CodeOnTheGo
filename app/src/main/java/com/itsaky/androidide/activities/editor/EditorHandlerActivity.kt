@@ -92,7 +92,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     closeAll(runAfter)
   }
 
-  override fun provideCurrentEditor(): CodeEditorView? {
+  public override fun provideCurrentEditor(): CodeEditorView? {
     return getCurrentEditor()
   }
 
