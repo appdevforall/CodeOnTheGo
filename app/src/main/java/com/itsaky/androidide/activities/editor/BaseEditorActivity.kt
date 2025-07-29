@@ -132,9 +132,6 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
-import android.view.InputDevice
-import android.view.MotionEvent
-import android.util.Log
 
 /**
  * Base class for EditorActivity which handles most of the view related things.
@@ -144,32 +141,6 @@ import android.util.Log
 @Suppress("MemberVisibilityCanBePrivate")
 abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSelectedListener,
     DiagnosticClickListener {
-
-    override fun dispatchGenericMotionEvent(ev: MotionEvent?): Boolean {
-        if (ev != null && ev.actionMasked == MotionEvent.ACTION_SCROLL) {
-            if (ev.isFromSource(InputDevice.SOURCE_MOUSE) || ev.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
-                val editor = provideCurrentEditor()?.editor
-                if (editor != null) {
-                    val vScroll = ev.getAxisValue(MotionEvent.AXIS_VSCROLL)
-                    if (vScroll != 0f) {
-                        // Log the values to see what's happening
-                        Log.d("TrackpadScrollDebug", "Dispatching scroll: vScroll=$vScroll, rowHeight=${editor.rowHeight}")
-
-                        val scrollAmount = -vScroll * editor.rowHeight * 3
-                        editor.scrollBy(0, scrollAmount.toInt())
-
-                        // Log the result
-                        editor.post {
-                            Log.d("TrackpadScrollDebug", "New scrollY: ${editor.scrollY}")
-                        }
-
-                        return true // Event is consumed
-                    }
-                }
-            }
-        }
-        return super.dispatchGenericMotionEvent(ev)
-    }
 
     protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
     protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null

@@ -102,6 +102,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import android.view.InputDevice
 import android.view.MotionEvent
+import kotlin.math.abs
 
 /**
  * [CodeEditor] implementation for the IDE.
@@ -181,6 +182,35 @@ open class IDEEditor @JvmOverloads constructor(
     get() {
       return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
     }
+
+  private var lastTrackpadY = 0f
+
+  override fun onTouchEvent(event: MotionEvent?): Boolean {
+    // Check if the event is from a mouse or trackpad
+    if (event != null && (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD))) {
+      when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+          // Store the initial Y position when the "drag" starts
+          lastTrackpadY = event.y
+          // Return true to tell the system we are handling this gesture
+          return true
+        }
+        MotionEvent.ACTION_MOVE -> {
+          // Calculate the vertical distance moved since the last event
+          val dy = lastTrackpadY - event.y // Y-axis is inverted for touch coordinates
+          if (abs(dy) > 0) { // Check for actual movement
+            Log.d(TAG, "onTouchEvent scroll detected. Scrolling by: ${dy.toInt()}")
+            scrollBy(0, dy.toInt())
+          }
+          // Update the last position for the next move event
+          lastTrackpadY = event.y
+          return true // Consume the move event so nothing else uses it
+        }
+      }
+    }
+    // For all other events (like real finger touches), use the default behavior
+    return super.onTouchEvent(event)
+  }
 
   companion object {
     private const val TAG = "TrackpadScrollDebug"

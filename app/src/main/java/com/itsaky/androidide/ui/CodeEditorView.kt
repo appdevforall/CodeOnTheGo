@@ -21,6 +21,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
+import android.view.InputDevice
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import androidx.appcompat.widget.LinearLayoutCompat
@@ -586,5 +587,11 @@ class CodeEditorView(
     }
 
     readWriteContext.use { }
+  }
+  override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+    if (ev != null && (ev.isFromSource(InputDevice.SOURCE_MOUSE) || ev.isFromSource(InputDevice.SOURCE_TOUCHPAD))) {
+      parent.requestDisallowInterceptTouchEvent(true)
+    }
+    return super.dispatchTouchEvent(ev)
   }
 }
