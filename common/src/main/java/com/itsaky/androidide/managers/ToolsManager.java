@@ -17,6 +17,7 @@
  */
 package com.itsaky.androidide.managers;
 
+import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
@@ -26,6 +27,9 @@ import android.os.Build;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
+
+import com.aayushatharva.brotli4j.Brotli4jLoader;
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream;
 
 import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
@@ -81,6 +85,7 @@ public class ToolsManager {
             IJdkDistributionProvider.getInstance().loadDistributions();
 
             updateToolingJar(app.getAssets());
+            extractLogSender(app);
 
             writeNoMediaFile();
             extractAapt2();
@@ -102,16 +107,32 @@ public class ToolsManager {
     }
 
     @WorkerThread
+    private static void extractLogSender(BaseApplication app) {
+        if (Environment.LOGSENDER_AAR.exists()) {
+            FileUtils.delete(Environment.LOGSENDER_AAR);
+        }
+
+        Environment.mkdirIfNotExits(Environment.LOGSENDER_DIR);
+
+        final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
+        ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
+                Environment.LOGSENDER_AAR.getAbsolutePath());
+    }
+
+    @WorkerThread
     private static void updateToolingJar(AssetManager assets) {
+        // Ensure relevant shared libraries are loaded
+        Brotli4jLoader.ensureAvailability();
+
         final var toolingJarName = "tooling-api-all.jar";
         InputStream toolingJarStream;
         try {
             toolingJarStream = assets.open(ToolsManager.getCommonAsset(toolingJarName));
         } catch (IOException e) {
             try {
-                toolingJarStream = assets.open(toolingJarName + ".br");
+                toolingJarStream = new BrotliInputStream(assets.open(ToolsManager.getCommonAsset(toolingJarName + ".br")));
             } catch (IOException e2) {
-                LOG.error("Tooling jar not found in assets");
+                LOG.error("Tooling jar not found in assets {}", e2.getMessage());
                 return;
             }
         }

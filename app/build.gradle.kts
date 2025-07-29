@@ -32,8 +32,6 @@ plugins {
   id("kotlin-kapt")
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
-//  id("io.sentry.android.gradle") version "4.2.0"
-
   id("com.itsaky.androidide.desugaring")
 }
 
@@ -89,10 +87,6 @@ android {
   lint {
     abortOnError = false
     disable.addAll(arrayOf("VectorPath", "NestedWeights", "ContentDescription", "SmallSp"))
-  }
-
-  installation {
-    //installOptions("-timeout", "420000") // 5 minutes (in milliseconds)
   }
 }
 
@@ -293,7 +287,7 @@ tasks.register("downloadDocDb") {
 
       val dbName = "documentation.db"
       if (assetUrl != null && assetName != null) {
-        val destinationPath = project.rootProject.projectDir.resolve("libs_source/${dbName}").toPath()
+        val destinationPath = project.rootProject.projectDir.resolve("assets/${dbName}").toPath()
 
 
         project.logger.lifecycle("Downloading : $assetUrl as ${destinationPath}")
@@ -321,12 +315,13 @@ fun createAssetsZip(
   }
 
   val zipFile = outputDir.resolve("assets-$arch.zip")
-  val sourceDir = project.rootDir.resolve("libs_source")
+  val sourceDir = project.rootDir.resolve("assets")
   val bootstrapName = "bootstrap-$arch.zip"
+  val androidSdkName = "android-sdk-$arch.zip"
 
   ZipOutputStream(zipFile.outputStream()).use { zipOut ->
     arrayOf(
-      "android-sdk.zip",
+      androidSdkName,
       "localMvnRepository.zip",
       "gradle-8.14.3-bin.zip",
       "gradle-api-8.14.3.jar.zip",
@@ -339,7 +334,12 @@ fun createAssetsZip(
       }
 
       project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
-      val entryName = if (fileName == bootstrapName) "bootstrap.zip" else fileName
+      val entryName = when (fileName) {
+        bootstrapName -> "bootstrap.zip"
+        androidSdkName -> "android-sdk.zip"
+        else -> fileName
+      }
+
       zipOut.putNextEntry(ZipEntry(entryName))
       filePath.inputStream().use { input -> input.copyTo(zipOut) }
       zipOut.closeEntry()
