@@ -60,7 +60,7 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="stateAlwaysHidden">
             <intent-filter>
                 <action android:name="com.itsaky.androidide.REPORT_CRASH" />
@@ -73,7 +73,7 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:theme="@style/AppTheme.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -88,44 +88,44 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="false"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.editor.EditorActivityKt"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:launchMode="singleTop"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.PreferencesActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.AboutActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.editor.FAQActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.editor.HelpActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.ContributorsActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor" />
+            android:screenOrientation="unspecified" />
         <activity
             android:name=".activities.TerminalActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:resizeableActivity="true"
-            android:screenOrientation="fullSensor"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize" />
 
         <!--    &lt;!&ndash; Required: set your sentry.io project identifier (DSN) &ndash;&gt;-->

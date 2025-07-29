@@ -17,7 +17,6 @@
 package com.itsaky.androidide.app
 
 import android.annotation.SuppressLint
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -25,7 +24,6 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.common.R
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.themes.IThemeManager
-import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.resolveAttr
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,9 +58,9 @@ abstract class BaseIDEActivity : AppCompatActivity() {
     super.onCreate(savedInstanceState)
     preSetContentLayout()
     setContentView(bindLayout())
-    OrientationUtilities.setOrientation {
-      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-    }
+//    OrientationUtilities.setOrientation {
+//      requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+//    }
   }
 
   override fun onDestroy() {
