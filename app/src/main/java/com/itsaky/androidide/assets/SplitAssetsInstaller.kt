@@ -20,7 +20,7 @@ import java.nio.file.Path
 import java.util.zip.ZipInputStream
 import kotlin.io.path.exists
 
-data object SplitAssetsInstaller : AssetsInstaller {
+data object SplitAssetsInstaller : BaseAssetsInstaller() {
 
     private val logger = LoggerFactory.getLogger(SplitAssetsInstaller::class.java)
 
@@ -115,9 +115,5 @@ data object SplitAssetsInstaller : AssetsInstaller {
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
         GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
         else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
-    }
-
-    override suspend fun postInstall(context: Context, stagingDir: Path) {
-        // no-op
     }
 }
