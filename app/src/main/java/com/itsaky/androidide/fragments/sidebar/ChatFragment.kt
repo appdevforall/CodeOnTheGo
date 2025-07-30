@@ -1,12 +1,15 @@
 package com.itsaky.androidide.fragments.sidebar
 
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.widget.ArrayAdapter
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.viewModels
@@ -20,6 +23,7 @@ import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
 import com.itsaky.androidide.actions.sidebar.models.ChatMessage
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.ChatViewModel
 import java.util.Locale
 
@@ -30,6 +34,9 @@ class ChatFragment :
         ownerProducer = { requireActivity() }
     )
 
+    private val selectedImageUris = mutableListOf<Uri>()
+    private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
+
     private lateinit var chatAdapter: ChatAdapter
     private val messageHistory = mutableListOf<ChatMessage>()
     private val gson = Gson()
@@ -39,6 +46,18 @@ class ChatFragment :
         private const val CHAT_HISTORY_PREF_KEY = "chat_history_v1"
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        imagePickerLauncher =
+            registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+                // This callback is executed when the user selects images and returns to the app.
+                if (uris.isNotEmpty()) {
+                    selectedImageUris.addAll(uris)
+                    updateContextChips()
+                    flashInfo("${uris.size} images selected.")
+                }
+            }
+    }
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
@@ -108,9 +127,10 @@ class ChatFragment :
         binding.btnAddContext.setOnClickListener {
             findNavController().navigate(R.id.action_chatFragment_to_contextSelectionFragment)
         }
-        // TODO: Add listeners for other buttons
-        // binding.btn_add_context.setOnClickListener { ... }
-        // binding.btn_upload_image.setOnClickListener { ... }
+        binding.btnUploadImage.setOnClickListener {
+            // Launch the system's file picker, filtered to show only images.
+            imagePickerLauncher.launch("image/*")
+        }
     }
 
     private fun sendMessage(text: String) {
@@ -171,17 +191,29 @@ class ChatFragment :
 
     private fun updateContextChips() {
         binding.contextChipGroup.removeAllViews()
-        if (selectedContext.isEmpty()) {
+
+        // Combine text context and image context for display
+        val allContextItems =
+            selectedContext + selectedImageUris.map { "Image: ${it.lastPathSegment}" }
+
+        if (allContextItems.isEmpty()) {
             binding.contextChipGroup.visibility = View.GONE
         } else {
             binding.contextChipGroup.visibility = View.VISIBLE
-            selectedContext.forEach { item ->
+            allContextItems.forEach { itemText ->
                 val chip = Chip(requireContext()).apply {
-                    text = item
+                    text = itemText
                     isCloseIconVisible = true
                     setOnCloseIconClickListener {
-                        selectedContext.remove(item)
-                        updateContextChips()
+                        // Find and remove the item from the correct list
+                        val uriToRemove =
+                            selectedImageUris.find { "Image: ${it.lastPathSegment}" == itemText }
+                        if (uriToRemove != null) {
+                            selectedImageUris.remove(uriToRemove)
+                        } else {
+                            selectedContext.remove(itemText)
+                        }
+                        updateContextChips() // Refresh the chips
                     }
                 }
                 binding.contextChipGroup.addView(chip)
