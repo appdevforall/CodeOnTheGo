@@ -2,13 +2,14 @@ package com.itsaky.androidide.actions.sidebar.adapter
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.actions.sidebar.models.ChatMessage
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
 import java.util.Locale
 
-class ChatAdapter(private val messages: MutableList<ChatMessage>) :
-    RecyclerView.Adapter<ChatAdapter.MessageViewHolder>() {
+class ChatAdapter : ListAdapter<ChatMessage, ChatAdapter.MessageViewHolder>(DiffCallback) {
 
     class MessageViewHolder(val binding: ListItemChatMessageBinding) :
         RecyclerView.ViewHolder(binding.root)
@@ -22,23 +23,22 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
         return MessageViewHolder(binding)
     }
 
-    override fun getItemCount(): Int = messages.size
-
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
-        val message = messages[position]
-        // Use Locale.getDefault() for proper capitalization
+        val message = getItem(position)
         holder.binding.messageSender.text = message.sender.name.lowercase(Locale.getDefault())
-            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+            .replaceFirstChar { it.titlecase(Locale.getDefault()) }
         holder.binding.messageContent.text = message.text
     }
 
-    /**
-     * Replaces the entire list of messages with a new one.
-     * Useful for loading a different chat history.
-     */
-    fun updateMessages(newMessages: List<ChatMessage>) {
-        messages.clear()
-        messages.addAll(newMessages)
-        notifyDataSetChanged() // Tells the RecyclerView to redraw the entire list
+    companion object DiffCallback : DiffUtil.ItemCallback<ChatMessage>() {
+        override fun areItemsTheSame(oldItem: ChatMessage, newItem: ChatMessage): Boolean {
+            // A message is the same if it has the same timestamp and text
+            return oldItem.timestamp == newItem.timestamp && oldItem.text == newItem.text
+        }
+
+        override fun areContentsTheSame(oldItem: ChatMessage, newItem: ChatMessage): Boolean {
+            // For a data class, a simple equality check is sufficient
+            return oldItem == newItem
+        }
     }
 }

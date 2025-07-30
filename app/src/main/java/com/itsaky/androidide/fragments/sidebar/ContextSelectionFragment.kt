@@ -61,8 +61,8 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private fun setupRecyclerViews() {
         // Adapter for the top row of selected chips
-        chipAdapter = ContextChipAdapter(mutableListOf()) { itemText ->
-            toggleSelectionById(findItemIdByText(itemText))
+        chipAdapter = ContextChipAdapter { itemToRemove ->
+            toggleSelectionById(findItemIdByText(itemToRemove))
         }
         binding.selectedContextRecyclerView.apply {
             layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
@@ -107,12 +107,15 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
     }
 
     private fun updateSelectedChips() {
-        val selected =
-            contextItems.filterIsInstance<SelectableItem>().filter { it.isSelected }.map { it.text }
-                .toSet()
+        val selected = contextItems.filterIsInstance<SelectableItem>()
+            .filter { it.isSelected }
+            .map { it.text }
+            .toSet()
+
         binding.selectedContextRecyclerView.isVisible = selected.isNotEmpty()
         binding.selectedContextHeader.isVisible = selected.isNotEmpty()
-        chipAdapter.updateData(selected)
+
+        chipAdapter.submitList(selected.toList())
     }
 
     override fun onDestroyView() {

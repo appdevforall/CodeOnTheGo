@@ -61,9 +61,15 @@ class ChatFragment :
 
         chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
             session?.let {
-                chatAdapter.updateMessages(it.messages)
+                // Use submitList to efficiently update the RecyclerView with animations
+                chatAdapter.submitList(it.messages.toList()) // Submit a copy of the list
+
                 updateUIState(it.messages)
-                binding.chatRecyclerView.scrollToPosition(it.messages.size - 1)
+
+                // Scroll to the bottom after the list has been updated
+                binding.chatRecyclerView.post {
+                    binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+                }
             }
         })
 
@@ -86,7 +92,7 @@ class ChatFragment :
     }
 
     private fun setupUI() {
-        chatAdapter = ChatAdapter(mutableListOf()) // Start with an empty adapter
+        chatAdapter = ChatAdapter()
         binding.chatRecyclerView.adapter = chatAdapter
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
