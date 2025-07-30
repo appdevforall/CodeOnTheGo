@@ -157,6 +157,7 @@ interface ActionItem {
      * Location marker for action items shown in editor activity's sidebar (navigation rail in the drawer).
      */
     EDITOR_SIDEBAR("ide.editor.sidebar"),
+    EDITOR_RIGHT_SIDEBAR("ide.editor.right.sidebar"),
 
     /**
      * Location marker for action items shown in the default category of editor activity's sidebar (navigation rail in the drawer).
@@ -192,4 +193,12 @@ interface ActionItem {
       return entries.first { it.id == id }
     }
   }
+}
+
+// In com/itsaky/androidide/actions/ActionItem.kt
+enum class Location {
+  EDITOR_TOOLBAR,
+  EDITOR_SIDEBAR,
+  EDITOR_SIDEBAR_RIGHT, // Add this new location
+  // ... other locations
 }

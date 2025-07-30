@@ -130,29 +130,18 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
   }
 
-  private var dragHandleView: View? = null
-    get() {
-      if (field == null) {
-        field = findViewById(dragHandleViewId)
-      }
-      return field
-    }
-
   private val hiddenContent: View
     get() = getChildAt(HIDDEN_CONTENT_INDEX)!!
 
   private val overlappingContent: View
     get() = getChildAt(OVERLAPPING_CONTENT_INDEX)!!
 
-  private var initialDragX = 0f
-  private var initialDragY = 0f
   private var draggingState = -1
   private var draggingViewTop = 0
   private val dragHeightMax
     get() = hiddenContent.height
 
   private lateinit var dragHelper: ViewDragHelper
-  private var hasReceivedDownEvent = false
 
   /**
    * Whether the view is currently in 'dragging' state.
@@ -338,19 +327,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
   }
 
-  /**
-   * Whether the given motion event lies within the target view.
-   */
-  private fun isViewHit(view: View, x: Int, y: Int): Boolean {
-    val viewLoc = IntArray(2)
-    view.getLocationOnScreen(viewLoc)
-    val parentLoc = IntArray(2)
-    getLocationOnScreen(parentLoc)
-
-    val scrX = parentLoc[0] + x
-    val scrY = parentLoc[1] + y
-    return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width && scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
-  }
   private inner class LeftDragCallback : ViewDragHelper.Callback() {
     override fun tryCaptureView(child: View, pointerId: Int): Boolean {
       return child.id == R.id.drawer_sidebar // Your left drawer ID
@@ -369,7 +345,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
   private inner class RightDragCallback : ViewDragHelper.Callback() {
     override fun tryCaptureView(child: View, pointerId: Int): Boolean {
-      return child.id == R.id.right_drawer_sidebar // Your NEW right drawer ID
+      return child.id == R.id.right_drawer_sidebar
     }
 
     override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {

@@ -52,6 +52,7 @@ import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
+import com.itsaky.androidide.fragments.sidebar.RightEditorSidebarFragment
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 
@@ -62,11 +63,8 @@ import java.lang.ref.WeakReference
  * @author Akash Yadav
  */
 
-object ContactDetails {
-    const val EMAIL_SUPPORT = "feedback@appdevforall.org"
-}
 
-internal object EditorSidebarActions {
+internal object RightEditorSidebarActions {
     val tooltipTags = mutableListOf<String>()
 
     @JvmStatic
@@ -75,16 +73,12 @@ internal object EditorSidebarActions {
         var order = -1
 
         @Suppress("KotlinConstantConditions")
-        registry.registerAction(FileTreeSidebarAction(context, ++order))
-        registry.registerAction(TerminalSidebarAction(context, ++order))
-        registry.registerAction(PreferencesSidebarAction(context, ++order))
-        registry.registerAction(CloseProjectSidebarAction(context, ++order))
-        registry.registerAction(HelpSideBarAction(context, ++order))
-        registry.registerAction(EmailSidebarAction(context, ++order))
+        registry.registerAction(BuildVariantsSidebarAction(context, ++order))
+        registry.registerAction(GitSidebarAction(context, ++order))
     }
 
     @JvmStatic
-    fun setup(sidebarFragment: EditorSidebarFragment) {
+    fun setup(sidebarFragment: RightEditorSidebarFragment) {
         val binding = sidebarFragment.getBinding() ?: return
         val controller = binding.fragmentContainer.getFragment<NavHostFragment>().navController
         val context = sidebarFragment.requireContext()
@@ -92,13 +86,13 @@ internal object EditorSidebarActions {
 
 
         val registry = ActionsRegistry.getInstance()
-        val actions = registry.getActions(ActionItem.Location.EDITOR_SIDEBAR)
+        val actions = registry.getActions(ActionItem.Location.EDITOR_RIGHT_SIDEBAR)
         if (actions.isEmpty()) {
             return
         }
 
         rail.background = (rail.background as MaterialShapeDrawable).apply {
-            shapeAppearanceModel = shapeAppearanceModel.roundedOnRight()
+            shapeAppearanceModel = shapeAppearanceModel.roundedOnLeft()
         }
 
         rail.menu.clear()
@@ -107,7 +101,7 @@ internal object EditorSidebarActions {
         val titleRef = WeakReference(binding.title)
         val params = FillMenuParams(
             data,
-            ActionItem.Location.EDITOR_SIDEBAR,
+            ActionItem.Location.EDITOR_RIGHT_SIDEBAR,
             rail.menu
         ) { actionsRegistry, action, item, actionsData ->
             action as SidebarActionItem
@@ -148,7 +142,7 @@ internal object EditorSidebarActions {
             }
         }
 
-        controller.graph = controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
+        controller.graph = controller.createGraph(startDestination = BuildVariantsSidebarAction.ID) {
             actions.forEach { (actionId, action) ->
                 if (action !is SidebarActionItem) {
                     throw IllegalStateException(
@@ -195,7 +189,7 @@ internal object EditorSidebarActions {
                 }
             })
 
-        rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
+        rail.menu.findItem(BuildVariantsSidebarAction.ID.hashCode())?.also {
             it.isChecked = true
             binding.title.text = it.title
         }
@@ -219,6 +213,15 @@ internal object EditorSidebarActions {
         return toBuilder().run {
             setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
             setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
+            build()
+        }
+    }
+
+    @JvmStatic
+    internal fun ShapeAppearanceModel.roundedOnLeft(cornerSize: Float = 28f): ShapeAppearanceModel {
+        return toBuilder().run {
+            setTopLeftCorner(CornerFamily.ROUNDED, cornerSize)
+            setBottomLeftCorner(CornerFamily.ROUNDED, cornerSize)
             build()
         }
     }
