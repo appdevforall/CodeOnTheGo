@@ -28,7 +28,7 @@ import com.itsaky.androidide.templates.impl.base.writeMainActivity
 import com.itsaky.androidide.templates.impl.baseProjectImpl
 import com.itsaky.androidide.templates.projectLanguageParameter
 
-private const val composeKotlinVersion = "1.7.20"
+private const val composeKotlinVersion = "1.9.22"
 
 private fun composeLanguageParameter() = projectLanguageParameter {
     default = Kotlin
