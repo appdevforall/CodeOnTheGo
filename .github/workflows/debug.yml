@@ -1,14 +1,16 @@
 name: Build and deploy to firebase app distribution
+
 permissions:
   contents: read
   actions: write
+
 on:
   pull_request:
-    branches: [ "stage", "feature/**" ]
+    branches: [ "stage" ]
+    types: [ opened, synchronize, reopened, closed ]
     paths-ignore:
-      - '**.md'
+      - '**/*.md'
       - 'fastlane/**'
-
   workflow_dispatch: { }
 
 env:
@@ -26,26 +28,26 @@ env:
   ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
   FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
-  FIREBASE_DISTRIBUTION_URL: ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
-  FIREBASE_DOWNLOAD_URL: ${{ secrets.FIREBASE_DOWNLOAD_URL }}
 
 jobs:
   build_apk:
     name: Build Universal APK
     runs-on: self-hosted
     timeout-minutes: 60
+
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
-      - name: Checkout code
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Install and Configure Git LFS - Selective pull
+      - name: Install Git LFS
         run: |
           sudo apt-get update
           sudo apt-get install -y git-lfs
@@ -77,31 +79,35 @@ jobs:
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
 
       - name: Find APK file
-        # We need to find the APK since the name is dynamically generated and it does not have a definite location
         id: find_apk
         run: |
           apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
-          echo "Found APK at: $apk_path"
 
-      - name: Set branch name
-        run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+      - name: Set branch name and build type
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          
+          if [[ "${BRANCH_NAME,,}" == "stage" ]]; then
+            BUILD_TYPE="STAGE"
+          else
+            BUILD_TYPE="BRANCH ($BRANCH_NAME)"
+          fi
+          echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
       - name: Get PR and Commit Information
         id: pr_info
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            # Extract info from GitHub event file
             EVENT_PATH="${GITHUB_EVENT_PATH}"
             COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
             PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
             PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
-            echo "PR_NUMBER=$(jq -r '.pull_request.number' "$EVENT_PATH")" >> $GITHUB_OUTPUT
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
             echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           else
-            # Fallback to git log for non-PR builds
             COMMIT_MSG=$(git log -1 --pretty=%B)
             COMMIT_AUTHOR=$(git log -1 --pretty=%an)
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
@@ -111,10 +117,8 @@ jobs:
       - name: Extract Jira Ticket
         id: extract_jira
         run: |
-          # Use regex to extract JIRA ticket in format ADFA-XXX
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
 
-          # If JIRA ticket was found, set the URL, otherwise set as N/A
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
           else
@@ -125,107 +129,143 @@ jobs:
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-      - name: Upload artifact to Firebase App Distribution
-        id: firebase_upload
-        uses: emertozd/Firebase-Distribution-Github-Action@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
-          groups: testers
-          file: ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: ${{ steps.extract_jira.outputs.JIRA_URL }}
+          node-version: '20'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}'
+
+      - name: Deploy to Firebase App Distribution
+        id: firebase_upload
+        run: |
+          npm install -g firebase-tools@13.10.1
+
+          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+            --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --groups "testers" \
+            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
+
+          echo "$output"
+
+          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+
+          if [ -z "$FIREBASE_URL" ]; then
+            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          fi
+
+          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
-          FIREBASE_DOWNLOAD_URL="${{ env.FIREBASE_DOWNLOAD_URL }}"
           PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
-          BRANCH_NAME="${{ env.BRANCH_NAME }}"
           COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+          FIREBASE_CONSOLE_URL="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}"
+          BRANCH_NAME="${{ env.BRANCH_NAME }}"
+          BUILD_TYPE="${{ env.BUILD_TYPE }}"
 
-          # Create JSON payload
-          echo '{
-            "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": ":rocket: New Build Available",
-                  "emoji": true
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "@here Please review and test this build."
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Jira Ticket:* '"$JIRA_URL"'"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Commit:* '"$COMMIT_MSG"'"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Author:* @'"$PR_AUTHOR"'"
-                }
-              },
-              {
-                "type": "actions",
-                "elements": [
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View on Firebase",
-                      "emoji": true
-                    },
-                    "url": "https://console.firebase.google.com/project/codeonthego-64a92/appdistribution",
-                    "action_id": "firebase-console"
-                  },
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View Ticket",
-                      "emoji": true
-                    },
-                    "url": "'"$JIRA_URL"'",
-                    "action_id": "firebase-download"
+          jq -n \
+            --arg jira_url "$JIRA_URL" \
+            --arg commit_msg "$COMMIT_MSG" \
+            --arg build_type "$BUILD_TYPE" \
+            --arg pr_author "$PR_AUTHOR" \
+            --arg firebase_url "$FIREBASE_CONSOLE_URL" \
+            --arg branch_name "$BRANCH_NAME" \
+            '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":rocket: New Build Available",
+                    emoji: true
                   }
-                ]
-              },
-              {
-                "type": "divider"
-              },
-              {
-                "type": "context",
-                "elements": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "Deployed from branch `'"$BRANCH_NAME"'`"
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "@here Please review and test this build."
                   }
-                ]
-              }
-            ]
-          }' > payload.json
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Build Type:* \($build_type)"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Jira Ticket:* \($jira_url)"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Commit:* \($commit_msg)"
+                  }
+                },
+          
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Author:* @\($pr_author)"
+                  }
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: "View on Firebase",
+                        emoji: true
+                      },
+                      url: $firebase_url,
+                      action_id: "firebase-console"
+                    },
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: "View Ticket",
+                        emoji: true
+                      },
+                      url: $jira_url,
+                      action_id: "jira-ticket"
+                    }
+                  ]
+                },
+                {
+                  type: "divider"
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: "Deployed from branch `\($branch_name)`"
+                    }
+                  ]
+                }
+              ]
+            }' > payload.json
 
-          # Send notification
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+          rm -f payload.json
