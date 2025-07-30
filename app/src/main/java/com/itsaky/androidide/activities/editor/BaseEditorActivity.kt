@@ -132,6 +132,10 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import android.view.GestureDetector
+import android.view.MotionEvent
+import com.blankj.utilcode.util.SizeUtils
+import kotlin.math.abs
 
 /**
  * Base class for EditorActivity which handles most of the view related things.
@@ -297,6 +301,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private var optionsMenuInvalidator: Runnable? = null
+
+    private lateinit var gestureDetector: GestureDetector
+    private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
+    private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
     companion object {
 
@@ -476,6 +484,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
+
+        setupGestureDetector()
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -987,6 +997,48 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     open fun installationSessionCallback(): SessionCallback {
         return ApkInstallationSessionCallback(this).also { installationCallback = it }
+    }
+
+    private fun setupGestureDetector() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                // Check if no files are open by looking at the displayedChild of the view flipper
+                val noFilesOpen = content.viewContainer.displayedChild == 1
+                if (!noFilesOpen) {
+                    return false // If files are open, do nothing
+                }
+
+                val diffX = e2.x - (e1?.x ?: 0f)
+
+                // Check for a right swipe (to open left drawer)
+                if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    binding.editorDrawerLayout.openDrawer(GravityCompat.START)
+                    return true
+                }
+
+                // Check for a left swipe (to open right drawer)
+                if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    binding.editorDrawerLayout.openDrawer(GravityCompat.END)
+                    return true
+                }
+
+                return false
+            }
+        })
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        // Pass the event to our gesture detector first
+        if (ev != null) {
+            gestureDetector.onTouchEvent(ev)
+        }
+        // Then, let the default dispatching happen
+        return super.dispatchTouchEvent(ev)
     }
 }
 
