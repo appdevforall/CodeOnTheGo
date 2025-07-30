@@ -57,14 +57,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="8dp">
+            android:paddingStart="8dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="4dp">
+                android:gravity="center_vertical">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_add_context"
@@ -86,78 +88,76 @@
                         android:layout_height="wrap_content"
                         app:singleLine="true"/>
                 </HorizontalScrollView>
-
             </LinearLayout>
 
-            <LinearLayout
+            <androidx.core.widget.NestedScrollView
+                android:id="@+id/prompt_input_scroll_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="bottom">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/agent_mode_menu"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                    android:layout_width="140dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp">
-
-                    <AutoCompleteTextView
-                        android:id="@+id/agent_mode_autocomplete"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="none"
-                        android:text="Agent Mode"
-                        tools:ignore="LabelFor" />
-                </com.google.android.material.textfield.TextInputLayout>
+                android:layout_marginTop="4dp"
+                android:maxHeight="160dp">
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/prompt_input_layout"
-                    android:layout_width="0dp"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Type a message...">
+                    android:hint="Type a message or prompt...">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/prompt_input_edittext"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:gravity="top"
                         android:inputType="textMultiLine|textCapSentences"
-                        android:maxLines="5" />
+                        android:minHeight="56dp" />
                 </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
+            </androidx.core.widget.NestedScrollView>
 
-            <LinearLayout
+            <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="end|center_vertical"
-                android:layout_marginTop="8dp">
+                android:layout_marginTop="4dp">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_upload_image"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/agent_mode_menu"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    android:layout_width="150dp"
                     android:layout_height="wrap_content"
-                    app:icon="@drawable/ic_add_photo"
-                    android:contentDescription="Upload Image"/>
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true">
 
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"/>
+                    <AutoCompleteTextView
+                        android:id="@+id/agent_mode_autocomplete"
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="none"
+                        android:lines="1"
+                        android:text="Agent Mode"
+                        tools:ignore="LabelFor" />
+                </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_send_prompt"
                     style="@style/Widget.Material3.Button.Icon"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
                     android:enabled="false"
                     app:icon="@drawable/ic_send"
                     android:contentDescription="Send Message"/>
-            </LinearLayout>
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_upload_image"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_toStartOf="@id/btn_send_prompt"
+                    app:icon="@drawable/ic_add_photo"
+                    android:contentDescription="Upload Image"/>
+            </RelativeLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
-
 </androidx.constraintlayout.widget.ConstraintLayout>
