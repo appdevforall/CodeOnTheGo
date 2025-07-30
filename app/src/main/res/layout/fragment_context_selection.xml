@@ -11,13 +11,14 @@
         android:id="@+id/context_toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        app:title="Add Context"
-        app:navigationIcon="@drawable/ic_back" />
+        app:navigationIcon="@drawable/ic_back"
+        app:title="Add Context" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="16dp"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
         android:text="SELECTED CONTEXT"
         android:textAppearance="?attr/textAppearanceLabelMedium"
         android:textColor="?attr/colorPrimary"/>
@@ -26,12 +27,11 @@
         android:id="@+id/selected_context_recycler_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
         android:minHeight="48dp"
-        tools:listitem="@layout/list_item_context_chip"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        android:orientation="horizontal"/>
+        tools:listitem="@layout/list_item_context_chip" />
 
     <ScrollView
         android:layout_width="match_parent"
@@ -50,24 +50,68 @@
                 android:text="FILES AND FOLDERS"
                 android:textAppearance="?attr/textAppearanceLabelMedium"
                 android:textColor="?attr/colorPrimary"/>
-            <TextView
-                android:id="@+id/context_file_1"
+
+            <RelativeLayout
+                android:id="@+id/context_file_1_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="app/src/main/java/.../MainActivity.kt"
-                android:padding="16dp"
                 android:background="?attr/selectableItemBackground"
-                android:drawableStart="@drawable/ic_language_kotlin"
-                android:drawablePadding="16dp"/>
-            <TextView
-                android:id="@+id/context_file_2"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/context_file_1_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_toStartOf="@+id/context_file_1_check"
+                    android:drawableStart="@drawable/ic_language_kotlin"
+                    android:drawablePadding="16dp"
+                    android:gravity="center_vertical"
+                    android:padding="16dp"
+                    android:text="app/src/main/java/.../MainActivity.kt" />
+
+                <ImageView
+                    android:id="@+id/context_file_1_check"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="16dp"
+                    android:src="@drawable/ic_check"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+            </RelativeLayout>
+
+            <RelativeLayout
+                android:id="@+id/context_file_2_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="app/src/main/res/layout/activity_main.xml"
-                android:padding="16dp"
                 android:background="?attr/selectableItemBackground"
-                android:drawableStart="@drawable/ic_language_xml"
-                android:drawablePadding="16dp"/>
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/context_file_2_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_toStartOf="@+id/context_file_2_check"
+                    android:drawableStart="@drawable/ic_language_xml"
+                    android:drawablePadding="16dp"
+                    android:gravity="center_vertical"
+                    android:padding="16dp"
+                    android:text="app/src/main/res/layout/activity_main.xml" />
+
+                <ImageView
+                    android:id="@+id/context_file_2_check"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="16dp"
+                    android:src="@drawable/ic_check"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+            </RelativeLayout>
 
             <TextView
                 android:layout_width="match_parent"
@@ -76,15 +120,37 @@
                 android:text="WEB SEARCH"
                 android:textAppearance="?attr/textAppearanceLabelMedium"
                 android:textColor="?attr/colorPrimary"/>
-            <TextView
-                android:id="@+id/context_web_search"
+
+            <RelativeLayout
+                android:id="@+id/context_web_search_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Search the web for an answer"
-                android:padding="16dp"
                 android:background="?attr/selectableItemBackground"
-                android:drawableStart="@drawable/ic_search"
-                android:drawablePadding="16dp"/>
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/context_web_search_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_toStartOf="@+id/context_web_search_check"
+                    android:drawableStart="@drawable/ic_search"
+                    android:drawablePadding="16dp"
+                    android:gravity="center_vertical"
+                    android:padding="16dp"
+                    android:text="Search the web for an answer" />
+
+                <ImageView
+                    android:id="@+id/context_web_search_check"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="16dp"
+                    android:src="@drawable/ic_check"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+            </RelativeLayout>
 
             <TextView
                 android:layout_width="match_parent"
@@ -93,15 +159,37 @@
                 android:text="GIT"
                 android:textAppearance="?attr/textAppearanceLabelMedium"
                 android:textColor="?attr/colorPrimary"/>
-            <TextView
-                android:id="@+id/context_git_status"
+
+            <RelativeLayout
+                android:id="@+id/context_git_status_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Git Status"
-                android:padding="16dp"
                 android:background="?attr/selectableItemBackground"
-                android:drawableStart="@drawable/ic_git"
-                android:drawablePadding="16dp"/>
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/context_git_status_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_toStartOf="@+id/context_git_status_check"
+                    android:drawableStart="@drawable/ic_git"
+                    android:drawablePadding="16dp"
+                    android:gravity="center_vertical"
+                    android:padding="16dp"
+                    android:text="Git Status" />
+
+                <ImageView
+                    android:id="@+id/context_git_status_check"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="16dp"
+                    android:src="@drawable/ic_check"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+            </RelativeLayout>
         </LinearLayout>
     </ScrollView>
 
@@ -110,7 +198,6 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="8dp">
-
         <Button
             android:id="@+id/btn_cancel_context"
             style="@style/Widget.Material3.Button.TextButton"
@@ -118,7 +205,6 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Cancel"/>
-
         <Button
             android:id="@+id/btn_confirm_context"
             android:layout_width="0dp"
