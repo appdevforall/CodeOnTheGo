@@ -21,6 +21,6 @@ class AgentSidebarAction(context: Context, override val order: Int) :
     }
     init {
         label = context.getString(R.string.title_agent)
-        icon = ContextCompat.getDrawable(context, R.drawable.ai_color)
+        icon = ContextCompat.getDrawable(context, R.drawable.ic_ai)
     }
 }
