@@ -1,100 +1,77 @@
 package com.itsaky.androidide.fragments.sidebar
 
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
+import androidx.fragment.app.setFragmentResult
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.chip.Chip
+import com.itsaky.androidide.R
+import com.itsaky.androidide.adapters.ContextChipAdapter
 import com.itsaky.androidide.databinding.FragmentContextSelectionBinding
-import com.itsaky.androidide.databinding.FragmentGitCommitBinding
-import com.itsaky.androidide.git.GitCommitTask
-import com.itsaky.androidide.projects.ProjectManagerImpl
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.eclipse.jgit.api.Git
 
-class ContextSelectionFragment : Fragment() {
+class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private var _binding: FragmentContextSelectionBinding? = null
     private val binding get() = _binding!!
 
-    private lateinit var git: Git
-    private lateinit var gitStatusAdapter: GitStatusAdapter
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentContextSelectionBinding.inflate(inflater, container, false)
-        return binding.root
-    }
+    private val selectedContextItems = mutableSetOf<String>()
+    private lateinit var chipAdapter: ContextChipAdapter
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        _binding = FragmentContextSelectionBinding.bind(view)
 
-        val projectDir = ProjectManagerImpl.getInstance().projectDir
-        if (projectDir == null) {
-            Toast.makeText(requireContext(), "No project open", Toast.LENGTH_SHORT).show()
-            return
+        setupRecyclerView()
+        setupListeners()
+        updateSelectedChips()
+    }
+    private fun setupRecyclerView() {
+        chipAdapter = ContextChipAdapter(mutableListOf()) { itemToRemove ->
+            // This lambda is called when a chip's close icon is clicked
+            toggleSelection(itemToRemove)
+        }
+        binding.selectedContextRecyclerView.apply {
+            layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+            adapter = chipAdapter
+        }
+    }
+    private fun setupListeners() {
+        binding.contextToolbar.setNavigationOnClickListener {
+            findNavController().popBackStack() // Go back
         }
 
-        // Initialize the Git instance
-        git = Git.open(projectDir)
+        // --- Mock Click Listeners ---
+        binding.contextFile1.setOnClickListener { toggleSelection(binding.contextFile1.text.toString()) }
+        binding.contextFile2.setOnClickListener { toggleSelection(binding.contextFile2.text.toString()) }
+        binding.contextWebSearch.setOnClickListener { toggleSelection(binding.contextWebSearch.text.toString()) }
+        binding.contextGitStatus.setOnClickListener { toggleSelection(binding.contextGitStatus.text.toString()) }
 
-        // Load the changed files into the RecyclerView
-        loadGitStatus()
+        binding.btnCancelContext.setOnClickListener {
+            findNavController().popBackStack()
+        }
 
-        binding.btnCommit.setOnClickListener {
-            binding.btnCommit.isEnabled = false
-            val stagedFiles = gitStatusAdapter.getStagedFiles()
-            val message = binding.commitMessageInput.text.toString()
-            if (message.isBlank()) {
-                Toast.makeText(
-                    requireContext(),
-                    "Commit message cannot be empty.",
-                    Toast.LENGTH_SHORT
-                ).show()
-                binding.btnCommit.isEnabled = true
-                return@setOnClickListener
-            }
-            if (stagedFiles.isEmpty()) {
-                Toast.makeText(requireContext(), "No files selected to commit.", Toast.LENGTH_SHORT)
-                    .show()
-                binding.btnCommit.isEnabled = true
-                return@setOnClickListener
-            }
-
-            GitCommitTask.commit(requireContext(),  selectedFiles = stagedFiles, commitMessage = message)
+        binding.btnConfirmContext.setOnClickListener {
+            setFragmentResult("context_selection_request", Bundle().apply {
+                putStringArrayList("selected_context", ArrayList(selectedContextItems))
+            })
             findNavController().popBackStack()
         }
     }
 
-    private fun loadGitStatus() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val status = git.status().call()
-            val fileList = mutableListOf<GitFileStatus>()
-
-            // Populate the list with all changed files
-            status.untracked.forEach { fileList.add(GitFileStatus(it, "New")) }
-            status.added.forEach { fileList.add(GitFileStatus(it, "Added")) }
-            status.modified.forEach { fileList.add(GitFileStatus(it, "Modified")) }
-            status.changed.forEach { fileList.add(GitFileStatus(it, "Changed")) }
-            status.removed.forEach { fileList.add(GitFileStatus(it, "Deleted")) }
-
-            // Update the UI on the main thread
-            withContext(Dispatchers.Main) {
-                gitStatusAdapter = GitStatusAdapter(fileList)
-                binding.commitFilesRecyclerView.apply {
-                    adapter = gitStatusAdapter
-                    layoutManager = LinearLayoutManager(requireContext())
-                }
-            }
+    private fun toggleSelection(itemText: String) {
+        if (selectedContextItems.contains(itemText)) {
+            selectedContextItems.remove(itemText)
+        } else {
+            selectedContextItems.add(itemText)
         }
+        updateSelectedChips()
+    }
+    private fun updateSelectedChips() {
+        binding.selectedContextRecyclerView.visibility = if (selectedContextItems.isEmpty()) View.GONE else View.VISIBLE
+        // Update the adapter with the new set of items
+        chipAdapter.updateData(selectedContextItems)
     }
 
     override fun onDestroyView() {

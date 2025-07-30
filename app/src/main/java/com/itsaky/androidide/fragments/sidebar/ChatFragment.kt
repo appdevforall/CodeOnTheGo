@@ -10,7 +10,9 @@ import android.widget.ArrayAdapter
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.chip.Chip
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.R
@@ -31,6 +33,7 @@ class ChatFragment :
     private lateinit var chatAdapter: ChatAdapter
     private val messageHistory = mutableListOf<ChatMessage>()
     private val gson = Gson()
+    private val selectedContext = mutableListOf<String>()
 
     companion object {
         private const val CHAT_HISTORY_PREF_KEY = "chat_history_v1"
@@ -44,6 +47,15 @@ class ChatFragment :
         setupListeners()
         loadChatHistory()
         updateUIState()
+
+        parentFragmentManager.setFragmentResultListener("context_selection_request", viewLifecycleOwner) { _, bundle ->
+            val result = bundle.getStringArrayList("selected_context")
+            if (result != null) {
+                selectedContext.clear()
+                selectedContext.addAll(result)
+                updateContextChips()
+            }
+        }
     }
 
     private fun setupUI() {
@@ -93,7 +105,9 @@ class ChatFragment :
             // For all other key events, let the system handle them.
             return@setOnKeyListener false
         }
-
+        binding.btnAddContext.setOnClickListener {
+            findNavController().navigate(R.id.action_chatFragment_to_contextSelectionFragment)
+        }
         // TODO: Add listeners for other buttons
         // binding.btn_add_context.setOnClickListener { ... }
         // binding.btn_upload_image.setOnClickListener { ... }
@@ -152,6 +166,26 @@ class ChatFragment :
             val savedMessages: MutableList<ChatMessage> = gson.fromJson(json, type)
             messageHistory.addAll(savedMessages)
             chatAdapter.notifyDataSetChanged()
+        }
+    }
+
+    private fun updateContextChips() {
+        binding.contextChipGroup.removeAllViews()
+        if (selectedContext.isEmpty()) {
+            binding.contextChipGroup.visibility = View.GONE
+        } else {
+            binding.contextChipGroup.visibility = View.VISIBLE
+            selectedContext.forEach { item ->
+                val chip = Chip(requireContext()).apply {
+                    text = item
+                    isCloseIconVisible = true
+                    setOnCloseIconClickListener {
+                        selectedContext.remove(item)
+                        updateContextChips()
+                    }
+                }
+                binding.contextChipGroup.addView(chip)
+            }
         }
     }
 }
