@@ -1,9 +1,10 @@
-package com.itsaky.androidide.utils
+package com.itsaky.androidide.assets
 
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
+import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -40,6 +41,7 @@ object AssetsInstallationHelper {
     data class Progress(val message: String)
 
     private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
+    private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
     const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
 
     suspend fun install(
@@ -83,12 +85,12 @@ object AssetsInstallationHelper {
         Brotli4jLoader.ensureAvailability()
 
         // pre-install hook
-        AssetsInstaller.preInstall(context, stagingDir)
+        ASSETS_INSTALLER.preInstall(context, stagingDir)
 
         onProgress(Progress("Starting installation..."))
         val installerJobs = expectedEntries.map { entry ->
             async {
-                AssetsInstaller.doInstall(
+                ASSETS_INSTALLER.doInstall(
                     context = context,
                     stagingDir = stagingDir,
                     cpuArch = cpuArch,
@@ -118,6 +120,9 @@ object AssetsInstallationHelper {
 
         // wait for all jobs to complete
         installerJobs.joinAll()
+
+        // notify post-install
+        ASSETS_INSTALLER.postInstall(context, stagingDir)
 
         // then cancel progress updater
         progressUpdater.cancel()
