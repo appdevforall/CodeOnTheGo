@@ -97,6 +97,22 @@ internal object RightEditorSidebarActions {
 
         rail.menu.clear()
 
+//        // Set the listener that will perform navigation on click
+//        rail.setOnItemSelectedListener { item ->
+//            try {
+//                controller.navigate(item.itemId, null, navOptions {
+//                    launchSingleTop = true
+//                    restoreState = true
+//                    popUpTo(controller.graph.startDestinationId) {
+//                        saveState = true
+//                    }
+//                })
+//                true
+//            } catch (e: IllegalArgumentException) {
+//                false
+//            }
+//        }
+
         val data = ActionData.create(context)
         val titleRef = WeakReference(binding.title)
         val params = FillMenuParams(
@@ -115,6 +131,9 @@ internal object RightEditorSidebarActions {
                 controller.navigate(action.id, navOptions {
                     launchSingleTop = true
                     restoreState = true
+                    popUpTo(controller.graph.startDestinationId) {
+                        saveState = true
+                    }
                 })
 
                 val result = controller.currentDestination?.matchDestination(action.id) == true
