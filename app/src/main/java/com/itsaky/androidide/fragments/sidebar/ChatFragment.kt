@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.View
 import android.widget.ArrayAdapter
 import androidx.core.view.isVisible
@@ -74,6 +75,23 @@ class ChatFragment :
             if (inputText.isNotEmpty()) {
                 sendMessage(inputText)
             }
+        }
+        binding.promptInputEdittext.setOnKeyListener { _, keyCode, keyEvent ->
+            // Check if the event is a key-down event on the Enter key
+            if (keyEvent.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+
+                if (keyEvent.isShiftPressed) {
+                    // For SHIFT + ENTER: Let the system handle it to insert a new line.
+                    return@setOnKeyListener false
+                } else {
+                    // For ENTER: Trigger the send message action.
+                    binding.btnSendPrompt.performClick()
+                    // Consume the event to prevent a new line from being added.
+                    return@setOnKeyListener true
+                }
+            }
+            // For all other key events, let the system handle them.
+            return@setOnKeyListener false
         }
 
         // TODO: Add listeners for other buttons
