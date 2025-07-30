@@ -17,7 +17,6 @@
  */
 package com.itsaky.androidide.managers;
 
-import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
@@ -30,7 +29,6 @@ import androidx.annotation.WorkerThread;
 
 import com.aayushatharva.brotli4j.Brotli4jLoader;
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream;
-
 import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
 import com.blankj.utilcode.util.ResourceUtils;
@@ -55,10 +53,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-
-import kotlin.io.ConstantsKt;
-import kotlin.io.FilesKt;
-
 
 public class ToolsManager {
 
@@ -88,7 +82,6 @@ public class ToolsManager {
             extractLogSender(app);
 
             writeNoMediaFile();
-            extractAapt2();
             extractCogoPlugin();
             extractColorScheme(app);
             extractJdwp(app);
@@ -316,23 +309,6 @@ public class ToolsManager {
     @Contract(pure = true)
     public static String getDatabaseAsset(String name) {
         return DATABASE_ASSET_DATA_DIR + "/" + name;
-    }
-
-    private static void extractAapt2() {
-        if (!Environment.AAPT2.exists()) {
-            final var context = BaseApplication.getBaseInstance();
-            final var nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
-            final var sourceAapt2 = new File(nativeLibraryDir, "libaapt2.so");
-            if (sourceAapt2.exists() && sourceAapt2.isFile()) {
-                FilesKt.copyTo(sourceAapt2, Environment.AAPT2, true, ConstantsKt.DEFAULT_BUFFER_SIZE);
-            } else {
-                LOG.error("{} file does not exist! This can be problematic.", sourceAapt2);
-            }
-        }
-
-        if (!Environment.AAPT2.canExecute() && !Environment.AAPT2.setExecutable(true)) {
-            LOG.error("Cannot set executable permissions to AAPT2 binary");
-        }
     }
 
     private static void extractCogoPlugin() {

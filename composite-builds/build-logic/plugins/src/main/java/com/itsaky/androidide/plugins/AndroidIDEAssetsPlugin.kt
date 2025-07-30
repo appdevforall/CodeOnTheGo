@@ -26,7 +26,6 @@ import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
-import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
 import com.itsaky.androidide.plugins.util.capitalized
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
@@ -49,19 +48,11 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
                 "generateGradleWrapper", GradleWrapperGeneratorTask::class.java
             )
 
-            val setupAapt2TaskTaskProvider = tasks.register(
-                "setupAapt2", SetupAapt2Task::class.java
-            )
-
             val androidComponentsExtension =
                 extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
 
             androidComponentsExtension.onVariants { variant ->
                 val variantNameCapitalized = variant.name.capitalized()
-                variant.sources.jniLibs?.addGeneratedSourceDirectory(
-                    setupAapt2TaskTaskProvider, SetupAapt2Task::outputDirectory
-                )
-
                 variant.sources.assets?.addGeneratedSourceDirectory(
                     wrapperGeneratorTaskProvider, GradleWrapperGeneratorTask::outputDirectory
                 )
