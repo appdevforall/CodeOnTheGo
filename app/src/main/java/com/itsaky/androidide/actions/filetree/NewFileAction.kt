@@ -194,30 +194,38 @@ class NewFileAction(context: Context, override val order: Int) :
       binding.typeGroup.checkedButtonId == binding.typeActivity.id &&
           binding.createLayout.isChecked
     val pkgName = ProjectWriter.getPackageName(file)
-    if (pkgName == null || pkgName.trim { it <= ' ' }.isEmpty()) {
-      flashError(R.string.msg_get_package_failed)
-      return
-    }
 
     val id: Int = binding.typeGroup.checkedButtonId
     val javaName = if (name.endsWith(".java")) name else "$name.java"
     val className = if (!name.contains(".")) name else name.substring(0, name.lastIndexOf("."))
+
+    // Package Structure Check: When the package is "com", it checks if a com subdirectory exists within the current directory.
+    // If com/ exists, it means the package structure is organized correctly.
+    // The Java file should be created within com/ to maintain package consistency.
+    // If the com subdirectory does not exist, use the original directory (file), avoiding FileNotFoundException errors.
+    val javaFileDirectory = if (pkgName == "com") {
+      val subDir = File(file, "com")
+      if (subDir.exists() && subDir.isDirectory) subDir else file
+    } else {
+      file
+    }
+
     val created =
       when (id) {
         binding.typeClass.id ->
           createFile(
-            context,
-            node,
-            file,
-            javaName,
-            ProjectWriter.createJavaClass(pkgName, className)
+              context,
+              node,
+              javaFileDirectory,
+              javaName,
+              ProjectWriter.createJavaClass(pkgName, className),
           )
 
         binding.typeInterface.id ->
           createFile(
             context,
             node,
-            file,
+            javaFileDirectory,
             javaName,
             ProjectWriter.createJavaInterface(pkgName, className)
           )
@@ -226,7 +234,7 @@ class NewFileAction(context: Context, override val order: Int) :
           createFile(
             context,
             node,
-            file,
+            javaFileDirectory,
             javaName,
             ProjectWriter.createJavaEnum(pkgName, className)
           )
@@ -235,17 +243,21 @@ class NewFileAction(context: Context, override val order: Int) :
           createFile(
             context,
             node,
-            file,
+            javaFileDirectory,
             javaName,
             ProjectWriter.createActivity(pkgName, className)
           )
 
-        else -> createFile(context, node, file, name, "")
+        else -> createFile(context, node, javaFileDirectory, name, "")
       }
 
-    if (created && autoLayout) {
+    node?.let {
+      requestCollapseNode(it, true)
+    }
+
+    if (created is Boolean && autoLayout) {
       val packagePath = pkgName.toString().replace(".", "/")
-      createAutoLayout(context, file, name, packagePath)
+      createAutoLayout(context, javaFileDirectory, name, packagePath)
     }
   }
 
