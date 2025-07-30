@@ -1,0 +1,60 @@
+package com.itsaky.androidide.adapters
+
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.databinding.ListItemContextHeaderBinding
+import com.itsaky.androidide.databinding.ListItemContextSelectableBinding
+import com.itsaky.androidide.models.ContextListItem
+import com.itsaky.androidide.models.HeaderItem
+import com.itsaky.androidide.models.SelectableItem
+
+class ContextSelectionAdapter(
+    private val items: List<ContextListItem>,
+    private val onItemClick: (SelectableItem) -> Unit
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    private val TYPE_HEADER = 0
+    private val TYPE_ITEM = 1
+
+    inner class HeaderViewHolder(val binding: ListItemContextHeaderBinding) :
+        RecyclerView.ViewHolder(binding.root)
+
+    inner class ItemViewHolder(val binding: ListItemContextSelectableBinding) :
+        RecyclerView.ViewHolder(binding.root)
+
+    override fun getItemViewType(position: Int): Int {
+        return when (items[position]) {
+            is HeaderItem -> TYPE_HEADER
+            is SelectableItem -> TYPE_ITEM
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return if (viewType == TYPE_HEADER) {
+            HeaderViewHolder(ListItemContextHeaderBinding.inflate(inflater, parent, false))
+        } else {
+            ItemViewHolder(ListItemContextSelectableBinding.inflate(inflater, parent, false))
+        }
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val item = items[position]) {
+            is HeaderItem -> {
+                (holder as HeaderViewHolder).binding.headerTitle.text = item.title
+            }
+
+            is SelectableItem -> {
+                val itemHolder = holder as ItemViewHolder
+                itemHolder.binding.itemText.text = item.text
+                itemHolder.binding.itemIcon.setImageResource(item.icon)
+                itemHolder.binding.itemCheck.isVisible = item.isSelected
+                itemHolder.itemView.setOnClickListener { onItemClick(item) }
+            }
+        }
+    }
+}

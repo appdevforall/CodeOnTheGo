@@ -15,6 +15,7 @@
         app:title="Add Context" />
 
     <TextView
+        android:id="@+id/selected_context_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="16dp"
@@ -33,169 +34,13 @@
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         tools:listitem="@layout/list_item_context_chip" />
 
-    <ScrollView
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/context_items_recycler_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:text="FILES AND FOLDERS"
-                android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorPrimary" />
-
-            <RelativeLayout
-                android:id="@+id/context_file_1_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true">
-
-                <TextView
-                    android:id="@+id/context_file_1_text"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_toStartOf="@+id/context_file_1_check"
-                    android:drawableStart="@drawable/ic_language_kotlin"
-                    android:drawablePadding="16dp"
-                    android:drawableTint="@color/black"
-                    android:gravity="center_vertical"
-                    android:padding="16dp"
-                    android:text="app/src/main/java/.../MainActivity.kt" />
-
-                <ImageView
-                    android:id="@+id/context_file_1_check"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:layout_marginEnd="16dp"
-                    android:src="@drawable/ic_check"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
-            </RelativeLayout>
-
-            <RelativeLayout
-                android:id="@+id/context_file_2_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true">
-
-                <TextView
-                    android:id="@+id/context_file_2_text"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_toStartOf="@+id/context_file_2_check"
-                    android:drawableStart="@drawable/ic_language_xml"
-                    android:drawablePadding="16dp"
-                    android:drawableTint="@color/black"
-                    android:gravity="center_vertical"
-                    android:padding="16dp"
-                    android:text="app/src/main/res/layout/activity_main.xml" />
-
-                <ImageView
-                    android:id="@+id/context_file_2_check"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:layout_marginEnd="16dp"
-                    android:src="@drawable/ic_check"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
-            </RelativeLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:text="WEB SEARCH"
-                android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorPrimary" />
-
-            <RelativeLayout
-                android:id="@+id/context_web_search_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true">
-
-                <TextView
-                    android:id="@+id/context_web_search_text"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_toStartOf="@+id/context_web_search_check"
-                    android:drawableStart="@drawable/ic_search"
-                    android:drawablePadding="16dp"
-                    android:drawableTint="@color/black"
-                    android:gravity="center_vertical"
-                    android:padding="16dp"
-                    android:text="Search the web for an answer" />
-
-                <ImageView
-                    android:id="@+id/context_web_search_check"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:layout_marginEnd="16dp"
-                    android:src="@drawable/ic_check"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
-            </RelativeLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:text="GIT"
-                android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorPrimary" />
-
-            <RelativeLayout
-                android:id="@+id/context_git_status_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true">
-
-                <TextView
-                    android:id="@+id/context_git_status_text"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_toStartOf="@+id/context_git_status_check"
-                    android:drawableStart="@drawable/ic_git"
-                    android:drawablePadding="16dp"
-                    android:drawableTint="@color/black"
-                    android:gravity="center_vertical"
-                    android:padding="16dp"
-                    android:text="Git Status" />
-
-                <ImageView
-                    android:id="@+id/context_git_status_check"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:layout_marginEnd="16dp"
-                    android:src="@drawable/ic_check"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
-            </RelativeLayout>
-        </LinearLayout>
-    </ScrollView>
+        android:layout_weight="1"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        tools:listitem="@layout/list_item_context_selectable" />
 
     <LinearLayout
         android:layout_width="match_parent"
