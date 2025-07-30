@@ -69,7 +69,7 @@ class ChatFragment :
         }
 
         // Setup Agent Mode Dropdown
-        val modes = arrayOf("Agent Mode", "Ask Mode", "Manual Mode")
+        val modes = arrayOf("Agent", "Ask", "Manual")
         val adapter =
             ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, modes)
         binding.agentModeAutocomplete.setAdapter(adapter)
