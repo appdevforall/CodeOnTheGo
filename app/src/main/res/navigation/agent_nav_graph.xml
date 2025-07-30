@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/git_nav_graph"
+    app:startDestination="@id/chatFragment">
+
+    <fragment
+        android:id="@+id/chatFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.ChatFragment"
+        android:label="Git"
+        tools:layout="@layout/fragment_git">
+
+        <action
+            android:id="@+id/action_chatFragment_to_contextSelectionFragment"
+            app:destination="@id/contextSelectionFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/contextSelectionFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.ContextSelectionFragment"
+        android:label="Commit Changes"
+        tools:layout="@layout/fragment_context_selection" />
+
+</navigation>

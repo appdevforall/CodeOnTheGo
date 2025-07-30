@@ -1,20 +1,3 @@
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.itsaky.androidide.utils
 
 import android.content.Context
@@ -43,6 +26,7 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.FillMenuParams
 import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
+import com.itsaky.androidide.actions.sidebar.AgentSidebarAction
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
 import com.itsaky.androidide.actions.sidebar.EmailSidebarAction
@@ -56,16 +40,10 @@ import com.itsaky.androidide.fragments.sidebar.RightEditorSidebarFragment
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 
-/**
- * Sets up the actions that are shown in the
- * [EditorActivityKt][com.itsaky.androidide.activities.editor.EditorActivityKt]'s drawer's sidebar.
- *
- * @author Akash Yadav
- */
-
-
 internal object RightEditorSidebarActions {
-    val tooltipTags = mutableListOf<String>()
+    private val tooltipTags = mutableListOf<String>()
+
+    const val startDestination = AgentSidebarAction.ID
 
     @JvmStatic
     fun registerActions(context: Context) {
@@ -73,17 +51,16 @@ internal object RightEditorSidebarActions {
         var order = -1
 
         @Suppress("KotlinConstantConditions")
+        registry.registerAction(AgentSidebarAction(context, ++order))
         registry.registerAction(BuildVariantsSidebarAction(context, ++order))
         registry.registerAction(GitSidebarAction(context, ++order))
     }
-
     @JvmStatic
     fun setup(sidebarFragment: RightEditorSidebarFragment) {
         val binding = sidebarFragment.getBinding() ?: return
         val controller = binding.fragmentContainer.getFragment<NavHostFragment>().navController
         val context = sidebarFragment.requireContext()
         val rail = binding.navigation
-
 
         val registry = ActionsRegistry.getInstance()
         val actions = registry.getActions(ActionItem.Location.EDITOR_RIGHT_SIDEBAR)
@@ -96,22 +73,6 @@ internal object RightEditorSidebarActions {
         }
 
         rail.menu.clear()
-
-//        // Set the listener that will perform navigation on click
-//        rail.setOnItemSelectedListener { item ->
-//            try {
-//                controller.navigate(item.itemId, null, navOptions {
-//                    launchSingleTop = true
-//                    restoreState = true
-//                    popUpTo(controller.graph.startDestinationId) {
-//                        saveState = true
-//                    }
-//                })
-//                true
-//            } catch (e: IllegalArgumentException) {
-//                false
-//            }
-//        }
 
         val data = ActionData.create(context)
         val titleRef = WeakReference(binding.title)
@@ -161,7 +122,7 @@ internal object RightEditorSidebarActions {
             }
         }
 
-        controller.graph = controller.createGraph(startDestination = BuildVariantsSidebarAction.ID) {
+        controller.graph = controller.createGraph(startDestination = startDestination) {
             actions.forEach { (actionId, action) ->
                 if (action !is SidebarActionItem) {
                     throw IllegalStateException(
@@ -208,7 +169,7 @@ internal object RightEditorSidebarActions {
                 }
             })
 
-        rail.menu.findItem(BuildVariantsSidebarAction.ID.hashCode())?.also {
+        rail.menu.findItem(startDestination.hashCode())?.also {
             it.isChecked = true
             binding.title.text = it.title
         }
