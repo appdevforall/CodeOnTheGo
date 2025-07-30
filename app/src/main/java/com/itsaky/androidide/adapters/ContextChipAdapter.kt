@@ -14,7 +14,6 @@ class ContextChipAdapter(
     class ViewHolder(val chip: Chip) : RecyclerView.ViewHolder(chip)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        // Inflate the chip layout you already created
         val chip = LayoutInflater.from(parent.context)
             .inflate(R.layout.list_item_context_chip, parent, false) as Chip
         return ViewHolder(chip)
@@ -33,6 +32,6 @@ class ContextChipAdapter(
     fun updateData(newItems: Set<String>) {
         items.clear()
         items.addAll(newItems)
-        notifyDataSetChanged()
+        notifyDataSetChanged() // It will always be more efficient to use more specific change events if you can. Rely on notifyDataSetChanged as a last resort. Toggle info
     }
 }

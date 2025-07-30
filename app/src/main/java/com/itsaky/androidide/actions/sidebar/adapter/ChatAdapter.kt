@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.actions.sidebar.models.ChatMessage
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
+import java.util.Locale
 
 class ChatAdapter(private val messages: MutableList<ChatMessage>) :
     RecyclerView.Adapter<ChatAdapter.MessageViewHolder>() {
@@ -25,12 +26,19 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
 
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
         val message = messages[position]
-        holder.binding.messageSender.text = message.sender.name.capitalize()
+        // Use Locale.getDefault() for proper capitalization
+        holder.binding.messageSender.text = message.sender.name.lowercase(Locale.getDefault())
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
         holder.binding.messageContent.text = message.text
     }
 
-    fun addMessage(message: ChatMessage) {
-        messages.add(message)
-        notifyItemInserted(messages.size - 1)
+    /**
+     * Replaces the entire list of messages with a new one.
+     * Useful for loading a different chat history.
+     */
+    fun updateMessages(newMessages: List<ChatMessage>) {
+        messages.clear()
+        messages.addAll(newMessages)
+        notifyDataSetChanged() // Tells the RecyclerView to redraw the entire list
     }
 }

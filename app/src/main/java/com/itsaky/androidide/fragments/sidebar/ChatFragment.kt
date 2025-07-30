@@ -3,8 +3,6 @@ package com.itsaky.androidide.fragments.sidebar
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.widget.ArrayAdapter
@@ -12,12 +10,11 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
 import com.itsaky.androidide.actions.sidebar.models.ChatMessage
@@ -25,32 +22,28 @@ import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.ChatViewModel
-import java.util.Locale
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
 
-    private val chatViewModel by viewModels<ChatViewModel>(
-        ownerProducer = { requireActivity() }
-    )
+    // Use activityViewModels to share the ViewModel
+    private val chatViewModel: ChatViewModel by activityViewModels()
 
+    private lateinit var chatAdapter: ChatAdapter
+    private val selectedContext = mutableListOf<String>()
     private val selectedImageUris = mutableListOf<Uri>()
     private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
 
-    private lateinit var chatAdapter: ChatAdapter
-    private val messageHistory = mutableListOf<ChatMessage>()
-    private val gson = Gson()
-    private val selectedContext = mutableListOf<String>()
-
-    companion object {
-        private const val CHAT_HISTORY_PREF_KEY = "chat_history_v1"
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Load sessions only if they haven't been loaded yet
+        if (chatViewModel.sessions.value.isNullOrEmpty()) {
+            chatViewModel.loadSessions(requireActivity().getPreferences(Context.MODE_PRIVATE))
+        }
+
         imagePickerLauncher =
             registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
-                // This callback is executed when the user selects images and returns to the app.
                 if (uris.isNotEmpty()) {
                     selectedImageUris.addAll(uris)
                     updateContextChips()
@@ -58,18 +51,33 @@ class ChatFragment :
                 }
             }
     }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
         emptyStateViewModel.isEmpty.value = false
         setupUI()
         setupListeners()
-        loadChatHistory()
-        updateUIState()
+
+        chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
+            session?.let {
+                chatAdapter.updateMessages(it.messages)
+                updateUIState(it.messages)
+                binding.chatRecyclerView.scrollToPosition(it.messages.size - 1)
+            }
+        })
+
+        parentFragmentManager.setFragmentResultListener(
+            "chat_history_request",
+            viewLifecycleOwner
+        ) { _, bundle ->
+            bundle.getString("selected_session_id")?.let { sessionId ->
+                chatViewModel.setCurrentSession(sessionId)
+            }
+        }
 
         parentFragmentManager.setFragmentResultListener("context_selection_request", viewLifecycleOwner) { _, bundle ->
-            val result = bundle.getStringArrayList("selected_context")
-            if (result != null) {
+            bundle.getStringArrayList("selected_context")?.let { result ->
                 selectedContext.clear()
                 selectedContext.addAll(result)
                 updateContextChips()
@@ -78,16 +86,12 @@ class ChatFragment :
     }
 
     private fun setupUI() {
-        // Setup RecyclerView
-        chatAdapter = ChatAdapter(messageHistory)
-        binding.chatRecyclerView.apply {
-            adapter = chatAdapter
-            layoutManager = LinearLayoutManager(requireContext()).apply {
-                stackFromEnd = true // New items appear at the bottom
-            }
+        chatAdapter = ChatAdapter(mutableListOf()) // Start with an empty adapter
+        binding.chatRecyclerView.adapter = chatAdapter
+        binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
+            stackFromEnd = true
         }
 
-        // Setup Agent Mode Dropdown
         val modes = arrayOf("Agent", "Ask", "Manual")
         val adapter =
             ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, modes)
@@ -95,98 +99,69 @@ class ChatFragment :
     }
 
     private fun setupListeners() {
-        // Enable/disable send button based on input
         binding.promptInputEdittext.doAfterTextChanged { text ->
             binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
         }
 
-        // Handle send button click
         binding.btnSendPrompt.setOnClickListener {
-            val inputText = binding.promptInputEdittext.text.toString().trim()
-            if (inputText.isNotEmpty()) {
-                sendMessage(inputText)
-            }
+            handleSendMessage()
         }
-        binding.promptInputEdittext.setOnKeyListener { _, keyCode, keyEvent ->
-            // Check if the event is a key-down event on the Enter key
-            if (keyEvent.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
 
+        binding.promptInputEdittext.setOnKeyListener { _, keyCode, keyEvent ->
+            if (keyEvent.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
                 if (keyEvent.isShiftPressed) {
-                    // For SHIFT + ENTER: Let the system handle it to insert a new line.
-                    return@setOnKeyListener false
+                    false // Allow newline
                 } else {
-                    // For ENTER: Trigger the send message action.
-                    binding.btnSendPrompt.performClick()
-                    // Consume the event to prevent a new line from being added.
-                    return@setOnKeyListener true
+                    handleSendMessage()
+                    true // Consume event
                 }
+            } else {
+                false
             }
-            // For all other key events, let the system handle them.
-            return@setOnKeyListener false
         }
+
         binding.btnAddContext.setOnClickListener {
             findNavController().navigate(R.id.action_chatFragment_to_contextSelectionFragment)
         }
+
         binding.btnUploadImage.setOnClickListener {
-            // Launch the system's file picker, filtered to show only images.
             imagePickerLauncher.launch("image/*")
+        }
+
+        binding.chatToolbar.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.menu_new_chat -> {
+                    chatViewModel.createNewSession()
+                    true
+                }
+
+                R.id.menu_chat_history -> {
+                    findNavController().navigate(R.id.action_chatFragment_to_chatHistoryFragment)
+                    true
+                }
+
+                else -> false
+            }
         }
     }
 
-    private fun sendMessage(text: String) {
-        // Add user message to the list
-        val userMessage = ChatMessage(text, ChatMessage.Sender.USER)
-        addMessageToList(userMessage)
-
-        // Clear the input field and disable send button
-        binding.promptInputEdittext.text?.clear()
-        binding.btnSendPrompt.isEnabled = false
-
-        // Simulate AI response
-        simulateAgentResponse(text)
+    private fun handleSendMessage() {
+        val inputText = binding.promptInputEdittext.text.toString().trim()
+        if (inputText.isNotEmpty()) {
+            chatViewModel.sendMessage(inputText)
+            binding.promptInputEdittext.text?.clear()
+        }
     }
 
-    private fun simulateAgentResponse(originalText: String) {
-        // Show typing indicator or progress bar (optional)
-
-        // Simulate a delay
-        Handler(Looper.getMainLooper()).postDelayed({
-            val agentResponse = ChatMessage(
-                text = originalText.uppercase(Locale.getDefault()),
-                sender = ChatMessage.Sender.AGENT
-            )
-            addMessageToList(agentResponse)
-        }, 1500) // 1.5-second delay
-    }
-
-    private fun addMessageToList(message: ChatMessage) {
-        chatAdapter.addMessage(message)
-        binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
-        updateUIState()
-        saveChatHistory()
-    }
-
-    private fun updateUIState() {
-        val hasMessages = messageHistory.isNotEmpty()
+    private fun updateUIState(messages: List<ChatMessage>) {
+        val hasMessages = messages.isNotEmpty()
         binding.emptyChatView.isVisible = !hasMessages
         binding.chatRecyclerView.isVisible = hasMessages
     }
 
-    private fun saveChatHistory() {
-        val json = gson.toJson(messageHistory)
-        val prefs = requireActivity().getPreferences(Context.MODE_PRIVATE)
-        prefs.edit().putString(CHAT_HISTORY_PREF_KEY, json).apply()
-    }
-
-    private fun loadChatHistory() {
-        val prefs = requireActivity().getPreferences(Context.MODE_PRIVATE)
-        val json = prefs.getString(CHAT_HISTORY_PREF_KEY, null)
-        if (json != null) {
-            val type = object : TypeToken<MutableList<ChatMessage>>() {}.type
-            val savedMessages: MutableList<ChatMessage> = gson.fromJson(json, type)
-            messageHistory.addAll(savedMessages)
-            chatAdapter.notifyDataSetChanged()
-        }
+    override fun onPause() {
+        super.onPause()
+        chatViewModel.saveSessions(requireActivity().getPreferences(Context.MODE_PRIVATE))
     }
 
     private fun updateContextChips() {

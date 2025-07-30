@@ -14,12 +14,23 @@
         <action
             android:id="@+id/action_chatFragment_to_contextSelectionFragment"
             app:destination="@id/contextSelectionFragment" />
+
+        <action
+            android:id="@+id/action_chatFragment_to_chatHistoryFragment"
+            app:destination="@id/chatHistoryFragment" />
     </fragment>
 
     <fragment
         android:id="@+id/contextSelectionFragment"
         android:name="com.itsaky.androidide.fragments.sidebar.ContextSelectionFragment"
-        android:label="Commit Changes"
+        android:label="Chat"
+        tools:layout="@layout/fragment_context_selection" />
+
+
+    <fragment
+        android:id="@+id/chatHistoryFragment"
+        android:name="com.itsaky.androidide.actions.sidebar.ChatHistoryFragment"
+        android:label="Chat History"
         tools:layout="@layout/fragment_context_selection" />
 
 </navigation>
