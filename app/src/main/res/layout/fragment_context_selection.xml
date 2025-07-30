@@ -21,15 +21,15 @@
         android:paddingTop="16dp"
         android:text="SELECTED CONTEXT"
         android:textAppearance="?attr/textAppearanceLabelMedium"
-        android:textColor="?attr/colorPrimary"/>
+        android:textColor="?attr/colorPrimary" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/selected_context_recycler_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="48dp"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
-        android:minHeight="48dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         tools:listitem="@layout/list_item_context_chip" />
 
@@ -49,7 +49,7 @@
                 android:padding="16dp"
                 android:text="FILES AND FOLDERS"
                 android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorPrimary"/>
+                android:textColor="?attr/colorPrimary" />
 
             <RelativeLayout
                 android:id="@+id/context_file_1_layout"
@@ -66,6 +66,7 @@
                     android:layout_toStartOf="@+id/context_file_1_check"
                     android:drawableStart="@drawable/ic_language_kotlin"
                     android:drawablePadding="16dp"
+                    android:drawableTint="@color/black"
                     android:gravity="center_vertical"
                     android:padding="16dp"
                     android:text="app/src/main/java/.../MainActivity.kt" />
@@ -97,6 +98,7 @@
                     android:layout_toStartOf="@+id/context_file_2_check"
                     android:drawableStart="@drawable/ic_language_xml"
                     android:drawablePadding="16dp"
+                    android:drawableTint="@color/black"
                     android:gravity="center_vertical"
                     android:padding="16dp"
                     android:text="app/src/main/res/layout/activity_main.xml" />
@@ -119,7 +121,7 @@
                 android:padding="16dp"
                 android:text="WEB SEARCH"
                 android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorPrimary"/>
+                android:textColor="?attr/colorPrimary" />
 
             <RelativeLayout
                 android:id="@+id/context_web_search_layout"
@@ -136,6 +138,7 @@
                     android:layout_toStartOf="@+id/context_web_search_check"
                     android:drawableStart="@drawable/ic_search"
                     android:drawablePadding="16dp"
+                    android:drawableTint="@color/black"
                     android:gravity="center_vertical"
                     android:padding="16dp"
                     android:text="Search the web for an answer" />
@@ -158,7 +161,7 @@
                 android:padding="16dp"
                 android:text="GIT"
                 android:textAppearance="?attr/textAppearanceLabelMedium"
-                android:textColor="?attr/colorPrimary"/>
+                android:textColor="?attr/colorPrimary" />
 
             <RelativeLayout
                 android:id="@+id/context_git_status_layout"
@@ -175,6 +178,7 @@
                     android:layout_toStartOf="@+id/context_git_status_check"
                     android:drawableStart="@drawable/ic_git"
                     android:drawablePadding="16dp"
+                    android:drawableTint="@color/black"
                     android:gravity="center_vertical"
                     android:padding="16dp"
                     android:text="Git Status" />
@@ -198,19 +202,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="8dp">
+
         <Button
             android:id="@+id/btn_cancel_context"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Cancel"/>
+            android:text="Cancel" />
+
         <Button
             android:id="@+id/btn_confirm_context"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Confirm"/>
+            android:text="Confirm" />
     </LinearLayout>
 
 </LinearLayout>
