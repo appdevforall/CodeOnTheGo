@@ -29,75 +29,67 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
     private lateinit var chipAdapter: ContextChipAdapter
     private lateinit var selectionAdapter: ContextSelectionAdapter
 
-    // This is our main data source now
-    private val contextItems = mutableListOf<ContextListItem>()
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentContextSelectionBinding.bind(view)
 
         setupRecyclerViews()
-        loadProjectFiles()
+        loadProjectFiles() // Replaced createMockData()
         setupListeners()
         updateSelectedChips()
     }
 
     private fun loadProjectFiles() {
-        // Perform file operations on a background thread to keep the UI responsive
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val projectRoot = IProjectManager.getInstance().projectDir
-            if (projectRoot == null || !projectRoot.exists()) {
-                // Handle case where no project is open
+            if (!projectRoot.exists()) {
+                // You can optionally show an empty/error state here
                 return@launch
             }
 
-            val fileItems = mutableListOf<ContextListItem>()
-            fileItems.add(HeaderItem("FILES AND FOLDERS"))
+            val newItems = mutableListOf<ContextListItem>()
+            newItems.add(HeaderItem("FILES AND FOLDERS"))
 
-            // Walk the project directory and create an item for each file/folder
-            projectRoot.walkTopDown()
-                .maxDepth(4) // Limit recursion depth to avoid too many files
-                .filter { it != projectRoot } // Don't include the root folder itself
-                .forEach { file ->
-                    fileItems.add(
-                        SelectableItem(
-                            id = file.absolutePath, // Use absolute path as a unique ID
-                            text = file.relativeTo(projectRoot).path, // Display the relative path
-                            icon = FileExtension.Factory.forFile(file).icon
-                        )
+            val fileItems = projectRoot.walkTopDown()
+                .maxDepth(4)
+                .filter { it != projectRoot }
+                .map { file ->
+                    SelectableItem(
+                        id = file.absolutePath,
+                        text = file.relativeTo(projectRoot).path,
+                        icon = FileExtension.Factory.forFile(file).icon
                     )
-                }
+                }.sortedBy { it.text }
+            newItems.addAll(fileItems)
 
-            // Add your other static items
-            fileItems.addAll(
+            newItems.addAll(
                 listOf(
-                HeaderItem("WEB SEARCH"),
-                SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
-                HeaderItem("GIT"),
-                SelectableItem("git_status", "Git Status", R.drawable.ic_git)
+                    HeaderItem("WEB SEARCH"),
+                    SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
+                    HeaderItem("GIT"),
+                    SelectableItem("git_status", "Git Status", R.drawable.ic_git)
                 )
             )
 
-            // Switch back to the Main thread to update the UI
             withContext(Dispatchers.Main) {
-                contextItems.clear()
-                contextItems.addAll(fileItems)
-                selectionAdapter.notifyDataSetChanged()
+                // Submit the new list. DiffUtil will handle the updates efficiently.
+                selectionAdapter.submitList(newItems)
             }
         }
     }
+
     private fun setupRecyclerViews() {
-        // Adapter for the top row of selected chips
         chipAdapter = ContextChipAdapter { itemToRemove ->
             toggleSelectionById(findItemIdByText(itemToRemove))
         }
         binding.selectedContextRecyclerView.apply {
-            layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+            layoutManager =
+                LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
             adapter = chipAdapter
         }
 
-        // Adapter for the main list of selectable items
-        selectionAdapter = ContextSelectionAdapter(contextItems) { item ->
+        // Adapter is now instantiated without an initial list
+        selectionAdapter = ContextSelectionAdapter { item ->
             toggleSelectionById(item.id)
         }
         binding.contextItemsRecyclerView.adapter = selectionAdapter
@@ -107,42 +99,53 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         binding.contextToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
         binding.btnCancelContext.setOnClickListener { findNavController().popBackStack() }
         binding.btnConfirmContext.setOnClickListener {
-            val selectedIds = contextItems.filterIsInstance<SelectableItem>()
+            // Get the list of selected items directly from the adapter
+            val selectedPaths = selectionAdapter.currentList
+                .filterIsInstance<SelectableItem>()
                 .filter { it.isSelected }
-                .map { it.text } // Pass back the display text
+                .map { it.text } // text is the relative path
 
             setFragmentResult("context_selection_request", Bundle().apply {
-                putStringArrayList("selected_context", ArrayList(selectedIds))
+                putStringArrayList("selected_context", ArrayList(selectedPaths))
             })
             findNavController().popBackStack()
         }
     }
 
     private fun findItemIdByText(text: String): String? {
-        return contextItems.filterIsInstance<SelectableItem>().find { it.text == text }?.id
+        return selectionAdapter.currentList.filterIsInstance<SelectableItem>()
+            .find { it.text == text }?.id
     }
 
     private fun toggleSelectionById(itemId: String?) {
         itemId ?: return
-        val itemIndex = contextItems.indexOfFirst { it is SelectableItem && it.id == itemId }
-        if (itemIndex != -1) {
-            val item = contextItems[itemIndex] as SelectableItem
-            item.isSelected = !item.isSelected
-            selectionAdapter.notifyItemChanged(itemIndex)
+
+        // Create a new list with the updated item
+        val updatedList = selectionAdapter.currentList.map { item ->
+            if (item is SelectableItem && item.id == itemId) {
+                item.copy(isSelected = !item.isSelected) // Create a new object with the toggled state
+            } else {
+                item
+            }
+        }
+
+        // Submit the new list to the adapter
+        selectionAdapter.submitList(updatedList) {
+            // This callback runs after the list is updated, ensuring chips are in sync.
             updateSelectedChips()
         }
     }
 
     private fun updateSelectedChips() {
-        val selected = contextItems.filterIsInstance<SelectableItem>()
+        val selected = selectionAdapter.currentList
+            .filterIsInstance<SelectableItem>()
             .filter { it.isSelected }
             .map { it.text }
-            .toSet()
 
         binding.selectedContextRecyclerView.isVisible = selected.isNotEmpty()
         binding.selectedContextHeader.isVisible = selected.isNotEmpty()
 
-        chipAdapter.submitList(selected.toList())
+        chipAdapter.submitList(selected)
     }
 
     override fun onDestroyView() {
