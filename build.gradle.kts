@@ -38,8 +38,13 @@ plugins {
 }
 
 buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
     dependencies {
         classpath(libs.kotlin.gradle.plugin)
+        classpath(libs.kotlin.serialization.plugin)
         classpath(libs.nav.safe.args.gradle.plugin)
     }
 }
@@ -54,6 +59,10 @@ subprojects {
 }
 
 allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
     project.group = BuildConfig.packageName
     project.version = rootProject.version
 

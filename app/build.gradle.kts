@@ -35,6 +35,7 @@ plugins {
 //  id("io.sentry.android.gradle") version "4.2.0"
 
   id("com.itsaky.androidide.desugaring")
+  kotlin("plugin.serialization")
 }
 
 apply {
@@ -71,6 +72,17 @@ android {
     ndk {
        abiFilters += listOf("arm64-v8a")
     }
+
+    buildConfigField(
+      type = "String",
+      name = "GEMINI_API_KEY",
+      value = "\"${project.findProperty("GEMINI_API_KEY")}\""
+    )
+
+  }
+
+  buildFeatures {
+    buildConfig = true
   }
 
   externalNativeBuild {
@@ -286,6 +298,21 @@ dependencies {
 
   // brotli4j
   implementation(libs.brotli4j)
+
+  // Firebase BoM
+  implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+
+  // Firebase AI Logic SDK for Gemini
+  implementation("com.google.firebase:firebase-ai")
+
+  // Koin for Dependency Injection
+  implementation("io.insert-koin:koin-android:3.5.3")
+
+  // Ktor for Networking
+  implementation("io.ktor:ktor-client-android:2.3.11")
+  implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
+  implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
+
 }
 
 
