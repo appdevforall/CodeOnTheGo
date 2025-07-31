@@ -74,13 +74,31 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
         binding.fileTreeToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
         binding.btnCancelSelection.setOnClickListener { findNavController().popBackStack() }
         binding.btnConfirmSelection.setOnClickListener {
-            val projectRoot = IProjectManager.getInstance().projectDir
-            val selectedPaths = selectedFiles.map {
-                it.relativeTo(projectRoot).path
+
+            val finalContextList = mutableListOf<String>()
+
+            val baseDir = IProjectManager.getInstance().projectDir
+
+            selectedFiles.forEach {
+                val itemText = it.relativeTo(baseDir).path
+                // Create a File object by joining the project root with the relative path (itemText)
+                val file = File(baseDir, itemText)
+
+                if (file.exists() && file.isDirectory) {
+                    // It's a valid directory, so walk through it and add all readable files
+                    file.walkTopDown()
+                        .filter { it.isFile && it.canRead() }
+                        .forEach {
+                            finalContextList.add(it.relativeTo(baseDir).path)
+                        }
+                } else if (file.exists() && file.isFile && file.canRead()) {
+                    // It's a single, readable file
+                    finalContextList.add(itemText)
+                }
             }
 
             setFragmentResult("file_selection_request", Bundle().apply {
-                putStringArrayList("selected_paths", ArrayList(selectedPaths))
+                putStringArrayList("selected_paths", ArrayList(finalContextList.distinct()))
             })
             findNavController().popBackStack()
         }

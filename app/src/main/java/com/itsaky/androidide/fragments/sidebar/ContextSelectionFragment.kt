@@ -5,6 +5,7 @@ import android.view.View
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
@@ -13,6 +14,11 @@ import com.itsaky.androidide.adapters.ContextSelectionAdapter
 import com.itsaky.androidide.databinding.FragmentContextSelectionBinding
 import com.itsaky.androidide.models.HeaderItem
 import com.itsaky.androidide.models.SelectableItem
+import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
@@ -27,6 +33,9 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentContextSelectionBinding.bind(view)
+
+        // Ensure the progress bar is initially hidden
+        binding.loadingProgress.isVisible = false // Use the ID from your XML
 
         setupRecyclerViews()
         populateInitialList()
@@ -71,9 +80,7 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
             val item =
                 selectionAdapter.currentList.find { it is SelectableItem && it.text == itemToRemove } as? SelectableItem
-            if (item != null) {
-                toggleSelection(item)
-            }
+            item?.let { toggleSelection(it) }
         }
         binding.selectedContextRecyclerView.apply {
             layoutManager =
@@ -93,7 +100,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private fun toggleSelection(item: SelectableItem) {
         val isNowSelected = !item.isSelected
-
         val newList = selectionAdapter.currentList.map { listItem ->
             if (listItem is SelectableItem && listItem.id == item.id) {
                 listItem.copy(isSelected = isNowSelected)
@@ -116,12 +122,53 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
     private fun setupListeners() {
         binding.contextToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
         binding.btnCancelContext.setOnClickListener { findNavController().popBackStack() }
-        binding.btnClearContext.setOnClickListener {
-            clearAllSelections()
-        }
+        binding.btnClearContext.setOnClickListener { clearAllSelections() }
+
+        // The confirm button now triggers the processing function
         binding.btnConfirmContext.setOnClickListener {
+            processAndConfirmSelection()
+        }
+    }
+
+    /**
+     * Shows a loader, processes selected paths to find all readable files,
+     * and then returns the result to the previous fragment.
+     */
+    private fun processAndConfirmSelection() {
+        // 1. Show loader and disable UI to prevent interaction
+        binding.loadingProgress.isVisible = true
+        binding.btnConfirmContext.isEnabled = false
+        binding.btnCancelContext.isEnabled = false
+        binding.btnClearContext.isEnabled = false
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            // 2. Process files on a background thread (Dispatchers.IO)
+            val processedContext = withContext(Dispatchers.IO) {
+                val finalContextList = mutableListOf<String>()
+
+                val baseDir = IProjectManager.getInstance().projectDir
+
+                selectedContextItems.forEach { itemText ->
+                    // Create a File object by joining the project root with the relative path (itemText)
+                    val file = File(baseDir, itemText)
+
+                    if (file.exists() && file.isDirectory) {
+                        // It's a valid directory, so walk through it and add all readable files
+                        file.walkTopDown()
+                            .filter { it.isFile && it.canRead() }
+                            .forEach { finalContextList.add(it.relativeTo(baseDir).path) }
+                    } else if (file.exists() && file.isFile && file.canRead()) {
+                        // It's a single, readable file
+                        finalContextList.add(itemText)
+                    }
+                }
+                // Return a distinct list of absolute paths for files and the original text for other commands
+                finalContextList.distinct()
+            }
+
+            // 3. On the main thread, set the fragment result and navigate back
             setFragmentResult("context_selection_request", Bundle().apply {
-                putStringArrayList("selected_context", ArrayList(selectedContextItems))
+                putStringArrayList("selected_context", ArrayList(processedContext))
             })
             findNavController().popBackStack()
         }
@@ -142,7 +189,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private fun clearAllSelections() {
         selectedContextItems.clear()
-
         val newList = selectionAdapter.currentList.map { listItem ->
             if (listItem is SelectableItem) {
                 listItem.copy(isSelected = false)

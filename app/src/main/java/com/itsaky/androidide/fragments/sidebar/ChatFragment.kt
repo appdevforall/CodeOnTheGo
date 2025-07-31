@@ -198,10 +198,12 @@ class ChatFragment :
                     chatViewModel.createNewSession()
                     true
                 }
+
                 R.id.menu_chat_history -> {
                     findNavController().navigate(R.id.action_chatFragment_to_chatHistoryFragment)
                     true
                 }
+
                 else -> false
             }
         }
