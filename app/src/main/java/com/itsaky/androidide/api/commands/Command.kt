@@ -35,7 +35,15 @@ class HighOrderCreateFileCommand(
 
             if (result.isSuccess) {
                 EventBus.getDefault().post(ListProjectFilesRequestEvent())
-                ToolResult(success = true, message = "File created at path: $path")
+
+                val targetFile = File(baseDir, path)
+                val fileExisted = targetFile.exists()
+                val message = if (fileExisted) {
+                    "File updated successfully at path: $path"
+                } else {
+                    "File created successfully at path: $path"
+                }
+                ToolResult(success = true, message = message)
             } else {
                 ToolResult(
                     success = false, error_details = "Failed to write to file at path: $path",
@@ -51,7 +59,6 @@ class HighOrderCreateFileCommand(
             )
         }
     }
-
 }
 
 class RunBuildCommand(private val module: String?, private val variant: String) : Command<String> {

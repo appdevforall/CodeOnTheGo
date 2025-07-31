@@ -15,10 +15,6 @@ class CreateFileCommand(
         return try {
             val targetFile = File(baseDir, path)
 
-            if (targetFile.exists()) {
-                throw IllegalStateException("File already exists at path: $path")
-            }
-
             if (!FileIOUtils.writeFileFromString(targetFile, content)) {
                 Result.failure(Exception("Failed to write to file at path: $path"))
             } else {
