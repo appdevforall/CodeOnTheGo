@@ -51,7 +51,7 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
             newItems.add(HeaderItem("FILES AND FOLDERS"))
 
             val fileItems = projectRoot.walkTopDown()
-                .maxDepth(4)
+                .maxDepth(6)
                 .filter { it != projectRoot }
                 .map { file ->
                     SelectableItem(

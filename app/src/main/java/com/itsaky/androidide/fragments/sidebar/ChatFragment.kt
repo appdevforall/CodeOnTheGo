@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -95,8 +96,6 @@ class ChatFragment :
         }
     }
 
-    // --- Start of Modified Section ---
-
     private fun handleSendMessage() {
         val inputText = binding.promptInputEdittext.text.toString().trim()
         if (inputText.isEmpty()) {
@@ -146,10 +145,10 @@ class ChatFragment :
         promptBuilder.toString()
     }
 
-    // --- End of Modified Section ---
-
     private fun setupUI() {
-        chatAdapter = ChatAdapter(markwon)
+        chatAdapter = ChatAdapter(markwon) { action, message ->
+            handleMessageAction(action, message)
+        }
         binding.chatRecyclerView.adapter = chatAdapter
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
@@ -236,6 +235,25 @@ class ChatFragment :
                 }
                 binding.contextChipGroup.addView(chip)
             }
+        }
+    }
+
+    private fun handleMessageAction(action: String, message: ChatMessage) {
+        when (action) {
+            ChatAdapter.ACTION_EDIT -> {
+                // Set the selected message's text into the input field
+                binding.promptInputEdittext.setText(message.text)
+
+                // Move the cursor to the end of the text for a better editing experience
+                binding.promptInputEdittext.setSelection(message.text.length)
+
+                // Request focus on the input field and show the keyboard
+                binding.promptInputEdittext.requestFocus()
+                val imm =
+                    context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.showSoftInput(binding.promptInputEdittext, InputMethodManager.SHOW_IMPLICIT)
+            }
+            // You can add more actions here in the future
         }
     }
 }
