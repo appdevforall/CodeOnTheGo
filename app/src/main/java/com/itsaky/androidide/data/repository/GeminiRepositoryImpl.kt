@@ -8,13 +8,15 @@ import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.content
+import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.api.IDEApiFacade
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 class GeminiRepositoryImpl(
     firebaseAI: FirebaseAI,
-    private val ideApi: IDEApiFacade
+    private val ideApi: IDEApiFacade,
+    private val fileActionManager: FileActionManager
 ) : GeminiRepository {
 
     private val createFileTool = FunctionDeclaration(

@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -40,7 +41,7 @@ class ChatViewModel(
         }
 
         if (loadedSessions.isEmpty()) {
-            loadedSessions.add(ChatSession()) // Ensure there's always at least one session
+            loadedSessions.add(ChatSession())
         }
 
         _sessions.value = loadedSessions
@@ -51,19 +52,17 @@ class ChatViewModel(
 
     fun saveSessions(prefs: SharedPreferences) {
         val json = gson.toJson(_sessions.value)
-        prefs.edit().putString(CHAT_HISTORY_LIST_PREF_KEY, json).apply()
+        prefs.edit { putString(CHAT_HISTORY_LIST_PREF_KEY, json) }
 
         _currentSession.value?.let {
-            prefs.edit().putString(CURRENT_CHAT_ID_PREF_KEY, it.id).apply()
+            prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
         }
     }
 
     fun sendMessage(text: String) {
-        // 1. Add user message
         val userMessage = ChatMessage(text, ChatMessage.Sender.USER)
         addMessageToCurrentSession(userMessage)
 
-        // 2. Trigger simulated agent response
         retrieveAgentResponse(text)
     }
 
