@@ -18,7 +18,7 @@ class GeminiRepositoryImpl(
 ) : GeminiRepository {
 
     private val generativeModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = "gemini-2.5-flash",
+        modelName = "gemini-2.5-pro",
         tools = listOf(Tool.functionDeclarations(GeminiTools.allTools))
     )
 

@@ -7,36 +7,40 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
-import com.itsaky.androidide.adapters.ContextChipAdapter
 import com.itsaky.androidide.adapters.ContextSelectionAdapter
+import com.itsaky.androidide.adapters.viewholders.MultiSelectFileTreeViewHolder
 import com.itsaky.androidide.databinding.FragmentContextSelectionBinding
 import com.itsaky.androidide.models.ContextListItem
-import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.HeaderItem
 import com.itsaky.androidide.models.SelectableItem
 import com.itsaky.androidide.projects.IProjectManager
+import com.unnamed.b.atv.model.TreeNode
+import com.unnamed.b.atv.view.AndroidTreeView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private var _binding: FragmentContextSelectionBinding? = null
     private val binding get() = _binding!!
 
-    private lateinit var chipAdapter: ContextChipAdapter
+    private val selectedFiles = mutableSetOf<File>()
+    private var treeView: AndroidTreeView? = null
     private lateinit var selectionAdapter: ContextSelectionAdapter
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentContextSelectionBinding.bind(view)
 
+        binding.selectedContextHeader.isVisible = false
+        binding.selectedContextRecyclerView.isVisible = false
         setupRecyclerViews()
-        loadProjectFiles() // Replaced createMockData()
+        loadProjectFiles()
+        loadTreeData()
         setupListeners()
-        updateSelectedChips()
     }
 
     private fun loadProjectFiles() {
@@ -48,20 +52,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
             }
 
             val newItems = mutableListOf<ContextListItem>()
-            newItems.add(HeaderItem("FILES AND FOLDERS"))
-
-            val fileItems = projectRoot.walkTopDown()
-                .maxDepth(6)
-                .filter { it != projectRoot }
-                .map { file ->
-                    SelectableItem(
-                        id = file.absolutePath,
-                        text = file.relativeTo(projectRoot).path,
-                        icon = FileExtension.Factory.forFile(file).icon
-                    )
-                }.sortedBy { it.text }
-            newItems.addAll(fileItems)
-
             newItems.addAll(
                 listOf(
                     HeaderItem("WEB SEARCH"),
@@ -79,42 +69,11 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
     }
 
     private fun setupRecyclerViews() {
-        chipAdapter = ContextChipAdapter { itemToRemove ->
-            toggleSelectionById(findItemIdByText(itemToRemove))
-        }
-        binding.selectedContextRecyclerView.apply {
-            layoutManager =
-                LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-            adapter = chipAdapter
-        }
-
         // Adapter is now instantiated without an initial list
         selectionAdapter = ContextSelectionAdapter { item ->
             toggleSelectionById(item.id)
         }
         binding.contextItemsRecyclerView.adapter = selectionAdapter
-    }
-
-    private fun setupListeners() {
-        binding.contextToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
-        binding.btnCancelContext.setOnClickListener { findNavController().popBackStack() }
-        binding.btnConfirmContext.setOnClickListener {
-            // Get the list of selected items directly from the adapter
-            val selectedPaths = selectionAdapter.currentList
-                .filterIsInstance<SelectableItem>()
-                .filter { it.isSelected }
-                .map { it.text } // text is the relative path
-
-            setFragmentResult("context_selection_request", Bundle().apply {
-                putStringArrayList("selected_context", ArrayList(selectedPaths))
-            })
-            findNavController().popBackStack()
-        }
-    }
-
-    private fun findItemIdByText(text: String): String? {
-        return selectionAdapter.currentList.filterIsInstance<SelectableItem>()
-            .find { it.text == text }?.id
     }
 
     private fun toggleSelectionById(itemId: String?) {
@@ -131,21 +90,65 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
         // Submit the new list to the adapter
         selectionAdapter.submitList(updatedList) {
-            // This callback runs after the list is updated, ensuring chips are in sync.
-            updateSelectedChips()
+
         }
     }
 
-    private fun updateSelectedChips() {
-        val selected = selectionAdapter.currentList
-            .filterIsInstance<SelectableItem>()
-            .filter { it.isSelected }
-            .map { it.text }
+    private fun loadTreeData() {
+        binding.loadingIndicator.isVisible = true
 
-        binding.selectedContextRecyclerView.isVisible = selected.isNotEmpty()
-        binding.selectedContextHeader.isVisible = selected.isNotEmpty()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val projectRootFile = IProjectManager.getInstance().projectDir
+            if (projectRootFile == null || !projectRootFile.exists()) {
+                binding.loadingIndicator.isVisible = false
+                return@launch
+            }
 
-        chipAdapter.submitList(selected)
+            val rootNode = withContext(Dispatchers.IO) {
+                val node = TreeNode.root()
+                buildTreeNodes(node, projectRootFile)
+                node
+            }
+
+            setupTreeView(rootNode)
+        }
+    }
+
+    private fun setupTreeView(rootNode: TreeNode) {
+        binding.loadingIndicator.isVisible = false
+
+        treeView = AndroidTreeView(requireContext(), rootNode, R.drawable.bg_ripple)
+        // The ViewHolder handles all click logic now.
+
+        binding.fileTreeContainer.addView(treeView!!.view)
+        rootNode.children?.forEach { treeView?.expandNode(it) }
+    }
+
+    private fun buildTreeNodes(parentNode: TreeNode, dir: File) {
+        dir.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name }))?.forEach { file ->
+            val node = TreeNode(file).apply {
+                viewHolder = MultiSelectFileTreeViewHolder(requireContext(), selectedFiles)
+            }
+            parentNode.addChild(node)
+
+            if (file.isDirectory) {
+                buildTreeNodes(node, file)
+            }
+        }
+    }
+
+    private fun setupListeners() {
+        binding.contextToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
+        binding.btnCancelContext.setOnClickListener { findNavController().popBackStack() }
+        binding.btnConfirmContext.setOnClickListener {
+            val projectRoot = IProjectManager.getInstance().projectDir
+            val selectedPaths = selectedFiles.map { it.relativeTo(projectRoot).path }
+
+            setFragmentResult("context_selection_request", Bundle().apply {
+                putStringArrayList("selected_context", ArrayList(selectedPaths))
+            })
+            findNavController().popBackStack()
+        }
     }
 
     override fun onDestroyView() {
