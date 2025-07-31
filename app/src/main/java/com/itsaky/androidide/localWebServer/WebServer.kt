@@ -79,8 +79,14 @@ class WebServer(private val config: ServerConfig) {
 
             // Only support GET method for now
             if (method != "GET") {
-                sendError(writer, 501, "Not Implemented")
-                return
+                if (method == "POST") {
+                    // handlePostMethod()
+                    sendError(writer, 501, "POST Not Implemented")
+                    return
+                } else {
+                    sendError(writer, 501, "Not Implemented")
+                    return
+                }
             }
 
             val db =
@@ -134,6 +140,10 @@ class WebServer(private val config: ServerConfig) {
         } finally {
             clientSocket.close()
         }
+    }
+
+    private fun handlePostMethod() {
+        sendError(PrintWriter(System.out), 501, "POST Not Implemented")
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String) {
