@@ -10,6 +10,7 @@ import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.data.model.ToolResult
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 
 class GeminiRepositoryImpl(
@@ -28,7 +29,6 @@ class GeminiRepositoryImpl(
         val history = mutableListOf(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
 
-        // Loop to handle multi-turn function calls
         for (i in 1..10) { // Safety break after 10 turns
             val response = generativeModel.generateContent(history)
 
@@ -64,16 +64,14 @@ class GeminiRepositoryImpl(
     private fun executeTool(functionCall: FunctionCallPart): ToolResult {
         return when (functionCall.name) {
             "create_file" -> {
-                val path = functionCall.args["path"]?.toString()?.removeSurrounding("\"") ?: ""
-                val content =
-                    functionCall.args["content"]?.toString()?.removeSurrounding("\"") ?: ""
+                val path = (functionCall.args["path"] as? JsonPrimitive)?.content ?: ""
+                val content = (functionCall.args["content"] as? JsonPrimitive)?.content ?: ""
                 ideApi.createFile(path = path, content = content)
             }
 
             "update_file" -> {
-                val path = functionCall.args["path"]?.toString()?.removeSurrounding("\"") ?: ""
-                val content =
-                    functionCall.args["content"]?.toString()?.removeSurrounding("\"") ?: ""
+                val path = (functionCall.args["path"] as? JsonPrimitive)?.content ?: ""
+                val content = (functionCall.args["content"] as? JsonPrimitive)?.content ?: ""
                 ideApi.updateFile(path, content)
             }
 
