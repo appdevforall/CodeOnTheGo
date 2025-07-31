@@ -6,6 +6,7 @@ import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
 import com.itsaky.androidide.api.commands.RunBuildCommand
+import com.itsaky.androidide.api.commands.UpdateFileCommand
 import com.itsaky.androidide.data.model.ToolResult
 
 /**
@@ -40,5 +41,10 @@ object IDEApiFacade {
 
     fun askUser(question: String, options: List<String>) =
         AskUserCommand(question, options).execute()
+
+    fun updateFile(path: String, content: String): ToolResult {
+        val command = UpdateFileCommand(path, content)
+        return command.execute()
+    }
 
 }

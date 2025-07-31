@@ -65,6 +65,14 @@ object GeminiTools {
                 "question" to Schema.string("The text to display to the user."),
                 "options" to Schema.array(Schema.string("A button label."))
             )
-        )
+        ),
+        FunctionDeclaration(
+            name = "update_file",
+            description = "Updates an existing file by completely overwriting its content. To use this, you should first read the file's current content, modify it as needed, and then provide the full, final content. This is suitable for changing single lines, multiple lines, or replacing the entire file.",
+            parameters = mapOf(
+                "path" to Schema.string("The relative path from the project root for the file to be updated (e.g., 'app/src/main/java/com/example/MyClass.kt')."),
+                "content" to Schema.string("The complete new content to write to the file.")
+            )
+        ),
     )
 }

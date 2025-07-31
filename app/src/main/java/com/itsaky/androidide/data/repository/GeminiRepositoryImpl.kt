@@ -94,6 +94,12 @@ class GeminiRepositoryImpl(
                 question = functionCall.args["question"].toString(),
                 options = functionCall.args["options"]?.toString()?.split(",") ?: listOf("OK")
             )
+            "update_file" -> {
+                val path = functionCall.args["path"].toString().removeSurrounding("\"")
+                val content = functionCall.args["content"].toString().removeSurrounding("\"")
+                ideApi.updateFile(path, content)
+            }
+
 
             else -> ToolResult.failure("Unknown tool: ${functionCall.name}")
         }

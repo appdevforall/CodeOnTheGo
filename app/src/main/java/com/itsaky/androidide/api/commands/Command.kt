@@ -103,14 +103,14 @@ class ListFilesCommand(
             when {
                 !targetDir.exists() -> ToolResult(
                     success = false, error_details = "Directory not found at path: $path",
-                    message = TODO(),
-                    data = TODO()
+                    message = "",
+                    data = null
                 )
 
                 !targetDir.isDirectory -> ToolResult(
                     success = false, error_details = "Path is not a directory: $path",
-                    message = TODO(),
-                    data = TODO()
+                    message = "",
+                    data = null
                 )
 
                 else -> {
@@ -129,8 +129,8 @@ class ListFilesCommand(
         } catch (e: Exception) {
             ToolResult(
                 success = false, error_details = "Failed to list files: ${e.message}",
-                message = TODO(),
-                data = TODO()
+                message = "",
+                data = null
             )
         }
     }
