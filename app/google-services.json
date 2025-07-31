@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "25368176976",
+    "project_id": "codeonthego-64a92",
+    "storage_bucket": "codeonthego-64a92.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:25368176976:android:315a39620cdf0d587d6455",
+        "android_client_info": {
+          "package_name": "com.itsaky.androidide"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyAkQimfaGyV8BSOOOdSJnGHQZNPOC8QE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
