@@ -1,9 +1,11 @@
 package com.itsaky.androidide.api.commands
 
 import com.blankj.utilcode.util.FileIOUtils
+import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
+import org.greenrobot.eventbus.EventBus
 import java.io.File
 
 interface Command<T> {
@@ -20,18 +22,17 @@ class CreateFileCommand(private val path: String, private val content: String) :
                 throw IllegalStateException("File already exists at path: $path")
             }
 
-            val success = FileIOUtils.writeFileFromString(targetFile, content)
-            if (success) {
-                // You can post events here if other parts of the app need to know
-                // EventBus.getDefault().post(FileCreationEvent(targetFile))
-                Result.success(targetFile)
-            } else {
+            if (!FileIOUtils.writeFileFromString(targetFile, content)) {
                 Result.failure(Exception("Failed to write to file at path: $path"))
+            } else {
+                EventBus.getDefault().post(FileCreationEvent(targetFile))
+                Result.success(targetFile)
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
+
 }
 
 // Concrete command for running a build

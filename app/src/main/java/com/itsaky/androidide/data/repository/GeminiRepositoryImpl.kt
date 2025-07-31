@@ -27,7 +27,7 @@ class GeminiRepositoryImpl(
     )
 
     private val generativeModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = "gemini-2.5-flash", // Corrected model name for consistency
+        modelName = "gemini-2.5-flash",
         tools = listOf(Tool.functionDeclarations(listOf(createFileTool)))
     )
 
@@ -35,25 +35,19 @@ class GeminiRepositoryImpl(
         try {
             val history = mutableListOf<Content>()
 
-            // 1. Add the user's initial prompt to the history
             history.add(content(role = "user") { text(prompt) })
 
-            // FIX 1: The generateContent function expects a List<Content>,
-            // not a spread array. Pass the list directly.
             val response = generativeModel.generateContent(history)
 
-            // FIX 2: Rewrite the 'let' block to avoid the "Unresolved reference: it" error.
-            // This is a more explicit and safer way to do the same thing.
             val modelResponseContent = response.candidates.firstOrNull()?.content
             if (modelResponseContent != null) {
                 history.add(modelResponseContent)
             }
 
-            // 4. Check if the model wants to call our function
             val functionCall = response.functionCalls.firstOrNull()
             if (functionCall != null && functionCall.name == "create_file") {
-                val path = functionCall.args["path"].toString()
-                val content = functionCall.args["content"].toString()
+                val path = functionCall.args["path"].toString().removeSurrounding("\"")
+                val content = functionCall.args["content"].toString().removeSurrounding("\"")
 
                 val result = ideApi.createFile(path, content)
 
