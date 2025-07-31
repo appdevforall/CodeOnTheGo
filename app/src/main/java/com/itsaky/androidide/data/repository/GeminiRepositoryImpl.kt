@@ -8,7 +8,6 @@ import com.google.firebase.ai.type.Tool
 
 class GeminiRepositoryImpl(
     private val firebaseAI: FirebaseAI,
-    private val apiKey: String
 ) : GeminiRepository {
 
     private val listRecentStandupTool = FunctionDeclaration(
@@ -20,7 +19,6 @@ class GeminiRepositoryImpl(
         )
     )
 
-    // Define the function declaration for getting document text
     private val getDocTextTool = FunctionDeclaration(
         name = "get_doc_text",
         description = "Gets the full text content from a document given its ID.",
@@ -33,12 +31,13 @@ class GeminiRepositoryImpl(
     // This initialization should ideally happen in a Koin module,
     // but is shown here for clarity. The API key comes from BuildConfig.
     private val generativeModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = "gemini-1.5-flash", // Or another suitable model
+        modelName = "gemini-2.5-flash", // Or another suitable model
         tools = listOf(Tool.functionDeclarations(listOf(listRecentStandupTool, getDocTextTool)))
     )
 
     override suspend fun generateASimpleResponse(prompt: String): String {
-        return ""
+        val generateContent = generativeModel.generateContent(prompt)
+        return generateContent.text ?: "No response"
     }
 
 }

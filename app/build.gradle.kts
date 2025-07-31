@@ -5,25 +5,22 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
-import java.nio.file.Files
-import kotlin.reflect.jvm.javaMethod
-
-import java.net.URL
-import java.net.URI
-import java.nio.file.StandardCopyOption
 import org.json.JSONObject
-
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.net.URI
+import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
 import java.util.zip.Deflater
-
 import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+import kotlin.reflect.jvm.javaMethod
 
 
 plugins {
@@ -36,6 +33,7 @@ plugins {
 
   id("com.itsaky.androidide.desugaring")
   kotlin("plugin.serialization")
+  id("com.google.gms.google-services")
 }
 
 apply {
@@ -73,16 +71,6 @@ android {
        abiFilters += listOf("arm64-v8a")
     }
 
-    buildConfigField(
-      type = "String",
-      name = "GEMINI_API_KEY",
-      value = "\"${project.findProperty("GEMINI_API_KEY")}\""
-    )
-
-  }
-
-  buildFeatures {
-    buildConfig = true
   }
 
   externalNativeBuild {

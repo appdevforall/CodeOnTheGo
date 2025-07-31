@@ -10,7 +10,6 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -22,12 +21,12 @@ import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.ChatViewModel
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
 
-    // Use activityViewModels to share the ViewModel
-    private val chatViewModel: ChatViewModel by activityViewModels()
+    private val chatViewModel: ChatViewModel by activityViewModel()
 
     private lateinit var chatAdapter: ChatAdapter
     private val selectedContext = mutableListOf<String>()
@@ -82,7 +81,9 @@ class ChatFragment :
             }
         }
 
-        parentFragmentManager.setFragmentResultListener("context_selection_request", viewLifecycleOwner) { _, bundle ->
+        parentFragmentManager.setFragmentResultListener(
+            "context_selection_request", viewLifecycleOwner
+        ) { _, bundle ->
             bundle.getStringArrayList("selected_context")?.let { result ->
                 selectedContext.clear()
                 selectedContext.addAll(result)

@@ -98,10 +98,10 @@ class IDEApplication : TermuxApplication() {
   
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
+
         instance = this
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
-
         super.onCreate()
         startKoin {
             androidContext(this@IDEApplication)

@@ -3,14 +3,15 @@ package com.itsaky.androidide.di
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.GenerativeBackend
-import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.data.repository.GeminiRepositoryImpl
+import com.itsaky.androidide.viewmodel.ChatViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
@@ -29,14 +30,15 @@ val appModule = module {
     }
 
     single {
-        Firebase.ai(backend = GenerativeBackend.googleAI())
+        Firebase.ai(backend = GenerativeBackend.vertexAI())
     }
 
     single<GeminiRepository> {
         GeminiRepositoryImpl(
             firebaseAI = get(),
-            apiKey = BuildConfig.GEMINI_API_KEY
         )
     }
-
+    viewModel {
+        ChatViewModel(geminiRepository = get())
+    }
 }

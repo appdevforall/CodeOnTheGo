@@ -1,24 +1,27 @@
 package com.itsaky.androidide.viewmodel
 
 import android.content.SharedPreferences
-import android.os.Handler
-import android.os.Looper
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.actions.sidebar.models.ChatMessage
+import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.models.ChatSession
-import java.util.Locale
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-class ChatViewModel : ViewModel() {
-
+class ChatViewModel(
+    private val geminiRepository: GeminiRepository
+) : ViewModel() {
     private val _sessions = MutableLiveData<MutableList<ChatSession>>(mutableListOf())
     val sessions: LiveData<MutableList<ChatSession>> = _sessions
 
-    private val _currentSession = MutableLiveData<ChatSession>()
-    val currentSession: LiveData<ChatSession> = _currentSession
+    private val _currentSession = MutableLiveData<ChatSession?>()
+    val currentSession: LiveData<ChatSession?> = _currentSession
 
     private val gson = Gson()
 
@@ -61,23 +64,25 @@ class ChatViewModel : ViewModel() {
         addMessageToCurrentSession(userMessage)
 
         // 2. Trigger simulated agent response
-        simulateAgentResponse(text)
+        retrieveAgentResponse(text)
     }
 
     private fun addMessageToCurrentSession(message: ChatMessage) {
         val session = _currentSession.value ?: return
         session.messages.add(message)
-        _currentSession.postValue(session) // Notify observers of the change
+        _currentSession.postValue(session)
     }
+    private val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEEditorChat"))
 
-    private fun simulateAgentResponse(originalText: String) {
-        Handler(Looper.getMainLooper()).postDelayed({
+    private fun retrieveAgentResponse(originalText: String) {
+        chatScope.launch {
+            val response = geminiRepository.generateASimpleResponse(originalText)
             val agentResponse = ChatMessage(
-                text = originalText.uppercase(Locale.getDefault()),
+                text = response,
                 sender = ChatMessage.Sender.AGENT
             )
             addMessageToCurrentSession(agentResponse)
-        }, 1500) // 1.5-second delay
+        }
     }
 
     fun createNewSession() {
