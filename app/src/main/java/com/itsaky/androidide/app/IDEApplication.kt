@@ -18,6 +18,7 @@
 
 package com.itsaky.androidide.app
 
+
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
@@ -37,6 +38,7 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.di.appModule
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -44,9 +46,6 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-
-
-
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -61,7 +60,6 @@ import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
-import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.CoroutineScope
@@ -72,6 +70,8 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
@@ -103,6 +103,10 @@ class IDEApplication : TermuxApplication() {
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
         super.onCreate()
+        startKoin {
+            androidContext(this@IDEApplication)
+            modules(appModule)
+        }
 
         if (BuildConfig.DEBUG) {
             val builder = StrictMode.VmPolicy.Builder()
