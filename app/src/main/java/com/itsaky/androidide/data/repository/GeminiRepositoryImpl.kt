@@ -8,13 +8,13 @@ import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.content
-import kotlinx.coroutines.delay
+import com.itsaky.androidide.api.IDEApiFacade
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlin.random.Random
 
 class GeminiRepositoryImpl(
     firebaseAI: FirebaseAI,
+    private val ideApi: IDEApiFacade
 ) : GeminiRepository {
 
     private val createFileTool = FunctionDeclaration(
@@ -52,23 +52,23 @@ class GeminiRepositoryImpl(
             // 4. Check if the model wants to call our function
             val functionCall = response.functionCalls.firstOrNull()
             if (functionCall != null && functionCall.name == "create_file") {
-                delay(500)
-                val success = Random.nextBoolean()
-                val result = if (success) {
-                    val path = functionCall.args["path"] ?: "unknown file"
-                    "Successfully created file at $path"
+                val path = functionCall.args["path"].toString()
+                val content = functionCall.args["content"].toString()
+
+                val result = ideApi.createFile(path, content)
+
+                val functionResponse = if (result.isSuccess) {
+                    "Successfully created file at ${result.getOrNull()?.name}"
                 } else {
-                    "Failed to create file due to a random error."
+                    "Failed to create file: ${result.exceptionOrNull()?.message}"
                 }
 
-                // 5. Add the function's result to the history as a new "tool" turn
                 history.add(content(role = "tool") {
                     part(FunctionResponsePart(functionCall.name, buildJsonObject {
-                        put("result", result)
+                        put("result", functionResponse)
                     }))
                 })
 
-                // FIX 3: Same fix as above. Pass the history list directly.
                 val finalResponse = generativeModel.generateContent(history)
                 return finalResponse.text
                     ?: "The operation was processed, but I have nothing more to say."
