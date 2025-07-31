@@ -48,8 +48,6 @@ class ChatAdapter(
             true
         }
 
-        holder.binding.messageContent.setTextIsSelectable(false)
-
         when (message.status) {
             MessageStatus.LOADING -> {
                 holder.binding.loadingIndicator.visibility = View.VISIBLE
