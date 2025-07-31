@@ -14,6 +14,6 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 ) {
     enum class Sender {
-        USER, AGENT
+        USER, AGENT, SYSTEM
     }
 }

@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.google.firebase.ai.type.FunctionCallPart
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.data.repository.GeminiRepository
@@ -27,11 +28,32 @@ class ChatViewModel(
 
     private val gson = Gson()
 
+    private val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEChat"))
+
     companion object {
         private const val CHAT_HISTORY_LIST_PREF_KEY = "chat_history_list_v1"
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
     }
 
+    init {
+        geminiRepository.onToolCall = { functionCall ->
+            val toolMessage = formatToolCallForDisplay(functionCall)
+            addMessageToCurrentSession(
+                ChatMessage(
+                    text = toolMessage,
+                    sender = ChatMessage.Sender.SYSTEM,
+                    status = MessageStatus.SENT
+                )
+            )
+        }
+    }
+
+    private fun formatToolCallForDisplay(functionCall: FunctionCallPart): String {
+        val args = functionCall.args.map { (key, value) ->
+            "  - **$key**: `${value.toString().removeSurrounding("\"")}`"
+        }.joinToString("\n")
+        return "Calling tool: **`${functionCall.name}`** with arguments:\n$args"
+    }
 
     fun sendMessage(fullPrompt: String, originalUserText: String) {
         val userMessage = ChatMessage(text = originalUserText, sender = ChatMessage.Sender.USER)
@@ -46,11 +68,9 @@ class ChatViewModel(
 
         retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText)
     }
-
     fun sendMessage(text: String) {
         sendMessage(fullPrompt = text, originalUserText = text)
     }
-    val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEChat"))
 
     private fun retrieveAgentResponse(
         prompt: String,

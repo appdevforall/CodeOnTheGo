@@ -22,6 +22,8 @@ class GeminiRepositoryImpl(
         tools = listOf(Tool.functionDeclarations(GeminiTools.allTools))
     )
 
+    override var onToolCall: ((FunctionCallPart) -> Unit)? = null
+
     override suspend fun generateASimpleResponse(prompt: String): String {
         val history = mutableListOf(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
@@ -41,6 +43,7 @@ class GeminiRepositoryImpl(
 
             // Execute all function calls and gather the results
             val toolResponses = functionCalls.map { functionCall ->
+                onToolCall?.invoke(functionCall)
                 val result: ToolResult = executeTool(functionCall)
                 val resultJsonString = json.encodeToString(result)
                 FunctionResponsePart(
