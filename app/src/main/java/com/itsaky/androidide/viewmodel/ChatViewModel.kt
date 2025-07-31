@@ -11,6 +11,9 @@ import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class ChatViewModel(
@@ -47,6 +50,7 @@ class ChatViewModel(
     fun sendMessage(text: String) {
         sendMessage(fullPrompt = text, originalUserText = text)
     }
+    val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEChat"))
 
     private fun retrieveAgentResponse(
         prompt: String,
@@ -62,7 +66,6 @@ class ChatViewModel(
                     newStatus = MessageStatus.SENT
                 )
             } catch (e: Exception) {
-                Log.e("ChatViewModel", "API call failed", e)
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = "An error occurred. Please try again.",

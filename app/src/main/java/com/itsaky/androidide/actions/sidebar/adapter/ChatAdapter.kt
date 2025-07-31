@@ -7,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupMenu
-import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -44,7 +43,7 @@ class ChatAdapter(
 
         holder.itemView.setOnLongClickListener { view ->
             if (message.status == MessageStatus.SENT) {
-                showContextMenu(view, message, holder.binding.messageContent)
+                showContextMenu(view, message)
             }
             true
         }
@@ -77,7 +76,7 @@ class ChatAdapter(
         }
     }
 
-    private fun showContextMenu(view: View, message: ChatMessage, messageTextView: TextView) {
+    private fun showContextMenu(view: View, message: ChatMessage) {
         val context = view.context
         val popup = PopupMenu(context, view)
         popup.inflate(R.menu.chat_message_context_menu)
@@ -96,15 +95,7 @@ class ChatAdapter(
                     true
                 }
 
-                R.id.menu_select_text -> {
-                    // Enable text selection mode on the TextView
-                    messageTextView.setTextIsSelectable(true)
-                    Toast.makeText(context, "Text selection enabled", Toast.LENGTH_SHORT).show()
-                    true
-                }
-
                 R.id.menu_edit_message -> {
-                    // Delegate the action to the Fragment/ViewModel
                     onMessageAction(ACTION_EDIT, message)
                     true
                 }

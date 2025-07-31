@@ -25,10 +25,8 @@ class ChatHistoryFragment : Fragment(R.layout.fragment_chat_history) {
 
         binding.historyToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
 
-        // Observe the list of sessions from the ViewModel
         chatViewModel.sessions.observe(viewLifecycleOwner, Observer { sessions ->
             val adapter = ChatHistoryAdapter(sessions) { session ->
-                // Set the current session in the ViewModel
                 chatViewModel.setCurrentSession(session.id)
                 findNavController().popBackStack()
             }

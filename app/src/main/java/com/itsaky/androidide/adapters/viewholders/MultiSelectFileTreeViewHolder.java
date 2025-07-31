@@ -93,10 +93,9 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
     }
 
     public void updateCheckboxState(TreeNode node) {
-        // FIX: Add a null check here. This is the main source of the crash.
         if (binding == null) return;
 
-        File file = (File) node.getValue();
+        File file = node.getValue();
         if (file == null) return;
 
         binding.filetreeCheckbox.setOnCheckedChangeListener(null);

@@ -296,12 +296,10 @@ dependencies {
   // Koin for Dependency Injection
   implementation("io.insert-koin:koin-android:3.5.3")
 
-  // Ktor for Networking
-  implementation("io.ktor:ktor-client-android:2.3.11")
-  implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
   implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
   implementation(libs.common.markwon.core)
   implementation(libs.common.markwon.linkify)
+  implementation(libs.android.spinkit)
 
 }
 

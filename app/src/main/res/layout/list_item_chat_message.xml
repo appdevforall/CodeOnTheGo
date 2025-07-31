@@ -32,6 +32,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textIsSelectable="true"
         tools:text="This is a sample message content." />
 
     <com.google.android.material.button.MaterialButton
