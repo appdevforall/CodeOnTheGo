@@ -10,6 +10,7 @@ import com.itsaky.androidide.models.FileExtension;
 import com.unnamed.b.atv.model.TreeNode;
 
 import java.io.File;
+import java.util.List;
 import java.util.Set;
 
 public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
@@ -24,6 +25,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
 
     @Override
     public View createNodeView(TreeNode node, File file) {
+        // This is where the binding is created, only for visible nodes.
         binding = LayoutFiletreeItemSelectableBinding.inflate(LayoutInflater.from(context));
         binding.filetreeName.setText(file.getName());
         binding.filetreeIcon.setImageResource(FileExtension.Factory.forFile(file).getIcon());
@@ -31,7 +33,6 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
         int padding = (int) (context.getResources().getDisplayMetrics().density * 16 * (node.getLevel() - 1));
         binding.getRoot().setPadding(padding, binding.getRoot().getPaddingTop(), binding.getRoot().getPaddingRight(), binding.getRoot().getPaddingBottom());
 
-        // --- Expansion and Click Logic ---
         if (file.isDirectory()) {
             binding.filetreeChevron.setVisibility(View.VISIBLE);
             binding.filetreeChevron.setRotation(node.isExpanded() ? 90 : 0);
@@ -60,6 +61,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
 
     @Override
     public void toggle(boolean active) {
+        if (binding == null) return;
         binding.filetreeChevron.setRotation(active ? 90 : 0);
     }
 
@@ -73,7 +75,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
         updateCheckboxState(node);
 
         if (file.isDirectory()) {
-            for (TreeNode child : node.getChildren()) {
+            for (TreeNode child : (List<TreeNode>) node.getChildren()) {
                 propagateSelectionToChildren(child, isSelected);
             }
         }
@@ -91,37 +93,35 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
     }
 
     public void updateCheckboxState(TreeNode node) {
-        File file = node.getValue();
+        // FIX: Add a null check here. This is the main source of the crash.
+        if (binding == null) return;
+
+        File file = (File) node.getValue();
         if (file == null) return;
 
         binding.filetreeCheckbox.setOnCheckedChangeListener(null);
 
         if (file.isDirectory()) {
             int childCount = node.getChildren().size();
-            if (childCount == 0) {
-                binding.filetreeCheckbox.setButtonDrawable(R.drawable.abc_btn_check_material);
-                binding.filetreeCheckbox.setChecked(selectedFiles.contains(file));
-            } else {
-                int selectedCount = 0;
-                for (TreeNode child : node.getChildren()) {
-                    if (selectedFiles.contains(child.getValue())) {
-                        selectedCount++;
-                    }
+            int selectedCount = 0;
+            for (TreeNode child : (List<TreeNode>) node.getChildren()) {
+                if (selectedFiles.contains(child.getValue())) {
+                    selectedCount++;
                 }
+            }
 
-                if (selectedCount == 0) {
-                    binding.filetreeCheckbox.setButtonDrawable(R.drawable.abc_btn_check_material);
-                    binding.filetreeCheckbox.setChecked(false);
-                    selectedFiles.remove(file);
-                } else if (selectedCount == childCount) {
-                    binding.filetreeCheckbox.setButtonDrawable(R.drawable.abc_btn_check_material);
-                    binding.filetreeCheckbox.setChecked(true);
-                    selectedFiles.add(file);
-                } else {
-                    binding.filetreeCheckbox.setButtonDrawable(R.drawable.ic_indeterminate_check_box);
-                    binding.filetreeCheckbox.setChecked(true);
-                    selectedFiles.remove(file);
-                }
+            if (selectedCount == 0) {
+                binding.filetreeCheckbox.setButtonDrawable(R.drawable.abc_btn_check_material);
+                binding.filetreeCheckbox.setChecked(false);
+                selectedFiles.remove(file);
+            } else if (selectedCount == childCount) {
+                binding.filetreeCheckbox.setButtonDrawable(R.drawable.abc_btn_check_material);
+                binding.filetreeCheckbox.setChecked(true);
+                selectedFiles.add(file);
+            } else {
+                binding.filetreeCheckbox.setButtonDrawable(R.drawable.ic_indeterminate_check_box);
+                binding.filetreeCheckbox.setChecked(true);
+                selectedFiles.remove(file);
             }
         } else {
             binding.filetreeCheckbox.setButtonDrawable(R.drawable.abc_btn_check_material);
