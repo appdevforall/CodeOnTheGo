@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import com.itsaky.androidide.R
+import com.itsaky.androidide.adapters.RemotesAdapter
 import com.itsaky.androidide.databinding.FragmentGitRemotesListBinding
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import kotlinx.coroutines.Dispatchers

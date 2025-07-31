@@ -1,9 +1,10 @@
-package com.itsaky.androidide.fragments.sidebar
+package com.itsaky.androidide.adapters
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.ListItemRemoteBinding
+import com.itsaky.androidide.fragments.sidebar.GitRemote
 
 class RemotesAdapter(
     private val remotes: MutableList<GitRemote>,

@@ -1,4 +1,4 @@
-package com.itsaky.androidide.fragments.sidebar
+package com.itsaky.androidide.adapters
 
 import android.view.LayoutInflater
 import android.view.ViewGroup

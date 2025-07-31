@@ -6,6 +6,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
+import com.itsaky.androidide.adapters.GitHistoryAdapter
 import com.itsaky.androidide.databinding.FragmentGitCommitListBinding
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import kotlinx.coroutines.Dispatchers
