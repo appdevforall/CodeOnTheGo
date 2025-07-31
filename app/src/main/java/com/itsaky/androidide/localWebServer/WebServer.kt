@@ -1,4 +1,4 @@
-package org.appdevforall.localwebserver
+package com.itsaky.androidide.localWebServer
 
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
@@ -12,7 +12,6 @@ import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.file.Files
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -44,7 +43,8 @@ data class ServerConfig(
     val port: Int = 6174,
     val databasePath: String,
     val bindName: String = "0.0.0.0", // TODO: Change to "localhost" --DS, 21-Jul-2025
-    val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+    val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory()
+        .toString() +
             "/Download/documentation.db"
 )
 
@@ -54,8 +54,12 @@ class WebServer(private val config: ServerConfig) {
     private var databaseTimestamp: Long = -1
     private var brotliSupported = false
     private val TAG = "WebServer"
-    private val encodingHeader : String = "Accept-Encoding"
-    private val brotliCompression : String = "br"
+    private val encodingHeader: String = "Accept-Encoding"
+    private val brotliCompression: String = "br"
+
+    companion object {
+        var method = ""
+    }
 
 
     fun getDatabaseTimestamp(pathname: String, silent: Boolean = false): Long {
@@ -70,7 +74,8 @@ class WebServer(private val config: ServerConfig) {
 
                 Log.d(
                     TAG,
-                    "${pathname} was last modified at ${dateFormat.format(Date(timestamp))}.")
+                    "${pathname} was last modified at ${dateFormat.format(Date(timestamp))}."
+                )
             }
         }
 
@@ -85,13 +90,18 @@ class WebServer(private val config: ServerConfig) {
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
 
             try {
-                database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
+                database = SQLiteDatabase.openDatabase(
+                    config.databasePath,
+                    null,
+                    SQLiteDatabase.OPEN_READONLY
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Cannot open database: ${e.message}")
                 return
             }
 
-            serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
+            serverSocket =
+                ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
             Log.i(TAG, "WebServer started successfully.")
 
             while (true) {
@@ -123,7 +133,8 @@ class WebServer(private val config: ServerConfig) {
         Log.d(TAG, "In handleClient(), socket=${clientSocket}.")
         val output = clientSocket.getOutputStream()
         val writer = PrintWriter(output, true)
-        val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+        val inputStream = InputStreamReader(clientSocket.getInputStream())
+        val reader = BufferedReader(inputStream)
         brotliSupported = false //assume nothing
 
         // Read the request line
@@ -136,10 +147,10 @@ class WebServer(private val config: ServerConfig) {
             return sendError(writer, 400, "Bad Request")
         }
 
-        val method = parts[0]
-        var path   = parts[1].split("?")[0] // Discard any HTTP query parameters.
+        method = parts[0]
+        var path = parts[1].split("?")[0] // Discard any HTTP query parameters.
         path = path.substring(1)
-        Log.d(TAG, "  method='${method}', path='${path}', parts=${parts}.")
+        Log.d(TAG, "  method='$method', path='${path}', parts=${parts}.")
 
 // ALEX: ADD SUPPORT FOR THE POST method. When you receive POST, read the content. Discard the header lines and the blank line. What follows will be the POSTed content. Verify all of this with logging. Then write the content to a temporary file, invoke a shell to run javac, capture the output in a file, and send it back in the same way the GET method sends content back. Use Content-Type: text/text and no compression.
 
@@ -147,57 +158,68 @@ class WebServer(private val config: ServerConfig) {
         if (method != "GET" && method != "POST") {
             return sendError(writer, 501, "Not Implemented")
         }
-
+        var contentLength = 0
         //headers follow the Gte line read until eof or 0 length
         Log.d(TAG, "  encodingHeader='${encodingHeader}'.")
-        while(requestLine.length > 0) {
+        while (requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
             Log.d(TAG, "  requestLine='${requestLine}'.")
-            if(requestLine.startsWith(encodingHeader)) {
+            if (requestLine.contains("Content-Length")) {
+                contentLength = requestLine.split(" ")[1].toInt()
+            }
+
+            if (requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
                 Log.d(TAG, "  parts=${parts}.")
-                if(parts.size == 0) {
+                if (parts.size == 0) {
                     break
                 }
                 brotliSupported = parts.contains(brotliCompression)
-                Log.d(TAG, "brotliSupport=${brotliSupported}, brotliCompression='${brotliCompression}'.")
+                Log.d(
+                    TAG,
+                    "brotliSupport=${brotliSupported}, brotliCompression='${brotliCompression}'."
+                )
                 break
             }
         }
         Log.d(TAG, "  brotliSupported=${brotliSupported}.")
         Log.d(TAG, "Method -> $method")
         if (method == "POST") {
-            var data = ""
-            //requestLine = reader.readLine()
-            // writer.println(requestLine)
-            Log.d(TAG, "data -> '$data'")
 
-            requestLine = reader.readLine()
+            var data = ByteArray(contentLength)
 
-            while(requestLine.length > 0) {
-                Log.d(TAG, "Request line - '${requestLine}'")
-                data += requestLine
-                // sendError(writer, 501, "POST not supported")
-                requestLine = reader.readLine() ?: break
-                Log.d(TAG, "Data -> '$data'")
+
+            for (i in 0 until contentLength) {
+                data += reader.read().toByte()
             }
+
+            Log.d(TAG, "Concat data = '${data}'")
 
             writer.println("HTTP/1.1 200 OK")
             writer.println("Content-Type: text/text")
-            writer.println("Content-Length: '${data.length}'")
-
-            writer.println(data)
-            writer.println("Connection: close")
+            writer.println("Content-Length: ${data.size}")
             writer.println()
+
+            output.write(data)
+            output.flush()
             writer.flush()
+
+            createFileFromPost(data)
             return
         }
 
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-        Log.d(TAG, "  debugDatabaseTimestamp=${debugDatabaseTimestamp}, databaseTimestamp=${databaseTimestamp}, delta=${debugDatabaseTimestamp - databaseTimestamp}.")
+        Log.d(
+            TAG,
+            "  debugDatabaseTimestamp=${debugDatabaseTimestamp}, databaseTimestamp=${databaseTimestamp}, delta=${debugDatabaseTimestamp - databaseTimestamp}."
+        )
         if (debugDatabaseTimestamp > databaseTimestamp) {
             database.close()
-            database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+            database = SQLiteDatabase.openDatabase(
+                config.debugDatabasePath,
+                null,
+                SQLiteDatabase.OPEN_READONLY
+            )
             databaseTimestamp = debugDatabaseTimestamp
         }
         // TODO: Get rid of the extra test in the SQL WHERE clause below by fixing all the paths. --DS, 22-Jul-2025
@@ -213,14 +235,21 @@ class WebServer(private val config: ServerConfig) {
         Log.d(TAG, "  rowCount=${rowCount}.")
 
         if (rowCount != 1) {
-            return if (rowCount == 0) sendError(writer, 404, "Not Found") else sendError(writer, 406, "Not Acceptable")
+            return if (rowCount == 0) sendError(writer, 404, "Not Found") else sendError(
+                writer,
+                406,
+                "Not Acceptable"
+            )
         }
 
         cursor.moveToFirst()
-        var dbContent   = cursor.getBlob(0)
-        val dbMimeType  = cursor.getString(1)
+        var dbContent = cursor.getBlob(0)
+        val dbMimeType = cursor.getString(1)
         var compression = cursor.getString(2)
-        Log.d(TAG, "  dbContent length is ${dbContent.size}, dbMimeType='${dbMimeType}', compression=${compression}.")
+        Log.d(
+            TAG,
+            "  dbContent length is ${dbContent.size}, dbMimeType='${dbMimeType}', compression=${compression}."
+        )
 
         // If the Accept-Encoding header contains "br", the client can handle
         // Brotli. Send Brotli data as-is, without decompressing it here.
@@ -267,5 +296,17 @@ class WebServer(private val config: ServerConfig) {
         writer.println("Connection: close")
         writer.println()
         writer.println("$code $message")
+    }
+
+    private fun createFileFromPost(input: ByteArray): File {
+        val inputAsString = String(input)
+        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/playground.txt"
+        val file = File(filePath)
+        try {
+            file.writeText(inputAsString)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating file")
+        }
+        return file
     }
 }

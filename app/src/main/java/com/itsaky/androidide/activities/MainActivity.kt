@@ -46,14 +46,14 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import com.itsaky.androidide.localWebServer.WebServer
-import com.itsaky.androidide.localWebServer.ServerConfig
 import com.itsaky.androidide.utils.Environment
 
 import java.io.File
 
 import android.hardware.display.DisplayManager
 import android.view.Display
+import com.itsaky.androidide.localWebServer.ServerConfig
+import com.itsaky.androidide.localWebServer.WebServer
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
