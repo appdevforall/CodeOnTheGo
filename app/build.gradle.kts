@@ -300,10 +300,10 @@ dependencies {
   implementation(libs.brotli4j)
 
   // Firebase BoM
-  implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+  implementation(platform(libs.firebase.bom))
 
   // Firebase AI Logic SDK for Gemini
-  implementation("com.google.firebase:firebase-ai")
+  implementation(libs.firebase.ai)
 
   // Koin for Dependency Injection
   implementation("io.insert-koin:koin-android:3.5.3")
