@@ -7,12 +7,10 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.itsaky.androidide.actions.sidebar.models.ChatMessage
 import com.itsaky.androidide.data.repository.GeminiRepository
+import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.itsaky.androidide.models.MessageStatus
 import kotlinx.coroutines.launch
 
 class ChatViewModel(
@@ -32,45 +30,84 @@ class ChatViewModel(
     }
 
 
-    /**
-     * Sends a message.
-     * @param fullPrompt The complete prompt to send to the AI, which may include context.
-     * @param originalUserText The original text the user typed, for display in the chat history.
-     */
     fun sendMessage(fullPrompt: String, originalUserText: String) {
-        val userMessage = ChatMessage(originalUserText, ChatMessage.Sender.USER)
+        val userMessage = ChatMessage(text = originalUserText, sender = ChatMessage.Sender.USER)
         addMessageToCurrentSession(userMessage)
-        retrieveAgentResponse(fullPrompt)
+
+        val loadingMessage = ChatMessage(
+            text = "...",
+            sender = ChatMessage.Sender.AGENT,
+            status = MessageStatus.LOADING
+        )
+        addMessageToCurrentSession(loadingMessage)
+
+        retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText)
     }
 
-    /**
-     * Overloaded function for simple messages without extra context.
-     */
     fun sendMessage(text: String) {
         sendMessage(fullPrompt = text, originalUserText = text)
     }
 
+    private fun retrieveAgentResponse(
+        prompt: String,
+        messageIdToUpdate: String,
+        originalUserPrompt: String
+    ) {
+        chatScope.launch {
+            try {
+                val response = geminiRepository.generateASimpleResponse(prompt)
+                updateMessageInCurrentSession(
+                    messageId = messageIdToUpdate,
+                    newText = response,
+                    newStatus = MessageStatus.SENT
+                )
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "API call failed", e)
+                updateMessageInCurrentSession(
+                    messageId = messageIdToUpdate,
+                    newText = "An error occurred. Please try again.",
+                    newStatus = MessageStatus.ERROR,
+                    originalPrompt = originalUserPrompt // Pass original prompt for retry
+                )
+            }
+        }
+    }
+
+    fun retryMessage(errorChatMessage: ChatMessage) {
+        val originalPrompt =
+            errorChatMessage.text // In case of error, we store the original prompt here.
+
+        // Update the message state to LOADING in the UI
+        updateMessageInCurrentSession(errorChatMessage.id, "...", MessageStatus.LOADING)
+
+        // Retry the API call
+        retrieveAgentResponse(originalPrompt, errorChatMessage.id, originalPrompt)
+    }
 
     private fun addMessageToCurrentSession(message: ChatMessage) {
         val session = _currentSession.value ?: return
         session.messages.add(message)
-        _currentSession.postValue(session) // Use postValue to ensure thread safety
+        _currentSession.postValue(session)
     }
 
-    private val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEEditorChat"))
-
-    private fun retrieveAgentResponse(prompt: String) {
-        chatScope.launch {
-            val response = geminiRepository.generateASimpleResponse(prompt)
-            val agentResponse = ChatMessage(
-                text = response,
-                sender = ChatMessage.Sender.AGENT
+    private fun updateMessageInCurrentSession(
+        messageId: String,
+        newText: String,
+        newStatus: MessageStatus,
+        originalPrompt: String? = null
+    ) {
+        val session = _currentSession.value ?: return
+        val messageIndex = session.messages.indexOfFirst { it.id == messageId }
+        if (messageIndex != -1) {
+            val text = if (newStatus == MessageStatus.ERROR) originalPrompt ?: newText else newText
+            session.messages[messageIndex] = session.messages[messageIndex].copy(
+                text = text,
+                status = newStatus
             )
-            addMessageToCurrentSession(agentResponse)
+            _currentSession.postValue(session)
         }
     }
 
-    // ... rest of the ViewModel remains the same ...
     fun loadSessions(prefs: SharedPreferences) {
         val json = prefs.getString(CHAT_HISTORY_LIST_PREF_KEY, null)
         val loadedSessions: MutableList<ChatSession> = if (json != null) {

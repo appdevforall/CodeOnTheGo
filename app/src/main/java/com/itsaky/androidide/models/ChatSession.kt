@@ -1,6 +1,5 @@
 package com.itsaky.androidide.models
 
-import com.itsaky.androidide.actions.sidebar.models.ChatMessage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

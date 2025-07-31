@@ -16,13 +16,14 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
-import com.itsaky.androidide.actions.sidebar.models.ChatMessage
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.ChatViewModel
 import io.noties.markwon.Markwon
@@ -149,6 +150,13 @@ class ChatFragment :
         chatAdapter = ChatAdapter(markwon) { action, message ->
             handleMessageAction(action, message)
         }
+        chatAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+                super.onItemRangeInserted(positionStart, itemCount)
+                binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+            }
+        })
+
         binding.chatRecyclerView.adapter = chatAdapter
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true

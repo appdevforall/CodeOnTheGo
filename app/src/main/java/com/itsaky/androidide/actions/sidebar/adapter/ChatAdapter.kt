@@ -13,8 +13,9 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
-import com.itsaky.androidide.actions.sidebar.models.ChatMessage
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
+import com.itsaky.androidide.models.ChatMessage
+import com.itsaky.androidide.models.MessageStatus
 import io.noties.markwon.Markwon
 import java.util.Locale
 
@@ -41,13 +42,39 @@ class ChatAdapter(
         holder.binding.messageSender.text = message.sender.name.lowercase(Locale.getDefault())
             .replaceFirstChar { it.titlecase(Locale.getDefault()) }
 
-        markwon.setMarkdown(holder.binding.messageContent, message.text)
         holder.itemView.setOnLongClickListener { view ->
-            showContextMenu(view, message, holder.binding.messageContent)
-            true // Consume the event
+            if (message.status == MessageStatus.SENT) {
+                showContextMenu(view, message, holder.binding.messageContent)
+            }
+            true
         }
 
         holder.binding.messageContent.setTextIsSelectable(false)
+
+        when (message.status) {
+            MessageStatus.LOADING -> {
+                holder.binding.loadingIndicator.visibility = View.VISIBLE
+                holder.binding.messageContent.visibility = View.GONE
+                holder.binding.btnRetry.visibility = View.GONE
+            }
+
+            MessageStatus.SENT -> {
+                holder.binding.loadingIndicator.visibility = View.GONE
+                holder.binding.messageContent.visibility = View.VISIBLE
+                holder.binding.btnRetry.visibility = View.GONE
+                markwon.setMarkdown(holder.binding.messageContent, message.text)
+            }
+
+            MessageStatus.ERROR -> {
+                holder.binding.loadingIndicator.visibility = View.GONE
+                holder.binding.messageContent.visibility = View.VISIBLE
+                holder.binding.btnRetry.visibility = View.VISIBLE
+                holder.binding.messageContent.text = message.text
+                holder.binding.btnRetry.setOnClickListener {
+                    onMessageAction(ACTION_RETRY, message)
+                }
+            }
+        }
     }
 
     private fun showContextMenu(view: View, message: ChatMessage, messageTextView: TextView) {
@@ -90,6 +117,8 @@ class ChatAdapter(
 
     companion object DiffCallback : DiffUtil.ItemCallback<ChatMessage>() {
         const val ACTION_EDIT = "edit"
+        const val ACTION_RETRY = "retry"
+
         override fun areItemsTheSame(oldItem: ChatMessage, newItem: ChatMessage): Boolean {
             return oldItem.timestamp == newItem.timestamp && oldItem.text == newItem.text
         }
