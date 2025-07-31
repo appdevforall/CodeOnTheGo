@@ -24,6 +24,8 @@ import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.ChatViewModel
+import io.noties.markwon.Markwon
+import io.noties.markwon.linkify.LinkifyPlugin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,6 +40,7 @@ class ChatFragment :
     private val selectedContext = mutableListOf<String>()
     private val selectedImageUris = mutableListOf<Uri>()
     private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
+    private lateinit var markwon: Markwon
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +61,10 @@ class ChatFragment :
         super.onViewCreated(view, savedInstanceState)
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
         emptyStateViewModel.isEmpty.value = false
+        markwon = Markwon.builder(requireContext())
+            .usePlugin(LinkifyPlugin.create())
+            .build()
+
         setupUI()
         setupListeners()
         chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
@@ -142,7 +149,7 @@ class ChatFragment :
     // --- End of Modified Section ---
 
     private fun setupUI() {
-        chatAdapter = ChatAdapter()
+        chatAdapter = ChatAdapter(markwon)
         binding.chatRecyclerView.adapter = chatAdapter
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
