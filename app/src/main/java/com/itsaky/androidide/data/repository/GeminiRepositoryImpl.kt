@@ -61,13 +61,19 @@ class GeminiRepositoryImpl(
     private fun executeTool(functionCall: FunctionCallPart): ToolResult {
         return when (functionCall.name) {
             "create_file" -> {
-                val path = functionCall.args["path"].toString().removeSurrounding("\"")
-                val content = functionCall.args["content"].toString().removeSurrounding("\"")
-                ideApi.createFile(
-                    path = path,
-                    content = content
-                )
+                val path = functionCall.args["path"]?.toString()?.removeSurrounding("\"") ?: ""
+                val content =
+                    functionCall.args["content"]?.toString()?.removeSurrounding("\"") ?: ""
+                ideApi.createFile(path = path, content = content)
             }
+
+            "update_file" -> {
+                val path = functionCall.args["path"]?.toString()?.removeSurrounding("\"") ?: ""
+                val content =
+                    functionCall.args["content"]?.toString()?.removeSurrounding("\"") ?: ""
+                ideApi.updateFile(path, content)
+            }
+
 
             "run_build" -> ideApi.runBuild(
                 module = functionCall.args["module"].toString(),
@@ -94,11 +100,6 @@ class GeminiRepositoryImpl(
                 question = functionCall.args["question"].toString(),
                 options = functionCall.args["options"]?.toString()?.split(",") ?: listOf("OK")
             )
-            "update_file" -> {
-                val path = functionCall.args["path"].toString().removeSurrounding("\"")
-                val content = functionCall.args["content"].toString().removeSurrounding("\"")
-                ideApi.updateFile(path, content)
-            }
 
 
             else -> ToolResult.failure("Unknown tool: ${functionCall.name}")
