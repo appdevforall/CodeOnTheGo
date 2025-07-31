@@ -19,10 +19,11 @@ package com.itsaky.androidide.activities
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
+import android.view.Display
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -39,6 +40,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -47,17 +49,9 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import org.appdevforall.localwebserver.WebServer
 import org.appdevforall.localwebserver.ServerConfig
-import com.itsaky.androidide.utils.Environment
-
+import org.appdevforall.localwebserver.WebServer
 import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.InputStream
-
-import android.hardware.display.DisplayManager
-import android.view.Display
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 

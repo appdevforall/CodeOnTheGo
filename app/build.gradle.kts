@@ -5,25 +5,22 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
-import java.nio.file.Files
-import kotlin.reflect.jvm.javaMethod
-
-import java.net.URL
-import java.net.URI
-import java.nio.file.StandardCopyOption
 import org.json.JSONObject
-
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.net.URI
+import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
 import java.util.zip.Deflater
-
 import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+import kotlin.reflect.jvm.javaMethod
 
 
 plugins {
@@ -33,6 +30,8 @@ plugins {
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
   id("com.itsaky.androidide.desugaring")
+  kotlin("plugin.serialization")
+  id("com.google.gms.google-services")
 }
 
 apply {
@@ -57,6 +56,38 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
     testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+
+    externalNativeBuild {
+      cmake {
+        // Optional: Pass arguments to CMake.
+        // For example, to enable NEON optimizations explicitly.
+        arguments += "-DGGML_ARM_NEON=ON"
+      }
+    }
+
+    ndk {
+       abiFilters += listOf("arm64-v8a")
+    }
+
+  }
+
+  externalNativeBuild {
+    cmake {
+      // Path to the CMakeLists.txt file, relative to the build.gradle.kts file.
+      path = file("src/main/cpp/CMakeLists.txt")
+      // Specifies the version of CMake to use. This should match a version
+      // installed via the SDK Manager.
+      version = "3.22.1"
+    }
+  }
+
+  // It is highly recommended to filter for specific ABIs (Application Binary Interfaces)
+  // to reduce APK size and build times. 'arm64-v8a' targets modern 64-bit ARM devices,
+  // which covers the vast majority of the current Android market.
+  packaging {
+    jniLibs {
+      useLegacyPackaging = false
+    }
   }
 
   testOptions {
@@ -249,6 +280,21 @@ dependencies {
 
   // brotli4j
   implementation(libs.brotli4j)
+
+  // Firebase BoM
+  implementation(platform(libs.firebase.bom))
+
+  // Firebase AI Logic SDK for Gemini
+  implementation(libs.firebase.ai)
+
+  // Koin for Dependency Injection
+  implementation("io.insert-koin:koin-android:3.5.3")
+
+  implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
+  implementation(libs.common.markwon.core)
+  implementation(libs.common.markwon.linkify)
+  implementation(libs.android.spinkit)
+
 }
 
 

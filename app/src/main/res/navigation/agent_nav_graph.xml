@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/chat_nav_graph"
+    app:startDestination="@id/chatFragment">
+
+    <fragment
+        android:id="@+id/chatFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.ChatFragment"
+        android:label="Git"
+        tools:layout="@layout/fragment_git">
+
+        <action
+            android:id="@+id/action_chatFragment_to_contextSelectionFragment"
+            app:destination="@id/contextSelectionFragment" />
+        <action
+            android:id="@+id/action_chatFragment_to_chatHistoryFragment"
+            app:destination="@id/chatHistoryFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/contextSelectionFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.ContextSelectionFragment"
+        android:label="Chat"
+        tools:layout="@layout/fragment_context_selection">
+
+        <action
+            android:id="@+id/action_contextSelectionFragment_to_fileTreeSelectionFragment"
+            app:destination="@id/fileTreeSelectionFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/chatHistoryFragment"
+        android:name="com.itsaky.androidide.actions.sidebar.ChatHistoryFragment"
+        android:label="Chat History"
+        tools:layout="@layout/fragment_context_selection" />
+
+    <fragment
+        android:id="@+id/fileTreeSelectionFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.FileTreeSelectionFragment"
+        android:label="Select Files"
+        tools:layout="@layout/fragment_file_tree_selection" />
+</navigation>

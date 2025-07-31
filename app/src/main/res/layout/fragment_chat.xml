@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".fragments.sidebar.ChatFragment">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/chat_toolbar"
+        android:layout_width="0dp"
+        android:layout_height="?attr/actionBarSize"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:title="AI Agent"
+        app:menu="@menu/chat_menu" />
+
+    <TextView
+        android:id="@+id/empty_chat_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="New Chat"
+        android:textAppearance="?attr/textAppearanceHeadline5"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:visibility="gone"
+        tools:visibility="visible"
+        app:layout_constraintTop_toBottomOf="@id/chat_toolbar"
+        app:layout_constraintBottom_toTopOf="@id/input_bar_card"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chat_recycler_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@id/chat_toolbar"
+        app:layout_constraintBottom_toTopOf="@id/input_bar_card"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:listitem="@layout/list_item_chat_message" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/input_bar_card"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:cardElevation="8dp"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="8dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_add_context"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="\@"
+                    android:contentDescription="Add Context File" />
+
+                <HorizontalScrollView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:scrollbars="none">
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/context_chip_group"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:singleLine="true"/>
+                </HorizontalScrollView>
+            </LinearLayout>
+
+            <androidx.core.widget.NestedScrollView
+                android:id="@+id/prompt_input_scroll_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:maxHeight="160dp">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/prompt_input_layout"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Type a message or prompt...">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/prompt_input_edittext"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="top"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:minHeight="56dp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </androidx.core.widget.NestedScrollView>
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/agent_mode_menu"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true">
+
+                    <AutoCompleteTextView
+                        android:id="@+id/agent_mode_autocomplete"
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="none"
+                        android:lines="1"
+                        android:text="Agent"
+                        tools:ignore="LabelFor" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_send_prompt"
+                    style="@style/Widget.Material3.Button.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:enabled="false"
+                    app:icon="@drawable/ic_send"
+                    android:contentDescription="Send Message"/>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_upload_image"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_toStartOf="@id/btn_send_prompt"
+                    app:icon="@drawable/ic_add_photo"
+                    android:contentDescription="Upload Image"/>
+            </RelativeLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</androidx.constraintlayout.widget.ConstraintLayout>

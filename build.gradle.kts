@@ -40,7 +40,9 @@ plugins {
 buildscript {
     dependencies {
         classpath(libs.kotlin.gradle.plugin)
+        classpath(libs.kotlin.serialization.plugin)
         classpath(libs.nav.safe.args.gradle.plugin)
+        classpath("com.google.gms:google-services:4.4.2")
     }
 }
 
@@ -54,6 +56,7 @@ subprojects {
 }
 
 allprojects {
+
     project.group = BuildConfig.packageName
     project.version = rootProject.version
 

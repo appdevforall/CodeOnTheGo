@@ -23,6 +23,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
@@ -38,6 +40,8 @@ import com.itsaky.androidide.editor.language.cpp.CppLanguage
 import com.itsaky.androidide.editor.language.groovy.GroovyLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
+import com.itsaky.androidide.editor.processing.ProcessContext
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
@@ -97,6 +101,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlin.math.abs
 
 /**
  * [CodeEditor] implementation for the IDE.
@@ -176,9 +181,10 @@ open class IDEEditor @JvmOverloads constructor(
     get() {
       return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
     }
+  private var lastTrackpadY = 0f
 
   companion object {
-
+    private const val TAG = "TrackpadScrollDebug"
     private const val SELECTION_CHANGE_DELAY = 500L
 
     internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
@@ -661,6 +667,8 @@ open class IDEEditor @JvmOverloads constructor(
     dispatchEvent(LanguageUpdateEvent(lang, this))
   }
 
+  private val textProcessorEngine = TextProcessorEngine()
+
   /**
    * Initialize the editor.
    */
@@ -714,7 +722,46 @@ open class IDEEditor @JvmOverloads constructor(
     }
 
     EventBus.getDefault().register(this)
+    subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
+      if (isReleased) {
+        return@subscribeEvent
+      }
+
+      markModified()
+      file ?: return@subscribeEvent
+
+      editorScope.launch {
+        dispatchDocumentChangeEvent(event)
+        checkForSignatureHelp(event)
+        handleCustomTextReplacement(event)
+      }
+    }
   }
+
+  // Replace your old method with this new one
+  private fun handleCustomTextReplacement(event: ContentChangeEvent) {
+    // We only care about simple text insertions
+    if (event.action != ContentChangeEvent.ACTION_INSERT) return
+
+    editorScope.launch {
+      val context = ProcessContext(text, file!!, text.cursor)
+      val result = textProcessorEngine.process(context)
+
+      // If a processor returned a result, apply it
+      if (result != null) {
+        withContext(Dispatchers.Main) {
+          post {
+            val start = result.range.start
+            val end = result.range.end
+            text.replace(start.line, start.column, end.line, end.column, result.replacement)
+
+            setSelection(end.line, end.column - 1)
+          }
+        }
+      }
+    }
+  }
+
 
   private inline fun launchCancellableAsyncWithProgress(@StringRes message: Int,
     crossinline action: suspend CoroutineScope.(flashbar: Flashbar, cancelChecker: ICancelChecker) -> Unit): Job? {

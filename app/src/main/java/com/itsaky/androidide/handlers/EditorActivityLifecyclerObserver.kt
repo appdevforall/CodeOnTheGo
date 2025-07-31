@@ -33,6 +33,7 @@ import com.itsaky.androidide.projects.util.BootClasspathProvider
 import com.itsaky.androidide.utils.EditorActivityActions
 import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.RightEditorSidebarActions
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.CompletableFuture
 
@@ -48,6 +49,7 @@ class EditorActivityLifecyclerObserver : DefaultLifecycleObserver {
   override fun onCreate(owner: LifecycleOwner) {
     EditorActivityActions.register(owner as Context)
     EditorSidebarActions.registerActions(owner as Context)
+    RightEditorSidebarActions.registerActions(owner as Context)
     dispatchEvent(OnCreateEvent())
   }
 

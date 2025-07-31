@@ -29,7 +29,8 @@ import com.itsaky.androidide.actions.requireFile
  *
  * @author Akash Yadav
  */
-abstract class BaseDirNodeAction(context: Context,
+abstract class BaseDirNodeAction(
+  val context: Context,
   @StringRes labelRes: Int? = null,
   @DrawableRes iconRes: Int? = null) : BaseFileTreeAction(context, labelRes, iconRes) {
 
