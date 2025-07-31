@@ -4,7 +4,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.ListItemChangedFileBinding
-import com.itsaky.androidide.fragments.sidebar.GitFileStatus
+import com.itsaky.androidide.models.GitFileStatus
 
 class GitStatusAdapter(private val files: List<GitFileStatus>) :
     RecyclerView.Adapter<GitStatusAdapter.ViewHolder>() {

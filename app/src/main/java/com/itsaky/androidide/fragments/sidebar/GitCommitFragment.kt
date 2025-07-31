@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.adapters.GitStatusAdapter
 import com.itsaky.androidide.databinding.FragmentGitCommitBinding
 import com.itsaky.androidide.git.GitCommitTask
+import com.itsaky.androidide.models.GitFileStatus
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

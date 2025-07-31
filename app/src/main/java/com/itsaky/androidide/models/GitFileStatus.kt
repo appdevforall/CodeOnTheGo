@@ -1,4 +1,4 @@
-package com.itsaky.androidide.fragments.sidebar
+package com.itsaky.androidide.models
 
 data class GitFileStatus(
     val filePath: String,
