@@ -32,8 +32,8 @@ import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
 import com.itsaky.androidide.actions.editor.SelectAllAction
 import com.itsaky.androidide.actions.etc.DisconnectLogSendersAction
-import com.itsaky.androidide.actions.etc.LaunchAppAction
 import com.itsaky.androidide.actions.etc.FindAction
+import com.itsaky.androidide.actions.etc.LaunchAppAction
 import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
@@ -79,22 +79,21 @@ class EditorActivityActions {
             var order = 0
 
             // Toolbar actions
+            registry.registerAction(QuickRunAction(context, order++))
+            registry.registerAction(ProjectSyncAction(context, order++))
+            registry.registerAction(DebugAction(context, order++))
+            registry.registerAction(RunTasksAction(context, order++))
             registry.registerAction(UndoAction(context, order++))
             registry.registerAction(RedoAction(context, order++))
-            registry.registerAction(QuickRunAction(context, order++))
-            registry.registerAction(DebugAction(context, order++))
-            registry.registerAction(QuickRunAction(context, order++))
-            registry.registerAction(RunTasksAction(context, order++))
             registry.registerAction(SaveFileAction(context, order++))
             registry.registerAction(PreviewLayoutAction(context, order++))
             registry.registerAction(FindAction(context, order++))
-            registry.registerAction(ProjectSyncAction(context, order++))
-            registry.registerAction(DisconnectLogSendersAction(context, order++))
             registry.registerAction(LaunchAppAction(context, order++))
             registry.registerAction(GitHubCommitAction(context, order++))
             registry.registerAction(GitHubPushAction(context, order++))
             registry.registerAction(GitHubFetchAction(context, order++))
             registry.registerAction(GitHubPullAction(context, order++))
+            registry.registerAction(DisconnectLogSendersAction(context, order++))
 
             // editor text actions
             registry.registerAction(ExpandSelectionAction(context, order++))
