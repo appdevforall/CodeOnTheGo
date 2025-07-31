@@ -19,10 +19,6 @@ package org.adfa.constants
 
 import java.io.File
 
-// TODO: get the value from BuildConfig.DEBUG -- jm 2025-05-28
-//       import com.itsaky.androidide.BuildConfig
-const val SPLIT_ASSETS = /* false */ true
-
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.11.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.14.3"
 const val KOTLIN_VERSION = "1.9.22"
@@ -78,6 +74,7 @@ const val HELP_PAGE_URL =
 const val DOCUMENTATION_DB = "documentation.db"
 
 const val JDWP_AAR_NAME = "libjdwp-remote.aar"
+const val LOGSENDER_AAR_NAME = "logsender.aar"
 
 // Generated Gradle Api Jar
 const val GRADLE_API_NAME_JAR = "gradle-api-$GRADLE_DISTRIBUTION_VERSION.jar"
