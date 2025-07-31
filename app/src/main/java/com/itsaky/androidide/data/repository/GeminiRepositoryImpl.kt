@@ -1,8 +1,8 @@
 package com.itsaky.androidide.data.repository
 
-// BOLD: Add these new imports for Kotlinx Serialization
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.GenerativeModel
+import com.google.firebase.ai.type.Content
 import com.google.firebase.ai.type.FunctionDeclaration
 import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.Schema
@@ -27,19 +27,30 @@ class GeminiRepositoryImpl(
     )
 
     private val generativeModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = "gemini-2.5-flash",
-        tools = listOf(
-            // FIX 1: The Tool constructor is internal.
-            // Use the Tool.functionDeclarations() factory method instead.
-            Tool.functionDeclarations(listOf(createFileTool))
-        )
+        modelName = "gemini-2.5-flash", // Corrected model name for consistency
+        tools = listOf(Tool.functionDeclarations(listOf(createFileTool)))
     )
 
     override suspend fun generateASimpleResponse(prompt: String): String {
         try {
-            val response = generativeModel.generateContent(prompt)
-            val functionCall = response.functionCalls.firstOrNull()
+            val history = mutableListOf<Content>()
 
+            // 1. Add the user's initial prompt to the history
+            history.add(content(role = "user") { text(prompt) })
+
+            // FIX 1: The generateContent function expects a List<Content>,
+            // not a spread array. Pass the list directly.
+            val response = generativeModel.generateContent(history)
+
+            // FIX 2: Rewrite the 'let' block to avoid the "Unresolved reference: it" error.
+            // This is a more explicit and safer way to do the same thing.
+            val modelResponseContent = response.candidates.firstOrNull()?.content
+            if (modelResponseContent != null) {
+                history.add(modelResponseContent)
+            }
+
+            // 4. Check if the model wants to call our function
+            val functionCall = response.functionCalls.firstOrNull()
             if (functionCall != null && functionCall.name == "create_file") {
                 delay(500)
                 val success = Random.nextBoolean()
@@ -50,24 +61,18 @@ class GeminiRepositoryImpl(
                     "Failed to create file due to a random error."
                 }
 
-                val finalResponse = generativeModel.generateContent(
-                    content {
-                        // FIX 2: The part() function expects a Part, not Content.
-                        // Use the spread operator (*) to unpack the parts from the previous content.
-                        response.candidates.firstOrNull()?.content?.let {
-                            parts.addAll(it.parts)
-                        }
+                // 5. Add the function's result to the history as a new "tool" turn
+                history.add(content(role = "tool") {
+                    part(FunctionResponsePart(functionCall.name, buildJsonObject {
+                        put("result", result)
+                    }))
+                })
 
-                        // FIX 3: The FunctionResponsePart now requires a
-                        // kotlinx.serialization.json.JsonObject, not an org.json.JSONObject.
-                        part(FunctionResponsePart(functionCall.name, buildJsonObject {
-                            put("result", result)
-                        }))
-                    }
-                )
-
+                // FIX 3: Same fix as above. Pass the history list directly.
+                val finalResponse = generativeModel.generateContent(history)
                 return finalResponse.text
                     ?: "The operation was processed, but I have nothing more to say."
+
             } else {
                 return response.text ?: "I'm not sure how to help with that."
             }
