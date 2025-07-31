@@ -5,154 +5,162 @@ import android.view.View
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
+import com.itsaky.androidide.adapters.ContextChipAdapter
 import com.itsaky.androidide.adapters.ContextSelectionAdapter
-import com.itsaky.androidide.adapters.viewholders.MultiSelectFileTreeViewHolder
 import com.itsaky.androidide.databinding.FragmentContextSelectionBinding
-import com.itsaky.androidide.models.ContextListItem
 import com.itsaky.androidide.models.HeaderItem
 import com.itsaky.androidide.models.SelectableItem
-import com.itsaky.androidide.projects.IProjectManager
-import com.unnamed.b.atv.model.TreeNode
-import com.unnamed.b.atv.view.AndroidTreeView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
 
 class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private var _binding: FragmentContextSelectionBinding? = null
     private val binding get() = _binding!!
 
-    private val selectedFiles = mutableSetOf<File>()
-    private var treeView: AndroidTreeView? = null
+    private lateinit var chipAdapter: ContextChipAdapter
     private lateinit var selectionAdapter: ContextSelectionAdapter
+
+    // Renamed for clarity
+    private val selectedContextItems = mutableListOf<String>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentContextSelectionBinding.bind(view)
 
-        binding.selectedContextHeader.isVisible = false
-        binding.selectedContextRecyclerView.isVisible = false
         setupRecyclerViews()
-        loadProjectFiles()
-        loadTreeData()
+        populateInitialList()
         setupListeners()
-    }
+        updateSelectedChips()
 
-    private fun loadProjectFiles() {
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            val projectRoot = IProjectManager.getInstance().projectDir
-            if (!projectRoot.exists()) {
-                // You can optionally show an empty/error state here
-                return@launch
-            }
-
-            val newItems = mutableListOf<ContextListItem>()
-            newItems.addAll(
-                listOf(
-                    HeaderItem("WEB SEARCH"),
-                    SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
-                    HeaderItem("GIT"),
-                    SelectableItem("git_status", "Git Status", R.drawable.ic_git)
-                )
-            )
-
-            withContext(Dispatchers.Main) {
-                // Submit the new list. DiffUtil will handle the updates efficiently.
-                selectionAdapter.submitList(newItems)
+        parentFragmentManager.setFragmentResultListener(
+            "file_selection_request",
+            viewLifecycleOwner
+        ) { _, bundle ->
+            bundle.getStringArrayList("selected_paths")?.let { paths ->
+                // Add new paths, avoiding duplicates
+                paths.forEach { path ->
+                    if (!selectedContextItems.contains(path)) {
+                        selectedContextItems.add(path)
+                    }
+                }
+                updateSelectedChips()
             }
         }
     }
 
+    private fun populateInitialList() {
+        val staticItems = listOf(
+            HeaderItem("FILES AND FOLDERS"),
+            SelectableItem(
+                "browse_files",
+                "Select Files/Folders from Project...",
+                R.drawable.ic_folder_open
+            ),
+            HeaderItem("WEB SEARCH"),
+            SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
+            HeaderItem("GIT"),
+            SelectableItem("git_status", "Git Status", R.drawable.ic_git)
+        )
+        selectionAdapter.submitList(staticItems)
+    }
+
     private fun setupRecyclerViews() {
-        // Adapter is now instantiated without an initial list
+        chipAdapter = ContextChipAdapter { itemToRemove ->
+            // This now handles both files and tools
+            selectedContextItems.remove(itemToRemove)
+            updateSelectedChips()
+
+            // Also, uncheck the item in the main list
+            val item =
+                selectionAdapter.currentList.find { it is SelectableItem && it.text == itemToRemove } as? SelectableItem
+            if (item != null) {
+                toggleSelection(item)
+            }
+        }
+        binding.selectedContextRecyclerView.apply {
+            layoutManager =
+                LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+            adapter = chipAdapter
+        }
+
         selectionAdapter = ContextSelectionAdapter { item ->
-            toggleSelectionById(item.id)
+            if (item.id == "browse_files") {
+                findNavController().navigate(R.id.action_contextSelectionFragment_to_fileTreeSelectionFragment)
+            } else {
+                // This is the new logic to handle selection for other items
+                toggleSelection(item)
+            }
         }
         binding.contextItemsRecyclerView.adapter = selectionAdapter
     }
 
-    private fun toggleSelectionById(itemId: String?) {
-        itemId ?: return
+    // New helper function to handle toggling selection for tools
+    private fun toggleSelection(item: SelectableItem) {
+        val isNowSelected = !item.isSelected
 
-        // Create a new list with the updated item
-        val updatedList = selectionAdapter.currentList.map { item ->
-            if (item is SelectableItem && item.id == itemId) {
-                item.copy(isSelected = !item.isSelected) // Create a new object with the toggled state
+        // Update the main list by submitting a new, modified list
+        val newList = selectionAdapter.currentList.map { listItem ->
+            if (listItem is SelectableItem && listItem.id == item.id) {
+                listItem.copy(isSelected = isNowSelected)
             } else {
-                item
+                listItem
             }
         }
+        selectionAdapter.submitList(newList)
 
-        // Submit the new list to the adapter
-        selectionAdapter.submitList(updatedList) {
-
+        // Update the data for the chip list
+        if (isNowSelected) {
+            if (!selectedContextItems.contains(item.text)) {
+                selectedContextItems.add(item.text)
+            }
+        } else {
+            selectedContextItems.remove(item.text)
         }
-    }
-
-    private fun loadTreeData() {
-        binding.loadingIndicator.isVisible = true
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val projectRootFile = IProjectManager.getInstance().projectDir
-            if (projectRootFile == null || !projectRootFile.exists()) {
-                binding.loadingIndicator.isVisible = false
-                return@launch
-            }
-
-            val rootNode = withContext(Dispatchers.IO) {
-                val node = TreeNode.root()
-                buildTreeNodes(node, projectRootFile)
-                node
-            }
-
-            setupTreeView(rootNode)
-        }
-    }
-
-    private fun setupTreeView(rootNode: TreeNode) {
-        binding.loadingIndicator.isVisible = false
-
-        treeView = AndroidTreeView(requireContext(), rootNode, R.drawable.bg_ripple)
-        // The ViewHolder handles all click logic now.
-
-        binding.fileTreeContainer.addView(treeView!!.view)
-        rootNode.children?.forEach { treeView?.expandNode(it) }
-    }
-
-    private fun buildTreeNodes(parentNode: TreeNode, dir: File) {
-        dir.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name }))?.forEach { file ->
-            val node = TreeNode(file).apply {
-                viewHolder = MultiSelectFileTreeViewHolder(requireContext(), selectedFiles)
-            }
-            parentNode.addChild(node)
-
-            if (file.isDirectory) {
-                buildTreeNodes(node, file)
-            }
-        }
+        updateSelectedChips()
     }
 
     private fun setupListeners() {
         binding.contextToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
         binding.btnCancelContext.setOnClickListener { findNavController().popBackStack() }
+        binding.btnClearContext.setOnClickListener {
+            clearAllSelections()
+        }
         binding.btnConfirmContext.setOnClickListener {
-            val projectRoot = IProjectManager.getInstance().projectDir
-            val selectedPaths = selectedFiles.map { it.relativeTo(projectRoot).path }
-
             setFragmentResult("context_selection_request", Bundle().apply {
-                putStringArrayList("selected_context", ArrayList(selectedPaths))
+                // Use the renamed list
+                putStringArrayList("selected_context", ArrayList(selectedContextItems))
             })
             findNavController().popBackStack()
         }
     }
 
+    private fun updateSelectedChips() {
+        val hasSelections = selectedContextItems.isNotEmpty()
+        binding.selectedContextRecyclerView.isVisible = hasSelections
+        binding.selectedContextHeader.isVisible = hasSelections
+        binding.btnClearContext.isVisible = hasSelections
+        chipAdapter.submitList(selectedContextItems.toList())
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    // New function to clear all selections
+    private fun clearAllSelections() {
+        selectedContextItems.clear()
+
+        val newList = selectionAdapter.currentList.map { listItem ->
+            if (listItem is SelectableItem) {
+                listItem.copy(isSelected = false)
+            } else {
+                listItem
+            }
+        }
+        selectionAdapter.submitList(newList)
+        updateSelectedChips()
     }
 }
