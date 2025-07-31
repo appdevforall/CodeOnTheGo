@@ -55,10 +55,7 @@ subprojects {
 }
 
 allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
+
     project.group = BuildConfig.packageName
     project.version = rootProject.version
 
