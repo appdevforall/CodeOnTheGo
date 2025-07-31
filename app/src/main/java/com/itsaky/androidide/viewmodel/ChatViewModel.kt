@@ -31,6 +31,46 @@ class ChatViewModel(
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
     }
 
+
+    /**
+     * Sends a message.
+     * @param fullPrompt The complete prompt to send to the AI, which may include context.
+     * @param originalUserText The original text the user typed, for display in the chat history.
+     */
+    fun sendMessage(fullPrompt: String, originalUserText: String) {
+        val userMessage = ChatMessage(originalUserText, ChatMessage.Sender.USER)
+        addMessageToCurrentSession(userMessage)
+        retrieveAgentResponse(fullPrompt)
+    }
+
+    /**
+     * Overloaded function for simple messages without extra context.
+     */
+    fun sendMessage(text: String) {
+        sendMessage(fullPrompt = text, originalUserText = text)
+    }
+
+
+    private fun addMessageToCurrentSession(message: ChatMessage) {
+        val session = _currentSession.value ?: return
+        session.messages.add(message)
+        _currentSession.postValue(session) // Use postValue to ensure thread safety
+    }
+
+    private val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEEditorChat"))
+
+    private fun retrieveAgentResponse(prompt: String) {
+        chatScope.launch {
+            val response = geminiRepository.generateASimpleResponse(prompt)
+            val agentResponse = ChatMessage(
+                text = response,
+                sender = ChatMessage.Sender.AGENT
+            )
+            addMessageToCurrentSession(agentResponse)
+        }
+    }
+
+    // ... rest of the ViewModel remains the same ...
     fun loadSessions(prefs: SharedPreferences) {
         val json = prefs.getString(CHAT_HISTORY_LIST_PREF_KEY, null)
         val loadedSessions: MutableList<ChatSession> = if (json != null) {
@@ -56,31 +96,6 @@ class ChatViewModel(
 
         _currentSession.value?.let {
             prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
-        }
-    }
-
-    fun sendMessage(text: String) {
-        val userMessage = ChatMessage(text, ChatMessage.Sender.USER)
-        addMessageToCurrentSession(userMessage)
-
-        retrieveAgentResponse(text)
-    }
-
-    private fun addMessageToCurrentSession(message: ChatMessage) {
-        val session = _currentSession.value ?: return
-        session.messages.add(message)
-        _currentSession.postValue(session)
-    }
-    private val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEEditorChat"))
-
-    private fun retrieveAgentResponse(originalText: String) {
-        chatScope.launch {
-            val response = geminiRepository.generateASimpleResponse(originalText)
-            val agentResponse = ChatMessage(
-                text = response,
-                sender = ChatMessage.Sender.AGENT
-            )
-            addMessageToCurrentSession(agentResponse)
         }
     }
 
