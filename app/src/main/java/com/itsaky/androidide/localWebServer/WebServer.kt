@@ -144,7 +144,7 @@ class WebServer(private val config: ServerConfig) {
 // ALEX: ADD SUPPORT FOR THE POST method. When you receive POST, read the content. Discard the header lines and the blank line. What follows will be the POSTed content. Verify all of this with logging. Then write the content to a temporary file, invoke a shell to run javac, capture the output in a file, and send it back in the same way the GET method sends content back. Use Content-Type: text/text and no compression.
 
         // Only support GET method
-        if (method != "GET") {
+        if (method != "GET" && method != "POST") {
             return sendError(writer, 501, "Not Implemented")
         }
 
@@ -165,6 +165,33 @@ class WebServer(private val config: ServerConfig) {
             }
         }
         Log.d(TAG, "  brotliSupported=${brotliSupported}.")
+        Log.d(TAG, "Method -> $method")
+        if (method == "POST") {
+            var data = ""
+            //requestLine = reader.readLine()
+            // writer.println(requestLine)
+            Log.d(TAG, "data -> '$data'")
+
+            requestLine = reader.readLine()
+
+            while(requestLine.length > 0) {
+                Log.d(TAG, "Request line - '${requestLine}'")
+                data += requestLine
+                // sendError(writer, 501, "POST not supported")
+                requestLine = reader.readLine() ?: break
+                Log.d(TAG, "Data -> '$data'")
+            }
+
+            writer.println("HTTP/1.1 200 OK")
+            writer.println("Content-Type: text/text")
+            writer.println("Content-Length: '${data.length}'")
+
+            writer.println(data)
+            writer.println("Connection: close")
+            writer.println()
+            writer.flush()
+            return
+        }
 
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
         Log.d(TAG, "  debugDatabaseTimestamp=${debugDatabaseTimestamp}, databaseTimestamp=${databaseTimestamp}, delta=${debugDatabaseTimestamp - databaseTimestamp}.")
