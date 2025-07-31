@@ -8,15 +8,15 @@ import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.content
-import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.api.IDEApiFacade
+import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.greenrobot.eventbus.EventBus
 
 class GeminiRepositoryImpl(
     firebaseAI: FirebaseAI,
     private val ideApi: IDEApiFacade,
-    private val fileActionManager: FileActionManager
 ) : GeminiRepository {
 
     private val createFileTool = FunctionDeclaration(
@@ -54,7 +54,8 @@ class GeminiRepositoryImpl(
                 val result = ideApi.createFile(path, content)
 
                 val functionResponse = if (result.isSuccess) {
-                    "Successfully created file at ${result.getOrNull()?.name}"
+                    EventBus.getDefault().post(ListProjectFilesRequestEvent())
+                    "Successfully created file named '${result.getOrNull()?.name}'"
                 } else {
                     "Failed to create file: ${result.exceptionOrNull()?.message}"
                 }

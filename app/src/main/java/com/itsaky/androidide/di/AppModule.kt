@@ -39,7 +39,6 @@ val appModule = module {
         GeminiRepositoryImpl(
             firebaseAI = get(),
             ideApi = IDEApiFacade,
-            fileActionManager = get()
         )
     }
     single { FileActionManager() }

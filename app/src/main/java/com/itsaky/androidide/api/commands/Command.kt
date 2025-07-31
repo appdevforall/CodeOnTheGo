@@ -12,11 +12,20 @@ interface Command<T> {
     fun execute(): Result<T>
 }
 
-class CreateFileCommand(private val path: String, private val content: String) : Command<File> {
+class CreateFileCommand(
+    private val baseDir: File,
+    private val path: String,
+    private val content: String
+) : Command<File> {
+    constructor(relativePath: String, content: String) : this(
+        IProjectManager.getInstance().projectDir,
+        relativePath,
+        content
+    )
+
     override fun execute(): Result<File> {
         return try {
-            val projectDir = IProjectManager.getInstance().projectDir
-            val targetFile = File(projectDir, path)
+            val targetFile = File(baseDir, path)
 
             if (targetFile.exists()) {
                 throw IllegalStateException("File already exists at path: $path")
