@@ -32,11 +32,13 @@ import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import com.blankj.utilcode.util.ImageUtils
+import com.google.gson.Gson
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -74,8 +76,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.set
-import com.google.gson.Gson
-import com.itsaky.androidide.app.BaseApplication
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -187,8 +187,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         }
       }
 
-      // Now, open the copied file in the editor
-      // Note: This opens a copy. Changes saved will not affect the original file.
       doOpenFile(tempFile, null)
 
     } catch (e: Exception) {
@@ -224,8 +222,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   override fun onPause() {
     super.onPause()
 
-    // if the user manually closes the project, this will be true
-    // in this case, don't overwrite the already saved cache
     if (!isOpenedFilesSaved.get()) {
       saveOpenedFiles()
     }
@@ -255,10 +251,8 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     val cache = OpenedFilesCache(selectedFile = selectedFile.absolutePath, allFiles = openedFiles)
 
-    // --- MODIFIED PART: Save to SharedPreferences ---
     val jsonCache = Gson().toJson(cache)
     prefs.putString(PREF_KEY_OPEN_FILES_CACHE, jsonCache)
-    // --- END OF MODIFIED PART ---
 
     log.debug("[onPause] Editor session saved to SharedPreferences.")
     isOpenedFilesSaved.set(true)
@@ -268,7 +262,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     super.onStart()
 
     try {
-      // --- MODIFIED PART: Load from SharedPreferences ---
       val prefs = (application as BaseApplication).prefManager
       val jsonCache = prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
       if (jsonCache != null) {
@@ -278,7 +271,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         // Clear the preference so it's only loaded once on startup
         prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
       }
-      // --- END OF MODIFIED PART ---
     } catch (err: Throwable) {
       log.error("Failed to reopen recently opened files", err)
     }
@@ -287,18 +279,15 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   private fun onReadOpenedFilesCache(cache: OpenedFilesCache?) {
     cache ?: return
 
-    // Make sure we only attempt to open files that still exist
     val existingFiles = cache.allFiles.filter { File(it.filePath).exists() }
     val selectedFileExists = File(cache.selectedFile).exists()
 
     if (existingFiles.isEmpty()) return
 
-    // Open all the files from the last session
     existingFiles.forEach { file ->
       openFile(File(file.filePath), file.selection)
     }
 
-    // Activate the tab that was last selected
     if (selectedFileExists) {
       openFile(File(cache.selectedFile))
     }

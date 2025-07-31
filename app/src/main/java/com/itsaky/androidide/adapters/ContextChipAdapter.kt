@@ -21,7 +21,7 @@ class ContextChipAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val itemText = getItem(position) // Use getItem() from ListAdapter
+        val itemText = getItem(position)
         holder.chip.text = itemText
         holder.chip.setOnCloseIconClickListener {
             onRemoveClicked(itemText)
@@ -30,7 +30,6 @@ class ContextChipAdapter(
 
     companion object DiffCallback : DiffUtil.ItemCallback<String>() {
         override fun areItemsTheSame(oldItem: String, newItem: String): Boolean {
-            // Since strings are unique items, we can just compare them directly.
             return oldItem == newItem
         }
 

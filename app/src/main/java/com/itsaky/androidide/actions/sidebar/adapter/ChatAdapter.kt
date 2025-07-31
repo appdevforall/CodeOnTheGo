@@ -42,13 +42,11 @@ class ChatAdapter(
             .replaceFirstChar { it.titlecase(Locale.getDefault()) }
 
         markwon.setMarkdown(holder.binding.messageContent, message.text)
-        // 3. Set the long-press listener
         holder.itemView.setOnLongClickListener { view ->
             showContextMenu(view, message, holder.binding.messageContent)
             true // Consume the event
         }
 
-        // Reset text selectability
         holder.binding.messageContent.setTextIsSelectable(false)
     }
 

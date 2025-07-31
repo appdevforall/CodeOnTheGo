@@ -10,7 +10,6 @@ import com.itsaky.androidide.models.FileExtension;
 import com.unnamed.b.atv.model.TreeNode;
 
 import java.io.File;
-import java.util.List;
 import java.util.Set;
 
 public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {
@@ -49,7 +48,6 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
         binding.filetreeIcon.setOnClickListener(toggleListener);
         binding.filetreeChevron.setOnClickListener(toggleListener);
 
-        // --- Checkbox Logic ---
         binding.filetreeCheckbox.setOnCheckedChangeListener(null);
         updateCheckboxState(node);
         binding.filetreeCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -75,7 +73,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
         updateCheckboxState(node);
 
         if (file.isDirectory()) {
-            for (TreeNode child : (List<TreeNode>) node.getChildren()) {
+            for (TreeNode child : node.getChildren()) {
                 propagateSelectionToChildren(child, isSelected);
             }
         }
@@ -93,7 +91,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
     }
 
     public void updateCheckboxState(TreeNode node) {
-        File file = (File) node.getValue();
+        File file = node.getValue();
         if (file == null) return;
 
         binding.filetreeCheckbox.setOnCheckedChangeListener(null);
@@ -105,7 +103,7 @@ public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<F
                 binding.filetreeCheckbox.setChecked(selectedFiles.contains(file));
             } else {
                 int selectedCount = 0;
-                for (TreeNode child : (List<TreeNode>) node.getChildren()) {
+                for (TreeNode child : node.getChildren()) {
                     if (selectedFiles.contains(child.getValue())) {
                         selectedCount++;
                     }

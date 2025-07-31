@@ -4,7 +4,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.ListItemRemoteBinding
-import com.itsaky.androidide.fragments.sidebar.GitRemote
+import com.itsaky.androidide.models.GitRemote
 
 class RemotesAdapter(
     private val remotes: MutableList<GitRemote>,

@@ -194,11 +194,3 @@ interface ActionItem {
     }
   }
 }
-
-// In com/itsaky/androidide/actions/ActionItem.kt
-enum class Location {
-  EDITOR_TOOLBAR,
-  EDITOR_SIDEBAR,
-  EDITOR_SIDEBAR_RIGHT, // Add this new location
-  // ... other locations
-}

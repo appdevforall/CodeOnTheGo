@@ -129,7 +129,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         }
         binding.btnConfirmContext.setOnClickListener {
             setFragmentResult("context_selection_request", Bundle().apply {
-                // Use the renamed list
                 putStringArrayList("selected_context", ArrayList(selectedContextItems))
             })
             findNavController().popBackStack()
@@ -149,7 +148,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         _binding = null
     }
 
-    // New function to clear all selections
     private fun clearAllSelections() {
         selectedContextItems.clear()
 
