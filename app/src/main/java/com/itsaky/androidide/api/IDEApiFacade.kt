@@ -3,8 +3,8 @@ package com.itsaky.androidide.api
 import com.itsaky.androidide.api.commands.AddDependencyCommand
 import com.itsaky.androidide.api.commands.AskUserCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
+import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
-import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.api.commands.RunBuildCommand
 import com.itsaky.androidide.data.model.ToolResult
 
@@ -24,7 +24,7 @@ object IDEApiFacade {
         return command.execute()
     }
 
-    fun readFile(path: String) = ReadFileCommand(path).execute()
+    fun readFile(path: String) = HighOrderReadFileCommand(path).execute()
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
 
     fun buildProject(): ToolResult = RunBuildCommand(module = null, variant = "debug").execute()

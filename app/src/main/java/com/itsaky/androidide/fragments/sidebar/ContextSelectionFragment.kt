@@ -5,6 +5,7 @@ import android.view.View
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
@@ -12,8 +13,13 @@ import com.itsaky.androidide.adapters.ContextChipAdapter
 import com.itsaky.androidide.adapters.ContextSelectionAdapter
 import com.itsaky.androidide.databinding.FragmentContextSelectionBinding
 import com.itsaky.androidide.models.ContextListItem
+import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.HeaderItem
 import com.itsaky.androidide.models.SelectableItem
+import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
@@ -30,35 +36,56 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentContextSelectionBinding.bind(view)
 
-        createMockData()
         setupRecyclerViews()
+        loadProjectFiles()
         setupListeners()
         updateSelectedChips()
     }
 
-    private fun createMockData() {
-        contextItems.clear()
-        contextItems.addAll(
-            listOf(
-                HeaderItem("FILES AND FOLDERS"),
-                SelectableItem(
-                    "file_1",
-                    "app/src/main/java/.../MainActivity.kt",
-                    R.drawable.ic_language_kotlin
-                ),
-                SelectableItem(
-                    "file_2",
-                    "app/src/main/res/layout/activity_main.xml",
-                    R.drawable.ic_language_xml
-                ),
+    private fun loadProjectFiles() {
+        // Perform file operations on a background thread to keep the UI responsive
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val projectRoot = IProjectManager.getInstance().projectDir
+            if (projectRoot == null || !projectRoot.exists()) {
+                // Handle case where no project is open
+                return@launch
+            }
+
+            val fileItems = mutableListOf<ContextListItem>()
+            fileItems.add(HeaderItem("FILES AND FOLDERS"))
+
+            // Walk the project directory and create an item for each file/folder
+            projectRoot.walkTopDown()
+                .maxDepth(4) // Limit recursion depth to avoid too many files
+                .filter { it != projectRoot } // Don't include the root folder itself
+                .forEach { file ->
+                    fileItems.add(
+                        SelectableItem(
+                            id = file.absolutePath, // Use absolute path as a unique ID
+                            text = file.relativeTo(projectRoot).path, // Display the relative path
+                            icon = FileExtension.Factory.forFile(file).icon
+                        )
+                    )
+                }
+
+            // Add your other static items
+            fileItems.addAll(
+                listOf(
                 HeaderItem("WEB SEARCH"),
                 SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
                 HeaderItem("GIT"),
                 SelectableItem("git_status", "Git Status", R.drawable.ic_git)
+                )
             )
-        )
-    }
 
+            // Switch back to the Main thread to update the UI
+            withContext(Dispatchers.Main) {
+                contextItems.clear()
+                contextItems.addAll(fileItems)
+                selectionAdapter.notifyDataSetChanged()
+            }
+        }
+    }
     private fun setupRecyclerViews() {
         // Adapter for the top row of selected chips
         chipAdapter = ContextChipAdapter { itemToRemove ->

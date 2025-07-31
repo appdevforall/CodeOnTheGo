@@ -69,35 +69,26 @@ class RunBuildCommand(private val module: String?, private val variant: String) 
     }
 }
 
-class ReadFileCommand(private val path: String) : Command<String> {
+class HighOrderReadFileCommand(private val path: String) : Command<String> {
     override fun execute(): ToolResult {
-        return try {
-            val targetFile = File(IProjectManager.getInstance().projectDir, path)
-            when {
-                !targetFile.exists() -> ToolResult(
-                    success = false, error_details = "File not found at path: $path",
-                    message = TODO(),
-                    data = TODO()
-                )
-
-                !targetFile.isFile -> ToolResult(
-                    success = false, error_details = "Path does not point to a file: $path",
-                    message = TODO(),
-                    data = TODO()
-                )
-
-                else -> {
-                    val content = FileIOUtils.readFile2String(targetFile)
-                    ToolResult(success = true, message = "File read successfully.", data = content)
-                }
-            }
-        } catch (e: Exception) {
+        val readFileCommand = ReadFileCommand(path)
+        val result = readFileCommand.execute()
+        return if (result.isSuccess) {
             ToolResult(
-                success = false, error_details = "Failed to read file: ${e.message}",
-                message = TODO(),
-                data = TODO()
+                message = "File read successfully.",
+                success = true,
+                data = result.getOrNull(),
+                error_details = TODO()
+            )
+        } else {
+            ToolResult(
+                message = "",
+                success = false,
+                data = null,
+                error_details = "Failed to read the file."
             )
         }
+
     }
 }
 
