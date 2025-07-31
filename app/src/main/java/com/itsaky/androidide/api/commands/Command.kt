@@ -1,7 +1,8 @@
 package com.itsaky.androidide.api.commands
 
 import com.blankj.utilcode.util.FileIOUtils
-import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
+import com.itsaky.androidide.data.model.ToolResult
+import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
@@ -9,10 +10,10 @@ import org.greenrobot.eventbus.EventBus
 import java.io.File
 
 interface Command<T> {
-    fun execute(): Result<T>
+    fun execute(): ToolResult
 }
 
-class CreateFileCommand(
+class HighOrderCreateFileCommand(
     private val baseDir: File,
     private val path: String,
     private val content: String
@@ -23,39 +24,184 @@ class CreateFileCommand(
         content
     )
 
-    override fun execute(): Result<File> {
+    override fun execute(): ToolResult {
         return try {
-            val targetFile = File(baseDir, path)
+            val command = CreateFileCommand(
+                baseDir = baseDir,
+                path = path,
+                content = content
+            )
+            val result = command.execute()
 
-            if (targetFile.exists()) {
-                throw IllegalStateException("File already exists at path: $path")
-            }
-
-            if (!FileIOUtils.writeFileFromString(targetFile, content)) {
-                Result.failure(Exception("Failed to write to file at path: $path"))
+            if (result.isSuccess) {
+                EventBus.getDefault().post(ListProjectFilesRequestEvent())
+                ToolResult(success = true, message = "File created at path: $path")
             } else {
-                EventBus.getDefault().post(FileCreationEvent(targetFile))
-                Result.success(targetFile)
+                ToolResult(
+                    success = false, error_details = "Failed to write to file at path: $path",
+                    message = "",
+                    data = null
+                )
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            ToolResult(
+                success = false, error_details = e.message,
+                message = "",
+                data = null
+            )
         }
     }
 
 }
 
-// Concrete command for running a build
 class RunBuildCommand(private val module: String?, private val variant: String) : Command<String> {
-    override fun execute(): Result<String> {
-        // Here you would access your BuildService directly, without an Activity.
-        // This is a simplified example. You'll need to refactor your build logic
-        // to be callable without a UI context.
+    override fun execute(): ToolResult {
         val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
         return if (buildService != null) {
-            // ... logic to prepare and execute build ...
-            Result.success("Build started successfully.")
+            ToolResult(success = true, message = "Build started successfully.")
         } else {
-            Result.failure(Exception("BuildService is not available."))
+            ToolResult(
+                success = false, error_details = "BuildService is not available.",
+                message = "",
+                data = null
+            )
         }
+    }
+}
+
+class ReadFileCommand(private val path: String) : Command<String> {
+    override fun execute(): ToolResult {
+        return try {
+            val targetFile = File(IProjectManager.getInstance().projectDir, path)
+            when {
+                !targetFile.exists() -> ToolResult(
+                    success = false, error_details = "File not found at path: $path",
+                    message = TODO(),
+                    data = TODO()
+                )
+
+                !targetFile.isFile -> ToolResult(
+                    success = false, error_details = "Path does not point to a file: $path",
+                    message = TODO(),
+                    data = TODO()
+                )
+
+                else -> {
+                    val content = FileIOUtils.readFile2String(targetFile)
+                    ToolResult(success = true, message = "File read successfully.", data = content)
+                }
+            }
+        } catch (e: Exception) {
+            ToolResult(
+                success = false, error_details = "Failed to read file: ${e.message}",
+                message = TODO(),
+                data = TODO()
+            )
+        }
+    }
+}
+
+class ListFilesCommand(
+    private val path: String,
+    private val recursive: Boolean
+) : Command<List<String>> {
+    override fun execute(): ToolResult {
+        return try {
+            val baseDir = IProjectManager.getInstance().projectDir
+            val targetDir = if (path.isEmpty()) baseDir else File(baseDir, path)
+            when {
+                !targetDir.exists() -> ToolResult(
+                    success = false, error_details = "Directory not found at path: $path",
+                    message = TODO(),
+                    data = TODO()
+                )
+
+                !targetDir.isDirectory -> ToolResult(
+                    success = false, error_details = "Path is not a directory: $path",
+                    message = TODO(),
+                    data = TODO()
+                )
+
+                else -> {
+                    val files = if (recursive) {
+                        targetDir.walkTopDown().map { it.relativeTo(baseDir).path }.toList()
+                    } else {
+                        targetDir.listFiles()?.map { it.relativeTo(baseDir).path } ?: emptyList()
+                    }
+                    ToolResult(
+                        success = true,
+                        message = "Files listed successfully.",
+                        data = files.joinToString("\n")
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            ToolResult(
+                success = false, error_details = "Failed to list files: ${e.message}",
+                message = TODO(),
+                data = TODO()
+            )
+        }
+    }
+}
+
+/**
+ * Mock command to simulate adding a dependency to a build file.
+ */
+class AddDependencyCommand(
+    private val buildFilePath: String,
+    private val dependencyString: String
+) : Command<Unit> {
+    override fun execute(): ToolResult {
+        return try {
+            val baseDir = IProjectManager.getInstance().projectDir
+            val buildFile = File(baseDir, buildFilePath)
+            if (!buildFile.exists() || !buildFile.isFile) {
+                return ToolResult(
+                    success = false, error_details = "Build file not found at: $buildFilePath",
+                    message = TODO(),
+                    data = TODO()
+                )
+            }
+            // This is a naive implementation for mocking. A real one would parse the file.
+            val currentContent = FileIOUtils.readFile2String(buildFile)
+            val newContent =
+                currentContent + "\n    implementation(\"$dependencyString\")" // Simplified assumption
+            if (FileIOUtils.writeFileFromString(buildFile, newContent)) {
+                ToolResult(
+                    success = true,
+                    message = "Dependency '$dependencyString' added to '$buildFilePath'."
+                )
+            } else {
+                ToolResult(
+                    success = false, error_details = "Failed to write to build file.",
+                    message = TODO(),
+                    data = TODO()
+                )
+            }
+        } catch (e: Exception) {
+            ToolResult(
+                success = false, error_details = "Failed to add dependency: ${e.message}",
+                message = TODO(),
+                data = TODO()
+            )
+        }
+    }
+}
+
+/**
+ * Mock command to simulate asking the user a question.
+ */
+class AskUserCommand(private val question: String, private val options: List<String>) :
+    Command<String> {
+    override fun execute(): ToolResult {
+        // In a real app, this would show a UI dialog.
+        // For this mock, we'll just return success and assume the first option was chosen.
+        val choice = options.firstOrNull() ?: "OK"
+        return ToolResult(
+            success = true,
+            message = "User was asked: '$question' and the action proceeded.",
+            data = choice
+        )
     }
 }
