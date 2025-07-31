@@ -186,20 +186,3 @@ class AddDependencyCommand(
         }
     }
 }
-
-/**
- * Mock command to simulate asking the user a question.
- */
-class AskUserCommand(private val question: String, private val options: List<String>) :
-    Command<String> {
-    override fun execute(): ToolResult {
-        // In a real app, this would show a UI dialog.
-        // For this mock, we'll just return success and assume the first option was chosen.
-        val choice = options.firstOrNull() ?: "OK"
-        return ToolResult(
-            success = true,
-            message = "User was asked: '$question' and the action proceeded.",
-            data = choice
-        )
-    }
-}

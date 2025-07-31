@@ -1,7 +1,6 @@
 package com.itsaky.androidide.api
 
 import com.itsaky.androidide.api.commands.AddDependencyCommand
-import com.itsaky.androidide.api.commands.AskUserCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
@@ -38,9 +37,6 @@ object IDEApiFacade {
         val finalPath = buildFilePath.ifEmpty { "app/build.gradle.kts" } // Default path
         return AddDependencyCommand(finalPath, dependencyString).execute()
     }
-
-    fun askUser(question: String, options: List<String>) =
-        AskUserCommand(question, options).execute()
 
     fun updateFile(path: String, content: String): ToolResult {
         val command = UpdateFileCommand(path, content)

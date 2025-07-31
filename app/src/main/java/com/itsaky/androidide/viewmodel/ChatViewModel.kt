@@ -46,6 +46,23 @@ class ChatViewModel(
                 )
             )
         }
+        geminiRepository.onAskUser = { question, options ->
+            val formattedMessage = buildString {
+                append(question)
+                if (options.isNotEmpty()) {
+                    append("\n\n**Options:**\n")
+                    options.forEach { append("- `$it`\n") }
+                }
+            }
+
+            addMessageToCurrentSession(
+                ChatMessage(
+                    text = formattedMessage,
+                    sender = ChatMessage.Sender.AGENT,
+                    status = MessageStatus.SENT
+                )
+            )
+        }
     }
 
     private fun formatToolCallForDisplay(functionCall: FunctionCallPart): String {
@@ -79,7 +96,10 @@ class ChatViewModel(
     ) {
         chatScope.launch {
             try {
-                val response = geminiRepository.generateASimpleResponse(prompt)
+                val history = _currentSession.value?.messages?.toList() ?: emptyList()
+
+                val response = geminiRepository.generateASimpleResponse(prompt, history)
+
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = response,

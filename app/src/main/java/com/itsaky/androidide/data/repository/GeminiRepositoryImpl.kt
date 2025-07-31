@@ -8,6 +8,9 @@ import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.content
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.data.model.ToolResult
+import com.itsaky.androidide.models.ChatMessage
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -24,24 +27,32 @@ class GeminiRepositoryImpl(
     )
 
     override var onToolCall: ((FunctionCallPart) -> Unit)? = null
+    override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
 
-    override suspend fun generateASimpleResponse(prompt: String): String {
-        val history = mutableListOf(content(role = "user") { text(prompt) })
+    override suspend fun generateASimpleResponse(
+        prompt: String,
+        history: List<ChatMessage>
+    ): String {
+        val apiHistory = history.map { message ->
+            content(role = if (message.sender == ChatMessage.Sender.USER) "user" else "model") {
+                text(message.text)
+            }
+        }.toMutableList()
+
+        apiHistory.add(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
 
-        for (i in 1..10) { // Safety break after 10 turns
-            val response = generativeModel.generateContent(history)
+        for (i in 1..10) {
+            val response = generativeModel.generateContent(apiHistory) // Use apiHistory
 
             val functionCalls = response.functionCalls
             if (functionCalls.isEmpty()) {
-                // No function calls, we have our final text answer
                 return response.text ?: "The operation was processed, but I have no final answer."
             }
 
-            // Add the model's request to the history
-            response.candidates.firstOrNull()?.content?.let { history.add(it) }
+            // Add the model's tool request to the history
+            response.candidates.firstOrNull()?.content?.let { apiHistory.add(it) }
 
-            // Execute all function calls and gather the results
             val toolResponses = functionCalls.map { functionCall ->
                 onToolCall?.invoke(functionCall)
                 val result: ToolResult = executeTool(functionCall)
@@ -52,8 +63,7 @@ class GeminiRepositoryImpl(
                 )
             }
 
-            // Add the tool results to the history
-            history.add(content(role = "tool") {
+            apiHistory.add(content(role = "tool") {
                 parts.addAll(toolResponses)
             })
         }
@@ -97,10 +107,24 @@ class GeminiRepositoryImpl(
                 buildFilePath = functionCall.args["build_file_path"].toString()
             )
 
-            "ask_user" -> ideApi.askUser(
-                question = functionCall.args["question"].toString(),
-                options = functionCall.args["options"]?.toString()?.split(",") ?: listOf("OK")
-            )
+            "ask_user" -> {
+                val question = (functionCall.args["question"] as? JsonPrimitive)?.content ?: "..."
+
+                // The 'options' argument is a JSON array. We need to deserialize it properly.
+                val optionsJson = functionCall.args["options"]
+                val options = optionsJson?.let {
+                    Json.decodeFromJsonElement(ListSerializer(String.serializer()), it)
+                } ?: listOf()
+
+                // Invoke the callback to notify the ViewModel/UI
+                onAskUser?.invoke(question, options)
+
+                // Return a result to the AI, confirming the question was asked.
+                ToolResult(
+                    success = true,
+                    message = "The user has been asked the question. Await their response in the next turn."
+                )
+            }
 
 
             else -> ToolResult.failure("Unknown tool: ${functionCall.name}")
