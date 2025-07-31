@@ -22,7 +22,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
     private lateinit var chipAdapter: ContextChipAdapter
     private lateinit var selectionAdapter: ContextSelectionAdapter
 
-    // Renamed for clarity
     private val selectedContextItems = mutableListOf<String>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -39,7 +38,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
             viewLifecycleOwner
         ) { _, bundle ->
             bundle.getStringArrayList("selected_paths")?.let { paths ->
-                // Add new paths, avoiding duplicates
                 paths.forEach { path ->
                     if (!selectedContextItems.contains(path)) {
                         selectedContextItems.add(path)
@@ -68,11 +66,9 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private fun setupRecyclerViews() {
         chipAdapter = ContextChipAdapter { itemToRemove ->
-            // This now handles both files and tools
             selectedContextItems.remove(itemToRemove)
             updateSelectedChips()
 
-            // Also, uncheck the item in the main list
             val item =
                 selectionAdapter.currentList.find { it is SelectableItem && it.text == itemToRemove } as? SelectableItem
             if (item != null) {
@@ -89,18 +85,15 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
             if (item.id == "browse_files") {
                 findNavController().navigate(R.id.action_contextSelectionFragment_to_fileTreeSelectionFragment)
             } else {
-                // This is the new logic to handle selection for other items
                 toggleSelection(item)
             }
         }
         binding.contextItemsRecyclerView.adapter = selectionAdapter
     }
 
-    // New helper function to handle toggling selection for tools
     private fun toggleSelection(item: SelectableItem) {
         val isNowSelected = !item.isSelected
 
-        // Update the main list by submitting a new, modified list
         val newList = selectionAdapter.currentList.map { listItem ->
             if (listItem is SelectableItem && listItem.id == item.id) {
                 listItem.copy(isSelected = isNowSelected)
@@ -110,7 +103,6 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         }
         selectionAdapter.submitList(newList)
 
-        // Update the data for the chip list
         if (isNowSelected) {
             if (!selectedContextItems.contains(item.text)) {
                 selectedContextItems.add(item.text)

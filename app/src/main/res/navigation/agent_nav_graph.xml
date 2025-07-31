@@ -14,13 +14,9 @@
         <action
             android:id="@+id/action_chatFragment_to_contextSelectionFragment"
             app:destination="@id/contextSelectionFragment" />
-
         <action
             android:id="@+id/action_chatFragment_to_chatHistoryFragment"
             app:destination="@id/chatHistoryFragment" />
-        <action
-            android:id="@+id/action_contextSelectionFragment_to_fileTreeSelectionFragment"
-            app:destination="@id/contextSelectionFragment" />
     </fragment>
 
     <fragment
@@ -34,12 +30,12 @@
             app:destination="@id/fileTreeSelectionFragment" />
     </fragment>
 
-
     <fragment
         android:id="@+id/chatHistoryFragment"
         android:name="com.itsaky.androidide.actions.sidebar.ChatHistoryFragment"
         android:label="Chat History"
-        tools:layout="@layout/fragment_context_selection"></fragment>
+        tools:layout="@layout/fragment_context_selection" />
+
     <fragment
         android:id="@+id/fileTreeSelectionFragment"
         android:name="com.itsaky.androidide.fragments.sidebar.FileTreeSelectionFragment"

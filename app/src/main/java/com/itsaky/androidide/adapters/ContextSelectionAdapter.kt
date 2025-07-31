@@ -26,7 +26,7 @@ class ContextSelectionAdapter(
         RecyclerView.ViewHolder(binding.root)
 
     override fun getItemViewType(position: Int): Int {
-        return when (getItem(position)) { // Use getItem() from ListAdapter
+        return when (getItem(position)) {
             is HeaderItem -> TYPE_HEADER
             is SelectableItem -> TYPE_ITEM
         }
@@ -42,7 +42,7 @@ class ContextSelectionAdapter(
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        when (val item = getItem(position)) { // Use getItem() from ListAdapter
+        when (val item = getItem(position)) {
             is HeaderItem -> {
                 (holder as HeaderViewHolder).binding.headerTitle.text = item.title
             }
@@ -69,7 +69,6 @@ class ContextSelectionAdapter(
             oldItem: ContextListItem,
             newItem: ContextListItem
         ): Boolean {
-            // Data classes provide a structural equality check, which is perfect here.
             return oldItem == newItem
         }
     }
