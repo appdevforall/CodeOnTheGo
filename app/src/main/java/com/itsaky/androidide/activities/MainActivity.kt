@@ -19,7 +19,6 @@ package com.itsaky.androidide.activities
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
@@ -47,14 +46,11 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import org.appdevforall.localwebserver.WebServer
-import org.appdevforall.localwebserver.ServerConfig
+import com.itsaky.androidide.localWebServer.WebServer
+import com.itsaky.androidide.localWebServer.ServerConfig
 import com.itsaky.androidide.utils.Environment
 
 import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.InputStream
 
 import android.hardware.display.DisplayManager
 import android.view.Display

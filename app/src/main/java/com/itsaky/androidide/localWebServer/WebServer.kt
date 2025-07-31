@@ -1,4 +1,4 @@
-package org.appdevforall.localwebserver
+package com.itsaky.androidide.localWebServer
 
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
@@ -7,6 +7,7 @@ import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
 import java.io.PrintWriter
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 
@@ -24,20 +25,24 @@ class WebServer(private val config: ServerConfig) {
     fun start() {
         try {
             Log.d(TAG, "Starting WebServer on port ${config.port}")
-            
+
             // Verify database access
             try {
-                val testDb = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
+                val testDb = SQLiteDatabase.openDatabase(
+                    config.databasePath,
+                    null,
+                    SQLiteDatabase.OPEN_READONLY
+                )
                 testDb.close()
             } catch (e: Exception) {
                 Log.e(TAG, "Cannot open database: ${e.message}")
                 return
             }
 
-            serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName("0.0.0.0"))
+            serverSocket = ServerSocket(config.port, 0, InetAddress.getByName("0.0.0.0"))
             running = true
             Log.i(TAG, "WebServer started successfully on port ${config.port}")
-            
+
             while (running) {
                 val clientSocket = serverSocket.accept()
                 handleClient(clientSocket)
@@ -57,7 +62,7 @@ class WebServer(private val config: ServerConfig) {
 
             // Read the request line
             val requestLine = reader.readLine()
-            
+
             if (requestLine == null) {
                 return
             }
@@ -71,14 +76,15 @@ class WebServer(private val config: ServerConfig) {
 
             val method = parts[0]
             val path = parts[1]
-            
+
             // Only support GET method for now
             if (method != "GET") {
                 sendError(writer, 501, "Not Implemented")
                 return
             }
 
-            val db = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
+            val db =
+                SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
             val query = """
                 SELECT c.content, ct.value AS mime_type, ct.compression
                 FROM Content c
@@ -91,18 +97,19 @@ class WebServer(private val config: ServerConfig) {
                 var dbContent = cursor.getBlob(cursor.getColumnIndexOrThrow("content"))
                 val dbMimeType = cursor.getString(cursor.getColumnIndexOrThrow("mime_type"))
                 val compression = cursor.getString(cursor.getColumnIndexOrThrow("compression"))
-                    
+
                 // If content is Brotli compressed, decompress it
                 if (compression == "brotli") {
                     try {
-                        dbContent = BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
+                        dbContent =
+                            BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
                         sendError(writer, 500, "Internal Server Error")
                         return
                     }
                 }
-                    
+
                 writer.println("HTTP/1.1 200 OK")
                 writer.println("Content-Type: $dbMimeType")
                 writer.println("Content-Length: ${dbContent.size}")
