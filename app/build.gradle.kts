@@ -21,7 +21,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
-
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -32,6 +32,13 @@ plugins {
     id("io.sentry.android.gradle") version "5.8.0"
     id("com.itsaky.androidide.desugaring")
 }
+
+val props = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) load(file.inputStream())
+}
+
+val sentryDsn = props.getProperty("sentryDsn") ?: ""
 
 apply {
     plugin(AndroidIDEAssetsPlugin::class.java)
@@ -55,6 +62,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
         testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+
+        manifestPlaceholders["sentryDsn"] = sentryDsn
     }
 
     testOptions {
