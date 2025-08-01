@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -118,6 +119,43 @@ class ChatViewModel(
         return "\nCalling tool: **`${functionCall.name}`** with arguments:\n$args"
     }
 
+    fun sendMessage(text: String) {
+        val fullPrompt = constructFullPrompt(text)
+        sendMessage(fullPrompt = fullPrompt, originalUserText = text)
+    }
+
+    private fun constructFullPrompt(userInput: String): String {
+        val messages = _currentSession.value?.messages ?: return userInput
+        if (messages.size < 2) return userInput
+
+        // Find the last message from the AGENT and the last message from the USER before that
+        val lastAgentMessage = messages.lastOrNull { it.sender == ChatMessage.Sender.AGENT }
+        val lastUserMessageBeforeAgent = messages.lastOrNull {
+            it.sender == ChatMessage.Sender.USER && it.timestamp < (lastAgentMessage?.timestamp
+                ?: 0)
+        }
+
+        // Heuristic: If the last agent message contains "Options:", it was likely a question
+        // and the current userInput is the answer.
+        if (lastAgentMessage != null && lastUserMessageBeforeAgent != null && lastAgentMessage.text.contains(
+                "Options:"
+            )
+        ) {
+            Log.d("ChatViewModel", "Resuming context after user answer.")
+            // Re-establish the context for the model
+            return """
+            The user is responding to your previous question.
+            Original user request: "${lastUserMessageBeforeAgent.text}"
+            Your question: "${lastAgentMessage.text}"
+            User's answer: "$userInput"
+            Based on the user's answer, please continue with the original request.
+            """.trimIndent()
+        }
+
+        // If not resuming, just use the plain user input
+        return userInput
+    }
+
     fun sendMessage(fullPrompt: String, originalUserText: String) {
         if (_agentState.value is AgentState.Processing) {
             return
@@ -136,10 +174,6 @@ class ChatViewModel(
         retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText)
     }
 
-    fun sendMessage(text: String) {
-        sendMessage(fullPrompt = text, originalUserText = text)
-    }
-
     private fun retrieveAgentResponse(
         prompt: String,
         messageIdToUpdate: String,
@@ -147,7 +181,7 @@ class ChatViewModel(
     ) {
         agentJob = viewModelScope.launch {
             try {
-                val history = _currentSession.value?.messages?.toList() ?: emptyList()
+                val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
                 val agentResponse = geminiRepository.generateASimpleResponse(prompt, history)
 
                 updateMessageInCurrentSession(
