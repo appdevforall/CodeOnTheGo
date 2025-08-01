@@ -183,8 +183,29 @@ class GeminiRepositoryImpl(
         }
     }
 
-    override suspend fun generateCode(prompt: String): String {
-        val response = codeGenerationModel.generateContent(prompt)
+    override suspend fun generateCode(
+        prompt: String,
+        fileContent: String,
+        fileName: String,
+        fileRelativePath: String
+    ): String {
+        // Create a detailed prompt with all the context
+        val contextPrompt = """
+        You are an expert code generation assistant. The user is currently editing the file '$fileName' located at '$fileRelativePath'.
+
+        This is the current full content of the file:
+        ```
+        $fileContent
+        ```
+
+        Based on this context, fulfill the user's request.
+
+        User Request: "$prompt"
+
+        IMPORTANT: Your response must be only the raw code itself. Do not add any explanations, comments, or markdown formatting like ```.
+        """.trimIndent()
+
+        val response = codeGenerationModel.generateContent(contextPrompt)
         return response.text ?: throw Exception("Failed to get a valid response from the API.")
     }
 }
