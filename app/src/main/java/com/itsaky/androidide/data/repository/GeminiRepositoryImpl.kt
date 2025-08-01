@@ -23,19 +23,24 @@ class GeminiRepositoryImpl(
     private val ideApi: IDEApiFacade,
 ) : GeminiRepository {
 
-    private val generativeModel: GenerativeModel = firebaseAI.generativeModel(
+    private val functionCallingModel: GenerativeModel = firebaseAI.generativeModel(
         modelName = "gemini-2.5-pro",
         systemInstruction = content(role = "system") {
             text(
                 "You are an expert programmer's assistant. You will use the provided tools " +
-                        "to help the user manage their Android project files and build process. " +
-                        "Be concise and call tools whenever possible to fulfill the user's request."
+                        "to help the user manage their Android project files and build process."
             )
         },
         tools = listOf(Tool.functionDeclarations(GeminiTools.allTools)),
-        toolConfig = ToolConfig(
-            functionCallingConfig = FunctionCallingConfig.any()
-        )
+        toolConfig = ToolConfig(functionCallingConfig = FunctionCallingConfig.any())
+    )
+
+    private val searchModel: GenerativeModel = firebaseAI.generativeModel(
+        modelName = "gemini-2.5-pro",
+        systemInstruction = content(role = "system") {
+            text("You are a helpful assistant that answers questions using web searches.")
+        },
+        tools = listOf(Tool.googleSearch())
     )
 
     override var onToolCall: ((FunctionCallPart) -> Unit)? = null
@@ -46,6 +51,32 @@ class GeminiRepositoryImpl(
         prompt: String,
         history: List<ChatMessage>
     ): String {
+        val routerPrompt = """
+            Analyze the following user prompt and determine the primary intent.
+            Respond with a single word: CODE, SEARCH, or OTHER.
+            - Use CODE if the request involves file manipulation, building the project, or interacting with the IDE.
+            - Use SEARCH if the request requires up-to-date information from the internet or general knowledge.
+            - Use OTHER for conversational chat.
+
+            User Prompt: "$prompt"
+        """.trimIndent()
+
+        // Use the search model for routing as it's general purpose
+        val routeResult = searchModel.generateContent(routerPrompt).text?.trim()?.uppercase()
+
+        return when (routeResult) {
+            "CODE" -> executeCodeRequest(prompt, history)
+            "SEARCH" -> executeSearchRequest(prompt)
+            else -> executeSearchRequest(prompt) // Default to search for general conversation
+        }
+    }
+
+    private suspend fun executeSearchRequest(prompt: String): String {
+        val response = searchModel.generateContent(prompt)
+        return response.text ?: "I couldn't find an answer for that."
+    }
+
+    private suspend fun executeCodeRequest(prompt: String, history: List<ChatMessage>): String {
         val apiHistory = history.map { message ->
             content(role = if (message.sender == ChatMessage.Sender.USER) "user" else "model") {
                 text(message.text)
@@ -55,15 +86,15 @@ class GeminiRepositoryImpl(
         apiHistory.add(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
 
+        // The tool-calling loop now uses the functionCallingModel
         for (i in 1..10) {
-            val response = generativeModel.generateContent(apiHistory)
+            val response = functionCallingModel.generateContent(apiHistory)
 
             val functionCalls = response.functionCalls
             if (functionCalls.isEmpty()) {
                 return response.text ?: "The operation was processed, but I have no final answer."
             }
 
-            // Add the model's tool request to the history
             response.candidates.firstOrNull()?.content?.let { apiHistory.add(it) }
 
             val toolResponses = functionCalls.map { functionCall ->
@@ -77,9 +108,7 @@ class GeminiRepositoryImpl(
                 )
             }
 
-            apiHistory.add(content(role = "tool") {
-                parts.addAll(toolResponses)
-            })
+            apiHistory.add(content(role = "tool") { parts.addAll(toolResponses) })
         }
 
         return "The request exceeded the maximum number of tool calls."
@@ -120,6 +149,7 @@ class GeminiRepositoryImpl(
                 dependencyString = functionCall.args["dependency_string"].toString(),
                 buildFilePath = functionCall.args["build_file_path"].toString()
             )
+
             "get_build_output" -> ideApi.getBuildOutput()
 
             "ask_user" -> {

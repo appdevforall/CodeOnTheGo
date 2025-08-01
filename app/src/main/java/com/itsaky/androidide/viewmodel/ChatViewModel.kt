@@ -115,6 +115,8 @@ class ChatViewModel(
                     newStatus = MessageStatus.SENT
                 )
             } catch (e: Exception) {
+                println(e)
+                val error = e
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = "An error occurred. Please try again.",
