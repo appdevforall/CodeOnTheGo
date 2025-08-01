@@ -9,13 +9,13 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.ai.type.FunctionCallPart
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.itsaky.androidide.data.repository.AgentResponse
 import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -33,6 +33,11 @@ class ChatViewModel(
 
     private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
     val agentState = _agentState.asStateFlow()
+
+    private val _elapsedTime = MutableStateFlow(0L)
+    val elapsedTime = _elapsedTime.asStateFlow()
+    private var timerJob: Job? = null
+    private var startTime: Long = 0
 
     private var agentJob: Job? = null
 
@@ -63,6 +68,12 @@ class ChatViewModel(
         }
         geminiRepository.onStateUpdate = { newState ->
             _agentState.value = newState
+
+            if (newState is AgentState.Processing && timerJob?.isActive != true) {
+                startTimer()
+            } else if (newState is AgentState.Idle) {
+                stopTimer()
+            }
         }
         geminiRepository.onAskUser = { question, options ->
             val formattedMessage = buildString {
@@ -119,20 +130,15 @@ class ChatViewModel(
     ) {
         agentJob = viewModelScope.launch {
             try {
-                // Agent state is now handled by the repository callback
-
                 val history = _currentSession.value?.messages?.toList() ?: emptyList()
-                val agentResponse: AgentResponse =
-                    geminiRepository.generateASimpleResponse(prompt, history)
+                val agentResponse = geminiRepository.generateASimpleResponse(prompt, history)
 
-                // Update the original loading message with the main text
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = agentResponse.text,
                     newStatus = MessageStatus.SENT
                 )
 
-                // If there's a report, add it as a new system message
                 if (agentResponse.report.isNotBlank()) {
                     addMessageToCurrentSession(
                         ChatMessage(
@@ -142,7 +148,6 @@ class ChatViewModel(
                         )
                     )
                 }
-
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) {
                     updateMessageInCurrentSession(
@@ -245,5 +250,21 @@ class ChatViewModel(
         if (session != null) {
             _currentSession.value = session
         }
+    }
+
+    private fun startTimer() {
+        startTime = System.currentTimeMillis()
+        timerJob?.cancel()
+        timerJob = viewModelScope.launch {
+            while (true) {
+                _elapsedTime.value = System.currentTimeMillis() - startTime
+                delay(100) // Update every 100ms for a smooth display
+            }
+        }
+    }
+
+    private fun stopTimer() {
+        timerJob?.cancel()
+        _elapsedTime.value = 0L // Reset timer
     }
 }

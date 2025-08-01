@@ -103,7 +103,7 @@ class GeminiRepositoryImpl(
         val toolsUsed = mutableListOf<String>()
 
         for (i in 1..10) {
-            onStateUpdate?.invoke(AgentState.Processing("Thinking..."))
+            onStateUpdate?.invoke(AgentState.Processing("Waiting for Gemini..."))
             val response = functionCallingModel.generateContent(apiHistory)
 
             val functionCalls = response.functionCalls

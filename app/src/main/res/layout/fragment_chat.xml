@@ -46,11 +46,12 @@
         android:id="@+id/agent_status_text"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp"
+        android:fontFamily="monospace"
         android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="4dp"
         android:textAppearance="?attr/textAppearanceCaption"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@id/input_bar_card"
@@ -167,10 +168,10 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        app:icon="@drawable/ic_stop"
+                        android:contentDescription="Stop Generation"
                         android:visibility="gone"
-                        tools:visibility="visible"
-                        android:contentDescription="Stop Generation" />
+                        app:icon="@drawable/ic_stop"
+                        tools:visibility="visible" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_send_prompt"
@@ -179,9 +180,9 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
+                        android:contentDescription="Send Message"
                         android:enabled="false"
-                        app:icon="@drawable/ic_send"
-                        android:contentDescription="Send Message" />
+                        app:icon="@drawable/ic_send" />
                 </RelativeLayout>
 
                 <com.google.android.material.button.MaterialButton
@@ -191,8 +192,8 @@
                     android:layout_height="wrap_content"
                     android:layout_centerVertical="true"
                     android:layout_toStartOf="@id/btn_control_prompt"
-                    app:icon="@drawable/ic_add_photo"
-                    android:contentDescription="Upload Image"/>
+                    android:contentDescription="Upload Image"
+                    app:icon="@drawable/ic_add_photo" />
             </RelativeLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>

@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments.sidebar
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -33,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import java.util.Locale
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
@@ -211,12 +213,12 @@ class ChatFragment :
         }
     }
 
+    @SuppressLint("SetTextI18n")
     private fun setupStateObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
             chatViewModel.agentState.collect { state ->
                 when (state) {
                     is AgentState.Idle -> {
-                        // Hide status, enable input, show send button
                         binding.agentStatusText.isVisible = false
                         binding.promptInputLayout.isEnabled = true
                         binding.btnSendPrompt.visibility = View.VISIBLE
@@ -224,8 +226,7 @@ class ChatFragment :
                     }
 
                     is AgentState.Processing -> {
-                        // Show status with message, disable input, show stop button
-                        binding.agentStatusText.text = state.message
+                        // The timer will update the text, but we ensure visibility here
                         binding.agentStatusText.isVisible = true
                         binding.promptInputLayout.isEnabled = false
                         binding.btnSendPrompt.visibility = View.GONE
@@ -234,6 +235,23 @@ class ChatFragment :
                 }
             }
         }
+
+        // This separate observer efficiently updates the timer text whenever the time changes
+        viewLifecycleOwner.lifecycleScope.launch {
+            chatViewModel.elapsedTime.collect { timeInMillis ->
+                val currentState = chatViewModel.agentState.value
+                if (currentState is AgentState.Processing) {
+                    val elapsedTimeFormatted = formatElapsedTime(timeInMillis)
+                    binding.agentStatusText.text = "${currentState.message}${elapsedTimeFormatted}"
+                }
+            }
+        }
+    }
+
+    private fun formatElapsedTime(millis: Long): String {
+        if (millis == 0L) return ""
+        val seconds = millis / 1000.0
+        return String.format(Locale.US, " (%.1fs)", seconds)
     }
 
     private fun updateUIState(messages: List<ChatMessage>) {
