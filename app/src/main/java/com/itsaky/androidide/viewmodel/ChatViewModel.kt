@@ -163,9 +163,21 @@ class ChatViewModel(
                 if (e is kotlinx.coroutines.CancellationException) {
                     updateMessageInCurrentSession(
                         messageId = messageIdToUpdate,
-                        newText = "Operation cancelled.",
+                        newText = "Operation cancelled by user.",
                         newStatus = MessageStatus.ERROR
                     )
+
+                    // Get the partial report and add it as a new message
+                    val partialReport = geminiRepository.getPartialReport()
+                    if (partialReport.isNotBlank()) {
+                        addMessageToCurrentSession(
+                            ChatMessage(
+                                text = partialReport,
+                                sender = ChatMessage.Sender.SYSTEM,
+                                status = MessageStatus.SENT
+                            )
+                        )
+                    }
                 } else {
                     updateMessageInCurrentSession(
                         messageId = messageIdToUpdate,
@@ -175,7 +187,6 @@ class ChatViewModel(
                     )
                 }
             } finally {
-                // When the entire operation is finished (or fails), reset the state to Idle.
                 _agentState.value = AgentState.Idle
             }
         }

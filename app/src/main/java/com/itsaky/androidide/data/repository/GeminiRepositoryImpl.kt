@@ -239,4 +239,8 @@ class GeminiRepositoryImpl(
         val response = codeGenerationModel.generateContent(contextPrompt)
         return response.text ?: throw Exception("Failed to get a valid response from the API.")
     }
+
+    override fun getPartialReport(): String {
+        return toolTracker.generatePartialReport()
+    }
 }

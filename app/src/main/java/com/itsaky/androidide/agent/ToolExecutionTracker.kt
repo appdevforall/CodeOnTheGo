@@ -28,10 +28,21 @@ class ToolExecutionTracker {
         }
 
         val totalDuration = System.currentTimeMillis() - operationStartTime
+        return buildReport("✅ **Operation Complete**", totalDuration)
+    }
+
+    fun generatePartialReport(): String {
+        if (toolsUsed.isEmpty()) {
+            return "🛑 **Operation Cancelled**\n\nNo tools were executed before cancellation."
+        }
+        val totalDuration = System.currentTimeMillis() - operationStartTime
+        return buildReport("🛑 **Operation Cancelled**", totalDuration)
+    }
+
+    private fun buildReport(title: String, totalDuration: Long): String {
         val toolCounts = toolsUsed.groupingBy { it.name }.eachCount()
 
-        val reportBuilder =
-            StringBuilder("✅ **Operation Complete** (Total: ${formatTime(totalDuration)})\n\n")
+        val reportBuilder = StringBuilder("$title (Total: ${formatTime(totalDuration)})\n\n")
         reportBuilder.append("**Tool Execution Report:**\n")
         reportBuilder.append("Sequence:\n")
         toolsUsed.forEachIndexed { index, log ->

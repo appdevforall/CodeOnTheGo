@@ -11,7 +11,7 @@ interface GeminiRepository {
     var onToolCall: ((FunctionCallPart) -> Unit)?
     var onToolMessage: ((String) -> Unit)?
     var onAskUser: ((question: String, options: List<String>) -> Unit)?
-
+    fun getPartialReport(): String
     suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse
     suspend fun generateCode(
         prompt: String,
