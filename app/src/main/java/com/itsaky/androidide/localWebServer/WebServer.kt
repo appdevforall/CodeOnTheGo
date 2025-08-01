@@ -331,7 +331,7 @@ class WebServer(private val config: ServerConfig) {
         val dir = sourceFile.parentFile
         val fileName = sourceFile.nameWithoutExtension
         val classFile = File(dir, "$fileName.class")
-        val filePath = "/storage/emulated/0/AndroidIDEProjects/Playground.java"
+        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
         val directoryPath = config.applicationContext.filesDir
         val javacPath = "$directoryPath/usr/bin/javac"
         val javaPath = "$directoryPath/usr/bin/java"
