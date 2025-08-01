@@ -177,10 +177,20 @@ class GeminiRepositoryImpl(
             )
 
             "run_app" -> ideApi.runApp()
-//            "add_dependency" -> ideApi.addDependency(
-//                dependencyString = functionCall.args["dependency_string"].toString(),
-//                buildFilePath = functionCall.args["build_file_path"].toString()
-//            )
+            "add_dependency" -> {
+                val dependencyString =
+                    (functionCall.args["dependency_string"] as? JsonPrimitive)?.content ?: ""
+                val buildFilePath =
+                    (functionCall.args["build_file_path"] as? JsonPrimitive)?.content ?: ""
+                if (dependencyString.isEmpty()) {
+                    ToolResult.failure("The 'dependency_string' parameter is required.")
+                } else {
+                    ideApi.addDependency(
+                        dependencyString = dependencyString,
+                        buildFilePath = buildFilePath
+                    )
+                }
+            }
 
             "get_build_output" -> ideApi.getBuildOutput()
 

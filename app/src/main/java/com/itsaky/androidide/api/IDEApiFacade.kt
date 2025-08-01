@@ -4,6 +4,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
+import com.itsaky.androidide.api.commands.AddDependencyCommand
 import com.itsaky.androidide.api.commands.AddStringResourceCommand
 import com.itsaky.androidide.api.commands.GetBuildOutputCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
@@ -60,10 +61,10 @@ object IDEApiFacade {
         }
     }
 
-//    fun addDependency(dependencyString: String, buildFilePath: String): ToolResult {
-//        val finalPath = buildFilePath.ifEmpty { "app/build.gradle.kts" }
-//        return AddDependencyCommand(finalPath, dependencyString).execute()
-//    }
+    fun addDependency(dependencyString: String, buildFilePath: String): ToolResult {
+        val finalPath = if (buildFilePath.isEmpty()) "app/build.gradle.kts" else buildFilePath
+        return AddDependencyCommand(finalPath, dependencyString).execute()
+    }
 
     fun updateFile(path: String, content: String): ToolResult {
         val command = UpdateFileCommand(path, content)
