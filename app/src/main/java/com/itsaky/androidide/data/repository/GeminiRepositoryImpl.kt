@@ -149,7 +149,7 @@ class GeminiRepositoryImpl(
         )
     }
 
-    private fun executeTool(functionCall: FunctionCallPart): ToolResult {
+    private suspend fun executeTool(functionCall: FunctionCallPart): ToolResult {
         return when (functionCall.name) {
             "create_file" -> {
                 val path = (functionCall.args["path"] as? JsonPrimitive)?.content ?: ""

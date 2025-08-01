@@ -1,5 +1,6 @@
 package com.itsaky.androidide.data
 
+import android.util.Log
 import com.google.gson.Gson
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
@@ -76,6 +77,24 @@ class ChatStorageManager(private val storageDir: File) {
         val sessionsToDelete = existingFileIds - currentSessionIds
         sessionsToDelete.forEach { sessionId ->
             File(storageDir, "$sessionId.txt").delete()
+        }
+    }
+
+    /**
+     * Saves a single chat session to its corresponding file.
+     * This is more efficient than saveAllSessions for updating a single active chat.
+     */
+    fun saveSession(session: ChatSession) {
+        try {
+            val sessionFile = File(storageDir, "${session.id}.txt")
+            // Serialize each message to a JSON string and join with newlines
+            val content = session.messages.joinToString("\n") { message ->
+                gson.toJson(message)
+            }
+            sessionFile.writeText(content)
+        } catch (e: Exception) {
+            // It's good practice to handle potential I/O errors
+            Log.e("ChatStorageManager", "Error saving session ${session.id}", e)
         }
     }
 }

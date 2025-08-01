@@ -7,7 +7,6 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.ai.type.FunctionCallPart
-import com.google.gson.Gson
 import com.itsaky.androidide.data.ChatStorageManager
 import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.models.AgentState
@@ -31,8 +30,6 @@ class ChatViewModel(
     private val _currentSession = MutableLiveData<ChatSession?>()
     val currentSession: LiveData<ChatSession?> = _currentSession
 
-    private val gson = Gson()
-
     private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
     val agentState = _agentState.asStateFlow()
 
@@ -46,11 +43,14 @@ class ChatViewModel(
 
 
     private var agentJob: Job? = null
-
+    private var saveJob: Job? = null
     private val chatStorageManager: ChatStorageManager
 
     companion object {
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
+
+        // Set a debounce window (e.g., 500 milliseconds)
+        private const val SAVE_DEBOUNCE_MS = 500L
     }
 
     init {
@@ -218,7 +218,9 @@ class ChatViewModel(
         val session = _currentSession.value ?: return
         session.messages.add(message)
         _currentSession.postValue(session)
+        scheduleSaveCurrentSession()
     }
+
 
     private fun updateMessageInCurrentSession(
         messageId: String,
@@ -235,6 +237,7 @@ class ChatViewModel(
                 status = newStatus
             )
             _currentSession.postValue(session)
+            scheduleSaveCurrentSession()
         }
     }
 
@@ -253,13 +256,14 @@ class ChatViewModel(
         _currentSession.value = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
     }
 
-    fun saveSessions(prefs: SharedPreferences) {
-        // Save all chat sessions to their respective files
+    fun saveAllSessionsAndState(prefs: SharedPreferences) {
+        saveJob?.cancel()
+        _currentSession.value?.let { chatStorageManager.saveSession(it) }
+
         _sessions.value?.let {
             chatStorageManager.saveAllSessions(it)
         }
 
-        // Continue using SharedPreferences to remember the current session ID
         _currentSession.value?.let {
             prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
         }
@@ -268,10 +272,17 @@ class ChatViewModel(
     fun createNewSession() {
         val newSession = ChatSession()
         _sessions.value?.add(0, newSession)
+        _sessions.postValue(_sessions.value)
         _currentSession.value = newSession
+        scheduleSaveCurrentSession()
     }
 
+
     fun setCurrentSession(sessionId: String) {
+        // Before switching, ensure the current session is saved
+        saveJob?.cancel()
+        _currentSession.value?.let { chatStorageManager.saveSession(it) }
+
         val session = _sessions.value?.find { it.id == sessionId }
         if (session != null) {
             _currentSession.value = session
@@ -301,5 +312,17 @@ class ChatViewModel(
         timerJob?.cancel()
         _totalElapsedTime.value = 0L
         _stepElapsedTime.value = 0L
+    }
+
+    private fun scheduleSaveCurrentSession() {
+        // Cancel any previously scheduled save
+        saveJob?.cancel()
+        // Launch a new coroutine to save after a delay
+        saveJob = viewModelScope.launch {
+            delay(SAVE_DEBOUNCE_MS)
+            _currentSession.value?.let {
+                chatStorageManager.saveSession(it)
+            }
+        }
     }
 }

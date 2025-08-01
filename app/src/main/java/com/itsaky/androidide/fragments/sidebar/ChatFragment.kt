@@ -273,7 +273,7 @@ class ChatFragment :
 
     override fun onPause() {
         super.onPause()
-        chatViewModel.saveSessions(requireActivity().getPreferences(Context.MODE_PRIVATE))
+        chatViewModel.saveAllSessionsAndState(requireActivity().getPreferences(Context.MODE_PRIVATE))
     }
 
     private fun updateContextChips() {

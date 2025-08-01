@@ -3,6 +3,8 @@ package com.itsaky.androidide.api
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
+import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.api.commands.AddDependencyCommand
 import com.itsaky.androidide.api.commands.AddStringResourceCommand
 import com.itsaky.androidide.api.commands.GetBuildOutputCommand
@@ -11,10 +13,12 @@ import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
 import com.itsaky.androidide.api.commands.UpdateFileCommand
 import com.itsaky.androidide.data.model.ToolResult
+import com.itsaky.androidide.projects.builder.BuildResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * The single, clean entry point for the AI agent to interact with the IDE.
@@ -32,21 +36,37 @@ object IDEApiFacade {
 
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
 
-    fun runApp(): ToolResult {
-        val activity = ActionContextProvider.getActivity()
+    suspend fun runApp(): ToolResult {
+        val activity = ActionContextProvider.getActivity() as? EditorHandlerActivity
             ?: return ToolResult.failure("No active IDE window to launch the app.")
 
-        val action: ActionItem = ActionsRegistry.getInstance()
+        val action = ActionsRegistry.getInstance()
             .findAction(ActionItem.Location.EDITOR_TOOLBAR, "ide.editor.build.quickRun")
             ?: return ToolResult.failure("Launch App action is not available.")
 
         val actionData = ActionData.create(activity)
 
-        coroutineScope.launch {
-            action.execAction(actionData)
-        }
+        // Use suspendCancellableCoroutine to wait for the callback
+        return suspendCancellableCoroutine { continuation ->
+            // Define the listener that will resume the coroutine
+            val listener = java.util.function.Consumer<BuildResult> { result ->
+                if (result.isSuccess) {
+                    continuation.resume(ToolResult.success("Build successful. ${result.message}"))
+                } else {
+                    continuation.resume(ToolResult.failure("Build failed: ${result.message}"))
+                }
+            }
 
-        return ToolResult.success("App run command initiated successfully.")
+            // Register the one-time listener
+            activity.addOneTimeBuildResultListener(listener)
+
+            // Trigger the build. Use the registry's executeAction for proper dispatching.
+            (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
+                action,
+                actionData
+            )
+                ?: continuation.resume(ToolResult.failure("Failed to get action registry instance."))
+        }
     }
 
     fun addDependency(dependencyString: String, buildFilePath: String): ToolResult {

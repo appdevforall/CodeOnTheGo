@@ -59,6 +59,7 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
@@ -75,7 +76,9 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.function.Consumer
 import kotlin.collections.set
 
 
@@ -85,6 +88,8 @@ import kotlin.collections.set
  * @author Akash Yadav
  */
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
+
+  private val singleBuildListeners = CopyOnWriteArrayList<Consumer<BuildResult>>()
 
   companion object {
     const val PREF_KEY_OPEN_FILES_CACHE = "open_files_cache_v1"
@@ -820,6 +825,26 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
           tab.text = name
         }
       }
+    }
+  }
+
+
+  /**
+   * Adds a one-time listener that will be invoked when the current build process finishes.
+   * The listener will be automatically removed after being called.
+   */
+  fun addOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
+    singleBuildListeners.add(listener)
+  }
+
+  /**
+   * Called by [EditorBuildEventListener] to notify all registered listeners of the build result.
+   */
+  fun notifyBuildResult(result: BuildResult) {
+    // Ensure this runs on the main thread if UI updates are needed from listeners
+    runOnUiThread {
+      singleBuildListeners.forEach { it.accept(result) }
+      singleBuildListeners.clear()
     }
   }
 }
