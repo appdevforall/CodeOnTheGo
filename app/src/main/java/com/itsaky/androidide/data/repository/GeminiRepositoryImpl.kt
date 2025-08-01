@@ -61,7 +61,7 @@ class GeminiRepositoryImpl(
     override suspend fun generateASimpleResponse(
         prompt: String,
         history: List<ChatMessage>
-    ): String {
+    ): AgentResponse {
         val routerPrompt = """
             Analyze the following user prompt and determine the primary intent.
             Respond with a single word: CODE, SEARCH, or OTHER.
@@ -78,47 +78,46 @@ class GeminiRepositoryImpl(
         return when (routeResult) {
             "CODE" -> executeCodeRequest(prompt, history)
             "SEARCH" -> executeSearchRequest(prompt)
-            else -> executeSearchRequest(prompt) // Default to search for general conversation
+            else -> executeSearchRequest(prompt)
         }
     }
 
-    private suspend fun executeSearchRequest(prompt: String): String {
+    private suspend fun executeSearchRequest(prompt: String): AgentResponse {
         val response = searchModel.generateContent(prompt)
-        return response.text ?: "I couldn't find an answer for that."
+        val text = response.text ?: "I couldn't find an answer for that."
+        return AgentResponse(text = text, report = "")
     }
 
-    private suspend fun executeCodeRequest(prompt: String, history: List<ChatMessage>): String {
+    private suspend fun executeCodeRequest(
+        prompt: String,
+        history: List<ChatMessage>
+    ): AgentResponse {
         val apiHistory = history.map { message ->
             content(role = if (message.sender == ChatMessage.Sender.USER) "user" else "model") {
                 text(message.text)
             }
         }.toMutableList()
-
         apiHistory.add(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
 
-        // Track tool usage for the final report
         val toolsUsed = mutableListOf<String>()
 
-        // The tool-calling loop now uses the functionCallingModel
         for (i in 1..10) {
-            // Update state: Waiting for model
             onStateUpdate?.invoke(AgentState.Processing("Thinking..."))
             val response = functionCallingModel.generateContent(apiHistory)
 
             val functionCalls = response.functionCalls
             if (functionCalls.isEmpty()) {
                 val finalReport = generateFinalReport(toolsUsed)
-                // Combine the model's text response with the report
-                return (response.text ?: "Operation complete.") + "\n\n" + finalReport
+                val responseText = response.text ?: "Operation complete."
+                return AgentResponse(text = responseText, report = finalReport)
             }
 
             response.candidates.firstOrNull()?.content?.let { apiHistory.add(it) }
 
             val toolResponses = functionCalls.map { functionCall ->
-                // Update state: Executing a tool
                 onStateUpdate?.invoke(AgentState.Processing("Executing tool: `${functionCall.name}`"))
-                toolsUsed.add(functionCall.name) // Track the tool call
+                toolsUsed.add(functionCall.name)
 
                 onToolCall?.invoke(functionCall)
                 val result: ToolResult = executeTool(functionCall)
@@ -134,15 +133,15 @@ class GeminiRepositoryImpl(
         }
 
         val finalReport = generateFinalReport(toolsUsed)
-        return "The request exceeded the maximum number of tool calls.\n\n$finalReport"
+        return AgentResponse(
+            text = "The request exceeded the maximum number of tool calls.",
+            report = finalReport
+        )
     }
 
-    /**
-     * Creates a formatted summary of the tools that were used during the request.
-     */
     private fun generateFinalReport(toolsUsed: List<String>): String {
         if (toolsUsed.isEmpty()) {
-            return "✅ **Operation Complete**\n\nNo tools were needed to fulfill this request."
+            return "✅ **Operation Complete**\n\nNo tools were needed for this request."
         }
 
         val toolCounts = toolsUsed.groupingBy { it }.eachCount()

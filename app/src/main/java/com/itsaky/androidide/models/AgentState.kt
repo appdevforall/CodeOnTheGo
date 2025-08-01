@@ -7,6 +7,6 @@ sealed class AgentState {
     /** The agent is idle and ready for a new prompt. */
     data object Idle : AgentState()
 
-    /** The agent is actively working on a request. */
+    /** The agent is actively working on a request, with a specific status message. */
     data class Processing(val message: String) : AgentState()
 }

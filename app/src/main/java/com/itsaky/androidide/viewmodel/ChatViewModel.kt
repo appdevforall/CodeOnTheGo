@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.ai.type.FunctionCallPart
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.data.repository.AgentResponse
 import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
@@ -118,14 +119,30 @@ class ChatViewModel(
     ) {
         agentJob = viewModelScope.launch {
             try {
-                val history = _currentSession.value?.messages?.toList() ?: emptyList()
-                val response = geminiRepository.generateASimpleResponse(prompt, history)
+                // Agent state is now handled by the repository callback
 
+                val history = _currentSession.value?.messages?.toList() ?: emptyList()
+                val agentResponse: AgentResponse =
+                    geminiRepository.generateASimpleResponse(prompt, history)
+
+                // Update the original loading message with the main text
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
-                    newText = response,
+                    newText = agentResponse.text,
                     newStatus = MessageStatus.SENT
                 )
+
+                // If there's a report, add it as a new system message
+                if (agentResponse.report.isNotBlank()) {
+                    addMessageToCurrentSession(
+                        ChatMessage(
+                            text = agentResponse.report,
+                            sender = ChatMessage.Sender.SYSTEM,
+                            status = MessageStatus.SENT
+                        )
+                    )
+                }
+
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) {
                     updateMessageInCurrentSession(

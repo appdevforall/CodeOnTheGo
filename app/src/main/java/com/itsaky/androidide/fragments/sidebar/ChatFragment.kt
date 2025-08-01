@@ -216,14 +216,17 @@ class ChatFragment :
             chatViewModel.agentState.collect { state ->
                 when (state) {
                     is AgentState.Idle -> {
-                        // Not processing: enable input, show send button
+                        // Hide status, enable input, show send button
+                        binding.agentStatusText.isVisible = false
                         binding.promptInputLayout.isEnabled = true
                         binding.btnSendPrompt.visibility = View.VISIBLE
                         binding.btnStopGeneration.visibility = View.GONE
                     }
 
                     is AgentState.Processing -> {
-                        // Processing: disable input, show stop button
+                        // Show status with message, disable input, show stop button
+                        binding.agentStatusText.text = state.message
+                        binding.agentStatusText.isVisible = true
                         binding.promptInputLayout.isEnabled = false
                         binding.btnSendPrompt.visibility = View.GONE
                         binding.btnStopGeneration.visibility = View.VISIBLE
