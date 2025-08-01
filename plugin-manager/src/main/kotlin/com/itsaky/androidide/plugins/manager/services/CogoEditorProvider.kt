@@ -1,36 +1,21 @@
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
+
 
 package com.itsaky.androidide.plugins.manager.services
 
 import java.io.File
 
 /**
- * AndroidIDE-specific implementation of EditorProvider that integrates with
- * the actual AndroidIDE editor system.
+ * COGO-specific implementation of EditorProvider that integrates with
+ * the actual COGO editor system.
  */
 class AndroidIdeEditorProvider : IdeEditorServiceImpl.EditorProvider {
 
-    // TODO: Inject actual AndroidIDE editor/view model references
+    // TODO: Inject actual COGO editor/view model references
     // private val editorViewModel: EditorViewModel
     // private val editorActivity: EditorActivity
     
     override fun getCurrentFile(): File? {
-        // TODO: Integrate with AndroidIDE's EditorViewModel.getCurrentFile()
+        // TODO: Integrate with COGO's EditorViewModel.getCurrentFile()
         // For now, return null to indicate no file is currently open
         // In the actual implementation, this would call:
         // return editorViewModel.getCurrentFile()
@@ -39,7 +24,7 @@ class AndroidIdeEditorProvider : IdeEditorServiceImpl.EditorProvider {
     }
 
     override fun getOpenFiles(): List<File> {
-        // TODO: Integrate with AndroidIDE's editor tabs/opened files tracking
+        // TODO: Integrate with COGO's editor tabs/opened files tracking
         // For now, return empty list
         // In the actual implementation, this would call:
         // return editorViewModel.getOpenedFiles() or similar
@@ -69,10 +54,10 @@ class AndroidIdeEditorProvider : IdeEditorServiceImpl.EditorProvider {
 }
 
 /**
- * Enhanced AndroidIDE editor provider that will integrate with actual AndroidIDE components.
+ * Enhanced COGO editor provider that will integrate with actual COGO components.
  * This shows how the provider would look when properly integrated.
  */
-class AndroidIdeEditorProviderIntegrated(
+class COGOEditorProviderIntegrated(
     // These would be injected from AndroidIDE's dependency injection system
     // private val editorViewModel: EditorViewModel,
     // private val editorActivity: EditorActivity

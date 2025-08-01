@@ -124,7 +124,6 @@ include(
   ":logsender-sample",
   ":lookup",
   ":plugin-api",
-  ":plugin-api-java",
   ":plugin-manager",
   ":preferences",
   ":resources",

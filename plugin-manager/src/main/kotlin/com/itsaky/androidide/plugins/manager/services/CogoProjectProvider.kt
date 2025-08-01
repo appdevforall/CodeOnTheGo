@@ -1,19 +1,4 @@
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
+
 
 package com.itsaky.androidide.plugins.manager.services
 
@@ -22,54 +7,45 @@ import com.itsaky.androidide.plugins.extensions.IModule
 import com.itsaky.androidide.plugins.extensions.ProjectType
 import com.itsaky.androidide.plugins.extensions.ModuleType
 import com.itsaky.androidide.plugins.extensions.SourceSet
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import java.io.File
 
 /**
- * AndroidIDE-specific implementation of ProjectProvider that integrates with
- * the actual AndroidIDE project management system.
+ * Cogo-specific implementation of ProjectProvider that integrates with
+ * the actual Cogo project management system.
  */
-class AndroidIdeProjectProvider : IdeProjectServiceImpl.ProjectProvider {
+class CogoProjectProvider : IdeProjectServiceImpl.ProjectProvider {
 
     override fun getCurrentProject(): IProject? {
         return try {
-            // Use the same approach as MainActivity.openProject() - access ProjectManagerImpl directly
-            val projectManagerClass = Class.forName("com.itsaky.androidide.projects.ProjectManagerImpl")
-            val getInstanceMethod = projectManagerClass.getMethod("getInstance")
-            val projectManager = getInstanceMethod.invoke(null)
+            // Get the current project path from preferences, same approach as MainActivity
+            val projectPath = GeneralPreferences.lastOpenedProject
             
-            // Get project directory and root project using the same interface as IProjectManager
-            val projectDirMethod = projectManagerClass.getMethod("getProjectDir")
-            val rootProjectMethod = projectManagerClass.getMethod("getRootProject")
-            
-            val projectDir = projectDirMethod.invoke(projectManager) as? File
-            val rootProject = rootProjectMethod.invoke(projectManager)
-            
-            if (rootProject != null && projectDir != null) {
-                // Get project name from the root project
-                val rootProjectField = rootProject.javaClass.getField("rootProject")
-                val gradleRootProject = rootProjectField.get(rootProject)
-                val nameField = gradleRootProject.javaClass.getField("name")
-                val projectName = nameField.get(gradleRootProject) as String
-                
-                AndroidIdeProject(
-                    name = projectName,
-                    rootDir = projectDir,
-                    type = when {
-                        hasAndroidModule(projectDir) -> ProjectType.ANDROID_APP
-                        else -> ProjectType.GRADLE_PLUGIN
-                    }
-                )
+            if (projectPath.isNotEmpty() && projectPath != GeneralPreferences.NO_OPENED_PROJECT) {
+                val projectDir = File(projectPath)
+                if (projectDir.exists()) {
+                    CogoProject(
+                        name = projectDir.name,
+                        rootDir = projectDir,
+                        type = when {
+                            hasAndroidModule(projectDir) -> ProjectType.ANDROID_APP
+                            else -> ProjectType.GRADLE_PLUGIN
+                        }
+                    )
+                } else {
+                    null
+                }
             } else {
                 null
             }
         } catch (_: Exception) {
-            // If project manager access fails, return null
+            // If preferences access fails, return null
             null
         }
     }
 
     override fun getAllProjects(): List<IProject> {
-        // AndroidIDE typically works with one project at a time
+        // COGO typically works with one project at a time
         // Return the current project as a single-item list
         val currentProject = getCurrentProject()
         return if (currentProject != null) {
@@ -92,7 +68,7 @@ class AndroidIdeProjectProvider : IdeProjectServiceImpl.ProjectProvider {
         
         // If not the current project, check if it's a valid Android project
         return if (hasAndroidModule(path)) {
-            AndroidIdeProject(
+            CogoProject(
                 name = path.name,
                 rootDir = path,
                 type = ProjectType.ANDROID_APP
@@ -112,9 +88,9 @@ class AndroidIdeProjectProvider : IdeProjectServiceImpl.ProjectProvider {
 }
 
 /**
- * Implementation of IProject for AndroidIDE projects
+ * Implementation of IProject for COGO projects
  */
-private class AndroidIdeProject(
+private class CogoProject(
     override val name: String,
     override val rootDir: File,
     override val type: ProjectType
@@ -126,7 +102,7 @@ private class AndroidIdeProject(
         // Check for app module
         val appDir = File(rootDir, "app")
         if (appDir.exists() && appDir.isDirectory) {
-            modules.add(AndroidIdeModule(
+            modules.add(CogoModule(
                 name = "app",
                 type = ModuleType.ANDROID_APP,
                 projectDir = appDir
@@ -164,9 +140,9 @@ private class AndroidIdeProject(
 }
 
 /**
- * Implementation of IModule for AndroidIDE modules
+ * Implementation of IModule for Cogo modules
  */
-private class AndroidIdeModule(
+private class CogoModule(
     override val name: String,
     override val type: ModuleType,
     override val projectDir: File

@@ -1,29 +1,11 @@
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
+
 
 package com.itsaky.androidide.activities
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.core.graphics.Insets
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -35,7 +17,6 @@ import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -68,7 +49,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
             setSupportActionBar(binding.toolbar)
             supportActionBar?.apply {
-                title = "Plugin Manager"
+                title = getString(R.string.title_plugin_manager)
                 setDisplayHomeAsUpEnabled(true)
             }
 
@@ -123,6 +104,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun loadPlugins() {
         // Add a safety check for plugin manager
         val manager = pluginManager
@@ -159,6 +141,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun openFilePicker() {
         val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
             type = "*/*"
@@ -167,11 +150,11 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         }
         
         try {
-            startActivityForResult(
+             startActivityForResult(
                 Intent.createChooser(intent, "Select Plugin File"),
                 REQUEST_CODE_PICK_PLUGIN
             )
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             flashError("No file manager found")
         }
     }
@@ -179,13 +162,14 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
-        if (requestCode == REQUEST_CODE_PICK_PLUGIN && resultCode == Activity.RESULT_OK) {
+        if (requestCode == REQUEST_CODE_PICK_PLUGIN && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 installPlugin(uri)
             }
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun installPlugin(uri: Uri) {
         GlobalScope.launch(Dispatchers.IO) {
             try {
@@ -214,11 +198,11 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
                 val result = manager.loadPlugin(pluginFile)
                 
                 withContext(Dispatchers.Main) {
-                    if (result?.isSuccess == true) {
+                    if (result.isSuccess == true) {
                         flashSuccess("Plugin installed successfully")
                         loadPlugins()
                     } else {
-                        flashError("Failed to install plugin: ${result?.exceptionOrNull()?.message}")
+                        flashError("Failed to install plugin: ${result.exceptionOrNull()?.message}")
                     }
                 }
             } catch (e: Exception) {
@@ -237,6 +221,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun enablePlugin(plugin: PluginInfo) {
         val manager = pluginManager
         if (manager == null) {
@@ -258,6 +243,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun disablePlugin(plugin: PluginInfo) {
         val manager = pluginManager
         if (manager == null) {
@@ -279,6 +265,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun uninstallPlugin(plugin: PluginInfo) {
         MaterialAlertDialogBuilder(this)
             .setTitle("Uninstall Plugin")
@@ -310,6 +297,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     private fun showPluginDetails(plugin: PluginInfo) {
         val details = buildString {
             append("Name: ${plugin.metadata.name}\n")
+            append("Plugin ID: ${plugin.metadata.id}\n")
             append("Version: ${plugin.metadata.version}\n")
             append("Author: ${plugin.metadata.author}\n")
             append("Description: ${plugin.metadata.description}\n")

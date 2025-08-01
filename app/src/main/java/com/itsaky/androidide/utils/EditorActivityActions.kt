@@ -165,36 +165,28 @@ class EditorActivityActions {
       try {
         val pluginManager = PluginManager.getInstance()
         if (pluginManager == null) {
-          android.util.Log.d("EditorActivityActions", "PluginManager not initialized, skipping plugin UI registration")
           return order
         }
 
         val loadedPlugins = pluginManager.getAllPluginInstances()
-        android.util.Log.d("EditorActivityActions", "Found ${loadedPlugins.size} loaded plugins")
-        
+
         for (plugin in loadedPlugins) {
           try {
             if (plugin is UIExtension) {
-              android.util.Log.d("EditorActivityActions", "Processing UIExtension plugin: ${plugin.javaClass.simpleName}")
-              
               // Register main menu contributions
               val menuItems = plugin.contributeToMainMenu()
-              android.util.Log.d("EditorActivityActions", "Plugin ${plugin.javaClass.simpleName} contributed ${menuItems.size} menu items")
-              
+
               for (menuItem in menuItems) {
                 val action = PluginActionItem(context, menuItem, order++)
                 registry.registerAction(action)
-                android.util.Log.d("EditorActivityActions", "Registered plugin action: ${action.id} - ${action.label}")
               }
             }
           } catch (e: Exception) {
             // Log error but continue with other plugins
-            android.util.Log.e("EditorActivityActions", "Error registering plugin UI for ${plugin.javaClass.simpleName}: ${e.message}", e)
           }
         }
       } catch (e: Exception) {
         // Log error but don't break the menu system
-        android.util.Log.e("EditorActivityActions", "Error in plugin integration: ${e.message}", e)
       }
       return order
     }

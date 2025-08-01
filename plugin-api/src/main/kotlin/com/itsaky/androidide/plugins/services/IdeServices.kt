@@ -6,7 +6,7 @@ import com.itsaky.androidide.plugins.extensions.IProject
 import java.io.File
 
 /**
- * Service interface that provides access to AndroidIDE project information.
+ * Service interface that provides access to COGO project information.
  * This service should be registered by AndroidIDE and made available to plugins
  * that have the FILESYSTEM_READ permission.
  */
@@ -32,8 +32,8 @@ interface IdeProjectService {
 }
 
 /**
- * Service interface that provides access to AndroidIDE editor state and open files.
- * This service should be registered by AndroidIDE and made available to plugins
+ * Service interface that provides access to COGO editor state and open files.
+ * This service should be registered by COGO and made available to plugins
  * that have the FILESYSTEM_READ permission.
  */
 interface IdeEditorService {
@@ -64,8 +64,8 @@ interface IdeEditorService {
 }
 
 /**
- * Service interface that provides access to AndroidIDE's UI context for dialogs and UI operations.
- * This service should be registered by AndroidIDE and made available to plugins
+ * Service interface that provides access to COGO's UI context for dialogs and UI operations.
+ * This service should be registered by COGO and made available to plugins
  * that need to show dialogs or perform UI operations.
  */
 interface IdeUIService {
@@ -80,4 +80,56 @@ interface IdeUIService {
      * @return true if UI operations can be performed, false otherwise
      */
     fun isUIAvailable(): Boolean
+}
+
+/**
+ * Service interface that provides access to COGO's build system status and operations.
+ * This service should be registered by COGO and made available to plugins
+ * that need to monitor build status or trigger builds.
+ */
+interface IdeBuildService {
+    /**
+     * Checks if a build/sync operation is currently in progress.
+     * @return true if a build is running, false otherwise
+     */
+    fun isBuildInProgress(): Boolean
+    
+    /**
+     * Checks if the Gradle tooling server is started and ready.
+     * @return true if the tooling server is available, false otherwise
+     */
+    fun isToolingServerStarted(): Boolean
+    
+    /**
+     * Registers a callback to be notified when build status changes.
+     * @param callback The callback to register
+     */
+    fun addBuildStatusListener(callback: BuildStatusListener)
+    
+    /**
+     * Unregisters a build status callback.
+     * @param callback The callback to unregister
+     */
+    fun removeBuildStatusListener(callback: BuildStatusListener)
+}
+
+/**
+ * Callback interface for build status changes.
+ */
+interface BuildStatusListener {
+    /**
+     * Called when a build starts.
+     */
+    fun onBuildStarted()
+    
+    /**
+     * Called when a build finishes successfully.
+     */
+    fun onBuildFinished()
+    
+    /**
+     * Called when a build fails or is cancelled.
+     * @param error The error message, or null if cancelled
+     */
+    fun onBuildFailed(error: String?)
 }

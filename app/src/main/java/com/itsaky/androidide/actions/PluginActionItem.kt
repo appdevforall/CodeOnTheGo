@@ -21,12 +21,7 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import com.itsaky.androidide.plugins.extensions.MenuItem
 
-/**
- * Adapter class that wraps a plugin MenuItem into an AndroidIDE ActionItem.
- * This enables plugin menu contributions to be integrated into the main action system.
- *
- * @author AndroidIDE Plugin System
- */
+
 class PluginActionItem(
     context: Context,
     private val menuItem: MenuItem,
@@ -37,7 +32,6 @@ class PluginActionItem(
 
     init {
         label = menuItem.title
-        // TODO: Support plugin icons in the future
         icon = null
         // Plugin menu items appear in the toolbar
         location = ActionItem.Location.EDITOR_TOOLBAR
@@ -46,10 +40,8 @@ class PluginActionItem(
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
-        // Plugin menu items are always enabled for now
-        // TODO: Support conditional enabling based on plugin logic
-        enabled = true
-        visible = true
+        enabled = menuItem.isEnabled
+        visible = menuItem.isVisible
     }
 
     override suspend fun execAction(data: ActionData): Any {

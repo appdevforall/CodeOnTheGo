@@ -1,19 +1,4 @@
-/*
- *  This file is part of AndroidIDE.
- *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- */
+
 
 package com.itsaky.androidide.plugins.manager
 
@@ -23,10 +8,12 @@ import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.IdeUIService
+import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
-import com.itsaky.androidide.plugins.manager.services.AndroidIdeProjectProvider
+import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
+import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.AndroidIdeEditorProvider
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -86,7 +73,7 @@ class PluginManager private constructor(
     private val pluginsDir = File(context.filesDir, "plugins")
     
     // IDE service providers
-    private val projectProvider = AndroidIdeProjectProvider()
+    private val projectProvider = CogoProjectProvider()
     private val editorProvider = AndroidIdeEditorProvider()
     
     init {
@@ -467,51 +454,43 @@ class PluginManager private constructor(
         
         // Only create services if providers are available, otherwise plugins will get null services
         // This prevents crashes but plugins should handle null service gracefully
-        
-        if (projectProvider != null) {
-            try {
-                val projectService = IdeProjectServiceImpl(
-                    pluginId = pluginId, 
-                    permissions = permissions, 
-                    projectProvider = projectProvider,
-                    requiredPermissions = projectServicePermissions,
-                    pathValidator = pathValidator?.let { validator ->
-                        object : IdeProjectServiceImpl.PathValidator {
-                            override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
-                            override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-                        }
+
+        try {
+            val projectService = IdeProjectServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                projectProvider = projectProvider,
+                requiredPermissions = projectServicePermissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeProjectServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
                     }
-                )
-                pluginServiceRegistry.register(IdeProjectService::class.java, projectService)
-                logger.debug("Registered project service for plugin: $pluginId")
-            } catch (e: Exception) {
-                logger.warn("Failed to create project service for plugin $pluginId: ${e.message}")
-            }
-        } else {
-            logger.warn("ProjectProvider not set - project service will not be available for plugin: $pluginId")
+                }
+            )
+            pluginServiceRegistry.register(IdeProjectService::class.java, projectService)
+            logger.debug("Registered project service for plugin: $pluginId")
+        } catch (e: Exception) {
+            logger.warn("Failed to create project service for plugin $pluginId: ${e.message}")
         }
-        
-        if (editorProvider != null) {
-            try {
-                val editorService = IdeEditorServiceImpl(
-                    pluginId = pluginId, 
-                    permissions = permissions, 
-                    editorProvider = editorProvider,
-                    requiredPermissions = editorServicePermissions,
-                    pathValidator = pathValidator?.let { validator ->
-                        object : IdeEditorServiceImpl.PathValidator {
-                            override fun isPathAllowed(file: File): Boolean = validator.isPathAllowed(file)
-                            override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-                        }
+
+        try {
+            val editorService = IdeEditorServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                editorProvider = editorProvider,
+                requiredPermissions = editorServicePermissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeEditorServiceImpl.PathValidator {
+                        override fun isPathAllowed(file: File): Boolean = validator.isPathAllowed(file)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
                     }
-                )
-                pluginServiceRegistry.register(IdeEditorService::class.java, editorService)
-                logger.debug("Registered editor service for plugin: $pluginId")
-            } catch (e: Exception) {
-                logger.warn("Failed to create editor service for plugin $pluginId: ${e.message}")
-            }
-        } else {
-            logger.warn("EditorProvider not set - editor service will not be available for plugin: $pluginId")
+                }
+            )
+            pluginServiceRegistry.register(IdeEditorService::class.java, editorService)
+            logger.debug("Registered editor service for plugin: $pluginId")
+        } catch (e: Exception) {
+            logger.warn("Failed to create editor service for plugin $pluginId: ${e.message}")
         }
         
         // UI service is always created, even if activityProvider is null
@@ -523,8 +502,16 @@ class PluginManager private constructor(
             logger.warn("Failed to create UI service for plugin $pluginId: ${e.message}")
         }
         
-        // Service registration is now handled above with proper error handling
+        // Build service is always created to provide build status information
+        try {
+            val buildService = IdeBuildServiceImpl()
+            pluginServiceRegistry.register(IdeBuildService::class.java, buildService)
+            logger.debug("Registered build service for plugin: $pluginId")
+        } catch (e: Exception) {
+            logger.warn("Failed to create build service for plugin $pluginId: ${e.message}")
+        }
         
+
         // Copy other services from global registry
         // TODO: Add mechanism to copy global services to plugin-specific registry
         
