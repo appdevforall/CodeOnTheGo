@@ -99,50 +99,6 @@ class HighOrderReadFileCommand(private val path: String) : Command<String> {
     }
 }
 
-class ListFilesCommand(
-    private val path: String,
-    private val recursive: Boolean
-) : Command<List<String>> {
-    override fun execute(): ToolResult {
-        return try {
-            val baseDir = IProjectManager.getInstance().projectDir
-            val targetDir = if (path.isEmpty()) baseDir else File(baseDir, path)
-            when {
-                !targetDir.exists() -> ToolResult(
-                    success = false, error_details = "Directory not found at path: $path",
-                    message = "",
-                    data = null
-                )
-
-                !targetDir.isDirectory -> ToolResult(
-                    success = false, error_details = "Path is not a directory: $path",
-                    message = "",
-                    data = null
-                )
-
-                else -> {
-                    val files = if (recursive) {
-                        targetDir.walkTopDown().map { it.relativeTo(baseDir).path }.toList()
-                    } else {
-                        targetDir.listFiles()?.map { it.relativeTo(baseDir).path } ?: emptyList()
-                    }
-                    ToolResult(
-                        success = true,
-                        message = "Files listed successfully.",
-                        data = files.joinToString("\n")
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            ToolResult(
-                success = false, error_details = "Failed to list files: ${e.message}",
-                message = "",
-                data = null
-            )
-        }
-    }
-}
-
 /**
  * Mock command to simulate adding a dependency to a build file.
  */
