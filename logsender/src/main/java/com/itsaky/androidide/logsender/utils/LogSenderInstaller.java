@@ -23,14 +23,12 @@ import android.app.Application;
 import android.app.BackgroundServiceStartNotAllowedException;
 import android.content.ContentProvider;
 import android.content.ContentValues;
-import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
+
 import com.itsaky.androidide.logsender.LogSender;
-import com.itsaky.androidide.logsender.LogSenderService;
 
 /**
  * Content providers are loaded before the application class is created. {@link LogSenderInstaller}
@@ -54,14 +52,14 @@ public class LogSenderInstaller extends ContentProvider {
     }
 
     try {
-      final Intent intent = new Intent(application, LogSenderService.class);
-      intent.setAction(LogSenderService.ACTION_START_SERVICE);
+//      final Intent intent = new Intent(application, LogSenderService.class);
+//      intent.setAction(LogSenderService.ACTION_START_SERVICE);
 
-      if (VERSION.SDK_INT >= VERSION_CODES.O) {
-        application.startForegroundService(intent);
-      } else {
-        application.startService(intent);
-      }
+//      if (VERSION.SDK_INT >= VERSION_CODES.O) {
+//        application.startForegroundService(intent);
+//      } else {
+//        application.startService(intent);
+//      }
     } catch (Exception e) {
 
       // starting a background service is not allowed on Android 12+

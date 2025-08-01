@@ -31,9 +31,5 @@
       android:authorities="${applicationId}.logsender-installer"
       android:enabled="@bool/logsender_enabled"
       android:exported="false" />
-    <service
-      android:name=".LogSenderService"
-      android:foregroundServiceType="dataSync"
-      android:exported="false" />
   </application>
 </manifest>
