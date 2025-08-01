@@ -81,6 +81,7 @@ class IDEApplication : TermuxApplication() {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
     private var pluginManager: PluginManager? = null
+    private var currentActivity: android.app.Activity? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
 
@@ -96,6 +97,39 @@ class IDEApplication : TermuxApplication() {
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
+    /**
+     * Sets up the plugin service providers to integrate with AndroidIDE's actual systems.
+     */
+    private fun setupPluginServices() {
+        pluginManager?.let { manager ->
+            // Set up activity provider for UI services
+            manager.setActivityProvider(object : PluginManager.ActivityProvider {
+                override fun getCurrentActivity(): android.app.Activity? {
+                    // Get the current activity from AndroidIDE's activity tracker
+                    return getCurrentActiveActivity()
+                }
+            })
+            
+            log.info("Plugin services configured successfully")
+        }
+    }
+    
+    /**
+     * Gets the current active activity from AndroidIDE.
+     * This method should return the currently visible activity.
+     */
+    private fun getCurrentActiveActivity(): android.app.Activity? {
+        return currentActivity
+    }
+    
+    /**
+     * Called by activities when they become active/visible.
+     * This is used for plugin UI service integration.
+     */
+    fun setCurrentActivity(activity: android.app.Activity?) {
+        this.currentActivity = activity
+        log.debug("Current activity set to: ${activity?.javaClass?.simpleName}")
+    }
 
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
@@ -167,6 +201,9 @@ class IDEApplication : TermuxApplication() {
                 eventBus = EventBus.getDefault(),
                 logger = pluginLogger
             )
+            
+            // Set up plugin service providers
+            setupPluginServices()
 
             // Load plugins asynchronously
             applicationScope.launch {
@@ -329,6 +366,7 @@ class IDEApplication : TermuxApplication() {
         lateinit var instance: IDEApplication
             private set
 
+        @JvmStatic
         fun getPluginManager(): PluginManager? {
             return instance.pluginManager
         }

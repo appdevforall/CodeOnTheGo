@@ -30,8 +30,12 @@ import com.itsaky.androidide.fragments.SearchResultFragment;
 import com.itsaky.androidide.fragments.output.AppLogFragment;
 import com.itsaky.androidide.fragments.output.BuildOutputFragment;
 import com.itsaky.androidide.fragments.output.IDELogFragment;
+import com.itsaky.androidide.plugins.extensions.TabItem;
+import com.itsaky.androidide.plugins.extensions.UIExtension;
+import com.itsaky.androidide.app.IDEApplication;
 import com.itsaky.androidide.resources.R;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +50,8 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
 
     var index = -1;
     this.fragments = new ArrayList<>();
+    
+    // Add core built-in tabs
     this.fragments.add(
         new Tab(
             fragmentActivity.getString(R.string.build_output),
@@ -70,6 +76,9 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
                     fragmentActivity.getString(R.string.debugger_title),
                     DebuggerFragment.class,
                     ++index));
+    
+    // Add plugin-contributed tabs
+    addPluginTabs(++index);
   }
 
   public Fragment getFragmentAtIndex(int index) {
@@ -105,6 +114,13 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
   public Fragment createFragment(int position) {
     try {
       final var tab = fragments.get(position);
+      
+      // Use fragment factory if available (for plugin fragments)
+      if (tab.fragmentFactory != null) {
+        return tab.fragmentFactory.get();
+      }
+      
+      // Fall back to class-based instantiation for built-in fragments
       final var klass = Class.forName(tab.name).asSubclass(Fragment.class);
       final var constructor = klass.getDeclaredConstructor();
       constructor.setAccessible(true);
@@ -168,16 +184,74 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
     return -1;
   }
 
+  private void addPluginTabs(int startIndex) {
+    try {
+      final var pluginManager = IDEApplication.getPluginManager();
+      if (pluginManager == null) {
+        LOG.debug("PluginManager not initialized, skipping plugin tab registration");
+        return;
+      }
+
+      final var loadedPlugins = pluginManager.getAllPluginInstances();
+      LOG.debug("Found {} loaded plugins for tab registration", loadedPlugins.size());
+      
+      final var pluginTabs = new ArrayList<TabItem>();
+      
+      for (final var plugin : loadedPlugins) {
+        try {
+          if (plugin instanceof UIExtension) {
+            LOG.debug("Processing UIExtension plugin: {}", plugin.getClass().getSimpleName());
+            
+            final var tabItems = ((UIExtension) plugin).contributeToEditorBottomSheet();
+            LOG.debug("Plugin {} contributed {} tab items", plugin.getClass().getSimpleName(), tabItems.size());
+            
+            for (final var tabItem : tabItems) {
+              if (tabItem.isEnabled() && tabItem.isVisible()) {
+                pluginTabs.add(tabItem);
+                LOG.debug("Added plugin tab: {} - {}", tabItem.getId(), tabItem.getTitle());
+              }
+            }
+          }
+        } catch (Exception e) {
+          LOG.error("Error registering plugin tabs for {}: {}", plugin.getClass().getSimpleName(), e.getMessage(), e);
+        }
+      }
+      
+      // Sort tabs by order
+      pluginTabs.sort(Comparator.comparingInt(TabItem::getOrder));
+      
+      // Add plugin tabs to the adapter
+      var index = startIndex;
+      for (final var tabItem : pluginTabs) {
+        this.fragments.add(new Tab(tabItem.getTitle(), () -> tabItem.getFragmentFactory().invoke(), index));
+        LOG.debug("Registered plugin tab at index {}: {}", index, tabItem.getTitle());
+        index++;
+      }
+      
+    } catch (Exception e) {
+      LOG.error("Error in plugin tab integration: {}", e.getMessage(), e);
+    }
+  }
+
   static class Tab {
 
     final String title;
     final String name;
     final long itemId;
+    final java.util.function.Supplier<Fragment> fragmentFactory;
 
     public Tab(String title, @NonNull Class<? extends Fragment> fragment, long id) {
       this.title = title;
       this.name = fragment.getName();
       this.itemId = id;
+      this.fragmentFactory = null;
+    }
+    
+    public Tab(String title, java.util.function.Supplier<Fragment> factory, long id) {
+      this.title = title;
+      this.name = null;
+      this.itemId = id;
+      this.fragmentFactory = factory;
     }
   }
 }

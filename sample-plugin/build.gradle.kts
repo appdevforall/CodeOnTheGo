@@ -47,8 +47,10 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.fragment.ktx)
     compileOnly(project(":plugin-api"))
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
+    implementation("androidx.fragment:fragment:1.6.1")
 }
 
 tasks.register("pluginJar") {

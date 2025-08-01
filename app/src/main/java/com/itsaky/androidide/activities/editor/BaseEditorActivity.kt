@@ -81,6 +81,7 @@ import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
@@ -578,6 +579,11 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         this.isDestroying = isFinishing
         getFileTreeFragment()?.saveTreeState()
+        
+        // Clear current activity from plugin services when activity is finishing
+        if (isFinishing) {
+            IDEApplication.instance.setCurrentActivity(null)
+        }
     }
 
     override fun onResume() {
@@ -593,6 +599,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             log.error("Failed to update files list", th)
             flashError(string.msg_failed_list_files)
         }
+        
+        // Set this activity as current for plugin services
+        IDEApplication.instance.setCurrentActivity(this)
     }
 
     override fun onStop() {

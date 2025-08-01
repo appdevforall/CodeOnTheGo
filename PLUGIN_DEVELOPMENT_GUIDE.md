@@ -2,62 +2,155 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Plugin Architecture Design](#plugin-architecture-design)
-3. [Implementation Plan](#implementation-plan)
-4. [Plugin Development Standards](#plugin-development-standards)
-5. [Plugin API Specification](#plugin-api-specification)
-6. [Security Considerations](#security-considerations)
-7. [Installation & Distribution](#installation--distribution)
+2. [Quick Start](#quick-start)
+3. [Plugin Architecture](#plugin-architecture)
+4. [Plugin Development](#plugin-development)
+5. [Available Services](#available-services)
+6. [UI Extensions](#ui-extensions)
+7. [Plugin Management](#plugin-management)
+8. [Examples](#examples)
+9. [Best Practices](#best-practices)
 
 ## Overview
 
-This guide provides a comprehensive plan for adding plugin support to AndroidIDE, enabling developers to extend the IDE's functionality with custom plugins. The system is designed to be secure, modular, and follow JetBrains plugin architecture patterns while addressing Android-specific limitations.
+AndroidIDE now has a fully functional plugin system that allows developers to extend the IDE's functionality. Plugins can:
 
-## Plugin Architecture Design
+- ✅ **Add custom tabs** to the editor bottom sheet
+- ✅ **Contribute menu items** to the main menu and context menus
+- ✅ **Access project information** and file system
+- ✅ **Create beautiful UIs** programmatically
+- ✅ **Be enabled/disabled** at runtime with persistent state
+- ✅ **Integrate with IDE services** (Project, Editor, UI)
+- ✅ **Save files to the current project**
+- ✅ **Create dialogs and interactive interfaces**
 
-### Core Architecture Principles
+## Quick Start
 
-1. **Sandboxed Execution**: Each plugin runs in its own isolated environment
-2. **Service-Based API**: Plugins interact with the IDE through well-defined service interfaces
-3. **Event-Driven Communication**: Loose coupling through the existing EventBus system
-4. **Manifest-Based Discovery**: Plugin capabilities declared in manifest files
-5. **Secure Loading**: Plugins loaded through verified channels with integrity checks
+### Creating Your First Plugin
 
-### Architecture Components
-
-```
-AndroidIDE Core
-├── Plugin Manager
-│   ├── Plugin Loader
-│   ├── Plugin Registry
-│   ├── Security Manager
-│   └── Lifecycle Manager
-├── Plugin API
-│   ├── Core Services
-│   ├── Editor Extensions
-│   ├── Project Extensions
-│   └── UI Extensions
-└── Plugin Runtime
-    ├── Sandboxed ClassLoader
-    ├── Resource Isolation
-    └── Permission System
-```
-
-### Plugin Types Supported
-
-1. **Editor Plugins**: Syntax highlighting, code completion, refactoring tools
-2. **Project Plugins**: Build system extensions, project templates, code generators
-3. **UI Plugins**: Custom tool windows, theme extensions, layout designers
-4. **Analysis Plugins**: Code inspections, quality tools, testing frameworks
-5. **Integration Plugins**: Version control, deployment tools, external services
-
-## Implementation Plan
-
-### Phase 1: Core Plugin Infrastructure (Weeks 1-4)
-
-#### Step 1.1: Plugin API Foundation
+1. **Create a new Android Library module** in your project
+2. **Add the plugin API dependency**:
 ```kotlin
-// Core plugin interfaces
+dependencies {
+    implementation project(':plugin-api')
+    // Your other dependencies
+}
+```
+
+3. **Create your plugin class**:
+```kotlin
+class MyPlugin : IPlugin, UIExtension {
+    override val metadata = PluginMetadata(
+        id = "com.example.myplugin",
+        name = "My Awesome Plugin",
+        version = "1.0.0",
+        description = "A plugin that does awesome things",
+        author = "Your Name",
+        minIdeVersion = "2.1.0",
+        dependencies = listOf("com.itsaky.androidide.base"),
+        permissions = listOf("IDE_SETTINGS", "FILESYSTEM_READ")
+    )
+    
+    private lateinit var context: PluginContext
+    
+    override fun initialize(context: PluginContext): Boolean {
+        this.context = context
+        context.logger.info("MyPlugin initialized")
+        return true
+    }
+    
+    override fun activate(): Boolean {
+        context.logger.info("MyPlugin activated")
+        return true
+    }
+    
+    override fun deactivate(): Boolean {
+        context.logger.info("MyPlugin deactivated")
+        return true
+    }
+    
+    override fun dispose() {
+        context.logger.info("MyPlugin disposed")
+    }
+    
+    // Add a menu item
+    override fun contributeToMainMenu(): List<MenuItem> {
+        return listOf(
+            MenuItem(
+                id = "my_action",
+                title = "My Plugin Action",
+                action = {
+                    context.services.get(IdeUIService::class.java)?.let { uiService ->
+                        uiService.getCurrentActivity()?.runOnUiThread {
+                            showMyDialog(uiService.getCurrentActivity()!!)
+                        }
+                    }
+                }
+            )
+        )
+    }
+    
+    // Add a tab to the editor bottom sheet
+    override fun contributeToEditorBottomSheet(): List<TabItem> {
+        return listOf(
+            TabItem(
+                id = "my_tab",
+                title = "My Tab",
+                fragmentFactory = { MyFragment() },
+                isEnabled = true,
+                isVisible = true,
+                order = 0
+            )
+        )
+    }
+    
+    override fun contributeToContextMenu(context: ContextMenuContext): List<MenuItem> {
+        return emptyList()
+    }
+}
+```
+
+4. **Build your plugin** as an AAR and place it in AndroidIDE's plugins directory
+
+## Plugin Architecture
+
+### Core Components
+
+```
+Plugin System Architecture
+├── PluginManager (Central management)
+│   ├── Plugin loading & lifecycle
+│   ├── Enable/disable functionality
+│   ├── State persistence
+│   └── Service integration
+├── Plugin API (Interfaces & Services)
+│   ├── IPlugin (Core plugin interface)
+│   ├── UIExtension (UI contributions)
+│   ├── IdeProjectService (Project access)
+│   ├── IdeEditorService (Editor access)
+│   └── IdeUIService (UI operations)
+└── Plugin Runtime
+    ├── PluginContext (Services & logging)
+    ├── ServiceRegistry (Dependency injection)
+    └── Activity integration
+```
+
+### Plugin Lifecycle
+
+1. **Loading**: Plugin AAR is loaded by PluginManager
+2. **Initialization**: `initialize(context)` called with PluginContext
+3. **Activation**: `activate()` called if plugin is enabled
+4. **Runtime**: Plugin contributes to UI and responds to events
+5. **Deactivation**: `deactivate()` called when disabled
+6. **Disposal**: `dispose()` called when unloading
+
+## Plugin Development
+
+### Plugin Interface
+
+Every plugin must implement `IPlugin`:
+
+```kotlin
 interface IPlugin {
     val metadata: PluginMetadata
     fun initialize(context: PluginContext): Boolean
@@ -65,431 +158,578 @@ interface IPlugin {
     fun deactivate(): Boolean
     fun dispose()
 }
+```
 
-interface PluginContext {
-    val services: ServiceRegistry
-    val eventBus: EventBus
-    val logger: PluginLogger
-    val resources: ResourceManager
-}
+### Plugin Metadata
 
+```kotlin
 data class PluginMetadata(
-    val id: String,
-    val name: String,
-    val version: String,
-    val description: String,
-    val author: String,
-    val minIdeVersion: String,
-    val permissions: List<String>,
-    val dependencies: List<String>
+    val id: String,                    // Unique identifier
+    val name: String,                  // Display name
+    val version: String,               // Version string
+    val description: String,           // Description
+    val author: String,                // Author name
+    val minIdeVersion: String,         // Minimum IDE version
+    val dependencies: List<String>,    // Plugin dependencies
+    val permissions: List<String>      // Required permissions
 )
 ```
 
-#### Step 1.2: Plugin Manager Implementation
+### Available Permissions
+
 ```kotlin
-class PluginManager {
-    private val loadedPlugins = mutableMapOf<String, LoadedPlugin>()
-    private val pluginRegistry = PluginRegistry()
-    private val securityManager = PluginSecurityManager()
-    
-    fun loadPlugin(pluginFile: File): Result<IPlugin>
-    fun unloadPlugin(pluginId: String): Boolean
-    fun getPlugin(pluginId: String): IPlugin?
-    fun listPlugins(): List<PluginInfo>
-    fun enablePlugin(pluginId: String): Boolean
-    fun disablePlugin(pluginId: String): Boolean
+enum class PluginPermission {
+    FILESYSTEM_READ,      // Read files from project
+    FILESYSTEM_WRITE,     // Write files to project
+    NETWORK_ACCESS,       // Access network resources
+    SYSTEM_COMMANDS,      // Execute system commands
+    IDE_SETTINGS,         // Modify IDE settings
+    PROJECT_STRUCTURE     // Modify project structure
 }
 ```
 
-#### Step 1.3: Secure ClassLoader Implementation
+## Available Services
+
+Plugins access IDE functionality through services available in `PluginContext`:
+
+### IdeProjectService
 ```kotlin
-class PluginClassLoader(
-    private val pluginJar: File,
-    private val parentClassLoader: ClassLoader,
-    private val permissions: Set<String>
-) : ClassLoader(parentClassLoader) {
+val projectService = context.services.get(IdeProjectService::class.java)
+
+// Get current project
+val currentProject = projectService?.getCurrentProject()
+currentProject?.let { project ->
+    println("Project: ${project.name} at ${project.rootDir}")
     
-    private val dexClassLoader: DexClassLoader
-    private val securityManager: PluginSecurityManager
+    // Get modules
+    project.getModules().forEach { module ->
+        println("Module: ${module.name} (${module.type})")
+    }
     
-    override fun loadClass(name: String): Class<*> {
-        securityManager.checkClassAccess(name, permissions)
-        return dexClassLoader.loadClass(name)
+    // Get build files
+    project.getBuildFiles().forEach { buildFile ->
+        println("Build file: ${buildFile.absolutePath}")
     }
 }
 ```
 
-### Phase 2: Plugin API Extensions (Weeks 5-8)
-
-#### Step 2.1: Editor Extension API
+### IdeEditorService
 ```kotlin
-interface EditorExtension : IPlugin {
-    fun provideCompletionItems(context: CompletionContext): List<CompletionItem>
-    fun provideCodeActions(context: CodeActionContext): List<CodeAction>
-    fun provideHover(position: TextPosition): HoverInfo?
-    fun provideSyntaxHighlighting(): SyntaxHighlighter?
-}
+val editorService = context.services.get(IdeEditorService::class.java)
 
-interface CompletionContext {
-    val document: TextDocument
-    val position: Position
-    val triggerCharacter: String?
+// Get current file
+val currentFile = editorService?.getCurrentFile()
+println("Current file: ${currentFile?.absolutePath}")
+
+// Get all open files
+val openFiles = editorService?.getOpenFiles() ?: emptyList()
+println("Open files: ${openFiles.size}")
+
+// Check if file is open
+val isOpen = editorService?.isFileOpen(someFile) ?: false
+```
+
+### IdeUIService
+```kotlin
+val uiService = context.services.get(IdeUIService::class.java)
+
+// Check if UI is available
+if (uiService?.isUIAvailable() == true) {
+    // Get current activity for dialogs
+    val activity = uiService.getCurrentActivity()
+    activity?.runOnUiThread {
+        // Show dialogs, create UI elements
+        showMyDialog(activity)
+    }
 }
 ```
 
-#### Step 2.2: Project Extension API
-```kotlin
-interface ProjectExtension : IPlugin {
-    fun canHandle(project: IProject): Boolean
-    fun getProjectTemplates(): List<ProjectTemplate>
-    fun createProject(template: ProjectTemplate, config: ProjectConfig): Result<IProject>
-    fun getBuildActions(): List<BuildAction>
-}
+## UI Extensions
 
-interface BuildAction {
-    val name: String
-    val description: String
-    fun execute(project: IProject, params: Map<String, Any>): BuildResult
-}
-```
+### UIExtension Interface
 
-#### Step 2.3: UI Extension API
+Implement `UIExtension` to contribute to the IDE's user interface:
+
 ```kotlin
-interface UIExtension : IPlugin {
-    fun createToolWindow(): ToolWindow?
+interface UIExtension {
     fun contributeToMainMenu(): List<MenuItem>
     fun contributeToContextMenu(context: ContextMenuContext): List<MenuItem>
-    fun provideTheme(): Theme?
-}
-
-interface ToolWindow {
-    val title: String
-    val icon: Drawable?
-    fun createContent(container: ViewGroup): View
-    fun onShow()
-    fun onHide()
+    fun contributeToEditorBottomSheet(): List<TabItem>
 }
 ```
 
-### Phase 3: Plugin Discovery & Installation (Weeks 9-12)
+### Menu Contributions
 
-#### Step 3.1: Plugin Manifest System
-```xml
-<!-- plugin.xml -->
-<plugin>
-    <id>com.example.myplugin</id>
-    <name>My Awesome Plugin</name>
-    <version>1.0.0</version>
-    <description>A plugin that does awesome things</description>
-    <author>Developer Name</author>
-    
-    <compatibility>
-        <min-ide-version>2.1.0</min-ide-version>
-        <max-ide-version>3.0.0</max-ide-version>
-    </compatibility>
-    
-    <dependencies>
-        <dependency id="com.androidide.core" version="2.1.0"/>
-    </dependencies>
-    
-    <permissions>
-        <permission>FILESYSTEM_READ</permission>
-        <permission>NETWORK_ACCESS</permission>
-    </permissions>
-    
-    <extensions>
-        <editor-extension class="com.example.MyEditorExtension"/>
-        <project-extension class="com.example.MyProjectExtension"/>
-    </extensions>
-</plugin>
-```
-
-#### Step 3.2: Plugin Repository System
 ```kotlin
-interface PluginRepository {
-    suspend fun searchPlugins(query: String): List<PluginInfo>
-    suspend fun getPlugin(id: String): PluginInfo?
-    suspend fun downloadPlugin(id: String, version: String): File
-    suspend fun getUpdates(installedPlugins: List<String>): List<PluginUpdate>
-}
-
-class OfficialPluginRepository : PluginRepository {
-    private val baseUrl = "https://plugins.androidide.org/api/v1"
-    
-    override suspend fun searchPlugins(query: String): List<PluginInfo> {
-        // REST API implementation
-    }
-}
-```
-
-#### Step 3.3: Plugin Installation UI
-```kotlin
-class PluginManagerActivity : AppCompatActivity() {
-    private lateinit var pluginAdapter: PluginAdapter
-    private lateinit var pluginManager: PluginManager
-    
-    // Browse, search, install, uninstall plugins
-    // Manage plugin settings and permissions
-    // View plugin details and ratings
+override fun contributeToMainMenu(): List<MenuItem> {
+    return listOf(
+        MenuItem(
+            id = "json_to_kotlin",
+            title = "JSON to Kotlin Data Class",
+            action = {
+                // Your action here
+                showJsonToKotlinDialog()
+            }
+        ),
+        MenuItem(
+            id = "my_tool",
+            title = "My Custom Tool",
+            action = {
+                // Another action
+                launchMyTool()
+            }
+        )
+    )
 }
 ```
 
-### Phase 4: Security & Sandboxing (Weeks 13-16)
+### Tab Contributions
 
-#### Step 4.1: Permission System
+Add custom tabs to the editor bottom sheet:
+
 ```kotlin
-enum class PluginPermission(val description: String) {
-    FILESYSTEM_READ("Read files from project directory"),
-    FILESYSTEM_WRITE("Write files to project directory"),
-    NETWORK_ACCESS("Access network resources"),
-    SYSTEM_COMMANDS("Execute system commands"),
-    IDE_SETTINGS("Modify IDE settings"),
-    PROJECT_STRUCTURE("Modify project structure")
-}
-
-class PluginSecurityManager {
-    fun checkPermission(plugin: IPlugin, permission: PluginPermission): Boolean
-    fun requestPermission(plugin: IPlugin, permission: PluginPermission): Boolean
-    fun revokePermission(plugin: IPlugin, permission: PluginPermission)
+override fun contributeToEditorBottomSheet(): List<TabItem> {
+    return listOf(
+        TabItem(
+            id = "my_tab",
+            title = "My Tab",
+            fragmentFactory = { MyFragment() },
+            isEnabled = true,
+            isVisible = true,
+            order = 0
+        )
+    )
 }
 ```
 
-#### Step 4.2: Resource Isolation
+### Creating Fragments
+
 ```kotlin
-class PluginResourceManager(private val pluginId: String) {
-    private val pluginDir = File(getPluginDirectory(), pluginId)
-    
-    fun getPluginFile(path: String): File {
-        val file = File(pluginDir, path)
-        if (!file.canonicalPath.startsWith(pluginDir.canonicalPath)) {
-            throw SecurityException("Path traversal attack detected")
+class MyFragment : Fragment() {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        val context = requireContext()
+        
+        // Create UI programmatically (recommended)
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
         }
-        return file
+        
+        val titleView = TextView(context).apply {
+            text = "My Custom Tab"
+            textSize = 18f
+            setTypeface(null, Typeface.BOLD)
+        }
+        
+        val button = Button(context).apply {
+            text = "Click Me"
+            setOnClickListener {
+                Toast.makeText(context, "Button clicked!", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        layout.addView(titleView)
+        layout.addView(button)
+        
+        return layout
+    }
+}
+```
+
+### Creating Dialogs
+
+```kotlin
+private fun showMyDialog(activity: Activity) {
+    val dialogLayout = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(24, 24, 24, 24)
     }
     
-    fun getPluginResource(name: String): InputStream? {
-        return pluginClassLoader.getResourceAsStream(name)
-    }
-}
-```
-
-### Phase 5: Testing & Documentation (Weeks 17-20)
-
-#### Step 5.1: Plugin Testing Framework
-```kotlin
-abstract class PluginTestCase {
-    protected lateinit var testContext: PluginContext
-    protected lateinit var mockIDE: MockAndroidIDE
-    
-    @Before
-    fun setUp() {
-        mockIDE = MockAndroidIDE()
-        testContext = mockIDE.createPluginContext()
+    val input = EditText(activity).apply {
+        hint = "Enter some text"
+        setSingleLine(true)
     }
     
-    abstract fun testPluginFunctionality()
+    dialogLayout.addView(TextView(activity).apply {
+        text = "My Dialog Title"
+        textSize = 16f
+        setTypeface(null, Typeface.BOLD)
+        setPadding(0, 0, 0, 16)
+    })
+    
+    dialogLayout.addView(input)
+    
+    AlertDialog.Builder(activity)
+        .setTitle("My Plugin Dialog")
+        .setView(dialogLayout)
+        .setPositiveButton("OK") { _, _ ->
+            val text = input.text.toString()
+            Toast.makeText(activity, "You entered: $text", Toast.LENGTH_SHORT).show()
+        }
+        .setNegativeButton("Cancel", null)
+        .show()
 }
 ```
 
-#### Step 5.2: Sample Plugins
-Create sample plugins demonstrating:
-- Editor syntax highlighting
-- Custom project templates
-- Build system integration
-- UI tool windows
-- Code analysis tools
+## Plugin Management
 
-## Plugin Development Standards
+### Enable/Disable Plugins
 
-### Plugin Structure
-```
-my-plugin/
-├── src/main/kotlin/
-│   └── com/example/myplugin/
-│       ├── MyPlugin.kt
-│       ├── extensions/
-│       └── services/
-├── src/main/resources/
-│   ├── plugin.xml
-│   ├── icons/
-│   └── templates/
-├── build.gradle.kts
-└── README.md
-```
+Plugins can be enabled or disabled at runtime:
 
-### Build Configuration
 ```kotlin
-// build.gradle.kts
-plugins {
-    kotlin("jvm")
-    id("com.androidide.plugin") version "1.0.0"
-}
+val pluginManager = PluginManager.getInstance()
 
-androididePlugin {
-    pluginId = "com.example.myplugin"
-    pluginName = "My Plugin"
-    pluginVersion = "1.0.0"
-    ideVersion = "2.1.0"
-}
+// Disable a plugin
+pluginManager?.disablePlugin("com.example.myplugin")
 
-dependencies {
-    compileOnly("com.androidide:plugin-api:2.1.0")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib")
+// Enable a plugin
+pluginManager?.enablePlugin("com.example.myplugin")
+
+// Get all plugins with their status
+val plugins = pluginManager?.getAllPlugins() ?: emptyList()
+plugins.forEach { plugin ->
+    println("${plugin.metadata.name}: enabled=${plugin.isEnabled}")
 }
 ```
 
-### Plugin Implementation Template
+### Persistent State
+
+Plugin enabled/disabled state is automatically persisted to `plugin_states.properties`:
+
+```properties
+# Plugin enabled/disabled states
+com.example.helloworld=true
+com.example.anotherplugin=false
+```
+
+## Examples
+
+### Example 1: JSON to Kotlin Converter Plugin
+
+This is a complete working example from our HelloWorldPlugin:
+
 ```kotlin
-class MyPlugin : IPlugin {
+class HelloWorldPlugin : IPlugin, UIExtension {
     override val metadata = PluginMetadata(
-        id = "com.example.myplugin",
-        name = "My Plugin",
+        id = "com.example.helloworld",
+        name = "Hello World Plugin",
         version = "1.0.0",
-        description = "A sample plugin",
-        author = "Developer",
+        description = "A plugin that demonstrates COGO plugin capabilities",
+        author = "COGO Team",
         minIdeVersion = "2.1.0",
-        permissions = listOf("FILESYSTEM_READ"),
-        dependencies = emptyList()
+        dependencies = listOf("com.itsaky.androidide.base"),
+        permissions = listOf("IDE_SETTINGS", "FILESYSTEM_READ")
     )
     
     private lateinit var context: PluginContext
     
     override fun initialize(context: PluginContext): Boolean {
         this.context = context
-        context.logger.info("Initializing MyPlugin")
+        context.logger.info("HelloWorldPlugin initialized")
         return true
     }
     
     override fun activate(): Boolean {
-        // Register services, event handlers, etc.
-        context.services.register<MyService>(MyServiceImpl())
+        context.services.register(HelloService::class.java, HelloServiceImpl(context))
         return true
     }
     
-    override fun deactivate(): Boolean {
-        // Cleanup resources
-        return true
+    override fun deactivate(): Boolean = true
+    override fun dispose() {}
+    
+    override fun contributeToMainMenu(): List<MenuItem> {
+        return listOf(
+            MenuItem(
+                id = "json_to_kotlin",
+                title = "JSON to Kotlin Data Class",
+                action = { showJsonToKotlinDialog() }
+            )
+        )
     }
     
-    override fun dispose() {
-        // Final cleanup
+    override fun contributeToEditorBottomSheet(): List<TabItem> {
+        return listOf(
+            TabItem(
+                id = "go_bot_tab",
+                title = "GoBot",
+                fragmentFactory = { GoBotFragment() },
+                isEnabled = true,
+                isVisible = true,
+                order = 1
+            )
+        )
+    }
+    
+    override fun contributeToContextMenu(context: ContextMenuContext): List<MenuItem> {
+        return emptyList()
+    }
+    
+    private fun showJsonToKotlinDialog() {
+        val uiService = context.services.get(IdeUIService::class.java)
+        val activity = uiService?.getCurrentActivity() ?: return
+        
+        activity.runOnUiThread {
+            // Create dialog with JSON input, class name, package name fields
+            // Convert JSON to Kotlin data class
+            // Save to project using project service
+        }
     }
 }
 ```
 
-## Plugin API Specification
+### Example 2: AI Chat Interface
 
-### Core Services Available to Plugins
-
-#### File System Service
 ```kotlin
-interface FileSystemService {
-    fun readFile(path: String): String?
-    fun writeFile(path: String, content: String): Boolean
-    fun listFiles(directory: String): List<FileInfo>
-    fun watchFile(path: String, callback: (FileEvent) -> Unit)
+class GoBotFragment : Fragment() {
+    private lateinit var chatContainer: LinearLayout
+    private lateinit var scrollView: ScrollView
+    private lateinit var inputEditText: EditText
+    
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        val context = requireContext()
+        
+        val rootLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+            setPadding(16, 16, 16, 16)
+        }
+        
+        // Title Bar
+        val titleView = TextView(context).apply {
+            text = "🤖 GoBot Chat"
+            textSize = 20f
+            setTypeface(null, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(Color.BLACK)
+        }
+        
+        // Chat area with ScrollView
+        scrollView = ScrollView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0, 1f
+            )
+        }
+        
+        chatContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        scrollView.addView(chatContainer)
+        
+        // Input area
+        val inputLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 8, 0, 8)
+        }
+        
+        inputEditText = EditText(context).apply {
+            hint = "Type a message..."
+            layoutParams = LinearLayout.LayoutParams(0, 56.dpToPx(), 1f)
+            background = GradientDrawable().apply {
+                cornerRadius = 48f
+                setColor(Color.parseColor("#F0F0F0"))
+            }
+            setPadding(24, 0, 24, 0)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        
+        val sendButton = Button(context).apply {
+            text = "Send"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                cornerRadius = 48f
+                setColor(Color.parseColor("#4CAF50"))
+            }
+            setPadding(32, 0, 32, 0)
+            setOnClickListener {
+                val message = inputEditText.text.toString().trim()
+                if (message.isNotEmpty()) {
+                    addMessage(message, isUser = true)
+                    inputEditText.text.clear()
+                    simulateBotReply()
+                }
+            }
+        }
+        
+        inputLayout.addView(inputEditText)
+        inputLayout.addView(sendButton)
+        
+        rootLayout.addView(titleView)
+        rootLayout.addView(scrollView)
+        rootLayout.addView(inputLayout)
+        
+        return rootLayout
+    }
+    
+    private fun addMessage(text: String, isUser: Boolean) {
+        val messageView = TextView(requireContext()).apply {
+            this.text = text
+            setTextColor(Color.BLACK)
+            setPadding(24, 16, 24, 16)
+            background = GradientDrawable().apply {
+                cornerRadius = 32f
+                setColor(if (isUser) Color.parseColor("#DCF8C6") else Color.parseColor("#E3F2FD"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = if (isUser) Gravity.END else Gravity.START
+                topMargin = 16.dpToPx()
+            }
+        }
+        
+        chatContainer.addView(messageView)
+        scrollView.post {
+            scrollView.fullScroll(View.FOCUS_DOWN)
+        }
+    }
+    
+    private fun simulateBotReply() {
+        Handler(Looper.getMainLooper()).postDelayed({
+            addMessage("I'm here to assist you!", isUser = false)
+        }, 1000)
+    }
+    
+    private fun Int.dpToPx(): Int {
+        return (this * resources.displayMetrics.density).toInt()
+    }
 }
 ```
 
-#### Editor Service
-```kotlin
-interface EditorService {
-    fun getCurrentEditor(): IEditor?
-    fun openFile(file: File): IEditor
-    fun closeEditor(editor: IEditor)
-    fun getAllEditors(): List<IEditor>
-}
+### Example 3: File Operations
 
-interface IEditor {
-    val document: TextDocument
-    val selection: TextRange
-    fun insertText(position: Position, text: String)
-    fun replaceText(range: TextRange, text: String)
-    fun addDecoration(range: TextRange, decoration: TextDecoration)
+```kotlin
+private fun saveToProject(content: String, fileName: String) {
+    val projectService = context.services.get(IdeProjectService::class.java)
+    val currentProject = projectService?.getCurrentProject()
+    
+    if (currentProject != null) {
+        val targetFile = File(currentProject.rootDir, "app/src/main/java/$fileName")
+        targetFile.parentFile?.mkdirs()
+        targetFile.writeText(content)
+        
+        context.logger.info("Saved file: ${targetFile.absolutePath}")
+        showToast("✅ Saved: $fileName")
+    } else {
+        context.logger.warn("No current project available")
+        showToast("❌ Could not find project")
+    }
 }
 ```
 
-#### Project Service
+## Best Practices
+
+### 1. Plugin Structure
+```
+my-plugin/
+├── src/main/kotlin/
+│   └── com/example/myplugin/
+│       ├── MyPlugin.kt          // Main plugin class
+│       ├── fragments/           // UI fragments
+│       ├── services/           // Plugin services
+│       └── utils/              // Utility classes
+├── build.gradle.kts            // Build configuration
+└── README.md                   // Documentation
+```
+
+### 2. Error Handling
 ```kotlin
-interface ProjectService {
-    fun getCurrentProject(): IProject?
-    fun openProject(path: String): IProject?
-    fun createProject(template: ProjectTemplate, path: String): IProject?
-    fun getProjects(): List<IProject>
+override fun initialize(context: PluginContext): Boolean {
+    return try {
+        this.context = context
+        // Initialize plugin
+        context.logger.info("Plugin initialized successfully")
+        true
+    } catch (e: Exception) {
+        context.logger.error("Plugin initialization failed", e)
+        false
+    }
 }
 ```
 
-#### UI Service
+### 3. Logging
 ```kotlin
-interface UIService {
-    fun showNotification(message: String, type: NotificationType)
-    fun showDialog(dialog: DialogConfig): DialogResult
-    fun addToolWindow(toolWindow: ToolWindow)
-    fun removeToolWindow(id: String)
+// Use the plugin's logger
+context.logger.info("Info message")
+context.logger.warn("Warning message")
+context.logger.error("Error message", exception)
+context.logger.debug("Debug message")
+```
+
+### 4. UI Creation
+- **Prefer programmatic UI** creation over XML layouts
+- **Use consistent styling** with Material Design colors
+- **Handle different screen sizes** appropriately
+- **Test on different devices** and orientations
+
+### 5. Service Access
+```kotlin
+// Always check if services are available
+val projectService = context.services.get(IdeProjectService::class.java)
+if (projectService != null) {
+    // Use the service
+} else {
+    context.logger.warn("Project service not available")
 }
 ```
 
-## Security Considerations
+### 6. Threading
+```kotlin
+// UI operations must be on main thread
+uiService.getCurrentActivity()?.runOnUiThread {
+    // Update UI here
+}
 
-### Plugin Signing & Verification
-- All plugins must be signed with a valid certificate
-- SHA-256 checksums verified before installation
-- Plugins from untrusted sources require explicit user consent
+// Heavy operations should be on background threads
+Thread {
+    // Do heavy work
+    // Then update UI on main thread
+}.start()
+```
 
-### Permission Model
-- Plugins declare required permissions in manifest
-- Users approve permissions during installation
-- Runtime permission checks for sensitive operations
-- Ability to revoke permissions post-installation
+### 7. Resource Management
+- **Clean up resources** in `deactivate()` and `dispose()`
+- **Remove event listeners** when plugin is deactivated
+- **Close files and streams** properly
 
-### Sandboxing Restrictions
-- Plugins cannot access system APIs directly
-- File system access limited to plugin directory and project files
-- Network access controlled and logged
-- No access to other plugins' data or classes
+## Testing Your Plugin
 
-### Code Review Process
-- Official plugin repository requires code review
-- Automated security scanning for common vulnerabilities
-- Community reporting system for malicious plugins
+1. **Build your plugin** as an AAR
+2. **Copy the AAR** to AndroidIDE's plugins directory
+3. **Restart AndroidIDE** to load the plugin
+4. **Test functionality** through the UI
+5. **Check logs** for any errors or warnings
+6. **Test enable/disable** functionality
 
-## Installation & Distribution
+## Troubleshooting
 
-### Plugin Repository
-- Central repository at plugins.androidide.org
-- Categories: Editor, Project, UI, Analysis, Integration
-- Search, filtering, and rating system
-- Automatic update notifications
+### Common Issues
 
-### Installation Methods
-1. **From Repository**: Search and install directly in IDE
-2. **Local Installation**: Install from downloaded .aplugin file
-3. **Development Mode**: Load plugins from source during development
+1. **Plugin not loading**: Check the AAR is in the correct directory and manifest is valid
+2. **Services not available**: Ensure AndroidIDE is fully initialized before plugin activation
+3. **UI not showing**: Check if UIExtension interface is implemented correctly
+4. **Crashes on enable/disable**: Implement proper cleanup in deactivate() method
+5. **File operations failing**: Verify project is open and file paths are correct
 
-### Plugin Packaging
-- Plugins packaged as .aplugin files (renamed ZIP)
-- Contains compiled classes, resources, and manifest
-- Includes dependency information and checksums
+### Debug Tips
 
-### Update Mechanism
-- Automatic check for updates on IDE startup
-- Background downloads with user notification
-- Rollback capability for problematic updates
+- **Use extensive logging** to track plugin lifecycle
+- **Check plugin enabled state** in PluginManager
+- **Verify service availability** before using them
+- **Test with different projects** and project states
+- **Monitor memory usage** and clean up resources
 
-## Getting Started
-
-### For Plugin Users
-1. Open AndroidIDE
-2. Go to Settings → Plugins
-3. Browse available plugins or search by name
-4. Click Install and approve required permissions
-5. Restart IDE if required
-
-### For Plugin Developers
-1. Clone the plugin template repository
-2. Implement your plugin using the provided APIs
-3. Test using the plugin testing framework
-4. Build and package your plugin
-5. Submit to the plugin repository or distribute manually
-
-This comprehensive guide provides the foundation for a robust, secure, and extensible plugin system for AndroidIDE, following industry best practices while addressing the unique challenges of Android development environments.
+This guide covers the current working plugin system in AndroidIDE. The plugin API is stable and ready for development!
