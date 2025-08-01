@@ -38,6 +38,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
@@ -76,6 +77,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.set
+
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -221,7 +223,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
   override fun onPause() {
     super.onPause()
-
+    ActionContextProvider.clearActivity()
     if (!isOpenedFilesSaved.get()) {
       saveOpenedFiles()
     }
@@ -229,6 +231,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
   override fun onResume() {
     super.onResume()
+    ActionContextProvider.setActivity(this)
     isOpenedFilesSaved.set(false)
   }
 

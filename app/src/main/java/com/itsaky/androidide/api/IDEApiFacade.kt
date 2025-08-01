@@ -1,37 +1,72 @@
 package com.itsaky.androidide.api
 
+import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
+import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.api.commands.AddDependencyCommand
 import com.itsaky.androidide.api.commands.GetBuildOutputCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
-import com.itsaky.androidide.api.commands.RunBuildCommand
 import com.itsaky.androidide.api.commands.UpdateFileCommand
 import com.itsaky.androidide.data.model.ToolResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * The single, clean entry point for the AI agent to interact with the IDE.
  * This Facade translates simple requests into executable Commands.
  */
 object IDEApiFacade {
+    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     fun createFile(path: String, content: String): ToolResult {
         val command = HighOrderCreateFileCommand(path, content)
         return command.execute()
     }
 
-    fun runBuild(module: String?, variant: String): ToolResult {
-        val command = RunBuildCommand(module, variant)
-        return command.execute()
-    }
-
     fun readFile(path: String) = HighOrderReadFileCommand(path).execute()
+
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
 
-    fun buildProject(): ToolResult = RunBuildCommand(module = null, variant = "debug").execute()
+    fun buildProject(): ToolResult {
+        val activity = ActionContextProvider.getActivity()
+            ?: return ToolResult.failure("No active IDE window to execute the build.")
+
+        val action: ActionItem = ActionsRegistry.getInstance()
+            .findAction(ActionItem.Location.EDITOR_TOOLBAR, "ide.editor.build.quickRun")
+            ?: return ToolResult.failure("Quick Run action is not available.")
+
+        val actionData = ActionData.create(activity)
+
+        coroutineScope.launch {
+            action.execAction(actionData)
+        }
+
+        return ToolResult.success("Build project command initiated successfully.")
+    }
+
     fun runApp(): ToolResult {
-        // This is a mock. A real implementation would trigger an app installation and launch process.
-        return ToolResult(success = true, message = "App run command executed successfully.")
+        val activity = ActionContextProvider.getActivity()
+            ?: return ToolResult.failure("No active IDE window to launch the app.")
+
+        val action: ActionItem = ActionsRegistry.getInstance()
+            .findAction(ActionItem.Location.EDITOR_TOOLBAR, "ide.editor.build.quickRun")
+            ?: return ToolResult.failure("Launch App action is not available.")
+
+        val actionData = ActionData.create(activity)
+
+        coroutineScope.launch {
+            action.execAction(actionData)
+        }
+
+        return ToolResult.success("App run command initiated successfully.")
+    }
+
+    fun runBuild(module: String?, variant: String): ToolResult {
+        return buildProject()
     }
 
     fun addDependency(dependencyString: String, buildFilePath: String): ToolResult {
@@ -52,5 +87,4 @@ object IDEApiFacade {
         val command = GetBuildOutputCommand()
         return command.execute()
     }
-
 }
