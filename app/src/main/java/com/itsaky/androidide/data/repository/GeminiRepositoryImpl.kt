@@ -23,8 +23,9 @@ class GeminiRepositoryImpl(
     private val ideApi: IDEApiFacade,
 ) : GeminiRepository {
 
+    val modelName = "gemini-2.5-pro"
     private val functionCallingModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = "gemini-2.5-pro",
+        modelName = modelName,
         systemInstruction = content(role = "system") {
             text(
                 "You are an expert programmer's assistant. You will use the provided tools " +
@@ -37,7 +38,7 @@ class GeminiRepositoryImpl(
     )
 
     private val searchModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = "gemini-2.5-pro",
+        modelName = modelName,
         systemInstruction = content(role = "system") {
             text("You are a helpful assistant that answers questions using web searches.")
         },
@@ -45,7 +46,7 @@ class GeminiRepositoryImpl(
     )
 
     private val codeGenerationModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = "gemini-2.5-pro",
+        modelName = modelName,
         systemInstruction = content(role = "system") {
             text("You are an expert code generation assistant. You only respond with raw code based on the user's prompt. Do not add any explanations, comments, or markdown formatting like ```. Your response must be only the code itself.")
         }

@@ -3,6 +3,7 @@ package com.itsaky.androidide.api.commands
 import com.blankj.utilcode.util.FileIOUtils
 import com.itsaky.androidide.data.model.ToolResult
 import com.itsaky.androidide.projects.IProjectManager
+import org.apache.commons.text.StringEscapeUtils
 import java.io.File
 
 /**
@@ -26,15 +27,19 @@ class AddStringResourceCommand(
 
             val content = FileIOUtils.readFile2String(stringsFile)
 
-            // Escape characters that need escaping inside an XML string tag.
-            val escapedValue = value
+            // 1. Unescape Java-style sequences like \n from the AI's input into actual characters.**
+            val unescapedValue = StringEscapeUtils.unescapeJava(value)
+
+            // 2. Escape characters that are special within an XML value.
+            val escapedValueForXml = unescapedValue
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("'", "\\'")
                 .replace("\"", "\\\"")
+                .replace("\n", "\\n")
 
-            val newStringElement = "    <string name=\"$name\">$escapedValue</string>"
+            val newStringElement = "    <string name=\"$name\">$escapedValueForXml</string>"
 
             // Regex to find an existing string resource with the same name, including surrounding whitespace.
             val searchRegex = Regex("""\s*<string name="$name">.*?</string>""")
@@ -43,11 +48,11 @@ class AddStringResourceCommand(
             val wasUpdated: Boolean
 
             if (content.contains(searchRegex)) {
-                // **Key exists, so we replace the entire line.**
+                // Key exists, so we replace the entire line.
                 newContent = content.replace(searchRegex, newStringElement)
                 wasUpdated = true
             } else {
-                // **Key doesn't exist, so we add it before </resources>.**
+                // Key doesn't exist, so we add it before </resources>.
                 val closingTag = "</resources>"
                 val closingTagIndex = content.lastIndexOf(closingTag)
 
