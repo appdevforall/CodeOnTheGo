@@ -13,7 +13,7 @@ import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
-import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,7 +54,8 @@ class ChatViewModel(
     }
 
     init {
-        val agentDir = File(Environment.ANDROIDIDE_HOME, "agent")
+        val baseDir = IProjectManager.getInstance().projectDir
+        val agentDir = File(baseDir, "agent")
         chatStorageManager = ChatStorageManager(agentDir)
         geminiRepository.onToolCall = { functionCall ->
             val toolMessage = formatToolCallForDisplay(functionCall)

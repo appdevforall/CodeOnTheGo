@@ -4,7 +4,6 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
-import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.api.commands.AddDependencyCommand
 import com.itsaky.androidide.api.commands.AddStringResourceCommand
 import com.itsaky.androidide.api.commands.GetBuildOutputCommand
@@ -32,7 +31,7 @@ object IDEApiFacade {
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
 
     suspend fun runApp(): ToolResult {
-        val activity = ActionContextProvider.getActivity() as? EditorHandlerActivity
+        val activity = ActionContextProvider.getActivity()
             ?: return ToolResult.failure("No active IDE window to launch the app.")
 
         val action = ActionsRegistry.getInstance()
@@ -52,10 +51,8 @@ object IDEApiFacade {
                 }
             }
 
-            // Register the one-time listener
             activity.addOneTimeBuildResultListener(listener)
 
-            // Trigger the build. Use the registry's executeAction for proper dispatching.
             (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
                 action,
                 actionData
@@ -65,7 +62,7 @@ object IDEApiFacade {
     }
 
     fun addDependency(dependencyString: String, buildFilePath: String): ToolResult {
-        val finalPath = buildFilePath.ifEmpty { "app/build.gradle.kts" } // Default path
+        val finalPath = buildFilePath.ifEmpty { "app/build.gradle.kts" }
         return AddDependencyCommand(finalPath, dependencyString).execute()
     }
 
