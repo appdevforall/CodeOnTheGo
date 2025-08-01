@@ -31,10 +31,12 @@ import com.itsaky.androidide.viewmodel.ChatViewModel
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
@@ -216,18 +218,25 @@ class ChatFragment :
     @SuppressLint("SetTextI18n")
     private fun setupStateObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
-            chatViewModel.agentState.collect { state ->
+            // Combine all three state flows. This block will run if any of them emit a new value.
+            chatViewModel.agentState.combine(chatViewModel.stepElapsedTime) { state, stepTime ->
+                state to stepTime
+            }.combine(chatViewModel.totalElapsedTime) { (state, stepTime), totalTime ->
+                Triple(state, stepTime, totalTime)
+            }.collect { (state, stepTime, totalTime) ->
                 when (state) {
                     is AgentState.Idle -> {
-                        binding.agentStatusText.isVisible = false
+                        binding.agentStatusContainer.isVisible = false
                         binding.promptInputLayout.isEnabled = true
                         binding.btnSendPrompt.visibility = View.VISIBLE
                         binding.btnStopGeneration.visibility = View.GONE
                     }
-
                     is AgentState.Processing -> {
-                        // The timer will update the text, but we ensure visibility here
-                        binding.agentStatusText.isVisible = true
+                        val timeString = "(${formatTime(stepTime)} of ${formatTime(totalTime)})"
+                        binding.agentStatusMessage.text = state.message
+                        binding.agentStatusTimer.text = timeString
+                        binding.agentStatusContainer.isVisible = true
+
                         binding.promptInputLayout.isEnabled = false
                         binding.btnSendPrompt.visibility = View.GONE
                         binding.btnStopGeneration.visibility = View.VISIBLE
@@ -235,16 +244,24 @@ class ChatFragment :
                 }
             }
         }
+    }
 
-        // This separate observer efficiently updates the timer text whenever the time changes
-        viewLifecycleOwner.lifecycleScope.launch {
-            chatViewModel.elapsedTime.collect { timeInMillis ->
-                val currentState = chatViewModel.agentState.value
-                if (currentState is AgentState.Processing) {
-                    val elapsedTimeFormatted = formatElapsedTime(timeInMillis)
-                    binding.agentStatusText.text = "${currentState.message}${elapsedTimeFormatted}"
-                }
-            }
+    /**
+     * Formats milliseconds into a string like "1m 2.3s" or "5.4s".
+     */
+    private fun formatTime(millis: Long): String {
+        if (millis < 0) return ""
+
+        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
+        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.MINUTES.toSeconds(minutes)
+        val remainingMillis = millis % 1000
+
+        val totalSeconds = seconds + (remainingMillis / 1000.0)
+
+        return if (minutes > 0) {
+            String.format(Locale.US, "%dm %.1fs", minutes, totalSeconds)
+        } else {
+            String.format(Locale.US, "%.1fs", totalSeconds)
         }
     }
 

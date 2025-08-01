@@ -34,10 +34,14 @@ class ChatViewModel(
     private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
     val agentState = _agentState.asStateFlow()
 
-    private val _elapsedTime = MutableStateFlow(0L)
-    val elapsedTime = _elapsedTime.asStateFlow()
+    private val _totalElapsedTime = MutableStateFlow(0L)
+    val totalElapsedTime = _totalElapsedTime.asStateFlow()
+    private val _stepElapsedTime = MutableStateFlow(0L)
+    val stepElapsedTime = _stepElapsedTime.asStateFlow()
     private var timerJob: Job? = null
-    private var startTime: Long = 0
+    private var operationStartTime: Long = 0
+    private var stepStartTime: Long = 0
+
 
     private var agentJob: Job? = null
 
@@ -69,10 +73,17 @@ class ChatViewModel(
         geminiRepository.onStateUpdate = { newState ->
             _agentState.value = newState
 
-            if (newState is AgentState.Processing && timerJob?.isActive != true) {
-                startTimer()
+            // Start, reset, or stop timers based on the new state
+            if (newState is AgentState.Processing) {
+                if (timerJob?.isActive != true) {
+                    // This is the start of a new operation
+                    startTimers()
+                } else {
+                    // This is a new step within the same operation
+                    resetStepTimer()
+                }
             } else if (newState is AgentState.Idle) {
-                stopTimer()
+                stopTimers()
             }
         }
         geminiRepository.onAskUser = { question, options ->
@@ -252,19 +263,28 @@ class ChatViewModel(
         }
     }
 
-    private fun startTimer() {
-        startTime = System.currentTimeMillis()
+    private fun startTimers() {
+        operationStartTime = System.currentTimeMillis()
+        stepStartTime = operationStartTime // The first step starts with the operation
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (true) {
-                _elapsedTime.value = System.currentTimeMillis() - startTime
-                delay(100) // Update every 100ms for a smooth display
+                val now = System.currentTimeMillis()
+                _totalElapsedTime.value = now - operationStartTime
+                _stepElapsedTime.value = now - stepStartTime
+                delay(100) // Update UI every 100ms
             }
         }
     }
 
-    private fun stopTimer() {
+    private fun resetStepTimer() {
+        stepStartTime = System.currentTimeMillis()
+        _stepElapsedTime.value = 0L
+    }
+
+    private fun stopTimers() {
         timerJob?.cancel()
-        _elapsedTime.value = 0L // Reset timer
+        _totalElapsedTime.value = 0L
+        _stepElapsedTime.value = 0L
     }
 }
