@@ -6,7 +6,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import java.io.File
 
 /**
- * A command to add a new string resource to the project's strings.xml file.
+ * A command to add or update a string resource in the project's strings.xml file.
  */
 class AddStringResourceCommand(
     private val name: String,
@@ -25,12 +25,6 @@ class AddStringResourceCommand(
             }
 
             val content = FileIOUtils.readFile2String(stringsFile)
-            val closingTag = "</resources>"
-            val closingTagIndex = content.lastIndexOf(closingTag)
-
-            if (closingTagIndex == -1) {
-                return ToolResult.failure("Invalid strings.xml format: missing </resources> tag.")
-            }
 
             // Escape characters that need escaping inside an XML string tag.
             val escapedValue = value
@@ -40,14 +34,42 @@ class AddStringResourceCommand(
                 .replace("'", "\\'")
                 .replace("\"", "\\\"")
 
-            val newStringElement = "    <string name=\"$name\">$escapedValue</string>\n"
+            val newStringElement = "    <string name=\"$name\">$escapedValue</string>"
 
-            val newContent =
-                StringBuilder(content).insert(closingTagIndex, newStringElement).toString()
+            // Regex to find an existing string resource with the same name, including surrounding whitespace.
+            val searchRegex = Regex("""\s*<string name="$name">.*?</string>""")
+
+            val newContent: String
+            val wasUpdated: Boolean
+
+            if (content.contains(searchRegex)) {
+                // **Key exists, so we replace the entire line.**
+                newContent = content.replace(searchRegex, newStringElement)
+                wasUpdated = true
+            } else {
+                // **Key doesn't exist, so we add it before </resources>.**
+                val closingTag = "</resources>"
+                val closingTagIndex = content.lastIndexOf(closingTag)
+
+                if (closingTagIndex == -1) {
+                    return ToolResult.failure("Invalid strings.xml format: missing </resources> tag.")
+                }
+
+                // Add the new element with a newline for proper formatting.
+                val elementToInsert = "$newStringElement\n"
+                newContent =
+                    StringBuilder(content).insert(closingTagIndex, elementToInsert).toString()
+                wasUpdated = false
+            }
 
             if (FileIOUtils.writeFileFromString(stringsFile, newContent)) {
+                val message = if (wasUpdated) {
+                    "Successfully updated string resource '$name'."
+                } else {
+                    "Successfully added string resource '$name'."
+                }
                 ToolResult.success(
-                    message = "Successfully added string resource '$name'.",
+                    message = message,
                     data = "R.string.$name" // Provide the resource reference back to the model.
                 )
             } else {
@@ -55,7 +77,7 @@ class AddStringResourceCommand(
             }
         } catch (e: Exception) {
             ToolResult.failure(
-                message = "An error occurred while adding the string resource.",
+                message = "An error occurred while adding or updating the string resource.",
                 error_details = e.message
             )
         }

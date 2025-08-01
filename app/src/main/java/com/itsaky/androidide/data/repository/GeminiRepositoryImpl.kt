@@ -28,7 +28,8 @@ class GeminiRepositoryImpl(
         systemInstruction = content(role = "system") {
             text(
                 "You are an expert programmer's assistant. You will use the provided tools " +
-                        "to help the user manage their Android project files and build process."
+                        "to help the user manage their Android project files and build process. " +
+                        "**Crucially, when asked to add or change text that will be displayed to the user, you must prefer using the `add_string_resource` tool to create a string resource. Then, use the returned resource ID (e.g., `R.string.your_string_name`) in the code. Avoid hardcoding user-facing strings directly in the source code whenever possible.**"
             )
         },
         tools = listOf(Tool.functionDeclarations(GeminiTools.allTools)),
