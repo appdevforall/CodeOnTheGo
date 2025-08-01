@@ -265,12 +265,6 @@ class ChatFragment :
         }
     }
 
-    private fun formatElapsedTime(millis: Long): String {
-        if (millis == 0L) return ""
-        val seconds = millis / 1000.0
-        return String.format(Locale.US, " (%.1fs)", seconds)
-    }
-
     private fun updateUIState(messages: List<ChatMessage>) {
         val hasMessages = messages.isNotEmpty()
         binding.emptyChatView.isVisible = !hasMessages
@@ -325,7 +319,6 @@ class ChatFragment :
                     context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                 imm?.showSoftInput(binding.promptInputEdittext, InputMethodManager.SHOW_IMPLICIT)
             }
-            // You can add more actions here in the future
         }
     }
 }

@@ -8,17 +8,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.ai.type.FunctionCallPart
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.data.ChatStorageManager
 import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
+import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
 class ChatViewModel(
     private val geminiRepository: GeminiRepository
@@ -45,12 +47,15 @@ class ChatViewModel(
 
     private var agentJob: Job? = null
 
+    private val chatStorageManager: ChatStorageManager
+
     companion object {
-        private const val CHAT_HISTORY_LIST_PREF_KEY = "chat_history_list_v1"
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
     }
 
     init {
+        val agentDir = File(Environment.ANDROIDIDE_HOME, "agent")
+        chatStorageManager = ChatStorageManager(agentDir)
         geminiRepository.onToolCall = { functionCall ->
             val toolMessage = formatToolCallForDisplay(functionCall)
             addMessageToCurrentSession(
@@ -234,28 +239,27 @@ class ChatViewModel(
     }
 
     fun loadSessions(prefs: SharedPreferences) {
-        val json = prefs.getString(CHAT_HISTORY_LIST_PREF_KEY, null)
-        val loadedSessions: MutableList<ChatSession> = if (json != null) {
-            val type = object : TypeToken<MutableList<ChatSession>>() {}.type
-            gson.fromJson(json, type)
-        } else {
-            mutableListOf()
-        }
+        val loadedSessions = chatStorageManager.loadAllSessions()
 
         if (loadedSessions.isEmpty()) {
+            // If no chats are found on disk, start with a fresh session
             loadedSessions.add(ChatSession())
         }
 
         _sessions.value = loadedSessions
 
+        // Find the last active session using the ID from SharedPreferences
         val currentId = prefs.getString(CURRENT_CHAT_ID_PREF_KEY, null)
         _currentSession.value = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
     }
 
     fun saveSessions(prefs: SharedPreferences) {
-        val json = gson.toJson(_sessions.value)
-        prefs.edit { putString(CHAT_HISTORY_LIST_PREF_KEY, json) }
+        // Save all chat sessions to their respective files
+        _sessions.value?.let {
+            chatStorageManager.saveAllSessions(it)
+        }
 
+        // Continue using SharedPreferences to remember the current session ID
         _currentSession.value?.let {
             prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
         }
