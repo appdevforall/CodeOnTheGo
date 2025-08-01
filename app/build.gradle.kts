@@ -294,7 +294,7 @@ dependencies {
   implementation(libs.common.markwon.core)
   implementation(libs.common.markwon.linkify)
   implementation(libs.android.spinkit)
-
+  implementation(libs.commons.text.v1140)
 }
 
 

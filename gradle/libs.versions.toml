@@ -7,6 +7,7 @@ appcompat = "1.6.1"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
 commonsText = "1.11.0"
+commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
 firebaseBom = "34.0.0"
@@ -62,6 +63,7 @@ androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", ve
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
+commons-text-v1140 = { module = "org.apache.commons:commons-text", version.ref = "commonsTextVersion" }
 composite-appintro = { module = "com.itsaky.androidide.build:appintro" }
 composite-constants = { module = "com.itsaky.androidide.build:constants" }
 composite-desugaringCore = { module = "com.itsaky.androidide.build:desugaring-core" }

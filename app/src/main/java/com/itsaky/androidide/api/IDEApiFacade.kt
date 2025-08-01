@@ -31,23 +31,6 @@ object IDEApiFacade {
 
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
 
-    fun buildProject(): ToolResult {
-        val activity = ActionContextProvider.getActivity()
-            ?: return ToolResult.failure("No active IDE window to execute the build.")
-
-        val action: ActionItem = ActionsRegistry.getInstance()
-            .findAction(ActionItem.Location.EDITOR_TOOLBAR, "ide.editor.build.quickRun")
-            ?: return ToolResult.failure("Quick Run action is not available.")
-
-        val actionData = ActionData.create(activity)
-
-        coroutineScope.launch {
-            action.execAction(actionData)
-        }
-
-        return ToolResult.success("Build project command initiated successfully.")
-    }
-
     fun runApp(): ToolResult {
         val activity = ActionContextProvider.getActivity()
             ?: return ToolResult.failure("No active IDE window to launch the app.")
@@ -63,10 +46,6 @@ object IDEApiFacade {
         }
 
         return ToolResult.success("App run command initiated successfully.")
-    }
-
-    fun runBuild(module: String?, variant: String): ToolResult {
-        return buildProject()
     }
 
     fun addDependency(dependencyString: String, buildFilePath: String): ToolResult {

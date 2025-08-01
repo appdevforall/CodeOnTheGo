@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -11,11 +10,11 @@
         android:id="@+id/chat_toolbar"
         android:layout_width="0dp"
         android:layout_height="?attr/actionBarSize"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:title="AI Agent"
-        app:menu="@menu/chat_menu" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:menu="@menu/chat_menu"
+        app:title="AI Agent" />
 
     <TextView
         android:id="@+id/empty_chat_view"
@@ -25,32 +24,32 @@
         android:textAppearance="?attr/textAppearanceHeadline5"
         android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone"
-        tools:visibility="visible"
-        app:layout_constraintTop_toBottomOf="@id/chat_toolbar"
         app:layout_constraintBottom_toTopOf="@id/input_bar_card"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/chat_toolbar"
+        tools:visibility="visible" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/chat_recycler_view"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:paddingBottom="8dp"
         android:clipToPadding="false"
-        app:layout_constraintTop_toBottomOf="@id/chat_toolbar"
+        android:paddingBottom="8dp"
         app:layout_constraintBottom_toTopOf="@id/input_bar_card"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/chat_toolbar"
         tools:listitem="@layout/list_item_chat_message" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/input_bar_card"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:cardElevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:strokeWidth="0dp">
 
         <LinearLayout
@@ -65,16 +64,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_add_context"
                     style="@style/Widget.Material3.Button.IconButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="\@"
-                    android:contentDescription="Add Context File" />
+                    android:contentDescription="Add Context File"
+                    android:text="\@" />
 
                 <HorizontalScrollView
                     android:layout_width="0dp"
@@ -86,7 +85,7 @@
                         android:id="@+id/context_chip_group"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        app:singleLine="true"/>
+                        app:singleLine="true" />
                 </HorizontalScrollView>
             </LinearLayout>
 
@@ -137,16 +136,36 @@
                         tools:ignore="LabelFor" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_send_prompt"
-                    style="@style/Widget.Material3.Button.Icon"
+                <RelativeLayout
+                    android:id="@+id/btn_control_prompt"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:enabled="false"
-                    app:icon="@drawable/ic_send"
-                    android:contentDescription="Send Message"/>
+                    android:layout_centerVertical="true">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_stop_generation"
+                        style="@style/Widget.Material3.Button.Icon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        app:icon="@drawable/ic_stop"
+                        android:visibility="gone"
+                        tools:visibility="visible"
+                        android:contentDescription="Stop Generation" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_send_prompt"
+                        style="@style/Widget.Material3.Button.Icon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:enabled="false"
+                        app:icon="@drawable/ic_send"
+                        android:contentDescription="Send Message" />
+                </RelativeLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_upload_image"
@@ -154,7 +173,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_centerVertical="true"
-                    android:layout_toStartOf="@id/btn_send_prompt"
+                    android:layout_toStartOf="@id/btn_control_prompt"
                     app:icon="@drawable/ic_add_photo"
                     android:contentDescription="Upload Image"/>
             </RelativeLayout>

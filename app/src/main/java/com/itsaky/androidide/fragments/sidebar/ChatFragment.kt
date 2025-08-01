@@ -23,6 +23,7 @@ import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.ChatViewModel
@@ -69,6 +70,7 @@ class ChatFragment :
 
         setupUI()
         setupListeners()
+        setupStateObservers()
         chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
             session?.let {
                 chatAdapter.submitList(it.messages.toList())
@@ -103,15 +105,12 @@ class ChatFragment :
             return
         }
 
-        binding.btnSendPrompt.isEnabled = false
         binding.promptInputEdittext.text?.clear()
 
         viewLifecycleOwner.lifecycleScope.launch {
             if (selectedContext.isEmpty()) {
-                // No files selected, just send the plain message
                 chatViewModel.sendMessage(inputText)
             } else {
-                // Files are selected, build the master prompt in the background
                 val masterPrompt = buildMasterPrompt(inputText)
                 chatViewModel.sendMessage(fullPrompt = masterPrompt, originalUserText = inputText)
             }
@@ -174,6 +173,9 @@ class ChatFragment :
         binding.btnSendPrompt.setOnClickListener {
             handleSendMessage()
         }
+        binding.btnStopGeneration.setOnClickListener {
+            chatViewModel.stopAgentResponse()
+        }
         binding.promptInputEdittext.setOnKeyListener { _, keyCode, keyEvent ->
             if (keyEvent.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
                 if (keyEvent.isShiftPressed) {
@@ -205,6 +207,28 @@ class ChatFragment :
                 }
 
                 else -> false
+            }
+        }
+    }
+
+    private fun setupStateObservers() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            chatViewModel.agentState.collect { state ->
+                when (state) {
+                    is AgentState.Idle -> {
+                        // Not processing: enable input, show send button
+                        binding.promptInputLayout.isEnabled = true
+                        binding.btnSendPrompt.visibility = View.VISIBLE
+                        binding.btnStopGeneration.visibility = View.GONE
+                    }
+
+                    is AgentState.Processing -> {
+                        // Processing: disable input, show stop button
+                        binding.promptInputLayout.isEnabled = false
+                        binding.btnSendPrompt.visibility = View.GONE
+                        binding.btnStopGeneration.visibility = View.VISIBLE
+                    }
+                }
             }
         }
     }

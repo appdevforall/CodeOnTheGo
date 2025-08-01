@@ -135,12 +135,6 @@ class GeminiRepositoryImpl(
                 ideApi.updateFile(path, content)
             }
 
-
-            "run_build" -> ideApi.runBuild(
-                module = functionCall.args["module"].toString(),
-                variant = functionCall.args["variant"].toString()
-            )
-
             "read_file" -> ideApi.readFile(
                 path = functionCall.args["path"].toString()
             )
@@ -150,7 +144,6 @@ class GeminiRepositoryImpl(
                 recursive = functionCall.args["recursive"]?.toString().toBoolean()
             )
 
-            "build_project" -> ideApi.buildProject()
             "run_app" -> ideApi.runApp()
             "add_dependency" -> ideApi.addDependency(
                 dependencyString = functionCall.args["dependency_string"].toString(),

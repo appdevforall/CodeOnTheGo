@@ -14,14 +14,6 @@ object GeminiTools {
             )
         ),
         FunctionDeclaration(
-            name = "run_build",
-            description = "Run a specific module with a android build variant.",
-            parameters = mapOf(
-                "module" to Schema.string("The module to be build"),
-                "variant" to Schema.string("The build variant name.")
-            )
-        ),
-        FunctionDeclaration(
             name = "read_file",
             description = "Reads the entire content of a file.",
             parameters = mapOf(
@@ -37,12 +29,6 @@ object GeminiTools {
             )
         ),
 
-        // Project Build & Execution
-        FunctionDeclaration(
-            name = "build_project",
-            description = "Executes a Gradle build (assembleDebug) to check for compilation errors.",
-            parameters = emptyMap()
-        ),
         FunctionDeclaration(
             name = "run_app",
             description = "Installs and launches the successfully built application on the device. Should be called after a successful build.",

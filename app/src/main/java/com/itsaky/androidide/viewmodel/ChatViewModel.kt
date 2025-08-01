@@ -5,16 +5,21 @@ import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.google.firebase.ai.type.FunctionCallPart
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.data.repository.GeminiRepository
+import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class ChatViewModel(
@@ -29,6 +34,11 @@ class ChatViewModel(
     private val gson = Gson()
 
     private val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEChat"))
+
+    private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
+    val agentState = _agentState.asStateFlow()
+
+    private var agentJob: Job? = null
 
     companion object {
         private const val CHAT_HISTORY_LIST_PREF_KEY = "chat_history_list_v1"
@@ -82,6 +92,11 @@ class ChatViewModel(
     }
 
     fun sendMessage(fullPrompt: String, originalUserText: String) {
+        if (_agentState.value == AgentState.Processing) {
+            // Optionally, inform the user with a Toast or a temporary message
+            return
+        }
+
         val userMessage = ChatMessage(text = originalUserText, sender = ChatMessage.Sender.USER)
         addMessageToCurrentSession(userMessage)
 
@@ -94,6 +109,7 @@ class ChatViewModel(
 
         retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText)
     }
+
     fun sendMessage(text: String) {
         sendMessage(fullPrompt = text, originalUserText = text)
     }
@@ -103,10 +119,11 @@ class ChatViewModel(
         messageIdToUpdate: String,
         originalUserPrompt: String
     ) {
-        chatScope.launch {
+        agentJob = viewModelScope.launch {
             try {
-                val history = _currentSession.value?.messages?.toList() ?: emptyList()
+                _agentState.value = AgentState.Processing
 
+                val history = _currentSession.value?.messages?.toList() ?: emptyList()
                 val response = geminiRepository.generateASimpleResponse(prompt, history)
 
                 updateMessageInCurrentSession(
@@ -115,15 +132,31 @@ class ChatViewModel(
                     newStatus = MessageStatus.SENT
                 )
             } catch (e: Exception) {
-                println(e)
-                val error = e
-                updateMessageInCurrentSession(
-                    messageId = messageIdToUpdate,
-                    newText = "An error occurred. Please try again.",
-                    newStatus = MessageStatus.ERROR,
-                    originalPrompt = originalUserPrompt // Pass original prompt for retry
-                )
+                if (e is kotlinx.coroutines.CancellationException) {
+                    // Handle cancellation gracefully
+                    updateMessageInCurrentSession(
+                        messageId = messageIdToUpdate,
+                        newText = "Operation cancelled.",
+                        newStatus = MessageStatus.ERROR
+                    )
+                } else {
+                    updateMessageInCurrentSession(
+                        messageId = messageIdToUpdate,
+                        newText = "An error occurred. Please try again.",
+                        newStatus = MessageStatus.ERROR,
+                        originalPrompt = originalUserPrompt
+                    )
+                }
+            } finally {
+                // 5. Reset state when done
+                _agentState.value = AgentState.Idle
             }
+        }
+    }
+
+    fun stopAgentResponse() {
+        if (agentJob?.isActive == true) {
+            agentJob?.cancel()
         }
     }
 
