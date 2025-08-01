@@ -34,14 +34,14 @@ object GeminiTools {
             description = "Installs and launches the successfully built application on the device. Should be called after a successful build.",
             parameters = emptyMap()
         ),
-        FunctionDeclaration(
-            name = "add_dependency",
-            description = "Adds a dependency string to the specified Gradle build file.",
-            parameters = mapOf(
-                "dependency_string" to Schema.string("The full dependency line (e.g., 'implementation(\"io.coil-kt:coil-compose:2.5.0\")')."),
-                "build_file_path" to Schema.string("The path to the build.gradle.kts file (e.g., 'app/build.gradle.kts').")
-            )
-        ),
+//        FunctionDeclaration(
+//            name = "add_dependency",
+//            description = "Adds a dependency string to the specified Gradle build file.",
+//            parameters = mapOf(
+//                "dependency_string" to Schema.string("The full dependency line (e.g., 'implementation(\"io.coil-kt:coil-compose:2.5.0\")')."),
+//                "build_file_path" to Schema.string("The path to the build.gradle.kts file (e.g., 'app/build.gradle.kts').")
+//            )
+//        ),
 
         // User Interaction
         FunctionDeclaration(

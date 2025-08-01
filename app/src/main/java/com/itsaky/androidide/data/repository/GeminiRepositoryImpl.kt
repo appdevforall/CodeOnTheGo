@@ -173,10 +173,10 @@ class GeminiRepositoryImpl(
             )
 
             "run_app" -> ideApi.runApp()
-            "add_dependency" -> ideApi.addDependency(
-                dependencyString = functionCall.args["dependency_string"].toString(),
-                buildFilePath = functionCall.args["build_file_path"].toString()
-            )
+//            "add_dependency" -> ideApi.addDependency(
+//                dependencyString = functionCall.args["dependency_string"].toString(),
+//                buildFilePath = functionCall.args["build_file_path"].toString()
+//            )
 
             "get_build_output" -> ideApi.getBuildOutput()
 
@@ -193,16 +193,13 @@ class GeminiRepositoryImpl(
             "ask_user" -> {
                 val question = (functionCall.args["question"] as? JsonPrimitive)?.content ?: "..."
 
-                // The 'options' argument is a JSON array. We need to deserialize it properly.
                 val optionsJson = functionCall.args["options"]
                 val options = optionsJson?.let {
                     Json.decodeFromJsonElement(ListSerializer(String.serializer()), it)
                 } ?: listOf()
 
-                // Invoke the callback to notify the ViewModel/UI
                 onAskUser?.invoke(question, options)
 
-                // Return a result to the AI, confirming the question was asked.
                 ToolResult(
                     success = true,
                     message = "The user has been asked the question. Await their response in the next turn."
