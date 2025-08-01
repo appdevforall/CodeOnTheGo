@@ -39,7 +39,7 @@ class AddStringResourceCommand(
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
 
-            val newStringElement = "    <string name=\"$name\">$escapedValueForXml</string>"
+            val newStringElement = "\n    <string name=\"$name\">$escapedValueForXml</string>"
 
             // Regex to find an existing string resource with the same name, including surrounding whitespace.
             val searchRegex = Regex("""\s*<string name="$name">.*?</string>""")

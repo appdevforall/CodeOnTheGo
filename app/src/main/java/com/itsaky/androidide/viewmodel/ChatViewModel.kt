@@ -14,9 +14,6 @@ import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,8 +29,6 @@ class ChatViewModel(
     val currentSession: LiveData<ChatSession?> = _currentSession
 
     private val gson = Gson()
-
-    private val chatScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEChat"))
 
     private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
     val agentState = _agentState.asStateFlow()
@@ -65,6 +60,9 @@ class ChatViewModel(
                 )
             )
         }
+        geminiRepository.onStateUpdate = { newState ->
+            _agentState.value = newState
+        }
         geminiRepository.onAskUser = { question, options ->
             val formattedMessage = buildString {
                 append(question)
@@ -92,8 +90,7 @@ class ChatViewModel(
     }
 
     fun sendMessage(fullPrompt: String, originalUserText: String) {
-        if (_agentState.value == AgentState.Processing) {
-            // Optionally, inform the user with a Toast or a temporary message
+        if (_agentState.value is AgentState.Processing) {
             return
         }
 
@@ -121,8 +118,6 @@ class ChatViewModel(
     ) {
         agentJob = viewModelScope.launch {
             try {
-                _agentState.value = AgentState.Processing
-
                 val history = _currentSession.value?.messages?.toList() ?: emptyList()
                 val response = geminiRepository.generateASimpleResponse(prompt, history)
 
@@ -133,7 +128,6 @@ class ChatViewModel(
                 )
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) {
-                    // Handle cancellation gracefully
                     updateMessageInCurrentSession(
                         messageId = messageIdToUpdate,
                         newText = "Operation cancelled.",
@@ -148,7 +142,7 @@ class ChatViewModel(
                     )
                 }
             } finally {
-                // 5. Reset state when done
+                // When the entire operation is finished (or fails), reset the state to Idle.
                 _agentState.value = AgentState.Idle
             }
         }

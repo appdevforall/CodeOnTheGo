@@ -1,9 +1,11 @@
 package com.itsaky.androidide.data.repository
 
 import com.google.firebase.ai.type.FunctionCallPart
+import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 
 interface GeminiRepository {
+    var onStateUpdate: ((AgentState) -> Unit)?
     var onToolCall: ((FunctionCallPart) -> Unit)?
     var onToolMessage: ((String) -> Unit)?
     var onAskUser: ((question: String, options: List<String>) -> Unit)?

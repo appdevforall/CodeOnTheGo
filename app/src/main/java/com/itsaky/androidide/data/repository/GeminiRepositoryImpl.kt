@@ -10,6 +10,7 @@ import com.google.firebase.ai.type.ToolConfig
 import com.google.firebase.ai.type.content
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.data.model.ToolResult
+import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -54,6 +55,7 @@ class GeminiRepositoryImpl(
 
     override var onToolCall: ((FunctionCallPart) -> Unit)? = null
     override var onToolMessage: ((String) -> Unit)? = null
+    override var onStateUpdate: ((AgentState) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
 
     override suspend fun generateASimpleResponse(
@@ -95,18 +97,29 @@ class GeminiRepositoryImpl(
         apiHistory.add(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
 
+        // Track tool usage for the final report
+        val toolsUsed = mutableListOf<String>()
+
         // The tool-calling loop now uses the functionCallingModel
         for (i in 1..10) {
+            // Update state: Waiting for model
+            onStateUpdate?.invoke(AgentState.Processing("Thinking..."))
             val response = functionCallingModel.generateContent(apiHistory)
 
             val functionCalls = response.functionCalls
             if (functionCalls.isEmpty()) {
-                return response.text ?: "The operation was processed, but I have no final answer."
+                val finalReport = generateFinalReport(toolsUsed)
+                // Combine the model's text response with the report
+                return (response.text ?: "Operation complete.") + "\n\n" + finalReport
             }
 
             response.candidates.firstOrNull()?.content?.let { apiHistory.add(it) }
 
             val toolResponses = functionCalls.map { functionCall ->
+                // Update state: Executing a tool
+                onStateUpdate?.invoke(AgentState.Processing("Executing tool: `${functionCall.name}`"))
+                toolsUsed.add(functionCall.name) // Track the tool call
+
                 onToolCall?.invoke(functionCall)
                 val result: ToolResult = executeTool(functionCall)
                 onToolMessage?.invoke(result.message)
@@ -120,7 +133,34 @@ class GeminiRepositoryImpl(
             apiHistory.add(content(role = "tool") { parts.addAll(toolResponses) })
         }
 
-        return "The request exceeded the maximum number of tool calls."
+        val finalReport = generateFinalReport(toolsUsed)
+        return "The request exceeded the maximum number of tool calls.\n\n$finalReport"
+    }
+
+    /**
+     * Creates a formatted summary of the tools that were used during the request.
+     */
+    private fun generateFinalReport(toolsUsed: List<String>): String {
+        if (toolsUsed.isEmpty()) {
+            return "✅ **Operation Complete**\n\nNo tools were needed to fulfill this request."
+        }
+
+        val toolCounts = toolsUsed.groupingBy { it }.eachCount()
+        val reportBuilder =
+            StringBuilder("✅ **Operation Complete**\n\n**Tool Execution Report:**\n")
+
+        reportBuilder.append("Sequence:\n")
+        toolsUsed.forEachIndexed { index, name ->
+            reportBuilder.append("${index + 1}. `$name`\n")
+        }
+
+        reportBuilder.append("\nSummary:\n")
+        toolCounts.forEach { (name, count) ->
+            val times = if (count == 1) "1 time" else "$count times"
+            reportBuilder.append("- `$name`: called $times\n")
+        }
+
+        return reportBuilder.toString()
     }
 
     private fun executeTool(functionCall: FunctionCallPart): ToolResult {
