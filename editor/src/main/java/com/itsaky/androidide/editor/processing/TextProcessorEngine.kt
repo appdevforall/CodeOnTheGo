@@ -1,4 +1,3 @@
-// in: com/itsaky/androidide/editor/processing/TextProcessorEngine.kt
 package com.itsaky.androidide.editor.processing
 
 class TextProcessorEngine {
@@ -12,15 +11,21 @@ class TextProcessorEngine {
         SimpleMacroProcessor(),
     ) + additionalProcessors
 
-    suspend fun process(context: ProcessContext): ProcessResult? {
-        if (context.cursor.isSelected) return null
+    /**
+     * @param context The current editor context.
+     * @param isEnterPress True if this check was triggered by a newline insertion.
+     */
+    suspend fun process(context: ProcessContext, isEnterPress: Boolean): ProcessResult? {
+        // The processor should only run on an Enter press and if there's no text selection.
+        if (!isEnterPress || context.cursor.isSelected) return null
 
-        val line = context.content.getLineString(context.cursor.leftLine)
-        val cursorCol = context.cursor.leftColumn
+        // We check the line where the cursor was *before* the Enter key was pressed.
+        val lineToProcess = context.cursor.leftLine - 1
+        val lineContent = context.content.getLineString(lineToProcess)
+        val cursorCol = context.content.getLine(lineToProcess).length
 
         for (processor in processors) {
-            if (processor.canProcess(line, cursorCol)) {
-                // Return the result from the first processor that can handle it
+            if (processor.canProcess(lineContent, cursorCol)) {
                 return processor.process(context)
             }
         }

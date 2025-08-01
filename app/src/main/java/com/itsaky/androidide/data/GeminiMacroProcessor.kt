@@ -16,28 +16,26 @@ import java.util.regex.Pattern
  */
 class GeminiMacroProcessor(private val geminiRepository: GeminiRepository) : TextProcessor {
 
-    // Regex to find the macro and capture the prompt text.
-    // Example: "//ai: create a for loop" -> captures "create a for loop"
     private val macroRegex = Pattern.compile("""^.*//ai:\s*(.+)""")
 
     /**
-     * Quickly checks if the line contains the AI macro.
+     * The engine now confirms this is an "Enter" press.
+     * This method just needs to confirm the line is a valid AI macro.
      */
     override fun canProcess(line: String, cursorPosition: Int): Boolean {
-        // A fast check to see if the macro is likely on this line.
-        // The full regex match happens in process().
-        return line.contains("//ai:")
+        return macroRegex.matcher(line).matches()
     }
 
     /**
      * Processes the macro: calls Gemini and returns the generated code.
      */
     override suspend fun process(context: ProcessContext): ProcessResult? {
-        val lineNum = context.cursor.leftLine
+        val lineNum = context.cursor.leftLine - 1
         val line = context.content.getLineString(lineNum)
         val matcher = macroRegex.matcher(line)
 
         // If the regex doesn't match, we can't process it.
+        // This is a safeguard in case canProcess was too lenient.
         if (!matcher.matches()) {
             return null
         }
@@ -52,8 +50,6 @@ class GeminiMacroProcessor(private val geminiRepository: GeminiRepository) : Tex
         }
 
         try {
-            // --- This is where you call the Gemini API ---
-            // The call is suspended until the network request completes.
             val generatedCode = geminiRepository.generateCode(prompt)
 
             // Preserve the indentation of the original line.

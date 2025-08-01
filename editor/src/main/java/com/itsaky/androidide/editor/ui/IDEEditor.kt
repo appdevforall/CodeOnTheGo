@@ -23,8 +23,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
-import android.view.InputDevice
-import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
@@ -101,7 +99,6 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
-import kotlin.math.abs
 
 /**
  * [CodeEditor] implementation for the IDE.
@@ -738,30 +735,54 @@ open class IDEEditor @JvmOverloads constructor(
     }
   }
 
-  // Replace your old method with this new one
   private fun handleCustomTextReplacement(event: ContentChangeEvent) {
-    // We only care about simple text insertions
-    if (event.action != ContentChangeEvent.ACTION_INSERT) return
+    val isEnterPress = event.action == ContentChangeEvent.ACTION_INSERT &&
+            event.changedText.toString().contains("\n")
+
+    if (!isEnterPress) {
+      return
+    }
+
+    val currentFile = this.file ?: return
 
     editorScope.launch {
-      val context = ProcessContext(text, file!!, text.cursor)
-      val result = textProcessorEngine.process(context)
+      dispatchDocumentSaveEvent()
 
-      // If a processor returned a result, apply it
+      val lineToProcess = event.changeStart.line
+
+      val context = ProcessContext(
+        content = text,
+        file = currentFile,
+        cursor = text.cursor.apply {
+//                    set(lineToProcess, text.getLine(lineToProcess).length)
+        }
+      )
+
+      val result = textProcessorEngine.process(context, isEnterPress)
+
       if (result != null) {
         withContext(Dispatchers.Main) {
           post {
             val start = result.range.start
             val end = result.range.end
-            text.replace(start.line, start.column, end.line, end.column, result.replacement)
 
-            setSelection(end.line, end.column - 1)
+            text.replace(
+              start.line,
+              start.column,
+              end.line,
+              end.column,
+              result.replacement
+            )
+
+            val newCursorLine = start.line + result.replacement.lines().size - 1
+            val newCursorColumn = result.replacement.lines().last().length
+
+            setSelection(newCursorLine, newCursorColumn)
           }
         }
       }
     }
   }
-
 
   private inline fun launchCancellableAsyncWithProgress(@StringRes message: Int,
     crossinline action: suspend CoroutineScope.(flashbar: Flashbar, cancelChecker: ICancelChecker) -> Unit): Job? {

@@ -43,6 +43,13 @@ class GeminiRepositoryImpl(
         tools = listOf(Tool.googleSearch())
     )
 
+    private val codeGenerationModel: GenerativeModel = firebaseAI.generativeModel(
+        modelName = "gemini-2.5-pro",
+        systemInstruction = content(role = "system") {
+            text("You are an expert code generation assistant. You only respond with raw code based on the user's prompt. Do not add any explanations, comments, or markdown formatting like ```. Your response must be only the code itself.")
+        }
+    )
+
     override var onToolCall: ((FunctionCallPart) -> Unit)? = null
     override var onToolMessage: ((String) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
@@ -177,7 +184,7 @@ class GeminiRepositoryImpl(
     }
 
     override suspend fun generateCode(prompt: String): String {
-        val response = functionCallingModel.generateContent(prompt)
+        val response = codeGenerationModel.generateContent(prompt)
         return response.text ?: throw Exception("Failed to get a valid response from the API.")
     }
 }
