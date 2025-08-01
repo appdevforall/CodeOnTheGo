@@ -38,7 +38,9 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.data.GeminiMacroProcessor
 import com.itsaky.androidide.di.appModule
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -62,14 +64,13 @@ import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
@@ -80,8 +81,6 @@ class IDEApplication : TermuxApplication() {
 
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
-
-    private val applicationScope = CoroutineScope(SupervisorJob())
 
     init {
         if (!VMUtils.isJvm() && !isTestMode()) {
@@ -95,7 +94,6 @@ class IDEApplication : TermuxApplication() {
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
-  
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
 
@@ -107,6 +105,9 @@ class IDEApplication : TermuxApplication() {
             androidContext(this@IDEApplication)
             modules(appModule)
         }
+
+        val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
+        TextProcessorEngine.additionalProcessors.add(geminiMacro)
 
         if (BuildConfig.DEBUG) {
             val builder = StrictMode.VmPolicy.Builder()
@@ -143,7 +144,6 @@ class IDEApplication : TermuxApplication() {
         GlobalScope.launch {
             IDEColorSchemeProvider.init()
         }
-
 
 
         //Tooltip database access is now handled by direct SQLite queries

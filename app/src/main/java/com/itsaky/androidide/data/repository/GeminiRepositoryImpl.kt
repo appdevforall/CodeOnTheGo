@@ -175,4 +175,9 @@ class GeminiRepositoryImpl(
             else -> ToolResult.failure("Unknown tool: ${functionCall.name}")
         }
     }
+
+    override suspend fun generateCode(prompt: String): String {
+        val response = functionCallingModel.generateContent(prompt)
+        return response.text ?: throw Exception("Failed to get a valid response from the API.")
+    }
 }

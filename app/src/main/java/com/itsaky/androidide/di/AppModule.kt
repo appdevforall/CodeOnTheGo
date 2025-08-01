@@ -5,6 +5,7 @@ import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.GenerativeBackend
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.api.IDEApiFacade
+import com.itsaky.androidide.data.GeminiMacroProcessor
 import com.itsaky.androidide.data.repository.GeminiRepository
 import com.itsaky.androidide.data.repository.GeminiRepositoryImpl
 import com.itsaky.androidide.viewmodel.ChatViewModel
@@ -23,6 +24,7 @@ val appModule = module {
         )
     }
     single { FileActionManager() }
+    single { GeminiMacroProcessor(get()) }
 
     viewModel {
         ChatViewModel(geminiRepository = get())

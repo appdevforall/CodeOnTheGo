@@ -3,12 +3,14 @@ package com.itsaky.androidide.editor.processing
 
 class TextProcessorEngine {
 
+    companion object {
+        val additionalProcessors = mutableListOf<TextProcessor>()
+    }
+
     // The order here is important. The first processor to handle the text wins.
     private val processors = listOf(
         SimpleMacroProcessor(),
-//        CommentPromptProcessor()
-        // Add new processors here in the future
-    )
+    ) + additionalProcessors
 
     suspend fun process(context: ProcessContext): ProcessResult? {
         if (context.cursor.isSelected) return null

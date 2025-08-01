@@ -13,4 +13,5 @@ interface GeminiRepository {
      * @return A string containing the final JSON report.
      */
     suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): String
+    suspend fun generateCode(prompt: String): String
 }
