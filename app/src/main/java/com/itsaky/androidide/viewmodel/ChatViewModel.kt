@@ -46,6 +46,15 @@ class ChatViewModel(
                 )
             )
         }
+        geminiRepository.onToolMessage = { message ->
+            addMessageToCurrentSession(
+                ChatMessage(
+                    text = "Message from tool: `${message}`",
+                    sender = ChatMessage.Sender.SYSTEM,
+                    status = MessageStatus.SENT
+                )
+            )
+        }
         geminiRepository.onAskUser = { question, options ->
             val formattedMessage = buildString {
                 append(question)
@@ -69,7 +78,7 @@ class ChatViewModel(
         val args = functionCall.args.map { (key, value) ->
             "  - **$key**: `${value.toString().removeSurrounding("\"")}`"
         }.joinToString("\n")
-        return "Calling tool: **`${functionCall.name}`** with arguments:\n$args"
+        return "\nCalling tool: **`${functionCall.name}`** with arguments:\n$args"
     }
 
     fun sendMessage(fullPrompt: String, originalUserText: String) {

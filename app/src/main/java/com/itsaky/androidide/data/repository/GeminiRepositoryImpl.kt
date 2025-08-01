@@ -3,8 +3,10 @@ package com.itsaky.androidide.data.repository
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.type.FunctionCallPart
+import com.google.firebase.ai.type.FunctionCallingConfig
 import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.Tool
+import com.google.firebase.ai.type.ToolConfig
 import com.google.firebase.ai.type.content
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.data.model.ToolResult
@@ -23,10 +25,21 @@ class GeminiRepositoryImpl(
 
     private val generativeModel: GenerativeModel = firebaseAI.generativeModel(
         modelName = "gemini-2.5-pro",
-        tools = listOf(Tool.functionDeclarations(GeminiTools.allTools))
+        systemInstruction = content(role = "system") {
+            text(
+                "You are an expert programmer's assistant. You will use the provided tools " +
+                        "to help the user manage their Android project files and build process. " +
+                        "Be concise and call tools whenever possible to fulfill the user's request."
+            )
+        },
+        tools = listOf(Tool.functionDeclarations(GeminiTools.allTools)),
+        toolConfig = ToolConfig(
+            functionCallingConfig = FunctionCallingConfig.any()
+        )
     )
 
     override var onToolCall: ((FunctionCallPart) -> Unit)? = null
+    override var onToolMessage: ((String) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
 
     override suspend fun generateASimpleResponse(
@@ -43,7 +56,7 @@ class GeminiRepositoryImpl(
         val json = Json { ignoreUnknownKeys = true }
 
         for (i in 1..10) {
-            val response = generativeModel.generateContent(apiHistory) // Use apiHistory
+            val response = generativeModel.generateContent(apiHistory)
 
             val functionCalls = response.functionCalls
             if (functionCalls.isEmpty()) {
@@ -56,6 +69,7 @@ class GeminiRepositoryImpl(
             val toolResponses = functionCalls.map { functionCall ->
                 onToolCall?.invoke(functionCall)
                 val result: ToolResult = executeTool(functionCall)
+                onToolMessage?.invoke(result.message)
                 val resultJsonString = json.encodeToString(result)
                 FunctionResponsePart(
                     name = functionCall.name,

@@ -5,6 +5,7 @@ import com.itsaky.androidide.models.ChatMessage
 
 interface GeminiRepository {
     var onToolCall: ((FunctionCallPart) -> Unit)?
+    var onToolMessage: ((String) -> Unit)?
     var onAskUser: ((question: String, options: List<String>) -> Unit)?
     /**
      * Generates a structured JSON report by orchestrating function calls to providers.
