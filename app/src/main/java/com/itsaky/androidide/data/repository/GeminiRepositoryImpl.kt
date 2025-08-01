@@ -8,6 +8,7 @@ import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.ToolConfig
 import com.google.firebase.ai.type.content
+import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.data.model.ToolResult
 import com.itsaky.androidide.models.AgentState
@@ -23,6 +24,8 @@ class GeminiRepositoryImpl(
     firebaseAI: FirebaseAI,
     private val ideApi: IDEApiFacade,
 ) : GeminiRepository {
+
+    private val toolTracker = ToolExecutionTracker()
 
     val modelName = "gemini-2.5-pro"
     private val functionCallingModel: GenerativeModel = firebaseAI.generativeModel(
@@ -100,7 +103,7 @@ class GeminiRepositoryImpl(
         apiHistory.add(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
 
-        val toolsUsed = mutableListOf<String>()
+        toolTracker.startTracking() // Start tracking for this new request
 
         for (i in 1..10) {
             onStateUpdate?.invoke(AgentState.Processing("Waiting for Gemini..."))
@@ -108,7 +111,7 @@ class GeminiRepositoryImpl(
 
             val functionCalls = response.functionCalls
             if (functionCalls.isEmpty()) {
-                val finalReport = generateFinalReport(toolsUsed)
+                val finalReport = toolTracker.generateReport()
                 val responseText = response.text ?: "Operation complete."
                 return AgentResponse(text = responseText, report = finalReport)
             }
@@ -117,11 +120,18 @@ class GeminiRepositoryImpl(
 
             val toolResponses = functionCalls.map { functionCall ->
                 onStateUpdate?.invoke(AgentState.Processing("Executing tool: `${functionCall.name}`"))
-                toolsUsed.add(functionCall.name)
 
-                onToolCall?.invoke(functionCall)
+                val toolStartTime = System.currentTimeMillis()
                 val result: ToolResult = executeTool(functionCall)
+                val toolDuration = System.currentTimeMillis() - toolStartTime
+
+                toolTracker.logToolCall(
+                    functionCall.name,
+                    toolDuration
+                )
+                onToolCall?.invoke(functionCall)
                 onToolMessage?.invoke(result.message)
+
                 val resultJsonString = json.encodeToString(result)
                 FunctionResponsePart(
                     name = functionCall.name,
@@ -132,34 +142,11 @@ class GeminiRepositoryImpl(
             apiHistory.add(content(role = "tool") { parts.addAll(toolResponses) })
         }
 
-        val finalReport = generateFinalReport(toolsUsed)
+        val finalReport = toolTracker.generateReport()
         return AgentResponse(
             text = "The request exceeded the maximum number of tool calls.",
             report = finalReport
         )
-    }
-
-    private fun generateFinalReport(toolsUsed: List<String>): String {
-        if (toolsUsed.isEmpty()) {
-            return "✅ **Operation Complete**\n\nNo tools were needed for this request."
-        }
-
-        val toolCounts = toolsUsed.groupingBy { it }.eachCount()
-        val reportBuilder =
-            StringBuilder("✅ **Operation Complete**\n\n**Tool Execution Report:**\n")
-
-        reportBuilder.append("Sequence:\n")
-        toolsUsed.forEachIndexed { index, name ->
-            reportBuilder.append("${index + 1}. `$name`\n")
-        }
-
-        reportBuilder.append("\nSummary:\n")
-        toolCounts.forEach { (name, count) ->
-            val times = if (count == 1) "1 time" else "$count times"
-            reportBuilder.append("- `$name`: called $times\n")
-        }
-
-        return reportBuilder.toString()
     }
 
     private fun executeTool(functionCall: FunctionCallPart): ToolResult {
