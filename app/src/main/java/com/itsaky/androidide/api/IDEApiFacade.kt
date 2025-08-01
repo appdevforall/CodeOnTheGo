@@ -14,9 +14,6 @@ import com.itsaky.androidide.api.commands.ListFilesCommand
 import com.itsaky.androidide.api.commands.UpdateFileCommand
 import com.itsaky.androidide.data.model.ToolResult
 import com.itsaky.androidide.projects.builder.BuildResult
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -25,8 +22,6 @@ import kotlin.coroutines.resume
  * This Facade translates simple requests into executable Commands.
  */
 object IDEApiFacade {
-    private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
     fun createFile(path: String, content: String): ToolResult {
         val command = HighOrderCreateFileCommand(path, content)
         return command.execute()
