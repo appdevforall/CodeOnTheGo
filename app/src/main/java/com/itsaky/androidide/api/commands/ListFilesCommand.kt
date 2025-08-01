@@ -12,7 +12,6 @@ class ListFilesCommand(
         return try {
             val baseDir = IProjectManager.getInstance().projectDir
 
-            // ✨ Sanitize the path to handle different root directory representations
             val targetDir = when (val sanitizedPath = path.trim()) {
                 "", ".", "./" -> baseDir
                 else -> File(baseDir, sanitizedPath)
