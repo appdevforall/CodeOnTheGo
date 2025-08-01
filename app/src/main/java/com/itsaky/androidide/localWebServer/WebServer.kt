@@ -1,5 +1,6 @@
 package com.itsaky.androidide.localWebServer
 
+import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
@@ -45,7 +46,8 @@ data class ServerConfig(
     val bindName: String = "0.0.0.0", // TODO: Change to "localhost" --DS, 21-Jul-2025
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory()
         .toString() +
-            "/Download/documentation.db"
+            "/Download/documentation.db",
+    val applicationContext: Context
 )
 
 class WebServer(private val config: ServerConfig) {
@@ -329,8 +331,12 @@ class WebServer(private val config: ServerConfig) {
         val dir = sourceFile.parentFile
         val fileName = sourceFile.nameWithoutExtension
         val classFile = File(dir, "$fileName.class")
-        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
-        val javac = ProcessBuilder("/data/data/com.itsaky.androidide/files/usr/bin/javac", filePath)
+        val filePath = "/storage/emulated/0/AndroidIDEProjects/Playground.java"
+        val directoryPath = config.applicationContext.filesDir
+        val javacPath = "$directoryPath/usr/bin/javac"
+        val javaPath = "$directoryPath/usr/bin/java"
+
+        val javac = ProcessBuilder(javacPath, filePath)
             .directory(dir)
             .redirectErrorStream(true)
             .start()
@@ -342,7 +348,7 @@ class WebServer(private val config: ServerConfig) {
         }
 
         val java = ProcessBuilder(
-            "/data/data/com.itsaky.androidide/files/usr/bin/java",
+            javaPath,
             "-cp",
             dir?.absolutePath,
             fileName
