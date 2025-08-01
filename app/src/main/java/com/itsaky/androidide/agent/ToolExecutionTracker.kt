@@ -26,7 +26,6 @@ class ToolExecutionTracker {
         if (toolsUsed.isEmpty()) {
             return "✅ **Operation Complete**\n\nNo tools were needed for this request."
         }
-
         val totalDuration = System.currentTimeMillis() - operationStartTime
         return buildReport("✅ **Operation Complete**", totalDuration)
     }
@@ -37,6 +36,17 @@ class ToolExecutionTracker {
         }
         val totalDuration = System.currentTimeMillis() - operationStartTime
         return buildReport("🛑 **Operation Cancelled**", totalDuration)
+    }
+
+    /**
+     * Generates a report for when the operation is paused waiting for user input.
+     */
+    fun generatePausedReport(): String {
+        if (toolsUsed.isEmpty()) {
+            return "⏸️ **Awaiting User Input**\n\nNo tools were run before the question was asked."
+        }
+        val totalDuration = System.currentTimeMillis() - operationStartTime
+        return buildReport("⏸️ **Awaiting User Input**", totalDuration)
     }
 
     private fun buildReport(title: String, totalDuration: Long): String {

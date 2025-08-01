@@ -103,9 +103,9 @@ class GeminiRepositoryImpl(
         apiHistory.add(content(role = "user") { text(prompt) })
         val json = Json { ignoreUnknownKeys = true }
 
-        toolTracker.startTracking() // Start tracking for this new request
+        toolTracker.startTracking()
 
-        for (i in 1..10) {
+        for (i in 1..10) { // Max 10 turns
             onStateUpdate?.invoke(AgentState.Processing("Waiting for Gemini..."))
             val response = functionCallingModel.generateContent(apiHistory)
 
@@ -120,18 +120,12 @@ class GeminiRepositoryImpl(
 
             val toolResponses = functionCalls.map { functionCall ->
                 onStateUpdate?.invoke(AgentState.Processing("Executing tool: `${functionCall.name}`"))
-
                 val toolStartTime = System.currentTimeMillis()
                 val result: ToolResult = executeTool(functionCall)
                 val toolDuration = System.currentTimeMillis() - toolStartTime
-
-                toolTracker.logToolCall(
-                    functionCall.name,
-                    toolDuration
-                )
+                toolTracker.logToolCall(functionCall.name, toolDuration)
                 onToolCall?.invoke(functionCall)
                 onToolMessage?.invoke(result.message)
-
                 val resultJsonString = json.encodeToString(result)
                 FunctionResponsePart(
                     name = functionCall.name,
@@ -140,8 +134,18 @@ class GeminiRepositoryImpl(
             }
 
             apiHistory.add(content(role = "tool") { parts.addAll(toolResponses) })
+
+            val isAskingUser = functionCalls.any { it.name == "ask_user" }
+            if (isAskingUser) {
+                // The flow must stop to wait for the user's next message.
+                val pausedReport = toolTracker.generatePausedReport()
+                // Return an empty text response, as the question is already displayed
+                // via the onAskUser callback. The report will be shown as a system message.
+                return AgentResponse(text = "", report = pausedReport)
+            }
         }
 
+        // This part is reached if the loop completes without a natural stop
         val finalReport = toolTracker.generateReport()
         return AgentResponse(
             text = "The request exceeded the maximum number of tool calls.",
