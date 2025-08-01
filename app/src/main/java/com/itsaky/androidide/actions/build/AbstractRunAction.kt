@@ -57,7 +57,7 @@ abstract class AbstractRunAction(
             buildService.executeTasks(message).get()
         }
 
-        if (result?.isSuccessful != true) {
+        if (result?.isSuccessful != true) {// TaskExecutionResult(isSuccessful=false, failure=BUILD_FAILED)
             log.error("Tasks failed to execute: '{}'", message.tasks)
         }
 

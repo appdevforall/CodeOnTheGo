@@ -106,6 +106,7 @@ class GeminiRepositoryImpl(
                 dependencyString = functionCall.args["dependency_string"].toString(),
                 buildFilePath = functionCall.args["build_file_path"].toString()
             )
+            "get_build_output" -> ideApi.getBuildOutput()
 
             "ask_user" -> {
                 val question = (functionCall.args["question"] as? JsonPrimitive)?.content ?: "..."

@@ -74,5 +74,10 @@ object GeminiTools {
                 "content" to Schema.string("The complete new content to write to the file.")
             )
         ),
+        FunctionDeclaration(
+            name = "get_build_output",
+            description = "Get the latest build output logs useful for errors or warnings.",
+            parameters = emptyMap()
+        )
     )
 }

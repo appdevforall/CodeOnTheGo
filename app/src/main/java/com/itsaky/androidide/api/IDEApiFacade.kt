@@ -1,6 +1,7 @@
 package com.itsaky.androidide.api
 
 import com.itsaky.androidide.api.commands.AddDependencyCommand
+import com.itsaky.androidide.api.commands.GetBuildOutputCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
@@ -40,6 +41,15 @@ object IDEApiFacade {
 
     fun updateFile(path: String, content: String): ToolResult {
         val command = UpdateFileCommand(path, content)
+        return command.execute()
+    }
+
+    /**
+     * Retrieves the latest build output logs.
+     * @return A ToolResult containing the build log content.
+     */
+    fun getBuildOutput(): ToolResult {
+        val command = GetBuildOutputCommand()
         return command.execute()
     }
 
