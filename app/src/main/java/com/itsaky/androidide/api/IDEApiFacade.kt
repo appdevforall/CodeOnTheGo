@@ -4,6 +4,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.api.commands.AddDependencyCommand
+import com.itsaky.androidide.api.commands.AddStringResourceCommand
 import com.itsaky.androidide.api.commands.GetBuildOutputCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
@@ -65,5 +66,15 @@ object IDEApiFacade {
     fun getBuildOutput(): ToolResult {
         val command = GetBuildOutputCommand()
         return command.execute()
+    }
+
+    /**
+     * Adds a new string resource to the strings.xml file.
+     * @param name The name of the string resource.
+     * @param value The content of the string.
+     * @return A ToolResult indicating success or failure and providing the resource reference.
+     */
+    fun addStringResource(name: String, value: String): ToolResult {
+        return AddStringResourceCommand(name, value).execute()
     }
 }

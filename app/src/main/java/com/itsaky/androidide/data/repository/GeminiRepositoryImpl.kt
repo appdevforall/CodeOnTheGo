@@ -152,6 +152,16 @@ class GeminiRepositoryImpl(
 
             "get_build_output" -> ideApi.getBuildOutput()
 
+            "add_string_resource" -> {
+                val name = (functionCall.args["name"] as? JsonPrimitive)?.content ?: ""
+                val value = (functionCall.args["value"] as? JsonPrimitive)?.content ?: ""
+                if (name.isEmpty() || value.isEmpty()) {
+                    ToolResult.failure("Both 'name' and 'value' parameters are required for add_string_resource.")
+                } else {
+                    ideApi.addStringResource(name, value)
+                }
+            }
+
             "ask_user" -> {
                 val question = (functionCall.args["question"] as? JsonPrimitive)?.content ?: "..."
 

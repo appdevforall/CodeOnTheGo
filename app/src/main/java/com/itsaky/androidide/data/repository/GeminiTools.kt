@@ -64,6 +64,14 @@ object GeminiTools {
             name = "get_build_output",
             description = "Get the latest build output logs useful for errors or warnings.",
             parameters = emptyMap()
+        ),
+        FunctionDeclaration(
+            name = "add_string_resource",
+            description = "Adds a new string resource to the strings.xml file. This is the preferred way to handle strings, as it avoids escaping issues.",
+            parameters = mapOf(
+                "name" to Schema.string("The name for the string resource (e.g., 'welcome_message'). This will be used as the resource ID."),
+                "value" to Schema.string("The actual string content to be added (e.g., 'Hello, World!').")
+            )
         )
     )
 }
