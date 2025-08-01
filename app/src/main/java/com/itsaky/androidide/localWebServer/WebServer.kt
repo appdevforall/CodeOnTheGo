@@ -186,25 +186,40 @@ class WebServer(private val config: ServerConfig) {
         Log.d(TAG, "Method -> $method")
         if (method == "POST") {
 
-            var data = ByteArray(contentLength)
+            val data = CharArray(contentLength)
 
-
-            for (i in 0 until contentLength) {
-                data += reader.read().toByte()
+            var bytesRead = 0
+            while (bytesRead < contentLength) {
+                val readResult = reader.read(data, bytesRead, contentLength - bytesRead)
+                if (readResult == -1) { // End of stream reached prematurely
+                    Log.e(TAG, "POST data stream ended prematurely")
+                    sendError(writer, 400, "Bad Request: Incomplete POST data")
+                    return
+                }
+                bytesRead += readResult
             }
 
             Log.d(TAG, "Concat data = '${data}'")
 
-            writer.println("HTTP/1.1 200 OK")
-            writer.println("Content-Type: text/text")
-            writer.println("Content-Length: ${data.size}")
-            writer.println()
+            val file = createFileFromPost(data)
+            val result = compileAndRunJava(file)
+            val byteArrayFromResult = result.toByteArray()
 
-            output.write(data)
+            Log.d(TAG, String(byteArrayFromResult))
+
+            val javacOut = String(data) + String(byteArrayFromResult) // Your existing line
+            val javacOutBytes = javacOut.toByteArray(Charsets.UTF_8) // Encode to bytes
+
+            writer.println("HTTP/1.1 200 OK")
+            writer.println("Content-Type: text/plain; charset=utf-8") // Be explicit about charset
+            writer.println("Content-Length: ${javacOutBytes.size}") // Use the byte array's size
+            writer.println() // End of headers
+
+            // Option A: Write bytes directly (more control, avoids extra newline from println)
+            output.write(javacOutBytes)
             output.flush()
             writer.flush()
 
-            createFileFromPost(data)
             return
         }
 
@@ -298,9 +313,9 @@ class WebServer(private val config: ServerConfig) {
         writer.println("$code $message")
     }
 
-    private fun createFileFromPost(input: ByteArray): File {
+    private fun createFileFromPost(input: CharArray): File {
         val inputAsString = String(input)
-        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/playground.txt"
+        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
         val file = File(filePath)
         try {
             file.writeText(inputAsString)
@@ -308,5 +323,41 @@ class WebServer(private val config: ServerConfig) {
             Log.e(TAG, "Error creating file")
         }
         return file
+    }
+
+    private fun compileAndRunJava(sourceFile: File): String {
+        val dir = sourceFile.parentFile
+        val fileName = sourceFile.nameWithoutExtension
+        val classFile = File(dir, "$fileName.class")
+        val filePath = "/storage/emulated/0/AndroidIDEProjects/My Application7/Playground.java"
+        val javac = ProcessBuilder("/data/data/com.itsaky.androidide/files/usr/bin/javac", filePath)
+            .directory(dir)
+            .redirectErrorStream(true)
+            .start()
+        val compileOutput = javac.inputStream.bufferedReader().readText()
+        javac.waitFor()
+
+        if (!classFile.exists()) {
+            return "Compilation failed:\n$compileOutput"
+        }
+
+        val java = ProcessBuilder(
+            "/data/data/com.itsaky.androidide/files/usr/bin/java",
+            "-cp",
+            dir?.absolutePath,
+            fileName
+        )
+            .directory(dir)
+            .redirectErrorStream(true)
+            .start()
+        val runOutput = java.inputStream.bufferedReader().readText()
+        java.waitFor()
+
+        return if (compileOutput.isNotBlank()) {
+            "Compile output\n $compileOutput\n Program output\n$runOutput"
+        } else {
+            "Program output\n $runOutput"
+        }
+
     }
 }
