@@ -24,7 +24,7 @@ import java.io.File
 
 object TooltipManager {
     private val TAG = "TooltipManager"
-    private var databaseTimestamp: Long = -1L
+    private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
@@ -48,16 +48,10 @@ ORDER  BY buttonNumberId
             var dbPath = Environment.DOC_DB.absolutePath
 
             // TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
-            // Set databaseTimestamp the first time through.
-            if (databaseTimestamp == -1L) { // TODO: Can this move up to the initialization section? --DS, 30-Jul-2025
-                databaseTimestamp = File(dbPath).lastModified()
-            }
-
             val debugDatabaseTimestamp = if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
 
             if (debugDatabaseTimestamp > databaseTimestamp) {
                 // Switch to the debug database.
-                databaseTimestamp = debugDatabaseTimestamp
                 dbPath = debugDatabaseFile.absolutePath
             }
 
@@ -66,8 +60,13 @@ ORDER  BY buttonNumberId
 
                 val cursor = db.rawQuery(queryTooltip, arrayOf(category, tag))
                 
-                if (cursor.count != 1) {
-                    // TODO: throw an exception? No rows --> a bad request. More than one row --> bad data in the database. --DS, 31-Jul-2025
+                when (cursor.count) {
+                    0 -> throw NoTooltipFoundException(category, tag)
+                    1 -> { /* Expected case, continue processing */ }
+                    else -> throw DatabaseCorruptionException(
+                        "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
+                        "This indicates database corruption - each category/tag combination should be unique."
+                    )
                 }
 
                 cursor.moveToFirst()
@@ -78,7 +77,6 @@ ORDER  BY buttonNumberId
 
                 val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(id.toString()))
                     
-                buttonCursor.moveToFirst() // TODO: Is this needed? --DS, 30-Jul-2025
                 val buttons = ArrayList<Pair<String, String>>()
                 while (buttonCursor.moveToNext()) {
                     buttons.add(Pair(buttonCursor.getString(0), buttonCursor.getString(1)))
