@@ -162,9 +162,8 @@ ORDER  BY buttonNumberId
             1 -> {
                 val detailContent = if (tooltipItem.detail.isNotBlank()) tooltipItem.detail else ""
                 if (tooltipItem.buttons.isNotEmpty()) {
-// TODO: The HTML in the linksHtml variable below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
                     val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
-                        """<a href="$url" style="color:#233490;text-decoration:underline;">$label</a>"""
+                        context.getString(R.string.tooltip_links_html_template, url, label)
                     }
                     if (detailContent.isNotBlank()) {
                         "$detailContent<br><br>$linksHtml"

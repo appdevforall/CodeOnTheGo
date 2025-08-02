@@ -744,4 +744,7 @@
 
         </html>
         ]]></string>
+
+  <!-- Tooltip Links HTML Template -->
+  <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
 </resources>
