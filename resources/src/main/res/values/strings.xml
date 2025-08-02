@@ -718,4 +718,30 @@
 
   <!--  Message shown when the bootstrap installer is in the linking phase  -->
   <string name="bootstrap_installer_linking">Resolving symlinks…</string>
+
+  <!-- Tooltip HTML Template -->
+  <string name="tooltip_html_template"><![CDATA[
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                     body {
+                        margin: 0;
+                        padding: 10px;
+                        word-wrap: break-word;
+                        color: %1$s;
+                     }
+                     a{
+                        color: #233490;
+                        text-decoration: underline;
+                       }
+                </style>
+            </head>
+            <body>
+                %2$s
+            </body>
+
+        </html>
+        ]]></string>
 </resources>

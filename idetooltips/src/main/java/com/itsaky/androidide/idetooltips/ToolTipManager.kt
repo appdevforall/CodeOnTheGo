@@ -180,31 +180,7 @@ ORDER  BY buttonNumberId
 
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
-// TODO: The HTML below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
-        val styledHtml = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                     body {
-                        margin: 0;
-                        padding: 10px;
-                        word-wrap: break-word;
-                        color: $hexColor;
-                     }
-                     a{
-                        color: #233490;
-                        text-decoration: underline;
-                       }
-                </style>
-            </head>
-            <body>
-                $tooltipHtmlContent
-            </body>
-
-        </html>
-        """.trimIndent()
+        val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
