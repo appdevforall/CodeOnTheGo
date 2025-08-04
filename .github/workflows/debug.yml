@@ -139,22 +139,57 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-          output=$(firebase --debug appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-            --app "${{ secrets.FIREBASE_APP_ID }}" \
-            --groups "testers" \
-            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
-
-          echo "$output"
-
-          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-
-          if [ -z "$FIREBASE_URL" ]; then
-            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          fi
-
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
+            echo "Starting Firebase App Distribution upload..."
+            echo "APK Path: ${{ steps.find_apk.outputs.APK_PATH }}"
+            echo "Firebase App ID: ${{ secrets.FIREBASE_APP_ID }}"
+            
+            # Check if APK file exists
+            if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
+              echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
+              echo "Available APK files:"
+              find app/build/outputs/apk/ -name "*.apk" -type f || echo "No APK files found"
+              exit 1
+            fi
+            
+            # Capture both stdout and stderr, and handle errors
+            set +e  # Don't exit on error immediately
+            output=$(firebase --debug appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+              --app "${{ secrets.FIREBASE_APP_ID }}" \
+              --groups "testers" \
+              --release-notes "Build Type: ${{ env.BUILD_TYPE }}
+            Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
+            
+            exit_code=$?
+            
+            # Always show the output
+            echo "Firebase CLI Output:"
+            echo "==================="
+            echo "$output"
+            echo "==================="
+            echo "Exit code: $exit_code"
+            
+            # If command failed, show additional debug info and exit
+            if [ $exit_code -ne 0 ]; then
+              echo ""
+              echo "Firebase command failed. Additional debug info:"
+              echo "Current user: $(whoami)"
+              echo "Working directory: $(pwd)"
+              echo "Firebase CLI version: $(firebase --version)"
+              echo "Google Cloud auth status:"
+              gcloud auth list || echo "gcloud auth list failed"
+              echo "Application Default Credentials:"
+              gcloud auth application-default print-access-token > /dev/null 2>&1 && echo "ADC is working" || echo "ADC is not working"
+              exit $exit_code
+            fi
+            
+            # If successful, extract Firebase URL
+            FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+            
+            if [ -z "$FIREBASE_URL" ]; then
+              FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+            fi
+            
+            echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
