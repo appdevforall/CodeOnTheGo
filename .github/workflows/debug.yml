@@ -139,7 +139,7 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+          output=$(firebase --debug appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
             --release-notes "Build Type: ${{ env.BUILD_TYPE }}
