@@ -142,8 +142,6 @@ jobs:
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
         run: |
           echo "Starting Firebase App Distribution upload..."
           echo "APK Path: ${{ steps.find_apk.outputs.APK_PATH }}"
@@ -157,31 +155,32 @@ jobs:
             exit 1
           fi
           
-          # Try multiple authentication approaches
-          set +e
+          # Since gcloud is already authenticated, get the access token directly
+          echo "Getting access token from authenticated gcloud session..."
+          ACCESS_TOKEN=$(gcloud auth print-access-token 2>/dev/null)
           
-          # Method 1: Try with credentials file directly
-          if [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-            echo "Trying with service account credentials file..."
+          if [ $? -eq 0 ] && [ -n "$ACCESS_TOKEN" ]; then
+            echo "Got access token successfully. Deploying to Firebase..."
+          
             output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
               --app "${{ secrets.FIREBASE_APP_ID }}" \
               --groups "testers" \
+              --token "$ACCESS_TOKEN" \
               --release-notes "Build Type: ${{ env.BUILD_TYPE }}
             Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
             exit_code=$?
           else
-            echo "No credentials file available"
-            exit_code=1
-          fi
+            echo "ERROR: Failed to get access token from gcloud"
+            echo "gcloud auth status:"
+            gcloud auth list
+            echo "Trying to impersonate service account..."
           
-          # Method 2: If that fails, try with gcloud auth activate-service-account
-          if [ $exit_code -ne 0 ] && [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-            echo "Method 1 failed, trying service account activation..."
-            gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-          
+            # Try service account impersonation as fallback
+            gcloud config set auth/impersonate_service_account cogobuild@codeonthego-64a92.iam.gserviceaccount.com
             ACCESS_TOKEN=$(gcloud auth print-access-token 2>/dev/null)
+          
             if [ $? -eq 0 ] && [ -n "$ACCESS_TOKEN" ]; then
-              echo "Got access token, trying Firebase with token..."
+              echo "Got access token via impersonation. Deploying to Firebase..."
               output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
                 --app "${{ secrets.FIREBASE_APP_ID }}" \
                 --groups "testers" \
@@ -190,7 +189,8 @@ jobs:
               Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
               exit_code=$?
             else
-              echo "Failed to get access token"
+              echo "ERROR: All authentication methods failed"
+              exit 1
             fi
           fi
           
