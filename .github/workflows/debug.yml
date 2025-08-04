@@ -165,44 +165,70 @@ jobs:
             
             echo "Access token obtained successfully (length: ${#ACCESS_TOKEN})"
             
-            # Deploy with Firebase
+            # Deploy with Firebase - Modified to capture output properly
             echo -e "\n=== Starting Firebase deployment ==="
-            output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+            
+            # Don't exit on error immediately
+            set +e
+            
+            # Use tee to capture output while also displaying it
+            firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
               --app "${{ secrets.FIREBASE_APP_ID }}" \
               --project "codeonthego-64a92" \
               --groups "testers" \
               --release-notes "Build Type: ${{ env.BUILD_TYPE }} | Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" \
-              --token "$ACCESS_TOKEN" 2>&1)
+              --token "$ACCESS_TOKEN" \
+              --debug 2>&1 | tee firebase_output.log
             
-            exit_code=$?
+            # Capture the exit code from the firebase command (not tee)
+            exit_code=${PIPESTATUS[0]}
             
-            echo -e "\n=== Firebase output ==="
-            echo "$output"
-            echo -e "\n=== Exit code: $exit_code ==="
+            # Re-enable exit on error
+            set -e
+            
+            echo -e "\n=== Firebase command exit code: $exit_code ==="
+            
+            # Display the output again for clarity
+            echo -e "\n=== Full Firebase output ==="
+            cat firebase_output.log
             
             if [ $exit_code -ne 0 ]; then
-              echo "Firebase deployment failed"
+              echo -e "\n=== Firebase deployment failed ==="
             
               # Check for common errors
-              if echo "$output" | grep -q "401"; then
+              if grep -q "401" firebase_output.log; then
                 echo "Authentication error - token might not have correct permissions"
-              elif echo "$output" | grep -q "403"; then
+              elif grep -q "403" firebase_output.log; then
                 echo "Permission denied - check service account roles"
-              elif echo "$output" | grep -q "404"; then
+              elif grep -q "404" firebase_output.log; then
                 echo "Not found - check app ID and project"
+              elif grep -q "ENOENT" firebase_output.log; then
+                echo "File not found - check APK path"
+              elif grep -q "groups" firebase_output.log; then
+                echo "Issue with groups - make sure 'testers' group exists"
+              fi
+            
+              # Also check for specific Firebase errors
+              if grep -q "app distribution is not enabled" firebase_output.log; then
+                echo "App Distribution might not be enabled for this project"
+              elif grep -q "invalid app id" firebase_output.log; then
+                echo "Invalid app ID format"
               fi
             
               exit $exit_code
             fi
             
-            # Extract URL
-            FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+            # Extract URL if successful
+            FIREBASE_URL=$(grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?' firebase_output.log || true)
             
             if [ -z "$FIREBASE_URL" ]; then
               FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
             fi
             
             echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+            
+            # Clean up
+            rm -f firebase_output.log
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
