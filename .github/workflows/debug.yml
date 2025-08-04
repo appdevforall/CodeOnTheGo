@@ -142,32 +142,58 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-            # Prepare release notes as a single line or properly escaped
-            RELEASE_NOTES="Build Type: ${{ env.BUILD_TYPE }} | Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}"
+            echo "=== Pre-deployment checks ==="
+            echo "APK exists: $([ -f "app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-0804-1627.apk" ] && echo "yes" || echo "no")"
+            echo "APK size: $(ls -lh "app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-0804-1627.apk" | awk '{print $5}')"
+            echo "Firebase app ID is set: $([ -n "${{ secrets.FIREBASE_APP_ID }}" ] && echo "yes" || echo "no")"
+            echo "Current directory: $(pwd)"
             
-            # Run Firebase deployment
-            output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+            # Prepare release notes
+            RELEASE_NOTES="Build Type: ${{ env.BUILD_TYPE }} | Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}"
+            echo "Release notes: $RELEASE_NOTES"
+            
+            # Run Firebase deployment with verbose output
+            echo -e "\n=== Running Firebase deployment ==="
+            set -x  # Enable command tracing
+            
+            firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
               --app "${{ secrets.FIREBASE_APP_ID }}" \
               --project "codeonthego-64a92" \
               --groups "testers" \
-              --release-notes "$RELEASE_NOTES" 2>&1)
+              --release-notes "$RELEASE_NOTES" \
+              --debug 2>&1 | tee firebase_output.log
             
-            exit_code=$?
-            echo "$output"
+            exit_code=${PIPESTATUS[0]}
+            set +x  # Disable command tracing
+            
+            echo -e "\n=== Firebase output ==="
+            cat firebase_output.log
+            
+            echo -e "\n=== Exit code: $exit_code ==="
             
             if [ $exit_code -ne 0 ]; then
-              echo "Firebase deployment failed with exit code: $exit_code"
+              echo "Firebase deployment failed"
+            
+              # Check common issues
+              if grep -q "Authentication Error" firebase_output.log; then
+                echo "Authentication issue detected. Check service account permissions."
+              elif grep -q "404" firebase_output.log; then
+                echo "App ID might be incorrect or app doesn't exist."
+              elif grep -q "groups" firebase_output.log; then
+                echo "Issue with testers group. Make sure 'testers' group exists in Firebase."
+              fi
+            
               exit $exit_code
             fi
             
-            FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+            # Extract URL
+            FIREBASE_URL=$(grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?' firebase_output.log || true)
             
             if [ -z "$FIREBASE_URL" ]; then
               FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
             fi
             
             echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
