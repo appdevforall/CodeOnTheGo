@@ -37,10 +37,17 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
+
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
+
+
 
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -130,61 +137,17 @@ jobs:
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-      - name: Authenticate to Google Cloud via Workload Identity
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: "projects/25368176976/locations/global/workloadIdentityPools/github-actions-pool-id/providers/cogo-repo"
-          service_account: "cogobuild@codeonthego-64a92.iam.gserviceaccount.com"
-          create_credentials_file: false
-          export_environment_variables: true
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
         run: |
-          echo "Starting Firebase App Distribution upload..."
-          echo "APK Path: ${{ steps.find_apk.outputs.APK_PATH }}"
-          echo "Using credentials file: $GOOGLE_APPLICATION_CREDENTIALS"
-          
-          # Check if APK file exists
-          if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
-            echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
-            exit 1
-          fi
-          
-          # Use Firebase CLI with ambient credentials (bypasses gcloud token issues)
-          echo "Deploying to Firebase using ambient credentials..."
-          
-          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+          # Get access token from authenticated service account
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+
+          firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
             --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
-          exit_code=$?
-          
-          echo "Firebase CLI Output:"
-          echo "==================="
-          echo "$output"
-          echo "==================="
-          
-          if [ $exit_code -eq 0 ]; then
-            echo "✅ Firebase deployment successful!"
-          else
-            echo "❌ Firebase deployment failed with exit code: $exit_code"
-            exit $exit_code
-          fi
-          
-          # Extract Firebase URL
-          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-          if [ -z "$FIREBASE_URL" ]; then
-            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          fi
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}"
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
