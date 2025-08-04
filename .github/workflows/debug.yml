@@ -1,6 +1,7 @@
 name: Build and deploy to firebase app distribution
 
 permissions:
+  id-token: write
   contents: read
   actions: write
 
