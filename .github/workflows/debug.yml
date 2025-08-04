@@ -139,39 +139,53 @@ jobs:
             create_credentials_file: true
             export_environment_variables: true
 
-      - name: Deploy to Firebase App Distribution
-        id: firebase_upload
+      - name: Debug Firebase Setup
         run: |
-            # Debug: Check Firebase installation
-            echo "Firebase location: $(which firebase)"
-            echo "Firebase version: $(firebase --version)"
+            echo "=== Environment ==="
+            echo "Current user: $(whoami)"
+            echo "Current directory: $(pwd)"
+            echo "PATH: $PATH"
             
-            # Capture both stdout and stderr
-            output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-              --app "${{ secrets.FIREBASE_APP_ID }}" \
-              --groups "testers" \
-              --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-            Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
+            echo -e "\n=== Firebase Installation ==="
+            which firebase || echo "Firebase not in PATH"
+            firebase --version || echo "Cannot get Firebase version"
             
-            exit_code=$?
+            echo -e "\n=== Google Cloud Auth ==="
+            gcloud auth list
+            gcloud config list
             
-            echo "Firebase command exit code: $exit_code"
-            echo "Firebase output:"
-            echo "$output"
+            echo -e "\n=== APK File ==="
+            ls -la "${{ steps.find_apk.outputs.APK_PATH }}" || echo "APK not found"
             
-            # Exit if command failed
-            if [ $exit_code -ne 0 ]; then
-              exit $exit_code
-            fi
-            
-            # Continue with URL extraction...
-            FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-            
-            if [ -z "$FIREBASE_URL" ]; then
-              FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-            fi
-            
-            echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+            echo -e "\n=== Environment Variables ==="
+            echo "GOOGLE_APPLICATION_CREDENTIALS exists: $([[ -n "$GOOGLE_APPLICATION_CREDENTIALS" ]] && echo 'yes' || echo 'no')"
+            echo "Credentials file exists: $([[ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]] && echo 'yes' || echo 'no')"
+
+            - name: Deploy to Firebase App Distribution
+              id: firebase_upload
+              run: |
+                # Try with explicit project flag
+                firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+                  --app "${{ secrets.FIREBASE_APP_ID }}" \
+                  --project "codeonthego-64a92" \
+                  --groups "testers" \
+                  --release-notes "Build Type: ${{ env.BUILD_TYPE }} | Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" \
+                  --debug 2>&1 | tee firebase_output.log
+                
+                # Save exit code
+                exit_code=${PIPESTATUS[0]}
+                
+                # Show output
+                cat firebase_output.log
+                
+                # Extract URL if successful
+                if [ $exit_code -eq 0 ]; then
+                  FIREBASE_URL=$(grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?' firebase_output.log || true)
+                  echo "FIREBASE_CONSOLE_URL=${FIREBASE_URL:-${{ env.FIREBASE_CONSOLE_URL }}}" >> $GITHUB_OUTPUT
+                else
+                  echo "Firebase deployment failed with exit code: $exit_code"
+                  exit $exit_code
+                fi
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
