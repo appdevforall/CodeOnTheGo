@@ -142,21 +142,36 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-            --app "${{ secrets.FIREBASE_APP_ID }}" \
-            --groups "testers" \
-            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
-
-          echo "$output"
-
-          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-
-          if [ -z "$FIREBASE_URL" ]; then
-            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          fi
-
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+            # Debug: Check Firebase installation
+            echo "Firebase location: $(which firebase)"
+            echo "Firebase version: $(firebase --version)"
+            
+            # Capture both stdout and stderr
+            output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+              --app "${{ secrets.FIREBASE_APP_ID }}" \
+              --groups "testers" \
+              --release-notes "Build Type: ${{ env.BUILD_TYPE }}
+            Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
+            
+            exit_code=$?
+            
+            echo "Firebase command exit code: $exit_code"
+            echo "Firebase output:"
+            echo "$output"
+            
+            # Exit if command failed
+            if [ $exit_code -ne 0 ]; then
+              exit $exit_code
+            fi
+            
+            # Continue with URL extraction...
+            FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+            
+            if [ -z "$FIREBASE_URL" ]; then
+              FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+            fi
+            
+            echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
