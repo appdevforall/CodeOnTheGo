@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          workload_identity_provider: 'projects/25368176976/locations/global/workloadIdentityPools/github-actions/providers/actions-provider'
           service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
 
       - name: Cancel previous runs
@@ -140,8 +140,6 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-          # Get access token from authenticated service account
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
 
           firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
