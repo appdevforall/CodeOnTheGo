@@ -136,6 +136,8 @@ jobs:
         with:
           workload_identity_provider: "projects/25368176976/locations/global/workloadIdentityPools/github-actions-pool-id/providers/cogo-repo"
           service_account: "cogobuild@codeonthego-64a92.iam.gserviceaccount.com"
+          create_credentials_file: false
+          export_environment_variables: true
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -145,37 +147,18 @@ jobs:
         run: |
           echo "Starting Firebase App Distribution upload..."
           echo "APK Path: ${{ steps.find_apk.outputs.APK_PATH }}"
-          echo "Firebase App ID: ${{ secrets.FIREBASE_APP_ID }}"
           
           # Check if APK file exists
           if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
             echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
-            echo "Available APK files:"
-            find app/build/outputs/apk/ -name "*.apk" -type f || echo "No APK files found"
             exit 1
           fi
           
-          # Debug current authentication status
-          echo "Current gcloud auth status:"
-          gcloud auth list
-          echo ""
-          echo "Current gcloud config:"
-          gcloud config list
-          echo ""
+          # Get access token and deploy to Firebase
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
           
-          # Try to get access token and capture any errors
-          echo "Getting access token from authenticated gcloud session..."
-          set +e  # Don't exit on error
-          ACCESS_TOKEN=$(gcloud auth print-access-token 2>&1)
-          token_exit_code=$?
-          
-          echo "gcloud auth print-access-token output:"
-          echo "$ACCESS_TOKEN"
-          echo "Exit code: $token_exit_code"
-          echo ""
-          
-          if [ $token_exit_code -eq 0 ] && [[ "$ACCESS_TOKEN" != *"ERROR"* ]] && [ -n "$ACCESS_TOKEN" ]; then
-            echo "Got access token successfully. Deploying to Firebase..."
+          if [ $? -eq 0 ] && [ -n "$ACCESS_TOKEN" ]; then
+            echo "Successfully obtained access token. Deploying to Firebase..."
           
             output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
               --app "${{ secrets.FIREBASE_APP_ID }}" \
@@ -185,39 +168,21 @@ jobs:
             Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
             exit_code=$?
           else
-            echo "Failed to get access token. Trying alternative approach..."
-          
-            # Try using the workload identity credentials directly with Firebase
-            echo "Trying Firebase CLI without explicit token (using ambient credentials)..."
-            export GOOGLE_APPLICATION_CREDENTIALS="${{ steps.auth.outputs.credentials_file_path }}"
-            echo "Credentials file path: $GOOGLE_APPLICATION_CREDENTIALS"
-          
-            if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-              echo "Credentials file exists. Contents (first few lines):"
-              head -3 "$GOOGLE_APPLICATION_CREDENTIALS" || echo "Cannot read credentials file"
-            else
-              echo "Credentials file does not exist"
-            fi
-          
-            output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-              --app "${{ secrets.FIREBASE_APP_ID }}" \
-              --groups "testers" \
-              --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-            Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
-            exit_code=$?
+            echo "ERROR: Failed to get access token"
+            exit 1
           fi
           
-          # Show output
           echo "Firebase CLI Output:"
           echo "==================="
           echo "$output"
           echo "==================="
-          echo "Exit code: $exit_code"
           
           if [ $exit_code -ne 0 ]; then
-            echo "Firebase deployment failed"
+            echo "Firebase deployment failed with exit code: $exit_code"
             exit $exit_code
           fi
+          
+          echo "✅ Firebase deployment successful!"
           
           # Extract Firebase URL
           FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
