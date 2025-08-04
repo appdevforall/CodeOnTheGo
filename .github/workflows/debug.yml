@@ -142,77 +142,42 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-            # Debug: Check authentication
             echo "=== Current authentication ==="
             gcloud auth list
             
-            # Get access token with error checking
-            echo -e "\n=== Getting access token ==="
-            ACCESS_TOKEN=$(gcloud auth print-access-token 2>&1)
-            TOKEN_EXIT_CODE=$?
+            echo -e "\n=== Google Application Credentials ==="
+            echo "GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS"
+            echo "File exists: $([ -f "$GOOGLE_APPLICATION_CREDENTIALS" ] && echo "yes" || echo "no")"
             
-            if [ $TOKEN_EXIT_CODE -ne 0 ]; then
-              echo "Failed to get access token. Error:"
-              echo "$ACCESS_TOKEN"
-              exit 1
-            fi
+            # Make sure Firebase uses the service account credentials
+            export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS}"
             
-            # Verify we have a token
-            if [ -z "$ACCESS_TOKEN" ]; then
-              echo "Access token is empty!"
-              exit 1
-            fi
+            echo -e "\n=== Starting Firebase deployment (using service account) ==="
             
-            echo "Access token obtained successfully (length: ${#ACCESS_TOKEN})"
-            
-            # Deploy with Firebase - Modified to capture output properly
-            echo -e "\n=== Starting Firebase deployment ==="
-            
-            # Don't exit on error immediately
+            # Don't use --token, let Firebase use GOOGLE_APPLICATION_CREDENTIALS
             set +e
             
-            # Use tee to capture output while also displaying it
             firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
               --app "${{ secrets.FIREBASE_APP_ID }}" \
               --project "codeonthego-64a92" \
               --groups "testers" \
               --release-notes "Build Type: ${{ env.BUILD_TYPE }} | Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" \
-              --token "$ACCESS_TOKEN" \
               --debug 2>&1 | tee firebase_output.log
             
-            # Capture the exit code from the firebase command (not tee)
             exit_code=${PIPESTATUS[0]}
-            
-            # Re-enable exit on error
             set -e
             
             echo -e "\n=== Firebase command exit code: $exit_code ==="
-            
-            # Display the output again for clarity
             echo -e "\n=== Full Firebase output ==="
             cat firebase_output.log
             
             if [ $exit_code -ne 0 ]; then
               echo -e "\n=== Firebase deployment failed ==="
             
-              # Check for common errors
               if grep -q "401" firebase_output.log; then
-                echo "Authentication error - token might not have correct permissions"
+                echo "Authentication error - check service account permissions"
               elif grep -q "403" firebase_output.log; then
-                echo "Permission denied - check service account roles"
-              elif grep -q "404" firebase_output.log; then
-                echo "Not found - check app ID and project"
-              elif grep -q "ENOENT" firebase_output.log; then
-                echo "File not found - check APK path"
-              elif grep -q "groups" firebase_output.log; then
-                echo "Issue with groups - make sure 'testers' group exists"
-              fi
-            
-              # Also check for specific Firebase errors
-              if grep -q "app distribution is not enabled" firebase_output.log; then
-                echo "App Distribution might not be enabled for this project"
-              elif grep -q "invalid app id" firebase_output.log; then
-                echo "Invalid app ID format"
+                echo "Permission denied - service account needs Firebase App Distribution Admin role"
               fi
             
               exit $exit_code
@@ -226,8 +191,6 @@ jobs:
             fi
             
             echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-            
-            # Clean up
             rm -f firebase_output.log
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
