@@ -142,10 +142,31 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-            # Get access token from the authenticated account (not application-default)
-            ACCESS_TOKEN=$(gcloud auth print-access-token)
+            # Debug: Check authentication
+            echo "=== Current authentication ==="
+            gcloud auth list
             
-            # Deploy with Firebase using the token
+            # Get access token with error checking
+            echo -e "\n=== Getting access token ==="
+            ACCESS_TOKEN=$(gcloud auth print-access-token 2>&1)
+            TOKEN_EXIT_CODE=$?
+            
+            if [ $TOKEN_EXIT_CODE -ne 0 ]; then
+              echo "Failed to get access token. Error:"
+              echo "$ACCESS_TOKEN"
+              exit 1
+            fi
+            
+            # Verify we have a token
+            if [ -z "$ACCESS_TOKEN" ]; then
+              echo "Access token is empty!"
+              exit 1
+            fi
+            
+            echo "Access token obtained successfully (length: ${#ACCESS_TOKEN})"
+            
+            # Deploy with Firebase
+            echo -e "\n=== Starting Firebase deployment ==="
             output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
               --app "${{ secrets.FIREBASE_APP_ID }}" \
               --project "codeonthego-64a92" \
@@ -154,13 +175,27 @@ jobs:
               --token "$ACCESS_TOKEN" 2>&1)
             
             exit_code=$?
+            
+            echo -e "\n=== Firebase output ==="
             echo "$output"
+            echo -e "\n=== Exit code: $exit_code ==="
             
             if [ $exit_code -ne 0 ]; then
-              echo "Firebase deployment failed with exit code: $exit_code"
+              echo "Firebase deployment failed"
+            
+              # Check for common errors
+              if echo "$output" | grep -q "401"; then
+                echo "Authentication error - token might not have correct permissions"
+              elif echo "$output" | grep -q "403"; then
+                echo "Permission denied - check service account roles"
+              elif echo "$output" | grep -q "404"; then
+                echo "Not found - check app ID and project"
+              fi
+            
               exit $exit_code
             fi
             
+            # Extract URL
             FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
             
             if [ -z "$FIREBASE_URL" ]; then
