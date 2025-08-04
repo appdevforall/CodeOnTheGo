@@ -144,9 +144,12 @@ jobs:
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
         run: |
           echo "Starting Firebase App Distribution upload..."
           echo "APK Path: ${{ steps.find_apk.outputs.APK_PATH }}"
+          echo "Using credentials file: $GOOGLE_APPLICATION_CREDENTIALS"
           
           # Check if APK file exists
           if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
@@ -154,43 +157,33 @@ jobs:
             exit 1
           fi
           
-          # Get access token and deploy to Firebase
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          # Use Firebase CLI with ambient credentials (bypasses gcloud token issues)
+          echo "Deploying to Firebase using ambient credentials..."
           
-          if [ $? -eq 0 ] && [ -n "$ACCESS_TOKEN" ]; then
-            echo "Successfully obtained access token. Deploying to Firebase..."
-          
-            output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-              --app "${{ secrets.FIREBASE_APP_ID }}" \
-              --groups "testers" \
-              --token "$ACCESS_TOKEN" \
-              --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-            Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
-            exit_code=$?
-          else
-            echo "ERROR: Failed to get access token"
-            exit 1
-          fi
+          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+            --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --groups "testers" \
+            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
+          exit_code=$?
           
           echo "Firebase CLI Output:"
           echo "==================="
           echo "$output"
           echo "==================="
           
-          if [ $exit_code -ne 0 ]; then
-            echo "Firebase deployment failed with exit code: $exit_code"
+          if [ $exit_code -eq 0 ]; then
+            echo "✅ Firebase deployment successful!"
+          else
+            echo "❌ Firebase deployment failed with exit code: $exit_code"
             exit $exit_code
           fi
           
-          echo "✅ Firebase deployment successful!"
-          
           # Extract Firebase URL
           FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-
           if [ -z "$FIREBASE_URL" ]; then
             FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
           fi
-
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
       - name: Install jq
