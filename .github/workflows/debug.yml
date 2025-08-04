@@ -3,7 +3,6 @@ name: Build and deploy to firebase app distribution
 permissions:
   contents: read
   actions: write
-  id-token: write  # Required for WIF OIDC token
 
 on:
   pull_request:
@@ -130,68 +129,31 @@ jobs:
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud via Workload Identity
         uses: google-github-actions/auth@v2
         with:
-            workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-            project_id: 'codeonthego-64a92'
-            create_credentials_file: true
-            export_environment_variables: true
+            workload_identity_provider: "projects/25368176976/locations/global/workloadIdentityPools/github-actions-pool-id/providers/cogo-repo"
+            service_account: "cogobuild@codeonthego-64a92.iam.gserviceaccount.com"
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-            echo "=== Current authentication ==="
-            gcloud auth list
-            
-            echo -e "\n=== Google Application Credentials ==="
-            echo "GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS"
-            echo "File exists: $([ -f "$GOOGLE_APPLICATION_CREDENTIALS" ] && echo "yes" || echo "no")"
-            
-            # Make sure Firebase uses the service account credentials
-            export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS}"
-            
-            echo -e "\n=== Starting Firebase deployment (using service account) ==="
-            
-            # Don't use --token, let Firebase use GOOGLE_APPLICATION_CREDENTIALS
-            set +e
-            
-            firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-              --app "${{ secrets.FIREBASE_APP_ID }}" \
-              --project "codeonthego-64a92" \
-              --groups "testers" \
-              --release-notes "Build Type: ${{ env.BUILD_TYPE }} | Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" \
-              --debug 2>&1 | tee firebase_output.log
-            
-            exit_code=${PIPESTATUS[0]}
-            set -e
-            
-            echo -e "\n=== Firebase command exit code: $exit_code ==="
-            echo -e "\n=== Full Firebase output ==="
-            cat firebase_output.log
-            
-            if [ $exit_code -ne 0 ]; then
-              echo -e "\n=== Firebase deployment failed ==="
-            
-              if grep -q "401" firebase_output.log; then
-                echo "Authentication error - check service account permissions"
-              elif grep -q "403" firebase_output.log; then
-                echo "Permission denied - service account needs Firebase App Distribution Admin role"
-              fi
-            
-              exit $exit_code
-            fi
-            
-            # Extract URL if successful
-            FIREBASE_URL=$(grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?' firebase_output.log || true)
-            
-            if [ -z "$FIREBASE_URL" ]; then
-              FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-            fi
-            
-            echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-            rm -f firebase_output.log
+          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
+            --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --groups "testers" \
+            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
+
+          echo "$output"
+
+          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+
+          if [ -z "$FIREBASE_URL" ]; then
+            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          fi
+
+          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
