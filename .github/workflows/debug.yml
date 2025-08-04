@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: 'projects/25368176976/locations/global/workloadIdentityPools/github-actions/providers/actions-provider'
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
 
       - name: Cancel previous runs
@@ -137,10 +137,15 @@ jobs:
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
+      - name: Authenticate to Google Cloud via Workload Identity
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/25368176976/locations/global/workloadIdentityPools/github-actions/providers/actions-provider'
+          service_account: 'app-distributor@codeonthego-64a92.iam.gserviceaccount.com'
+
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-
           firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
