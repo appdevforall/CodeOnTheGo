@@ -130,10 +130,6 @@ jobs:
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -146,8 +142,6 @@ jobs:
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-          npm install -g firebase-tools
-
           output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
