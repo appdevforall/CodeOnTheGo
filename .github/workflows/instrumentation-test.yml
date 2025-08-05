@@ -2,6 +2,7 @@ name: Build and Test with Firebase Test Lab
 
 permissions:
   contents: read
+  id-token: write
   actions: write
 
 on:
