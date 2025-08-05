@@ -86,6 +86,12 @@ jobs:
           ./gradlew :app:assembleV8InstrumentationAndroidTest --no-daemon
           ./gradlew :app:assembleV8Instrumentation --no-daemon
 
+      - name: Authenticate to Google Cloud via Workload Identity
+        uses: google-github-actions/auth@v2
+        with:
+            workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+            service_account: ${{ secrets.IDENTITY_EMAIL }}
+
       - name: Run Firebase Test Lab and Wait for Results
         run: |
           mkdir -p test-results/kotlin test-results/groovy
