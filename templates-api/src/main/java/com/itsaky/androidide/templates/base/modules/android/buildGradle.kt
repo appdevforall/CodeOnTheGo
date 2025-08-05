@@ -55,10 +55,6 @@ plugins {
 android {
     namespace = "${data.packageName}"
     compileSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api}
-    // currently this is hardcodede to make it work but we should probably make it dependant on the
-    // onboarding choice.
-    
-    buildToolsVersion = "34.0.4" 
     
     // disable linter
     lint {
@@ -118,9 +114,6 @@ plugins {
 android {
     namespace '${data.packageName}'
     compileSdk ${data.versions.compileSdk.api}
-    // currently this is hardcodede to make it work but we should probably make it dependant on the
-    // onboarding choice.
-    buildToolsVersion = "34.0.4"
     
     // disable linter
     lint {
