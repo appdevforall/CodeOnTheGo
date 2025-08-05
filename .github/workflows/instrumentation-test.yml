@@ -96,17 +96,34 @@ jobs:
       - name: Run Firebase Test Lab and Wait for Results
         run: |
           mkdir -p test-results/kotlin test-results/groovy
-          
+
+          # Find the most recent APK files
+          APP_APK=$(find app/build/outputs/apk/v8/debug -name "CodeOnTheGo-v8-debug-*.apk" -type f | sort | tail -1)
+          TEST_APK=$(find app/build/outputs/apk/androidTest/v8/debug -name "*.apk" -type f | sort | tail -1)
+
+          if [[ -z "$APP_APK" ]]; then
+            echo "ERROR: App APK not found!"
+            exit 1
+          fi
+
+          if [[ -z "$TEST_APK" ]]; then
+            echo "ERROR: Test APK not found!"
+            exit 1
+          fi
+
+          echo "Using App APK: $APP_APK"
+          echo "Using Test APK: $TEST_APK"
+
           # Run Kotlin DSL tests
           echo "Running Kotlin DSL tests..."
           echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
           echo "Device: model=oriole,version=33,locale=en,orientation=portrait"
           echo "Timeout: 45m, Flaky test attempts: 2"
-          
+
           gcloud firebase test android run \
             --type instrumentation \
-            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
-            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
+            --app "$APP_APK" \
+            --test "$TEST_APK" \
             --device model=oriole,version=33,locale=en,orientation=portrait \
             --environment-variables clearPackageData=true \
             --use-orchestrator \
@@ -116,10 +133,10 @@ jobs:
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
             --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" 2>&1 | tee test-results/kotlin/test_output.txt
-          
+
           KOTLIN_EXIT_CODE=${PIPESTATUS[0]}
           echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
-          
+
           if [ $KOTLIN_EXIT_CODE -ne 0 ]; then
             echo "❌ Kotlin DSL tests failed with exit code $KOTLIN_EXIT_CODE"
             echo "=== KOTLIN TEST OUTPUT ==="
@@ -128,11 +145,11 @@ jobs:
           else
             echo "✅ Kotlin DSL tests completed successfully"
           fi
-          
+
           # Extract Firebase Test Lab URL for Kotlin tests
           KOTLIN_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/kotlin/test_output.txt | head -1 || echo "")
           echo "KOTLIN_TEST_URL=$KOTLIN_TEST_URL" >> $GITHUB_ENV
-          
+
           # Extract video URL for Kotlin tests - try multiple patterns
           KOTLIN_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
                             grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
@@ -144,11 +161,11 @@ jobs:
           echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
           echo "Device: model=oriole,version=33,locale=en,orientation=portrait"
           echo "Timeout: 45m, Flaky test attempts: 2"
-          
+
           gcloud firebase test android run \
             --type instrumentation \
-            --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
-            --test app/build/outputs/apk/androidTest/v8/debug/app-v8-debug-androidTest.apk \
+            --app "$APP_APK" \
+            --test "$TEST_APK" \
             --device model=oriole,version=33,locale=en,orientation=portrait \
             --environment-variables clearPackageData=true \
             --use-orchestrator \
@@ -158,10 +175,10 @@ jobs:
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
             --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" 2>&1 | tee test-results/groovy/test_output.txt
-          
+
           GROOVY_EXIT_CODE=${PIPESTATUS[0]}
           echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
-          
+
           if [ $GROOVY_EXIT_CODE -ne 0 ]; then
             echo "❌ Groovy DSL tests failed with exit code $GROOVY_EXIT_CODE"
             echo "=== GROOVY TEST OUTPUT ==="
@@ -170,16 +187,22 @@ jobs:
           else
             echo "✅ Groovy DSL tests completed successfully"
           fi
-          
+
           # Extract Firebase Test Lab URL for Groovy tests
           GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
           echo "GROOVY_TEST_URL=$GROOVY_TEST_URL" >> $GITHUB_ENV
-          
+
           # Extract video URL for Groovy tests - try multiple patterns
           GROOVY_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
                             grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
                             grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
           echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
+
+          # Set overall exit code for the step
+          if [ $KOTLIN_EXIT_CODE -ne 0 ] || [ $GROOVY_EXIT_CODE -ne 0 ]; then
+            echo "Some tests failed"
+            exit 1
+          fi
 
       - name: Notify Slack with parsed test results
         if: always()  # Run even if tests fail
