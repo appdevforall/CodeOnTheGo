@@ -147,7 +147,7 @@ jobs:
         id: firebase_upload
         run: |
           firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-            --app "${{ secrets.FIREBASE_APP_ID }}" \
+            --app "1:25368176976:android:48b3ce4e359342b87d6455" \
             --groups "testers" \
             --release-notes "Build Type: ${{ env.BUILD_TYPE }}
           Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}"
