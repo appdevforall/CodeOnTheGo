@@ -99,6 +99,10 @@ jobs:
           
           # Run Kotlin DSL tests
           echo "Running Kotlin DSL tests..."
+          echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
+          echo "Device: model=oriole,version=33,locale=en,orientation=portrait"
+          echo "Timeout: 45m, Flaky test attempts: 2"
+          
           gcloud firebase test android run \
             --type instrumentation \
             --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
@@ -111,10 +115,19 @@ jobs:
             --results-dir=test-results/kotlin \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" > test-results/kotlin/test_output.txt 2>&1
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" 2>&1 | tee test-results/kotlin/test_output.txt
           
-          KOTLIN_EXIT_CODE=$?
+          KOTLIN_EXIT_CODE=${PIPESTATUS[0]}
           echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
+          
+          if [ $KOTLIN_EXIT_CODE -ne 0 ]; then
+            echo "❌ Kotlin DSL tests failed with exit code $KOTLIN_EXIT_CODE"
+            echo "=== KOTLIN TEST OUTPUT ==="
+            cat test-results/kotlin/test_output.txt
+            echo "=========================="
+          else
+            echo "✅ Kotlin DSL tests completed successfully"
+          fi
           
           # Extract Firebase Test Lab URL for Kotlin tests
           KOTLIN_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/kotlin/test_output.txt | head -1 || echo "")
@@ -128,6 +141,10 @@ jobs:
 
           # Run Groovy DSL tests
           echo "Running Groovy DSL tests..."
+          echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
+          echo "Device: model=oriole,version=33,locale=en,orientation=portrait"
+          echo "Timeout: 45m, Flaky test attempts: 2"
+          
           gcloud firebase test android run \
             --type instrumentation \
             --app app/build/outputs/apk/v8/debug/CodeOnTheGo-v8-debug-*.apk \
@@ -140,10 +157,19 @@ jobs:
             --results-dir=test-results/groovy \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" > test-results/groovy/test_output.txt 2>&1
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" 2>&1 | tee test-results/groovy/test_output.txt
           
-          GROOVY_EXIT_CODE=$?
+          GROOVY_EXIT_CODE=${PIPESTATUS[0]}
           echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
+          
+          if [ $GROOVY_EXIT_CODE -ne 0 ]; then
+            echo "❌ Groovy DSL tests failed with exit code $GROOVY_EXIT_CODE"
+            echo "=== GROOVY TEST OUTPUT ==="
+            cat test-results/groovy/test_output.txt
+            echo "=========================="
+          else
+            echo "✅ Groovy DSL tests completed successfully"
+          fi
           
           # Extract Firebase Test Lab URL for Groovy tests
           GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
@@ -243,7 +269,7 @@ jobs:
             SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n📱 Check Firebase console: ${{ env.FIREBASE_CONSOLE_URL }}"
           fi
 
-          curl -X POST \
-            -H 'Content-type: application/json' \
-            --data "$(printf '{"text":"%s"}' "$SLACK_MESSAGE")" \
-            "${{ env.SLACK_WEBHOOK }}"
+#          curl -X POST \
+#            -H 'Content-type: application/json' \
+#            --data "$(printf '{"text":"%s"}' "$SLACK_MESSAGE")" \
+#            "${{ env.SLACK_WEBHOOK }}"
