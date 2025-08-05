@@ -180,11 +180,11 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
       // If the file on disk is newer AND the editor for it exists AND has no unsaved changes...
       if (currentTimestamp > lastKnownTimestamp && editorView != null && !editorView.isModified) {
-        log.info("File ${file.name} changed on disk. Reloading content.")
         val newContent = file.readText()
         editorView.editor?.post {
           editorView.editor?.setText(newContent)
           editorView.markAsSaved()
+          updateTabs()
         }
       }
     }
