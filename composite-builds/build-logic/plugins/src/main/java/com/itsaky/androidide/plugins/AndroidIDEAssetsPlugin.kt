@@ -18,159 +18,175 @@
 package com.itsaky.androidide.plugins
 
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import com.android.build.api.variant.Variant
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.downloadVersion
+import com.itsaky.androidide.plugins.conf.hasBundledAssets
 import com.itsaky.androidide.plugins.tasks.AddBrotliFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
-import com.itsaky.androidide.plugins.tasks.SetupAapt2Task
 import com.itsaky.androidide.plugins.util.capitalized
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.file.RegularFile
+import org.gradle.api.provider.Provider
+import org.gradle.api.tasks.bundling.Jar
+import org.gradle.kotlin.dsl.register
 
 /**
  * Handles asset copying and generation.
  *
  * @author Akash Yadav
- *
- * Keywors:[build, gradle, copyJar, assets, tooling, data/common, libs]
- * This class create new tasks and generates init script. It also specifies the
- * androidIDE android gradle plugin version.
- * It is also related to copyJar task and tooling system for the app.
- * @see ToolingApiServerImpl
- *
  */
 class AndroidIDEAssetsPlugin : Plugin<Project> {
 
     override fun apply(target: Project) {
-        // Ensure :gradle-plugin project is configured before this project proceeds
-        target.evaluationDependsOn(":gradle-plugin")
         target.run {
             val wrapperGeneratorTaskProvider = tasks.register(
-                "generateGradleWrapper",
-                GradleWrapperGeneratorTask::class.java
+                "generateGradleWrapper", GradleWrapperGeneratorTask::class.java
             )
 
-            val androidComponentsExtension = extensions.getByType(
-                ApplicationAndroidComponentsExtension::class.java
-            )
-
-            val setupAapt2TaskTaskProvider =
-                tasks.register("setupAapt2", SetupAapt2Task::class.java)
+            val androidComponentsExtension =
+                extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
 
             androidComponentsExtension.onVariants { variant ->
-
                 val variantNameCapitalized = variant.name.capitalized()
-
-                variant.sources.jniLibs?.addGeneratedSourceDirectory(
-                    setupAapt2TaskTaskProvider,
-                    SetupAapt2Task::outputDirectory
-                )
-
                 variant.sources.assets?.addGeneratedSourceDirectory(
-                    wrapperGeneratorTaskProvider,
-                    GradleWrapperGeneratorTask::outputDirectory
+                    wrapperGeneratorTaskProvider, GradleWrapperGeneratorTask::outputDirectory
                 )
 
-                // Init script generator
-                val generateInitScript = tasks.register(
-                    "generate${variantNameCapitalized}InitScript",
-                    GenerateInitScriptTask::class.java
-                ) {
-                    mavenGroupId.set(BuildConfig.packageName)
-                    downloadVersion.set(this@run.downloadVersion)
-                }
+                // Add android-init.gradle to assets
+                registerInitScriptGeneratorTask(variant, variantNameCapitalized)
 
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    generateInitScript,
-                    GenerateInitScriptTask::outputDir
-                )
+                // Add tooling-api-aal.jar
+                registerToolingApiJarCopierTask(variant, variantNameCapitalized)
 
-                // Tooling API JAR copier
-                val copyToolingApiJar = tasks.register(
-                    "copy${variantNameCapitalized}ToolingApiJar",
-                    if (variant.debuggable) AddFileToAssetsTask::class.java else AddBrotliFileToAssetsTask::class.java
-                ) {
-                    val toolingApi = rootProject.findProject(":subprojects:tooling-api-impl")!!
-                    dependsOn(toolingApi.tasks.getByName("copyJar"))
+                // Add libjdwp-remote.aar
+                registerLibjdwpRemoteAarCopierTask(variant, variantNameCapitalized)
 
-                    val toolingApiJar =
-                        toolingApi.layout.buildDirectory.file("libs/tooling-api-all.jar")
+                // Add cogo-plugin.jar
+                registerCoGoPluginApiJarCopierTask(variant, variantNameCapitalized)
 
-                    inputFile.set(toolingApiJar)
-                    baseAssetsPath.set("data/common")
-                }
-
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    copyToolingApiJar,
-                    AddFileToAssetsTask::outputDirectory
-                )
-
-                // libjdwp-remote AAR copier
-                val copyLibJdwpAar = tasks.register(
-                    "copy${variantNameCapitalized}LibJdwpAar",
-                    AddFileToAssetsTask::class.java
-                ) {
-                    val flavor = variant.flavorName!!
-                    val libjdwpRemote = rootProject.findProject(":subprojects:libjdwp-remote")!!
-                    dependsOn(libjdwpRemote.tasks.getByName("assemble${flavor.capitalized()}Release"))
-
-                    val libjdwpRemoteAar =
-                        libjdwpRemote.layout.buildDirectory.file("outputs/aar/libjdwp-remote-$flavor-release.aar")
-
-                    inputFile.set(libjdwpRemoteAar)
-                    baseAssetsPath.set("data/common")
-                }
-
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    copyLibJdwpAar,
-                    AddFileToAssetsTask::outputDirectory
-                )
-
-                val copyCogoPluginJar = tasks.register(
-                    "copy${variantNameCapitalized}CogoPluginJar",
-                    AddFileToAssetsTask::class.java
-                ) {
-
-                    val cogopluginApi = rootProject.findProject(":gradle-plugin")
-                    if (cogopluginApi == null) {
-                        // Fail the build if :gradle-plugin is essential
-                        throw IllegalStateException("Required project ':gradle-plugin' not found.")
-                    } else {
-                        try {
-                            val jarTaskProvider = cogopluginApi.tasks.named(
-                                "jar",
-                                org.gradle.api.tasks.bundling.Jar::class.java
-                            )
-
-                            // Depend on the task provider. Gradle ensures it runs.
-                            dependsOn(jarTaskProvider)
-
-                            inputFile.set(jarTaskProvider.flatMap { it.archiveFile })
-                        } catch (e: org.gradle.api.UnknownTaskException) {
-                            throw IllegalStateException(
-                                "Could not find required task '${cogopluginApi.path}:jar'.",
-                                e
-                            )
-                        }
-
-                        baseAssetsPath.set("data/common")
-                        this.doFirst {
-                            val resolvedInputFile = inputFile.get().asFile
-                            if (!resolvedInputFile.exists()) {
-                                throw org.gradle.api.tasks.StopExecutionException("Input file ${resolvedInputFile.absolutePath} does not exist at execution time!")
-                            }
-                        }
-                    }
-                }
-
-                variant.sources.assets?.addGeneratedSourceDirectory(
-                    copyCogoPluginJar,
-                    AddFileToAssetsTask::outputDirectory
-                )
+                // Add logsender.aar
+                registerLogSenderAarCopierTask(variant, variantNameCapitalized)
             }
         }
+    }
+
+    private fun Project.registerInitScriptGeneratorTask(
+        variant: Variant,
+        variantName: String,
+    ) {
+        val generateInitScript = tasks.register(
+            "generate${variantName}InitScript", GenerateInitScriptTask::class.java
+        ) {
+            mavenGroupId.set(BuildConfig.packageName)
+            downloadVersion.set(this@registerInitScriptGeneratorTask.downloadVersion)
+        }
+
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            generateInitScript, GenerateInitScriptTask::outputDir
+        )
+    }
+
+    private fun Project.registerToolingApiJarCopierTask(
+        variant: Variant,
+        variantName: String,
+    ) {
+        val taskName = "copy${variantName}ToolingApiJar"
+        val projectPath = ":subprojects:tooling-api-impl"
+        val projectTask = "copyJar"
+        val inputFile: (Project) -> Provider<RegularFile> =
+            { project -> project.layout.buildDirectory.file("libs/tooling-api-all.jar") }
+
+        if (hasBundledAssets(variant)) {
+            addProjectArtifactToAssets<AddBrotliFileToAssetsTask>(
+                variant = variant,
+                taskName = taskName,
+                projectPath = projectPath,
+                projectTask = projectTask,
+                onGetInputFile = inputFile
+            )
+        } else {
+            addProjectArtifactToAssets<AddFileToAssetsTask>(
+                variant = variant,
+                taskName = taskName,
+                projectPath = projectPath,
+                projectTask = projectTask,
+                onGetInputFile = inputFile
+            )
+        }
+    }
+
+    private fun Project.registerLibjdwpRemoteAarCopierTask(
+        variant: Variant,
+        variantName: String,
+    ) {
+        val flavorName = variant.flavorName!!
+        addProjectArtifactToAssets<AddFileToAssetsTask>(
+            variant = variant,
+            taskName = "copy${variantName}LibJdwpRemoteAar",
+            projectPath = ":subprojects:libjdwp-remote",
+            projectTask = "assemble${flavorName.capitalized()}Release",
+        ) { project ->
+            project.layout.buildDirectory.file("outputs/aar/libjdwp-remote-${flavorName}-release.aar")
+        }
+    }
+
+    private fun Project.registerCoGoPluginApiJarCopierTask(
+        variant: Variant,
+        variantName: String,
+    ) {
+        evaluationDependsOn(":gradle-plugin")
+        addProjectArtifactToAssets<AddFileToAssetsTask>(
+            variant = variant,
+            taskName = "copy${variantName}CogoPluginJar",
+            projectPath = ":gradle-plugin",
+            projectTask = "jar",
+        ) { project ->
+            project.tasks.named("jar", Jar::class.java).flatMap { it.archiveFile }
+        }
+    }
+
+    private fun Project.registerLogSenderAarCopierTask(
+        variant: Variant, variantName: String
+    ) {
+        val flavorName = variant.flavorName!!
+        addProjectArtifactToAssets<AddFileToAssetsTask>(
+            variant = variant,
+            taskName = "copy${variantName}LogSenderAar",
+            projectPath = ":logsender",
+            projectTask = "assemble${flavorName.capitalized()}Release",
+        ) { project ->
+            project.layout.buildDirectory.file("outputs/aar/logsender-${flavorName}-release.aar")
+        }
+    }
+
+    private inline fun <reified T : AddFileToAssetsTask> Project.addProjectArtifactToAssets(
+        variant: Variant,
+        taskName: String,
+        projectPath: String,
+        projectTask: String,
+        baseAssetsPath: String = "data/common",
+        crossinline onGetInputFile: (Project) -> Provider<RegularFile>,
+    ) {
+        val copyArtifactTask = tasks.register<T>(taskName) {
+            val project = project.rootProject.findProject(projectPath)
+                ?: throw GradleException("Project with path '${projectPath}' not found")
+
+            val task = project.tasks.getByName(projectTask)
+            dependsOn(task)
+
+            val inputFile = onGetInputFile(project)
+            this.inputFile.set(inputFile)
+            this.baseAssetsPath.set(baseAssetsPath)
+        }
+
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            copyArtifactTask, AddFileToAssetsTask::outputDirectory
+        )
     }
 }
 

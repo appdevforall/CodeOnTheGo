@@ -27,6 +27,8 @@ import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
 
+import com.aayushatharva.brotli4j.Brotli4jLoader;
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream;
 import com.blankj.utilcode.util.FileIOUtils;
 import com.blankj.utilcode.util.FileUtils;
 import com.blankj.utilcode.util.ResourceUtils;
@@ -51,10 +53,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-
-import kotlin.io.ConstantsKt;
-import kotlin.io.FilesKt;
-
 
 public class ToolsManager {
 
@@ -81,9 +79,9 @@ public class ToolsManager {
             IJdkDistributionProvider.getInstance().loadDistributions();
 
             updateToolingJar(app.getAssets());
+            extractLogSender(app);
 
             writeNoMediaFile();
-            extractAapt2();
             extractCogoPlugin();
             extractColorScheme(app);
             extractJdwp(app);
@@ -102,16 +100,32 @@ public class ToolsManager {
     }
 
     @WorkerThread
+    private static void extractLogSender(BaseApplication app) {
+        if (Environment.LOGSENDER_AAR.exists()) {
+            FileUtils.delete(Environment.LOGSENDER_AAR);
+        }
+
+        Environment.mkdirIfNotExits(Environment.LOGSENDER_DIR);
+
+        final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
+        ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
+                Environment.LOGSENDER_AAR.getAbsolutePath());
+    }
+
+    @WorkerThread
     private static void updateToolingJar(AssetManager assets) {
+        // Ensure relevant shared libraries are loaded
+        Brotli4jLoader.ensureAvailability();
+
         final var toolingJarName = "tooling-api-all.jar";
         InputStream toolingJarStream;
         try {
             toolingJarStream = assets.open(ToolsManager.getCommonAsset(toolingJarName));
         } catch (IOException e) {
             try {
-                toolingJarStream = assets.open(toolingJarName + ".br");
+                toolingJarStream = new BrotliInputStream(assets.open(ToolsManager.getCommonAsset(toolingJarName + ".br")));
             } catch (IOException e2) {
-                LOG.error("Tooling jar not found in assets");
+                LOG.error("Tooling jar not found in assets {}", e2.getMessage());
                 return;
             }
         }
@@ -295,23 +309,6 @@ public class ToolsManager {
     @Contract(pure = true)
     public static String getDatabaseAsset(String name) {
         return DATABASE_ASSET_DATA_DIR + "/" + name;
-    }
-
-    private static void extractAapt2() {
-        if (!Environment.AAPT2.exists()) {
-            final var context = BaseApplication.getBaseInstance();
-            final var nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
-            final var sourceAapt2 = new File(nativeLibraryDir, "libaapt2.so");
-            if (sourceAapt2.exists() && sourceAapt2.isFile()) {
-                FilesKt.copyTo(sourceAapt2, Environment.AAPT2, true, ConstantsKt.DEFAULT_BUFFER_SIZE);
-            } else {
-                LOG.error("{} file does not exist! This can be problematic.", sourceAapt2);
-            }
-        }
-
-        if (!Environment.AAPT2.canExecute() && !Environment.AAPT2.setExecutable(true)) {
-            LOG.error("Cannot set executable permissions to AAPT2 binary");
-        }
     }
 
     private static void extractCogoPlugin() {
