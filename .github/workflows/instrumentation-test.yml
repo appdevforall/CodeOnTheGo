@@ -98,8 +98,8 @@ jobs:
           mkdir -p test-results/kotlin test-results/groovy
 
           # Find the most recent APK files
-          APP_APK=$(find app/build/outputs/apk/v8/debug -name "CodeOnTheGo-v8-debug-*.apk" -type f | sort | tail -1)
-          TEST_APK=$(find app/build/outputs/apk/androidTest/v8/debug -name "*.apk" -type f | sort | tail -1)
+          APP_APK=$(find app/build/outputs/apk/v8/instrumentation -name "*.apk" -type f | sort | tail -1)
+          TEST_APK=$(find app/build/outputs/apk/androidTest/v8/instrumentation -name "*.apk" -type f | sort | tail -1)
 
           if [[ -z "$APP_APK" ]]; then
             echo "ERROR: App APK not found!"
