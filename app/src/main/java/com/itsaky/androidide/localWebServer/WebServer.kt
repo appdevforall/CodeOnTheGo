@@ -155,8 +155,11 @@ class WebServer(private val config: ServerConfig) {
         val rowCount = cursor.getCount()
 
         //if there is not an entry, or more than 1 entry, in the database, return an error
+        // if rowCount is zero then there was no entry in the database
+        // otherwise if the entry path was not unique, consider this an invalid path
         if (rowCount != 1) {
-            return if (rowCount == 0) sendError(writer, 404, "Not Found") else sendError(writer, 406, "Not Acceptable")
+            return if (rowCount == 0) sendError(writer, 404, "Not Found")
+            else sendError(writer, 406, "Not Acceptable")
         }
 
         cursor.moveToFirst()
