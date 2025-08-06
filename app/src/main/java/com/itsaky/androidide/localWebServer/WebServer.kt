@@ -3,8 +3,6 @@ package org.appdevforall.localwebserver
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
-// Is this needed? --DS, 25-Jul-2025
-//import okhttp3.Request
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -16,13 +14,6 @@ import java.nio.file.Files
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
-
-/**************************debugging***************/
-/* curl -vi http://127.0.0.1/READ,md              */
-/**************************debugging***************/
-
-
-
 data class ServerConfig(
     val port: Int = 6174,
     val databasePath: String,
@@ -41,6 +32,8 @@ class WebServer(private val config: ServerConfig) {
     private val brotliCompression : String = "br"
 
 
+    //function to obtain the last modified date of a documentation.db database
+    // this is used to see if there is a newer version of the database on the sdcard
     fun getDatabaseTimestamp(pathname: String, silent: Boolean = false): Long {
         val dbFile = File(pathname)
         var timestamp: Long = -1
@@ -103,52 +96,48 @@ class WebServer(private val config: ServerConfig) {
     }
 
     private fun handleClient(clientSocket: Socket) {
-//        Log.d(TAG, "In handleClient(), socket=${clientSocket}.")
         val output = clientSocket.getOutputStream()
         val writer = PrintWriter(output, true)
         val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
         brotliSupported = false //assume nothing
 
-        // Read the request line
+        // Read the request method line, it is always the first line of the request
         var requestLine = reader.readLine() ?: return
-//        Log.d(TAG, "  requestLine='${requestLine}'.")
 
         // Parse the request
+        // Request line should look like "GET /a/b/c.html HTTP/1.1"
         val parts = requestLine.split(" ")
-        if (parts.size != 3) { // Request line should look like "GET /a/b/c.html HTTP/1.1"
+        if (parts.size != 3) {
             return sendError(writer, 400, "Bad Request")
         }
 
+        //extract the request method (e.g. GET, POST, PUT)
         val method = parts[0]
         var path   = parts[1].split("?")[0] // Discard any HTTP query parameters.
         path = path.substring(1)
-//        Log.d(TAG, "  method='${method}', path='${path}', parts=${parts}.")
 
-        // Only support GET method
+        // we only support teh GET method, return an error page for anything else
         if (method != "GET") {
             return sendError(writer, 501, "Not Implemented")
         }
 
-        //headers follow the Gte line read until eof or 0 length
-//        Log.d(TAG, "  encodingHeader='${encodingHeader}'.")
+        //the HTTP headers follow the the method line, read until eof or 0 length
+        //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
         while(requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
-//            Log.d(TAG, "  requestLine='${requestLine}'.")
             if(requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
-//                Log.d(TAG, "  parts=${parts}.")
                 if(parts.size == 0) {
                     break
                 }
                 brotliSupported = parts.contains(brotliCompression)
-//                Log.d(TAG, "brotliSupport=${brotliSupported}, brotliCompression='${brotliCompression}'.")
                 break
             }
         }
-//        Log.d(TAG, "  brotliSupported=${brotliSupported}.")
 
+        //check to see if there is a newer version of the documentation.db database on the sdcard
+        // if there is use that for our responses
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-//        Log.d(TAG, "  debugDatabaseTimestamp=${debugDatabaseTimestamp}, databaseTimestamp=${databaseTimestamp}, delta=${debugDatabaseTimestamp - databaseTimestamp}.")
         if (debugDatabaseTimestamp > databaseTimestamp) {
             database.close()
             database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
@@ -164,8 +153,8 @@ class WebServer(private val config: ServerConfig) {
         """
         val cursor = database.rawQuery(query, arrayOf(path, path.substring(1)))
         val rowCount = cursor.getCount()
-//        Log.d(TAG, "  rowCount=${rowCount}.")
 
+        //if there is not an entry, or more than 1 entry, in the database, return an error
         if (rowCount != 1) {
             return if (rowCount == 0) sendError(writer, 404, "Not Found") else sendError(writer, 406, "Not Acceptable")
         }
@@ -174,7 +163,6 @@ class WebServer(private val config: ServerConfig) {
         var dbContent   = cursor.getBlob(0)
         val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
-//        Log.d(TAG, "  dbContent length is ${dbContent.size}, dbMimeType='${dbMimeType}', compression=${compression}.")
 
         // If the Accept-Encoding header contains "br", the client can handle
         // Brotli. Send Brotli data as-is, without decompressing it here.
@@ -185,12 +173,10 @@ class WebServer(private val config: ServerConfig) {
             if (brotliSupported) {
                 compression = "br"
             } else {
-//                Log.d(TAG, "  decompressing in the web server.")
                 try {
                     dbContent =
                         BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                     compression = "none"
-//                    Log.d(TAG, "  length is now {dbContent.length}.")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
                     return sendError(writer, 500, "Internal Server Error")
@@ -198,12 +184,12 @@ class WebServer(private val config: ServerConfig) {
             }
         }
 
+        //send our response
         writer.println("HTTP/1.1 200 OK")
         writer.println("Content-Type: $dbMimeType")
         writer.println("Content-Length: ${dbContent.size}")
 
         if (compression != "none") {
-//            Log.d(TAG, "  Writing compression='${compression}'.")
             writer.println("Content-Encoding: ${compression}")
         }
 
