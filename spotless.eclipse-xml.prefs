@@ -1,0 +1,33 @@
+# XML formatting properties for Android Development Style
+# Last modified: Thu Jul 24 19:26:06 IST 2025
+eclipse.preferences.version=1
+
+# Indentation Settings
+# Use 4 spaces for indentation.
+indentationChar=space
+indentationSize=4
+
+# Line Wrapping and Splitting
+# Set a reasonable line width.
+lineWidth=120
+
+# --- THIS IS THE KEY SETTING ---
+# Force each attribute onto a new, indented line.
+splitMultiAttrs=true
+
+# Do not align the closing bracket with the opening tag.
+alignFinalBracket=false
+
+# Whitespace Settings
+# Add a space before the slash in self-closing tags (e.g., <View ... />).
+spaceBeforeEmptyCloseTag=true
+
+# Preserve manually added blank lines for readability.
+preserveNewLines=true
+clearAllBlankLines=false
+
+# Formatting for other XML elements
+formatComment=true
+joinCommentLines=false
+formatProlog=true
+formatProcessingInstruction=true
