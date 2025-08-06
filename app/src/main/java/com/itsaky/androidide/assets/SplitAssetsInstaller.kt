@@ -7,9 +7,6 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
 import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
 import org.adfa.constants.DOCUMENTATION_DB
