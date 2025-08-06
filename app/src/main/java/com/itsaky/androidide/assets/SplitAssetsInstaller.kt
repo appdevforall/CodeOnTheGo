@@ -105,7 +105,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
                         logger.debug("Completed extracting '{}' to {}", DOCUMENTATION_DB, Environment.DOC_DB)
                     }
 
-                    else -> logger.warn("Unknown entry in assets zip: {}", entry.name)
+                    else -> throw IllegalStateException("Unknown entry: $entryName")
                 }
             }
         }
