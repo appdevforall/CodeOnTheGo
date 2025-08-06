@@ -299,7 +299,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         )
     }
 
-    private var optionsMenuInvalidator: Runnable? = null
+    protected var optionsMenuInvalidator: Runnable? = null
 
     companion object {
 

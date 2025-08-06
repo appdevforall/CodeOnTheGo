@@ -52,6 +52,8 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
+import com.itsaky.androidide.utils.EditorActivityActions
+import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
@@ -137,6 +139,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             IDEColorSchemeProvider.initIfNeeded()
         }
 
+        optionsMenuInvalidator = Runnable {
+            prepareOptionsMenu()
+        }
+
     }
 
     override fun onPause() {
@@ -197,11 +203,16 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     fun prepareOptionsMenu() {
+        EditorActivityActions.register(this)
+        EditorSidebarActions.registerActions(this)
+
         val registry = getInstance() as DefaultActionsRegistry
         val data = createToolbarActionData()
         content.customToolbar.clearMenu()
+
         val actions = getInstance().getActions(EDITOR_TOOLBAR)
         actions.forEach { (_, action) ->
+            action.prepare(data)
 
             action.icon?.apply {
                 colorFilter = action.createColorFilter(data)
@@ -211,11 +222,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             content.customToolbar.addMenuItem(
                 icon = action.icon,
                 hint = action.label,
-                onClick = {
-                    if (action.enabled) {
-                        registry.executeAction(action, data)
-                    }
-                }
+                onClick = { registry.executeAction(action, data) }
             )
         }
     }
