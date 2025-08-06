@@ -93,7 +93,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 
                         // prefer already extracted documentation.db -- only in debug builds
                         val splitDb = Environment.DOWNLOAD_DIR.resolve(DOCUMENTATION_DB)
-                        if (splitDb.exists()) {
+                        if (splitDb.exists() && splitDb.isFile) {
                             splitDb.inputStream()
                         } else {
                             zipInput
