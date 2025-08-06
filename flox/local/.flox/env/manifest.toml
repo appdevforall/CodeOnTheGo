@@ -15,7 +15,6 @@ version = 1
 ##  $ flox show gum     <- show all versions of a package
 ## -------------------------------------------------------------------
 [install]
-ktlint.pkg-path = "ktlint"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
@@ -49,13 +48,16 @@ on-activate = '''
   fi
 
   # Set git-hooks, if required
-  hook=".git/hooks/pre-commit"
-  if ! [ -f "$hook" ] || ! cat "$hook" | grep -q 'COGO_PRE_COMMIT_HOOK'; then
-    echo "Updating pre-commit hook..."
-    cat .githooks/pre-commit >> "$hook"
-    echo "# -- COGO_PRE_COMMIT_HOOK" >> "$hook"
-    chmod +x "$hook"
-  fi
+  for hook_name in "pre-commit" "pre-push"; do
+    hook=".git/hooks/$hook_name"
+    if ! [ -f "$hook" ] || ! cat "$hook" | grep -q 'COGO_PRE_COMMIT_HOOK'; then
+      echo "Updating $hook_name hook..."
+      cat .githooks/hook >> "$hook"
+      echo  >> "$hook"
+      echo "# -- COGO_PRE_COMMIT_HOOK" >> "$hook"
+      chmod +x "$hook"
+    fi
+  done
 '''
 
 
