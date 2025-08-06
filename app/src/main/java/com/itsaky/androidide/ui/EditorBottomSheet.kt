@@ -315,7 +315,9 @@ constructor(
     "The BasePluginExtension.archivesBaseName property has been deprecated.",
     "The Provider.forUseAtConfigurationTime method has been deprecated.",
     "The BuildIdentifier.getName() method has been deprecated.",
-    "Deprecated Gradle features were used in this build"
+    "Deprecated Gradle features were used in this build",
+    "The StartParameter.isConfigurationCacheRequested property has been deprecated.",
+    "Retrieving attribute with a null key. This behavior has been deprecated."
   )
 
   private fun shouldFilter(msg: String): Boolean {
