@@ -50,19 +50,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
                     GRADLE_API_NAME_JAR_ZIP -> {
                         val destDir = destinationDirForArchiveEntry(entry.name).toPath()
                         logger.debug("Extracting '{}' to dir: {}", entry.name, destDir)
-                        ZipInputStream(zipInput).useEntriesEach { innerZipInput, innerEntry ->
-                            val innerFile = destDir.resolve(innerEntry.name)
-                            if (innerEntry.isDirectory) {
-                                Files.createDirectories(innerFile)
-                            } else {
-                                if (innerFile.parent != null) {
-                                    Files.createDirectories(innerFile.parent)
-                                }
-                                Files.newOutputStream(innerFile).use { out ->
-                                    innerZipInput.copyTo(out)
-                                }
-                            }
-                        }
+                        AssetsInstallationHelper.extractZipToDir(zipInput, destDir)
                         logger.debug("Completed extracting '{}' to dir: {}", entry.name, destDir)
                     }
 
