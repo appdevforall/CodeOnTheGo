@@ -5,7 +5,6 @@ import androidx.annotation.WorkerThread
 import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
-import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
@@ -18,7 +17,6 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 import kotlin.system.measureTimeMillis
 
 data object SplitAssetsInstaller : BaseAssetsInstaller() {
