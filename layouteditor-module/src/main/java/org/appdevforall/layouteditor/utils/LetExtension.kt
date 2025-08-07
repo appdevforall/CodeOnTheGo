@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsvks.layouteditor.utils
+package org.appdevforall.layouteditor.utils
 
 inline fun <T1 : Any, T2 : Any, R : Any> doubleArgSafeLet(p1: T1?, p2: T2?,
   block: (T1, T2) -> R?): R? {

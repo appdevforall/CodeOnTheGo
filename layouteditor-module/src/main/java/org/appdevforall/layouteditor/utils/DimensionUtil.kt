@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.utils
+package org.appdevforall.layouteditor.utils
 
 import android.content.Context
 import android.util.TypedValue

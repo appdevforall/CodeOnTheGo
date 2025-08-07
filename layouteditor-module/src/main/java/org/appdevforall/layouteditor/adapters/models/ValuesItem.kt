@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.adapters.models
+package org.appdevforall.layouteditor.adapters.models
 
 data class ValuesItem
 /**

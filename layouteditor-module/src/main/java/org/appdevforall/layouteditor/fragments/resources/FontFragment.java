@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.fragments.resources;
+package org.appdevforall.layouteditor.fragments.resources;
 
 import android.content.Context;
 import android.net.Uri;

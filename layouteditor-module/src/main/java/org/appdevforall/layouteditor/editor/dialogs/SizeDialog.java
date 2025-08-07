@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.dialogs;
+package org.appdevforall.layouteditor.editor.dialogs;
 
 import android.animation.LayoutTransition;
 import android.annotation.SuppressLint;

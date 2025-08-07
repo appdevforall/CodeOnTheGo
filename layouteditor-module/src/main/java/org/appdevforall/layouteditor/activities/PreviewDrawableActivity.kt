@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.activities
+package org.appdevforall.layouteditor.activities
 
 import android.os.Bundle
 import android.widget.ImageView

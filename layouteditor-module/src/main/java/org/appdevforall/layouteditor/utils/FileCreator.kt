@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.utils
+package org.appdevforall.layouteditor.utils
 
 import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
