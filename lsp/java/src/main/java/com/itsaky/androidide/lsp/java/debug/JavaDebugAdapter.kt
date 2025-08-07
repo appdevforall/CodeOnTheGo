@@ -101,6 +101,10 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
         return this.vms.first()
     }
 
+    private fun connVmOrNull(): VmConnection? {
+        return this.vms.firstOrNull()
+    }
+
     /**
      * Get the connected VM.
      */
@@ -400,7 +404,10 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
     override suspend fun allThreads(request: ThreadListRequestParams): ThreadListResponse =
         withContext(Dispatchers.IO) {
-            val vm = connVm()
+            val vm = connVmOrNull() ?: return@withContext ThreadListResponse(
+                threads = emptyList()
+            )
+
             check(vm.client == request.remoteClient) {
                 "Received request to list threads in client=${request.remoteClient}, but the current client is ${vm.client}"
             }
@@ -411,8 +418,8 @@ internal class JavaDebugAdapter : IDebugAdapter, EventConsumer, AutoCloseable {
 
             return@withContext withStopWatch("create thread list") {
                 ThreadListResponse(
-                    threads = vm.threadState.threads.map {
-                            thread -> LspThreadInfo(thread)
+                    threads = vm.threadState.threads.map { thread ->
+                        LspThreadInfo(thread)
                     }
                 )
             }
