@@ -33,9 +33,11 @@ class RestartVmAction(
         // wait for some time
         delay(RESTART_DELAY)
 
-        // then launch the debugee again
-        withContext(Dispatchers.Main.immediate) {
-            IntentUtils.launchApp(context, debugClient.debugeePackage)
-        }
+        // then launch the debugee again, in debug mode
+        IntentUtils.launchApp(
+            context = context,
+            packageName = debugClient.debugeePackage,
+            debug = true,
+        )
     }
 }

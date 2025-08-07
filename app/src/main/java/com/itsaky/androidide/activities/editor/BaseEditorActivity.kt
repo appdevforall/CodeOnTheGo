@@ -414,21 +414,33 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         val packageName = onResult(this, intent) ?: return
         val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
         if (!isDebugging) {
-            doLaunchApp(packageName)
+            doLaunchApp(packageName, false)
             return
         }
 
         startDebuggerAndDo {
             debuggerViewModel.debugeePackage = packageName
             withContext(Dispatchers.Main.immediate) {
-                doLaunchApp(packageName)
+                doLaunchApp(packageName, true)
             }
         }
     }
 
-    private fun doLaunchApp(packageName: String) {
+    private fun doLaunchApp(packageName: String, debug: Boolean) {
+        val context = this
+        val scope = activityScope
+        val performLaunch = {
+            scope.launch {
+                IntentUtils.launchApp(
+                    context = context,
+                    packageName = packageName,
+                    debug = debug
+                )
+            }
+        }
+
         if (BuildPreferences.launchAppAfterInstall) {
-            IntentUtils.launchApp(this, packageName)
+            performLaunch()
             return
         }
 
@@ -437,7 +449,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         builder.setMessage(string.msg_action_open_application)
         builder.setPositiveButton(string.yes) { dialog, _ ->
             dialog.dismiss()
-            IntentUtils.launchApp(this, packageName)
+            performLaunch()
         }
         builder.setNegativeButton(string.no, null)
         builder.show()

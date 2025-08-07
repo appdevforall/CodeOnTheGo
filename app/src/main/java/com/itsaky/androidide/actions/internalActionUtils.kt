@@ -28,9 +28,10 @@ import com.itsaky.androidide.utils.flashError
 /**
  * @see openApplicationModuleChooser
  */
-inline fun openApplicationModuleChooser(data: ActionData,
-  crossinline callback: (AndroidModule) -> Unit) =
-  openApplicationModuleChooser(data.requireContext(), callback)
+inline fun openApplicationModuleChooser(
+  data: ActionData,
+  crossinline callback: (AndroidModule) -> Unit
+) = openApplicationModuleChooser(data.requireContext(), callback)
 
 /**
  * Shows a dialog to let the user choose between Android application modules in case the project has
@@ -39,8 +40,10 @@ inline fun openApplicationModuleChooser(data: ActionData,
  *
  * @param
  */
-inline fun openApplicationModuleChooser(context: Context,
-  crossinline callback: (AndroidModule) -> Unit) {
+inline fun openApplicationModuleChooser(
+  context: Context,
+  crossinline callback: (AndroidModule) -> Unit
+) {
   val projectManager = IProjectManager.getInstance()
   val applications = projectManager.getAndroidAppModules()
   if (applications.isEmpty()) {

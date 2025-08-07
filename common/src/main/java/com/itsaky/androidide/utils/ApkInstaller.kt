@@ -58,6 +58,7 @@ object ApkInstaller {
 
     log.info("Installing APK: {}", apk)
 
+    @Suppress("SimplifyBooleanWithConstants")
     if (isMiui() || DEBUG_FALLBACK_INSTALLER) {
       log.warn(
         "Cannot use session-based installer on this device. Falling back to intent-based installer."
@@ -72,7 +73,7 @@ object ApkInstaller {
       try {
         context.startActivity(intent)
       } catch (e: Exception) {
-        log.warn("Failed to start installation intent", e.message)
+        log.warn("Failed to start installation intent: {}", e.message)
       }
 
       return

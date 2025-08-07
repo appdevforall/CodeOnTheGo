@@ -28,6 +28,8 @@ import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 
 /**
@@ -62,7 +64,7 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
     enabled = projectManager.getAndroidAppModules().isNotEmpty()
   }
 
-  override suspend fun execAction(data: ActionData) {
+  override suspend fun execAction(data: ActionData) = coroutineScope {
     openApplicationModuleChooser(data) { app ->
       val variant = app.getSelectedVariant()
 
@@ -83,7 +85,14 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
       log.info("Launching application: {}", applicationId)
 
       val activity = data.requireActivity()
-      IntentUtils.launchApp(activity, applicationId, logError = false)
+      launch {
+        IntentUtils.launchApp(
+          context = activity,
+          packageName = applicationId,
+          debug = false,
+          logError = false,
+        )
+      }
     }
   }
 
