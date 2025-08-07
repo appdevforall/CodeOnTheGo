@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.buttons;
+package org.appdevforall.layouteditor.editor.palette.buttons;
 
 import android.content.Context;
 import android.graphics.Canvas;

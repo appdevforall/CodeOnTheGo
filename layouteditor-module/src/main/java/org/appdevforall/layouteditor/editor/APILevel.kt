@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor
+package org.appdevforall.layouteditor.editor
 
 class APILevel(val level: Level) {
   enum class Level {

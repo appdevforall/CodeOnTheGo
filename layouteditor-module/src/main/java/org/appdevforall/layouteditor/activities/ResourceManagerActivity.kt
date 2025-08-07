@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.activities
+package org.appdevforall.layouteditor.activities
 
 import android.Manifest
 import android.annotation.SuppressLint

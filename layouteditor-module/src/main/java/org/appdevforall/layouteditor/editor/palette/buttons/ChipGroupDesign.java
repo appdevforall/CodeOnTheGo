@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.buttons;
+package org.appdevforall.layouteditor.editor.palette.buttons;
 
 import com.google.android.material.chip.ChipGroup;
 import android.content.Context;

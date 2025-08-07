@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.adapters.models
+package org.appdevforall.layouteditor.adapters.models
 
 import android.graphics.drawable.Drawable
 import com.itsvks.layouteditor.utils.FileUtil

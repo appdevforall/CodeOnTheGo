@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.tools
+package org.appdevforall.layouteditor.tools
 
 import android.annotation.SuppressLint
 import android.content.Context

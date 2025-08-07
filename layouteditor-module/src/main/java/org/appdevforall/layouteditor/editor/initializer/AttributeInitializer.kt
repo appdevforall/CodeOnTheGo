@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.initializer
+package org.appdevforall.layouteditor.editor.initializer
 
 import android.content.Context
 import android.view.View

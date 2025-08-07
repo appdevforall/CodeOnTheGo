@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.managers;
+package org.appdevforall.layouteditor.managers;
 
 public class SharedPreferencesKeys {
   public static final String KEY_APP_THEME = "app_theme";

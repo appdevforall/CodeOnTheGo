@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.fragments.ui
+package org.appdevforall.layouteditor.fragments.ui
 
 import android.annotation.SuppressLint
 import android.content.Context

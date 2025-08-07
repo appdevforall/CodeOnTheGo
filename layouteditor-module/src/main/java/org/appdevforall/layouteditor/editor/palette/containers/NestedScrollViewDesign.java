@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.containers;
+package org.appdevforall.layouteditor.editor.palette.containers;
 
 import androidx.core.widget.NestedScrollView;
 import android.content.Context;

@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor
+package org.appdevforall.layouteditor.editor
 
 enum class DeviceSize {
   SMALL,

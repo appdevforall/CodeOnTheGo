@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.fragments.ui
+package org.appdevforall.layouteditor.fragments.ui
 
 import android.os.Bundle
 import android.os.Process
