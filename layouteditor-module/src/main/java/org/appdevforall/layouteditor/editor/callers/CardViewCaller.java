@@ -6,7 +6,7 @@ import android.view.View;
 
 import androidx.cardview.widget.CardView;
 
-import com.itsvks.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
 
 public class CardViewCaller {
 	

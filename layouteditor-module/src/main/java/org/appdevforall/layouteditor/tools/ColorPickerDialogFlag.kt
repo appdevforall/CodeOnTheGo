@@ -3,7 +3,7 @@ package org.appdevforall.layouteditor.tools
 import android.annotation.SuppressLint
 import android.content.Context
 import android.widget.TextView
-import com.itsvks.layouteditor.R
+import org.appdevforall.layouteditor.R
 import com.skydoves.colorpickerview.AlphaTileView
 import com.skydoves.colorpickerview.ColorEnvelope
 import com.skydoves.colorpickerview.flag.FlagView

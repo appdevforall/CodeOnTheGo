@@ -1,7 +1,7 @@
 package org.appdevforall.layouteditor.managers;
 
 import android.graphics.Typeface;
-import com.itsvks.layouteditor.utils.FileUtil;
+import org.appdevforall.layouteditor.utils.FileUtil;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;

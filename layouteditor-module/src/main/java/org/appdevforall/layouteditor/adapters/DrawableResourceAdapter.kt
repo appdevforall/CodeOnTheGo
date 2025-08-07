@@ -18,20 +18,20 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import com.blankj.utilcode.util.ClipboardUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.activities.PreviewDrawableActivity
-import com.itsvks.layouteditor.adapters.models.DrawableFile
-import com.itsvks.layouteditor.databinding.LayoutDrawableItemBinding
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
-import com.itsvks.layouteditor.managers.ProjectManager.Companion.instance
-import com.itsvks.layouteditor.utils.FileUtil.deleteFile
-import com.itsvks.layouteditor.utils.FileUtil.getLastSegmentFromPath
-import com.itsvks.layouteditor.utils.NameErrorChecker
-import com.itsvks.layouteditor.utils.SBUtils
-import com.itsvks.layouteditor.utils.SBUtils.Companion.make
-import com.itsvks.layouteditor.utils.Utils
-import com.itsvks.layouteditor.views.AlphaPatternDrawable
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.activities.PreviewDrawableActivity
+import org.appdevforall.layouteditor.adapters.models.DrawableFile
+import org.appdevforall.layouteditor.databinding.LayoutDrawableItemBinding
+import org.appdevforall.layouteditor.databinding.TextinputlayoutBinding
+import org.appdevforall.layouteditor.managers.ProjectManager.Companion.instance
+import org.appdevforall.layouteditor.utils.FileUtil.deleteFile
+import org.appdevforall.layouteditor.utils.FileUtil.getLastSegmentFromPath
+import org.appdevforall.layouteditor.utils.NameErrorChecker
+import org.appdevforall.layouteditor.utils.SBUtils
+import org.appdevforall.layouteditor.utils.SBUtils.Companion.make
+import org.appdevforall.layouteditor.utils.Utils
+import org.appdevforall.layouteditor.views.AlphaPatternDrawable
 import java.io.File
 
 class DrawableResourceAdapter(private val drawableList: MutableList<DrawableFile>) :

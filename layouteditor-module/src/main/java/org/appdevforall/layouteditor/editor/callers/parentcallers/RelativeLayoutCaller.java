@@ -4,8 +4,8 @@ import android.content.Context;
 import android.view.View;
 import android.widget.RelativeLayout;
 
-import com.itsvks.layouteditor.managers.IdManager;
-import com.itsvks.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.managers.IdManager;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
 
 public class RelativeLayoutCaller {
 	

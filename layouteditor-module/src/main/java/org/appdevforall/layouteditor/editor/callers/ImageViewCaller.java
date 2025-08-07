@@ -5,7 +5,7 @@ import android.graphics.Color;
 import android.view.View;
 import android.widget.ImageView;
 
-import com.itsvks.layouteditor.managers.DrawableManager;
+import org.appdevforall.layouteditor.managers.DrawableManager;
 
 import java.util.HashMap;
 

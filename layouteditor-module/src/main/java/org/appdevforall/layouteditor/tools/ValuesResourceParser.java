@@ -1,9 +1,9 @@
 package org.appdevforall.layouteditor.tools;
 
 import android.widget.TextView;
-import com.itsvks.layouteditor.ProjectFile;
-import com.itsvks.layouteditor.adapters.models.ValuesItem;
-import com.itsvks.layouteditor.utils.FileUtil;
+import org.appdevforall.layouteditor.ProjectFile;
+import org.appdevforall.layouteditor.adapters.models.ValuesItem;
+import org.appdevforall.layouteditor.utils.FileUtil;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;

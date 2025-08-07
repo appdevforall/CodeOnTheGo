@@ -7,9 +7,9 @@ import android.view.View;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
 
-import com.itsvks.layouteditor.managers.IdManager;
-import com.itsvks.layouteditor.utils.DimensionUtil;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.managers.IdManager;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class ConstraintLayoutCaller {
 

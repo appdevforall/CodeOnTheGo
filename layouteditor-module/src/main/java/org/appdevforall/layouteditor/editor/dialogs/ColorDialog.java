@@ -14,9 +14,9 @@ import androidx.appcompat.widget.AppCompatSeekBar;
 
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.itsvks.layouteditor.R;
-import com.itsvks.layouteditor.databinding.LayoutColorDialogBinding;
-import com.itsvks.layouteditor.views.ColorView;
+import org.appdevforall.layouteditor.R;
+import org.appdevforall.layouteditor.databinding.LayoutColorDialogBinding;
+import org.appdevforall.layouteditor.views.ColorView;
 
 import java.util.regex.Pattern;
 

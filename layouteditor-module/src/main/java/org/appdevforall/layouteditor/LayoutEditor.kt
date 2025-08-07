@@ -6,7 +6,7 @@ import android.content.Context
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import com.google.android.material.color.DynamicColors
-import com.itsvks.layouteditor.managers.PreferencesManager
+import org.appdevforall.layouteditor.managers.PreferencesManager
 
 class LayoutEditor : Application() {
 

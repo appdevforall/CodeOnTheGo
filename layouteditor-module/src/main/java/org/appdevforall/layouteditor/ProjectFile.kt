@@ -4,9 +4,9 @@ import android.content.Context
 import android.os.Parcel
 import android.os.Parcelable
 import android.os.Parcelable.Creator
-import com.itsvks.layouteditor.managers.PreferencesManager
-import com.itsvks.layouteditor.utils.Constants
-import com.itsvks.layouteditor.utils.FileUtil
+import org.appdevforall.layouteditor.managers.PreferencesManager
+import org.appdevforall.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.utils.FileUtil
 import org.jetbrains.annotations.Contract
 import java.io.File
 import java.nio.file.Files
