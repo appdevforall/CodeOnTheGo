@@ -8,13 +8,13 @@ import androidx.annotation.NonNull;
 
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding;
-import com.itsvks.layouteditor.managers.DrawableManager;
+import org.appdevforall.layouteditor.databinding.TextinputlayoutBinding;
+import org.appdevforall.layouteditor.managers.DrawableManager;
 
-import com.itsvks.layouteditor.managers.ProjectManager;
-import com.itsvks.layouteditor.managers.ValuesManager;
-import com.itsvks.layouteditor.tools.ValuesResourceParser;
-import com.itsvks.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.managers.ProjectManager;
+import org.appdevforall.layouteditor.managers.ValuesManager;
+import org.appdevforall.layouteditor.tools.ValuesResourceParser;
+import org.appdevforall.layouteditor.utils.Constants;
 import java.util.regex.Pattern;
 
 public class StringDialog extends AttributeDialog {

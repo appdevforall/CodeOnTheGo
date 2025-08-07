@@ -6,8 +6,8 @@ import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.widget.ScrollView
-import com.itsvks.layouteditor.utils.Constants
-import com.itsvks.layouteditor.utils.Utils
+import org.appdevforall.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.utils.Utils
 
 class ScrollViewDesign @JvmOverloads constructor(
   context: Context, attrs: AttributeSet? = null

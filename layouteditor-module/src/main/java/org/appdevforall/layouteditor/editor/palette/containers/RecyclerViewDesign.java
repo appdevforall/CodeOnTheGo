@@ -5,8 +5,8 @@ import android.graphics.Paint;
 import androidx.recyclerview.widget.RecyclerView;
 import android.content.Context;
 import android.graphics.Canvas;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class RecyclerViewDesign extends RecyclerView {
 

@@ -10,9 +10,9 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.managers.PreferencesManager
-import com.itsvks.layouteditor.managers.SharedPreferencesKeys
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.managers.PreferencesManager
+import org.appdevforall.layouteditor.managers.SharedPreferencesKeys
 import kotlin.system.exitProcess
 
 class PreferencesFragment : PreferenceFragmentCompat() {

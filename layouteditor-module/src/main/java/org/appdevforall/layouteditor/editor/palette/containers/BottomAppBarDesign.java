@@ -5,9 +5,9 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import androidx.appcompat.content.res.AppCompatResources;
-import com.itsvks.layouteditor.R;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.R;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class BottomAppBarDesign extends BottomAppBar {
   

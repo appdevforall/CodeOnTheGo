@@ -5,9 +5,9 @@ import android.text.Editable
 import android.text.TextWatcher
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
-import com.itsvks.layouteditor.managers.IdManager.getIds
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.TextinputlayoutBinding
+import org.appdevforall.layouteditor.managers.IdManager.getIds
 import java.util.regex.Pattern
 
 class IdDialog(context: Context, savedValue: String) : AttributeDialog(context) {

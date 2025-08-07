@@ -20,19 +20,19 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
-import com.itsvks.layouteditor.LayoutEditor.Companion.instance
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.R.string
-import com.itsvks.layouteditor.activities.EditorActivity
-import com.itsvks.layouteditor.activities.PreviewLayoutActivity
-import com.itsvks.layouteditor.databinding.ListProjectFileBinding
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
-import com.itsvks.layouteditor.managers.PreferencesManager
-import com.itsvks.layouteditor.managers.ProjectManager
-import com.itsvks.layouteditor.utils.Constants
-import com.itsvks.layouteditor.utils.FileUtil
-import com.itsvks.layouteditor.utils.SBUtils.Companion.make
+import org.appdevforall.layouteditor.LayoutEditor.Companion.instance
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.R.string
+import org.appdevforall.layouteditor.activities.EditorActivity
+import org.appdevforall.layouteditor.activities.PreviewLayoutActivity
+import org.appdevforall.layouteditor.databinding.ListProjectFileBinding
+import org.appdevforall.layouteditor.databinding.TextinputlayoutBinding
+import org.appdevforall.layouteditor.managers.PreferencesManager
+import org.appdevforall.layouteditor.managers.ProjectManager
+import org.appdevforall.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.utils.FileUtil
+import org.appdevforall.layouteditor.utils.SBUtils.Companion.make
 import java.io.File
 
 class ProjectListAdapter(private val projects: MutableList<ProjectFile>) :

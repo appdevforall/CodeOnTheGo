@@ -5,12 +5,12 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
 import android.widget.FrameLayout
-import com.itsvks.layouteditor.BaseActivity
-import com.itsvks.layouteditor.LayoutFile
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.ActivityPreviewLayoutBinding
-import com.itsvks.layouteditor.tools.XmlLayoutParser
-import com.itsvks.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.BaseActivity
+import org.appdevforall.layouteditor.LayoutFile
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.ActivityPreviewLayoutBinding
+import org.appdevforall.layouteditor.tools.XmlLayoutParser
+import org.appdevforall.layouteditor.utils.Constants
 
 class PreviewLayoutActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
