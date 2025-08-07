@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster.models;
+package org.appdevforall.vectormaster.models;
 
 import android.graphics.Matrix;
 import android.graphics.Paint;
