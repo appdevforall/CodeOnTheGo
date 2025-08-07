@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster.utilities;
+package org.appdevforall.vectormaster.utilities;
 
 import android.content.res.Resources;
 import android.graphics.Color;
