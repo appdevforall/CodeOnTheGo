@@ -6,6 +6,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
@@ -26,20 +28,26 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        viewHolder.observeLatestAllFrames(
-            notifyOn = Dispatchers.Main
-        ) {
-            setAdapter(onCreateAdapter())
-        }
+        viewLifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewHolder.observeLatestAllFrames(
+                    scope = this,
+                    notifyOn = Dispatchers.Main
+                ) {
+                    setAdapter(onCreateAdapter())
+                }
 
-        viewHolder.observeLatestSelectedFrame(
-            notifyOn = Dispatchers.Main
-        ) { _, index ->
-            (_binding?.root?.adapter as? CallStackAdapter?)?.apply {
-                val currentSelected = selectedFrameIndex
-                selectedFrameIndex = index
-                notifyItemChanged(currentSelected)
-                notifyItemChanged(index)
+                viewHolder.observeLatestSelectedFrame(
+                    scope = this,
+                    notifyOn = Dispatchers.Main
+                ) { _, index ->
+                    (_binding?.root?.adapter as? CallStackAdapter?)?.apply {
+                        val currentSelected = selectedFrameIndex
+                        selectedFrameIndex = index
+                        notifyItemChanged(currentSelected)
+                        notifyItemChanged(index)
+                    }
+                }
             }
         }
     }
