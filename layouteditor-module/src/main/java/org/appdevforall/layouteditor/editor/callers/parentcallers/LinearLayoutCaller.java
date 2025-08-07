@@ -4,7 +4,7 @@ import android.content.Context;
 import android.view.View;
 import android.widget.LinearLayout;
 
-import com.itsvks.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
 
 public class LinearLayoutCaller {
   public static void setLayoutWeight(View target, String value, Context context) {

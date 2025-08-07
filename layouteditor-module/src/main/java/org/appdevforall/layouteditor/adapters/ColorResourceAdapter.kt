@@ -18,15 +18,15 @@ import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ClipboardUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.adapters.models.ValuesItem
-import com.itsvks.layouteditor.databinding.LayoutColorItemBinding
-import com.itsvks.layouteditor.databinding.LayoutValuesItemDialogBinding
-import com.itsvks.layouteditor.tools.ColorPickerDialogFlag
-import com.itsvks.layouteditor.utils.FileUtil
-import com.itsvks.layouteditor.utils.NameErrorChecker
-import com.itsvks.layouteditor.utils.SBUtils
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.adapters.models.ValuesItem
+import org.appdevforall.layouteditor.databinding.LayoutColorItemBinding
+import org.appdevforall.layouteditor.databinding.LayoutValuesItemDialogBinding
+import org.appdevforall.layouteditor.tools.ColorPickerDialogFlag
+import org.appdevforall.layouteditor.utils.FileUtil
+import org.appdevforall.layouteditor.utils.NameErrorChecker
+import org.appdevforall.layouteditor.utils.SBUtils
 import com.skydoves.colorpickerview.ColorPickerDialog
 import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener
 

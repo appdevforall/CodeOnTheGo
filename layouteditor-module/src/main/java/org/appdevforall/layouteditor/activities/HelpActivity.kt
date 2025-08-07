@@ -20,9 +20,9 @@ package org.appdevforall.layouteditor.activities
 import android.os.Bundle
 import android.webkit.WebViewClient
 import androidx.activity.enableEdgeToEdge
-import com.itsvks.layouteditor.BaseActivity
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.ActivityHelpBinding
+import org.appdevforall.layouteditor.BaseActivity
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.ActivityHelpBinding
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 

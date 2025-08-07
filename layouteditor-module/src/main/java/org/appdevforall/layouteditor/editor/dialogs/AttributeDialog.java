@@ -11,7 +11,7 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
-import com.itsvks.layouteditor.editor.dialogs.interfaces.OnSaveValueListener;
+import org.appdevforall.layouteditor.editor.dialogs.interfaces.OnSaveValueListener;
 
 public class AttributeDialog {
 

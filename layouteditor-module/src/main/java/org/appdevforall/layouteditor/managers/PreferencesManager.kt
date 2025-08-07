@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
-import com.itsvks.layouteditor.LayoutEditor.Companion.instance
+import org.appdevforall.layouteditor.LayoutEditor.Companion.instance
 
 class PreferencesManager(val context: Context) {
 

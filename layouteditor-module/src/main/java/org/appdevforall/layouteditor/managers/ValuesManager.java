@@ -1,10 +1,10 @@
 package org.appdevforall.layouteditor.managers;
 
-import com.itsvks.layouteditor.ProjectFile;
-import com.itsvks.layouteditor.adapters.models.ValuesItem;
-import com.itsvks.layouteditor.managers.ProjectManager;
-import com.itsvks.layouteditor.tools.ValuesResourceParser;
-import com.itsvks.layouteditor.utils.SBUtils;
+import org.appdevforall.layouteditor.ProjectFile;
+import org.appdevforall.layouteditor.adapters.models.ValuesItem;
+import org.appdevforall.layouteditor.managers.ProjectManager;
+import org.appdevforall.layouteditor.tools.ValuesResourceParser;
+import org.appdevforall.layouteditor.utils.SBUtils;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;

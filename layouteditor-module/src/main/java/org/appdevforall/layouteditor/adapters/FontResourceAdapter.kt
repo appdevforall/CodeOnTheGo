@@ -17,17 +17,17 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ClipboardUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.adapters.models.FontItem
-import com.itsvks.layouteditor.databinding.LayoutFontItemBinding
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
-import com.itsvks.layouteditor.managers.ProjectManager.Companion.instance
-import com.itsvks.layouteditor.utils.FileUtil.deleteFile
-import com.itsvks.layouteditor.utils.FileUtil.getLastSegmentFromPath
-import com.itsvks.layouteditor.utils.NameErrorChecker
-import com.itsvks.layouteditor.utils.SBUtils
-import com.itsvks.layouteditor.utils.SBUtils.Companion.make
-import com.itsvks.layouteditor.utils.Utils
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.adapters.models.FontItem
+import org.appdevforall.layouteditor.databinding.LayoutFontItemBinding
+import org.appdevforall.layouteditor.databinding.TextinputlayoutBinding
+import org.appdevforall.layouteditor.managers.ProjectManager.Companion.instance
+import org.appdevforall.layouteditor.utils.FileUtil.deleteFile
+import org.appdevforall.layouteditor.utils.FileUtil.getLastSegmentFromPath
+import org.appdevforall.layouteditor.utils.NameErrorChecker
+import org.appdevforall.layouteditor.utils.SBUtils
+import org.appdevforall.layouteditor.utils.SBUtils.Companion.make
+import org.appdevforall.layouteditor.utils.Utils
 import java.io.File
 
 class FontResourceAdapter(private val fontList: MutableList<FontItem>) :

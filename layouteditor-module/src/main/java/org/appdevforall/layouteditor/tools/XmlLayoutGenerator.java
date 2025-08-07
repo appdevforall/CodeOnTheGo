@@ -10,8 +10,8 @@ import androidx.annotation.NonNull;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.tabs.TabLayout;
-import com.itsvks.layouteditor.editor.DesignEditor;
-import com.itsvks.layouteditor.editor.initializer.AttributeMap;
+import org.appdevforall.layouteditor.editor.DesignEditor;
+import org.appdevforall.layouteditor.editor.initializer.AttributeMap;
 
 import org.apache.commons.text.StringEscapeUtils;
 

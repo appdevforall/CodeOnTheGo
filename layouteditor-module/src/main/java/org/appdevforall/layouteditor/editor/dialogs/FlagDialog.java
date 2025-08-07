@@ -9,7 +9,7 @@ import android.widget.ListView;
 
 import androidx.annotation.NonNull;
 
-import com.itsvks.layouteditor.editor.dialogs.AttributeDialog;
+import org.appdevforall.layouteditor.editor.dialogs.AttributeDialog;
 import java.util.ArrayList;
 import java.util.List;
 

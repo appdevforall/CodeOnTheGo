@@ -6,10 +6,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import com.itsvks.layouteditor.BuildConfig
-import com.itsvks.layouteditor.R.string
-import com.itsvks.layouteditor.databinding.FragmentAboutBinding
-import com.itsvks.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.BuildConfig
+import org.appdevforall.layouteditor.R.string
+import org.appdevforall.layouteditor.databinding.FragmentAboutBinding
+import org.appdevforall.layouteditor.utils.Constants
 
 class AboutFragment : Fragment() {
   private lateinit var binding: FragmentAboutBinding

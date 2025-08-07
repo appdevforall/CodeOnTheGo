@@ -5,13 +5,13 @@ import android.graphics.Color;
 import android.view.View;
 import android.widget.CheckedTextView;
 import android.widget.TextView;
-import com.itsvks.layouteditor.ProjectFile;
-import com.itsvks.layouteditor.managers.DrawableManager;
-import com.itsvks.layouteditor.managers.ProjectManager;
-import com.itsvks.layouteditor.managers.ValuesManager;
-import com.itsvks.layouteditor.tools.ValuesResourceParser;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.ProjectFile;
+import org.appdevforall.layouteditor.managers.DrawableManager;
+import org.appdevforall.layouteditor.managers.ProjectManager;
+import org.appdevforall.layouteditor.managers.ValuesManager;
+import org.appdevforall.layouteditor.tools.ValuesResourceParser;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
 
 public class TextViewCaller {
   public static void setText(View target, String value, Context context) {

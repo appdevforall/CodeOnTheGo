@@ -20,15 +20,15 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
-import com.itsvks.layouteditor.LayoutEditor
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.R.string
-import com.itsvks.layouteditor.activities.EditorActivity
-import com.itsvks.layouteditor.adapters.ProjectListAdapter
-import com.itsvks.layouteditor.databinding.FragmentHomeBinding
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
-import com.itsvks.layouteditor.managers.ProjectManager
-import com.itsvks.layouteditor.utils.FileUtil
+import org.appdevforall.layouteditor.LayoutEditor
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.R.string
+import org.appdevforall.layouteditor.activities.EditorActivity
+import org.appdevforall.layouteditor.adapters.ProjectListAdapter
+import org.appdevforall.layouteditor.databinding.FragmentHomeBinding
+import org.appdevforall.layouteditor.databinding.TextinputlayoutBinding
+import org.appdevforall.layouteditor.managers.ProjectManager
+import org.appdevforall.layouteditor.utils.FileUtil
 import java.io.File
 import java.util.Calendar
 

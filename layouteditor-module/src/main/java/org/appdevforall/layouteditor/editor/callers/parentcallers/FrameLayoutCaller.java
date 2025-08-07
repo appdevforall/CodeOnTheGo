@@ -4,8 +4,8 @@ import android.content.Context;
 import android.view.View;
 import android.widget.FrameLayout;
 
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
 
 public class FrameLayoutCaller {
   public static void setLayoutGravity(View target, String value, Context context) {

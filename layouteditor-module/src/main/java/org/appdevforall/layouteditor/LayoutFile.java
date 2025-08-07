@@ -5,7 +5,7 @@ import android.os.Parcelable;
 
 import androidx.annotation.NonNull;
 
-import com.itsvks.layouteditor.utils.FileUtil;
+import org.appdevforall.layouteditor.utils.FileUtil;
 
 import org.jetbrains.annotations.Contract;
 

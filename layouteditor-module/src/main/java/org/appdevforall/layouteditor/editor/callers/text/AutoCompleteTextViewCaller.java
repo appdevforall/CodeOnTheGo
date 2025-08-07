@@ -4,11 +4,11 @@ import android.content.Context;
 import android.graphics.Color;
 import android.view.View;
 import android.widget.AutoCompleteTextView;
-import com.itsvks.layouteditor.ProjectFile;
-import com.itsvks.layouteditor.managers.ProjectManager;
-import com.itsvks.layouteditor.managers.ValuesManager;
-import com.itsvks.layouteditor.tools.ValuesResourceParser;
-import com.itsvks.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.ProjectFile;
+import org.appdevforall.layouteditor.managers.ProjectManager;
+import org.appdevforall.layouteditor.managers.ValuesManager;
+import org.appdevforall.layouteditor.tools.ValuesResourceParser;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
 
 public class AutoCompleteTextViewCaller extends EditTextCaller {
   public static void setCompletionHint(View target, String value, Context context) {

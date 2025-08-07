@@ -11,8 +11,8 @@ import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.itsvks.layouteditor.databinding.LayoutSelectDpiItemBinding
-import com.itsvks.layouteditor.utils.Utils
+import org.appdevforall.layouteditor.databinding.LayoutSelectDpiItemBinding
+import org.appdevforall.layouteditor.utils.Utils
 import java.util.Collections
 
 class DPIsListAdapter(private val image: Drawable) : RecyclerView.Adapter<DPIsListAdapter.VH>() {

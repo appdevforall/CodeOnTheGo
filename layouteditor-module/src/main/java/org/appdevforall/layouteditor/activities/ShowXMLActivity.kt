@@ -5,11 +5,11 @@ import android.os.Bundle
 import android.view.View
 import androidx.core.content.res.ResourcesCompat
 import com.blankj.utilcode.util.ClipboardUtils
-import com.itsvks.layouteditor.BaseActivity
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.ActivityShowXMLBinding
-import com.itsvks.layouteditor.utils.SBUtils.Companion.make
-import com.itsvks.layouteditor.utils.Utils
+import org.appdevforall.layouteditor.BaseActivity
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.ActivityShowXMLBinding
+import org.appdevforall.layouteditor.utils.SBUtils.Companion.make
+import org.appdevforall.layouteditor.utils.Utils
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.langs.textmate.registry.FileProviderRegistry
