@@ -5,8 +5,8 @@ set -e
 ##### SPOTLESS HOOK START #####
 SPOTLESS_EXECUTOR=./gradlew
 if ! $SPOTLESS_EXECUTOR spotlessCheck ; then
-    echo 1>&2 "spotless found problems, running spotlessApply; commit the result and re-push"
-    $SPOTLESS_EXECUTOR spotlessApply
-    exit 1
+	echo 1>&2 "spotless found problems, running spotlessApply; commit the result and re-push"
+	$SPOTLESS_EXECUTOR spotlessApply
+	exit 1
 fi
 ##### SPOTLESS HOOK END #####

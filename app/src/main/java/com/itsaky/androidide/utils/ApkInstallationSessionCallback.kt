@@ -24,72 +24,81 @@ import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class ApkInstallationSessionCallback(
-  private var activity: BaseEditorActivity?,
+	private var activity: BaseEditorActivity?,
 ) : SingleSessionCallback() {
+	private var sessionId = -1
 
-  private var sessionId = -1
+	companion object {
+		private val log = LoggerFactory.getLogger(ApkInstallationSessionCallback::class.java)
+		private const val LOG_ABANDON_FAILED = "Failed to abandon session {} : {}"
+		private const val LOG_SESSION_NOT_EXISTS = "Session {} no longer exists or is already abandoned"
+		private const val LOG_SESSION_ERROR = "Error while handling installation session {} : {}"
+		private const val SESSION_ID_NONE = -1
+	}
 
-  companion object {
-    private val log = LoggerFactory.getLogger(ApkInstallationSessionCallback::class.java)
-    private const val LOG_ABANDON_FAILED = "Failed to abandon session {} : {}"
-    private const val LOG_SESSION_NOT_EXISTS = "Session {} no longer exists or is already abandoned"
-    private const val LOG_SESSION_ERROR = "Error while handling installation session {} : {}"
-    private const val SESSION_ID_NONE = -1
-  }
+	override fun onCreated(sessionId: Int) {
+		this.sessionId = sessionId
+		log.debug("Created package installation session: {}", sessionId)
+		activity?.bindingNullable?.content?.apply {
+			bottomSheet.setActionText(activity!!.getString(string.msg_installing_apk))
+			bottomSheet.setActionProgress(0)
+			bottomSheet.showChild(EditorBottomSheet.CHILD_ACTION)
+		}
+	}
 
-  override fun onCreated(sessionId: Int) {
-    this.sessionId = sessionId
-    log.debug("Created package installation session: {}", sessionId)
-    activity?._binding?.content?.apply {
-      bottomSheet.setActionText(activity!!.getString(string.msg_installing_apk))
-      bottomSheet.setActionProgress(0)
-      bottomSheet.showChild(EditorBottomSheet.CHILD_ACTION)
-    }
-  }
+	override fun onProgressChanged(
+		sessionId: Int,
+		progress: Float,
+	) {
+		activity
+			?.bindingNullable
+			?.content
+			?.bottomSheet
+			?.setActionProgress((progress * 100f).toInt())
+	}
 
-  override fun onProgressChanged(sessionId: Int, progress: Float) {
-    activity?._binding?.content?.bottomSheet?.setActionProgress((progress * 100f).toInt())
-  }
+	override fun onFinished(
+		sessionId: Int,
+		success: Boolean,
+	) {
+		activity?.bindingNullable?.content?.apply {
+			bottomSheet.showChild(EditorBottomSheet.CHILD_HEADER)
+			bottomSheet.setActionProgress(0)
+			if (!success) {
+				activity?.flashError(string.title_installation_failed)
+			}
 
-  override fun onFinished(sessionId: Int, success: Boolean) {
-    activity?._binding?.content?.apply {
-      bottomSheet.showChild(EditorBottomSheet.CHILD_HEADER)
-      bottomSheet.setActionProgress(0)
-      if (!success) {
-        activity?.flashError(string.title_installation_failed)
-      }
+			activity?.let {
+				it.installationCallback?.destroy()
+				it.installationCallback = null
+			}
+		}
+	}
 
-      activity?.let {
-        it.installationCallback?.destroy()
-        it.installationCallback = null
-      }
-    }
-  }
+	fun destroy() {
+		val currentActivity = this.activity
+		val isActivityValid = currentActivity != null && !currentActivity.isFinishing && !currentActivity.isDestroyed
 
-  fun destroy() {
-    val currentActivity = this.activity
-    val isActivityValid = currentActivity != null && !currentActivity.isFinishing && !currentActivity.isDestroyed
+		if (this.sessionId != SESSION_ID_NONE && isActivityValid) {
+			try {
+				currentActivity?.packageManager?.packageInstaller?.let { packageInstaller ->
+					val sessionExists = packageInstaller.mySessions.any { it.sessionId == this.sessionId }
+					if (sessionExists) {
+						try {
+							packageInstaller.abandonSession(this.sessionId)
+						} catch (ex: Exception) {
+							log.error(LOG_ABANDON_FAILED, this.sessionId, ex.cause?.message ?: ex.message)
+						}
+					} else {
+						log.info(LOG_SESSION_NOT_EXISTS, this.sessionId)
+					}
+				}
+			} catch (ex: Exception) {
+				log.error(LOG_SESSION_ERROR, this.sessionId, ex.cause?.message ?: ex.message)
+			}
+		}
 
-    if (this.sessionId != SESSION_ID_NONE && isActivityValid) {
-      try {
-        currentActivity?.packageManager?.packageInstaller?.let { packageInstaller ->
-          val sessionExists = packageInstaller.mySessions.any { it.sessionId == this.sessionId }
-          if (sessionExists) {
-            try {
-              packageInstaller.abandonSession(this.sessionId)
-            } catch (ex: Exception) {
-              log.error(LOG_ABANDON_FAILED, this.sessionId, ex.cause?.message ?: ex.message)
-            }
-          } else {
-            log.info(LOG_SESSION_NOT_EXISTS, this.sessionId)
-          }
-        }
-      } catch (ex: Exception) {
-        log.error(LOG_SESSION_ERROR, this.sessionId, ex.cause?.message ?: ex.message)
-      }
-    }
-
-    this.activity = null
-    this.sessionId = -1
-  }
+		this.activity = null
+		this.sessionId = -1
+	}
 }

@@ -30,7 +30,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.lang.IllegalArgumentException
 
 /**
  * Utilities for sharing files.
@@ -38,147 +37,155 @@ import java.lang.IllegalArgumentException
  * @author Akash Yadav
  */
 object IntentUtils {
+	private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
+	private const val ENABLE_DEBUG_FLAG = true
 
-    private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
-    private const val ENABLE_DEBUG_FLAG = true
+	@JvmStatic
+	fun openImage(
+		context: Context,
+		file: File,
+	) {
+		imageIntent(context = context, file = file, intentAction = Intent.ACTION_VIEW)
+	}
 
-    @JvmStatic
-    fun openImage(context: Context, file: File) {
-        imageIntent(context = context, file = file, intentAction = Intent.ACTION_VIEW)
-    }
+	@JvmStatic
+	@JvmOverloads
+	fun imageIntent(
+		context: Context,
+		file: File,
+		intentAction: String = Intent.ACTION_SEND,
+	) {
+		val type = ImageUtils.getImageType(file)
+		var typeString = type.value
+		if (type == TYPE_UNKNOWN) {
+			typeString = "*"
+		}
 
-    @JvmStatic
-    @JvmOverloads
-    fun imageIntent(
-        context: Context,
-        file: File,
-        intentAction: String = Intent.ACTION_SEND
-    ) {
-        val type = ImageUtils.getImageType(file)
-        var typeString = type.value
-        if (type == TYPE_UNKNOWN) {
-            typeString = "*"
-        }
+		startIntent(
+			context = context,
+			file = file,
+			mimeType = "image/$typeString",
+			intentAction = intentAction,
+		)
+	}
 
-        startIntent(
-            context = context,
-            file = file,
-            mimeType = "image/$typeString",
-            intentAction = intentAction
-        )
-    }
+	@JvmStatic
+	fun shareFile(
+		context: Context,
+		file: File,
+		mimeType: String,
+	) {
+		startIntent(context = context, file = file, mimeType = mimeType)
+	}
 
-    @JvmStatic
-    fun shareFile(context: Context, file: File, mimeType: String) {
-        startIntent(context = context, file = file, mimeType = mimeType)
-    }
+	@JvmStatic
+	@JvmOverloads
+	fun startIntent(
+		context: Context,
+		file: File,
+		mimeType: String = "*/*",
+		intentAction: String = Intent.ACTION_SEND,
+	) {
+		val uri =
+			FileProvider.getUriForFile(
+				context,
+				"${context.packageName}.providers.fileprovider",
+				file,
+			)
+		val intent =
+			ShareCompat
+				.IntentBuilder(context)
+				.setType(mimeType)
+				.setStream(uri)
+				.intent
+				.setAction(intentAction)
+				.setDataAndType(uri, mimeType)
+				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
-    @JvmStatic
-    @JvmOverloads
-    fun startIntent(
-        context: Context,
-        file: File,
-        mimeType: String = "*/*",
-        intentAction: String = Intent.ACTION_SEND
-    ) {
-        val uri =
-            FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.providers.fileprovider",
-                file
-            )
-        val intent =
-            ShareCompat.IntentBuilder(context)
-                .setType(mimeType)
-                .setStream(uri)
-                .intent
-                .setAction(intentAction)
-                .setDataAndType(uri, mimeType)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+		context.startActivity(Intent.createChooser(intent, null))
+	}
 
-        context.startActivity(Intent.createChooser(intent, null))
-    }
+	/**
+	 * Launch the application with the given [package name][packageName].
+	 *
+	 * @param context The context that will be used to fetch the launch intent.
+	 * @param packageName The package name of the application.
+	 */
+	@JvmOverloads
+	suspend fun launchApp(
+		context: Context,
+		packageName: String,
+		debug: Boolean = false,
+		logError: Boolean = true,
+	): Boolean {
+		require(packageName.isNotBlank()) {
+			"Package name cannot be empty"
+		}
 
-    /**
-     * Launch the application with the given [package name][packageName].
-     *
-     * @param context The context that will be used to fetch the launch intent.
-     * @param packageName The package name of the application.
-     */
-    @JvmOverloads
-    suspend fun launchApp(
-        context: Context,
-        packageName: String,
-        debug: Boolean = false,
-        logError: Boolean = true
-    ): Boolean {
-        require(packageName.isNotBlank()) {
-            "Package name cannot be empty"
-        }
+		val onError: suspend () -> Unit = {
+			withContext(Dispatchers.Main.immediate) {
+				flashError(R.string.msg_app_launch_failed)
+			}
+		}
 
-        val onError: suspend () -> Unit = {
-            withContext(Dispatchers.Main.immediate) {
-                flashError(R.string.msg_app_launch_failed)
-            }
-        }
+		return try {
+			doLaunchApp(context, packageName, debug, onError)
+		} catch (e: Throwable) {
+			if (logError) {
+				logger.error("Failed to launch application with package name '{}'", packageName, e)
+			}
 
-        return try {
-            doLaunchApp(context, packageName, debug, onError)
-        } catch (e: Throwable) {
-            if (logError) {
-                logger.error("Failed to launch application with package name '{}'", packageName, e)
-            }
+			onError()
+			false
+		}
+	}
 
-            onError()
-            false
-        }
-    }
+	private suspend fun doLaunchApp(
+		context: Context,
+		packageName: String,
+		debug: Boolean,
+		onError: suspend () -> Unit,
+	): Boolean {
+		val launchIntent =
+			withContext(Dispatchers.Main.immediate) {
+				context.packageManager.getLaunchIntentForPackage(packageName)
+			}
 
-    private suspend fun doLaunchApp(
-        context: Context,
-        packageName: String,
-        debug: Boolean,
-        onError: suspend () -> Unit,
-    ): Boolean {
-        val launchIntent = withContext(Dispatchers.Main.immediate) {
-            context.packageManager.getLaunchIntentForPackage(packageName)
-        }
+		if (launchIntent == null) {
+			onError()
+			return false
+		}
 
-        if (launchIntent == null) {
-            onError()
-            return false
-        }
+		@Suppress("SimplifyBooleanWithConstants")
+		if (ENABLE_DEBUG_FLAG && debug) {
+			// noinspection WrongConstant -- hidden flag
+			launchIntent.addFlags(START_FLAG_DEBUG)
+		}
 
-        @Suppress("SimplifyBooleanWithConstants")
-        if (/*short-circuit*/ ENABLE_DEBUG_FLAG && debug) {
-            // noinspection WrongConstant -- hidden flag
-            launchIntent.addFlags(START_FLAG_DEBUG)
-        }
+		context.startActivity(launchIntent)
 
-        context.startActivity(launchIntent)
+		return true
+	}
 
-        return true
-    }
+	val START_FLAG_DEBUG by lazy {
+		reflectStaticField<ActivityManager, Int>("START_FLAG_DEBUG") { 2 }
+	}
 
-    val START_FLAG_DEBUG by lazy {
-        reflectStaticField<ActivityManager, Int>("START_FLAG_DEBUG") { 2 }
-    }
-
-    private inline fun <reified T, R> reflectStaticField(
-        name: String,
-        crossinline default: () -> R
-    ): R =
-        try {
-            @Suppress("UNCHECKED_CAST")
-            ReflectionUtils.getDeclaredField(T::class.java, name)?.get(null) as R
-        } catch (e: Throwable) {
-            val default = default()
-            logger.error(
-                "Unable to access static field '{}'. Falling back to default value {}",
-                name,
-                default,
-                e
-            )
-            default
-        }
+	private inline fun <reified T, R> reflectStaticField(
+		name: String,
+		crossinline default: () -> R,
+	): R =
+		try {
+			@Suppress("UNCHECKED_CAST")
+			ReflectionUtils.getDeclaredField(T::class.java, name)?.get(null) as R
+		} catch (e: Throwable) {
+			val default = default()
+			logger.error(
+				"Unable to access static field '{}'. Falling back to default value {}",
+				name,
+				default,
+				e,
+			)
+			default
+		}
 }

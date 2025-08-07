@@ -37,67 +37,70 @@ import org.slf4j.LoggerFactory
  *
  * @author Akash Yadav
  */
-class LaunchAppAction(context: Context, override val order: Int) : EditorActivityAction() {
+class LaunchAppAction(
+	context: Context,
+	override val order: Int,
+) : EditorActivityAction() {
+	override val id: String = "ide.editor.launchInstalledApp"
+	override var requiresUIThread: Boolean = true
 
-  override val id: String = "ide.editor.launchInstalledApp"
-  override var requiresUIThread: Boolean = true
+	init {
+		label = context.getString(R.string.title_launch_app)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_open_external)
+	}
 
-  init {
-    label = context.getString(R.string.title_launch_app)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_open_external)
-  }
+	companion object {
+		private val log = LoggerFactory.getLogger(LaunchAppAction::class.java)
+	}
 
-  companion object {
-    private val log = LoggerFactory.getLogger(LaunchAppAction::class.java)
-  }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		data.getActivity() ?: run {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    data.getActivity() ?: run {
-      markInvisible()
-      return
-    }
+		visible = true
 
-    visible = true
+		val projectManager = IProjectManager.getInstance()
+		enabled = projectManager.getAndroidAppModules().isNotEmpty()
+	}
 
-    val projectManager = IProjectManager.getInstance()
-    enabled = projectManager.getAndroidAppModules().isNotEmpty()
-  }
+	override suspend fun execAction(data: ActionData) =
+		coroutineScope {
+			openApplicationModuleChooser(data) { app ->
+				val variant = app.getSelectedVariant()
 
-  override suspend fun execAction(data: ActionData) = coroutineScope {
-    openApplicationModuleChooser(data) { app ->
-      val variant = app.getSelectedVariant()
+				log.debug("Selected variant: {}", variant?.name)
 
-      log.debug("Selected variant: {}", variant?.name)
+				if (variant == null) {
+					flashError(R.string.err_selected_variant_not_found)
+					return@openApplicationModuleChooser
+				}
 
-      if (variant == null) {
-        flashError(R.string.err_selected_variant_not_found)
-        return@openApplicationModuleChooser
-      }
+				val applicationId = variant.mainArtifact.applicationId
+				if (applicationId == null) {
+					log.error("Unable to launch application. variant.mainArtifact.applicationId is null")
+					flashError(R.string.err_cannot_determine_package)
+					return@openApplicationModuleChooser
+				}
 
-      val applicationId = variant.mainArtifact.applicationId
-      if (applicationId == null) {
-        log.error("Unable to launch application. variant.mainArtifact.applicationId is null")
-        flashError(R.string.err_cannot_determine_package)
-        return@openApplicationModuleChooser
-      }
+				log.info("Launching application: {}", applicationId)
 
-      log.info("Launching application: {}", applicationId)
+				val activity = data.requireActivity()
+				launch {
+					IntentUtils.launchApp(
+						context = activity,
+						packageName = applicationId,
+						debug = false,
+						logError = false,
+					)
+				}
+			}
+		}
 
-      val activity = data.requireActivity()
-      launch {
-        IntentUtils.launchApp(
-          context = activity,
-          packageName = applicationId,
-          debug = false,
-          logError = false,
-        )
-      }
-    }
-  }
-
-  override fun getShowAsActionFlags(data: ActionData): Int {
-    // prefer showing this in the overflow menu
-    return MenuItem.SHOW_AS_ACTION_IF_ROOM
-  }
+	override fun getShowAsActionFlags(data: ActionData): Int {
+		// prefer showing this in the overflow menu
+		return MenuItem.SHOW_AS_ACTION_IF_ROOM
+	}
 }
