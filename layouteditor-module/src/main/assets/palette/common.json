@@ -1,0 +1,85 @@
+[
+    {
+        "name": "LinearLayout (H)",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.LinearLayoutDesign",
+        "iconName": "ic_palette_linear_layout_horz",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:orientation": "horizontal",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "LinearLayout (V)",
+        "className": "com.itsvks.layouteditor.editor.palette.layouts.LinearLayoutDesign",
+        "iconName": "ic_palette_linear_layout_vert",
+        "defaultAttributes": {
+            "android:layout_height": "match_parent",
+            "android:orientation": "vertical",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "ScrollView (unable to scroll in the editor)",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.ScrollViewDesign",
+        "iconName": "ic_palette_scroll_view",
+        "defaultAttributes": {
+            "android:layout_height": "match_parent",
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+  {
+        "name": "HorizontalScrollView (unable to scroll in the editor)",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.ScrollViewDesign",
+        "iconName": "ic_palette_scroll_view",
+        "defaultAttributes": {
+            "android:layout_height": "match_parent",
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "TextView",
+        "className": "com.itsvks.layouteditor.editor.palette.text.TextViewDesign",
+        "iconName": "ic_palette_text_view",
+        "defaultAttributes": {
+            "android:text": "TextView"
+        }
+    },
+    {
+        "name": "Button",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.ButtonDesign",
+        "iconName": "ic_palette_button",
+        "defaultAttributes": {
+            "android:text": "Button"
+        }
+    },
+    {
+        "name": "ImageView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.ImageViewDesign",
+        "iconName": "ic_palette_image_view",
+        "defaultAttributes": {
+            "android:layout_width": "48dp",
+            "android:layout_height": "48dp",
+            "android:src": "@drawable/default_image"
+        }
+    },
+    {
+        "name": "Switch",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.SwitchDesign",
+        "iconName": "ic_palette_switch",
+        "defaultAttributes": {
+            "android:text": "Switch"
+        }
+    },
+    {
+        "name": "RecyclerView",
+        "className": "com.itsvks.layouteditor.editor.palette.containers.RecyclerViewDesign",
+        "iconName": "ic_palette_recycler_view",
+        "defaultAttributes": {
+            "android:layout_width":"match_parent",
+            "android:layout_height":"100dp"
+        }
+    }
+]
