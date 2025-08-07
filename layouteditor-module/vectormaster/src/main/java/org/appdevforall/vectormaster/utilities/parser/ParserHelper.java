@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster.utilities.parser;
+package org.appdevforall.vectormaster.utilities.parser;
 
 /*
 

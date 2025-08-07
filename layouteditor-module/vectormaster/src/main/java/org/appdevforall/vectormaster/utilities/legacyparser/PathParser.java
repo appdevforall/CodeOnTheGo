@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster.utilities.legacyparser;
+package org.appdevforall.vectormaster.utilities.legacyparser;
 
 /*
  * This class has been extracted from the android source code. In the latest versions, most of the code has been moved for
