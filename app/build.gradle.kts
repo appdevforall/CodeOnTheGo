@@ -207,7 +207,7 @@ dependencies {
   implementation(projects.uidesigner)
   implementation(projects.xmlInflater)
 
-  implementation(projects.layouteditor.layouteditorApp)
+  implementation(projects.layouteditorModule)
   implementation(projects.idetooltips)
 
   //LaoutEditor
