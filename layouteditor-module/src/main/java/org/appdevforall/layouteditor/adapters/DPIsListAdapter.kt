@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.adapters
+package org.appdevforall.layouteditor.adapters
 
 import android.annotation.SuppressLint
 import android.graphics.drawable.Drawable

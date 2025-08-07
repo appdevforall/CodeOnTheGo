@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.views
+package org.appdevforall.layouteditor.views
 
 import android.graphics.Bitmap
 import android.graphics.Canvas

@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.dialogs.interfaces
+package org.appdevforall.layouteditor.editor.dialogs.interfaces
 
 /**
  * OnSaveValueListener interface for saving value

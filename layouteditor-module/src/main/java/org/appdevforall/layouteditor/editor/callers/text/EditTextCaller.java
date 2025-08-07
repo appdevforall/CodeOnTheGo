@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.callers.text;
+package org.appdevforall.layouteditor.editor.callers.text;
 
 import android.content.Context;
 import android.graphics.Color;

@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.widgets;
+package org.appdevforall.layouteditor.editor.palette.widgets;
 
 import android.widget.ImageView;
 import android.content.Context;

@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor
+package org.appdevforall.layouteditor
 
 import android.content.Context
 import android.os.Parcel

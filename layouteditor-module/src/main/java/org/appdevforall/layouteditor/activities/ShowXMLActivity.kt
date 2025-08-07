@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.activities
+package org.appdevforall.layouteditor.activities
 
 import android.graphics.Typeface
 import android.os.Bundle

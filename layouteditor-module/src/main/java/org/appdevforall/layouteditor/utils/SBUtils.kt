@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.utils
+package org.appdevforall.layouteditor.utils
 
 import android.view.View
 import androidx.annotation.StringRes

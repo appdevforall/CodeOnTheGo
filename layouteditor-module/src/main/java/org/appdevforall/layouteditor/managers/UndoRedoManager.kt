@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.managers
+package org.appdevforall.layouteditor.managers
 
 import android.view.MenuItem
 

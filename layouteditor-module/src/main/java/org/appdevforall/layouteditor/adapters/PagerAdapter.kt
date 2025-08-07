@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.adapters
+package org.appdevforall.layouteditor.adapters
 
 import android.graphics.drawable.Drawable
 import androidx.fragment.app.Fragment

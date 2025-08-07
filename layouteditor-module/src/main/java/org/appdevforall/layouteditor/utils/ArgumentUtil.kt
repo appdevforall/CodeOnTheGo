@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.utils
+package org.appdevforall.layouteditor.utils
 
 import java.util.regex.Pattern
 

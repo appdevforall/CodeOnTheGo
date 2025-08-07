@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.initializer
+package org.appdevforall.layouteditor.editor.initializer
 
 class AttributeMap {
   private val attrs: MutableList<Attribute> = ArrayList()

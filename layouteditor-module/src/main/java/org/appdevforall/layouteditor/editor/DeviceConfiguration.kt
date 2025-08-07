@@ -1,3 +1,3 @@
-package com.itsvks.layouteditor.editor
+package org.appdevforall.layouteditor.editor
 
 class DeviceConfiguration(var size: DeviceSize)

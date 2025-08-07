@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.legacy;
+package org.appdevforall.layouteditor.editor.palette.legacy;
 
 import android.widget.GridLayout;
 import android.content.Context;

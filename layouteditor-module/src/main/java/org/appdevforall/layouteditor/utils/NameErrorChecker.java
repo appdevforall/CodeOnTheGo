@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.utils;
+package org.appdevforall.layouteditor.utils;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;

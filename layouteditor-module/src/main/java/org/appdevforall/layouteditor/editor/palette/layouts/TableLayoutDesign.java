@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.layouts;
+package org.appdevforall.layouteditor.editor.palette.layouts;
 
 import android.widget.TableLayout;
 import android.content.Context;

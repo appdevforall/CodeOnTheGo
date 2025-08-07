@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsvks.layouteditor.activities
+package org.appdevforall.layouteditor.activities
 
 import android.os.Bundle
 import android.webkit.WebViewClient

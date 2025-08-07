@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.fragments.resources;
+package org.appdevforall.layouteditor.fragments.resources;
 
 import android.os.Bundle;
 import android.text.Editable;

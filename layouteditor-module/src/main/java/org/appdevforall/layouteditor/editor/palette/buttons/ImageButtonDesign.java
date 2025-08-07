@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.buttons;
+package org.appdevforall.layouteditor.editor.palette.buttons;
 
 import android.widget.ImageButton;
 import android.content.Context;

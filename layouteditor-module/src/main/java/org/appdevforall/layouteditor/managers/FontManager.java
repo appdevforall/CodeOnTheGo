@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.managers;
+package org.appdevforall.layouteditor.managers;
 
 import android.graphics.Typeface;
 import com.itsvks.layouteditor.utils.FileUtil;
