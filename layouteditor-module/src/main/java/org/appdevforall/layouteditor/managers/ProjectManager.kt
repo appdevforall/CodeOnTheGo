@@ -3,10 +3,10 @@ package org.appdevforall.layouteditor.managers
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.itsvks.layouteditor.LayoutEditor
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.utils.Constants
-import com.itsvks.layouteditor.utils.FileUtil
+import org.appdevforall.layouteditor.LayoutEditor
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.utils.FileUtil
 import java.lang.reflect.Type
 import java.util.Locale
 import java.util.Objects

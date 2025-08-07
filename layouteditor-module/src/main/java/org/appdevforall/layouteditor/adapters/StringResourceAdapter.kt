@@ -13,15 +13,15 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.ClipboardUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.adapters.models.ValuesItem
-import com.itsvks.layouteditor.databinding.LayoutValuesItemBinding
-import com.itsvks.layouteditor.databinding.LayoutValuesItemDialogBinding
-import com.itsvks.layouteditor.utils.FileUtil.writeFile
-import com.itsvks.layouteditor.utils.NameErrorChecker
-import com.itsvks.layouteditor.utils.SBUtils
-import com.itsvks.layouteditor.utils.SBUtils.Companion.make
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.adapters.models.ValuesItem
+import org.appdevforall.layouteditor.databinding.LayoutValuesItemBinding
+import org.appdevforall.layouteditor.databinding.LayoutValuesItemDialogBinding
+import org.appdevforall.layouteditor.utils.FileUtil.writeFile
+import org.appdevforall.layouteditor.utils.NameErrorChecker
+import org.appdevforall.layouteditor.utils.SBUtils
+import org.appdevforall.layouteditor.utils.SBUtils.Companion.make
 import org.apache.commons.lang3.StringEscapeUtils
 
 class StringResourceAdapter(

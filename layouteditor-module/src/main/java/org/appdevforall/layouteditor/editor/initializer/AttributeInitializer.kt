@@ -2,9 +2,9 @@ package org.appdevforall.layouteditor.editor.initializer
 
 import android.content.Context
 import android.view.View
-import com.itsvks.layouteditor.editor.DesignEditor
-import com.itsvks.layouteditor.utils.Constants
-import com.itsvks.layouteditor.utils.InvokeUtil.invokeMethod
+import org.appdevforall.layouteditor.editor.DesignEditor
+import org.appdevforall.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.utils.InvokeUtil.invokeMethod
 
 class AttributeInitializer {
   private var context: Context

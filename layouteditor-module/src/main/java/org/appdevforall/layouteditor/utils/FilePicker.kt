@@ -6,9 +6,9 @@ import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.itsvks.layouteditor.LayoutEditor.Companion.instance
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.utils.SBUtils.Companion.make
+import org.appdevforall.layouteditor.LayoutEditor.Companion.instance
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.utils.SBUtils.Companion.make
 
 /**
  * Class for FilePicker

@@ -5,11 +5,11 @@ import android.graphics.Color;
 import android.view.View;
 import android.widget.EditText;
 import androidx.appcompat.widget.AppCompatEditText;
-import com.itsvks.layouteditor.ProjectFile;
-import com.itsvks.layouteditor.managers.ProjectManager;
-import com.itsvks.layouteditor.managers.ValuesManager;
-import com.itsvks.layouteditor.tools.ValuesResourceParser;
-import com.itsvks.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.ProjectFile;
+import org.appdevforall.layouteditor.managers.ProjectManager;
+import org.appdevforall.layouteditor.managers.ValuesManager;
+import org.appdevforall.layouteditor.tools.ValuesResourceParser;
+import org.appdevforall.layouteditor.utils.Constants;
 
 public class EditTextCaller {
 

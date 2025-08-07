@@ -7,8 +7,8 @@ import android.widget.Button;
 
 import androidx.annotation.NonNull;
 
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 @SuppressLint("AppCompatCustomView")
 public class ButtonDesign extends Button {

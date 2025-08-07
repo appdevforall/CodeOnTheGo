@@ -6,7 +6,7 @@ import android.widget.LinearLayout;
 
 import androidx.appcompat.widget.LinearLayoutCompat;
 
-import com.itsvks.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Constants;
 
 import java.util.HashMap;
 

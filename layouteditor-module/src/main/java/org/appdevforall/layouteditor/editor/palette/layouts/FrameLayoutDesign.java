@@ -3,8 +3,8 @@ package org.appdevforall.layouteditor.editor.palette.layouts;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.widget.FrameLayout;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class FrameLayoutDesign extends FrameLayout {
 

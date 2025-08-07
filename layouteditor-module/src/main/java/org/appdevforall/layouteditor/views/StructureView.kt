@@ -61,9 +61,9 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.tabs.TabLayout
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.LayoutStructureViewItemBinding
-import com.itsvks.layouteditor.managers.IdManager.idMap
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.LayoutStructureViewItemBinding
+import org.appdevforall.layouteditor.managers.IdManager.idMap
 
 class StructureView(context: Context?, attrs: AttributeSet?) : LinearLayoutCompat(
   context!!, attrs

@@ -8,10 +8,10 @@ import android.view.animation.AnimationUtils
 import androidx.core.view.ViewCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.RecyclerView
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.LayoutPaletteItemBinding
-import com.itsvks.layouteditor.utils.InvokeUtil.getMipmapId
-import com.itsvks.layouteditor.utils.InvokeUtil.getSuperClassName
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.LayoutPaletteItemBinding
+import org.appdevforall.layouteditor.utils.InvokeUtil.getMipmapId
+import org.appdevforall.layouteditor.utils.InvokeUtil.getSuperClassName
 
 class PaletteListAdapter(private val drawerLayout: DrawerLayout) :
   RecyclerView.Adapter<PaletteListAdapter.ViewHolder>() {

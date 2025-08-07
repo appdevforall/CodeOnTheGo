@@ -18,13 +18,13 @@ import androidx.fragment.app.FragmentTransaction
 import androidx.preference.PreferenceManager
 import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 import com.google.android.material.navigation.NavigationView
-import com.itsvks.layouteditor.BaseActivity
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.ActivityHomeBinding
-import com.itsvks.layouteditor.fragments.ui.AboutFragment
-import com.itsvks.layouteditor.fragments.ui.HomeFragment
-import com.itsvks.layouteditor.fragments.ui.PreferencesFragment
-import com.itsvks.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.BaseActivity
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.ActivityHomeBinding
+import org.appdevforall.layouteditor.fragments.ui.AboutFragment
+import org.appdevforall.layouteditor.fragments.ui.HomeFragment
+import org.appdevforall.layouteditor.fragments.ui.PreferencesFragment
+import org.appdevforall.layouteditor.utils.Constants
 
 class HomeActivity : BaseActivity() {
   private lateinit var binding: ActivityHomeBinding

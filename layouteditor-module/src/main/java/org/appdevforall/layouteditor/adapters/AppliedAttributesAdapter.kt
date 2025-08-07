@@ -5,8 +5,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
-import com.itsvks.layouteditor.databinding.ShowAttributeItemBinding
-import com.itsvks.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.databinding.ShowAttributeItemBinding
+import org.appdevforall.layouteditor.utils.Constants
 
 class AppliedAttributesAdapter(
   private val attrs: List<HashMap<String, Any>>,

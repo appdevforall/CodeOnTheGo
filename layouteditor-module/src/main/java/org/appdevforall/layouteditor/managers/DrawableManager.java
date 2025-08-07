@@ -7,9 +7,9 @@ import android.net.Uri;
 
 import androidx.annotation.NonNull;
 
-import com.itsvks.layouteditor.utils.FileUtil;
+import org.appdevforall.layouteditor.utils.FileUtil;
 
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Utils;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Set;

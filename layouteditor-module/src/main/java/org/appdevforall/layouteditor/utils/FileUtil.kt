@@ -9,7 +9,7 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.text.TextUtils
 import com.blankj.utilcode.util.ToastUtils
-import com.itsvks.layouteditor.LayoutEditor.Companion.instance
+import org.appdevforall.layouteditor.LayoutEditor.Companion.instance
 import java.io.BufferedReader
 import java.io.ByteArrayOutputStream
 import java.io.File

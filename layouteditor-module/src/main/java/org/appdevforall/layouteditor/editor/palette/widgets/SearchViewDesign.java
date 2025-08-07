@@ -3,8 +3,8 @@ package org.appdevforall.layouteditor.editor.palette.widgets;
 import android.widget.SearchView;
 import android.content.Context;
 import android.graphics.Canvas;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class SearchViewDesign extends SearchView {
   

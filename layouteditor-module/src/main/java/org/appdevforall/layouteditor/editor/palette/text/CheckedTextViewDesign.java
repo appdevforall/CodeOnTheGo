@@ -3,8 +3,8 @@ package org.appdevforall.layouteditor.editor.palette.text;
 import android.widget.CheckedTextView;
 import android.content.Context;
 import android.graphics.Canvas;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class CheckedTextViewDesign extends CheckedTextView {
  

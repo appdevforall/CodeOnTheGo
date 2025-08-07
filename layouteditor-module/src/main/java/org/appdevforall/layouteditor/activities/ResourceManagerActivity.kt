@@ -20,21 +20,21 @@ import androidx.annotation.RequiresApi
 import androidx.viewpager2.widget.ViewPager2
 import com.blankj.utilcode.util.ToastUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsvks.layouteditor.BaseActivity
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.adapters.PagerAdapter
-import com.itsvks.layouteditor.adapters.models.DrawableFile
-import com.itsvks.layouteditor.databinding.ActivityResourceManagerBinding
-import com.itsvks.layouteditor.fragments.resources.ColorFragment
-import com.itsvks.layouteditor.fragments.resources.DrawableFragment
-import com.itsvks.layouteditor.fragments.resources.FontFragment
-import com.itsvks.layouteditor.fragments.resources.StringFragment
-import com.itsvks.layouteditor.managers.ProjectManager
-import com.itsvks.layouteditor.utils.Constants
-import com.itsvks.layouteditor.utils.FilePicker
-import com.itsvks.layouteditor.utils.FileUtil
-import com.itsvks.layouteditor.utils.SBUtils
-import com.itsvks.layouteditor.vectormaster.VectorMasterDrawable
+import org.appdevforall.layouteditor.BaseActivity
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.adapters.PagerAdapter
+import org.appdevforall.layouteditor.adapters.models.DrawableFile
+import org.appdevforall.layouteditor.databinding.ActivityResourceManagerBinding
+import org.appdevforall.layouteditor.fragments.resources.ColorFragment
+import org.appdevforall.layouteditor.fragments.resources.DrawableFragment
+import org.appdevforall.layouteditor.fragments.resources.FontFragment
+import org.appdevforall.layouteditor.fragments.resources.StringFragment
+import org.appdevforall.layouteditor.managers.ProjectManager
+import org.appdevforall.layouteditor.utils.Constants
+import org.appdevforall.layouteditor.utils.FilePicker
+import org.appdevforall.layouteditor.utils.FileUtil
+import org.appdevforall.layouteditor.utils.SBUtils
+import org.appdevforall.layouteditor.vectormaster.VectorMasterDrawable
 import java.io.FileNotFoundException
 
 class ResourceManagerActivity : BaseActivity() {

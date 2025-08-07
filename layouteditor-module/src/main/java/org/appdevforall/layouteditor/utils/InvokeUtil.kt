@@ -2,7 +2,7 @@ package org.appdevforall.layouteditor.utils
 
 import android.content.Context
 import android.view.View
-import com.itsvks.layouteditor.R.mipmap
+import org.appdevforall.layouteditor.R.mipmap
 import java.lang.reflect.InvocationTargetException
 
 object InvokeUtil {

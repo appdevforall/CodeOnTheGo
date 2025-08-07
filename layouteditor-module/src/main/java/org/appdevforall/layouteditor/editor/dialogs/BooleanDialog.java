@@ -5,8 +5,8 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.AppCompatRadioButton;
 
-import com.itsvks.layouteditor.R;
-import com.itsvks.layouteditor.databinding.LayoutBooleanDialogBinding;
+import org.appdevforall.layouteditor.R;
+import org.appdevforall.layouteditor.databinding.LayoutBooleanDialogBinding;
 
 public class BooleanDialog extends AttributeDialog {
 

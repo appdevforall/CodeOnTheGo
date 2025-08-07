@@ -6,11 +6,11 @@ import android.graphics.drawable.ColorDrawable;
 import android.view.View;
 
 import com.google.android.material.button.MaterialButton;
-import com.itsvks.layouteditor.managers.DrawableManager;
-import com.itsvks.layouteditor.managers.IdManager;
-import com.itsvks.layouteditor.utils.ArgumentUtil;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.DimensionUtil;
+import org.appdevforall.layouteditor.managers.DrawableManager;
+import org.appdevforall.layouteditor.managers.IdManager;
+import org.appdevforall.layouteditor.utils.ArgumentUtil;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.DimensionUtil;
 
 public class ViewCaller {
   public static void setId(View target, String value, Context context) {

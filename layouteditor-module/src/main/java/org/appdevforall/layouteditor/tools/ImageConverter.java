@@ -2,7 +2,7 @@ package org.appdevforall.layouteditor.tools;
 
 import android.content.res.Resources;
 import android.graphics.Bitmap;
-import com.itsvks.layouteditor.managers.ProjectManager;
+import org.appdevforall.layouteditor.managers.ProjectManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;

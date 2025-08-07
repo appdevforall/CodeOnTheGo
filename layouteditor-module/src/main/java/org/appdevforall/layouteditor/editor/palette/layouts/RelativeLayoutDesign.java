@@ -7,8 +7,8 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.view.View;
 import android.widget.RelativeLayout;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class RelativeLayoutDesign extends RelativeLayout {
 

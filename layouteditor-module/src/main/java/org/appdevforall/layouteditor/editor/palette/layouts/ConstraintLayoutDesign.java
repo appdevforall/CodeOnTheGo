@@ -10,8 +10,8 @@ import android.view.View;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
-import com.itsvks.layouteditor.utils.Utils;
-import com.itsvks.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
 
 public class ConstraintLayoutDesign extends ConstraintLayout {
   private boolean drawStrokeEnabled;

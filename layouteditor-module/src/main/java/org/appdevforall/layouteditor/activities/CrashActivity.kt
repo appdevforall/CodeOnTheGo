@@ -9,10 +9,10 @@ import androidx.appcompat.content.res.AppCompatResources
 import com.blankj.utilcode.util.ClipboardUtils
 import com.blankj.utilcode.util.DeviceUtils
 import com.google.android.material.snackbar.Snackbar
-import com.itsvks.layouteditor.BaseActivity
-import com.itsvks.layouteditor.BuildConfig
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.ActivityCrashBinding
+import org.appdevforall.layouteditor.BaseActivity
+import org.appdevforall.layouteditor.BuildConfig
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.ActivityCrashBinding
 import kotlin.system.exitProcess
 
 class CrashActivity : BaseActivity() {

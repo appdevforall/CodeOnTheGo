@@ -5,7 +5,7 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
-import com.itsvks.layouteditor.managers.IdManager;
+import org.appdevforall.layouteditor.managers.IdManager;
 
 import java.util.ArrayList;
 import java.util.List;

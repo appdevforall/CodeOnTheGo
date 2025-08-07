@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Process
 import android.util.Log
-import com.itsvks.layouteditor.activities.CrashActivity
+import org.appdevforall.layouteditor.activities.CrashActivity
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.lang.ref.WeakReference

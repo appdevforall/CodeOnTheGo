@@ -5,8 +5,8 @@ import android.graphics.Paint;
 import android.widget.ListView;
 import android.content.Context;
 import android.graphics.Canvas;
-import com.itsvks.layouteditor.utils.Constants;
-import com.itsvks.layouteditor.utils.Utils;
+import org.appdevforall.layouteditor.utils.Constants;
+import org.appdevforall.layouteditor.utils.Utils;
 
 public class ListViewDesign extends ListView {
 

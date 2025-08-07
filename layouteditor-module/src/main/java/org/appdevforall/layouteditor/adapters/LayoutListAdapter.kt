@@ -19,11 +19,11 @@ import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.core.graphics.drawable.toBitmap
 import androidx.recyclerview.widget.RecyclerView
-import com.itsvks.layouteditor.LayoutFile
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.R
-import com.itsvks.layouteditor.databinding.LayoutProjectLayoutItemBinding
-import com.itsvks.layouteditor.utils.BitmapUtil
+import org.appdevforall.layouteditor.LayoutFile
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.R
+import org.appdevforall.layouteditor.databinding.LayoutProjectLayoutItemBinding
+import org.appdevforall.layouteditor.utils.BitmapUtil
 
 class LayoutListAdapter(
   val project: ProjectFile

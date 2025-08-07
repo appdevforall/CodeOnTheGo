@@ -4,11 +4,11 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.textfield.TextInputLayout;
-import com.itsvks.layouteditor.LayoutFile;
-import com.itsvks.layouteditor.R;
-import com.itsvks.layouteditor.adapters.models.DrawableFile;
-import com.itsvks.layouteditor.adapters.models.FontItem;
-import com.itsvks.layouteditor.adapters.models.ValuesItem;
+import org.appdevforall.layouteditor.LayoutFile;
+import org.appdevforall.layouteditor.R;
+import org.appdevforall.layouteditor.adapters.models.DrawableFile;
+import org.appdevforall.layouteditor.adapters.models.FontItem;
+import org.appdevforall.layouteditor.adapters.models.ValuesItem;
 
 import java.util.List;
 import java.util.regex.Pattern;

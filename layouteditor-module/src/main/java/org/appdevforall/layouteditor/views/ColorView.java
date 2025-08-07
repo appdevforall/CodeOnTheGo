@@ -11,9 +11,9 @@ import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.appcompat.content.res.AppCompatResources;
 
-import com.itsvks.layouteditor.R;
+import org.appdevforall.layouteditor.R;
 
-import com.itsvks.layouteditor.views.AlphaPatternDrawable;
+import org.appdevforall.layouteditor.views.AlphaPatternDrawable;
 import java.util.Locale;
 
 /** ColorView extends View class. It is used to draw a colored rectangle. */
