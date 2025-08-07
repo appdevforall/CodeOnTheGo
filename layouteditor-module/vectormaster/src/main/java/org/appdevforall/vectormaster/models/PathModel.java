@@ -7,9 +7,9 @@ import android.graphics.Path;
 import android.graphics.PathMeasure;
 import android.graphics.RectF;
 
-import com.itsvks.layouteditor.vectormaster.DefaultValues;
-import com.itsvks.layouteditor.vectormaster.utilities.Utils;
-import com.itsvks.layouteditor.vectormaster.utilities.parser.PathParser;
+import org.appdevforall.vectormaster.DefaultValues;
+import org.appdevforall.vectormaster.utilities.Utils;
+import org.appdevforall.vectormaster.utilities.parser.PathParser;
 
 public class PathModel {
 

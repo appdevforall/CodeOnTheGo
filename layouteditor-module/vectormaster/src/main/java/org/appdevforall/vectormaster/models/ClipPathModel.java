@@ -7,7 +7,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.RectF;
 
-import com.itsvks.layouteditor.vectormaster.utilities.parser.PathParser;
+import org.appdevforall.vectormaster.utilities.parser.PathParser;
 
 public class ClipPathModel {
   private String name;
