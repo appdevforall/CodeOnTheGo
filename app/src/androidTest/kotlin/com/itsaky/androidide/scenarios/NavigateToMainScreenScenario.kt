@@ -98,6 +98,10 @@ class NavigateToMainScreenScenario : Scenario() {
                         device.uiDevice.pressBack()
                         Thread.sleep(3000)
 
+                        Thread.sleep(2000)
+                        grantAccessibilityPermission(device.uiDevice)
+                        Thread.sleep(2000)
+
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(3) {
                                 flakySafely(10000) {
@@ -106,9 +110,6 @@ class NavigateToMainScreenScenario : Scenario() {
                                 }
                             }
                         }
-
-                        Thread.sleep(2000)
-                        grantAccessibilityPermission(device.uiDevice)
                         Thread.sleep(3000)
 
                         device.uiDevice.pressBack()

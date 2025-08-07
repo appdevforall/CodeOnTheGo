@@ -33,7 +33,7 @@ jobs:
   build_test:
     name: Build and Firebase Test
     runs-on: self-hosted
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
