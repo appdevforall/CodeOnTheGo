@@ -5,7 +5,7 @@ plugins {
 
 android {
     compileSdk = 35
-    namespace = "org.appdevforall.vectormaster"
+    namespace = "org.appdevforall.layouteditor"
 
     defaultConfig {
         minSdk = 26
@@ -23,10 +23,12 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
 dependencies {
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.core:core-ktx:1.12.0")
+    implementation(project(":layouteditor-module:vectormaster"))
+    implementation(projects.common)
+    implementation(projects.uidesigner)
 }
