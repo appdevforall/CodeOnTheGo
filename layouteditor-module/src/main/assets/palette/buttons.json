@@ -1,0 +1,81 @@
+[
+    {
+        "name": "Button",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.ButtonDesign",
+        "iconName": "ic_palette_button",
+        "defaultAttributes": {
+            "android:text": "Button"
+        }
+    },
+    {
+        "name": "ImageButton",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.ImageButtonDesign",
+        "iconName": "ic_palette_image_button",
+        "defaultAttributes": {
+            "android:src": "@drawable/default_image"
+        }
+    },
+    {
+        "name": "ChipGroup",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.ChipGroupDesign",
+        "iconName": "ic_palette_chip_group",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "Chip",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.ChipDesign",
+        "iconName": "ic_palette_chip",
+        "defaultAttributes": {
+            "android:text": "Chip"
+        }
+    },
+    {
+        "name": "CheckBox",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.CheckBoxDesign",
+        "iconName": "ic_palette_check_box",
+        "defaultAttributes": {
+            "android:text": "CheckBox"
+        }
+    },
+    {
+        "name": "RadioGroup",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.RadioGroupDesign",
+        "iconName": "ic_palette_radio_group",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "RadioButton",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.RadioButtonDesign",
+        "iconName": "ic_palette_radio_button",
+        "defaultAttributes": {
+            "android:text": "RadioButton"
+        }
+    },
+    {
+        "name": "ToggleButton",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.ToggleButtonDesign",
+        "iconName": "ic_palette_toggle_button",
+        "defaultAttributes": {
+            "android:text": "ToggleButton"
+        }
+    },
+    {
+        "name": "Switch",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.SwitchDesign",
+        "iconName": "ic_palette_switch",
+        "defaultAttributes": {
+            "android:text": "Switch"
+        }
+    },
+    {
+        "name": "FloatingActionButton",
+        "className": "com.itsvks.layouteditor.editor.palette.buttons.FloatingActionButtonDesign",
+        "iconName": "ic_palette_floating_action_button"
+    }
+]
