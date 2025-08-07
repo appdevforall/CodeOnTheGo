@@ -1,0 +1,142 @@
+[
+    {
+        "name": "TextView",
+        "className": "com.itsvks.layouteditor.editor.palette.text.TextViewDesign",
+        "iconName": "ic_palette_text_view",
+        "defaultAttributes": {
+            "android:text": "@string/default_string"
+        }
+    },
+    {
+        "name": "Plain Text",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_edit_text",
+        "defaultAttributes": {
+            "android:hint": "Plain Text",
+            "android:inputType":"text"
+        }
+    },
+    {
+        "name": "Password",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_password_textfield",
+        "defaultAttributes": {
+            "android:hint": "Password",
+            "android:inputType":"textPassword"
+        }
+    },
+    {
+        "name": "Password (Numeric)",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_password_numeric_textfield",
+        "defaultAttributes": {
+            "android:hint": "Password (Numeric)",
+            "android:inputType":"numberPassword"
+        }
+    },
+    {
+        "name": "E-mail",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_email_textfield",
+        "defaultAttributes": {
+            "android:hint": "E-mail",
+            "android:inputType":"textEmailAddress"
+        }
+    },
+    {
+        "name": "Phone",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_phone_textfield",
+        "defaultAttributes": {
+            "android:hint": "Phone",
+            "android:inputType":"phone"
+        }
+    },
+    {
+        "name": "Postal Address",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_postal_address_textfield",
+        "defaultAttributes": {
+            "android:hint": "Postal Address",
+            "android:inputType":"textPostalAddress"
+        }
+    },
+    {
+        "name": "Multiline Text",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_textfield_multiline",
+        "defaultAttributes": {
+            "android:hint": "Multiline Text",
+            "android:inputType":"textMultiLine"
+        }
+    },
+    {
+        "name": "Time",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_time_textfield",
+        "defaultAttributes": {
+            "android:hint": "Time",
+            "android:inputType":"time"
+        }
+    },
+    {
+        "name": "Date",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_date_textfield",
+        "defaultAttributes": {
+            "android:hint": "Date",
+            "android:inputType":"date"
+        }
+    },
+    {
+        "name": "Number",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_number_textfield",
+        "defaultAttributes": {
+            "android:hint": "Number",
+            "android:inputType":"number"
+        }
+    },
+    {
+        "name": "Number (Signed)",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_number_signed_textfield",
+        "defaultAttributes": {
+            "android:hint": "Number (Signed)",
+            "android:inputType":"numberSigned"
+        }
+    },
+    {
+        "name": "Number (Decimal)",
+        "className": "com.itsvks.layouteditor.editor.palette.text.EditTextDesign",
+        "iconName": "ic_palette_number_decimal_textfield",
+        "defaultAttributes": {
+            "android:hint": "Number (Decimal)",
+            "android:inputType":"numberDecimal"
+        }
+    },
+    {
+        "name": "AutoCompleteTextView",
+        "className": "com.itsvks.layouteditor.editor.palette.text.AutoCompleteTextViewDesign",
+        "iconName": "ic_palette_auto_complete_text_view",
+        "defaultAttributes": {
+            "android:hint": "AutoCompleteTextView"
+        }
+    },
+    {
+        "name": "MultiAutoCompleteTextView",
+        "className": "com.itsvks.layouteditor.editor.palette.text.MultiAutoCompleteTextViewDesign",
+        "iconName": "ic_palette_multi_auto_complete_text_view",
+        "defaultAttributes": {
+            "android:hint": "MultiAutoCompleteTextView"
+        }
+    },
+    {
+        "name": "CheckedTextView",
+        "className": "com.itsvks.layouteditor.editor.palette.text.CheckedTextViewDesign",
+        "iconName": "ic_palette_checked_text_view",
+        "defaultAttributes": {
+            "android:text": "CheckedTextView"
+        }
+    }
+]

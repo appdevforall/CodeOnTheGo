@@ -1,0 +1,118 @@
+[
+    {
+        "name": "View",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.ViewDesign",
+        "iconName": "ic_palette_view",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:layout_height": "30dp",
+            "android:padding": "8dp"
+        }
+    },
+    {
+        "name": "ImageView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.ImageViewDesign",
+        "iconName": "ic_palette_image_view",
+        "defaultAttributes": {
+            "android:layout_width": "48dp",
+            "android:layout_height": "48dp",
+            "android:src": "@drawable/default_image"
+        }
+    },
+    {
+        "name": "WebView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.WebViewDesign",
+        "iconName": "ic_palette_web_view",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:layout_height": "200dp"
+        }
+    },
+    {
+        "name": "VideoView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.VideoViewDesign",
+        "iconName": "ic_palette_video_view",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:layout_height": "200dp"
+        }
+    },
+    {
+        "name": "CalendarView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.CalendarViewDesign",
+        "iconName": "ic_palette_calendar_view",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent"
+        }
+    },
+    {
+        "name": "Text Clock",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.TextClockDesign",
+        "iconName": "ic_palette_text_clock",
+        "defaultAttributes": {
+            "android:textSize": "20sp"
+        }
+    },
+    {
+        "name": "ProgressBar",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.ProgressBarDesign",
+        "iconName": "ic_palette_progress_bar",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent"
+        }
+    },
+    {
+        "name": "ProgressBar (Horizontal)",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.ProgressBarDesign",
+        "iconName": "ic_palette_progress_bar_horizontal",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent"
+        }
+    },
+    {
+        "name": "SeekBar",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.SeekBarDesign",
+        "iconName": "ic_palette_seek_bar",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent"
+        }
+    },
+    {
+        "name": "SeekBar (Discrete)",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.SeekBarDesign",
+        "iconName": "ic_palette_seek_bar_discrete",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent"
+        }
+    },
+    {
+        "name": "RatingBar",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.RatingBarDesign",
+        "iconName": "ic_palette_rating_bar"
+    },
+    {
+        "name": "SearchView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.SearchViewDesign",
+        "iconName": "ic_palette_search_view",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent"
+        }
+    },
+    {
+        "name": "TextureView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.TextureViewDesign",
+        "iconName": "ic_palette_texture_view",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent"
+        }
+    },
+    {
+        "name": "SurfaceView",
+        "className": "com.itsvks.layouteditor.editor.palette.widgets.SurfaceViewDesign",
+        "iconName": "ic_palette_surface_view",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:layout_height": "200dp"
+        }
+    }
+]
