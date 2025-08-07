@@ -155,8 +155,8 @@ class WebServer(private val config: ServerConfig) {
 
         if (rowCount != 1) {
             return when (rowCount) {
-                0 -> sendError(writer, 404, "Not Found")
-                else -> sendError(writer, 500, "Internal Server Error\nCorrupt database - multiple records found when unique record expected " + path)
+                0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
+                else -> sendError(writer, 500, "Internal Server Error", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
             }
         }
 
@@ -202,11 +202,14 @@ class WebServer(private val config: ServerConfig) {
         cursor.close()
     }
 
-    private fun sendError(writer: PrintWriter, code: Int, message: String) {
+    private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
         writer.println("HTTP/1.1 $code $message")
         writer.println("Content-Type: text/plain")
         writer.println("Connection: close")
         writer.println()
         writer.println("$code $message")
+        if (details.isNotEmpty()) {
+            writer.println(details)
+        }
     }
 }
