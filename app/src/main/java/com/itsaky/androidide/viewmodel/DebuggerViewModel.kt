@@ -13,6 +13,7 @@ import com.itsaky.androidide.lsp.debug.model.StackFrame
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -166,10 +167,11 @@ class DebuggerViewModel : ViewModel() {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun observeConnectionState(
+        scope: CoroutineScope = viewModelScope,
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
         consume: suspend (DebuggerConnectionState) -> Unit
-    ) = viewModelScope.launch(observeOn) {
+    ) = scope.launch(observeOn) {
         connectionState.collectLatest { state ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
                 withContext(notifyOn) {
@@ -193,8 +195,11 @@ class DebuggerViewModel : ViewModel() {
                 descriptor.state.isInteractable
             }
 
-        val threadIndex = resolvableThreads.indexOfFirst { it.resolvedOrNull?.state?.isInteractable == true }
-        val frameIndex = if (resolvableThreads.getOrNull(threadIndex)?.getFrames()?.firstOrNull() != null) 0 else -1
+        val threadIndex =
+            resolvableThreads.indexOfFirst { it.resolvedOrNull?.state?.isInteractable == true }
+        val frameIndex = if (resolvableThreads.getOrNull(threadIndex)?.getFrames()
+                ?.firstOrNull() != null
+        ) 0 else -1
         val newState = DebuggerState(
             threads = resolvableThreads,
             threadIndex = threadIndex,
@@ -243,10 +248,11 @@ class DebuggerViewModel : ViewModel() {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun observeLatestThreads(
+        scope: CoroutineScope = viewModelScope,
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
         consume: suspend (List<ResolvableThreadInfo>) -> Unit
-    ) = viewModelScope.launch(observeOn) {
+    ) = scope.launch(observeOn) {
         allThreads.collectLatest { threads ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
                 withContext(notifyOn) {
@@ -285,10 +291,11 @@ class DebuggerViewModel : ViewModel() {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun observeLatestSelectedThread(
+        scope: CoroutineScope = viewModelScope,
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
         consume: suspend (ResolvableThreadInfo?, Int) -> Unit
-    ) = viewModelScope.launch(observeOn) {
+    ) = scope.launch(observeOn) {
         selectedThread.collectLatest { (thread, index) ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
                 withContext(notifyOn) {
@@ -302,10 +309,11 @@ class DebuggerViewModel : ViewModel() {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun observeLatestAllFrames(
+        scope: CoroutineScope = viewModelScope,
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
         consume: suspend (List<StackFrame>) -> Unit
-    ) = viewModelScope.launch(observeOn) {
+    ) = scope.launch(observeOn) {
         allFrames.collectLatest { frames ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
                 withContext(notifyOn) {
@@ -332,10 +340,11 @@ class DebuggerViewModel : ViewModel() {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun observeLatestSelectedFrame(
+        scope: CoroutineScope = viewModelScope,
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
         consume: suspend (StackFrame?, Int) -> Unit,
-    ) = viewModelScope.launch(observeOn) {
+    ) = scope.launch(observeOn) {
         selectedFrame.collectLatest { (frame, index) ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
                 withContext(notifyOn) {
@@ -349,10 +358,11 @@ class DebuggerViewModel : ViewModel() {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun observeLatestVariablesTree(
+        scope: CoroutineScope = viewModelScope,
         observeOn: CoroutineDispatcher = Dispatchers.Default,
         notifyOn: CoroutineDispatcher? = null,
         consume: suspend (Tree<ResolvableVariable<*>>) -> Unit
-    ) = viewModelScope.launch(observeOn) {
+    ) = scope.launch(observeOn) {
         variablesTree.collectLatest { tree ->
             if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
                 withContext(notifyOn) {
