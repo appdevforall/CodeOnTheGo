@@ -13,11 +13,11 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.itsvks.layouteditor.vectormaster.models.ClipPathModel;
-import com.itsvks.layouteditor.vectormaster.models.GroupModel;
-import com.itsvks.layouteditor.vectormaster.models.PathModel;
-import com.itsvks.layouteditor.vectormaster.models.VectorModel;
-import com.itsvks.layouteditor.vectormaster.utilities.Utils;
+import org.appdevforall.vectormaster.models.ClipPathModel;
+import org.appdevforall.vectormaster.models.GroupModel;
+import org.appdevforall.vectormaster.models.PathModel;
+import org.appdevforall.vectormaster.models.VectorModel;
+import org.appdevforall.vectormaster.utilities.Utils;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
