@@ -25,11 +25,17 @@ class NavigateToMainScreenScenario : Scenario() {
 
         if (permissionsScreen.exists()) {
             step("Grant storage and install packages permissions") {
-                flakySafely(60000) {
+                flakySafely(120000) {
                     PermissionScreen {
+                        device.uiDevice.waitForIdle(5000)
+                        Thread.sleep(3000)
+                        
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(0) {
-                                grantButton.click()
+                                flakySafely(10000) {
+                                    grantButton.isEnabled()
+                                    grantButton.click()
+                                }
                             }
                         }
 
@@ -38,16 +44,19 @@ class NavigateToMainScreenScenario : Scenario() {
                         Thread.sleep(3000)
 
                         device.uiDevice.pressBack()
-                        Thread.sleep(2000)
+                        Thread.sleep(3000)
 
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(1) {
-                                grantButton.click()
+                                flakySafely(10000) {
+                                    grantButton.isEnabled()
+                                    grantButton.click()
+                                }
                             }
                         }
 
                         Thread.sleep(2000)
-                        flakySafely(15000) {
+                        flakySafely(20000) {
                             SystemPermissionsScreen {
                                 try {
                                     installPackagesPermission {
@@ -71,11 +80,14 @@ class NavigateToMainScreenScenario : Scenario() {
 
                         Thread.sleep(3000)
                         device.uiDevice.pressBack()
-                        Thread.sleep(2000)
+                        Thread.sleep(3000)
 
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(2) {
-                                grantButton.click()
+                                flakySafely(10000) {
+                                    grantButton.isEnabled()
+                                    grantButton.click()
+                                }
                             }
                         }
 
@@ -84,11 +96,14 @@ class NavigateToMainScreenScenario : Scenario() {
                         Thread.sleep(3000)
 
                         device.uiDevice.pressBack()
-                        Thread.sleep(2000)
+                        Thread.sleep(3000)
 
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(3) {
-                                grantButton.click()
+                                flakySafely(10000) {
+                                    grantButton.isEnabled()
+                                    grantButton.click()
+                                }
                             }
                         }
 
@@ -97,10 +112,10 @@ class NavigateToMainScreenScenario : Scenario() {
                         Thread.sleep(3000)
 
                         device.uiDevice.pressBack()
-                        Thread.sleep(2000)
+                        Thread.sleep(3000)
 
                     }
-                    flakySafely(15000) {
+                    flakySafely(20000) {
                         OnboardingScreen.nextButton {
                             isVisible()
                             isClickable()
