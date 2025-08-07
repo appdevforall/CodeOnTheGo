@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.itsvks.layouteditor.views.CustomDrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/drawer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground"
+        android:fitsSystemWindows="true"
+        android:orientation="vertical">
+
+        <com.google.android.material.appbar.AppBarLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/topAppBar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize" />
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:padding="0dp">
+
+                <ImageView
+                    android:id="@+id/device_size"
+                    style="@style/ToolbarButtonStyle"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="5dp"
+                    android:src="@drawable/cellphone_screenshot"
+                    tools:ignore="ContentDescription" />
+
+                <ImageView
+                    android:id="@+id/view_type"
+                    style="@style/ToolbarButtonStyle"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="5dp"
+                    android:layout_toStartOf="@id/device_size"
+                    android:src="@drawable/view_type"
+                    tools:ignore="ContentDescription" />
+
+                <com.google.android.material.divider.MaterialDivider
+                    android:id="@+id/divider"
+                    android:layout_width="match_parent"
+                    android:layout_height="1px"
+                    android:layout_alignParentBottom="true"
+                    android:alpha="0.5" />
+            </RelativeLayout>
+
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <com.itsvks.layouteditor.editor.DesignEditor
+            android:id="@+id/editor_layout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <com.google.android.material.navigation.NavigationView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        app:elevation="8dp">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurface">
+
+            <com.google.android.material.navigationrail.NavigationRailView
+                android:id="@+id/palette_navigation"
+                android:layout_width="65dp"
+                android:layout_height="match_parent"
+                android:layout_alignParentTop="true"
+                android:background="@android:color/transparent"
+                app:headerLayout="@layout/layout_navigation_header"
+                app:labelVisibilityMode="unlabeled"
+                app:menuGravity="bottom" />
+
+            <TextView
+                android:id="@+id/palette_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_toEndOf="@id/palette_navigation"
+                android:ellipsize="end"
+                android:paddingStart="5dp"
+                android:paddingTop="8dp"
+                android:singleLine="true"
+                android:text="Palette"
+                android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                android:textSize="15sp"
+                tools:ignore="HardcodedText,RtlSymmetry" />
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/palette_text"
+                android:layout_marginStart="5dp"
+                android:layout_toEndOf="@id/palette_navigation"
+                android:ellipsize="end"
+                android:paddingStart="5dp"
+                android:paddingBottom="8dp"
+                android:singleLine="true"
+                android:text="Common"
+                android:textColor="?attr/colorSecondaryVariant"
+                android:textSize="12sp"
+                tools:ignore="HardcodedText,RtlSymmetry" />
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_below="@id/title"
+                android:layout_toEndOf="@id/palette_navigation"
+                android:fillViewport="true">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/list_view"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:scrollbars="vertical" />
+
+            </HorizontalScrollView>
+        </RelativeLayout>
+    </com.google.android.material.navigation.NavigationView>
+
+    <com.google.android.material.navigation.NavigationView
+        android:layout_width="270dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        app:elevation="8dp">
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurface"
+            android:fillViewport="true"
+            android:nestedScrollingEnabled="true">
+
+            <HorizontalScrollView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="true">
+
+                <com.itsvks.layouteditor.views.StructureView
+                    android:id="@+id/structure_view"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+            </HorizontalScrollView>
+        </ScrollView>
+    </com.google.android.material.navigation.NavigationView>
+</com.itsvks.layouteditor.views.CustomDrawerLayout>
