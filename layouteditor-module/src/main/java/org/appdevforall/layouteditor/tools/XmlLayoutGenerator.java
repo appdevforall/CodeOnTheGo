@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.tools;
+package org.appdevforall.layouteditor.tools;
 
 import android.view.View;
 import android.view.ViewGroup;

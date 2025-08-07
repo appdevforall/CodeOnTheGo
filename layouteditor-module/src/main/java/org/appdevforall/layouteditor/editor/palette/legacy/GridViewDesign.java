@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.legacy;
+package org.appdevforall.layouteditor.editor.palette.legacy;
 
 import android.graphics.Color;
 import android.graphics.Paint;

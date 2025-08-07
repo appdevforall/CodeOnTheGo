@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.dialogs;
+package org.appdevforall.layouteditor.editor.dialogs;
 
 import android.content.Context;
 import android.view.ViewGroup;

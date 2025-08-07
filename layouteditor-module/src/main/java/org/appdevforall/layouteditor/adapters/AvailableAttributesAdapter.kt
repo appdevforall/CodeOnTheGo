@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.adapters
+package org.appdevforall.layouteditor.adapters
 
 import android.view.LayoutInflater
 import android.view.View

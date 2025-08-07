@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.palette.text;
+package org.appdevforall.layouteditor.editor.palette.text;
 
 import android.content.Context;
 import android.graphics.Canvas;

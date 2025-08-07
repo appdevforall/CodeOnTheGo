@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.editor.dialogs;
+package org.appdevforall.layouteditor.editor.dialogs;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
