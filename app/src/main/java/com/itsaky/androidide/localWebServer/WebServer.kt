@@ -149,17 +149,15 @@ class WebServer(private val config: ServerConfig) {
             FROM Content c
             JOIN ContentTypes ct ON c.contentTypeID = ct.id
             WHERE c.path = ? OR c.path = ?
-            LIMIT 1
         """
         val cursor = database.rawQuery(query, arrayOf(path, path.substring(1)))
         val rowCount = cursor.getCount()
 
-        //if there is not an entry, or more than 1 entry, in the database, return an error
-        // if rowCount is zero then there was no entry in the database
-        // otherwise if the entry path was not unique, consider this an invalid path
         if (rowCount != 1) {
-            return if (rowCount == 0) sendError(writer, 404, "Not Found")
-            else sendError(writer, 406, "Not Acceptable")
+            return when (rowCount) {
+                0 -> sendError(writer, 404, "Not Found")
+                else -> sendError(writer, 500, "Internal Server Error\nCorrupt database - multiple records found when unique record expected " + path)
+            }
         }
 
         cursor.moveToFirst()
