@@ -34,7 +34,7 @@ import org.appdevforall.layouteditor.utils.Constants
 import org.appdevforall.layouteditor.utils.FilePicker
 import org.appdevforall.layouteditor.utils.FileUtil
 import org.appdevforall.layouteditor.utils.SBUtils
-import org.appdevforall.layouteditor.vectormaster.VectorMasterDrawable
+import org.appdevforall.vectormaster.VectorMasterDrawable
 import java.io.FileNotFoundException
 
 class ResourceManagerActivity : BaseActivity() {

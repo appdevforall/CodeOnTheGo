@@ -26,6 +26,8 @@ int anim btn_radio_to_off_mtrl_ring_outer_path_animation 0x0
 int anim btn_radio_to_on_mtrl_dot_group_animation 0x0
 int anim btn_radio_to_on_mtrl_ring_outer_animation 0x0
 int anim btn_radio_to_on_mtrl_ring_outer_path_animation 0x0
+int anim colorpickerview_fade_in 0x0
+int anim colorpickerview_fade_out 0x0
 int anim design_bottom_sheet_slide_in 0x0
 int anim design_bottom_sheet_slide_out 0x0
 int anim design_snackbar_in 0x0
@@ -114,6 +116,7 @@ int attr actionDropDownStyle 0x0
 int attr actionLayout 0x0
 int attr actionMenuTextAppearance 0x0
 int attr actionMenuTextColor 0x0
+int attr actionMode 0x0
 int attr actionModeBackground 0x0
 int attr actionModeCloseButtonStyle 0x0
 int attr actionModeCloseContentDescription 0x0
@@ -219,8 +222,12 @@ int attr behavior_saveFlags 0x0
 int attr behavior_significantVelocityThreshold 0x0
 int attr behavior_skipCollapsed 0x0
 int attr blendSrc 0x0
+int attr borderColor_AlphaSlideBar 0x0
+int attr borderColor_BrightnessSlider 0x0
 int attr borderRound 0x0
 int attr borderRoundPercent 0x0
+int attr borderSize_AlphaSlideBar 0x0
+int attr borderSize_BrightnessSlider 0x0
 int attr borderWidth 0x0
 int attr borderlessButtonStyle 0x0
 int attr bottomAppBarStyle 0x0
@@ -253,6 +260,7 @@ int attr buttonIconDimen 0x0
 int attr buttonIconTint 0x0
 int attr buttonIconTintMode 0x0
 int attr buttonPanelSideLayout 0x0
+int attr buttonSize 0x0
 int attr buttonStyle 0x0
 int attr buttonStyleSmall 0x0
 int attr buttonTint 0x0
@@ -314,6 +322,7 @@ int attr chipStrokeColor 0x0
 int attr chipStrokeWidth 0x0
 int attr chipStyle 0x0
 int attr chipSurfaceColor 0x0
+int attr circleCrop 0x0
 int attr circleRadius 0x0
 int attr circularProgressIndicatorStyle 0x0
 int attr circularflow_angles 0x0
@@ -388,6 +397,7 @@ int attr colorPrimaryFixedDim 0x0
 int attr colorPrimaryInverse 0x0
 int attr colorPrimarySurface 0x0
 int attr colorPrimaryVariant 0x0
+int attr colorScheme 0x0
 int attr colorSecondary 0x0
 int attr colorSecondaryContainer 0x0
 int attr colorSecondaryFixed 0x0
@@ -477,6 +487,7 @@ int attr dayInvalidStyle 0x0
 int attr daySelectedStyle 0x0
 int attr dayStyle 0x0
 int attr dayTodayStyle 0x0
+int attr debounceDuration 0x0
 int attr defaultDuration 0x0
 int attr defaultMarginsEnabled 0x0
 int attr defaultNavHost 0x0
@@ -616,6 +627,8 @@ int attr fbp_rimColor 0x0
 int attr fbp_rimWidth 0x0
 int attr fbp_spinSpeed 0x0
 int attr firstBaselineToTopHeight 0x0
+int attr flag_alpha 0x0
+int attr flag_isFlipAble 0x0
 int attr floatingActionButtonLargePrimaryStyle 0x0
 int attr floatingActionButtonLargeSecondaryStyle 0x0
 int attr floatingActionButtonLargeStyle 0x0
@@ -721,6 +734,8 @@ int attr iconTintMode 0x0
 int attr iconifiedByDefault 0x0
 int attr ifTagNotSet 0x0
 int attr ifTagSet 0x0
+int attr imageAspectRatio 0x0
+int attr imageAspectRatioAdjust 0x0
 int attr imageButtonStyle 0x0
 int attr imagePanX 0x0
 int attr imagePanY 0x0
@@ -735,6 +750,7 @@ int attr indicatorInset 0x0
 int attr indicatorSize 0x0
 int attr indicatorTrackGapSize 0x0
 int attr initialActivityCount 0x0
+int attr initialColor 0x0
 int attr initialExpandedChildrenCount 0x0
 int attr insetForeground 0x0
 int attr isLightTheme 0x0
@@ -1048,6 +1064,7 @@ int attr paddingStart 0x0
 int attr paddingStartSystemWindowInsets 0x0
 int attr paddingTopNoTitle 0x0
 int attr paddingTopSystemWindowInsets 0x0
+int attr palette 0x0
 int attr panelBackground 0x0
 int attr panelMenuListTheme 0x0
 int attr panelMenuListWidth 0x0
@@ -1089,6 +1106,7 @@ int attr preferenceFragmentCompatStyle 0x0
 int attr preferenceFragmentListStyle 0x0
 int attr preferenceFragmentStyle 0x0
 int attr preferenceInformationStyle 0x0
+int attr preferenceName 0x0
 int attr preferenceScreenStyle 0x0
 int attr preferenceStyle 0x0
 int attr preferenceTheme 0x0
@@ -1131,6 +1149,7 @@ int attr route 0x0
 int attr saturation 0x0
 int attr scalable 0x0
 int attr scaleFromTextSize 0x0
+int attr scopeUris 0x0
 int attr scrimAnimationDuration 0x0
 int attr scrimBackground 0x0
 int attr scrimVisibleHeightTrigger 0x0
@@ -1149,7 +1168,12 @@ int attr selectable 0x0
 int attr selectableItemBackground 0x0
 int attr selectableItemBackgroundBorderless 0x0
 int attr selectionRequired 0x0
+int attr selector 0x0
 int attr selectorSize 0x0
+int attr selector_AlphaSlideBar 0x0
+int attr selector_BrightnessSlider 0x0
+int attr selector_alpha 0x0
+int attr selector_size 0x0
 int attr setsTag 0x0
 int attr shapeAppearance 0x0
 int attr shapeAppearanceCornerExtraLarge 0x0
@@ -1385,6 +1409,9 @@ int attr tickMarkTintMode 0x0
 int attr tickRadiusActive 0x0
 int attr tickRadiusInactive 0x0
 int attr tickVisible 0x0
+int attr tileEvenColor 0x0
+int attr tileOddColor 0x0
+int attr tileSize 0x0
 int attr tint 0x0
 int attr tintMode 0x0
 int attr tintNavigationIcon 0x0
@@ -1665,6 +1692,17 @@ int color color_error 0x0
 int color color_picker_default_color 0x0
 int color color_success 0x0
 int color color_warning 0x0
+int color common_google_signin_btn_text_dark 0x0
+int color common_google_signin_btn_text_dark_default 0x0
+int color common_google_signin_btn_text_dark_disabled 0x0
+int color common_google_signin_btn_text_dark_focused 0x0
+int color common_google_signin_btn_text_dark_pressed 0x0
+int color common_google_signin_btn_text_light 0x0
+int color common_google_signin_btn_text_light_default 0x0
+int color common_google_signin_btn_text_light_disabled 0x0
+int color common_google_signin_btn_text_light_focused 0x0
+int color common_google_signin_btn_text_light_pressed 0x0
+int color common_google_signin_btn_tint 0x0
 int color defaultSymbolInputBackgroundColor 0x0
 int color defaultSymbolInputTextColor 0x0
 int color design_bottom_navigation_shadow_color 0x0
@@ -3459,6 +3497,28 @@ int drawable cellphone_screenshot 0x0
 int drawable circle_shape 0x0
 int drawable close 0x0
 int drawable cog 0x0
+int drawable colorpickerview_ic_bubble_big 0x0
+int drawable colorpickerview_ic_bubble_small 0x0
+int drawable colorpickerview_wheel 0x0
+int drawable common_full_open_on_phone 0x0
+int drawable common_google_signin_btn_icon_dark 0x0
+int drawable common_google_signin_btn_icon_dark_focused 0x0
+int drawable common_google_signin_btn_icon_dark_normal 0x0
+int drawable common_google_signin_btn_icon_dark_normal_background 0x0
+int drawable common_google_signin_btn_icon_disabled 0x0
+int drawable common_google_signin_btn_icon_light 0x0
+int drawable common_google_signin_btn_icon_light_focused 0x0
+int drawable common_google_signin_btn_icon_light_normal 0x0
+int drawable common_google_signin_btn_icon_light_normal_background 0x0
+int drawable common_google_signin_btn_text_dark 0x0
+int drawable common_google_signin_btn_text_dark_focused 0x0
+int drawable common_google_signin_btn_text_dark_normal 0x0
+int drawable common_google_signin_btn_text_dark_normal_background 0x0
+int drawable common_google_signin_btn_text_disabled 0x0
+int drawable common_google_signin_btn_text_light 0x0
+int drawable common_google_signin_btn_text_light_focused 0x0
+int drawable common_google_signin_btn_text_light_normal 0x0
+int drawable common_google_signin_btn_text_light_normal_background 0x0
 int drawable compat_splash_screen 0x0
 int drawable compat_splash_screen_no_icon_background 0x0
 int drawable content_copy 0x0
@@ -3488,6 +3548,8 @@ int drawable folder_settings_outline 0x0
 int drawable format_font 0x0
 int drawable format_letter_case 0x0
 int drawable github 0x0
+int drawable googleg_disabled_color_18 0x0
+int drawable googleg_standard_color_18 0x0
 int drawable home 0x0
 int drawable home_outline 0x0
 int drawable ic_account 0x0
@@ -3906,12 +3968,17 @@ int id actions 0x0
 int id activity_chooser_view_content 0x0
 int id add 0x0
 int id addAttrFragment 0x0
+int id adjust_height 0x0
+int id adjust_width 0x0
 int id ainput_edittext 0x0
 int id ainput_layout 0x0
 int id alertTitle 0x0
 int id aligned 0x0
 int id allStates 0x0
+int id alphaSlideBar 0x0
+int id alphaSlideBarFrame 0x0
 int id alpha_slider 0x0
+int id always 0x0
 int id animateToEnd 0x0
 int id animateToStart 0x0
 int id antiClockwise 0x0
@@ -3944,9 +4011,12 @@ int id blocking 0x0
 int id blue_slider 0x0
 int id bottom 0x0
 int id bounce 0x0
+int id brightnessSlideBar 0x0
+int id brightnessSlideBarFrame 0x0
 int id btn_add 0x0
 int id btn_delete 0x0
 int id btn_remove_attribute 0x0
+int id bubble 0x0
 int id buttonPanel 0x0
 int id callMeasure 0x0
 int id cancel_button 0x0
@@ -3967,6 +4037,8 @@ int id clear_text 0x0
 int id clockwise 0x0
 int id close 0x0
 int id closest 0x0
+int id colorPickerView 0x0
+int id colorPickerViewFrame 0x0
 int id color_name 0x0
 int id color_preview 0x0
 int id color_value 0x0
@@ -3993,6 +4065,7 @@ int id currentState 0x0
 int id custom 0x0
 int id customPanel 0x0
 int id cut 0x0
+int id dark 0x0
 int id date_picker_actions 0x0
 int id decelerate 0x0
 int id decelerateAndComplete 0x0
@@ -4091,6 +4164,7 @@ int id ghost_view 0x0
 int id ghost_view_holder 0x0
 int id ginput_edittext 0x0
 int id ginput_layout 0x0
+int id glide_custom_view_target_tag 0x0
 int id gone 0x0
 int id green_slider 0x0
 int id grid_view 0x0
@@ -4108,6 +4182,7 @@ int id horizontal_only 0x0
 int id icon 0x0
 int id icon_frame 0x0
 int id icon_group 0x0
+int id icon_only 0x0
 int id ignore 0x0
 int id ignoreRequest 0x0
 int id image 0x0
@@ -4126,11 +4201,17 @@ int id jumpToEnd 0x0
 int id jumpToStart 0x0
 int id labeled 0x0
 int id largeLabel 0x0
+int id last 0x0
 int id layout 0x0
 int id layout_name 0x0
 int id left 0x0
 int id leftToRight 0x0
 int id legacy 0x0
+int id license 0x0
+int id license_activity_scrollview 0x0
+int id license_activity_textview 0x0
+int id license_list 0x0
+int id light 0x0
 int id line 0x0
 int id line1 0x0
 int id line3 0x0
@@ -4242,6 +4323,7 @@ int id neverCompleteToEnd 0x0
 int id neverCompleteToStart 0x0
 int id next 0x0
 int id noState 0x0
+int id no_licenses_text 0x0
 int id no_projects_view 0x0
 int id none 0x0
 int id normal 0x0
@@ -4390,6 +4472,7 @@ int id snackbar_action 0x0
 int id snackbar_text 0x0
 int id social_menu_group 0x0
 int id south 0x0
+int id space_bottom 0x0
 int id spacer 0x0
 int id special_effects_controller_view_tag 0x0
 int id spinner 0x0
@@ -4505,6 +4588,7 @@ int id visible_removing_fragment_view_tag 0x0
 int id webView 0x0
 int id webview 0x0
 int id west 0x0
+int id wide 0x0
 int id widgets 0x0
 int id widgets_fragment 0x0
 int id with_icon 0x0
@@ -4526,6 +4610,7 @@ int integer default_animation_duration 0x0
 int integer default_icon_animation_duration 0x0
 int integer design_snackbar_text_max_lines 0x0
 int integer design_tab_indicator_anim_duration_ms 0x0
+int integer google_play_services_version 0x0
 int integer hide_password_duration 0x0
 int integer m3_badge_max_number 0x0
 int integer m3_btn_anim_delay_ms 0x0
@@ -4646,6 +4731,8 @@ int layout activity_resource_manager 0x0
 int layout activity_show_x_m_l 0x0
 int layout activity_show_xml 0x0
 int layout activity_ui_designer 0x0
+int layout colorpickerview_dialog_colorpicker 0x0
+int layout colorpickerview_flag_bubble 0x0
 int layout custom_dialog 0x0
 int layout default_completion_result_item 0x0
 int layout design_bottom_navigation_item 0x0
@@ -4718,6 +4805,12 @@ int layout layout_view_info 0x0
 int layout layout_view_info_header 0x0
 int layout layout_view_info_sheet 0x0
 int layout layout_viewattr_item 0x0
+int layout libraries_social_licenses_license 0x0
+int layout libraries_social_licenses_license_activity 0x0
+int layout libraries_social_licenses_license_loading 0x0
+int layout libraries_social_licenses_license_menu_activity 0x0
+int layout license_menu_activity_loading 0x0
+int layout license_menu_activity_no_licenses 0x0
 int layout list_project_file 0x0
 int layout m3_alert_dialog 0x0
 int layout m3_alert_dialog_actions 0x0
@@ -4947,6 +5040,7 @@ int mipmap ic_textview 0x0
 int mipmap ic_toggle_switch 0x0
 int navigation nav_viewinfo 0x0
 int plurals mtrl_badge_content_description 0x0
+int raw keep_third_party_licenses 0x0
 int string abc_action_bar_home_description 0x0
 int string abc_action_bar_up_description 0x0
 int string abc_action_menu_overflow_description 0x0
@@ -5120,6 +5214,24 @@ int string commit_changes 0x0
 int string commit_message 0x0
 int string committed_all_changes_to_repository_in 0x0
 int string common 0x0
+int string common_google_play_services_enable_button 0x0
+int string common_google_play_services_enable_text 0x0
+int string common_google_play_services_enable_title 0x0
+int string common_google_play_services_install_button 0x0
+int string common_google_play_services_install_text 0x0
+int string common_google_play_services_install_title 0x0
+int string common_google_play_services_notification_channel_name 0x0
+int string common_google_play_services_notification_ticker 0x0
+int string common_google_play_services_unknown_issue 0x0
+int string common_google_play_services_unsupported_text 0x0
+int string common_google_play_services_update_button 0x0
+int string common_google_play_services_update_text 0x0
+int string common_google_play_services_update_title 0x0
+int string common_google_play_services_updating_text 0x0
+int string common_google_play_services_wear_update_text 0x0
+int string common_open_on_phone 0x0
+int string common_signin_button_text 0x0
+int string common_signin_button_text_long 0x0
 int string configure 0x0
 int string confirm 0x0
 int string confirmation 0x0
@@ -5402,6 +5514,9 @@ int string layout_saved 0x0
 int string layouts 0x0
 int string learn_more 0x0
 int string legacy 0x0
+int string license_content_error 0x0
+int string license_is_loading 0x0
+int string license_list_is_loading 0x0
 int string locale_system_default 0x0
 int string log_level_debug 0x0
 int string log_level_normal 0x0
@@ -5735,6 +5850,7 @@ int string new_xml_resource 0x0
 int string next 0x0
 int string no 0x0
 int string no_email_apps 0x0
+int string no_licenses_available 0x0
 int string not_set 0x0
 int string note 0x0
 int string nothing 0x0
@@ -5750,6 +5866,7 @@ int string open_from_folder 0x0
 int string open_source_licence 0x0
 int string open_with 0x0
 int string options 0x0
+int string oss_license_title 0x0
 int string package_name 0x0
 int string palette 0x0
 int string password_toggle_content_description 0x0
@@ -5773,6 +5890,7 @@ int string please_wait 0x0
 int string pref_changelog 0x0
 int string preference 0x0
 int string preference_copied 0x0
+int string preferences_license_summary 0x0
 int string preparing 0x0
 int string preparing_first 0x0
 int string preview_drawable 0x0
@@ -7332,6 +7450,14 @@ int styleable AlertDialog_listLayout 4
 int styleable AlertDialog_multiChoiceItemLayout 5
 int styleable AlertDialog_showTitle 6
 int styleable AlertDialog_singleChoiceItemLayout 7
+int[] styleable AlphaSlideBar { 0x0, 0x0, 0x0 }
+int styleable AlphaSlideBar_borderColor_AlphaSlideBar 0
+int styleable AlphaSlideBar_borderSize_AlphaSlideBar 1
+int styleable AlphaSlideBar_selector_AlphaSlideBar 2
+int[] styleable AlphaTileView { 0x0, 0x0, 0x0 }
+int styleable AlphaTileView_tileEvenColor 0
+int styleable AlphaTileView_tileOddColor 1
+int styleable AlphaTileView_tileSize 2
 int[] styleable AnimatedStateListDrawableCompat { 0x1010196, 0x101011c, 0x101030c, 0x101030d, 0x1010195, 0x1010194 }
 int styleable AnimatedStateListDrawableCompat_android_constantSize 0
 int styleable AnimatedStateListDrawableCompat_android_dither 1
@@ -7636,6 +7762,10 @@ int styleable BottomSheetBehavior_Layout_paddingTopSystemWindowInsets 20
 int styleable BottomSheetBehavior_Layout_shapeAppearance 21
 int styleable BottomSheetBehavior_Layout_shapeAppearanceOverlay 22
 int styleable BottomSheetBehavior_Layout_shouldRemoveExpandedCorners 23
+int[] styleable BrightnessSlideBar { 0x0, 0x0, 0x0 }
+int styleable BrightnessSlideBar_borderColor_BrightnessSlider 0
+int styleable BrightnessSlideBar_borderSize_BrightnessSlider 1
+int styleable BrightnessSlideBar_selector_BrightnessSlider 2
 int[] styleable ButtonBarLayout { 0x0 }
 int styleable ButtonBarLayout_allowStacking 0
 int[] styleable Capability { 0x0, 0x0 }
@@ -7795,6 +7925,17 @@ int styleable CollapsingToolbarLayout_toolbarId 23
 int[] styleable CollapsingToolbarLayout_Layout { 0x0, 0x0 }
 int styleable CollapsingToolbarLayout_Layout_layout_collapseMode 0
 int styleable CollapsingToolbarLayout_Layout_layout_collapseParallaxMultiplier 1
+int[] styleable ColorPickerView { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 }
+int styleable ColorPickerView_actionMode 0
+int styleable ColorPickerView_debounceDuration 1
+int styleable ColorPickerView_flag_alpha 2
+int styleable ColorPickerView_flag_isFlipAble 3
+int styleable ColorPickerView_initialColor 4
+int styleable ColorPickerView_palette 5
+int styleable ColorPickerView_preferenceName 6
+int styleable ColorPickerView_selector 7
+int styleable ColorPickerView_selector_alpha 8
+int styleable ColorPickerView_selector_size 9
 int[] styleable ColorStateListItem { 0x0, 0x101031f, 0x10101a5, 0x1010647, 0x0 }
 int styleable ColorStateListItem_alpha 0
 int styleable ColorStateListItem_android_alpha 1
@@ -8672,6 +8813,10 @@ int styleable ListPreference_android_entryValues 1
 int styleable ListPreference_entries 2
 int styleable ListPreference_entryValues 3
 int styleable ListPreference_useSimpleSummaryProvider 4
+int[] styleable LoadingImageView { 0x0, 0x0, 0x0 }
+int styleable LoadingImageView_circleCrop 0
+int styleable LoadingImageView_imageAspectRatio 1
+int styleable LoadingImageView_imageAspectRatioAdjust 2
 int[] styleable MaterialAlertDialog { 0x0, 0x0, 0x0, 0x0, 0x0 }
 int styleable MaterialAlertDialog_backgroundInsetBottom 0
 int styleable MaterialAlertDialog_backgroundInsetEnd 1
@@ -9282,6 +9427,10 @@ int styleable SideSheetBehavior_Layout_behavior_draggable 4
 int styleable SideSheetBehavior_Layout_coplanarSiblingViewId 5
 int styleable SideSheetBehavior_Layout_shapeAppearance 6
 int styleable SideSheetBehavior_Layout_shapeAppearanceOverlay 7
+int[] styleable SignInButton { 0x0, 0x0, 0x0 }
+int styleable SignInButton_buttonSize 0
+int styleable SignInButton_colorScheme 1
+int styleable SignInButton_scopeUris 2
 int[] styleable Slider { 0x101000e, 0x1010146, 0x1010024, 0x10102de, 0x10102df, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 }
 int styleable Slider_android_enabled 0
 int styleable Slider_android_stepSize 1
