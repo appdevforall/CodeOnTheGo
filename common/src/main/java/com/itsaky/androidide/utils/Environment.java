@@ -38,7 +38,7 @@ import java.util.Map;
 @SuppressLint("SdCardPath")
 public final class Environment {
 
-  public static final String PROJECTS_FOLDER = "AndroidIDEProjects";
+  public static final String PROJECTS_FOLDER = "CodeOnTheGoProjects";
   public static final String DEFAULT_ROOT = "/data/data/" + BuildInfo.PACKAGE_NAME + "/files";
   public static final String DEFAULT_HOME = DEFAULT_ROOT + "/home";
   private static final String DEFAULT_ANDROID_HOME = DEFAULT_HOME + "/android-sdk";
