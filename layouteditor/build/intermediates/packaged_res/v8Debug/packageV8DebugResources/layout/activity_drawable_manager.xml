@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.FitWindowsFrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_height="match_parent"
+    android:layout_width="match_parent">
+
+    <androidx.appcompat.widget.FitWindowsLinearLayout
+        android:background="?android:attr/colorBackground"
+        android:layout_height="match_parent"
+        android:layout_width="match_parent"
+        android:orientation="vertical">
+
+        <com.google.android.material.appbar.AppBarLayout
+            android:fitsSystemWindows="true"
+            android:layout_height="wrap_content"
+            android:layout_width="match_parent">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/topAppBar"
+                android:layout_height="?attr/actionBarSize"
+                android:layout_width="match_parent"
+                app:navigationIcon="@drawable/arrow_left" />
+
+
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <GridView
+            android:id="@+id/grid_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="5dp"
+            android:numColumns="auto_fit"
+            android:horizontalSpacing="5dp"
+            android:verticalSpacing="5dp"
+            android:columnWidth="120dp"
+            android:stretchMode="columnWidth"
+            android:listSelector="@android:color/transparent" />
+    </androidx.appcompat.widget.FitWindowsLinearLayout>
+
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fab"
+        android:layout_gravity="end|bottom"
+        android:layout_height="wrap_content"
+        android:layout_margin="20dp"
+        android:layout_width="wrap_content"
+        app:icon="@drawable/plus"
+        android:text="@string/add_new" />
+
+</androidx.appcompat.widget.FitWindowsFrameLayout>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="org.appdevforall.layouteditor" >
+
+    <uses-sdk android:minSdkVersion="26" />
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:ignore="SelectedPhotoAccess" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application>
+        <activity
+            android:name="org.appdevforall.layouteditor.activities.HomeActivity"
+            android:exported="true" >
+        </activity>
+        <activity
+            android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
+            android:theme="@style/AppTheme.Licence" />
+        <activity
+            android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
+            android:theme="@style/AppTheme.Licence" />
+        <activity
+            android:name="org.appdevforall.layouteditor.activities.EditorActivity"
+            android:exported="true" />
+        <activity
+            android:name="org.appdevforall.layouteditor.activities.ShowXMLActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:exported="true"
+            android:parentActivityName="org.appdevforall.layouteditor.activities.EditorActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="org.appdevforall.layouteditor.activities.CrashActivity"
+            android:exported="true" />
+        <activity
+            android:name="org.appdevforall.layouteditor.activities.PreviewLayoutActivity"
+            android:exported="true"
+            android:parentActivityName="org.appdevforall.layouteditor.activities.EditorActivity" />
+        <activity
+            android:name="org.appdevforall.layouteditor.activities.ResourceManagerActivity"
+            android:exported="true"
+            android:parentActivityName="org.appdevforall.layouteditor.activities.EditorActivity" />
+        <activity
+            android:name="org.appdevforall.layouteditor.activities.PreviewDrawableActivity"
+            android:exported="true"
+            android:parentActivityName="org.appdevforall.layouteditor.activities.ResourceManagerActivity" />
+        <activity android:name="org.appdevforall.layouteditor.activities.HelpActivity" />
+    </application>
+
+</manifest>

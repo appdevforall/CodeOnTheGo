@@ -1,0 +1,95 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    xmlns:tools="http://schemas.android.com/tools"
+4    package="org.appdevforall.layouteditor" >
+5
+6    <uses-sdk android:minSdkVersion="26" />
+7
+8    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+8-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:6:3-78
+8-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:6:20-75
+9    <uses-permission
+9-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:7:3-8:42
+10        android:name="android.permission.READ_MEDIA_IMAGES"
+10-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:7:20-71
+11        tools:ignore="SelectedPhotoAccess" />
+11-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:8:5-39
+12    <uses-permission android:name="android.permission.VIBRATE" />
+12-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:9:3-64
+12-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:9:20-61
+13
+14    <application>
+14-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:11:3-48:17
+15        <activity
+15-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:13:5-16:16
+16            android:name="org.appdevforall.layouteditor.activities.HomeActivity"
+16-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:14:7-46
+17            android:exported="true" >
+17-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:15:7-30
+18        </activity>
+19        <activity
+19-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:17:5-19:49
+20            android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
+20-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:18:7-81
+21            android:theme="@style/AppTheme.Licence" />
+21-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:19:7-46
+22        <activity
+22-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:20:5-22:49
+23            android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
+23-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:21:7-77
+24            android:theme="@style/AppTheme.Licence" />
+24-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:22:7-46
+25        <activity
+25-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:23:5-25:33
+26            android:name="org.appdevforall.layouteditor.activities.EditorActivity"
+26-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:24:7-48
+27            android:exported="true" />
+27-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:25:7-30
+28        <activity
+28-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:26:5-31:65
+29            android:name="org.appdevforall.layouteditor.activities.ShowXMLActivity"
+29-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:27:7-49
+30            android:configChanges="orientation|keyboardHidden|screenSize"
+30-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:28:7-68
+31            android:exported="true"
+31-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:29:7-30
+32            android:parentActivityName="org.appdevforall.layouteditor.activities.EditorActivity"
+32-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:31:7-62
+33            android:windowSoftInputMode="adjustResize" />
+33-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:30:7-49
+34        <activity
+34-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:32:5-34:33
+35            android:name="org.appdevforall.layouteditor.activities.CrashActivity"
+35-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:33:7-47
+36            android:exported="true" />
+36-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:34:7-30
+37        <activity
+37-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:35:5-38:65
+38            android:name="org.appdevforall.layouteditor.activities.PreviewLayoutActivity"
+38-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:36:7-55
+39            android:exported="true"
+39-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:37:7-30
+40            android:parentActivityName="org.appdevforall.layouteditor.activities.EditorActivity" />
+40-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:38:7-62
+41        <activity
+41-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:39:5-42:65
+42            android:name="org.appdevforall.layouteditor.activities.ResourceManagerActivity"
+42-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:40:7-57
+43            android:exported="true"
+43-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:41:7-30
+44            android:parentActivityName="org.appdevforall.layouteditor.activities.EditorActivity" />
+44-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:42:7-62
+45        <activity
+45-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:43:5-46:74
+46            android:name="org.appdevforall.layouteditor.activities.PreviewDrawableActivity"
+46-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:44:7-57
+47            android:exported="true"
+47-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:45:7-30
+48            android:parentActivityName="org.appdevforall.layouteditor.activities.ResourceManagerActivity" />
+48-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:46:7-71
+49        <activity android:name="org.appdevforall.layouteditor.activities.HelpActivity" />
+49-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:47:5-56
+49-->/Users/oluwadaraabijo/Desktop/AppDevForAll/CodeOnTheGo/layouteditor/src/main/AndroidManifest.xml:47:15-54
+50    </application>
+51
+52</manifest>

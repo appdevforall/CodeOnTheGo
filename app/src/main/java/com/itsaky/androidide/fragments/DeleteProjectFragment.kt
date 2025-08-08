@@ -96,10 +96,10 @@ class DeleteProjectFragment : BaseFragment() {
 
     private fun showDeleteDialog() {
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle(com.itsvks.layouteditor.R.string.delete_project)
+            .setTitle(org.appdevforall.layouteditor.R.string.delete_project)
             .setMessage(R.string.msg_delete_selected_project)
-            .setNegativeButton(com.itsvks.layouteditor.R.string.no) { dialog, _ -> dialog.dismiss() }
-            .setPositiveButton(com.itsvks.layouteditor.R.string.yes) { _, _ ->
+            .setNegativeButton(org.appdevforall.layouteditor.R.string.no) { dialog, _ -> dialog.dismiss() }
+            .setPositiveButton(org.appdevforall.layouteditor.R.string.yes) { _, _ ->
                 try {
                     adapter?.getSelectedProjects().let { locations ->
                         locations?.forEach {
