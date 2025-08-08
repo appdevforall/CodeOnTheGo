@@ -171,13 +171,15 @@ object IntentUtils {
 		reflectStaticField<ActivityManager, Int>("START_FLAG_DEBUG") { 2 }
 	}
 
+	@Suppress("UNCHECKED_CAST")
 	private inline fun <reified T, R> reflectStaticField(
 		name: String,
 		crossinline default: () -> R,
 	): R =
 		try {
-			@Suppress("UNCHECKED_CAST")
-			ReflectionUtils.getDeclaredField(T::class.java, name)?.get(null) as R
+			val field = T::class.java.getDeclaredField(name)
+			field.isAccessible = true
+			field.get(null) as R
 		} catch (e: Throwable) {
 			val default = default()
 			logger.error(
