@@ -888,6 +888,6 @@ class EditorActivity : BaseActivity() {
 
     companion object {
 
-        const val ACTION_OPEN: String = "com.itsvks.layouteditor.open"
+        const val ACTION_OPEN: String = "org.appdevforall.layouteditor.open"
     }
 }

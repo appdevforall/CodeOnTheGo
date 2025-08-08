@@ -32,7 +32,7 @@ object InvokeUtil {
     methodName: String, className: String, target: View, value: String, context: Context
   ) {
     try {
-      val clazz = Class.forName("com.itsvks.layouteditor.editor.callers.$className")
+      val clazz = Class.forName("org.appdevforall.layouteditor.editor.callers.$className")
       val method =
         clazz.getMethod(methodName, View::class.java, String::class.java, Context::class.java)
       method.invoke(clazz, target, value, context)
