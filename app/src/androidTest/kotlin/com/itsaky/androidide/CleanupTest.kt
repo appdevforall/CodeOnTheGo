@@ -16,7 +16,7 @@ class CleanupTest {
     @Test
     fun performCleanup() {
         try {
-            val command = "rm -rf /sdcard/AndroidIDEProjects"
+            val command = "rm -rf /sdcard/CodeOnTheGoProjects"
             executeShellCommand(command)
             println("Cleanup executed successfully!")
         } catch (e: IOException) {
