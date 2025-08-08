@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster.utilities.parser;
+package org.appdevforall.layouteditor.vectormaster.utilities.parser;
 
 import android.graphics.Path;
 import android.graphics.RectF;

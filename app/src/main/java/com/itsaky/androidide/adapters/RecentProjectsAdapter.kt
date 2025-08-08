@@ -23,9 +23,9 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
-import com.itsvks.layouteditor.utils.FileUtil
+import org.appdevforall.layouteditor.ProjectFile
+import org.appdevforall.layouteditor.databinding.TextinputlayoutBinding
+import org.appdevforall.layouteditor.utils.FileUtil
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale

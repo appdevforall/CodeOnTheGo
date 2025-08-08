@@ -1,10 +1,10 @@
-package com.itsvks.layouteditor.vectormaster.models;
+package org.appdevforall.layouteditor.vectormaster.models;
 
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 
-import com.itsvks.layouteditor.vectormaster.DefaultValues;
-import com.itsvks.layouteditor.vectormaster.utilities.Utils;
+import org.appdevforall.layouteditor.vectormaster.DefaultValues;
+import org.appdevforall.layouteditor.vectormaster.utilities.Utils;
 
 import java.util.ArrayList;
 

@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster.models;
+package org.appdevforall.layouteditor.vectormaster.models;
 
 import android.graphics.Color;
 import android.graphics.Matrix;
@@ -7,9 +7,9 @@ import android.graphics.Path;
 import android.graphics.PathMeasure;
 import android.graphics.RectF;
 
-import com.itsvks.layouteditor.vectormaster.DefaultValues;
-import com.itsvks.layouteditor.vectormaster.utilities.Utils;
-import com.itsvks.layouteditor.vectormaster.utilities.parser.PathParser;
+import org.appdevforall.layouteditor.vectormaster.DefaultValues;
+import org.appdevforall.layouteditor.vectormaster.utilities.Utils;
+import org.appdevforall.layouteditor.vectormaster.utilities.parser.PathParser;
 
 public class PathModel {
 
@@ -68,7 +68,7 @@ public class PathModel {
     if (pathData != null) {
       if (useLegacyParser) {
         originalPath =
-            com.itsvks.layouteditor.vectormaster.utilities.legacyparser.PathParser
+            org.appdevforall.layouteditor.vectormaster.utilities.legacyparser.PathParser
                 .createPathFromPathData(pathData);
       } else {
         originalPath = PathParser.doPath(pathData);

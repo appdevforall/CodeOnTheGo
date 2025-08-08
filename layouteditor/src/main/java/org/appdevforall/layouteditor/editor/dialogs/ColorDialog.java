@@ -42,7 +42,7 @@ public class ColorDialog extends AttributeDialog
     super(context);
 
     // Inflate Layout Binding
-    com.itsvks.layouteditor.databinding.LayoutColorDialogBinding binding = LayoutColorDialogBinding.inflate(getDialog().getLayoutInflater());
+    org.appdevforall.layouteditor.databinding.LayoutColorDialogBinding binding = LayoutColorDialogBinding.inflate(getDialog().getLayoutInflater());
 
     // Getting View from binding
     final View dialogView = binding.getRoot();

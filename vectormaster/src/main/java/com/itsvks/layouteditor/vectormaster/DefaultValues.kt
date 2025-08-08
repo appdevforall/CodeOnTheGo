@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster
+package org.appdevforall.layouteditor.vectormaster
 
 import android.graphics.Color
 import android.graphics.Paint.Cap
