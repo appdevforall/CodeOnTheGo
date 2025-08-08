@@ -167,8 +167,9 @@ object IntentUtils {
 		return true
 	}
 
+	private const val START_FLAG_DEBUG_DEFAULT = 1 shl 1
 	val START_FLAG_DEBUG by lazy {
-		reflectStaticField<ActivityManager, Int>("START_FLAG_DEBUG") { 2 }
+		reflectStaticField<ActivityManager, Int>("START_FLAG_DEBUG") { START_FLAG_DEBUG_DEFAULT }
 	}
 
 	@Suppress("UNCHECKED_CAST")
