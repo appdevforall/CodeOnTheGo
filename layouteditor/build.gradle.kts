@@ -28,7 +28,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":layouteditor-module:vectormaster"))
+    implementation(project(":layouteditor:vectormaster"))
     implementation(projects.common)
     implementation(projects.uidesigner)
 }
