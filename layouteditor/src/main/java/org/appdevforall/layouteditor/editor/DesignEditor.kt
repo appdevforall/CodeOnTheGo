@@ -628,11 +628,11 @@ class DesignEditor : LinearLayout {
         }
 
         val dialog = BottomSheetDialog(context)
-        val binding = com.itsvks.layouteditor.databinding.DialogAvailableAttributesBinding.inflate(dialog.layoutInflater)
+        val binding = org.appdevforall.layouteditor.databinding.DialogAvailableAttributesBinding.inflate(dialog.layoutInflater)
         
         dialog.setContentView(binding.root)
         
-        val adapter = com.itsvks.layouteditor.adapters.AvailableAttributesAdapter(names) { attributeName ->
+        val adapter = org.appdevforall.layouteditor.adapters.AvailableAttributesAdapter(names) { attributeName ->
             // Find the attribute by name
             for (attr in availableAttrs) {
                 if (attr["name"].toString() == attributeName) {

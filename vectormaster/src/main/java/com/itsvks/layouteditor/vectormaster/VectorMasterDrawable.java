@@ -1,4 +1,4 @@
-package com.itsvks.layouteditor.vectormaster;
+package org.appdevforall.layouteditor.vectormaster;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -13,11 +13,11 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.itsvks.layouteditor.vectormaster.models.ClipPathModel;
-import com.itsvks.layouteditor.vectormaster.models.GroupModel;
-import com.itsvks.layouteditor.vectormaster.models.PathModel;
-import com.itsvks.layouteditor.vectormaster.models.VectorModel;
-import com.itsvks.layouteditor.vectormaster.utilities.Utils;
+import org.appdevforall.layouteditor.vectormaster.models.ClipPathModel;
+import org.appdevforall.layouteditor.vectormaster.models.GroupModel;
+import org.appdevforall.layouteditor.vectormaster.models.PathModel;
+import org.appdevforall.layouteditor.vectormaster.models.VectorModel;
+import org.appdevforall.layouteditor.vectormaster.utilities.Utils;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;

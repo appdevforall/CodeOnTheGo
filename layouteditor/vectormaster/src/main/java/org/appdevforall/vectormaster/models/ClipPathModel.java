@@ -30,7 +30,7 @@ public class ClipPathModel {
     if (pathData != null) {
       if (useLegacyParser) {
         originalPath =
-            com.itsvks.layouteditor.vectormaster.utilities.legacyparser.PathParser
+            org.appdevforall.vectormaster.utilities.legacyparser.PathParser
                 .createPathFromPathData(pathData);
       } else {
         originalPath = PathParser.doPath(pathData);
