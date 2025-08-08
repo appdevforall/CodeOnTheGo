@@ -21,7 +21,6 @@ import com.diffplug.spotless.FormatterFunc
 import com.diffplug.spotless.LineEnding
 import com.diffplug.spotless.extra.wtp.EclipseWtpFormatterStep
 import com.itsaky.androidide.build.config.BuildConfig
-import com.itsaky.androidide.build.config.CI
 import com.itsaky.androidide.build.config.FDroidConfig
 import com.itsaky.androidide.build.config.publishingVersion
 import com.itsaky.androidide.plugins.AndroidIDEPlugin
@@ -62,7 +61,7 @@ subprojects {
 }
 
 spotless {
-	ratchetFrom = "origin/${CI.branchName}"
+	ratchetFrom = "origin/stage"
 
 	// Common directories to exclude
 	// These mainly contain module that are external and huge, but are built from source
