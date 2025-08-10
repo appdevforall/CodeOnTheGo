@@ -14,7 +14,7 @@
         <!-- This will be the container for the previewed layout -->
     </FrameLayout>
 
-    <!-- <org.appdevforall.layouteditor.editor.DesignEditor
+    <!-- <org.appdevforall.codeonthego.layouteditor.editor.DesignEditor
     android:id="@+id/design_editor"
     android:layout_height="match_parent"
     android:layout_width="match_parent"

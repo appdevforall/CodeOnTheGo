@@ -1,7 +1,7 @@
 [
     {
         "name": "TextView",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.TextViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.TextViewDesign",
         "iconName": "ic_palette_text_view",
         "defaultAttributes": {
             "android:text": "@string/default_string"
@@ -9,7 +9,7 @@
     },
     {
         "name": "Plain Text",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_edit_text",
         "defaultAttributes": {
             "android:hint": "Plain Text",
@@ -18,7 +18,7 @@
     },
     {
         "name": "Password",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_password_textfield",
         "defaultAttributes": {
             "android:hint": "Password",
@@ -27,7 +27,7 @@
     },
     {
         "name": "Password (Numeric)",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_password_numeric_textfield",
         "defaultAttributes": {
             "android:hint": "Password (Numeric)",
@@ -36,7 +36,7 @@
     },
     {
         "name": "E-mail",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_email_textfield",
         "defaultAttributes": {
             "android:hint": "E-mail",
@@ -45,7 +45,7 @@
     },
     {
         "name": "Phone",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_phone_textfield",
         "defaultAttributes": {
             "android:hint": "Phone",
@@ -54,7 +54,7 @@
     },
     {
         "name": "Postal Address",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_postal_address_textfield",
         "defaultAttributes": {
             "android:hint": "Postal Address",
@@ -63,7 +63,7 @@
     },
     {
         "name": "Multiline Text",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_textfield_multiline",
         "defaultAttributes": {
             "android:hint": "Multiline Text",
@@ -72,7 +72,7 @@
     },
     {
         "name": "Time",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_time_textfield",
         "defaultAttributes": {
             "android:hint": "Time",
@@ -81,7 +81,7 @@
     },
     {
         "name": "Date",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_date_textfield",
         "defaultAttributes": {
             "android:hint": "Date",
@@ -90,7 +90,7 @@
     },
     {
         "name": "Number",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_number_textfield",
         "defaultAttributes": {
             "android:hint": "Number",
@@ -99,7 +99,7 @@
     },
     {
         "name": "Number (Signed)",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_number_signed_textfield",
         "defaultAttributes": {
             "android:hint": "Number (Signed)",
@@ -108,7 +108,7 @@
     },
     {
         "name": "Number (Decimal)",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.EditTextDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.EditTextDesign",
         "iconName": "ic_palette_number_decimal_textfield",
         "defaultAttributes": {
             "android:hint": "Number (Decimal)",
@@ -117,7 +117,7 @@
     },
     {
         "name": "AutoCompleteTextView",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.AutoCompleteTextViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.AutoCompleteTextViewDesign",
         "iconName": "ic_palette_auto_complete_text_view",
         "defaultAttributes": {
             "android:hint": "AutoCompleteTextView"
@@ -125,7 +125,7 @@
     },
     {
         "name": "MultiAutoCompleteTextView",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.MultiAutoCompleteTextViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.MultiAutoCompleteTextViewDesign",
         "iconName": "ic_palette_multi_auto_complete_text_view",
         "defaultAttributes": {
             "android:hint": "MultiAutoCompleteTextView"
@@ -133,7 +133,7 @@
     },
     {
         "name": "CheckedTextView",
-        "className": "org.appdevforall.layouteditor.editor.palette.text.CheckedTextViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.text.CheckedTextViewDesign",
         "iconName": "ic_palette_checked_text_view",
         "defaultAttributes": {
             "android:text": "CheckedTextView"

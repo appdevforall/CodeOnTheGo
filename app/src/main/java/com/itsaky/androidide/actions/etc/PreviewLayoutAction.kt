@@ -33,8 +33,8 @@ import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
-import org.appdevforall.layouteditor.activities.EditorActivity
-import org.appdevforall.layouteditor.utils.Constants
+import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
+import org.appdevforall.codeonthego.layouteditor.utils.Constants
 import java.io.File
 
 

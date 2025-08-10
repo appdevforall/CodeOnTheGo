@@ -1,7 +1,7 @@
 [
     {
         "name": "View",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.ViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.ViewDesign",
         "iconName": "ic_palette_view",
         "defaultAttributes": {
             "android:layout_width": "match_parent",
@@ -11,7 +11,7 @@
     },
     {
         "name": "ImageView",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.ImageViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.ImageViewDesign",
         "iconName": "ic_palette_image_view",
         "defaultAttributes": {
             "android:layout_width": "48dp",
@@ -21,7 +21,7 @@
     },
     {
         "name": "WebView",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.WebViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.WebViewDesign",
         "iconName": "ic_palette_web_view",
         "defaultAttributes": {
             "android:layout_width": "match_parent",
@@ -30,7 +30,7 @@
     },
     {
         "name": "VideoView",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.VideoViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.VideoViewDesign",
         "iconName": "ic_palette_video_view",
         "defaultAttributes": {
             "android:layout_width": "match_parent",
@@ -39,7 +39,7 @@
     },
     {
         "name": "CalendarView",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.CalendarViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.CalendarViewDesign",
         "iconName": "ic_palette_calendar_view",
         "defaultAttributes": {
             "android:layout_width": "match_parent"
@@ -47,7 +47,7 @@
     },
     {
         "name": "Text Clock",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.TextClockDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.TextClockDesign",
         "iconName": "ic_palette_text_clock",
         "defaultAttributes": {
             "android:textSize": "20sp"
@@ -55,7 +55,7 @@
     },
     {
         "name": "ProgressBar",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.ProgressBarDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.ProgressBarDesign",
         "iconName": "ic_palette_progress_bar",
         "defaultAttributes": {
             "android:layout_width": "match_parent"
@@ -63,7 +63,7 @@
     },
     {
         "name": "ProgressBar (Horizontal)",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.ProgressBarDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.ProgressBarDesign",
         "iconName": "ic_palette_progress_bar_horizontal",
         "defaultAttributes": {
             "android:layout_width": "match_parent"
@@ -71,7 +71,7 @@
     },
     {
         "name": "SeekBar",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.SeekBarDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SeekBarDesign",
         "iconName": "ic_palette_seek_bar",
         "defaultAttributes": {
             "android:layout_width": "match_parent"
@@ -79,7 +79,7 @@
     },
     {
         "name": "SeekBar (Discrete)",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.SeekBarDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SeekBarDesign",
         "iconName": "ic_palette_seek_bar_discrete",
         "defaultAttributes": {
             "android:layout_width": "match_parent"
@@ -87,12 +87,12 @@
     },
     {
         "name": "RatingBar",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.RatingBarDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.RatingBarDesign",
         "iconName": "ic_palette_rating_bar"
     },
     {
         "name": "SearchView",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.SearchViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SearchViewDesign",
         "iconName": "ic_palette_search_view",
         "defaultAttributes": {
             "android:layout_width": "match_parent"
@@ -100,7 +100,7 @@
     },
     {
         "name": "TextureView",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.TextureViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.TextureViewDesign",
         "iconName": "ic_palette_texture_view",
         "defaultAttributes": {
             "android:layout_width": "match_parent"
@@ -108,7 +108,7 @@
     },
     {
         "name": "SurfaceView",
-        "className": "org.appdevforall.layouteditor.editor.palette.widgets.SurfaceViewDesign",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.widgets.SurfaceViewDesign",
         "iconName": "ic_palette_surface_view",
         "defaultAttributes": {
             "android:layout_width": "match_parent",
