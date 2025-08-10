@@ -164,12 +164,10 @@ include(
     ":testing:tooling",
     ":testing:unit",
     ":layouteditor",
-    ":layouteditor:vectormaster",
+    ":vectormaster",
     ":constants",
     ":idetooltips",
 )
-
-project(":layouteditor:vectormaster").projectDir = rootDir.resolve("layouteditor/vectormaster")
 
 object FDroidConfig {
     var hasRead: Boolean = false
