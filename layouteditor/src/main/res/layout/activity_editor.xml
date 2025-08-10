@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<org.appdevforall.layouteditor.views.CustomDrawerLayout
+<org.appdevforall.codeonthego.layouteditor.views.CustomDrawerLayout
   xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
@@ -57,7 +57,7 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <org.appdevforall.layouteditor.editor.DesignEditor
+    <org.appdevforall.codeonthego.layouteditor.editor.DesignEditor
       android:id="@+id/editor_layout"
       android:layout_height="match_parent"
       android:layout_width="match_parent"
@@ -152,7 +152,7 @@
         android:layout_width="wrap_content"
         android:nestedScrollingEnabled="true">
 
-        <org.appdevforall.layouteditor.views.StructureView
+        <org.appdevforall.codeonthego.layouteditor.views.StructureView
           android:id="@+id/structure_view"
           android:layout_height="wrap_content"
           android:layout_width="wrap_content"
@@ -161,4 +161,4 @@
       </HorizontalScrollView>
     </ScrollView>
   </com.google.android.material.navigation.NavigationView>
-</org.appdevforall.layouteditor.views.CustomDrawerLayout>
+</org.appdevforall.codeonthego.layouteditor.views.CustomDrawerLayout>

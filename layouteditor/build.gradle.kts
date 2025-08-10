@@ -5,7 +5,7 @@ plugins {
 
 android {
     compileSdk = 35
-    namespace = "org.appdevforall.layouteditor"
+    namespace = "org.appdevforall.codeonthego.layouteditor"
 
     defaultConfig {
         minSdk = 26
