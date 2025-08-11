@@ -109,14 +109,18 @@ import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
 import com.itsaky.androidide.utils.ApkInstallationSessionCallback
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
+import com.itsaky.androidide.viewmodel.FileManagerViewModel
+import com.itsaky.androidide.viewmodel.FileOpResult
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
@@ -148,6 +152,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
     protected val memoryUsageWatcher = MemoryUsageWatcher()
     protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
+
+    private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 
     var isDestroying = false
         protected set
@@ -476,6 +482,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         setupMemUsageChart()
         watchMemory()
+        observeFileOperations()
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -987,6 +994,23 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     open fun installationSessionCallback(): SessionCallback {
         return ApkInstallationSessionCallback(this).also { installationCallback = it }
+    }
+
+    private fun observeFileOperations() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                fileManagerViewModel.operationResult.collect { result ->
+                    when (result) {
+                        is FileOpResult.Success -> flashMessage(
+                            result.messageRes,
+                            FlashType.SUCCESS
+                        )
+
+                        is FileOpResult.Error -> flashMessage(result.messageRes, FlashType.ERROR)
+                    }
+                }
+            }
+        }
     }
 }
 
