@@ -56,11 +56,11 @@ dependencies {
     implementation(libs.utilcodex)
     implementation(libs.utilcodex)
 
-    implementation (platform("io.github.Rosemoe.sora-editor:bom:0.23.5"))
-    implementation ("io.github.Rosemoe.sora-editor:editor")
-    implementation ("io.github.Rosemoe.sora-editor:language-textmate")
+    implementation(platform(libs.sora.bom))
+    implementation(libs.common.editor)
+    implementation(libs.sora.language.textmate)
 
-    implementation ("org.apache.commons:commons-text:1.11.0")
+    implementation(libs.commons.text)
+    implementation(libs.common.io)
 
-    implementation ("commons-io:commons-io:2.15.1")
 }
