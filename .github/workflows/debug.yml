@@ -9,6 +9,12 @@ on:
       - '**.md'
       - 'fastlane/**'
 
+  push:
+    branches: [ "stage" ]
+    paths-ignore:
+      - '**.md'
+      - 'fastlane/**'
+
   workflow_dispatch: { }
 
 env:
