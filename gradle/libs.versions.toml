@@ -90,7 +90,8 @@ androidide-ts-xml = { module = "com.itsaky.androidide.treesitter:tree-sitter-xml
 #Layout Editor
 utilcodex = { module = "com.blankj:utilcodex", version.ref = "utilcodex" }
 zoomage = { module = "com.jsibbold:zoomage", version.ref = "zoomage" }
-
+sora-bom = { module = "io.github.Rosemoe.sora-editor:bom", version.ref = "editor" }
+sora-language-textmate = { module = "io.github.Rosemoe.sora-editor:language-textmate" }
 
 # Common
 common-editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "editor" }
