@@ -43,6 +43,7 @@ monitorVersion = "1.7.2"
 ## When updating this value, please manually compile libbrotli.so from Brotli4j for Android and
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
+spotless = "7.2.1"
 
 [libraries]
 
@@ -229,3 +230,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish.base", version.ref = "maven-publish-plugin" }
 gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

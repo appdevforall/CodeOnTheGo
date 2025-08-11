@@ -38,7 +38,7 @@ import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
-import com.itsaky.androidide.utils.AssetsInstallationHelper
+import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.withStopWatch
