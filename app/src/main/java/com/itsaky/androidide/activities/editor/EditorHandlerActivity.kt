@@ -217,9 +217,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   }
 
   open fun prepareOptionsMenu(menu: Menu) {
-    // 1. Get the current state from the ViewModel.
     val isSyncInProgress = projectViewModel.initState.value is TaskState.InProgress
-    // You can add other state checks here, e.g., isFileModified, isEditorFocused, etc.
     val currentEditor = getCurrentEditor()
     val isFileOpen = currentEditor != null
     val isFileModified = currentEditor?.isModified ?: false
@@ -232,16 +230,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
         var isEnabled = action.enabled // Start with the action's default state.
 
-        // 4. Override state based on the ViewModel.
-        // This is where you connect your ViewModel's state to the UI.
         when (action) {
           is ProjectSyncAction -> isEnabled = !isSyncInProgress
           is QuickRunAction -> isEnabled = !isSyncInProgress
           is SaveFileAction -> isEnabled = isFileOpen && isFileModified
-          // Add more 'when' branches for other actions that need dynamic states.
         }
 
-        // 5. Apply the final state to the menu item.
         item.isEnabled = isEnabled
         item.isVisible = action.visible
 
