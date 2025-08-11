@@ -67,6 +67,15 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
     }
   }
 
+  var callTooltip: ((String) -> Unit)? = null
+  private fun showTooltipForView(tooltipTag: String) {
+
+    callTooltip?.invoke(tooltipTag)
+  }
+
+  override fun applyCallTooltip(callTooltip: (String) -> Unit) {
+    this.callTooltip = callTooltip
+  }
   override fun <T> createView(context: Context, widget: Widget<T>): View {
     if (widget is ParameterWidget<T>) {
       widget.parameter.apply {
@@ -80,9 +89,13 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
       is CheckBoxWidget -> createCheckBox(context, widget)
       is SpinnerWidget -> createSpinner(context, widget)
       else -> throw IllegalArgumentException("Unknown widget type : $widget")
-    }.also {
+    }.also { createdView ->
       if (widget is ParameterWidget<T>) {
-        widget.parameter.afterCreateView()
+        widget.parameter.tooltipTag?.let { tag ->
+          (createdView as? TooltipTextInputLayout)?.onLongPress = {
+            showTooltipForView(tag)
+          }
+        }
       }
     }
   }
