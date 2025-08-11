@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import kotlin.coroutines.cancellation.CancellationException
 
 class BuildViewModel : ViewModel() {
 
@@ -62,8 +63,17 @@ class BuildViewModel : ViewModel() {
                 _buildState.value = BuildState.AwaitingInstall(apkFile)
 
             } catch (e: Exception) {
-                log.error("Quick Run failed.", e)
-                _buildState.value = BuildState.Error(e.message ?: "An unknown error occurred.")
+                // ✅ Check if the failure was due to an explicit cancellation.
+                if (e is CancellationException) {
+                    // This is an expected cancellation, not an error.
+                    log.info("Build was cancelled by the user.")
+                    // Reset the state to Idle, as the process is finished.
+                    _buildState.value = BuildState.Idle
+                } else {
+                    // This is a real, unexpected error.
+                    log.error("Quick Run failed.", e)
+                    _buildState.value = BuildState.Error(e.message ?: "An unknown error occurred.")
+                }
             }
         }
     }
