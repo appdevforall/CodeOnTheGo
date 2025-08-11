@@ -59,7 +59,6 @@ class EditorActivityLifecyclerObserver : DefaultLifecycleObserver {
   }
 
   override fun onResume(owner: LifecycleOwner) {
-    EditorActivityActions.register(owner as Context)
     dispatchEvent(OnResumeEvent())
   }
 

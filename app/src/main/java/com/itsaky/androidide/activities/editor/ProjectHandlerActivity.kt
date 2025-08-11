@@ -25,8 +25,10 @@ import android.widget.CheckBox
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
@@ -38,7 +40,6 @@ import com.itsaky.androidide.handlers.LspHandler.connectDebugClient
 import com.itsaky.androidide.handlers.LspHandler.destroyLanguageServers
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
-import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.GradleProject
@@ -67,13 +68,14 @@ import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
+import com.itsaky.androidide.viewmodel.ProjectViewModel
+import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.HELP_PAGE_URL
 import java.io.File
-import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
 import java.util.stream.Collectors
 
@@ -89,8 +91,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     protected var isFromSavedInstance = false
     protected var shouldInitialize = false
-
-    protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+    val projectViewModel by viewModels<ProjectViewModel>()
 
     val findInProjectDialog: AlertDialog
         get() {
@@ -154,7 +155,36 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             notifySyncNeeded()
         }
 
+        observeProjectState()
         startServices()
+    }
+
+    private fun observeProjectState() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                projectViewModel.initState.collect { state ->
+                    when (state) {
+                        is TaskState.Idle -> {
+                            editorViewModel.isInitializing = false
+                        }
+
+                        is TaskState.InProgress -> {
+                            preProjectInit()
+                        }
+
+                        is TaskState.Success -> {
+                            onProjectInitialized(state.result)
+                            postProjectInit(true, null)
+                        }
+
+                        is TaskState.Error -> {
+                            postProjectInit(false, state.failure)
+                        }
+                    }
+                    invalidateOptionsMenu()
+                }
+            }
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -185,8 +215,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         if (isDestroying) {
             releaseServerListener()
-            this.initializingFuture?.cancel(true)
-            this.initializingFuture = null
 
             closeProject(false)
         }
@@ -370,63 +398,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val manager = ProjectManagerImpl.getInstance()
         val projectDir = File(manager.projectPath)
         if (!projectDir.exists()) {
-            log.error("GradleProject directory does not exist. Cannot initialize project")
+            log.error("Project directory does not exist. Cannot initialize project")
             return
         }
 
-        val initialized = manager.projectInitialized && manager.cachedInitResult != null
-        log.debug("Is project initialized: {}", initialized)
-        // When returning after a configuration change between the initialization process,
-        // we do not want to start another project initialization
-        if (isFromSavedInstance && initialized && !shouldInitialize) {
-            log.debug("Skipping init process because initialized && !wasInitializing")
-            return
-        }
-
-        //noinspection ConstantConditions
-        ThreadUtils.runOnUiThread { preProjectInit() }
-
-        val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-        if (buildService == null) {
-            log.error("No build service found. Cannot initialize project.")
-            return
-        }
-
-        if (!buildService.isToolingServerStarted()) {
-            flashError(string.msg_tooling_server_unavailable)
-            return
-        }
-
-        this.initializingFuture =
-            if (shouldInitialize || (!isFromSavedInstance && !initialized)) {
-                log.debug("Sending init request to tooling server..")
-                buildService.initializeProject(createProjectInitParams(projectDir, buildVariants))
-            } else {
-                // The project initialization was in progress before the configuration change
-                // In this case, we should not start another project initialization
-                log.debug("Using cached initialize result as the project is already initialized")
-                CompletableFuture.supplyAsync {
-                    log.warn("GradleProject has already been initialized. Skipping initialization process.")
-                    manager.cachedInitResult
-                }
-            }
-
-        this.initializingFuture!!.whenCompleteAsync { result, error ->
-            releaseServerListener()
-
-            if (result == null || !result.isSuccessful || error != null) {
-                if (!CancelChecker.isCancelled(error)) {
-                    log.error("An error occurred initializing the project with Tooling API", error)
-                }
-
-                ThreadUtils.runOnUiThread {
-                    postProjectInit(false, result?.failure)
-                }
-                return@whenCompleteAsync
-            }
-
-            onProjectInitialized(result)
-        }
+        // The logic for whether to start is now handled inside the ViewModel.
+        // The Activity just requests an initialization.
+        projectViewModel.initializeProject(buildVariants)
     }
 
     private fun createProjectInitParams(

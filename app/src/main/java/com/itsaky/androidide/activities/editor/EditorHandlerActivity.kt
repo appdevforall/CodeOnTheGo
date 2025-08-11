@@ -24,7 +24,6 @@ import android.text.TextUtils
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup.LayoutParams
-import androidx.annotation.DrawableRes
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
@@ -35,6 +34,9 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.actions.build.ProjectSyncAction
+import com.itsaky.androidide.actions.build.QuickRunAction
+import com.itsaky.androidide.actions.file.SaveFileAction
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -60,6 +62,7 @@ import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -68,7 +71,6 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.collections.set
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -215,14 +217,34 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   }
 
   open fun prepareOptionsMenu(menu: Menu) {
+    // 1. Get the current state from the ViewModel.
+    val isSyncInProgress = projectViewModel.initState.value is TaskState.InProgress
+    // You can add other state checks here, e.g., isFileModified, isEditorFocused, etc.
+    val currentEditor = getCurrentEditor()
+    val isFileOpen = currentEditor != null
+    val isFileModified = currentEditor?.isModified ?: false
+
     val data = createToolbarActionData()
     val actions = getInstance().getActions(EDITOR_TOOLBAR)
     actions.forEach { (_, action) ->
       menu.findItem(action.itemId)?.let { item ->
         action.prepare(data)
 
+        var isEnabled = action.enabled // Start with the action's default state.
+
+        // 4. Override state based on the ViewModel.
+        // This is where you connect your ViewModel's state to the UI.
+        when (action) {
+          is ProjectSyncAction -> isEnabled = !isSyncInProgress
+          is QuickRunAction -> isEnabled = !isSyncInProgress
+          is SaveFileAction -> isEnabled = isFileOpen && isFileModified
+          // Add more 'when' branches for other actions that need dynamic states.
+        }
+
+        // 5. Apply the final state to the menu item.
+        item.isEnabled = isEnabled
         item.isVisible = action.visible
-        item.isEnabled = action.enabled
+
         item.title = action.label
 
         item.icon = action.icon?.apply {
