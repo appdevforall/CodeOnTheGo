@@ -38,7 +38,6 @@ class BuildViewModel : ViewModel() {
             }
 
             try {
-                // --- Logic from AbstractRunAction.doBuild ---
                 val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
                 val message = TaskExecutionMessage(tasks = listOf(taskName))
                 val result = buildService.executeTasks(message).await()
@@ -47,7 +46,6 @@ class BuildViewModel : ViewModel() {
                     throw RuntimeException("Task execution failed.")
                 }
 
-                // --- Logic from AbstractRunAction.handleResult ---
                 val outputListingFile = variant.mainArtifact.assembleTaskOutputListingFile
                     ?: throw RuntimeException("No output listing file found in project model.")
 
@@ -58,19 +56,13 @@ class BuildViewModel : ViewModel() {
                     throw RuntimeException("APK file specified does not exist: $apkFile")
                 }
 
-                // --- State Update for Installation ---
-                // The ViewModel now signals that it's ready for the Activity to trigger the install.
                 _buildState.value = BuildState.AwaitingInstall(apkFile)
 
             } catch (e: Exception) {
-                // ✅ Check if the failure was due to an explicit cancellation.
                 if (e is CancellationException) {
-                    // This is an expected cancellation, not an error.
                     log.info("Build was cancelled by the user.")
-                    // Reset the state to Idle, as the process is finished.
                     _buildState.value = BuildState.Idle
                 } else {
-                    // This is a real, unexpected error.
                     log.error("Quick Run failed.", e)
                     _buildState.value = BuildState.Error(e.message ?: "An unknown error occurred.")
                 }
