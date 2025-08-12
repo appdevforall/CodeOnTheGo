@@ -28,6 +28,7 @@ dependencies {
     api(libs.androidide.ts.log)
     api(libs.androidide.ts.xml)
     api(libs.androidx.collection)
+    api(platform(libs.sora.bom))
     api(libs.common.editor)
     
     api(projects.editorApi)
