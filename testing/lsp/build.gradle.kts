@@ -28,6 +28,7 @@ android {
 
 dependencies {
     api(libs.androidx.core.ktx)
+    api(platform(libs.sora.bom))
     api(libs.common.editor)
     api(libs.common.kotlin)
 
