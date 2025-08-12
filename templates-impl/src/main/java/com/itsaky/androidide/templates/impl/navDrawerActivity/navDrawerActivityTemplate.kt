@@ -32,6 +32,7 @@ import com.itsaky.androidide.templates.impl.templateAsset
 fun navDrawerActivityProject() = baseProjectImpl {
   templateName = R.string.template_navigation_drawer
   thumb = R.drawable.template_blank_activity_drawer
+  tooltipTag = "ide.templates.nav_drawer_activity"
   defaultAppModule {
     recipe = createRecipe {
       sources {

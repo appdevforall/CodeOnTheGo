@@ -32,6 +32,7 @@ import com.itsaky.androidide.templates.impl.templateAsset
 fun bottomNavActivityProject() = baseProjectImpl {
     templateName = R.string.template_navigation_tabs
     thumb = R.drawable.template_bottom_navigation_activity
+    tooltipTag = "ide.templates.bottom_nav_activity"
     defaultAppModule {
         recipe = createRecipe {
             sources {

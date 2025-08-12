@@ -45,6 +45,7 @@ fun composeActivityProject() =
 
         templateName = R.string.template_compose
         thumb = R.drawable.template_compose_empty_activity
+        tooltipTag = "ide.templates.compose_activity"
 
         defaultAppModule(addAndroidX = false) {
 
