@@ -14,6 +14,7 @@ dependencies {
 
     implementation(projects.common)
 
+    implementation(platform(libs.sora.bom))
     implementation(libs.common.editor)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
