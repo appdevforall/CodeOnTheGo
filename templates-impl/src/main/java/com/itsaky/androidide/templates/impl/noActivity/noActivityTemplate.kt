@@ -26,7 +26,7 @@ import com.itsaky.androidide.templates.impl.baseProjectImpl
 fun noActivityProjectTemplate() = baseProjectImpl {
   templateName = R.string.template_no_activity
   thumb = R.drawable.template_no_activity
-  tooltipTag = "ide.templates.no_activity"
+  tooltipTag = "template.no.activity"
   defaultAppModule {
     recipe = createRecipe {
       res {
