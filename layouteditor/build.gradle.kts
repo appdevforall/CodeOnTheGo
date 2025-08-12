@@ -37,10 +37,6 @@ dependencies {
     implementation(libs.zoomage)
     implementation(libs.utilcodex)
     implementation(libs.colorpickerview)
-    implementation(libs.common.editor)
-    implementation(libs.utilcodex)
-    implementation(libs.utilcodex)
-
     implementation(platform(libs.sora.bom))
     implementation(libs.common.editor)
     implementation(libs.sora.language.textmate)

@@ -11,6 +11,7 @@ android {
 }
 
 dependencies {
+    api(platform(libs.sora.bom))
     api(libs.common.editor)
     api(libs.common.lang3)
     api(libs.common.utilcode)
