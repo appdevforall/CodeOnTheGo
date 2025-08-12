@@ -13,7 +13,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":vectormaster"))
+    implementation(projects.vectormaster)
     implementation(projects.common)
     implementation(projects.uidesigner)
 
