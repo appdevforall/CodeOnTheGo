@@ -16,123 +16,79 @@
  */
 package com.itsaky.androidide.fragments
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import com.blankj.utilcode.util.ClipboardUtils
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.BuildInfoUtils
 
 class CrashReportFragment : Fragment() {
 
-  private var binding: LayoutCrashReportBinding? = null
-  private var closeAppOnClick = true
+    private var binding: LayoutCrashReportBinding? = null
+    private var closeAppOnClick = true
 
-  companion object {
+    companion object {
+        const val KEY_CLOSE_APP_ON_CLICK = "close_on_app_click"
 
-    const val KEY_TITLE = "crash_title"
-    const val KEY_MESSAGE = "crash_message"
-    const val KEY_TRACE = "crash_trace"
-    const val KEY_CLOSE_APP_ON_CLICK = "close_on_app_click"
-
-    @JvmStatic
-    fun newInstance(trace: String): CrashReportFragment {
-      return newInstance(null, null, trace, true)
-    }
-
-    @JvmStatic
-    fun newInstance(
-      title: String?,
-      message: String?,
-      trace: String,
-      closeAppOnClick: Boolean
-    ): CrashReportFragment {
-      val frag = CrashReportFragment()
-      val args = Bundle().apply {
-        putString(KEY_TRACE, trace)
-        putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
-        title?.let { putString(KEY_TITLE, it) }
-        message?.let { putString(KEY_MESSAGE, it) }
-      }
-      frag.arguments = args
-      return frag
-    }
-  }
-
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    return LayoutCrashReportBinding.inflate(inflater, container, false).also { binding = it }.root
-  }
-
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    val args = requireArguments()
-    closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
-    var title: String? = getString(R.string.msg_ide_crashed)
-    var message: String? = getString(R.string.msg_report_crash)
-    if (args.containsKey(KEY_TITLE)) {
-      title = args.getString(KEY_TITLE)
-    }
-
-    if (args.containsKey(KEY_MESSAGE)) {
-      message = args.getString(KEY_MESSAGE)
-    }
-
-    val trace: String = if (args.containsKey(KEY_TRACE)) {
-      buildReportText(args.getString(KEY_TRACE))
-    } else {
-      "No stack strace was provided for the report"
-    }
-
-    binding!!.apply {
-      crashTitle.text = title
-      crashSubtitle.text = message
-      logText.text = trace
-
-      val report: String = trace
-      closeButton.setOnClickListener {
-        if (closeAppOnClick) {
-          requireActivity().finishAffinity()
-        } else {
-          requireActivity().finish()
+        @JvmStatic
+        fun newInstance(): CrashReportFragment {
+            return newInstance(true)
         }
-      }
 
-      reportButton.setOnClickListener { reportTrace(report) }
+        @JvmStatic
+        fun newInstance(
+            closeAppOnClick: Boolean
+        ): CrashReportFragment {
+            val frag = CrashReportFragment()
+            val args = Bundle().apply {
+                putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
+            }
+            frag.arguments = args
+            return frag
+        }
     }
-  }
 
-  private fun reportTrace(report: String) {
-    ClipboardUtils.copyText("AndroidIDE CrashLog", report)
-    val url = BuildInfo.REPO_URL + "/issues"
-    val intent = Intent()
-    intent.action = Intent.ACTION_VIEW
-    intent.data = Uri.parse(url)
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    startActivity(intent)
-  }
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        return LayoutCrashReportBinding.inflate(inflater, container, false)
+            .also { binding = it }.root
+    }
 
-  private fun buildReportText(trace: String?): String {
-    return """
-AndroidIDE Crash Report
-${BuildInfoUtils.getBuildInfoHeader()}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val args = requireArguments()
+        closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
+        val title = getString(R.string.msg_ide_crashed)
+        val message = getString(R.string.msg_crash_info)
 
-Stacktrace:
-$trace
-    """
-  }
+        binding!!.apply {
+            crashTitle.text = title
+            crashSubtitle.text = message
 
-  override fun onDestroyView() {
-    super.onDestroyView()
-    binding = null
-  }
+            closeButton.setOnClickListener {
+                finishActivity()
+            }
+
+            btnOkay.setOnClickListener { finishActivity() }
+
+        }
+    }
+
+    private fun finishActivity() {
+        if (closeAppOnClick) {
+            requireActivity().finishAffinity()
+        } else {
+            requireActivity().finish()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        binding = null
+    }
 }
