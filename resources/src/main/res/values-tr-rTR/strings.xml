@@ -179,9 +179,8 @@
   <string name="title_generating_xml">XML kodu oluşturuluyor</string>
   <string name="msg_swipe_up">İnşa çıktısı, günlükler ve daha fazlası için yukarı kaydırın.</string>
   <string name="msg_ide_crashed">Code on the Go çöktü</string>
-  <string name="msg_report_crash">Lütfen aşağıdaki talimatları izleyerek Github\'da bir konu açın:</string>
-  <string name="msg_crash_report_hint">Günlüğü kopyalamak ve sorunlar sayfasını açmak için aşağıdaki düğmeyi tıklayın.</string>
-  <string name="msg_copy_report_action">Kopyala ve bildir</string>
+  <string name="msg_crash_info">Lütfen aşağıdaki talimatları izleyerek Github\'da bir konu açın:</string>
+  <string name="msg_close_crash_page">Günlüğü kopyalamak ve sorunlar sayfasını açmak için aşağıdaki düğmeyi tıklayın.</string>
   <string name="title_translations">Çeviriler</string>
   <string name="action_expand_selection">Seçimi genişlet</string>
   <string name="idepref_java_matchLower_title">Küçük karakterlerle tamamlamaları eşleştir</string>

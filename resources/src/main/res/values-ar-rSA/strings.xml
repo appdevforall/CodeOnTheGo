@@ -179,9 +179,8 @@
   <string name="title_generating_xml">إنشاء كود XML</string>
   <string name="msg_swipe_up">مرر لأعلى للإخراج والسجلات والمزيد.</string>
   <string name="msg_ide_crashed">تحطم Code on the Go</string>
-  <string name="msg_report_crash">الرجاء فتح مشكلة على github مع المكونات التالية:</string>
-  <string name="msg_crash_report_hint">انقر على الزر أدناه لنسخ السجل وفتح صفحة المشكلات.</string>
-  <string name="msg_copy_report_action">نسخ وتقرير</string>
+  <string name="msg_crash_info">الرجاء فتح مشكلة على github مع المكونات التالية:</string>
+  <string name="msg_close_crash_page">انقر على الزر أدناه لنسخ السجل وفتح صفحة المشكلات.</string>
   <string name="title_translations">الترجمات</string>
   <string name="action_expand_selection">توسيع التحديد</string>
   <string name="idepref_java_matchLower_title">مطابقة المكملات في حالة الأحرف الصغيرة</string>
