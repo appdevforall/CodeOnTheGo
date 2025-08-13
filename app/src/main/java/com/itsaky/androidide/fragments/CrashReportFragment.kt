@@ -20,6 +20,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
@@ -75,6 +76,16 @@ class CrashReportFragment : Fragment() {
             }
 
             btnOkay.setOnClickListener { finishActivity() }
+
+          // Handle system back button
+          requireActivity().onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : OnBackPressedCallback(true) {
+              override fun handleOnBackPressed() {
+                finishActivity()
+              }
+            }
+          )
 
         }
     }
