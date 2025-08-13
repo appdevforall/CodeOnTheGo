@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.content.ContextCompat.getColor
@@ -221,7 +222,33 @@ ORDER  BY buttonNumberId
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
+        infoButton.setOnClickListener {
+            onInfoButtonClicked(context, popupWindow, tooltipItem)
+        }
     }
+    /**
+     * Handles the click on the info icon in the tooltip.
+     */
+    private fun onInfoButtonClicked(context: Context, popupWindow: PopupWindow, tooltip: IDETooltipItem) {
+        popupWindow.dismiss()
 
+        val metadata = """
+        <b>Tooltip Debug Info</b><br/>
+        <b>ID:</b> ${tooltip.tooltipTag}<br/>
+        <b>Raw Summary:</b> ${android.text.Html.escapeHtml(tooltip.summary)}<br/>
+        <b>Raw Detail:</b> ${android.text.Html.escapeHtml(tooltip.detail)}<br/>
+        <b>Buttons:</b> ${tooltip.buttons.joinToString { "${it.first} → ${it.second}" }}<br/>
+        """.trimIndent()
+
+        androidx.appcompat.app.AlertDialog.Builder(context)
+            .setTitle("Tooltip Debug Info")
+            .setMessage(android.text.Html.fromHtml(metadata, android.text.Html.FROM_HTML_MODE_LEGACY))
+            .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(true) // Allow dismissing by tapping outside
+            .show()
+    }
 }
 
