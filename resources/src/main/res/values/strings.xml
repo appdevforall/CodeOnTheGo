@@ -213,6 +213,7 @@
     <string name="msg_ide_crashed">Code on the Go crashed</string>
     <string name="msg_crash_info">An internal error has occurred.\n\nDetails that will help us fix the problem have been saved and will be sent securely the next time your device is online.\n\nWhen you press OK, the app will close. Any unsaved changes may be lost. Please restart the app to continue.\n\nIf this happens again, try restarting your device. If the problem persists, please contact our support team.</string>
     <string name="msg_close_crash_page">Click on the button below to close this page.</string>
+    <string name="msg_ok">OK</string>
     <string name="title_translations">Translations</string>
     <string name="action_expand_selection">Expand selection</string>
     <string name="idepref_java_matchLower_title">Match completions in lower case</string>
