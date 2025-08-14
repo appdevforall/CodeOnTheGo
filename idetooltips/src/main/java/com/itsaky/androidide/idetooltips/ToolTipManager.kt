@@ -234,11 +234,10 @@ ORDER  BY buttonNumberId
         popupWindow.dismiss()
 
         val metadata = """
-        <b>Tooltip Debug Info</b><br/>
-        <b>ID:</b> ${tooltip.tooltipTag}<br/>
-        <b>Raw Summary:</b> ${android.text.Html.escapeHtml(tooltip.summary)}<br/>
-        <b>Raw Detail:</b> ${android.text.Html.escapeHtml(tooltip.detail)}<br/>
-        <b>Buttons:</b> ${tooltip.buttons.joinToString { "${it.first} → ${it.second}" }}<br/>
+        <b>ID:</b> "${tooltip.tooltipTag}"<br/>
+        <b>Raw Summary:</b> "${android.text.Html.escapeHtml(tooltip.summary)}"<br/>
+        <b>Raw Detail:</b> "${android.text.Html.escapeHtml(tooltip.detail)}"<br/>
+        <b>Buttons:</b> ${tooltip.buttons.joinToString { "\"${it.first} → ${it.second}\"" }}<br/>
         """.trimIndent()
 
         androidx.appcompat.app.AlertDialog.Builder(context)
