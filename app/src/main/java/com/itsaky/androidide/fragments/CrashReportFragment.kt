@@ -17,10 +17,12 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.OnBackPressedCallback
+import androidx.core.text.HtmlCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
@@ -69,7 +71,10 @@ class CrashReportFragment : Fragment() {
 
         binding!!.apply {
             crashTitle.text = title
-            crashSubtitle.text = message
+            crashSubtitle.apply {
+                text = HtmlCompat.fromHtml(getString(R.string.msg_crash_info), HtmlCompat.FROM_HTML_MODE_LEGACY)
+                movementMethod = LinkMovementMethod.getInstance()
+            }
 
             closeButton.setOnClickListener {
                 finishActivity()
