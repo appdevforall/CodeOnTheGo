@@ -29,7 +29,7 @@ object JdwpOptions {
      * Options for configuring the JDWP agent in a VM.
      */
     val JDWP_OPTIONS_MAP = mapOf(
-        "suspend" to "n",
+        "suspend" to "y",
         "server" to "n",
         "transport" to "dt_socket",
         "address" to DEFAULT_JDWP_PORT.toString(),

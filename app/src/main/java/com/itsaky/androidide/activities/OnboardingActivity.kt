@@ -39,6 +39,8 @@ import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.assets.AssetsInstallationHelper
+import com.itsaky.androidide.hiddenapis.HiddenActivityTaskManager
+import com.itsaky.androidide.hiddenapis.startActivityWithFlags
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.withStopWatch
@@ -51,6 +53,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
@@ -202,7 +205,7 @@ class OnboardingActivity : AppIntro2() {
 
     private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
         if (isSetupCompleted()) {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivityWithFlags(Intent(this, MainActivity::class.java))
             finish()
             return true
         }
