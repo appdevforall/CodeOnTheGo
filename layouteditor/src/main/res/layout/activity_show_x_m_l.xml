@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.widget.FrameLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_height="match_parent"
+  android:layout_width="match_parent"
+  android:fitsSystemWindows="true">
+
+  <androidx.appcompat.widget.LinearLayoutCompat
+    android:background="?android:attr/colorBackground"
+    android:layout_height="match_parent"
+    android:layout_width="match_parent"
+    android:orientation="vertical"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.AppBarLayout
+      android:fitsSystemWindows="true"
+      android:layout_height="wrap_content"
+      android:layout_width="match_parent">
+
+      <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/topAppBar"
+        android:layout_height="?attr/actionBarSize"
+        android:layout_width="match_parent"
+        app:navigationIcon="@drawable/arrow_left" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <LinearLayout
+      android:id="@+id/root_layout"
+      android:layout_height="match_parent"
+      android:layout_width="match_parent"
+      android:orientation="vertical">
+
+      <io.github.rosemoe.sora.widget.CodeEditor
+        android:id="@+id/editor"
+        android:layout_height="match_parent"
+        android:layout_width="match_parent" />
+
+    </LinearLayout>
+
+  </androidx.appcompat.widget.LinearLayoutCompat>
+
+  <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+    android:id="@+id/fab"
+    android:layout_gravity="end|bottom"
+    android:layout_height="wrap_content"
+    android:layout_marginRight="20dp"
+    android:layout_marginBottom="20dp"
+    android:layout_width="wrap_content"
+    app:icon="@drawable/content_copy"
+    android:text="@string/copy"
+    tools:ignore="PrivateResource" />
+
+</android.widget.FrameLayout>
