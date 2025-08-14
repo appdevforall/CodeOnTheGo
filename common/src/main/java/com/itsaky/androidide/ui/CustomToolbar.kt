@@ -10,8 +10,10 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
+import com.itsaky.androidide.utils.isSystemInDarkMode
 
 class CustomToolbar @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
@@ -30,7 +32,13 @@ class CustomToolbar @JvmOverloads constructor(
     }
 
     fun setTitleText(title: String) {
-        titleText.text = title
+        val isDarkMode = this.context.isSystemInDarkMode()
+        val textColor = if (isDarkMode) R.color.white else R.color.black
+
+        titleText.apply {
+            text = title
+            setTextColor(ContextCompat.getColor(context, textColor))
+        }
     }
 
     fun addMenuItem(icon: Drawable?, hint: String, onClick: () -> Unit, shouldAddMargin: Boolean) {
