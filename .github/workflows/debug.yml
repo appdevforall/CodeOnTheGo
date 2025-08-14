@@ -165,7 +165,7 @@ jobs:
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
             --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-          PR: ${{ steps.pr_info.outputs.COMMIT_MSG }}
+          JIRA Title: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
           Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
           
           echo "$output"
