@@ -36,7 +36,8 @@ kapt {
 dependencies {
     
     kapt(projects.annotationProcessors)
-    
+
+    implementation(platform(libs.sora.bom))
     implementation(libs.common.editor)
     implementation(libs.common.utilcode)
     implementation(libs.androidide.ts)

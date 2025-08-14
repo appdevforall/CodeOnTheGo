@@ -5,7 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
-import com.itsvks.layouteditor.ProjectFile
+import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import java.text.SimpleDateFormat
 import java.util.Locale
 
