@@ -230,7 +230,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private val debuggerServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             debuggerService = (service as DebuggerService.Binder).getService()
-            debuggerService!!.showOverlay()
 
             isDebuggerStarting = false
             activityScope.launch(Dispatchers.Main.immediate) {
@@ -798,7 +797,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 debuggerViewModel.connectionState.collectLatest { state ->
                     if (state == DebuggerConnectionState.ATTACHED) {
+                        debuggerService?.showOverlay()
                         ensureDebuggerServiceBound()
+                    } else if (state == DebuggerConnectionState.DETACHED) {
+                        debuggerService?.hideOverlay()
                     }
                     postStopDebuggerServiceIfNotConnected()
                 }
