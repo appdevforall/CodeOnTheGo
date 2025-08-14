@@ -109,3 +109,5 @@ tests/test-home
 
 /composite-builds/build-deps-common/constants/build/
 /composite-builds/build-deps/build/
+
+/app/google-services.json
