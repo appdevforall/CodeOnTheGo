@@ -31,59 +31,60 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
 
-class EditorBottomSheetTabAdapter(fragmentActivity: FragmentActivity) :
-	FragmentStateAdapter(fragmentActivity) {
-
-	private val allTabs = mutableListOf<Tab>().apply {
-		@Suppress("KotlinConstantConditions")
-		add(
-			Tab(
-				title = fragmentActivity.getString(R.string.build_output),
-				fragmentClass = BuildOutputFragment::class.java,
-				itemId = size.toLong()
+class EditorBottomSheetTabAdapter(
+	fragmentActivity: FragmentActivity,
+) : FragmentStateAdapter(fragmentActivity) {
+	private val allTabs =
+		mutableListOf<Tab>().apply {
+			@Suppress("KotlinConstantConditions")
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.build_output),
+					fragmentClass = BuildOutputFragment::class.java,
+					itemId = size.toLong(),
+				),
 			)
-		)
 
-		add(
-			Tab(
-				title = fragmentActivity.getString(R.string.app_logs),
-				fragmentClass = AppLogFragment::class.java,
-				itemId = size.toLong()
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.app_logs),
+					fragmentClass = AppLogFragment::class.java,
+					itemId = size.toLong(),
+				),
 			)
-		)
 
-		add(
-			Tab(
-				title = fragmentActivity.getString(R.string.ide_logs),
-				fragmentClass = IDELogFragment::class.java,
-				itemId = size.toLong()
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.ide_logs),
+					fragmentClass = IDELogFragment::class.java,
+					itemId = size.toLong(),
+				),
 			)
-		)
 
-		add(
-			Tab(
-				title = fragmentActivity.getString(R.string.view_diags),
-				fragmentClass = DiagnosticsListFragment::class.java,
-				itemId = size.toLong()
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.view_diags),
+					fragmentClass = DiagnosticsListFragment::class.java,
+					itemId = size.toLong(),
+				),
 			)
-		)
 
-		add(
-			Tab(
-				title = fragmentActivity.getString(R.string.view_search_results),
-				fragmentClass = SearchResultFragment::class.java,
-				itemId = size.toLong()
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.view_search_results),
+					fragmentClass = SearchResultFragment::class.java,
+					itemId = size.toLong(),
+				),
 			)
-		)
 
-		add(
-			Tab(
-				title = fragmentActivity.getString(R.string.debugger_title),
-				fragmentClass = DebuggerFragment::class.java,
-				itemId = size.toLong()
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.debugger_title),
+					fragmentClass = DebuggerFragment::class.java,
+					itemId = size.toLong(),
+				),
 			)
-		)
-	}
+		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
 
@@ -131,12 +132,12 @@ class EditorBottomSheetTabAdapter(fragmentActivity: FragmentActivity) :
 		}
 	}
 
-	fun setFragmentVisibility(klass: Class<out Fragment>, isVisible: Boolean) =
-		if (isVisible) restoreFragment(klass) else removeFragment(klass)
+	fun setFragmentVisibility(
+		klass: Class<out Fragment>,
+		isVisible: Boolean,
+	) = if (isVisible) restoreFragment(klass) else removeFragment(klass)
 
-	fun getFragmentAtIndex(index: Int): Fragment? {
-		return getFragmentById(getItemId(index))
-	}
+	fun getFragmentAtIndex(index: Int): Fragment? = getFragmentById(getItemId(index))
 
 	private fun getFragmentById(itemId: Long): Fragment? {
 		val fragments = getFragments()
@@ -172,13 +173,9 @@ class EditorBottomSheetTabAdapter(fragmentActivity: FragmentActivity) :
 		}
 	}
 
-	override fun getItemCount(): Int {
-		return tabs.size
-	}
+	override fun getItemCount(): Int = tabs.size
 
-	fun getTitle(position: Int): String? {
-		return tabs[position].title
-	}
+	fun getTitle(position: Int): String? = tabs[position].title
 
 	val buildOutputFragment: BuildOutputFragment?
 		get() = findFragmentByClass(BuildOutputFragment::class.java)

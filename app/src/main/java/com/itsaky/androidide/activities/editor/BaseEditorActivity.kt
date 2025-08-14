@@ -908,7 +908,7 @@ abstract class BaseEditorActivity :
 			// if a VM was just attached, make sure the debugger fragment is visible
 			focusBottomSheetFragment(
 				fragmentClass = DebuggerFragment::class.java,
-				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED
+				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
 			)
 		}
 		postStopDebuggerServiceIfNotConnected()
