@@ -1,13 +1,14 @@
 name: Build and deploy to firebase app distribution
 
 permissions:
+  id-token: write
   contents: read
   actions: write
 
 on:
   pull_request:
     branches: [ "stage" ]
-    types: [ opened, synchronize, reopened, closed ]
+    types: [ opened, synchronize, reopened ]
     paths-ignore:
       - '**/*.md'
       - 'fastlane/**'
@@ -36,10 +37,13 @@ jobs:
     timeout-minutes: 60
 
     steps:
+
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
+
+
 
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -101,14 +105,14 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             EVENT_PATH="${GITHUB_EVENT_PATH}"
-            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
+            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH" | tr -d '\n\r' | sed 's/[*]/•/g')
             PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
             PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
             echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           else
-            COMMIT_MSG=$(git log -1 --pretty=%B)
+            COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r' | sed 's/[*]/•/g')
             COMMIT_AUTHOR=$(git log -1 --pretty=%an)
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
@@ -129,27 +133,21 @@ jobs:
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud via Workload Identity
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}'
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
-          npm install -g firebase-tools@13.10.1
-
           output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
             --release-notes "Build Type: ${{ env.BUILD_TYPE }}
           Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
-
+          
           echo "$output"
 
           FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
@@ -159,6 +157,7 @@ jobs:
           fi
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -173,7 +172,7 @@ jobs:
           FIREBASE_CONSOLE_URL="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}"
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ env.BUILD_TYPE }}"
-
+          
           jq -n \
             --arg jira_url "$JIRA_URL" \
             --arg commit_msg "$COMMIT_MSG" \
@@ -266,6 +265,6 @@ jobs:
                 }
               ]
             }' > payload.json
-
+          
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
           rm -f payload.json

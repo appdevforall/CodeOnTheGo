@@ -146,35 +146,30 @@ class WebServer(
 			}
 		}
 
-		// check to see if there is a newer version of the documentation.db database on the sdcard
-		// if there is use that for our responses
-		val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-		if (debugDatabaseTimestamp > databaseTimestamp) {
-			database.close()
-			database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
-			databaseTimestamp = debugDatabaseTimestamp
-		}
-		// TODO: Get rid of the extra test in the SQL WHERE clause below by fixing all the paths. --DS, 22-Jul-2025
-		val query = """
-			SELECT c.content, ct.value, ct.compression
-			FROM Content c
-			JOIN ContentTypes ct ON c.contentTypeID = ct.id
-			WHERE c.path = ? OR c.path = ?
-			LIMIT 1
-		"""
-		val cursor = database.rawQuery(query, arrayOf(path, path.substring(1)))
-		val rowCount = cursor.getCount()
+        //check to see if there is a newer version of the documentation.db database on the sdcard
+        // if there is use that for our responses
+        val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
+        if (debugDatabaseTimestamp > databaseTimestamp) {
+            database.close()
+            database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
+            databaseTimestamp = debugDatabaseTimestamp
+        }
+        // TODO: Get rid of the extra test in the SQL WHERE clause below by fixing all the paths. --DS, 22-Jul-2025
+        val query = """
+            SELECT c.content, ct.value, ct.compression
+            FROM Content c
+            JOIN ContentTypes ct ON c.contentTypeID = ct.id
+            WHERE c.path = ? OR c.path = ?
+        """
+        val cursor = database.rawQuery(query, arrayOf(path, path.substring(1)))
+        val rowCount = cursor.getCount()
 
-		// if there is not an entry, or more than 1 entry, in the database, return an error
-		// if rowCount is zero then there was no entry in the database
-		// otherwise if the entry path was not unique, consider this an invalid path
-		if (rowCount != 1) {
-			return if (rowCount == 0) {
-				sendError(writer, 404, "Not Found")
-			} else {
-				sendError(writer, 406, "Not Acceptable")
-			}
-		}
+        if (rowCount != 1) {
+            return when (rowCount) {
+                0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
+                else -> sendError(writer, 500, "Internal Server Error", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
+            }
+        }
 
 		cursor.moveToFirst()
 		var dbContent = cursor.getBlob(0)
@@ -218,15 +213,14 @@ class WebServer(
 		cursor.close()
 	}
 
-	private fun sendError(
-		writer: PrintWriter,
-		code: Int,
-		message: String,
-	) {
-		writer.println("HTTP/1.1 $code $message")
-		writer.println("Content-Type: text/plain")
-		writer.println("Connection: close")
-		writer.println()
-		writer.println("$code $message")
-	}
+    private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
+        writer.println("HTTP/1.1 $code $message")
+        writer.println("Content-Type: text/plain")
+        writer.println("Connection: close")
+        writer.println()
+        writer.println("$code $message")
+        if (details.isNotEmpty()) {
+            writer.println(details)
+        }
+    }
 }
