@@ -89,10 +89,6 @@ class EditorActivityActions {
             registry.registerAction(PreviewLayoutAction(context, order++))
             registry.registerAction(FindAction(context, order++))
             registry.registerAction(LaunchAppAction(context, order++))
-            registry.registerAction(GitHubCommitAction(context, order++))
-            registry.registerAction(GitHubPushAction(context, order++))
-            registry.registerAction(GitHubFetchAction(context, order++))
-            registry.registerAction(GitHubPullAction(context, order++))
             registry.registerAction(DisconnectLogSendersAction(context, order++))
 
             // editor text actions
