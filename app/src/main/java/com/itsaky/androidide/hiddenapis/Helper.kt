@@ -10,7 +10,7 @@ import com.itsaky.androidide.hiddenapis.HiddenActivity.mToken
 fun Activity.startActivityWithFlags(
 	intent: Intent,
 	options: Bundle? = null,
-	startFlags: Int = 0
+	startFlags: Int = 0,
 ) {
 	val activityTaskManager = HiddenActivityTaskManager.getService()
 	HiddenActivityTaskManager.IActivityTaskManager_startActivity.invoke(
@@ -22,6 +22,9 @@ fun Activity.startActivityWithFlags(
 		intent.resolveTypeIfNeeded(contentResolver),
 		mToken,
 		mEmbeddedID,
-		-1, 0, null, options
+		-1,
+		0,
+		null,
+		options,
 	)
 }

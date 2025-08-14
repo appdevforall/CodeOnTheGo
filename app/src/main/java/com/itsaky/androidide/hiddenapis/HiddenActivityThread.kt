@@ -4,8 +4,8 @@ import android.annotation.SuppressLint
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.lang.reflect.Method
 
-object HiddenActivityThread: HiddenApisBase() {
-
+@Suppress("ktlint:standard:property-naming")
+object HiddenActivityThread : HiddenApisBase() {
 	lateinit var ActivityThread: Class<*>
 	lateinit var ActivityThread_getApplicationThread: Method
 
@@ -15,7 +15,8 @@ object HiddenActivityThread: HiddenApisBase() {
 		ActivityThread_getApplicationThread = HiddenApiBypass.getDeclaredMethod(ActivityThread, "getApplicationThread")
 	}
 
-	fun getApplicationThread(activityThread: Any): Any? = initAndDo {
-		ActivityThread_getApplicationThread.invoke(activityThread)
-	}
+	fun getApplicationThread(activityThread: Any): Any? =
+		initAndDo {
+			ActivityThread_getApplicationThread.invoke(activityThread)
+		}
 }

@@ -29,18 +29,17 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
+import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.fragments.onboarding.GreetingFragment
 import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
 import com.itsaky.androidide.fragments.onboarding.StatisticsFragment
+import com.itsaky.androidide.hiddenapis.startActivityWithFlags
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
-import com.itsaky.androidide.assets.AssetsInstallationHelper
-import com.itsaky.androidide.hiddenapis.HiddenActivityTaskManager
-import com.itsaky.androidide.hiddenapis.startActivityWithFlags
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
 import com.itsaky.androidide.utils.withStopWatch
@@ -53,197 +52,201 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
-import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
+	private val activityScope =
+		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
-    private val activityScope =
-        CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
+	private var listJdkInstallationsJob: Job? = null
 
-    private var listJdkInstallationsJob: Job? = null
+	companion object {
+		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
+		private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
+			"ide.archConfig.experimentalWarning.isShown"
+	}
 
-    companion object {
-        private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
-        private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
-            "ide.archConfig.experimentalWarning.isShown"
-    }
+	@SuppressLint("SourceLockedOrientationActivity")
+	override fun onCreate(savedInstanceState: Bundle?) {
+		IThemeManager.getInstance().applyTheme(this)
+		setOrientationFunction {
+			OrientationUtilities.setOrientation {
+				requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+			}
+		}
+		super.onCreate(savedInstanceState)
 
-    @SuppressLint("SourceLockedOrientationActivity")
-    override fun onCreate(savedInstanceState: Bundle?) {
-        IThemeManager.getInstance().applyTheme(this)
-        setOrientationFunction {
-            OrientationUtilities.setOrientation {
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            }
-        }
-        super.onCreate(savedInstanceState)
+		if (tryNavigateToMainIfSetupIsCompleted()) {
+			return
+		}
 
-        if (tryNavigateToMainIfSetupIsCompleted()) {
-            return
-        }
+		setSwipeLock(true)
+		setTransformer(AppIntroPageTransformerType.Fade)
+		setProgressIndicator()
+		showStatusBar(true)
+		isIndicatorEnabled = true
+		isWizardMode = true
 
-        setSwipeLock(true)
-        setTransformer(AppIntroPageTransformerType.Fade)
-        setProgressIndicator()
-        showStatusBar(true)
-        isIndicatorEnabled = true
-        isWizardMode = true
+		addSlide(GreetingFragment())
 
-        addSlide(GreetingFragment())
+		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
+			val errorMessage =
+				getString(
+					string.bootstrap_error_not_primary_user_message,
+					MarkdownUtils.getMarkdownCodeForString(
+						TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+						false,
+					),
+				)
+			addSlide(
+				OnboardingInfoFragment.newInstance(
+					getString(string.title_unsupported_user),
+					errorMessage,
+					R.drawable.ic_alert,
+					ContextCompat.getColor(this, R.color.color_error),
+				),
+			)
+			return
+		}
 
-        if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
-            val errorMessage = getString(
-                string.bootstrap_error_not_primary_user_message,
-                MarkdownUtils.getMarkdownCodeForString(
-                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    false
-                )
-            )
-            addSlide(
-                OnboardingInfoFragment.newInstance(
-                    getString(string.title_unsupported_user),
-                    errorMessage,
-                    R.drawable.ic_alert,
-                    ContextCompat.getColor(this, R.color.color_error)
-                )
-            )
-            return
-        }
+		if (isInstalledOnSdCard()) {
+			val errorMessage =
+				getString(
+					string.bootstrap_error_installed_on_portable_sd,
+					MarkdownUtils.getMarkdownCodeForString(
+						TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+						false,
+					),
+				)
+			addSlide(
+				OnboardingInfoFragment.newInstance(
+					getString(string.title_install_location_error),
+					errorMessage,
+					R.drawable.ic_alert,
+					ContextCompat.getColor(this, R.color.color_error),
+				),
+			)
+			return
+		}
 
-        if (isInstalledOnSdCard()) {
-            val errorMessage = getString(
-                string.bootstrap_error_installed_on_portable_sd,
-                MarkdownUtils.getMarkdownCodeForString(
-                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    false
-                )
-            )
-            addSlide(
-                OnboardingInfoFragment.newInstance(
-                    getString(string.title_install_location_error),
-                    errorMessage,
-                    R.drawable.ic_alert,
-                    ContextCompat.getColor(this, R.color.color_error)
-                )
-            )
-            return
-        }
+		if (!checkDeviceSupported()) {
+			return
+		}
 
-        if (!checkDeviceSupported()) {
-            return
-        }
+		if (!PermissionsFragment.areAllPermissionsGranted(this)) {
+			addSlide(PermissionsFragment.newInstance(this))
+		}
 
-        if (!PermissionsFragment.areAllPermissionsGranted(this)) {
-            addSlide(PermissionsFragment.newInstance(this))
-        }
+		if (!checkToolsIsInstalled()) {
+			addSlide(IdeSetupConfigurationFragment.newInstance(this))
+		}
+	}
 
-        if (!checkToolsIsInstalled()) {
-            addSlide(IdeSetupConfigurationFragment.newInstance(this))
-        }
-    }
+	override fun onResume() {
+		super.onResume()
+		reloadJdkDistInfo {
+			tryNavigateToMainIfSetupIsCompleted()
+		}
+	}
 
-    override fun onResume() {
-        super.onResume()
-        reloadJdkDistInfo {
-            tryNavigateToMainIfSetupIsCompleted()
-        }
-    }
+	override fun onDestroy() {
+		super.onDestroy()
+		activityScope.cancel("Activity is being destroyed")
+	}
 
-    override fun onDestroy() {
-        super.onDestroy()
-        activityScope.cancel("Activity is being destroyed")
-    }
+	override fun onNextPressed(currentFragment: Fragment?) {
+		(currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
+	}
 
-    override fun onNextPressed(currentFragment: Fragment?) {
-        (currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
-    }
+	override fun onDonePressed(currentFragment: Fragment?) {
+		(currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
 
-    override fun onDonePressed(currentFragment: Fragment?) {
-        (currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
+		if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
+			finishAffinity()
+			return
+		}
 
-        if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
-            finishAffinity()
-            return
-        }
+		if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
+			activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
+				runOnUiThread {
+					flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
+				}
 
-        if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
-            activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
-                runOnUiThread {
-                    flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
-                }
+				val result =
+					withStopWatch("Assets installation") {
+						AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
+							logger.debug("Assets installation progress: {}", progress.message)
+						}
+					}
 
-                val result = withStopWatch("Assets installation") {
-                    AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
-                        logger.debug("Assets installation progress: {}", progress.message)
-                    }
-                }
+				logger.info("Assets installation result: {}", result)
 
-                logger.info("Assets installation result: {}", result)
+				withContext(Dispatchers.Main) {
+					reloadJdkDistInfo {
+						tryNavigateToMainIfSetupIsCompleted()
+					}
+				}
+			}
+			return
+		}
 
-                withContext(Dispatchers.Main) {
-                    reloadJdkDistInfo {
-                        tryNavigateToMainIfSetupIsCompleted()
-                    }
-                }
-            }
-            return
-        }
+		tryNavigateToMainIfSetupIsCompleted()
+	}
 
-        tryNavigateToMainIfSetupIsCompleted()
-    }
+	private fun checkToolsIsInstalled(): Boolean =
+		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
+			Environment.ANDROID_HOME.exists()
 
-    private fun checkToolsIsInstalled(): Boolean {
-        return IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty()
-                && Environment.ANDROID_HOME.exists()
-    }
+	private fun isSetupCompleted(): Boolean =
+		checkToolsIsInstalled() &&
+			PermissionsFragment.areAllPermissionsGranted(this)
 
-    private fun isSetupCompleted(): Boolean {
-        return checkToolsIsInstalled()
-                && PermissionsFragment.areAllPermissionsGranted(this)
-    }
+	private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
+		if (isSetupCompleted()) {
+			startActivityWithFlags(Intent(this, MainActivity::class.java))
+			finish()
+			return true
+		}
 
-    private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
-        if (isSetupCompleted()) {
-            startActivityWithFlags(Intent(this, MainActivity::class.java))
-            finish()
-            return true
-        }
+		return false
+	}
 
-        return false
-    }
+	private inline fun reloadJdkDistInfo(crossinline distConsumer: (List<JdkDistribution>) -> Unit) {
+		listJdkInstallationsJob?.cancel("Reloading JDK distributions")
 
-    private inline fun reloadJdkDistInfo(crossinline distConsumer: (List<JdkDistribution>) -> Unit) {
-        listJdkInstallationsJob?.cancel("Reloading JDK distributions")
+		listJdkInstallationsJob =
+			activityScope
+				.launchAsyncWithProgress(
+					Dispatchers.Default,
+					configureFlashbar = { builder, _ ->
+						builder.message(string.please_wait)
+					},
+				) { _, _ ->
+					val distributionProvider = IJdkDistributionProvider.getInstance()
+					distributionProvider.loadDistributions()
+					withContext(Dispatchers.Main) {
+						distConsumer(distributionProvider.installedDistributions)
+					}
+				}.also {
+					it?.invokeOnCompletion {
+						listJdkInstallationsJob = null
+					}
+				}
+	}
 
-        listJdkInstallationsJob = activityScope.launchAsyncWithProgress(Dispatchers.Default,
-            configureFlashbar = { builder, _ ->
-                builder.message(string.please_wait)
-            }) { _, _ ->
-            val distributionProvider = IJdkDistributionProvider.getInstance()
-            distributionProvider.loadDistributions()
-            withContext(Dispatchers.Main) {
-                distConsumer(distributionProvider.installedDistributions)
-            }
-        }.also {
-            it?.invokeOnCompletion {
-                listJdkInstallationsJob = null
-            }
-        }
-    }
+	private fun isInstalledOnSdCard(): Boolean {
+		// noinspection SdCardPath
+		return PackageUtils.isAppInstalledOnExternalStorage(this) &&
+			TermuxConstants.TERMUX_FILES_DIR_PATH !=
+			filesDir.absolutePath
+				.replace("^/data/user/0/".toRegex(), "/data/data/")
+	}
 
-    private fun isInstalledOnSdCard(): Boolean {
-        // noinspection SdCardPath
-        return PackageUtils.isAppInstalledOnExternalStorage(this) &&
-                TermuxConstants.TERMUX_FILES_DIR_PATH != filesDir.absolutePath
-            .replace("^/data/user/0/".toRegex(), "/data/data/")
-    }
+	private fun checkDeviceSupported(): Boolean {
+		val configProvider = IDEBuildConfigProvider.getInstance()
 
-    private fun checkDeviceSupported(): Boolean {
-        val configProvider = IDEBuildConfigProvider.getInstance()
-
-        if (!configProvider.supportsCpuAbi()) {
-            //TODO JMT figure out how to build v8a and/or x64_86
+		if (!configProvider.supportsCpuAbi()) {
+			// TODO JMT figure out how to build v8a and/or x64_86
 //            addSlide(
 //                OnboardingInfoFragment.newInstance(
 //                    getString(string.title_unsupported_device),
@@ -257,14 +260,14 @@ class OnboardingActivity : AppIntro2() {
 //                )
 //            )
 //            return false
-            return true
-        }
+			return true
+		}
 
-        if (configProvider.cpuArch != configProvider.deviceArch) {
-            // IDE's build flavor is NOT the primary arch of the device
-            // warn the user
-            if (!archConfigExperimentalWarningIsShown()) {
-                //TODO JMT get build to support v8a and/or x86_64
+		if (configProvider.cpuArch != configProvider.deviceArch) {
+			// IDE's build flavor is NOT the primary arch of the device
+			// warn the user
+			if (!archConfigExperimentalWarningIsShown()) {
+				// TODO JMT get build to support v8a and/or x86_64
 //                addSlide(
 //                    OnboardingInfoFragment.newInstance(
 //                        getString(string.title_experiment_flavor),
@@ -277,13 +280,12 @@ class OnboardingActivity : AppIntro2() {
 //                        ContextCompat.getColor(this, R.color.color_warning)
 //                    )
 //                )
-                prefManager.putBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, true)
-            }
-        }
+				prefManager.putBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, true)
+			}
+		}
 
-        return true
-    }
+		return true
+	}
 
-    private fun archConfigExperimentalWarningIsShown() =
-        prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
+	private fun archConfigExperimentalWarningIsShown() = prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
 }

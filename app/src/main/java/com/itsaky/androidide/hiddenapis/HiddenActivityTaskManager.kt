@@ -7,8 +7,8 @@ import android.os.IBinder
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.lang.reflect.Method
 
+@Suppress("ktlint:standard:property-naming")
 object HiddenActivityTaskManager : HiddenApisBase() {
-
 	lateinit var ActivityTaskManager: Class<*>
 	lateinit var ActivityTaskManager_getService: Method
 
@@ -30,24 +30,26 @@ object HiddenActivityTaskManager : HiddenApisBase() {
 		IApplicationThread = Class.forName("android.app.IApplicationThread")
 
 		IActivityTaskManager = Class.forName("android.app.IActivityTaskManager")
-		IActivityTaskManager_startActivity = HiddenApiBypass.getDeclaredMethod(
-			IActivityTaskManager,
-			"startActivity",
-			IApplicationThread,
-			String::class.java,
-			String::class.java,
-			Intent::class.java,
-			String::class.java,
-			IBinder::class.java,
-			String::class.java,
-			Int::class.javaPrimitiveType,
-			Int::class.javaPrimitiveType,
-			ProfilerInfo,
-			Bundle::class.java
-		)
+		IActivityTaskManager_startActivity =
+			HiddenApiBypass.getDeclaredMethod(
+				IActivityTaskManager,
+				"startActivity",
+				IApplicationThread,
+				String::class.java,
+				String::class.java,
+				Intent::class.java,
+				String::class.java,
+				IBinder::class.java,
+				String::class.java,
+				Int::class.javaPrimitiveType,
+				Int::class.javaPrimitiveType,
+				ProfilerInfo,
+				Bundle::class.java,
+			)
 	}
 
-	fun getService(): Any? = initAndDo {
-		ActivityTaskManager_getService.invoke(null)
-	}
+	fun getService(): Any? =
+		initAndDo {
+			ActivityTaskManager_getService.invoke(null)
+		}
 }

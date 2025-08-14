@@ -3,12 +3,11 @@ package com.itsaky.androidide.hiddenapis
 import android.app.Activity
 import android.app.Instrumentation
 import org.lsposed.hiddenapibypass.HiddenApiBypass
-import org.lsposed.hiddenapibypass.LSPass
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 
+@Suppress("ktlint:standard:property-naming")
 object HiddenActivity : HiddenApisBase() {
-
 	private val logger = LoggerFactory.getLogger(HiddenActivity::class.java)
 
 	lateinit var Activity: Class<*>
@@ -20,7 +19,6 @@ object HiddenActivity : HiddenApisBase() {
 	@get:Throws(ReflectiveOperationException::class)
 	val Activity.mEmbeddedID: String?
 		get() = initAndDo { Activity_mEmbeddedID.get(this) as String? }
-
 
 	@get:Throws(ReflectiveOperationException::class)
 	val Activity.mInstrumentation: Instrumentation?
