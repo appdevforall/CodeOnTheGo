@@ -211,7 +211,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         content.customToolbar.clearMenu()
 
         val actions = getInstance().getActions(EDITOR_TOOLBAR)
-        actions.forEach { (_, action) ->
+        actions.onEachIndexed { index, entry ->
+            val action = entry.value
+            val isLast = index == actions.size - 1
+
             action.prepare(data)
 
             action.icon?.apply {
@@ -222,7 +225,8 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             content.customToolbar.addMenuItem(
                 icon = action.icon,
                 hint = action.label,
-                onClick = { registry.executeAction(action, data) }
+                onClick = { registry.executeAction(action, data) },
+                shouldAddMargin = !isLast
             )
         }
     }

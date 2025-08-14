@@ -33,7 +33,7 @@ class CustomToolbar @JvmOverloads constructor(
         titleText.text = title
     }
 
-    fun addMenuItem(icon: Drawable?, hint: String, onClick: () -> Unit) {
+    fun addMenuItem(icon: Drawable?, hint: String, onClick: () -> Unit, shouldAddMargin: Boolean) {
         val item = ImageButton(context).apply {
             tooltipText = hint
             setImageDrawable(icon)
@@ -43,8 +43,10 @@ class CustomToolbar @JvmOverloads constructor(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                // Add margin to the right for spacing between items
-                marginEnd = resources.getDimensionPixelSize(R.dimen.toolbar_item_spacing)
+                // Add margin to the right for spacing between items except for last item
+                if (shouldAddMargin) {
+                    marginEnd = resources.getDimensionPixelSize(R.dimen.toolbar_item_spacing)
+                }
             }
             setOnClickListener { onClick() }
         }
