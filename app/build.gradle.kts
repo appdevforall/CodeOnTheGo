@@ -265,7 +265,6 @@ dependencies {
   implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
   implementation(libs.common.markwon.core)
   implementation(libs.common.markwon.linkify)
-  implementation(libs.android.spinkit)
   implementation(libs.commons.text.v1140)
 
 }

@@ -16,14 +16,12 @@
         android:textStyle="bold"
         tools:text="User" />
 
-    <com.github.ybq.android.spinkit.SpinKitView
+    <ProgressBar
         android:id="@+id/loading_indicator"
-        style="@style/SpinKitView.ThreeBounce"
         android:layout_width="wrap_content"
         android:layout_height="30dp"
         android:layout_marginTop="4dp"
         android:visibility="gone"
-        app:SpinKit_Color="?attr/colorPrimary"
         tools:visibility="visible" />
 
     <TextView

@@ -2,7 +2,6 @@
 activityKtx = "1.8.2"
 agp = "8.8.2"
 agp-tooling = "8.11.0"
-androidSpinkit = "1.4.0"
 appcompat = "1.6.1"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
@@ -51,7 +50,6 @@ spotless = "7.2.1"
 [libraries]
 
 # Dependencies in composite build
-android-spinkit = { module = "com.github.ybq:Android-SpinKit", version.ref = "androidSpinkit" }
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "activityKtx" }
 androidx-appcompat-v161 = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-constraintlayout-v214 = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
