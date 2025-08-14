@@ -33,6 +33,8 @@ plugins {
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
   id("com.itsaky.androidide.desugaring")
+  kotlin("plugin.serialization")
+  id("com.google.gms.google-services")
 }
 
 apply {
@@ -250,6 +252,22 @@ dependencies {
 
   // brotli4j
   implementation(libs.brotli4j)
+
+  // Firebase BoM
+  implementation(platform(libs.firebase.bom))
+
+  // Firebase AI Logic SDK for Gemini
+  implementation(libs.firebase.ai)
+
+  // Koin for Dependency Injection
+  implementation("io.insert-koin:koin-android:3.5.3")
+
+  implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
+  implementation(libs.common.markwon.core)
+  implementation(libs.common.markwon.linkify)
+  implementation(libs.android.spinkit)
+  implementation(libs.commons.text.v1140)
+
 }
 
 
