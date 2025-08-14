@@ -72,6 +72,9 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.android.ext.android.getKoin
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
@@ -103,6 +106,13 @@ class IDEApplication : TermuxApplication() {
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
         super.onCreate()
+        startKoin {
+            androidContext(this@IDEApplication)
+            modules(appModule)
+        }
+
+        val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
+        TextProcessorEngine.additionalProcessors.add(geminiMacro)
 
         if (BuildConfig.DEBUG) {
             val builder = StrictMode.VmPolicy.Builder()

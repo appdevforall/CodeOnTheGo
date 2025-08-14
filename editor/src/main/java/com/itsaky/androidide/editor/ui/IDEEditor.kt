@@ -38,6 +38,8 @@ import com.itsaky.androidide.editor.language.cpp.CppLanguage
 import com.itsaky.androidide.editor.language.groovy.GroovyLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
+import com.itsaky.androidide.editor.processing.ProcessContext
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
@@ -176,9 +178,10 @@ open class IDEEditor @JvmOverloads constructor(
     get() {
       return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
     }
+  private var lastTrackpadY = 0f
 
   companion object {
-
+    private const val TAG = "TrackpadScrollDebug"
     private const val SELECTION_CHANGE_DELAY = 500L
 
     internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
@@ -661,6 +664,8 @@ open class IDEEditor @JvmOverloads constructor(
     dispatchEvent(LanguageUpdateEvent(lang, this))
   }
 
+  private val textProcessorEngine = TextProcessorEngine()
+
   /**
    * Initialize the editor.
    */
@@ -714,6 +719,69 @@ open class IDEEditor @JvmOverloads constructor(
     }
 
     EventBus.getDefault().register(this)
+    subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
+      if (isReleased) {
+        return@subscribeEvent
+      }
+
+      markModified()
+      file ?: return@subscribeEvent
+
+      editorScope.launch {
+        dispatchDocumentChangeEvent(event)
+        checkForSignatureHelp(event)
+        handleCustomTextReplacement(event)
+      }
+    }
+  }
+
+  private fun handleCustomTextReplacement(event: ContentChangeEvent) {
+    val isEnterPress = event.action == ContentChangeEvent.ACTION_INSERT &&
+            event.changedText.toString().contains("\n")
+
+    if (!isEnterPress) {
+      return
+    }
+
+    val currentFile = this.file ?: return
+
+    editorScope.launch {
+      dispatchDocumentSaveEvent()
+
+      val lineToProcess = event.changeStart.line
+
+      val context = ProcessContext(
+        content = text,
+        file = currentFile,
+        cursor = text.cursor.apply {
+//                    set(lineToProcess, text.getLine(lineToProcess).length)
+        }
+      )
+
+      val result = textProcessorEngine.process(context, isEnterPress)
+
+      if (result != null) {
+        withContext(Dispatchers.Main) {
+          post {
+            val start = result.range.start
+            val end = result.range.end
+
+            text.replace(
+              start.line,
+              start.column,
+              end.line,
+              end.column,
+              result.replacement
+            )
+
+            val newCursorLine = start.line + result.replacement.lines().size - 1
+            val newCursorColumn = result.replacement.lines().last().length
+
+            setSelection(newCursorLine, newCursorColumn)
+          }
+        }
+      }
+    }
   }
 
   private inline fun launchCancellableAsyncWithProgress(@StringRes message: Int,

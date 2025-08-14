@@ -71,10 +71,13 @@ class EditorActivityActions {
     private const val ORDER_OPEN_WITH = 500
     private const val ORDER_RENAME = 600
     private const val ORDER_HELP = 1000
+    private var areActionsRegistered = false
 
     @JvmStatic
     fun register(context: Context) {
-      clear()
+      if (areActionsRegistered) {
+        return
+      }
       val registry = ActionsRegistry.getInstance()
       var order = 0
 
@@ -118,6 +121,8 @@ class EditorActivityActions {
       registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
       registry.registerAction(RenameAction(context, ORDER_RENAME))
       registry.registerAction(HelpAction(context, ORDER_HELP))
+
+      areActionsRegistered = true
     }
 
     @JvmStatic
