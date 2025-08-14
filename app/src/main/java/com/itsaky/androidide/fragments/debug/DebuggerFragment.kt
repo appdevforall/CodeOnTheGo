@@ -25,7 +25,6 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -87,14 +86,6 @@ class DebuggerFragment :
 
                     emptyStateViewModel.isEmpty.value = message != null
                     emptyStateViewModel.emptyMessage.value = message
-
-                    if (state == DebuggerConnectionState.ATTACHED) {
-                        (activity as? BaseEditorActivity?)
-                            ?.showBottomSheetFragment(
-                                fragmentClass = DebuggerFragment::class.java,
-                                sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED
-                            )
-                    }
                 }
 
                 viewModel.observeLatestThreads(

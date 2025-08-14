@@ -86,6 +86,7 @@ import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
 import com.itsaky.androidide.fragments.SearchResultFragment
+import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -682,7 +683,7 @@ abstract class BaseEditorActivity :
 			},
 		)
 
-		showSearchResults()
+		focusSearchResults()
 		doDismissSearchProgress()
 	}
 
@@ -700,9 +701,9 @@ abstract class BaseEditorActivity :
 		}
 	}
 
-	open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
+	open fun focusSearchResults() = focusBottomSheetFragment(SearchResultFragment::class.java)
 
-	open fun showBottomSheetFragment(
+	open fun focusBottomSheetFragment(
 		fragmentClass: Class<out Fragment>,
 		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED,
 	) {
@@ -832,13 +833,7 @@ abstract class BaseEditorActivity :
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				debuggerViewModel.connectionState.collectLatest { state ->
-					if (state == DebuggerConnectionState.ATTACHED) {
-						debuggerService?.showOverlay()
-						ensureDebuggerServiceBound()
-					} else if (state == DebuggerConnectionState.DETACHED) {
-						debuggerService?.hideOverlay()
-					}
-					postStopDebuggerServiceIfNotConnected()
+					onDebuggerConnectionStateChanged(state)
 				}
 
 				debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
@@ -900,6 +895,23 @@ abstract class BaseEditorActivity :
 					onSwipeRevealDragProgress(progress)
 				}
 			}
+	}
+
+	protected open fun onDebuggerConnectionStateChanged(state: DebuggerConnectionState) {
+		if (state == DebuggerConnectionState.ATTACHED) {
+			ensureDebuggerServiceBound()
+		}
+
+		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		content.bottomSheet.pagerAdapter.setFragmentVisibility(DebuggerFragment::class.java, state >= DebuggerConnectionState.ATTACHED)
+		if (state == DebuggerConnectionState.ATTACHED) {
+			// if a VM was just attached, make sure the debugger fragment is visible
+			focusBottomSheetFragment(
+				fragmentClass = DebuggerFragment::class.java,
+				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED
+			)
+		}
+		postStopDebuggerServiceIfNotConnected()
 	}
 
 	private fun setupNoEditorView() {

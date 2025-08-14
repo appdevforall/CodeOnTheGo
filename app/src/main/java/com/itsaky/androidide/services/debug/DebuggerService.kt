@@ -110,6 +110,8 @@ class DebuggerService : Service() {
         this.overlayManager.hide()
     }
 
+    fun setOverlayVisibility(isShown: Boolean) = if (isShown) showOverlay() else hideOverlay()
+
     override fun onBind(intent: Intent?): IBinder =
         this.binder
 

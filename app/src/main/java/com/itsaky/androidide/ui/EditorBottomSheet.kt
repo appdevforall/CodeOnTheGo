@@ -160,7 +160,7 @@ constructor(
     binding.tabs.addOnTabSelectedListener(
       object : OnTabSelectedListener {
         override fun onTabSelected(tab: Tab) {
-          val fragment: Fragment = pagerAdapter.getFragmentAtIndex(tab.position)
+          val fragment = pagerAdapter.getFragmentAtIndex(tab.position)
           if (fragment is ShareableOutputFragment) {
             binding.clearFab.show()
             binding.shareOutputFab.show()
@@ -196,7 +196,7 @@ constructor(
 
     TooltipCompat.setTooltipText(binding.clearFab, context.getString(string.title_clear_output))
     binding.clearFab.setOnClickListener {
-      val fragment: Fragment = pagerAdapter.getFragmentAtIndex(binding.tabs.selectedTabPosition)
+      val fragment = pagerAdapter.getFragmentAtIndex(binding.tabs.selectedTabPosition)
       if (fragment !is ShareableOutputFragment) {
         log.error("Unknown fragment: {}", fragment)
         return@setOnClickListener
