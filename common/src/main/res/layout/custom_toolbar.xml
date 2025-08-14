@@ -54,7 +54,7 @@
             android:id="@+id/end_arrow"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
+            android:layout_marginHorizontal="8dp"
             android:contentDescription="@string/widget_scrollview"
             android:src="@drawable/ic_arrow_right"
             app:layout_constraintBottom_toBottomOf="@id/horizontal_scroll_view"
