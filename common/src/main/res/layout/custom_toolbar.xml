@@ -20,17 +20,27 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <ImageView
+            android:id="@+id/start_arrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="@string/widget_scrollview"
+            android:src="@drawable/ic_arrow_left"
+            app:layout_constraintBottom_toBottomOf="@id/horizontal_scroll_view"
+            app:layout_constraintEnd_toStartOf="@id/horizontal_scroll_view"
+            app:layout_constraintTop_toTopOf="@id/horizontal_scroll_view"
+            app:tint="@color/warm_grey" />
+
         <HorizontalScrollView
             android:id="@+id/horizontal_scroll_view"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingEnd="0dp"
             android:scrollbars="horizontal"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/end_arrow"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintWidth_percent="0.4">
+            app:layout_constraintWidth_percent="0.3">
 
             <LinearLayout
                 android:id="@+id/menu_container"
@@ -39,5 +49,17 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal" />
         </HorizontalScrollView>
+
+        <ImageView
+            android:id="@+id/end_arrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="@string/widget_scrollview"
+            android:src="@drawable/ic_arrow_right"
+            app:layout_constraintBottom_toBottomOf="@id/horizontal_scroll_view"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/horizontal_scroll_view"
+            app:tint="@color/warm_grey" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.appbar.MaterialToolbar>

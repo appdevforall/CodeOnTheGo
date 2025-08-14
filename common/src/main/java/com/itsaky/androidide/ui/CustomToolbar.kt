@@ -1,22 +1,17 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
-import android.graphics.PorterDuff
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.util.TypedValue
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
-import com.itsaky.androidide.utils.isSystemInDarkMode
 
 class CustomToolbar @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
@@ -25,9 +20,6 @@ class CustomToolbar @JvmOverloads constructor(
     private val titleText: TextView
     private val menuContainer: LinearLayout
     private val scrollView: HorizontalScrollView
-    private lateinit var startIcon: ImageView
-    private lateinit var endIcon: ImageView
-    private var isDarkMode = this.context.isSystemInDarkMode()
 
     init {
         LayoutInflater.from(context).inflate(R.layout.custom_toolbar, this, true)
@@ -35,43 +27,10 @@ class CustomToolbar @JvmOverloads constructor(
         menuContainer = findViewById(R.id.menu_container)
         scrollView = findViewById(R.id.horizontal_scroll_view)
 
-        setupStartAndEndArrows()
     }
 
     fun setTitleText(title: String) {
         titleText.text = title
-    }
-
-    private fun setupStartAndEndArrows() {
-        val colorRes = if (isDarkMode) R.color.white else R.color.black
-        startIcon = ImageView(context).apply {
-            setImageResource(R.drawable.ic_arrow_left)
-            setColorFilter(
-                ContextCompat.getColor(context, colorRes), PorterDuff.Mode.SRC_IN
-            )
-            layoutParams = LinearLayout.LayoutParams(
-                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
-            ).apply {
-                marginEnd = 24
-                gravity = Gravity.CENTER_VERTICAL
-            }
-        }
-
-        endIcon = ImageView(context).apply {
-            setImageResource(R.drawable.ic_arrow_right)
-            setColorFilter(
-                ContextCompat.getColor(context, colorRes), PorterDuff.Mode.SRC_IN
-            )
-            layoutParams = LinearLayout.LayoutParams(
-                LayoutParams.WRAP_CONTENT,
-                LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER_VERTICAL
-            }
-        }
-
-        menuContainer.addView(startIcon)
-        menuContainer.addView(endIcon)
     }
 
     fun addMenuItem(icon: Drawable?, hint: String, onClick: () -> Unit) {
@@ -89,10 +48,7 @@ class CustomToolbar @JvmOverloads constructor(
             }
             setOnClickListener { onClick() }
         }
-        // Insert menu item before the end icon
-        val insertIndex =
-            menuContainer.indexOfChild(endIcon).takeIf { it != -1 } ?: menuContainer.childCount
-        menuContainer.addView(item, insertIndex)
+        menuContainer.addView(item)
     }
 
     private fun View.addCircleRipple() = with(TypedValue()) {
@@ -106,10 +62,5 @@ class CustomToolbar @JvmOverloads constructor(
 
     fun clearMenu() {
         menuContainer.removeAllViews()
-        // Re-add static start and end icons
-        if (::startIcon.isInitialized && ::endIcon.isInitialized) {
-            menuContainer.addView(startIcon)
-            menuContainer.addView(endIcon)
-        }
     }
 }
