@@ -230,7 +230,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*Jira Ticket:* \($jira_title)"
+                    text: "*Jira Ticket:* <\($jira_url)|\($jira_title)>"
                   }
                 },
                 {
