@@ -94,7 +94,3 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
-
-# Proguard files
-dictionary.txt
-proguard-rules.pro
