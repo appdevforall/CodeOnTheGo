@@ -94,7 +94,7 @@ object FeedbackManager {
             screenName
         )
 
-        try {
+        runCatching {
             val feedbackIntent = Intent(Intent.ACTION_SENDTO).apply {
                 data = Uri.parse("mailto:")
                 putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
@@ -111,9 +111,9 @@ object FeedbackManager {
                     Intent.createChooser(feedbackIntent, "Send Feedback")
                 )
             }
-        } catch (e: Exception) {
+        }.onFailure {
             // Fallback to general send intent
-            try {
+            runCatching {
                 val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "message/rfc822"
                     putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
@@ -136,7 +136,7 @@ object FeedbackManager {
                         )
                     )
                 }
-            } catch (e2: Exception) {
+            }.onFailure {
                 // If all else fails, show simple contact dialog
                 showContactDialog(context)
             }
