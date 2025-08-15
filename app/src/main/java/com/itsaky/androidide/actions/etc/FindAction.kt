@@ -21,6 +21,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
+import com.itsaky.androidide.actions.build.AbstractCancellableRunAction.Companion.isBuildInProgress
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
@@ -39,6 +40,7 @@ class FindAction() : EditorActivityAction() {
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
+        enabled = data.getActivity().isBuildInProgress().not()
     }
 
     override suspend fun execAction(data: ActionData): Boolean {
