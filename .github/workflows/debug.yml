@@ -126,7 +126,7 @@ jobs:
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
-            
+          
             # Fetch Jira ticket title if credentials are available
             if [ -n "${{ secrets.JIRA_EMAIL }}" ] && [ -n "${{ secrets.JIRA_API_TOKEN }}" ]; then
               JIRA_TITLE=$(curl -s \
@@ -134,7 +134,7 @@ jobs:
                 -H "Accept: application/json" \
                 "https://appdevforall.atlassian.net/rest/api/3/issue/${JIRA_TICKET}?fields=summary" \
                 | jq -r '.fields.summary // ""' 2>/dev/null || echo "")
-              
+          
               # If unable to fetch title, default to commit message
               if [ -z "$JIRA_TITLE" ]; then
                 JIRA_TITLE="$COMMIT_MSG"
@@ -158,17 +158,47 @@ jobs:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.IDENTITY_EMAIL }}
 
+      - name: Verify APK exists
+        run: |
+          if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
+            echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
+            exit 1
+          fi
+          ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
+
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
         run: |
+          echo "Starting Firebase deployment..."
+          echo "APK Path: ${{ steps.find_apk.outputs.APK_PATH }}"
+          echo "Firebase App ID: ${{ secrets.FIREBASE_APP_ID }}"
+          
+          # Check if Firebase CLI is authenticated
+          echo "Checking Firebase authentication..."
+          firebase projects:list || {
+            echo "ERROR: Firebase authentication failed"
+            exit 1
+          }
+          
+          echo "Running Firebase distribution command..."
+          set +e  # Disable exit on error temporarily
           output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
             --app "${{ secrets.FIREBASE_APP_ID }}" \
             --groups "testers" \
             --release-notes "Build Type: ${{ env.BUILD_TYPE }}
           JIRA Title: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
-          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
+          exit_code=$?
+          set -e  # Re-enable exit on error
           
+          echo "Firebase command exit code: $exit_code"
+          echo "Firebase command output:"
           echo "$output"
+          
+          if [ $exit_code -ne 0 ]; then
+            echo "ERROR: Firebase deployment failed with exit code $exit_code"
+            exit 1
+          fi
 
           FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
 
@@ -290,3 +320,4 @@ jobs:
           
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
           rm -f payload.json
+
