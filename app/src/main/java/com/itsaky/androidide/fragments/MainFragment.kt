@@ -37,6 +37,7 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeedbackManager
 import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -274,73 +275,13 @@ class MainFragment : BaseFragment() {
     }
 
     private fun performFeedbackAction() {
-        val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
-        builder?.let { builder ->
-            builder.setTitle("Alert!")
-                .setMessage(
-                    HtmlCompat.fromHtml(
-                        getString(R.string.email_feedback_warning_prompt),
-                        HtmlCompat.FROM_HTML_MODE_COMPACT
-                    )
-                )
-                .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
-                .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                    run {
-                        val stackTrace =
-                            Exception().stackTrace.asList().toString().replace(",", "\n")
-                        val feedbackMessage = getString(
-                            R.string.feedback_message,
-                            BuildConfig.VERSION_NAME,
-                            stackTrace
-                        )
-
-                        val feedbackEmail = getString(R.string.feedback_email)
-                        val currentScreen = getCurrentScreenName()
-
-                        try {
-                            val feedbackIntent = Intent(Intent.ACTION_SENDTO).apply {
-                                data = Uri.parse("mailto:")
-                                putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
-
-                                val subject = String.format(
-                                    resources.getString(R.string.feedback_subject),
-                                    currentScreen
-                                )
-                                putExtra(Intent.EXTRA_SUBJECT, subject)
-                                putExtra(Intent.EXTRA_TEXT, feedbackMessage)
-                            }
-
-                            shareActivityResultLauncher.launch(
-                                Intent.createChooser(feedbackIntent, "Send Feedback")
-                            )
-                        } catch (e: Exception) {
-                            try {
-                                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "message/rfc822"
-                                    putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
-
-                                    val subject = String.format(
-                                        resources.getString(R.string.feedback_subject),
-                                        currentScreen
-                                    )
-                                    putExtra(Intent.EXTRA_SUBJECT, subject)
-                                    putExtra(Intent.EXTRA_TEXT, feedbackMessage)
-                                }
-                                shareActivityResultLauncher.launch(
-                                    Intent.createChooser(
-                                        fallbackIntent,
-                                        getString(R.string.send_feedback)
-                                    )
-                                )
-                            } catch (e2: Exception) {
-                                requireActivity().flashError(R.string.no_email_apps)
-                            }
-                        }
-                        dialog.dismiss()
-                    }
-                }
-                .create()
-                .show()
+        context?.let { ctx ->
+            FeedbackManager.showFeedbackDialog(
+                context = ctx,
+                currentScreen = getCurrentScreenName(),
+                shareActivityResultLauncher = shareActivityResultLauncher,
+                appVersion = BuildConfig.VERSION_NAME
+            )
         }
     }
 
