@@ -225,7 +225,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             content.customToolbar.addMenuItem(
                 icon = action.icon,
                 hint = action.label,
-                onClick = { registry.executeAction(action, data) },
+                onClick = { if (action.enabled) registry.executeAction(action, data) },
                 shouldAddMargin = !isLast
             )
         }
