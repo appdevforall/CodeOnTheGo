@@ -163,15 +163,11 @@ include(
     ":testing:lsp",
     ":testing:tooling",
     ":testing:unit",
-    ":layouteditor:layouteditor-app",
-    ":layouteditor:vectormaster",
+    ":layouteditor",
+    ":vectormaster",
     ":constants",
     ":idetooltips",
 )
-
-val layoutEditorDir = rootDir.resolve("LayoutEditor")
-project(":layouteditor:layouteditor-app").projectDir = layoutEditorDir.resolve("app")
-project(":layouteditor:vectormaster").projectDir = layoutEditorDir.resolve("vectormaster")
 
 object FDroidConfig {
     var hasRead: Boolean = false
