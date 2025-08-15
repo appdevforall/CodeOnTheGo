@@ -25,7 +25,7 @@ object FeedbackManager {
      * @param currentScreen The name of the current screen (optional, will be detected if null)
      * @param shareActivityResultLauncher The activity result launcher for sharing (optional)
      * @param customSubject Custom subject line (optional, uses default if null)
-     * @param includeStackTrace Whether to include stack trace in feedback (default: true)
+     * @param throwable Optional throwable to include stack trace from (default: null)
      * @param appVersion The app version to include in feedback (optional, uses "Unknown" if null)
      */
     fun showFeedbackDialog(
@@ -33,7 +33,7 @@ object FeedbackManager {
         currentScreen: String? = null,
         shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null,
         customSubject: String? = null,
-        includeStackTrace: Boolean = true,
+        throwable: Throwable? = null,
         appVersion: String? = null
     ) {
         val builder = DialogUtils.newMaterialDialogBuilder(context)
@@ -53,7 +53,7 @@ object FeedbackManager {
                     currentScreen,
                     shareActivityResultLauncher,
                     customSubject,
-                    includeStackTrace,
+                    throwable,
                     appVersion
                 )
             }
@@ -67,7 +67,7 @@ object FeedbackManager {
      * @param currentScreen The name of the current screen (optional, will be detected if null)
      * @param shareActivityResultLauncher The activity result launcher for sharing (optional)
      * @param customSubject Custom subject line (optional, uses default if null)
-     * @param includeStackTrace Whether to include stack trace in feedback (default: true)
+     * @param throwable Optional throwable to include stack trace from (default: null)
      * @param appVersion The app version to include in feedback (optional, uses "Unknown" if null)
      */
     fun sendFeedback(
@@ -75,15 +75,13 @@ object FeedbackManager {
         currentScreen: String? = null,
         shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null,
         customSubject: String? = null,
-        includeStackTrace: Boolean = true,
+        throwable: Throwable? = null,
         appVersion: String? = null
     ) {
         val screenName = currentScreen ?: getCurrentScreenName(context)
-        val stackTrace = if (includeStackTrace) {
-            Exception().stackTrace.asList().toString().replace(",", "\n")
-        } else {
-            ""
-        }
+        val stackTrace = throwable?.let { 
+            it.stackTraceToString()
+        } ?: ""
         
         val feedbackMessage = context.getString(
             R.string.feedback_message,

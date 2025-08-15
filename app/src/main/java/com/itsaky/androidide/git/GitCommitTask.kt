@@ -69,7 +69,6 @@ object GitCommitTask {
                     context = context,
                     currentScreen = "Git Commit",
                     customSubject = "Git Commit Feedback",
-                    includeStackTrace = false,
                     appVersion = com.itsaky.androidide.BuildConfig.VERSION_NAME
                 )
             }
