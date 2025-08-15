@@ -8,11 +8,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import androidx.core.content.ContextCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
 import com.itsaky.androidide.common.databinding.CustomToolbarBinding
-import com.itsaky.androidide.utils.isSystemInDarkMode
 
 class CustomToolbar @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
@@ -22,12 +20,8 @@ class CustomToolbar @JvmOverloads constructor(
         CustomToolbarBinding.inflate(LayoutInflater.from(context), this, true)
 
     fun setTitleText(title: String) {
-        val isDarkMode = this.context.isSystemInDarkMode()
-        val textColor = if (isDarkMode) R.color.white else R.color.black
-
         binding.titleText.apply {
             text = title
-            setTextColor(ContextCompat.getColor(context, textColor))
         }
     }
 
