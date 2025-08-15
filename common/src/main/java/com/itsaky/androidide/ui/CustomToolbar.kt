@@ -6,36 +6,26 @@ import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
+import com.itsaky.androidide.common.databinding.CustomToolbarBinding
 import com.itsaky.androidide.utils.isSystemInDarkMode
 
 class CustomToolbar @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : MaterialToolbar(context, attrs) {
 
-    private val titleText: TextView
-    private val menuContainer: LinearLayout
-    private val scrollView: HorizontalScrollView
-
-    init {
-        LayoutInflater.from(context).inflate(R.layout.custom_toolbar, this, true)
-        titleText = findViewById(R.id.title_text)
-        menuContainer = findViewById(R.id.menu_container)
-        scrollView = findViewById(R.id.horizontal_scroll_view)
-
-    }
+    private val binding: CustomToolbarBinding =
+        CustomToolbarBinding.inflate(LayoutInflater.from(context), this, true)
 
     fun setTitleText(title: String) {
         val isDarkMode = this.context.isSystemInDarkMode()
         val textColor = if (isDarkMode) R.color.white else R.color.black
 
-        titleText.apply {
+        binding.titleText.apply {
             text = title
             setTextColor(ContextCompat.getColor(context, textColor))
         }
@@ -58,7 +48,7 @@ class CustomToolbar @JvmOverloads constructor(
             }
             setOnClickListener { onClick() }
         }
-        menuContainer.addView(item)
+        binding.menuContainer.addView(item)
     }
 
     private fun View.addCircleRipple() = with(TypedValue()) {
@@ -71,6 +61,6 @@ class CustomToolbar @JvmOverloads constructor(
     }
 
     fun clearMenu() {
-        menuContainer.removeAllViews()
+        binding.menuContainer.removeAllViews()
     }
 }
