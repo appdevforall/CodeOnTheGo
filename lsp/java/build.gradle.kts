@@ -39,6 +39,7 @@ dependencies {
     
     implementation(libs.androidide.ts)
     implementation(libs.androidide.ts.java)
+    implementation(platform(libs.sora.bom))
     implementation(libs.common.editor)
     implementation(libs.common.javaparser)
     implementation(libs.common.utilcode)
