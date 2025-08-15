@@ -40,6 +40,7 @@ import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.preferences.internal.GITHUB_USERNAME
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.tasks.TaskExecutor.executeAsyncProvideError
+import com.itsaky.androidide.utils.FeedbackManager
 import org.eclipse.jgit.api.CommitCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.errors.RepositoryNotFoundException
@@ -64,42 +65,12 @@ object GitCommitTask {
 
 
             binding.fabSendFeedback.setOnClickListener {
-                val email = "thursdaynext@gmail.com"
-                val subject = "Git Commit Feedback"
-                val body = "Please Enter Your Feedback Below"
-                val urlString =
-                    "mailto:" + Uri.encode(email) + "?subject=" + Uri.encode(subject) + "&body=" + Uri.encode(
-                        body
-                    )
-                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = Uri.parse(urlString)
-                    putExtra(Intent.EXTRA_EMAIL, email)
-                    putExtra(Intent.EXTRA_SUBJECT, subject)
-                    putExtra(Intent.EXTRA_TEXT, body)
-                }
-                val packageManager = context.packageManager
-                val activities = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    context.packageManager.queryIntentActivities(
-                        Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER),
-                        PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
-                    )
-                } else {
-                    context.packageManager.queryIntentActivities(
-                        Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER),
-                        PackageManager.GET_META_DATA
-                    )
-                }
-                if (activities.isNotEmpty()) {
-                    try {
-                        //start email intent
-                        //context.startActivity(createChooser(intent, "Choose Email Client..."))
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        //if any thing goes wrong for example no email client application or any exception
-                        //get and show exception message
-                        Toast.makeText(context, e.message, Toast.LENGTH_LONG).show()
-                    }
-                }
+                FeedbackManager.showFeedbackDialog(
+                    context = context,
+                    currentScreen = "Git Commit",
+                    customSubject = "Git Commit Feedback",
+                    appVersion = com.itsaky.androidide.BuildConfig.VERSION_NAME
+                )
             }
 
             val git : Git = try {
