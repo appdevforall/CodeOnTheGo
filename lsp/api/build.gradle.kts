@@ -39,6 +39,7 @@ dependencies {
 
     implementation(libs.composite.fuzzysearch)
 
+    implementation(platform(libs.sora.bom))
     implementation(libs.common.editor)
     implementation(projects.eventbusEvents)
     
