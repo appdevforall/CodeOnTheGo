@@ -17,7 +17,7 @@ class FindActionDialog(
     private val actionData: ActionData,
     shouldShowFindInFileAction: Boolean,
     private val onFindInFileClicked: ((ActionData) -> Unit),
-    private val onFindInProjectClicked: (() -> Unit)
+    private val onFindInProjectClicked: ((ActionData) -> Unit)
 ) {
     private val popupWindow: PopupWindow
 
@@ -36,7 +36,7 @@ class FindActionDialog(
 
         findInProjectText.setOnClickListener {
             popupWindow.dismiss()
-            onFindInProjectClicked()
+            onFindInProjectClicked(actionData)
         }
 
         popupWindow = PopupWindow(

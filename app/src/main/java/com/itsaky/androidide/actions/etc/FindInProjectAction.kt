@@ -20,6 +20,7 @@ package com.itsaky.androidide.actions.etc
 import android.content.Context
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.projects.IProjectManager
@@ -30,6 +31,7 @@ class FindInProjectAction() : EditorActivityAction() {
 
   override var requiresUIThread: Boolean = true
   override var order: Int = 0
+  override var location: ActionItem.Location = ActionItem.Location.EDITOR_TOOLBAR_SUBMENU
 
   constructor(context: Context, order: Int) : this() {
     this.label = context.getString(R.string.menu_find_project)

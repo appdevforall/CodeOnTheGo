@@ -33,6 +33,8 @@ import com.itsaky.androidide.actions.editor.PasteAction
 import com.itsaky.androidide.actions.editor.SelectAllAction
 import com.itsaky.androidide.actions.etc.DisconnectLogSendersAction
 import com.itsaky.androidide.actions.etc.FindAction
+import com.itsaky.androidide.actions.etc.FindInFileAction
+import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.etc.LaunchAppAction
 import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
@@ -88,6 +90,8 @@ class EditorActivityActions {
             registry.registerAction(SaveFileAction(context, order++))
             registry.registerAction(PreviewLayoutAction(context, order++))
             registry.registerAction(FindAction(context, order++))
+            registry.registerAction(FindInFileAction(context, order++))
+            registry.registerAction(FindInProjectAction(context, order++))
             registry.registerAction(LaunchAppAction(context, order++))
             registry.registerAction(DisconnectLogSendersAction(context, order++))
 

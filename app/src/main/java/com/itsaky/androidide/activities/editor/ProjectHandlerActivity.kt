@@ -25,13 +25,16 @@ import android.widget.CheckBox
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
-import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR_SUBMENU
+import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.etc.FindInFileAction
+import com.itsaky.androidide.actions.etc.FindInProjectAction
+import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.FindActionDialog
@@ -106,15 +109,31 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     fun findActionDialog(actionData: ActionData): FindActionDialog {
         val shouldHideFindInFileAction = editorViewModel.getOpenedFileCount() != 0
+        val registry = getInstance() as DefaultActionsRegistry
+
         return FindActionDialog(
             anchor = content.customToolbar.findViewById(R.id.menu_container),
             context = this,
             actionData = actionData,
             shouldShowFindInFileAction = shouldHideFindInFileAction,
             onFindInFileClicked = { data ->
-                lifecycleScope.launch { FindInFileAction().execAction(data) }
+                val findInFileAction = registry.findAction(
+                    location = EDITOR_TOOLBAR_SUBMENU,
+                    id = FindInFileAction().id
+                )
+                if (findInFileAction != null) {
+                    registry.executeAction(findInFileAction, data)
+                }
             },
-            onFindInProjectClicked = { findInProjectDialog.show() }
+            onFindInProjectClicked = { data ->
+                val findInProjectAction = registry.findAction(
+                    location = EDITOR_TOOLBAR_SUBMENU,
+                    id = FindInProjectAction().id
+                )
+                if (findInProjectAction != null) {
+                    registry.executeAction(findInProjectAction, data)
+                }
+            }
         )
     }
 
