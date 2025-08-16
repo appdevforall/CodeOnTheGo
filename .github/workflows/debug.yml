@@ -120,9 +120,11 @@ jobs:
 
       - name: Extract Jira Ticket and Fetch Title
         id: extract_jira
+        env:
+          COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+          
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
