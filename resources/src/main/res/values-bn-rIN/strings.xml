@@ -417,8 +417,8 @@
   <string name="idepref_devOptions_enableLogsender_title">LogSender সক্রিয় করুন</string>
   <string name="idepref_devOptions_enableLogsender_summary">নিষ্ক্রিয় করা হলে, অ্যাপ্লিকেশান থেকে লগগুলি Code on the Go-এ দেখানো হবে না৷</string>
   <string name="title_build_variants">বিল্ড ভ্যারিয়েন্ট</string>
-  <string name="title_apply">প্রয়োগ করুন</string>
-  <string name="title_discard">খারিজ করুন</string>
+  <string name="build_variants_apply">প্রয়োগ করুন</string>
+  <string name="build_variants_cancel">খারিজ করুন</string>
   <string name="msg_build_variants_fetch_failed">বিল্ড ভ্যারিয়েন্টগুলি আনতে ব্যর্থ হয়েছে</string>
   <string name="title_choose_application">অ্যাপ্লিকেশন চয়ন করুন</string>
   <string name="err_selected_variant_not_found">নির্বাচিত বিল্ড ভ্যারিয়েন্ট পাওয়া যায়নি</string>
