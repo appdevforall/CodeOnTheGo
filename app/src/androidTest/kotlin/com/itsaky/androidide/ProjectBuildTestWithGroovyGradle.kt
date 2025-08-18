@@ -1,7 +1,9 @@
 package com.itsaky.androidide
 
-import androidx.test.ext.junit.rules.activityScenarioRule
+import android.content.Intent
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.navigateToMainScreen
@@ -12,19 +14,32 @@ import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.uncheckKotlinScript
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
-import org.junit.After
-import org.junit.Rule
+import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import org.junit.AfterClass
+import org.junit.BeforeClass
 import org.junit.Test
 
 
 class ProjectBuildTestWithGroovyGradle : TestCase() {
 
-    @get:Rule
-    val activityRule = activityScenarioRule<SplashActivity>()
+    companion object {
+        @BeforeClass
+        @JvmStatic
+        fun setUpClass() {
+            // Start the app once for the entire test class
+            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val intent = Intent(context, SplashActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }
 
-    @After
-    fun cleanUp() {
-        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
+        @AfterClass
+        @JvmStatic
+        fun tearDownClass() {
+            // Clean up only after all tests are complete
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
+        }
     }
 
     @Test
