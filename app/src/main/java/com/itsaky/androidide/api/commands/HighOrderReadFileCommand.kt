@@ -12,7 +12,7 @@ class HighOrderReadFileCommand(private val path: String) : Command<String> {
                 message = "File read successfully.",
                 success = true,
                 data = result.getOrNull(),
-                error_details = TODO()
+                error_details = null
             )
         } else {
             ToolResult(

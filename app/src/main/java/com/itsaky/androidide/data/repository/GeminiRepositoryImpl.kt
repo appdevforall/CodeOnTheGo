@@ -11,6 +11,7 @@ import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.data.model.ToolResult
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
+import com.itsaky.androidide.models.PlanStep
 import com.itsaky.androidide.models.StepResult
 import com.itsaky.androidide.viewmodel.CriticAgent
 import com.itsaky.androidide.viewmodel.ExecutorAgent
@@ -223,66 +224,92 @@ class GeminiRepositoryImpl(
     ): AgentResponse {
         onStateUpdate?.invoke(AgentState.Processing("Initializing Agent Workflow..."))
 
-        // Initialize agents with their models and dependencies
         val orchestrator = OrchestratorAgent(vertexAiModelForPlanning)
-        val executor =
-            ExecutorAgent(this) // Executor needs a reference to this repository to call tools
+        val executor = ExecutorAgent(this)
         val critic = CriticAgent(vertexAiModelForCritique)
 
-        // 1. PLAN
-        onStateUpdate?.invoke(AgentState.Processing("👨‍🎨 Creating a plan..."))
-        val plan = orchestrator.createPlan(userInput, GeminiTools.getToolDeclarationsAsJson())
-        if (plan.isEmpty()) {
+        // --- NEW: Add state for the re-planning loop ---
+        var currentPlan: List<PlanStep>
+        val completedSteps = mutableListOf<StepResult>()
+        var lastFailureReason: String? = null
+        var remainingRetries = 3 // Set a max number of retries to avoid infinite loops
+
+        // 1. Create the initial plan
+        onStateUpdate?.invoke(AgentState.Processing("👨‍🎨 Creating an initial plan..."))
+        currentPlan = orchestrator.createPlan(userInput, GeminiTools.getToolDeclarationsAsJson())
+
+        if (currentPlan.isEmpty()) {
             val failureMessage =
-                "I couldn't create a valid plan for your request. Please try rephrasing it."
+                "I couldn't create a valid plan. Please try rephrasing your request."
             onStateUpdate?.invoke(AgentState.Idle)
             return AgentResponse(text = failureMessage, report = "")
         }
 
-        val completedSteps = mutableListOf<StepResult>()
-        var finalMessage = ""
+        var currentStepIndex = 0
+        while (currentStepIndex < currentPlan.size && remainingRetries > 0) {
+            val step = currentPlan[currentStepIndex]
+            onStateUpdate?.invoke(AgentState.Processing("🚀 Executing step ${step.stepId}: ${step.objective}"))
 
-        // 2. EXECUTE and CRITIQUE in a loop
-        for (step in plan) {
-            onStateUpdate?.invoke(AgentState.Processing("🚀 Executing: ${step.objective}"))
             val result = executor.executeStep(step)
             onToolMessage?.invoke("Tool `${step.toolToUse}` output: ${result.output}")
 
-
-            if (!result.wasSuccessful) {
-                finalMessage = "A step failed during execution: ${result.error}. Aborting workflow."
-                onStateUpdate?.invoke(AgentState.Processing(finalMessage))
-                break // Stop the workflow
+            var wasStepSuccessful = result.wasSuccessful
+            if (wasStepSuccessful) {
+                onStateUpdate?.invoke(AgentState.Processing("🧐 Critiquing result..."))
+                wasStepSuccessful = critic.evaluateResult(result, step)
+                if (!wasStepSuccessful) {
+                    lastFailureReason =
+                        "Critique failed: The result '${result.output}' did not meet the objective '${step.objective}'."
+                }
+            } else {
+                lastFailureReason = "Execution failed: ${result.error}"
             }
 
-            onStateUpdate?.invoke(AgentState.Processing("🧐 Critiquing result..."))
-            val isSuccess = critic.evaluateResult(result, step)
-
-            if (isSuccess) {
+            if (wasStepSuccessful) {
                 onStateUpdate?.invoke(AgentState.Processing("✅ Step successful."))
                 completedSteps.add(result)
+                currentStepIndex++ // Move to the next step
+                lastFailureReason = null // Clear failure reason on success
             } else {
-                finalMessage =
-                    "A step failed the critique. The result didn't meet the objective. Aborting."
-                onStateUpdate?.invoke(AgentState.Processing(finalMessage))
-                // In a more advanced implementation, you would trigger a re-planning loop here,
-                // feeding the failure reason back to the Orchestrator.
-                break // Stop the workflow
+                // --- FAILURE & RE-PLANNING LOGIC ---
+                remainingRetries--
+                onStateUpdate?.invoke(AgentState.Processing("⚠️ Step failed. Reason: $lastFailureReason. Attempting to re-plan... ($remainingRetries retries left)"))
+
+                // Construct a new prompt for the orchestrator
+                val rePlanPrompt = """
+            The original request was: "$userInput"
+            We have already completed ${completedSteps.size} steps successfully.
+            However, the last step failed. Here is the failure reason:
+            "$lastFailureReason"
+
+            Based on this new information, create a new, revised plan to achieve the original request, starting from the point of failure. Do not repeat the steps that have already succeeded.
+            """.trimIndent()
+
+                currentPlan =
+                    orchestrator.createPlan(rePlanPrompt, GeminiTools.getToolDeclarationsAsJson())
+                currentStepIndex = 0 // Reset the index to start from the beginning of the new plan
+
+                if (currentPlan.isEmpty()) {
+                    val failureMessage =
+                        "I failed to recover from an error and could not create a new plan. Aborting workflow."
+                    onStateUpdate?.invoke(AgentState.Idle)
+                    return AgentResponse(
+                        text = failureMessage,
+                        report = "Completed ${completedSteps.size} steps before failure."
+                    )
+                }
             }
         }
-
-        if (finalMessage.isEmpty()) {
-            // 3. Final Synthesis
-            // If all steps succeeded, you can use a final model call to summarize the results.
-            finalMessage =
-                "✅ Workflow completed successfully! All ${plan.size} steps were executed and verified."
+        val finalMessage: String = if (remainingRetries <= 0) {
+            "❌ Workflow failed. I was unable to fix the error after multiple attempts. Last error: $lastFailureReason"
+        } else {
+            "✅ Workflow completed successfully! All steps were executed and verified."
         }
 
         onStateUpdate?.invoke(AgentState.Idle)
-        // For now, we'll return a simple summary.
         return AgentResponse(
             text = finalMessage,
-            report = "Completed ${completedSteps.size}/${plan.size} steps."
+            report = "Completed ${completedSteps.size} steps."
         )
     }
 }
