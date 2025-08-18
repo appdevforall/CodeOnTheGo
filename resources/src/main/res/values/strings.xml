@@ -67,7 +67,6 @@
     <string name="action_start_debugger">Debug</string>
 
 
-
     <!-- Project -->
     <string name="title_first_build">Setting up your new project</string>
     <string name="msg_first_build">Code on the Go is setting up your new project\'s files and directories. Please be patient!\n\nWhen setup is finished, \"Project Initialized\" will be displayed at the bottom of the screen.</string>
@@ -720,8 +719,8 @@
     <!--  Message shown when the bootstrap installer is in the linking phase  -->
     <string name="bootstrap_installer_linking">Resolving symlinks…</string>
 
-    <!-- Tooltip HTML Template -->
-    <string name="tooltip_html_template"><![CDATA[
+      <!-- Tooltip HTML Template -->
+  <string name="tooltip_html_template"><![CDATA[
         <!DOCTYPE html>
         <html>
         <head>
@@ -748,5 +747,8 @@
 
     <!-- Tooltip Links HTML Template -->
     <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
-	<string name="title_alert">Alert!</string>
+    <string name="title_alert">Alert!</string>
+
+    <string name="build_variants_apply">Apply</string>
+    <string name="build_variants_cancel">Cancel</string>
 </resources>
