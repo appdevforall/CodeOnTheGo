@@ -115,23 +115,25 @@ class GeminiRepositoryImpl(
     suspend fun executeTool(functionCall: FunctionCallPart): ToolResult {
         return when (functionCall.name) {
             "create_file" -> {
-                val path = (functionCall.args["path"] as? JsonPrimitive)?.content ?: ""
+                val path = (functionCall.args["path"] as? JsonPrimitive)?.content?.trim()
+                    ?.replace("\"", "") ?: ""
                 val content = (functionCall.args["content"] as? JsonPrimitive)?.content ?: ""
                 ideApi.createFile(path = path, content = content)
             }
 
             "update_file" -> {
-                val path = (functionCall.args["path"] as? JsonPrimitive)?.content ?: ""
+                val path = (functionCall.args["path"] as? JsonPrimitive)?.content?.trim()
+                    ?.replace("\"", "") ?: ""
                 val content = (functionCall.args["content"] as? JsonPrimitive)?.content ?: ""
                 ideApi.updateFile(path, content)
             }
 
             "read_file" -> ideApi.readFile(
-                path = functionCall.args["path"].toString()
+                path = functionCall.args["path"].toString().trim().replace("\"", "")
             )
 
             "list_files" -> ideApi.listFiles(
-                path = functionCall.args["path"].toString(),
+                path = functionCall.args["path"].toString().trim().replace("\"", ""),
                 recursive = functionCall.args["recursive"]?.toString().toBoolean()
             )
 
@@ -140,7 +142,8 @@ class GeminiRepositoryImpl(
                 val dependencyString =
                     (functionCall.args["dependency_string"] as? JsonPrimitive)?.content ?: ""
                 val buildFilePath =
-                    (functionCall.args["build_file_path"] as? JsonPrimitive)?.content ?: ""
+                    (functionCall.args["build_file_path"] as? JsonPrimitive)?.content?.trim()
+                        ?.replace("\"", "") ?: ""
                 if (dependencyString.isEmpty()) {
                     ToolResult.failure("The 'dependency_string' parameter is required.")
                 } else {
