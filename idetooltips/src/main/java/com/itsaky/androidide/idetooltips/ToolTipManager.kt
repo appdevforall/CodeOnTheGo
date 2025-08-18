@@ -28,6 +28,7 @@ object TooltipManager {
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
+    /*
     val queryTooltip = """
 SELECT T.id, T.summary, T.detail
 FROM   Tooltips AS T, TooltipCategories as TC
@@ -35,7 +36,12 @@ WHERE  T.tooltipCategoryId = TC.id
   AND  TC.category         = ?
   AND  T.tag               = ?
 """
-
+*/
+    val queryTooltip = """
+        SELECT tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons
+        FROM ide_tooltip_table WHERE tooltipCategory = ? AND tooltipTag= ?
+        """
+    
     val queryTooltipButtons = """
 SELECT description, uri
 FROM   TooltipButtons
@@ -75,16 +81,39 @@ ORDER  BY buttonNumberId
                 val summary = cursor.getString(1)
                 val detail  = cursor.getString(2)
 
-                val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(id.toString()))
+                val buttonsColumnIndex = cursor.getColumnIndexOrThrow("tooltipButtons")
+                val jsonString = cursor.getString(buttonsColumnIndex)
+
+                val buttons = ArrayList<Pair<String, String>>()
+
+                // Check if the string is not null or empty.
+                if (jsonString.isNotEmpty()) {
+                    // Parse the JSON string into a JSONArray.
+                    val jsonArray = JSONArray(jsonString)
+
+                    // Iterate through each element in the JSON array.
+                    for (i in 0 until jsonArray.length()) {
+                        val jsonObject: JSONObject = jsonArray.getJSONObject(i)
+
+                        // Extract the "first" and "second" values from each JSON object.
+                        val first = jsonObject.getString("first")
+                        val second = jsonObject.getString("second")
+
+                        // Create a new TooltipButton object and add it to our list.
+                        buttons.add(Pair(first, second))
+                    }
+                }
+
+                /* val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(id.toString()))
                     
                 val buttons = ArrayList<Pair<String, String>>()
                 while (buttonCursor.moveToNext()) {
                     buttons.add(Pair(buttonCursor.getString(0), buttonCursor.getString(1)))
-                }
+                } */
 
                 Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")
                     
-                buttonCursor.close()
+                // buttonCursor.close()
                 cursor.close()
                 db.close()
                     
