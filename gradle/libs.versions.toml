@@ -39,6 +39,11 @@ zoomage = "1.3.1"
 monitor = "1.6.1"
 monitorVersion = "1.7.2"
 
+rikka-hidden-api = "4.4.0"
+rikka-refine = "4.4.0"
+rikkax-parcelablelist = "2.0.1"
+libsu-core = "6.0.0"
+
 ## IMPORTANT!
 ## When updating this value, please manually compile libbrotli.so from Brotli4j for Android and
 ## put it in app/src/main/jniLibs
@@ -126,6 +131,16 @@ brotli4j-windows-x64 = { module = "com.aayushatharva.brotli4j:native-windows-x86
 brotli4j-windows-aarch64 = { module = "com.aayushatharva.brotli4j:native-windows-aarch64", version.ref = "brotli4j" }
 brotli4j-osx-x64 = { module = "com.aayushatharva.brotli4j:native-osx-x86_64", version.ref = "brotli4j" }
 brotli4j-osx-aarch64 = { module = "com.aayushatharva.brotli4j:native-osx-aarch64", version.ref = "brotli4j" }
+
+rikka-hidden-compat = { module = "dev.rikka.hidden:compat", version.ref = "rikka-hidden-api" }
+rikka-hidden-stub = { module = "dev.rikka.hidden:stub", version.ref = "rikka-hidden-api" }
+rikka-refine-runtime = { module = "dev.rikka.tools.refine:runtime", version.ref = "rikka-refine" }
+rikka-refine-annotation = { module = "dev.rikka.tools.refine:annotation", version.ref = "rikka-refine" }
+rikka-refine-annotation-processor = { module = "dev.rikka.tools.refine:annotation-processor", version.ref = "rikka-refine" }
+rikkax-parcelablelist = { module = "dev.rikka.rikkax.parcelablelist:parcelablelist", version.ref = "rikkax-parcelablelist" }
+libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu-core" }
+boringssl = { module = "io.github.vvb2060.ndk:boringssl", version = "20250114" }
+bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version = "1.80" }
 
 # AndroidX
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.9.1" }
@@ -232,3 +247,6 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish.base", version.ref = "maven-publish-plugin" }
 gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+rikka-autoresconfig = { id = "dev.rikka.tools.autoresconfig", version = "1.2.2" }
+rikka-materialthemebuilder = { id = "dev.rikka.tools.materialthemebuilder", version = "1.5.1" }
+rikka-refine = { id = "dev.rikka.tools.refine", version.ref = "rikka-refine" }
