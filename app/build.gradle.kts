@@ -251,16 +251,6 @@ dependencies {
   implementation(libs.brotli4j)
 }
 
-
-//sentry {
-//    org.set("appdevforall-inc-pb")
-//    projectName.set("android")
-//
-//    // this will upload your source code to Sentry to show it as part of the stack traces
-//    // disable if you don't want to expose your sources
-//    includeSourceContext.set(true)
-//}
-
 tasks.register("downloadDocDb") {
   doLast {
     val githubRepo = "appdevforall/OfflineDocumentationTools"
