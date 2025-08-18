@@ -1,9 +1,8 @@
-package com.itsaky.androidide.fragments.sidebar
+package com.itsaky.androidide.agent.fragments
 
 import android.os.Bundle
 import android.view.View
 import com.itsaky.androidide.databinding.FragmentAgentContainerBinding
-import com.itsaky.androidide.databinding.FragmentGitContainerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 
 class AgentFragmentContainer :

@@ -28,15 +28,8 @@ import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.AgentSidebarAction
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
-import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
-import com.itsaky.androidide.actions.sidebar.EmailSidebarAction
-import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
 import com.itsaky.androidide.actions.sidebar.GitSidebarAction
-import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
-import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
-import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
-import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
-import com.itsaky.androidide.fragments.sidebar.RightEditorSidebarFragment
+import com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment
 import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
 import java.lang.ref.WeakReference
 

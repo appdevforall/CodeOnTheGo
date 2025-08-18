@@ -8,8 +8,8 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.ChatHistoryAdapter
+import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.databinding.FragmentChatHistoryBinding
-import com.itsaky.androidide.viewmodel.ChatViewModel
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class ChatHistoryFragment : Fragment(R.layout.fragment_chat_history) {

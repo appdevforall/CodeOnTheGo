@@ -1,7 +1,7 @@
 package com.itsaky.androidide.api.commands
 
 import com.blankj.utilcode.util.FileIOUtils
-import com.itsaky.androidide.data.model.ToolResult
+import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.projects.IProjectManager
 import org.apache.commons.text.StringEscapeUtils
 import java.io.File

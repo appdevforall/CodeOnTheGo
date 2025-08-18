@@ -1,4 +1,4 @@
-package com.itsaky.androidide.fragments.sidebar
+package com.itsaky.androidide.agent.fragments
 
 import android.os.Bundle
 import android.view.View

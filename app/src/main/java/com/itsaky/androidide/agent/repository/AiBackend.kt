@@ -1,4 +1,4 @@
-package com.itsaky.androidide.data.repository
+package com.itsaky.androidide.agent.repository
 
 enum class AiBackend {
     GEMINI,

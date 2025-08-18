@@ -1,4 +1,4 @@
-package com.itsaky.androidide.data.model
+package com.itsaky.androidide.agent.model
 
 import kotlinx.serialization.Serializable
 

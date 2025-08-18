@@ -1,4 +1,4 @@
-package com.itsaky.androidide.data.repository
+package com.itsaky.androidide.agent.repository
 
 import com.google.firebase.ai.type.FunctionCallPart
 import com.itsaky.androidide.app.BaseApplication

@@ -1,4 +1,4 @@
-package com.itsaky.androidide.viewmodel
+package com.itsaky.androidide.agent.viewmodel
 
 import android.content.SharedPreferences
 import android.util.Log
@@ -8,13 +8,14 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.ai.type.FunctionCallPart
-import com.itsaky.androidide.data.ChatStorageManager
-import com.itsaky.androidide.data.repository.GeminiRepository
+import com.itsaky.androidide.agent.data.ChatStorageManager
+import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
 import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -200,7 +201,7 @@ class ChatViewModel(
                     )
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) {
+                if (e is CancellationException) {
                     updateMessageInCurrentSession(
                         messageId = messageIdToUpdate,
                         newText = "Operation cancelled by user.",

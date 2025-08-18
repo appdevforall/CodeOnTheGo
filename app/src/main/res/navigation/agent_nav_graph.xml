@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/chatFragment"
-        android:name="com.itsaky.androidide.fragments.sidebar.ChatFragment"
+        android:name="com.itsaky.androidide.agent.fragments.ChatFragment"
         android:label="Git"
         tools:layout="@layout/fragment_git">
 
@@ -26,7 +26,7 @@
 
     <fragment
         android:id="@+id/contextSelectionFragment"
-        android:name="com.itsaky.androidide.fragments.sidebar.ContextSelectionFragment"
+        android:name="com.itsaky.androidide.agent.fragments.ContextSelectionFragment"
         android:label="Chat"
         tools:layout="@layout/fragment_context_selection">
 
@@ -49,7 +49,7 @@
 
     <fragment
         android:id="@+id/aiSettingsFragment"
-        android:name="com.itsaky.androidide.fragments.sidebar.AiSettingsFragment"
+        android:name="com.itsaky.androidide.agent.fragments.AiSettingsFragment"
         android:label="AI Settings"
         tools:layout="@layout/fragment_ai_settings" />
 </navigation>

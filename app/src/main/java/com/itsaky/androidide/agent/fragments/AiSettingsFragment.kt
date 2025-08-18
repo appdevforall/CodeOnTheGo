@@ -1,4 +1,4 @@
-package com.itsaky.androidide.fragments.sidebar
+package com.itsaky.androidide.agent.fragments
 
 import android.content.Intent
 import android.net.Uri
@@ -13,12 +13,12 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.itsaky.androidide.R
-import com.itsaky.androidide.data.repository.AiBackend
-import com.itsaky.androidide.data.repository.GeminiRepository
-import com.itsaky.androidide.data.repository.SwitchableGeminiRepository
+import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.GeminiRepository
+import com.itsaky.androidide.agent.repository.SwitchableGeminiRepository
+import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
 import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
 import com.itsaky.androidide.utils.flashInfo
-import com.itsaky.androidide.viewmodel.AiSettingsViewModel
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel

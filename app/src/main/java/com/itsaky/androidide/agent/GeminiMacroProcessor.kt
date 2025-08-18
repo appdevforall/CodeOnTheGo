@@ -1,6 +1,6 @@
-package com.itsaky.androidide.data
+package com.itsaky.androidide.agent
 
-import com.itsaky.androidide.data.repository.GeminiRepository
+import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.editor.processing.ProcessContext
 import com.itsaky.androidide.editor.processing.ProcessResult
 import com.itsaky.androidide.editor.processing.TextProcessor

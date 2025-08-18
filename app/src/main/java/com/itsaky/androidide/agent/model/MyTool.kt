@@ -1,4 +1,4 @@
-package com.itsaky.androidide.data.model
+package com.itsaky.androidide.agent.model
 
 data class MyTool(
     val name: String,

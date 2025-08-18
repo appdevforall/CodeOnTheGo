@@ -1,4 +1,4 @@
-package com.itsaky.androidide.fragments.sidebar
+package com.itsaky.androidide.agent.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -23,16 +23,16 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
+import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.GeminiRepository
+import com.itsaky.androidide.agent.repository.SwitchableGeminiRepository
+import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
-import com.itsaky.androidide.data.repository.AiBackend
-import com.itsaky.androidide.data.repository.GeminiRepository
-import com.itsaky.androidide.data.repository.SwitchableGeminiRepository
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.utils.flashInfo
-import com.itsaky.androidide.viewmodel.ChatViewModel
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
 import kotlinx.coroutines.Dispatchers

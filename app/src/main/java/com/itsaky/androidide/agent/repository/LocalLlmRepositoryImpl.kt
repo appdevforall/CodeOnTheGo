@@ -1,19 +1,18 @@
-package com.itsaky.androidide.data.repository
+package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import com.google.firebase.ai.type.FunctionCallPart
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.app.LlmInferenceEngine
-import com.itsaky.androidide.data.model.ToolResult
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -282,7 +281,7 @@ class LocalLlmRepositoryImpl(
     @Serializable
     private data class ToolCallRequest(
         val tool_name: String,
-        val parameters: Map<String, kotlinx.serialization.json.JsonElement>
+        val parameters: Map<String, JsonElement>
     )
 
     override fun getPartialReport(): String {

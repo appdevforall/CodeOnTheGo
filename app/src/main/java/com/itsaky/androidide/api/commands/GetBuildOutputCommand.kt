@@ -1,7 +1,7 @@
 package com.itsaky.androidide.api.commands
 
+import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.BuildOutputProvider
-import com.itsaky.androidide.data.model.ToolResult
 
 
 class GetBuildOutputCommand : Command<Unit> {

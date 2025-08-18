@@ -59,7 +59,7 @@
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/right_drawer_sidebar"
-            android:name="com.itsaky.androidide.fragments.sidebar.RightEditorSidebarFragment"
+            android:name="com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 

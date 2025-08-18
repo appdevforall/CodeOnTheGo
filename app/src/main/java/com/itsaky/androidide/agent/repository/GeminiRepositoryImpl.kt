@@ -1,4 +1,4 @@
-package com.itsaky.androidide.data.repository
+package com.itsaky.androidide.agent.repository
 
 import com.google.firebase.ai.FirebaseAI
 import com.google.firebase.ai.GenerativeModel
@@ -7,15 +7,15 @@ import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.agent.viewmodel.ExecutorAgent
+import com.itsaky.androidide.agent.viewmodel.OrchestratorAgent
 import com.itsaky.androidide.api.IDEApiFacade
-import com.itsaky.androidide.data.model.ToolResult
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.PlanStep
 import com.itsaky.androidide.models.StepResult
 import com.itsaky.androidide.viewmodel.CriticAgent
-import com.itsaky.androidide.viewmodel.ExecutorAgent
-import com.itsaky.androidide.viewmodel.OrchestratorAgent
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json

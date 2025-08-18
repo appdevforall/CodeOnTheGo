@@ -5,8 +5,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionItem
-import com.itsaky.androidide.fragments.sidebar.AgentFragmentContainer
-import com.itsaky.androidide.fragments.sidebar.GitFragmentContainer
+import com.itsaky.androidide.agent.fragments.AgentFragmentContainer
 import kotlin.reflect.KClass
 
 class AgentSidebarAction(context: Context, override val order: Int) :

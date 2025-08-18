@@ -4,6 +4,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
+import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.commands.AddDependencyCommand
 import com.itsaky.androidide.api.commands.AddStringResourceCommand
 import com.itsaky.androidide.api.commands.GetBuildOutputCommand
@@ -11,7 +12,6 @@ import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
 import com.itsaky.androidide.api.commands.UpdateFileCommand
-import com.itsaky.androidide.data.model.ToolResult
 import com.itsaky.androidide.projects.builder.BuildResult
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume

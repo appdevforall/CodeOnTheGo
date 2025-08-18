@@ -1,7 +1,7 @@
-package com.itsaky.androidide.viewmodel
+package com.itsaky.androidide.agent.viewmodel
 
 import com.google.firebase.ai.type.FunctionCallPart
-import com.itsaky.androidide.data.repository.GeminiRepositoryImpl
+import com.itsaky.androidide.agent.repository.GeminiRepositoryImpl
 import com.itsaky.androidide.models.PlanStep
 import com.itsaky.androidide.models.StepResult
 import kotlinx.serialization.json.JsonPrimitive

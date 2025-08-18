@@ -1,4 +1,4 @@
-package com.itsaky.androidide.data.repository
+package com.itsaky.androidide.agent.repository
 
 // In a new file or alongside your other tool definitions
 object LocalLlmTools {

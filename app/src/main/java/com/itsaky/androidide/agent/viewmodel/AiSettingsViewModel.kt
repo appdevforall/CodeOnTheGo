@@ -1,10 +1,10 @@
-package com.itsaky.androidide.viewmodel
+package com.itsaky.androidide.agent.viewmodel
 
 import androidx.lifecycle.ViewModel
+import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.app.BaseApplication
-import com.itsaky.androidide.data.repository.AiBackend
-import com.itsaky.androidide.data.repository.PREF_KEY_AI_BACKEND
-import com.itsaky.androidide.data.repository.PREF_KEY_LOCAL_MODEL_PATH
 
 class AiSettingsViewModel : ViewModel() {
 

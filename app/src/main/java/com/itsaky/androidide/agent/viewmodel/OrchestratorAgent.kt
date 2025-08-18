@@ -1,4 +1,4 @@
-package com.itsaky.androidide.viewmodel
+package com.itsaky.androidide.agent.viewmodel
 
 import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.type.content
@@ -14,8 +14,6 @@ class OrchestratorAgent(private val model: GenerativeModel) {
     }
 
     suspend fun createPlan(userInput: String, toolDeclarations: String): List<PlanStep> {
-        // FIX: The generateContent function expects Content objects.
-        // We create a single 'user' content block that contains the user's request and the list of tools.
         val prompt = content(role = "user") {
             text("User Request: \"$userInput\"")
             text("Tool Declarations: $toolDeclarations")

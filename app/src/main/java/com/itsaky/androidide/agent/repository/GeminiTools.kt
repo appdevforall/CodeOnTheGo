@@ -1,6 +1,6 @@
-package com.itsaky.androidide.data.repository
+package com.itsaky.androidide.agent.repository
 
-import com.itsaky.androidide.data.model.MyTool
+import com.itsaky.androidide.agent.model.MyTool
 
 object GeminiTools {
     val allMyTools: List<MyTool> = listOf(

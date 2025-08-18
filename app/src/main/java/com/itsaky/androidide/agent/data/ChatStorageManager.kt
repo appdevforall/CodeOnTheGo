@@ -1,4 +1,4 @@
-package com.itsaky.androidide.data
+package com.itsaky.androidide.agent.data
 
 import android.util.Log
 import com.google.gson.Gson

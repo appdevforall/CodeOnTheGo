@@ -1,6 +1,6 @@
 package com.itsaky.androidide.api.commands
 
-import com.itsaky.androidide.data.model.ToolResult
+import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.projects.IProjectManager
 import org.greenrobot.eventbus.EventBus
