@@ -203,9 +203,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     fun prepareOptionsMenu() {
-        EditorActivityActions.register(this)
-        EditorSidebarActions.registerActions(this)
-
         val registry = getInstance() as DefaultActionsRegistry
         val data = createToolbarActionData()
         content.customToolbar.clearMenu()
