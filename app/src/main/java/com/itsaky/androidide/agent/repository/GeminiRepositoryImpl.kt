@@ -20,6 +20,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import org.slf4j.LoggerFactory
 
 class GeminiRepositoryImpl(
     firebaseAI: FirebaseAI,
@@ -38,19 +39,20 @@ class GeminiRepositoryImpl(
         modelName = modelName,
         systemInstruction = content(role = "system") {
             text(
-                """ 
+                """
             You are a meticulous software architect and project planner. Your purpose is to decompose a complex user request into a detailed, step-by-step plan.
-            You must respond with a valid JSON array of objects, where each object represents a single, atomic step in the plan.
-            Each step must include a unique 'stepId', a clear 'objective', the specific 'toolToUse' from the provided list, a 'parameters' object, and a description of the 'expectedOutputFormat'.
-            Do not execute anything. Your sole output is the JSON plan.
+            You must respond with a valid JSON array of objects.
+            
+            **IMPORTANT RULE:** Each step's 'objective' must be a small, atomic action that can be fully accomplished by a SINGLE tool call. For example, instead of an objective "fix the app", use "read the build log to find the error".
+            
+            Each step must include a unique 'stepId', a clear and ATOMIC 'objective', the specific 'toolToUse' from the provided list, a 'parameters' object, and a description of the 'expectedOutputFormat'.
+            Your sole output is the JSON plan.
 
             Here is the list of available tools you can use in your plan:
             ${GeminiTools.getToolDeclarationsAsJson()}
             """.trimIndent()
             )
         },
-        // Enforce JSON output for reliable parsing
-        // FIX: Use the builder function instead of the private constructor
         generationConfig = generationConfig {
             responseMimeType = "application/json"
         }
@@ -218,10 +220,14 @@ class GeminiRepositoryImpl(
         return toolTracker.generatePartialReport()
     }
 
+    companion object {
+        private val log = LoggerFactory.getLogger(GeminiRepositoryImpl::class.java)
+    }
     private suspend fun runAgentWorkflow(
         userInput: String,
         history: List<ChatMessage>
     ): AgentResponse {
+        log.debug(userInput)
         onStateUpdate?.invoke(AgentState.Processing("Initializing Agent Workflow..."))
 
         val orchestrator = OrchestratorAgent(vertexAiModelForPlanning)
@@ -254,12 +260,18 @@ class GeminiRepositoryImpl(
             onToolMessage?.invoke("Tool `${step.toolToUse}` output: ${result.output}")
 
             var wasStepSuccessful = result.wasSuccessful
+            log.debug("result: {}", result)
+            log.debug("wasStepSuccessful: $wasStepSuccessful")
             if (wasStepSuccessful) {
                 onStateUpdate?.invoke(AgentState.Processing("🧐 Critiquing result..."))
                 wasStepSuccessful = critic.evaluateResult(result, step)
+
+                log.debug("critic: ___v")
+                log.debug("wasStepSuccessful: $wasStepSuccessful")
                 if (!wasStepSuccessful) {
                     lastFailureReason =
                         "Critique failed: The result '${result.output}' did not meet the objective '${step.objective}'."
+                    log.debug("lastFailureReason: {}", lastFailureReason)
                 }
             } else {
                 lastFailureReason = "Execution failed: ${result.error}"

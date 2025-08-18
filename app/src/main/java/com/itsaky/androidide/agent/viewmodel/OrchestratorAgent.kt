@@ -5,9 +5,13 @@ import com.google.firebase.ai.type.content
 import com.itsaky.androidide.models.PlanStep
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 
 class OrchestratorAgent(private val model: GenerativeModel) {
 
+    companion object {
+        private val log = LoggerFactory.getLogger(OrchestratorAgent::class.java)
+    }
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -20,13 +24,14 @@ class OrchestratorAgent(private val model: GenerativeModel) {
         }
 
         val response = model.generateContent(prompt)
+        log.debug(response.text)
         val planJson = response.text ?: return emptyList()
 
         return try {
             // Attempt to parse the generated JSON into a list of PlanStep objects
             json.decodeFromString(ListSerializer(PlanStep.serializer()), planJson)
         } catch (e: Exception) {
-            println("Error parsing plan: ${e.message}")
+            log.error("Error parsing plan: ${e.message}")
             emptyList() // Return an empty list if parsing fails
         }
     }
