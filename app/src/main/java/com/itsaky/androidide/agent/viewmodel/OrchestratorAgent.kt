@@ -28,11 +28,10 @@ class OrchestratorAgent(private val model: GenerativeModel) {
         val planJson = response.text ?: return emptyList()
 
         return try {
-            // Attempt to parse the generated JSON into a list of PlanStep objects
             json.decodeFromString(ListSerializer(PlanStep.serializer()), planJson)
         } catch (e: Exception) {
             log.error("Error parsing plan: ${e.message}")
-            emptyList() // Return an empty list if parsing fails
+            emptyList()
         }
     }
 }

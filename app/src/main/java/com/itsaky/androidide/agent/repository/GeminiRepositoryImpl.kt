@@ -30,6 +30,7 @@ class GeminiRepositoryImpl(
     private val toolTracker = ToolExecutionTracker()
 
     private val modelName = "gemini-2.5-pro"
+    private val flashModelName = "gemini-2.5-flash" // Use Flash for efficiency
 
     // --- AGENT MODELS DEFINITION ---
 
@@ -61,13 +62,13 @@ class GeminiRepositoryImpl(
     // 3. The Critic: A detail-oriented quality assurance analyst.
     // Its job is to verify if the output of a step meets the original objective.
     private val vertexAiModelForCritique: GenerativeModel = firebaseAI.generativeModel(
-        modelName = modelName, // A powerful model is good for nuanced critique
+        modelName = flashModelName,
         systemInstruction = content(role = "system") {
             text("You are a quality assurance agent. Your task is to evaluate the result of a tool execution against its intended objective. You must be strict and objective. Your only output should be 'true' if the objective was met, or 'false' if it was not.")
         }
     )
     private val searchModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = modelName,
+        modelName = flashModelName,
         systemInstruction = content(role = "system") {
             text("You are a helpful assistant that answers questions using web searches.")
         },
@@ -90,33 +91,25 @@ class GeminiRepositoryImpl(
         prompt: String,
         history: List<ChatMessage>
     ): AgentResponse {
-        val routerPrompt = """
-            Analyze the following user prompt and determine the primary intent.
-            Respond with a single word: PLAN, SEARCH, or OTHER.
-            - Use PLAN if the request is complex and involves file manipulation, building the project, or multi-step interactions with the IDE.
-            - Use SEARCH if the request requires up-to-date information from the internet or general knowledge.
-            - Use OTHER for conversational chat.
-
-            User Prompt: "$prompt"
-        """.trimIndent()
-
-        val routeResult = searchModel.generateContent(routerPrompt).text?.trim()?.uppercase()
-
-        return when (routeResult) {
-            "PLAN" -> runAgentWorkflow(prompt, history)
-            "SEARCH" -> executeSearchRequest(prompt)
-            else -> executeSearchRequest(prompt)
-        }
-    }
-
-    private suspend fun executeSearchRequest(prompt: String): AgentResponse {
-        val response = searchModel.generateContent(prompt)
-        val text = response.text ?: "I couldn't find an answer for that."
-        return AgentResponse(text = text, report = "")
+        return runAgentWorkflow(prompt, history)
     }
 
     suspend fun executeTool(functionCall: FunctionCallPart): ToolResult {
         return when (functionCall.name) {
+            "google_search" -> {
+                return try {
+                    val query = (functionCall.args["query"] as? JsonPrimitive)?.content ?: ""
+                    if (query.isEmpty()) {
+                        return ToolResult.failure("Search query cannot be empty.")
+                    }
+                    val response = searchModel.generateContent(query)
+                    val searchResult = response.text ?: "No search results found."
+                    ToolResult.success(searchResult)
+                } catch (e: Exception) {
+                    ToolResult.failure("An error occurred during the search: ${e.message}")
+                }
+            }
+
             "create_file" -> {
                 val path = (functionCall.args["path"] as? JsonPrimitive)?.content?.trim()
                     ?.replace("\"", "") ?: ""
@@ -223,6 +216,7 @@ class GeminiRepositoryImpl(
     companion object {
         private val log = LoggerFactory.getLogger(GeminiRepositoryImpl::class.java)
     }
+
     private suspend fun runAgentWorkflow(
         userInput: String,
         history: List<ChatMessage>
@@ -234,7 +228,6 @@ class GeminiRepositoryImpl(
         val executor = ExecutorAgent(this)
         val critic = CriticAgent(vertexAiModelForCritique)
 
-        // --- NEW: Add state for the re-planning loop ---
         var currentPlan: List<PlanStep>
         val completedSteps = mutableListOf<StepResult>()
         var lastFailureReason: String? = null
@@ -283,7 +276,6 @@ class GeminiRepositoryImpl(
                 currentStepIndex++ // Move to the next step
                 lastFailureReason = null // Clear failure reason on success
             } else {
-                // --- FAILURE & RE-PLANNING LOGIC ---
                 remainingRetries--
                 onStateUpdate?.invoke(AgentState.Processing("⚠️ Step failed. Reason: $lastFailureReason. Attempting to re-plan... ($remainingRetries retries left)"))
 

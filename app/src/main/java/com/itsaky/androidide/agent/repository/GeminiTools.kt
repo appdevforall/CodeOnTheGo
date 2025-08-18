@@ -5,6 +5,13 @@ import com.itsaky.androidide.agent.model.MyTool
 object GeminiTools {
     val allMyTools: List<MyTool> = listOf(
         MyTool(
+            name = "google_search",
+            description = "Searches Google for the latest information on a given query.",
+            parameters = mapOf(
+                "query" to "The search query."
+            ),
+        ),
+        MyTool(
             name = "create_file",
             description = "Creates a new file at the specified relative path. Creates parent directories if they don't exist.",
             parameters = mapOf(
