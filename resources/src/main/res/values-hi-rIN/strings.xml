@@ -416,8 +416,8 @@
   <string name="idepref_devOptions_enableLogsender_title">LogSender सक्षम करें</string>
   <string name="idepref_devOptions_enableLogsender_summary">अक्षम होने पर, एप्लिकेशन के लॉग Code on the Go में नहीं दिखाए जाएंगे</string>
   <string name="title_build_variants">बिल्ड वैरिएंट्स</string>
-  <string name="title_apply">लागू करें</string>
-  <string name="title_discard">रद्द करें</string>
+  <string name="build_variants_apply">लागू करें</string>
+  <string name="build_variants_cancel">रद्द करें</string>
   <string name="msg_build_variants_fetch_failed">बिल्ड वेरिएंट लाने में विफल</string>
   <string name="title_choose_application">अप्लिकेशन को चुनें</string>
   <string name="err_selected_variant_not_found">चयनित बिल्ड वैरिएंट नहीं मिला</string>
