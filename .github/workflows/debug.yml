@@ -6,12 +6,8 @@ permissions:
   actions: write
 
 on:
-  pull_request:
-    branches: [ "stage" ]
-    types: [ opened, synchronize, reopened ]
-    paths-ignore:
-      - '**/*.md'
-      - 'fastlane/**'
+  push:
+
   workflow_dispatch: { }
 
 env:
@@ -332,5 +328,5 @@ jobs:
             }' > payload.json
           
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
-          rm -f payload.json
 
+          rm -f payload.json
