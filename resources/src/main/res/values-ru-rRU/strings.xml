@@ -419,8 +419,8 @@
   <string name="idepref_devOptions_enableLogsender_title">Включить LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">Если отключено, журналы из приложений не будут отображаться в Code on the Go</string>
   <string name="title_build_variants">Варианты сборки</string>
-  <string name="title_apply">Применить</string>
-  <string name="title_discard">Отменить</string>
+  <string name="build_variants_apply">Применить</string>
+  <string name="build_variants_cancel">Отменить</string>
   <string name="msg_build_variants_fetch_failed">Не удалось получить варианты сборки</string>
   <string name="title_choose_application">Выберите приложение</string>
   <string name="err_selected_variant_not_found">Выбранный вариант сборки не найден</string>

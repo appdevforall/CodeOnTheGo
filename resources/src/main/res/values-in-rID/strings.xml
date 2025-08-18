@@ -417,8 +417,8 @@
   <string name="idepref_devOptions_enableLogsender_title">Aktifkan LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">Saat dinonaktifkan, log dari aplikasi tidak akan ditampilkan di Code on the Go</string>
   <string name="title_build_variants">Bangun varian</string>
-  <string name="title_apply">Terapkan</string>
-  <string name="title_discard">Buang</string>
+  <string name="build_variants_apply">Terapkan</string>
+  <string name="build_variants_cancel">Buang</string>
   <string name="msg_build_variants_fetch_failed">Gagal mengambil varian build</string>
   <string name="title_choose_application">Pilih aplikasi</string>
   <string name="err_selected_variant_not_found">Varian build yang dipilih tidak ditemukan</string>
