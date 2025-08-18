@@ -6,13 +6,8 @@ permissions:
   actions: write
 
 on:
-  pull_request:
-    branches: [ "stage" ]
-    types: [ opened, synchronize, reopened ]
-    
-  push: 
-    branches: [ "stage" ]
-      
+  push:
+
   workflow_dispatch: { }
 
 env:
