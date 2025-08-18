@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.ContextChipAdapter
 import com.itsaky.androidide.adapters.ContextSelectionAdapter
+import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.databinding.FragmentContextSelectionBinding
 import com.itsaky.androidide.models.HeaderItem
 import com.itsaky.androidide.models.SelectableItem
@@ -19,6 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+
+private const val BUILD_OUTPUT_TITLE = "Build output"
 
 class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
@@ -58,18 +61,21 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
     }
 
     private fun populateInitialList() {
-        val staticItems = listOf(
-            HeaderItem("FILES AND FOLDERS"),
-            SelectableItem(
-                "browse_files",
-                "Select Files/Folders from Project...",
-                R.drawable.ic_folder_open
-            ),
-            HeaderItem("WEB SEARCH"),
-            SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
-            HeaderItem("GIT"),
-            SelectableItem("git_status", "Git Status", R.drawable.ic_git)
-        )
+        val staticItems =
+            listOf(
+                HeaderItem("FILES AND FOLDERS"),
+                SelectableItem(
+                    "browse_files",
+                    "Select Files/Folders from Project...",
+                    R.drawable.ic_folder_open
+                ),
+                HeaderItem("WEB SEARCH"),
+                SelectableItem("web", "Search the web for an answer", R.drawable.ic_search),
+                HeaderItem("GIT"),
+                SelectableItem("git_status", "Git Status", R.drawable.ic_git),
+                HeaderItem(BUILD_OUTPUT_TITLE),
+                SelectableItem("build_output", "Build Output", R.drawable.ic_hammer)
+            )
         selectionAdapter.submitList(staticItems)
     }
 
@@ -79,7 +85,8 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
             updateSelectedChips()
 
             val item =
-                selectionAdapter.currentList.find { it is SelectableItem && it.text == itemToRemove } as? SelectableItem
+                selectionAdapter.currentList.find { it is SelectableItem && it.text == itemToRemove }
+                        as? SelectableItem
             item?.let { toggleSelection(it) }
         }
         binding.selectedContextRecyclerView.apply {
@@ -89,10 +96,15 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         }
 
         selectionAdapter = ContextSelectionAdapter { item ->
-            if (item.id == "browse_files") {
-                findNavController().navigate(R.id.action_contextSelectionFragment_to_fileTreeSelectionFragment)
-            } else {
-                toggleSelection(item)
+            when (item.id) {
+                "browse_files" -> {
+                    findNavController()
+                        .navigate(R.id.action_contextSelectionFragment_to_fileTreeSelectionFragment)
+                }
+
+                else -> {
+                    toggleSelection(item)
+                }
             }
         }
         binding.contextItemsRecyclerView.adapter = selectionAdapter
@@ -100,13 +112,14 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private fun toggleSelection(item: SelectableItem) {
         val isNowSelected = !item.isSelected
-        val newList = selectionAdapter.currentList.map { listItem ->
-            if (listItem is SelectableItem && listItem.id == item.id) {
-                listItem.copy(isSelected = isNowSelected)
-            } else {
-                listItem
+        val newList =
+            selectionAdapter.currentList.map { listItem ->
+                if (listItem is SelectableItem && listItem.id == item.id) {
+                    listItem.copy(isSelected = isNowSelected)
+                } else {
+                    listItem
+                }
             }
-        }
         selectionAdapter.submitList(newList)
 
         if (isNowSelected) {
@@ -125,13 +138,11 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         binding.btnClearContext.setOnClickListener { clearAllSelections() }
 
         // The confirm button now triggers the processing function
-        binding.btnConfirmContext.setOnClickListener {
-            processAndConfirmSelection()
-        }
+        binding.btnConfirmContext.setOnClickListener { processAndConfirmSelection() }
     }
 
     /**
-     * Shows a loader, processes selected paths to find all readable files,
+     * Shows a loader, processes selected items to gather context (file paths and build output),
      * and then returns the result to the previous fragment.
      */
     private fun processAndConfirmSelection() {
@@ -142,34 +153,50 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
         binding.btnClearContext.isEnabled = false
 
         viewLifecycleOwner.lifecycleScope.launch {
-            // 2. Process files on a background thread (Dispatchers.IO)
-            val processedContext = withContext(Dispatchers.IO) {
-                val finalContextList = mutableListOf<String>()
+            // 2. Process selections on a background thread (Dispatchers.IO)
+            val processedContext =
+                withContext(Dispatchers.IO) {
+                    val finalContextList = mutableListOf<String>()
+                    val baseDir = IProjectManager.getInstance().projectDir
 
-                val baseDir = IProjectManager.getInstance().projectDir
+                    selectedContextItems.forEach { itemText ->
+                        when (itemText) {
+                            "Build Output" -> {
+                                BuildOutputProvider.getBuildOutputContent()?.let { content ->
+                                    if (content.isNotBlank()) {
+                                        val formattedOutput =
+                                            "--- BUILD OUTPUT ---\n$content\n--- END BUILD OUTPUT ---"
+                                        finalContextList.add(formattedOutput)
+                                    }
+                                }
+                            }
 
-                selectedContextItems.forEach { itemText ->
-                    // Create a File object by joining the project root with the relative path (itemText)
-                    val file = File(baseDir, itemText)
-
-                    if (file.exists() && file.isDirectory) {
-                        // It's a valid directory, so walk through it and add all readable files
-                        file.walkTopDown()
-                            .filter { it.isFile && it.canRead() }
-                            .forEach { finalContextList.add(it.relativeTo(baseDir).path) }
-                    } else if (file.exists() && file.isFile && file.canRead()) {
-                        // It's a single, readable file
-                        finalContextList.add(itemText)
+                            else -> {
+                                // This is the original logic for handling file/folder paths
+                                val file = File(baseDir, itemText)
+                                if (file.exists() && file.isDirectory) {
+                                    file.walkTopDown()
+                                        .filter { it.isFile && it.canRead() }
+                                        .forEach {
+                                            finalContextList.add(it.relativeTo(baseDir).path)
+                                        }
+                                } else if (file.exists() && file.isFile && file.canRead()) {
+                                    finalContextList.add(itemText)
+                                }
+                            }
+                        }
                     }
+                    // Return a distinct list of context strings
+                    finalContextList.distinct()
                 }
-                // Return a distinct list of absolute paths for files and the original text for other commands
-                finalContextList.distinct()
-            }
 
             // 3. On the main thread, set the fragment result and navigate back
-            setFragmentResult("context_selection_request", Bundle().apply {
-                putStringArrayList("selected_context", ArrayList(processedContext))
-            })
+            setFragmentResult(
+                "context_selection_request",
+                Bundle().apply {
+                    putStringArrayList("selected_context", ArrayList(processedContext))
+                }
+            )
             findNavController().popBackStack()
         }
     }
@@ -189,13 +216,14 @@ class ContextSelectionFragment : Fragment(R.layout.fragment_context_selection) {
 
     private fun clearAllSelections() {
         selectedContextItems.clear()
-        val newList = selectionAdapter.currentList.map { listItem ->
-            if (listItem is SelectableItem) {
-                listItem.copy(isSelected = false)
-            } else {
-                listItem
+        val newList =
+            selectionAdapter.currentList.map { listItem ->
+                if (listItem is SelectableItem) {
+                    listItem.copy(isSelected = false)
+                } else {
+                    listItem
+                }
             }
-        }
         selectionAdapter.submitList(newList)
         updateSelectedChips()
     }
