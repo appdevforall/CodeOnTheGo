@@ -138,6 +138,7 @@ rikka-refine-runtime = { module = "dev.rikka.tools.refine:runtime", version.ref 
 rikka-refine-annotation = { module = "dev.rikka.tools.refine:annotation", version.ref = "rikka-refine" }
 rikka-refine-annotation-processor = { module = "dev.rikka.tools.refine:annotation-processor", version.ref = "rikka-refine" }
 rikkax-parcelablelist = { module = "dev.rikka.rikkax.parcelablelist:parcelablelist", version.ref = "rikkax-parcelablelist" }
+rikkax-htmlktx = { module = "dev.rikka.rikkax.html:html-ktx", version = "1.1.2" }
 libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu-core" }
 boringssl = { module = "io.github.vvb2060.ndk:boringssl", version = "20250114" }
 bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version = "1.80" }

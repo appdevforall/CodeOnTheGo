@@ -164,6 +164,7 @@ dependencies {
   implementation(libs.androidx.work.ktx)
   implementation(libs.google.material)
   implementation(libs.google.flexbox)
+  implementation(libs.libsu.core)
 
   // Kotlin
   implementation(libs.androidx.core.ktx)
@@ -190,6 +191,7 @@ dependencies {
   implementation(projects.gradlePluginConfig)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
+  implementation(projects.subprojects.shizukuManager)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)

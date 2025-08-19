@@ -2,8 +2,9 @@ package moe.shizuku.manager
 
 import android.os.Bundle
 import androidx.core.os.bundleOf
+import com.itsaky.androidide.buildinfo.BuildInfo
 import moe.shizuku.api.BinderContainer
-import moe.shizuku.manager.utils.Logger.LOGGER
+import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuApiConstants.USER_SERVICE_ARG_TOKEN
 import rikka.shizuku.ShizukuProvider
@@ -15,7 +16,8 @@ import java.util.concurrent.TimeoutException
 class ShizukuManagerProvider : ShizukuProvider() {
 
     companion object {
-        private const val EXTRA_BINDER = "com.itsaky.androidide.intent.extra.BINDER"
+        private val logger = LoggerFactory.getLogger(ShizukuManagerProvider::class.java)
+        private const val EXTRA_BINDER = "${BuildInfo.PACKAGE_NAME}.shizuku.intent.extra.BINDER"
         private const val METHOD_SEND_USER_SERVICE = "sendUserService"
     }
 
@@ -46,7 +48,7 @@ class ShizukuManagerProvider : ShizukuProvider() {
                             ))
                             reply!!.putParcelable(EXTRA_BINDER, BinderContainer(Shizuku.getBinder()))
                         } catch (e: Throwable) {
-                            LOGGER.e(e, "attachUserService $token")
+                            logger.error("attachUserService $token", e)
                             reply = null
                         }
 
@@ -62,11 +64,11 @@ class ShizukuManagerProvider : ShizukuProvider() {
                     countDownLatch.await(5, TimeUnit.SECONDS)
                     reply
                 } catch (e: TimeoutException) {
-                    LOGGER.e(e, "Binder not received in 5s")
+                    logger.error("Binder not received in 5s", e)
                     null
                 }
             } catch (e: Throwable) {
-                LOGGER.e(e, "sendUserService")
+                logger.error("sendUserService", e)
                 null
             }
         } else {
