@@ -29,7 +29,9 @@ import com.itsaky.androidide.resources.R
 
 class CrashReportFragment : Fragment() {
 
-    private var binding: LayoutCrashReportBinding? = null
+    private var _binding: LayoutCrashReportBinding? = null
+    private val binding get() = _binding!!
+
     private var closeAppOnClick = true
 
     companion object {
@@ -58,8 +60,9 @@ class CrashReportFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        return LayoutCrashReportBinding.inflate(inflater, container, false)
-            .also { binding = it }.root
+        _binding = LayoutCrashReportBinding.inflate(inflater, container, false)
+        val view = binding.root
+        return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -67,12 +70,14 @@ class CrashReportFragment : Fragment() {
         val args = requireArguments()
         closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
         val title = getString(R.string.msg_ide_crashed)
-        val message = getString(R.string.msg_crash_info)
 
-        binding!!.apply {
+        binding.apply {
             crashTitle.text = title
             crashSubtitle.apply {
-                text = HtmlCompat.fromHtml(getString(R.string.msg_crash_info), HtmlCompat.FROM_HTML_MODE_LEGACY)
+                text = HtmlCompat.fromHtml(
+                    getString(R.string.msg_crash_info),
+                    HtmlCompat.FROM_HTML_MODE_LEGACY
+                )
                 movementMethod = LinkMovementMethod.getInstance()
             }
 
@@ -82,15 +87,15 @@ class CrashReportFragment : Fragment() {
 
             btnOkay.setOnClickListener { finishActivity() }
 
-          // Handle system back button
-          requireActivity().onBackPressedDispatcher.addCallback(
-            viewLifecycleOwner,
-            object : OnBackPressedCallback(true) {
-              override fun handleOnBackPressed() {
-                finishActivity()
-              }
-            }
-          )
+            // Handle system back button
+            requireActivity().onBackPressedDispatcher.addCallback(
+                viewLifecycleOwner,
+                object : OnBackPressedCallback(true) {
+                    override fun handleOnBackPressed() {
+                        finishActivity()
+                    }
+                }
+            )
 
         }
     }
@@ -105,6 +110,6 @@ class CrashReportFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        binding = null
+        _binding = null
     }
 }
