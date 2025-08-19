@@ -46,6 +46,7 @@ object TooltipManager {
           ON T.categoryId = TC.id
         WHERE T.tag = ?
           AND TC.category = ?
+        ORDER BY TB.buttonNumberId
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
@@ -88,7 +89,7 @@ object TooltipManager {
 
                 Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")
                     
-                // buttonCursor.close()
+                buttonCursor.close()
                 cursor.close()
                 db.close()
                     
