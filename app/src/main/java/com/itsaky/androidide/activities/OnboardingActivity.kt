@@ -33,7 +33,6 @@ import com.itsaky.androidide.fragments.onboarding.GreetingFragment
 import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
-import com.itsaky.androidide.fragments.onboarding.StatisticsFragment
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
@@ -152,13 +151,7 @@ class OnboardingActivity : AppIntro2() {
         activityScope.cancel("Activity is being destroyed")
     }
 
-    override fun onNextPressed(currentFragment: Fragment?) {
-        (currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
-    }
-
     override fun onDonePressed(currentFragment: Fragment?) {
-        (currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
-
         if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
             finishAffinity()
             return

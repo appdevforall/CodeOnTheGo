@@ -389,11 +389,6 @@
   <string name="msg_invalid_project_details">项目信息无效</string>
   <string name="msg_use_kts">将 Kotlin 脚本 (.kts) 用于 Gradle build 文件</string>
   <string name="title_privacy">隐私</string>
-  <string name="title_androidide_statistics">Code on the Go 统计</string>
-  <string name="msg_androidide_statistics">通过提供匿名统计信息帮助我们改进 Code on the Go。 我们收集有关您设备的基本信息仅用于用户群统计。 可以在首选项中查看共享的确切数据。 您的数据是安全的，不会与第三方服务共享。 您可以随时在首选项中选择退出。</string>
-  <string name="summary_anonymous_usage_stats">匿名使用统计</string>
-  <string name="idepref_stats_optIn_title">统计数据收集</string>
-  <string name="idepref_stats_optIn_summary">允许收集安装指标和设备统计信息（完全匿名）。</string>
   <string name="title_unique_id">唯一身份</string>
   <string name="title_device">设备</string>
   <string name="title_app_version">应用版本</string>
