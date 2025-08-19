@@ -214,27 +214,27 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 			}
 		}
 
-        flavorDimensions("abi")
+		flavorDimensions("abi")
 
-        productFlavors {
-            create("v7") {
-                dimension = "abi"
+		productFlavors {
+			create("v7") {
+				dimension = "abi"
 
-                ndk.abiFilters.clear()
-                ndk.abiFilters += "armeabi-v7a"
-            }
+				ndk.abiFilters.clear()
+				ndk.abiFilters += "armeabi-v7a"
+			}
 
-            create("v8") {
-                dimension = "abi"
-                ndk.abiFilters.clear()
-                ndk.abiFilters += "arm64-v8a"
-            }
-        }
+			create("v8") {
+				dimension = "abi"
+				ndk.abiFilters.clear()
+				ndk.abiFilters += "arm64-v8a"
+			}
+		}
 
-        buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
-            initWith(buildTypes.getByName("debug"))
+		buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
+			initWith(buildTypes.getByName("debug"))
 			matchingFallbacks += "debug"
-        }
+		}
 
 		buildTypes.getByName("debug") {
 			isMinifyEnabled = false

@@ -16,11 +16,11 @@ import kotlinx.coroutines.launch
 import moe.shizuku.manager.AppConstants
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.ShizukuSettings.LaunchMethod
+import moe.shizuku.manager.ShizukuStarter
 import moe.shizuku.manager.adb.AdbClient
 import moe.shizuku.manager.adb.AdbKey
 import moe.shizuku.manager.adb.AdbMdns
 import moe.shizuku.manager.adb.PreferenceAdbKeyStore
-import moe.shizuku.manager.ShizukuStarter
 import moe.shizuku.manager.utils.UserHandleCompat
 import rikka.shizuku.Shizuku
 import java.util.concurrent.CountDownLatch
