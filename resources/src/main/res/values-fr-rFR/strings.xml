@@ -391,11 +391,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_invalid_project_details">Détails du projet incorrects</string>
   <string name="msg_use_kts">Utiliser les scripts Kotlin (.kts) pour les configurations Gradle</string>
   <string name="title_privacy">Confidentialité</string>
-  <string name="title_androidide_statistics">Statistiques d\'Code on the Go</string>
-  <string name="msg_androidide_statistics">Aidez-nous à améliorer Code on the Go en nous provenant des informations anonymes. Les données exactes peuvent être vérifiées dans les paramètres. Vos données sont sécurisées and non partagées avec des services tiers. Vous pouvez modifier votre accord quand vous le souhaitez dans les paramètres.</string>
-  <string name="summary_anonymous_usage_stats">Statistiques d\'utilisation anonymes</string>
-  <string name="idepref_stats_optIn_title">Collecte des statistiques</string>
-  <string name="idepref_stats_optIn_summary">Autoriser l\'installation métrique et les statistiques de l\'appareil à être collecté (totalement anonyme).</string>
   <string name="title_unique_id">Identifiant unique</string>
   <string name="title_device">Appareil</string>
   <string name="title_app_version">Version de l\'application</string>
