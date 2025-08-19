@@ -33,6 +33,12 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 
+	companion object {
+		const val TABS_COUNT = 2
+		const val TAB_INDEX_VARIABLES = 0
+		const val TAB_INDEX_CALL_STACK = 1
+	}
+
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
@@ -40,10 +46,10 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		super.onViewCreated(view, savedInstanceState)
 
 		tabs =
-			Array(2) { position ->
+			Array(TABS_COUNT) { position ->
 				when (position) {
-					0 -> getString(R.string.debugger_variables) to VariableListFragment()
-					1 -> getString(R.string.debugger_call_stack) to CallStackFragment()
+					TAB_INDEX_VARIABLES -> getString(R.string.debugger_variables) to VariableListFragment()
+					TAB_INDEX_CALL_STACK -> getString(R.string.debugger_call_stack) to CallStackFragment()
 					else -> throw IllegalStateException("Unknown position: $position")
 				}
 			}
