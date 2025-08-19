@@ -230,18 +230,21 @@ class GeminiRepositoryImpl(
         val executor = ExecutorAgent(this)
         val critic = CriticAgent(vertexAiModelForCritique)
 
+        val initialPrompt = buildInitialPromptWithHistory(userInput, history)
+
         var currentPlan: List<PlanStep>
         val completedSteps = mutableListOf<StepResult>()
         var lastFailureReason: String? = null
         var remainingRetries = 3
 
-        // --- NEW: Initialize the working context ---
         val workingContext = StringBuilder()
-        workingContext.append("User's initial request: \"$userInput\"\n\n")
+        // Use the full initial prompt in the context
+        workingContext.append("User's initial request & context:\n\"$initialPrompt\"\n\n")
 
-        // 1. Create the initial plan
         onStateUpdate?.invoke(AgentState.Processing("👨‍🎨 Creating an initial plan..."))
-        currentPlan = orchestrator.createPlan(userInput, GeminiTools.getToolDeclarationsAsJson())
+        // Pass the full initial prompt to the planner
+        currentPlan =
+            orchestrator.createPlan(initialPrompt, GeminiTools.getToolDeclarationsAsJson())
 
         if (currentPlan.isEmpty()) {
             val failureMessage =
@@ -333,5 +336,32 @@ class GeminiRepositoryImpl(
             text = finalMessage,
             report = "Completed ${completedSteps.size} steps."
         )
+    }
+
+    private fun buildInitialPromptWithHistory(
+        userInput: String,
+        history: List<ChatMessage>
+    ): String {
+        if (history.isEmpty()) {
+            return userInput
+        }
+
+        val historyString = history.joinToString(separator = "\n") {
+            // Format each message based on its sender
+            when (it.sender) {
+                ChatMessage.Sender.USER -> "Previous User: ${it.text}"
+                ChatMessage.Sender.AGENT -> "Previous Agent: ${it.text}"
+                else -> "" // Ignore system or tool messages for this context
+            }
+        }
+
+        return """
+    Here is the recent conversation history for context:
+    --- START HISTORY ---
+    $historyString
+    --- END HISTORY ---
+
+    Now, please act on my latest request: "$userInput"
+    """.trimIndent()
     }
 }
