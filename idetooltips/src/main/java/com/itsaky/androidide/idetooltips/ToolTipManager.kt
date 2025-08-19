@@ -28,42 +28,24 @@ object TooltipManager {
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
-    /*
     val queryTooltip = """
-SELECT T.id, T.summary, T.detail
-FROM   Tooltips AS T, TooltipCategories as TC
-WHERE  T.tooltipCategoryId = TC.id
-  AND  TC.category         = ?
-  AND  T.tag               = ?
-"""
-
-
-    val queryTooltipButtons = """
-SELECT description, uri
-FROM   TooltipButtons
-WHERE  tooltipId = ?
-ORDER  BY buttonNumberId
-"""
-    */
-
-    val queryTooltip = """
-        SELECT T.id, T.summary, T.detail
-FROM Tooltips AS T
-JOIN TooltipCategories AS TC
-  ON T.categoryId = TC.id
-WHERE T.tag = ?
-  AND TC.category = ?
+        SELECT T.summary, T.detail
+        FROM Tooltips AS T
+        JOIN TooltipCategories AS TC
+          ON T.categoryId = TC.id
+        WHERE T.tag = ?
+          AND TC.category = ?
     """
 
     val queryTooltipButtons = """
         SELECT TB.description, TB.uri
-FROM TooltipButtons AS TB
-JOIN Tooltips AS T
-  ON TB.tooltipId = T.id
-JOIN TooltipCategories AS TC
-  ON T.categoryId = TC.id
-WHERE T.tag = ?
-  AND TC.category = ?
+        FROM TooltipButtons AS TB
+        JOIN Tooltips AS T
+          ON TB.tooltipId = T.id
+        JOIN TooltipCategories AS TC
+          ON T.categoryId = TC.id
+        WHERE T.tag = ?
+          AND TC.category = ?
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
@@ -94,9 +76,8 @@ WHERE T.tag = ?
 
                 cursor.moveToFirst()
 
-                // val id      = cursor.getInt(0)
-                val summary = cursor.getString(1)
-                val detail  = cursor.getString(2)
+                val summary = cursor.getString(0)
+                val detail  = cursor.getString(1)
 
                 val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(tag, category))
 
