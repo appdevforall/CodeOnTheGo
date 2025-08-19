@@ -30,19 +30,25 @@ object TooltipManager {
                                                "/Download/documentation.db")
 
     val queryTooltip = """
-SELECT T.id, T.summary, T.detail
-FROM   Tooltips AS T, TooltipCategories as TC
-WHERE  T.tooltipCategoryId = TC.id
-  AND  TC.category         = ?
-  AND  T.tag               = ?
-"""
+        SELECT T.summary, T.detail
+        FROM Tooltips AS T
+        JOIN TooltipCategories AS TC
+          ON T.categoryId = TC.id
+        WHERE T.tag = ?
+          AND TC.category = ?
+    """
 
     val queryTooltipButtons = """
-SELECT description, uri
-FROM   TooltipButtons
-WHERE  tooltipId = ?
-ORDER  BY buttonNumberId
-"""
+        SELECT TB.description, TB.uri
+        FROM TooltipButtons AS TB
+        JOIN Tooltips AS T
+          ON TB.tooltipId = T.id
+        JOIN TooltipCategories AS TC
+          ON T.categoryId = TC.id
+        WHERE T.tag = ?
+          AND TC.category = ?
+        ORDER BY TB.buttonNumberId
+    """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
@@ -59,7 +65,7 @@ ORDER  BY buttonNumberId
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                val cursor = db.rawQuery(queryTooltip, arrayOf(category, tag))
+                val cursor = db.rawQuery(queryTooltip, arrayOf(tag, category))
                 
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
@@ -72,15 +78,14 @@ ORDER  BY buttonNumberId
 
                 cursor.moveToFirst()
 
-                val id      = cursor.getInt(0)
-                val summary = cursor.getString(1)
-                val detail  = cursor.getString(2)
+                val summary = cursor.getString(0)
+                val detail  = cursor.getString(1)
 
-                val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(id.toString()))
-                    
+                val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(tag, category))
+
                 val buttons = ArrayList<Pair<String, String>>()
                 while (buttonCursor.moveToNext()) {
-                    buttons.add(Pair(buttonCursor.getString(0), buttonCursor.getString(1)))
+                    buttons.add(Pair(buttonCursor.getString(0), "http://localhost:6174/" + buttonCursor.getString(1)))
                 }
 
                 Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")

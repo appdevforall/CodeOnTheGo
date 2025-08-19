@@ -6,12 +6,8 @@ permissions:
   actions: write
 
 on:
-  pull_request:
-    branches: [ "stage" ]
-    types: [ opened, synchronize, reopened ]
-    paths-ignore:
-      - '**/*.md'
-      - 'fastlane/**'
+  push:
+
   workflow_dispatch: { }
 
 env:
@@ -120,9 +116,11 @@ jobs:
 
       - name: Extract Jira Ticket and Fetch Title
         id: extract_jira
+        env:
+          COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
+          
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
@@ -168,10 +166,16 @@ jobs:
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          BUILD_TYPE: ${{ env.BUILD_TYPE }}
+          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
+          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
         run: |
           echo "Starting Firebase deployment..."
-          echo "APK Path: ${{ steps.find_apk.outputs.APK_PATH }}"
-          echo "Firebase App ID: ${{ secrets.FIREBASE_APP_ID }}"
+          echo "APK Path: $APK_PATH"
+          echo "Firebase App ID: $FIREBASE_APP_ID"
           
           # Check if Firebase CLI is authenticated
           echo "Checking Firebase authentication..."
@@ -179,15 +183,20 @@ jobs:
             echo "ERROR: Firebase authentication failed"
             exit 1
           }
+
+          RELEASE_NOTES_FILE=$(mktemp)
+          cat > "$RELEASE_NOTES_FILE" << EOF
+          Build Type: $BUILD_TYPE
+          JIRA Title: $JIRA_TITLE
+          Ticket: $JIRA_URL
+          EOF
           
           echo "Running Firebase distribution command..."
           set +e  # Disable exit on error temporarily
-          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-            --app "${{ secrets.FIREBASE_APP_ID }}" \
+          output=$(firebase appdistribution:distribute "$APK_PATH" \
+            --app "$FIREBASE_APP_ID" \
             --groups "testers" \
-            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-          JIRA Title: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
-          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}" 2>&1)
+            --release-notes-file "$RELEASE_NOTES_FILE" 2>&1)
           exit_code=$?
           set -e  # Re-enable exit on error
           
@@ -215,12 +224,12 @@ jobs:
       - name: Send Rich Slack Notification
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          JIRA_TITLE="${{ steps.extract_jira.outputs.JIRA_TITLE }}"
-          PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
-          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
-          FIREBASE_CONSOLE_URL="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}"
+          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
+          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
+          PR_AUTHOR: ${{ steps.pr_info.outputs.PR_AUTHOR }}
+          COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
+          FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
+        run: |          
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ env.BUILD_TYPE }}"
           
@@ -319,5 +328,5 @@ jobs:
             }' > payload.json
           
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
-          rm -f payload.json
 
+          rm -f payload.json
