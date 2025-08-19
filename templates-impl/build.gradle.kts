@@ -18,31 +18,31 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  id("org.jetbrains.kotlin.android")
-  id("kotlin-kapt")
+	id("com.android.library")
+	id("org.jetbrains.kotlin.android")
+	id("kotlin-kapt")
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.templates.impl"
+	namespace = "${BuildConfig.PACKAGE_NAME}.templates.impl"
 }
 
 dependencies {
-  kapt(libs.google.auto.service)
+	kapt(libs.google.auto.service)
 
-  api(projects.templatesApi)
+	api(projects.templatesApi)
 
-  implementation(projects.shared)
-  implementation(projects.common)
-  implementation(projects.preferences)
-  implementation(projects.subprojects.projects)
-  implementation(libs.androidx.annotation)
-  implementation(libs.androidx.core.ktx)
-  implementation(libs.google.auto.service.annotations)
+	implementation(projects.shared)
+	implementation(projects.common)
+	implementation(projects.preferences)
+	implementation(projects.subprojects.projects)
+	implementation(libs.androidx.annotation)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.google.auto.service.annotations)
 
-  testImplementation(projects.templatesApi)
-  testImplementation(projects.lsp.api)
-  testImplementation(projects.preferences)
-  testImplementation(projects.testing.unit)
-  testImplementation(projects.testing.tooling)
+	testImplementation(projects.templatesApi)
+	testImplementation(projects.lsp.api)
+	testImplementation(projects.preferences)
+	testImplementation(projects.testing.unit)
+	testImplementation(projects.testing.tooling)
 }

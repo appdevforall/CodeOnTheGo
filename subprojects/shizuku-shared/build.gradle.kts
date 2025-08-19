@@ -1,12 +1,12 @@
 plugins {
-    id("com.android.library")
+	id("com.android.library")
 }
 
 android {
-    namespace = "rikka.shizuku.shared"
+	namespace = "rikka.shizuku.shared"
 }
 
 dependencies {
-    implementation(projects.subprojects.shizukuAidl)
-    implementation(libs.androidx.annotation)
+	implementation(projects.subprojects.shizukuAidl)
+	implementation(libs.androidx.annotation)
 }

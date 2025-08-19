@@ -77,130 +77,130 @@ import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
+	private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
+	private var ideLogcatReader: IDELogcatReader? = null
 
-    private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
-    private var ideLogcatReader: IDELogcatReader? = null
+	private val applicationScope = CoroutineScope(SupervisorJob())
 
-    private val applicationScope = CoroutineScope(SupervisorJob())
+	companion object {
+		private val log = LoggerFactory.getLogger(IDEApplication::class.java)
 
-    companion object {
+		@JvmStatic
+		lateinit var instance: IDEApplication
+			private set
 
-        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
+		init {
+			Shell.setDefaultBuilder(Shell.Builder.create().setFlags(Shell.FLAG_REDIRECT_STDERR))
+			HiddenApiBypass.setHiddenApiExemptions("")
+			if (isAtLeastR()) {
+				System.loadLibrary("adb")
+			}
+		}
+	}
 
-        @JvmStatic
-        lateinit var instance: IDEApplication
-            private set
+	init {
+		if (!VMUtils.isJvm() && !isTestMode()) {
+			try {
+				TreeSitter.loadLibrary()
+			} catch (e: UnsatisfiedLinkError) {
+				Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
+			}
+		}
 
-        init {
-            Shell.setDefaultBuilder(Shell.Builder.create().setFlags(Shell.FLAG_REDIRECT_STDERR))
-            HiddenApiBypass.setHiddenApiExemptions("")
-            if (isAtLeastR()) {
-                System.loadLibrary("adb")
-            }
-        }
-    }
+		RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+	}
 
-    init {
-        if (!VMUtils.isJvm() && !isTestMode()) {
-            try {
-                TreeSitter.loadLibrary()
-            } catch (e: UnsatisfiedLinkError) {
-                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
-            }
-        }
+	@OptIn(DelicateCoroutinesApi::class)
+	override fun onCreate() {
+		instance = this
+		uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+		Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
-        RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
-    }
-
-
-    @OptIn(DelicateCoroutinesApi::class)
-    override fun onCreate() {
-        instance = this
-        uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
-
-        super.onCreate()
+		super.onCreate()
 
 		ShizukuSettings.initialize(this)
 
-        if (BuildConfig.DEBUG) {
-            val builder = StrictMode.VmPolicy.Builder()
-            StrictMode.setVmPolicy(builder.build())
-            //TODO JMT
+		if (BuildConfig.DEBUG) {
+			val builder = StrictMode.VmPolicy.Builder()
+			StrictMode.setVmPolicy(builder.build())
+			// TODO JMT
 //            StrictMode.setVmPolicy(
 //                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
 //                    .build()
 //            )
-            if (DevOpsPreferences.dumpLogs) {
-                startLogcatReader()
-            }
+			if (DevOpsPreferences.dumpLogs) {
+				startLogcatReader()
+			}
 
-            checkForSecondDisplay()
+			checkForSecondDisplay()
+		}
 
+		EventBus
+			.builder()
+			.addIndex(AppEventsIndex())
+			.addIndex(EditorEventsIndex())
+			.addIndex(ProjectsApiEventsIndex())
+			.addIndex(LspApiEventsIndex())
+			.addIndex(LspJavaEventsIndex())
+			.installDefaultEventBus(true)
 
-        }
+		EventBus.getDefault().register(this)
 
-        EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
-            .addIndex(ProjectsApiEventsIndex()).addIndex(LspApiEventsIndex())
-            .addIndex(LspJavaEventsIndex()).installDefaultEventBus(true)
+		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
-        EventBus.getDefault().register(this)
+		if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+			DynamicColors.applyToActivitiesIfAvailable(this)
+		}
 
-        AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
 
-        if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-            DynamicColors.applyToActivitiesIfAvailable(this)
-        }
+		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
+		GlobalScope.launch {
+			IDEColorSchemeProvider.init()
+		}
 
-        EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+		// Tooltip database access is now handled by direct SQLite queries
+	}
 
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-        GlobalScope.launch {
-            IDEColorSchemeProvider.init()
-        }
+	private fun handleCrash(
+		thread: Thread,
+		th: Throwable,
+	) {
+		writeException(th)
 
+		try {
+			val intent = Intent()
+			intent.action = CrashHandlerActivity.REPORT_ACTION
+			intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
+			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+			startActivity(intent)
+			if (uncaughtExceptionHandler != null) {
+				uncaughtExceptionHandler!!.uncaughtException(thread, th)
+			}
 
+			exitProcess(1)
+		} catch (error: Throwable) {
+			log.error("Unable to show crash handler activity", error)
+		}
+	}
 
-        //Tooltip database access is now handled by direct SQLite queries
-    }
+	fun showChangelog() {
+		val intent = Intent(Intent.ACTION_VIEW)
+		var version = BuildInfo.VERSION_NAME_SIMPLE
+		if (!version.startsWith('v')) {
+			version = "v$version"
+		}
+		intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/$version")
+		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+		try {
+			startActivity(intent)
+		} catch (th: Throwable) {
+			log.error("Unable to start activity to show changelog", th)
+			flashError("Unable to start activity")
+		}
+	}
 
-    private fun handleCrash(thread: Thread, th: Throwable) {
-        writeException(th)
-
-        try {
-            val intent = Intent()
-            intent.action = CrashHandlerActivity.REPORT_ACTION
-            intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            if (uncaughtExceptionHandler != null) {
-                uncaughtExceptionHandler!!.uncaughtException(thread, th)
-            }
-
-            exitProcess(1)
-        } catch (error: Throwable) {
-            log.error("Unable to show crash handler activity", error)
-        }
-    }
-
-    fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW)
-        var version = BuildInfo.VERSION_NAME_SIMPLE
-        if (!version.startsWith('v')) {
-            version = "v${version}"
-        }
-        intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/${version}")
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            startActivity(intent)
-        } catch (th: Throwable) {
-            log.error("Unable to start activity to show changelog", th)
-            flashError("Unable to start activity")
-        }
-    }
-
-    fun reportStatsIfNecessary() {
-
+	fun reportStatsIfNecessary() {
 //        if (!StatPreferences.statOptIn) {
 //            log.info("Stat collection is disabled.")
 //            return
@@ -228,78 +228,82 @@ class IDEApplication : TermuxApplication() {
 //                log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
 //            }
 //        })
-    }
+	}
 
-    private fun startLogcatReader() {
-        if (ideLogcatReader != null) {
-            // already started
-            return
-        }
+	private fun startLogcatReader() {
+		if (ideLogcatReader != null) {
+			// already started
+			return
+		}
 
-        log.info("Starting logcat reader...")
-        ideLogcatReader = IDELogcatReader().also { it.start() }
-    }
+		log.info("Starting logcat reader...")
+		ideLogcatReader = IDELogcatReader().also { it.start() }
+	}
 
-    private fun stopLogcatReader() {
-        log.info("Stopping logcat reader...")
-        ideLogcatReader?.stop()
-        ideLogcatReader = null
-    }
+	private fun stopLogcatReader() {
+		log.info("Stopping logcat reader...")
+		ideLogcatReader?.stop()
+		ideLogcatReader = null
+	}
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onPrefChanged(event: PreferenceChangeEvent) {
-        val enabled = event.value as? Boolean?
-        if (event.key == StatPreferences.STAT_OPT_IN) {
-            if (enabled == true) {
-                reportStatsIfNecessary()
-            } else {
-                cancelStatUploadWorker()
-            }
-        } else if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
-            if (enabled == true) {
-                startLogcatReader()
-            } else {
-                stopLogcatReader()
-            }
-        } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
-            AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
-        } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPrefChanged(event: PreferenceChangeEvent) {
+		val enabled = event.value as? Boolean?
+		if (event.key == StatPreferences.STAT_OPT_IN) {
+			if (enabled == true) {
+				reportStatsIfNecessary()
+			} else {
+				cancelStatUploadWorker()
+			}
+		} else if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+			if (enabled == true) {
+				startLogcatReader()
+			} else {
+				stopLogcatReader()
+			}
+		} else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
+			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		} else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
+			// Use empty locale list if the locale has been reset to 'System Default'
+			val selectedLocale = GeneralPreferences.selectedLocale
+			val localeListCompat =
+				selectedLocale?.let {
+					LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
+				} ?: LocaleListCompat.getEmptyLocaleList()
 
-            // Use empty locale list if the locale has been reset to 'System Default'
-            val selectedLocale = GeneralPreferences.selectedLocale
-            val localeListCompat = selectedLocale?.let {
-                LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
-            } ?: LocaleListCompat.getEmptyLocaleList()
+			AppCompatDelegate.setApplicationLocales(localeListCompat)
+		}
+	}
 
-            AppCompatDelegate.setApplicationLocales(localeListCompat)
-        }
-    }
+	private fun cancelStatUploadWorker() {
+		log.info("Opted-out of stat collection. Cancelling StatUploadWorker if enqueued...")
+		val operation =
+			WorkManager
+				.getInstance(this)
+				.cancelUniqueWork(StatUploadWorker.WORKER_WORK_NAME)
+		operation.state.observeForever(
+			object : Observer<Operation.State> {
+				override fun onChanged(value: Operation.State) {
+					operation.state.removeObserver(this)
+					log.info("StatUploadWorker: Cancellation result state: {}", value)
+				}
+			},
+		)
+	}
 
-    private fun cancelStatUploadWorker() {
-        log.info("Opted-out of stat collection. Cancelling StatUploadWorker if enqueued...")
-        val operation = WorkManager.getInstance(this)
-            .cancelUniqueWork(StatUploadWorker.WORKER_WORK_NAME)
-        operation.state.observeForever(object : Observer<Operation.State> {
-            override fun onChanged(value: Operation.State) {
-                operation.state.removeObserver(this)
-                log.info("StatUploadWorker: Cancellation result state: {}", value)
-            }
-        })
-    }
-
-    private fun checkForSecondDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-        var secondDisplay: Display? = null
-        for (display in displays) {
-            if (display.displayId != Display.DEFAULT_DISPLAY) {
-                // This is a secondary display
-                secondDisplay = display
-            }
-        }
-        if (secondDisplay != null) {
-            val presentation = SecondaryScreen(this, secondDisplay!!)
-            presentation.show()
-        }
-    }
+	private fun checkForSecondDisplay() {
+		val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+		val displays = displayManager.displays
+		var secondDisplay: Display? = null
+		for (display in displays) {
+			if (display.displayId != Display.DEFAULT_DISPLAY) {
+				// This is a secondary display
+				secondDisplay = display
+			}
+		}
+		if (secondDisplay != null) {
+			val presentation = SecondaryScreen(this, secondDisplay!!)
+			presentation.show()
+		}
+	}
 }

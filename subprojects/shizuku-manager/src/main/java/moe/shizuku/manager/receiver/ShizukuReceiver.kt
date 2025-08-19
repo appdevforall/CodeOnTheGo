@@ -6,8 +6,10 @@ import android.content.Intent
 import moe.shizuku.manager.shell.ShellBinderRequestHandler
 
 class ShizukuReceiver : BroadcastReceiver() {
-
-    override fun onReceive(context: Context, intent: Intent) {
-        ShellBinderRequestHandler.handleRequest(context, intent)
-    }
+	override fun onReceive(
+		context: Context,
+		intent: Intent,
+	) {
+		ShellBinderRequestHandler.handleRequest(context, intent)
+	}
 }
