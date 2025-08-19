@@ -75,15 +75,44 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_java() {
         run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the basic project",
-                R.string.template_basic
-            )
-            selectJavaLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
+            step("Navigate to main screen") {
+                flakySafely(timeoutMs = 30000) {
+                    navigateToMainScreen()
+                }
+            }
+
+            step("Click create project on home screen") {
+                flakySafely(timeoutMs = 10000) {
+                    clickCreateProjectHomeScreen()
+                }
+            }
+
+            step("Select the basic project template") {
+                flakySafely(timeoutMs = 10000) {
+                    selectProjectTemplate(
+                        "Select the basic project",
+                        R.string.template_basic
+                    )
+                }
+            }
+
+            step("Select Java language") {
+                flakySafely(timeoutMs = 10000) {
+                    selectJavaLanguage()
+                }
+            }
+
+            step("Click create project on settings screen") {
+                flakySafely(timeoutMs = 10000) {
+                    clickCreateProjectProjectSettings()
+                }
+            }
+
+            step("Initialize project and cancel build") {
+                flakySafely(timeoutMs = 15000) {
+                    initializeProjectAndCancelBuild()
+                }
+            }
         }
     }
 
@@ -150,15 +179,45 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_kotlin() {
         run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the navigation drawer project",
-                R.string.template_navigation_drawer
-            )
-            selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
+            step("Navigate to main screen") {
+                // Ensure consistent start state with increased timeout
+                flakySafely(timeoutMs = 30000) {
+                    navigateToMainScreen()
+                }
+            }
+
+            step("Click create project on home screen") {
+                flakySafely(timeoutMs = 10000) {
+                    clickCreateProjectHomeScreen()
+                }
+            }
+
+            step("Select the navigation drawer project template") {
+                flakySafely(timeoutMs = 10000) {
+                    selectProjectTemplate(
+                        "Select the navigation drawer project",
+                        R.string.template_navigation_drawer
+                    )
+                }
+            }
+
+            step("Select Kotlin language") {
+                flakySafely(timeoutMs = 10000) {
+                    selectKotlinLanguage()
+                }
+            }
+
+            step("Click create project on settings screen") {
+                flakySafely(timeoutMs = 10000) {
+                    clickCreateProjectProjectSettings()
+                }
+            }
+
+            step("Initialize project and cancel build") {
+                flakySafely(timeoutMs = 10000) {
+                    initializeProjectAndCancelBuild()
+                }
+            }
         }
     }
 
@@ -240,15 +299,44 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_kotlin() {
         run {
-            navigateToMainScreen()
-            clickCreateProjectHomeScreen()
-            selectProjectTemplate(
-                "Select the no AndroidX project",
-                R.string.template_no_AndroidX
-            )
-            selectKotlinLanguage()
-            clickCreateProjectProjectSettings()
-            initializeProjectAndCancelBuild()
+            step("Navigate to main screen") {
+                flakySafely(timeoutMs = 30000) {
+                    navigateToMainScreen()
+                }
+            }
+
+            step("Click create project on home screen") {
+                flakySafely(timeoutMs = 10000) {
+                    clickCreateProjectHomeScreen()
+                }
+            }
+
+            step("Select the no AndroidX project template") {
+                flakySafely(timeoutMs = 10000) {
+                    selectProjectTemplate(
+                        "Select the no AndroidX project",
+                        R.string.template_no_AndroidX
+                    )
+                }
+            }
+
+            step("Select Kotlin language") {
+                flakySafely(timeoutMs = 10000) {
+                    selectKotlinLanguage()
+                }
+            }
+
+            step("Click create project on settings screen") {
+                flakySafely(timeoutMs = 10000) {
+                    clickCreateProjectProjectSettings()
+                }
+            }
+
+            step("Initialize project and cancel build") {
+                flakySafely(timeoutMs = 15000) {
+                    initializeProjectAndCancelBuild()
+                }
+            }
         }
     }
 
