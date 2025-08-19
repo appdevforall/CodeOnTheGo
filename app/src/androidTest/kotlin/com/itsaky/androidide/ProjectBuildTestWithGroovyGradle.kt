@@ -3,8 +3,12 @@ package com.itsaky.androidide
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.SplashActivity
+import com.itsaky.androidide.helper.grantAccessibilityPermission
+import com.itsaky.androidide.helper.grantOverlayPermission
+import com.itsaky.androidide.helper.grantStoragePermissions
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.navigateToMainScreen
 import com.itsaky.androidide.helper.selectProjectTemplate
@@ -26,6 +30,12 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
         @BeforeClass
         @JvmStatic
         fun setUpClass() {
+            // Grant all required permissions before starting tests to skip permission screen
+            val uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            grantStoragePermissions(uiDevice)
+            grantOverlayPermission(uiDevice)
+            grantAccessibilityPermission(uiDevice)
+            
             // Start the app once for the entire test class
             val context = ApplicationProvider.getApplicationContext<android.content.Context>()
             val intent = Intent(context, SplashActivity::class.java).apply {
