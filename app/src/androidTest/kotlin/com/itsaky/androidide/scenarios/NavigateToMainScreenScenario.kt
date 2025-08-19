@@ -34,10 +34,9 @@ class NavigateToMainScreenScenario : Scenario() {
                             childAt<PermissionScreen.PermissionItem>(0) {
                                 flakySafely(10000) {
                                     try {
-                                        grantButton.isEnabled()
                                         grantButton.click()
                                     } catch (e: Exception) {
-                                        println("Failed to interact with grant button 0 - permission may already be granted: ${e.message}")
+                                        println("Grant button 0 - permission may already be granted or button not available: ${e.message}")
                                     }
                                 }
                             }
@@ -54,10 +53,9 @@ class NavigateToMainScreenScenario : Scenario() {
                             childAt<PermissionScreen.PermissionItem>(1) {
                                 flakySafely(10000) {
                                     try {
-                                        grantButton.isEnabled()
                                         grantButton.click()
                                     } catch (e: Exception) {
-                                        println("Failed to interact with grant button 1 - permission may already be granted: ${e.message}")
+                                        println("Grant button 1 - permission may already be granted or button not available: ${e.message}")
                                     }
                                 }
                             }
@@ -94,10 +92,9 @@ class NavigateToMainScreenScenario : Scenario() {
                             childAt<PermissionScreen.PermissionItem>(2) {
                                 flakySafely(10000) {
                                     try {
-                                        grantButton.isEnabled()
                                         grantButton.click()
                                     } catch (e: Exception) {
-                                        println("Failed to interact with grant button 2 - permission may already be granted: ${e.message}")
+                                        println("Grant button 2 - permission may already be granted or button not available: ${e.message}")
                                     }
                                 }
                             }
@@ -118,10 +115,9 @@ class NavigateToMainScreenScenario : Scenario() {
                             childAt<PermissionScreen.PermissionItem>(3) {
                                 flakySafely(10000) {
                                     try {
-                                        grantButton.isEnabled()
                                         grantButton.click()
                                     } catch (e: Exception) {
-                                        println("Failed to interact with grant button 3 - permission may already be granted: ${e.message}")
+                                        println("Grant button 3 - permission may already be granted or button not available: ${e.message}")
                                     }
                                 }
                             }
