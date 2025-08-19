@@ -40,6 +40,7 @@ class CloseProjectSidebarAction(context: Context, override val order: Int) :
   init {
     label = context.getString(R.string.title_close_project)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_folder_close)
+    tooltipTag = "project.sidebar.closeproject"
   }
 
   override suspend fun execAction(data: ActionData): Any {

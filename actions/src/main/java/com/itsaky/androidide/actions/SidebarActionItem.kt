@@ -38,6 +38,11 @@ interface SidebarActionItem : ActionItem {
   val fragmentClass: KClass<out Fragment>?
 
   /**
+   * The tooltip tag for this action.
+   */
+  var tooltipTag: String
+
+  /**
    * Build/setup the fragment navigation for this action item. This method is called only if the [fragmentClass] property
    * is non-null.
    */

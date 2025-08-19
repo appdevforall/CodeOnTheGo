@@ -43,6 +43,7 @@ class TerminalSidebarAction(context: Context, override val order: Int) : Abstrac
   init {
     label = context.getString(R.string.title_terminal)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_terminal)
+    tooltipTag = "project.sidebar.terminal"
   }
 
   companion object {

@@ -41,5 +41,6 @@ class FileTreeSidebarAction(context: Context, override val order: Int) : Abstrac
   init {
     label = context.getString(R.string.msg_file_tree)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_folder)
+    tooltipTag = "project.sidebar.filetree"
   }
 }

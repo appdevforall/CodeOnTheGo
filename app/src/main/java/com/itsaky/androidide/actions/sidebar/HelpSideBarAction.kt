@@ -40,6 +40,7 @@ class HelpSideBarAction(context: Context, override val order: Int) :
     init {
         label = context.getString(R.string.action_open_help)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
+        tooltipTag = "project.help"
     }
 
     override suspend fun execAction(data: ActionData): Any {

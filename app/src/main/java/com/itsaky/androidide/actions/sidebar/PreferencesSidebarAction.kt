@@ -42,6 +42,7 @@ class PreferencesSidebarAction(context: Context, override val order: Int) : Abst
   init {
     label = context.getString(R.string.ide_preferences)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_settings)
+    tooltipTag = "main.prefs"
   }
 
   override suspend fun execAction(data: ActionData): Any {

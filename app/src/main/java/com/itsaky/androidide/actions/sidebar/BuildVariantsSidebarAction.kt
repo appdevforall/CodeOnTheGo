@@ -38,5 +38,6 @@ class BuildVariantsSidebarAction(context: Context, override val order: Int) :
   init {
     label = context.getString(R.string.title_build_variants)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_android)
+    tooltipTag = "project.sidebar.buildvariants"
   }
 }
