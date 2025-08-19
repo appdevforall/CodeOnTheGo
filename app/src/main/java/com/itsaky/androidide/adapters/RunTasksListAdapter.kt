@@ -22,9 +22,14 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.RunTasksListAdapter.VH
 import com.itsaky.androidide.databinding.LayoutRunTaskItemBinding
+import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.tooling.api.models.GradleTask
-import com.itsaky.androidide.utils.AndroidUtils
+import com.itsaky.androidide.viewmodel.RunTasksViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Adapter for showing tasks list in [RunTaskDialogFragment]
@@ -36,7 +41,8 @@ class RunTasksListAdapter
 @JvmOverloads
 constructor(
   tasks: List<Checkable<GradleTask>>,
-  val onCheckChanged: (Checkable<GradleTask>) -> Unit = {}
+  val onCheckChanged: (Checkable<GradleTask>) -> Unit = {},
+  private val viewModel: RunTasksViewModel? = null
 ) : FilterableRecyclerViewAdapter<VH, Checkable<GradleTask>>(tasks) {
 
   data class VH(val binding: LayoutRunTaskItemBinding) : RecyclerView.ViewHolder(binding.root)
@@ -59,7 +65,36 @@ constructor(
       binding.check.isChecked = data.isChecked
       onCheckChanged(data)
     }
+
+    binding.root.setOnLongClickListener {
+      CoroutineScope(Dispatchers.Main).launch {
+        val item = TooltipManager.getTooltip(
+          context = binding.root.context,
+          category = "gradle_tasks",
+          tag = task.name
+        )
+        item?.let { tooltipData ->
+          TooltipManager.showIDETooltip(
+            binding.root.context,
+            binding.root,
+            0,
+            IDETooltipItem(
+              tooltipCategory = "gradle_tasks",
+              tooltipTag = tooltipData.tooltipTag,
+              detail = tooltipData.detail,
+              summary = tooltipData.summary,
+              buttons = tooltipData.buttons,
+            ),
+            { _, url, title ->
+              viewModel?.navigateToHelp(url, title)
+            }
+          )
+        }
+      }
+      true
+    }
   }
+
 
   override fun getQueryCandidate(item: Checkable<GradleTask>): String {
     return item.data.path
