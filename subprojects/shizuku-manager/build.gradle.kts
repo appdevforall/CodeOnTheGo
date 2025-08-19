@@ -40,6 +40,7 @@ dependencies {
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.androidx.recyclerview)
 
+	implementation(projects.common)
 	implementation(projects.logger)
 	implementation(projects.resources)
 	implementation(projects.subprojects.shizukuServer)
@@ -54,6 +55,7 @@ dependencies {
 
 	implementation(libs.libsu.core)
 	implementation(libs.common.hiddenApiBypass)
+	implementation(libs.boringssl)
 	implementation(libs.bcpkix.jdk18on)
 
 	//noinspection UseTomlInstead
