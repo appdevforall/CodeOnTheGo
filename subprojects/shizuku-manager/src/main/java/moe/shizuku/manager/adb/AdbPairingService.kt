@@ -1,26 +1,36 @@
 package moe.shizuku.manager.adb
 
-import android.annotation.TargetApi
-import android.app.*
+import android.app.ForegroundServiceStartNotAllowedException
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.RemoteInput
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import androidx.lifecycle.Observer
+import androidx.annotation.RequiresApi
+import androidx.core.util.Consumer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import moe.shizuku.manager.R
 import moe.shizuku.manager.ShizukuSettings
-import rikka.core.ktx.unsafeLazy
+import moe.shizuku.manager.utils.unsafeLazy
+import org.slf4j.LoggerFactory
 import java.net.ConnectException
+import kotlin.getValue
 
-@TargetApi(Build.VERSION_CODES.R)
+@RequiresApi(Build.VERSION_CODES.R)
 class AdbPairingService : Service() {
 
     companion object {
+
+        private val logger = LoggerFactory.getLogger(AdbPairingService::class.java)
 
         const val notificationChannel = "adb_pairing"
 
@@ -51,9 +61,9 @@ class AdbPairingService : Service() {
 
     private var adbMdns: AdbMdns? = null
 
-    private val observer = Observer<Int> { port ->
+    private val observer = Consumer<Int> { port ->
         Log.i(tag, "Pairing service port: $port")
-        if (port <= 0) return@Observer
+        if (port <= 0) return@Consumer
 
         // Since the service could be killed before user finishing input,
         // we need to put the port into Intent
@@ -145,7 +155,7 @@ class AdbPairingService : Service() {
             val host = "127.0.0.1"
 
             val key = try {
-                AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()), "shizuku")
+                AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()))
             } catch (e: Throwable) {
                 e.printStackTrace()
                 return@launch
@@ -194,25 +204,15 @@ class AdbPairingService : Service() {
                 }
             }
 
-            if (exception != null) {
-                Log.w(tag, "Pair failed", exception)
-            } else {
-                Log.w(tag, "Pair failed")
-            }
+            logger.warn(tag, "Pair failed", exception)
         }
 
         getSystemService(NotificationManager::class.java).notify(
             notificationId,
             Notification.Builder(this, notificationChannel)
-                .setColor(getColor(R.color.notification))
-                .setSmallIcon(R.drawable.ic_system_icon)
+                .setSmallIcon(R.drawable.ic_launcher_fg_vector)
                 .setContentTitle(title)
                 .setContentText(text)
-                /*.apply {
-                    if (!success) {
-                        addAction(retryNotificationAction)
-                    }
-                }*/
                 .build()
         )
         stopSelf()
@@ -300,8 +300,7 @@ class AdbPairingService : Service() {
 
     private val searchingNotification by unsafeLazy {
         Notification.Builder(this, notificationChannel)
-            .setColor(getColor(R.color.notification))
-            .setSmallIcon(R.drawable.ic_system_icon)
+            .setSmallIcon(R.drawable.ic_launcher_fg_vector)
             .setContentTitle(getString(R.string.notification_adb_pairing_searching_for_service_title))
             .addAction(stopNotificationAction)
             .build()
@@ -309,18 +308,16 @@ class AdbPairingService : Service() {
 
     private fun createInputNotification(port: Int): Notification {
         return Notification.Builder(this, notificationChannel)
-            .setColor(getColor(R.color.notification))
             .setContentTitle(getString(R.string.notification_adb_pairing_service_found_title))
-            .setSmallIcon(R.drawable.ic_system_icon)
+            .setSmallIcon(R.drawable.ic_launcher_fg_vector)
             .addAction(replyNotificationAction(port))
             .build()
     }
 
     private val workingNotification by unsafeLazy {
         Notification.Builder(this, notificationChannel)
-            .setColor(getColor(R.color.notification))
             .setContentTitle(getString(R.string.notification_adb_pairing_working_title))
-            .setSmallIcon(R.drawable.ic_system_icon)
+            .setSmallIcon(R.drawable.ic_launcher_fg_vector)
             .build()
     }
 

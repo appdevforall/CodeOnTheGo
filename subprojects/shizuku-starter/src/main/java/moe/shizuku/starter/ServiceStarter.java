@@ -9,6 +9,8 @@ import android.os.Looper;
 import android.util.Log;
 import android.util.Pair;
 
+import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.util.Locale;
 
 import moe.shizuku.api.BinderContainer;
@@ -21,7 +23,7 @@ public class ServiceStarter {
 
     private static final String TAG = "ShizukuServiceStarter";
 
-    private static final String EXTRA_BINDER = "com.itsaky.androidide.intent.extra.BINDER";
+    private static final String EXTRA_BINDER = BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER";
 
     public static final String DEBUG_ARGS;
 

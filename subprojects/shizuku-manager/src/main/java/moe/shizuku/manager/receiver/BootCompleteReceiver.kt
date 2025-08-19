@@ -70,7 +70,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
                 if (port <= 0) return@AdbMdns
                 try {
                     val keystore = PreferenceAdbKeyStore(ShizukuSettings.getPreferences())
-                    val key = AdbKey(keystore, "shizuku")
+                    val key = AdbKey(keystore)
                     val client = AdbClient("127.0.0.1", port, key)
                     client.connect()
                     client.shellCommand(Starter.internalCommand, null)

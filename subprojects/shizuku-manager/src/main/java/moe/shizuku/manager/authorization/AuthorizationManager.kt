@@ -4,13 +4,15 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Parcel
 import moe.shizuku.manager.Manifest
-import moe.shizuku.manager.utils.Logger.LOGGER
 import moe.shizuku.manager.utils.ShizukuSystemApis
+import org.slf4j.LoggerFactory
 import rikka.parcelablelist.ParcelableListSlice
 import rikka.shizuku.Shizuku
 import rikka.shizuku.server.ServerConstants
 
 object AuthorizationManager {
+
+    private val logger = LoggerFactory.getLogger(AuthorizationManager::class.java)
 
     private const val FLAG_ALLOWED = 1 shl 1
     private const val FLAG_DENIED = 1 shl 2
@@ -44,7 +46,7 @@ object AuthorizationManager {
                 try {
                     allPackages.addAll(ShizukuSystemApis.getInstalledPackages((PackageManager.GET_META_DATA or PackageManager.GET_PERMISSIONS).toLong(), user.id))
                 } catch (e: Throwable) {
-                    LOGGER.w(e, "getInstalledPackages")
+                    logger.warn("getInstalledPackages", e)
                 }
             }
             for (pi in allPackages) {

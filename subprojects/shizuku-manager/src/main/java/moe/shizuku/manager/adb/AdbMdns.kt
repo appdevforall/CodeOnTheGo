@@ -6,7 +6,7 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
-import androidx.lifecycle.Observer
+import androidx.core.util.Consumer
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
@@ -15,7 +15,7 @@ import java.net.ServerSocket
 @RequiresApi(Build.VERSION_CODES.R)
 class AdbMdns(
     context: Context, private val serviceType: String,
-    private val observer: Observer<Int>
+    private val observer: Consumer<Int>,
 ) {
 
     private var registered = false
@@ -53,7 +53,7 @@ class AdbMdns(
     }
 
     private fun onServiceLost(info: NsdServiceInfo) {
-        if (info.serviceName == serviceName) observer.onChanged(-1)
+        if (info.serviceName == serviceName) observer.accept(-1)
     }
 
     private fun onServiceResolved(resolvedService: NsdServiceInfo) {
@@ -67,7 +67,7 @@ class AdbMdns(
             && isPortAvailable(resolvedService.port)
         ) {
             serviceName = resolvedService.serviceName
-            observer.onChanged(resolvedService.port)
+            observer.accept(resolvedService.port)
         }
     }
 
