@@ -748,4 +748,19 @@
   <!-- Tooltip Links HTML Template -->
   <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
 	<string name="title_alert">Alert!</string>
+
+  <string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
+  <string name="notification_adb_pairing_input_paring_code">Enter pairing code</string>
+  <string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
+  <string name="notification_adb_pairing_service_found_title">Pairing service found</string>
+  <string name="notification_adb_pairing_stop_searching">Stop searching</string>
+  <string name="notification_adb_pairing_working_title">Pairing in progress</string>
+  <string name="notification_adb_pairing_succeed_title">Pairing successful</string>
+  <string name="notification_adb_pairing_succeed_text">You can start Shizuku service now.</string>
+  <string name="notification_adb_pairing_failed_title">Pairing failed</string>
+  <string name="notification_adb_pairing_retry">Retry</string>
+  <string name="paring_code_is_wrong">Pairing code is wrong.</string>
+  <string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
+  <string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
+  <string name="dialog_adb_pairing_paring_code">Pairing code</string>
 </resources>

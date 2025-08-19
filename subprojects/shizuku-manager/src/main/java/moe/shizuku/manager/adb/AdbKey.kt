@@ -9,17 +9,25 @@ import android.util.Base64
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
+import com.itsaky.androidide.buildinfo.BuildInfo
+import moe.shizuku.manager.utils.unsafeLazy
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.cert.X509v3CertificateBuilder
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
-import rikka.core.ktx.unsafeLazy
+import rikka.rish.BuildConfig
 import java.io.ByteArrayInputStream
 import java.math.BigInteger
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.security.*
+import java.security.Key
+import java.security.KeyFactory
+import java.security.KeyPairGenerator
+import java.security.KeyStore
+import java.security.Principal
+import java.security.PrivateKey
+import java.security.SecureRandom
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPrivateKey
@@ -27,7 +35,8 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.RSAKeyGenParameterSpec
 import java.security.spec.RSAPublicKeySpec
-import java.util.*
+import java.util.Date
+import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
@@ -38,9 +47,11 @@ import javax.net.ssl.X509ExtendedTrustManager
 
 private const val TAG = "AdbKey"
 
-class AdbKey(private val adbKeyStore: AdbKeyStore, name: String) {
+class AdbKey(private val adbKeyStore: AdbKeyStore) {
 
     companion object {
+
+        const val KEY_NAME = BuildInfo.INTERNAL_NAME
 
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val ENCRYPTION_KEY_ALIAS = "_adbkey_encryption_key_"
@@ -99,7 +110,7 @@ class AdbKey(private val adbKeyStore: AdbKeyStore, name: String) {
     }
 
     val adbPublicKey: ByteArray by unsafeLazy {
-        publicKey.adbEncoded(name)
+        publicKey.adbEncoded(KEY_NAME)
     }
 
     private fun getOrCreateEncryptionKey(): Key? {

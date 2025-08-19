@@ -44,9 +44,6 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-
-
-
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
@@ -59,19 +56,22 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
-import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
+import com.topjohnwu.superuser.Shell
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
@@ -82,6 +82,23 @@ class IDEApplication : TermuxApplication() {
     private var ideLogcatReader: IDELogcatReader? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob())
+
+    companion object {
+
+        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
+
+        @JvmStatic
+        lateinit var instance: IDEApplication
+            private set
+
+        init {
+            Shell.setDefaultBuilder(Shell.Builder.create().setFlags(Shell.FLAG_REDIRECT_STDERR))
+            HiddenApiBypass.setHiddenApiExemptions("")
+            if (isAtLeastR()) {
+                System.loadLibrary("adb")
+            }
+        }
+    }
 
     init {
         if (!VMUtils.isJvm() && !isTestMode()) {
@@ -95,7 +112,7 @@ class IDEApplication : TermuxApplication() {
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
-  
+
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         instance = this
@@ -103,6 +120,8 @@ class IDEApplication : TermuxApplication() {
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
         super.onCreate()
+
+		ShizukuSettings.initialize(this)
 
         if (BuildConfig.DEBUG) {
             val builder = StrictMode.VmPolicy.Builder()
@@ -283,14 +302,4 @@ class IDEApplication : TermuxApplication() {
             presentation.show()
         }
     }
-
-    companion object {
-
-        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
-
-        @JvmStatic
-        lateinit var instance: IDEApplication
-            private set
-    }
-
 }

@@ -1,6 +1,5 @@
 package rikka.shizuku.shell;
 
-import android.app.ActivityManagerNative;
 import android.app.IActivityManager;
 import android.content.Intent;
 import android.os.Binder;
@@ -15,6 +14,8 @@ import android.os.ServiceManager;
 import android.system.Os;
 import android.text.TextUtils;
 
+import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.io.File;
 import java.util.Objects;
 
@@ -27,6 +28,8 @@ public class ShizukuShellLoader {
     private static String[] args;
     private static String callingPackage;
     private static Handler handler;
+
+    public static final String ACTION_REQUEST_BINDER = BuildInfo.PACKAGE_NAME + ".shizuku.intent.action.REQUEST_BINDER";
 
     private static final Binder receiverBinder = new Binder() {
 
@@ -53,20 +56,15 @@ public class ShizukuShellLoader {
         Bundle data = new Bundle();
         data.putBinder("binder", receiverBinder);
 
-        Intent intent = new Intent("rikka.shizuku.intent.action.REQUEST_BINDER")
-                .setPackage("com.itsaky.androidide")
+        Intent intent = new Intent(ACTION_REQUEST_BINDER)
+                .setPackage(BuildInfo.PACKAGE_NAME)
                 .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
                 .putExtra("data", data);
 
         IBinder amBinder = ServiceManager.getService("activity");
-        IActivityManager am;
-        if (Build.VERSION.SDK_INT >= 26) {
-            am = IActivityManager.Stub.asInterface(amBinder);
-        } else {
-            am = ActivityManagerNative.asInterface(amBinder);
-        }
+		IActivityManager am = IActivityManager.Stub.asInterface(amBinder);
 
-        // broadcastIntent will fail on Android 8.x
+		// broadcastIntent will fail on Android 8.x
         //  com.android.server.am.ActivityManagerService.isInstantApp(ActivityManagerService.java:18547)
         //  com.android.server.am.ActivityManagerService.broadcastIntentLocked(ActivityManagerService.java:18972)
         //  com.android.server.am.ActivityManagerService.broadcastIntent(ActivityManagerService.java:19703)

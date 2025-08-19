@@ -3,7 +3,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    id("com.android.application")
+    id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("dev.rikka.tools.refine")
     id("dev.rikka.tools.materialthemebuilder")
@@ -33,15 +33,15 @@ android {
             version = "3.31.0+"
         }
     }
-
-    packaging {
-        resources.excludes += "**"
-    }
 }
 
 dependencies {
     implementation(libs.common.kotlin.coroutines.android)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.recyclerview)
 
+    implementation(projects.logger)
+    implementation(projects.resources)
     implementation(projects.subprojects.shizukuServer)
     implementation(projects.subprojects.shizukuRish)
     implementation(projects.subprojects.shizukuStarter)
@@ -49,6 +49,7 @@ dependencies {
     implementation(projects.subprojects.shizukuProvider)
 
     implementation(libs.rikka.hidden.compat)
+    implementation(libs.rikkax.htmlktx)
     compileOnly(libs.rikka.hidden.stub)
 
     implementation(libs.libsu.core)
