@@ -21,6 +21,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.builder.BuildResult
+import com.itsaky.androidide.projects.builder.LaunchResult
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
@@ -93,9 +94,23 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
     GeneralPreferences.isFirstBuild = false
     act.editorViewModel.isBuildInProgress = false
     act.flashSuccess(R.string.build_status_sucess)
+
     val message =
       if (lastStatusLine.contains("BUILD SUCCESSFUL")) lastStatusLine else "Build completed successfully."
-    act.notifyBuildResult(BuildResult(isSuccess = true, message = message))
+
+    // Create a simulated LaunchResult because the build succeeded.
+    // We assume the action that triggered this was a "build and run".
+    val launchResult = LaunchResult(isSuccess = true, message = "Launch command issued.")
+
+    // Pass the new launchResult to the BuildResult constructor
+    act.notifyBuildResult(
+      BuildResult(
+        isSuccess = true,
+        message = message,
+        launchResult = launchResult
+      )
+    )
+
     lastStatusLine = ""
   }
 
@@ -116,8 +131,12 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
     val message =
       if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
-    act.notifyBuildResult(BuildResult(isSuccess = false, message = message))
-    lastStatusLine = "" // Reset for the next build
+
+    // On build failure, the launchResult is null, which is the default.
+    act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
+    // --- END FIX ---
+
+    lastStatusLine = ""
   }
 
   override fun onOutput(line: String?) {

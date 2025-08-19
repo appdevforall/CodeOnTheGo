@@ -11,6 +11,7 @@ class ExecutorAgent(private val repository: GeminiRepositoryImpl) {
     companion object {
         private val log = LoggerFactory.getLogger(ExecutorAgent::class.java)
     }
+
     suspend fun executeStep(step: PlanStep): StepResult {
         log.debug("Executing Step ${step.stepId}: ${step.objective} using tool ${step.toolToUse}")
         val functionCall = FunctionCallPart(
@@ -18,14 +19,13 @@ class ExecutorAgent(private val repository: GeminiRepositoryImpl) {
             args = step.parameters
         )
 
-        // Delegate the actual tool execution to the repository
         val toolResult = repository.executeTool(functionCall)
         log.debug("toolResult: {}", toolResult)
         return StepResult(
             stepId = step.stepId,
             wasSuccessful = toolResult.success,
-            output = toolResult.message,
-            error = if (!toolResult.success) toolResult.message else null
+            output = toolResult.message + "\n" + toolResult.data,
+            error = if (!toolResult.success) toolResult.message + "\n" + toolResult.error_details else null
         )
     }
 }

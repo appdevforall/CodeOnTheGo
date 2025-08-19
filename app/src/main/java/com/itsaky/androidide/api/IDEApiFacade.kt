@@ -40,14 +40,26 @@ object IDEApiFacade {
 
         val actionData = ActionData.create(activity)
 
-        // Use suspendCancellableCoroutine to wait for the callback
         return suspendCancellableCoroutine { continuation ->
-            // Define the listener that will resume the coroutine
             val listener = java.util.function.Consumer<BuildResult> { result ->
-                if (result.isSuccess) {
-                    continuation.resume(ToolResult.success("Build successful. ${result.message}"))
-                } else {
-                    continuation.resume(ToolResult.failure("Build failed: ${result.message}"))
+                // The callback now handles different outcomes
+                when {
+                    result.isSuccess && result.launchResult != null && result.launchResult.isSuccess -> {
+                        // This is the true success case: Build AND Launch worked.
+                        continuation.resume(ToolResult.success("App built and launched successfully on the device."))
+                    }
+
+                    result.isSuccess -> {
+                        // This case means the build worked, but the launch failed or didn't happen.
+                        val launchError =
+                            result.launchResult?.message ?: "Launch failed for an unknown reason."
+                        continuation.resume(ToolResult.failure("Build was successful, but the app failed to launch: $launchError"))
+                    }
+
+                    else -> {
+                        // This is a build failure.
+                        continuation.resume(ToolResult.failure("Build failed: ${result.message}"))
+                    }
                 }
             }
 

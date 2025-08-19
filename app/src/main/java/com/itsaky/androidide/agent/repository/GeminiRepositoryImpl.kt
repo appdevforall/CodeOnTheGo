@@ -46,6 +46,8 @@ class GeminiRepositoryImpl(
             
             **IMPORTANT RULE:** Each step's 'objective' must be a small, atomic action that can be fully accomplished by a SINGLE tool call. For example, instead of an objective "fix the app", use "read the build log to find the error".
             
+            **CRITICAL RULE: You are blind.** You cannot see the user's screen or UI. Therefore, you must never create an objective to "display" or "verify" something visually. For the final step involving `run_app`, your objective should be to "Launch the app for the user to visually confirm the changes."
+
             Each step must include a unique 'stepId', a clear and ATOMIC 'objective', the specific 'toolToUse' from the provided list, a 'parameters' object, and a description of the 'expectedOutputFormat'.
             Your sole output is the JSON plan.
 
@@ -231,7 +233,11 @@ class GeminiRepositoryImpl(
         var currentPlan: List<PlanStep>
         val completedSteps = mutableListOf<StepResult>()
         var lastFailureReason: String? = null
-        var remainingRetries = 3 // Set a max number of retries to avoid infinite loops
+        var remainingRetries = 3
+
+        // --- NEW: Initialize the working context ---
+        val workingContext = StringBuilder()
+        workingContext.append("User's initial request: \"$userInput\"\n\n")
 
         // 1. Create the initial plan
         onStateUpdate?.invoke(AgentState.Processing("👨‍🎨 Creating an initial plan..."))
@@ -273,25 +279,37 @@ class GeminiRepositoryImpl(
             if (wasStepSuccessful) {
                 onStateUpdate?.invoke(AgentState.Processing("✅ Step successful."))
                 completedSteps.add(result)
-                currentStepIndex++ // Move to the next step
-                lastFailureReason = null // Clear failure reason on success
-            } else {
-                remainingRetries--
-                onStateUpdate?.invoke(AgentState.Processing("⚠️ Step failed. Reason: $lastFailureReason. Attempting to re-plan... ($remainingRetries retries left)"))
 
-                // Construct a new prompt for the orchestrator
+                // --- NEW: Add the successful step's result to the working context ---
+                workingContext.append("Step ${step.stepId} (${step.toolToUse}) was successful.\n")
+                workingContext.append("Objective: ${step.objective}\n")
+                workingContext.append("Result: ${result.output}\n\n")
+
+                currentStepIndex++
+                lastFailureReason = null
+            } else {
+                // --- FAILURE & RE-PLANNING LOGIC ---
+                remainingRetries--
+                onStateUpdate?.invoke(AgentState.Processing("⚠️ Step failed. Reason: $lastFailureReason. Attempting to re-plan..."))
+
+                // --- NEW: Construct a much richer re-plan prompt with the full context ---
                 val rePlanPrompt = """
-            The original request was: "$userInput"
-            We have already completed ${completedSteps.size} steps successfully.
-            However, the last step failed. Here is the failure reason:
+            My original goal was: "$userInput"
+
+            Here is a summary of the steps I have already completed and their results:
+            --- START CONTEXT ---
+            $workingContext
+            --- END CONTEXT ---
+
+            The last step I tried to execute failed. Here is the reason for the failure:
             "$lastFailureReason"
 
-            Based on this new information, create a new, revised plan to achieve the original request, starting from the point of failure. Do not repeat the steps that have already succeeded.
+            Based on all of this context, create a new, revised plan to achieve the original goal. Do not repeat steps that have already provided useful information.
             """.trimIndent()
 
                 currentPlan =
                     orchestrator.createPlan(rePlanPrompt, GeminiTools.getToolDeclarationsAsJson())
-                currentStepIndex = 0 // Reset the index to start from the beginning of the new plan
+                currentStepIndex = 0
 
                 if (currentPlan.isEmpty()) {
                     val failureMessage =
