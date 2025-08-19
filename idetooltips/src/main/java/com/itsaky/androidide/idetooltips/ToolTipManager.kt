@@ -83,7 +83,7 @@ object TooltipManager {
 
                 val buttons = ArrayList<Pair<String, String>>()
                 while (buttonCursor.moveToNext()) {
-                    buttons.add(Pair(buttonCursor.getString(0), buttonCursor.getString(1)))
+                    buttons.add(Pair(buttonCursor.getString(0), "http://localhost:6174/" + buttonCursor.getString(1)))
                 }
 
                 Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")
