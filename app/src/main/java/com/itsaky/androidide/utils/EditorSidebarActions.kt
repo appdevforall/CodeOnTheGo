@@ -224,22 +224,7 @@ internal object EditorSidebarActions {
     }
 
     fun showContactDialog(context: Context) {
-        val builder = DialogUtils.newMaterialDialogBuilder(context)
-
-        builder.setTitle(R.string.msg_contact_app_dev_title)
-            .setMessage(R.string.msg_contact_app_dev_description)
-            .setNegativeButton(android.R.string.cancel) { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setPositiveButton(R.string.send_email) { dialog, _ ->
-                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = "mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
-                }
-                context.startActivity(intent)
-                dialog.dismiss()
-            }
-            .create()
-            .show()
+        FeedbackManager.showContactDialog(context)
     }
 
     fun SidebarActionItem.tooltipTag(): String {
