@@ -416,8 +416,8 @@
   <string name="idepref_devOptions_enableLogsender_title">LogSender\'ı Etkinleştir</string>
   <string name="idepref_devOptions_enableLogsender_summary">Devre dışı bırakıldığında, uygulamalardan gelen loglar Code on the Go de görüntülenmeyecek</string>
   <string name="title_build_variants">İnşa türleri</string>
-  <string name="title_apply">Uygula</string>
-  <string name="title_discard">Vazgeç</string>
+  <string name="build_variants_apply">Uygula</string>
+  <string name="build_variants_cancel">Vazgeç</string>
   <string name="msg_build_variants_fetch_failed">İnşa türleri alınamadı</string>
   <string name="title_choose_application">Uygulama seç</string>
   <string name="err_selected_variant_not_found">Seçili inşa türü bulunamadı</string>

@@ -416,8 +416,8 @@
   <string name="idepref_devOptions_enableLogsender_title">Ativar LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">Quando desativado, os logs do aplicativo não serão exibidos no Code on the Go</string>
   <string name="title_build_variants">Variantes de compilação</string>
-  <string name="title_apply">Aplicar</string>
-  <string name="title_discard">Descartar</string>
+  <string name="build_variants_apply">Aplicar</string>
+  <string name="build_variants_cancel">Descartar</string>
   <string name="msg_build_variants_fetch_failed">Falha ao obter variantes de compilação</string>
   <string name="title_choose_application">Escolha o aplicativo</string>
   <string name="err_selected_variant_not_found">Variante de compilação selecionada não encontrada</string>
