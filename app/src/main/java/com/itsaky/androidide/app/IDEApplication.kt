@@ -51,7 +51,6 @@ import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
-import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.ui.themes.IDETheme
@@ -180,37 +179,6 @@ class IDEApplication : TermuxApplication() {
         }
     }
 
-    fun reportStatsIfNecessary() {
-
-//        if (!StatPreferences.statOptIn) {
-//            log.info("Stat collection is disabled.")
-//            return
-//        }
-//
-//        val constraints =
-//            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-//        val request =
-//            PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24)).setInputData(
-//                AndroidIDEStats.statData.toInputData()
-//            ).setConstraints(constraints)
-//                .addTag(StatUploadWorker.WORKER_WORK_NAME).build()
-//
-//        val workManager = WorkManager.getInstance(this)
-//
-//        log.info("reportStatsIfNecessary: Enqueuing StatUploadWorker...")
-//        val operation = workManager.enqueueUniquePeriodicWork(
-//            StatUploadWorker.WORKER_WORK_NAME,
-//            ExistingPeriodicWorkPolicy.UPDATE, request
-//        )
-//
-//        operation.state.observeForever(object : Observer<Operation.State> {
-//            override fun onChanged(value: Operation.State) {
-//                operation.state.removeObserver(this)
-//                log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
-//            }
-//        })
-    }
-
     private fun startLogcatReader() {
         if (ideLogcatReader != null) {
             // already started
@@ -230,13 +198,7 @@ class IDEApplication : TermuxApplication() {
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onPrefChanged(event: PreferenceChangeEvent) {
         val enabled = event.value as? Boolean?
-        if (event.key == StatPreferences.STAT_OPT_IN) {
-            if (enabled == true) {
-                reportStatsIfNecessary()
-            } else {
-                cancelStatUploadWorker()
-            }
-        } else if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+        if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
             if (enabled == true) {
                 startLogcatReader()
             } else {
@@ -254,18 +216,6 @@ class IDEApplication : TermuxApplication() {
 
             AppCompatDelegate.setApplicationLocales(localeListCompat)
         }
-    }
-
-    private fun cancelStatUploadWorker() {
-        log.info("Opted-out of stat collection. Cancelling StatUploadWorker if enqueued...")
-        val operation = WorkManager.getInstance(this)
-            .cancelUniqueWork(StatUploadWorker.WORKER_WORK_NAME)
-        operation.state.observeForever(object : Observer<Operation.State> {
-            override fun onChanged(value: Operation.State) {
-                operation.state.removeObserver(this)
-                log.info("StatUploadWorker: Cancellation result state: {}", value)
-            }
-        })
     }
 
     private fun checkForSecondDisplay() {
