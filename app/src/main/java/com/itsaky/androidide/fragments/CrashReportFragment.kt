@@ -16,13 +16,21 @@
  */
 package com.itsaky.androidide.fragments
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
 import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
-import androidx.core.text.HtmlCompat
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
@@ -74,11 +82,7 @@ class CrashReportFragment : Fragment() {
         binding.apply {
             crashTitle.text = title
             crashSubtitle.apply {
-                text = HtmlCompat.fromHtml(
-                    getString(R.string.msg_crash_info),
-                    HtmlCompat.FROM_HTML_MODE_LEGACY
-                )
-                movementMethod = LinkMovementMethod.getInstance()
+                setCrashInfoText()
             }
 
             closeButton.setOnClickListener {
@@ -98,6 +102,47 @@ class CrashReportFragment : Fragment() {
             )
 
         }
+    }
+
+    fun TextView.setCrashInfoText() {
+        // Get crash message with placeholder
+        val supportText = context.getString(R.string.contact_support_team)
+        val fullText = context.getString(R.string.msg_crash_info, supportText)
+
+        val spannable = SpannableString(fullText)
+
+        // Find clickable phrase in text
+        val start = fullText.indexOf(supportText)
+        if (start != -1) {
+            spannable.setSpan(
+                object : ClickableSpan() {
+                    override fun onClick(widget: View) {
+                        val email = "feedback@appdevforall.org"
+                        val subject = Uri.encode(context.getString(R.string.crash_email_subject))
+                        val body = Uri.encode(context.getString(R.string.crash_email_body))
+
+                        val uri = "mailto:$email?subject=$subject&body=$body".toUri()
+
+                        val intent = Intent(Intent.ACTION_SENDTO, uri)
+                        context.startActivity(intent)
+
+                    }
+
+                    override fun updateDrawState(ds: TextPaint) {
+                        super.updateDrawState(ds)
+                        ds.color =
+                            ContextCompat.getColor(context, R.color.primary_blue) // your blue
+                        ds.isUnderlineText = true
+                    }
+                },
+                start,
+                start + supportText.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        text = spannable
+        movementMethod = LinkMovementMethod.getInstance()
     }
 
     private fun finishActivity() {
