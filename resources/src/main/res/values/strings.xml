@@ -220,7 +220,7 @@
       your device. If the problem persists, please %1$s</string>
     <string name="contact_support_team">contact our support team.</string>
     <string name="crash_email_subject">App Crash Report</string>
-    <string name="crash_email_body">Please describe what you were doing when the app crashed:\n\n</string>
+    <string name="crash_email_body">Build Number - %1$s\n\nPlease describe what you were doing when the app crashed:\n\n</string>
     <string name="msg_close_crash_page">Click on the button below to close this page.</string>
     <string name="msg_ok">OK</string>
 

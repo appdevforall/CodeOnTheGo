@@ -32,6 +32,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
 
@@ -119,7 +120,12 @@ class CrashReportFragment : Fragment() {
                     override fun onClick(widget: View) {
                         val email = "feedback@appdevforall.org"
                         val subject = Uri.encode(context.getString(R.string.crash_email_subject))
-                        val body = Uri.encode(context.getString(R.string.crash_email_body))
+                        val body = Uri.encode(
+                            context.getString(
+                                R.string.crash_email_body,
+                                BuildInfo.VERSION_NAME_SIMPLE
+                            )
+                        )
 
                         val uri = "mailto:$email?subject=$subject&body=$body".toUri()
 
