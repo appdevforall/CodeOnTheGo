@@ -388,11 +388,6 @@
   <string name="msg_invalid_project_details">प्रोजेक्ट विवरण अमान्य है</string>
   <string name="msg_use_kts">ग्रैडल बिल्ड फ़ाइलों के लिए कोटलिन स्क्रिप्ट (.kts) का उपयोग करें</string>
   <string name="title_privacy">गोपनीयता नीति</string>
-  <string name="title_androidide_statistics">Code on the Go सांख्यिकी</string>
-  <string name="msg_androidide_statistics">अनाम आँकड़े प्रदान करके Code on the Go को बेहतर बनाने में हमारी सहायता करें। हम केवल उपयोगकर्ता आधार आंकड़ों के लिए आपके डिवाइस के बारे में बुनियादी जानकारी एकत्र करते हैं। साझा किया गया सटीक डेटा प्राथमिकताओं में देखा जा सकता है। आपका डेटा सुरक्षित है और तृतीय-पक्ष सेवाओं के साथ साझा नहीं किया जाता है। आप प्राथमिकताओं में किसी भी समय ऑप्ट-आउट कर सकते हैं।</string>
-  <string name="summary_anonymous_usage_stats">अनाम उपयोग आँकड़े</string>
-  <string name="idepref_stats_optIn_title">आँकड़े संग्रह</string>
-  <string name="idepref_stats_optIn_summary">इंस्टॉलेशन मेट्रिक्स और डिवाइस आँकड़े एकत्र करने की अनुमति दें (पूरी तरह से गुमनाम)।</string>
   <string name="title_unique_id">अनोखा ID</string>
   <string name="title_device">उपकरण</string>
   <string name="title_app_version">एप्लिकेशन वर्शन</string>
