@@ -21,11 +21,19 @@ class ExecutorAgent(private val repository: GeminiRepositoryImpl) {
 
         val toolResult = repository.executeTool(functionCall)
         log.debug("toolResult: {}", toolResult)
+
+        val outputMessage = listOfNotNull(toolResult.message, toolResult.data).joinToString("\n")
+        val errorMessage = if (!toolResult.success) {
+            listOfNotNull(toolResult.message, toolResult.error_details).joinToString("\n")
+        } else {
+            null
+        }
+
         return StepResult(
             stepId = step.stepId,
             wasSuccessful = toolResult.success,
-            output = toolResult.message + "\n" + toolResult.data,
-            error = if (!toolResult.success) toolResult.message + "\n" + toolResult.error_details else null
+            output = outputMessage,
+            error = errorMessage
         )
     }
 }
