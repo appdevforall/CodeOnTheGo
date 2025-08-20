@@ -23,6 +23,7 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.activities.editor.BaseEditorActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import kotlin.reflect.KClass
 
@@ -40,7 +41,7 @@ class HelpSideBarAction(context: Context, override val order: Int) :
     init {
         label = context.getString(R.string.action_open_help)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
-        tooltipTag = "project.help"
+        tooltipTag = TooltipTag.HELP_SIDEBAR
     }
 
     override suspend fun execAction(data: ActionData): Any {

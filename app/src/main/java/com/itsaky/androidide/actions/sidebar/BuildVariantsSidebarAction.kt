@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.fragments.sidebar.BuildVariantsFragment
+import com.itsaky.androidide.idetooltips.TooltipTag
 import kotlin.reflect.KClass
 
 /**
@@ -38,6 +39,6 @@ class BuildVariantsSidebarAction(context: Context, override val order: Int) :
   init {
     label = context.getString(R.string.title_build_variants)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_android)
-    tooltipTag = "project.sidebar.buildvariants"
+    tooltipTag = TooltipTag.BUILD_VARIANT_SIDEBAR
   }
 }

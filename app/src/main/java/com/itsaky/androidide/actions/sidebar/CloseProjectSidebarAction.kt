@@ -23,6 +23,7 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.activities.editor.BaseEditorActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import kotlin.reflect.KClass
 
@@ -40,7 +41,7 @@ class CloseProjectSidebarAction(context: Context, override val order: Int) :
   init {
     label = context.getString(R.string.title_close_project)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_folder_close)
-    tooltipTag = "project.sidebar.closeproject"
+    tooltipTag = TooltipTag.CLOSE_PROJECT_SIDEBAR
   }
 
   override suspend fun execAction(data: ActionData): Any {
