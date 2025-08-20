@@ -389,11 +389,6 @@
   <string name="msg_invalid_project_details">Ungültige Projekt-Details</string>
   <string name="msg_use_kts">Kotlin Script (.kts) für Gradle Build-Dateien verwenden</string>
   <string name="title_privacy">Datenschutz</string>
-  <string name="title_androidide_statistics">Code on the Go Statistiken</string>
-  <string name="msg_androidide_statistics">Helfen Sie uns Code on the Go zu verbessern, indem Sie anonyme Statistiken erlauben. Wir sammeln grundlegende Informationen über Ihr Gerät nur für Benutzer-Basisstatistiken. Die exakten Daten, die geteilt werden, können in den Einstellungen eingesehen werden. Ihre Daten sind sicher und werden nicht an Dritte weitergegeben. Sie können jederzeit in den Einstellungen widersprechen.</string>
-  <string name="summary_anonymous_usage_stats">Anonyme Nutzungsdaten</string>
-  <string name="idepref_stats_optIn_title">Statistik Aufzeichnung</string>
-  <string name="idepref_stats_optIn_summary">Sammeln von Installations- und Gerätestatistiken erlauben (vollständig anonymisiert).</string>
   <string name="title_unique_id">Einzigartige ID</string>
   <string name="title_device">Gerät</string>
   <string name="title_app_version">App-Version</string>
@@ -416,8 +411,8 @@
   <string name="idepref_devOptions_enableLogsender_title">LogSender aktivieren</string>
   <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
   <string name="title_build_variants">Build Varianten</string>
-  <string name="title_apply">Übernehmen</string>
-  <string name="title_discard">Verwerfen</string>
+  <string name="build_variants_apply">Übernehmen</string>
+  <string name="build_variants_cancel">Verwerfen</string>
   <string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
   <string name="title_choose_application">Anwendung auswählen</string>
   <string name="err_selected_variant_not_found">Selected build variant not found</string>

@@ -35,6 +35,7 @@ dependencies {
 
     implementation(projects.common)
     implementation(projects.resources)
+    implementation(platform(libs.sora.bom))
     implementation(libs.common.editor)
     implementation(libs.common.kotlin)
     implementation(libs.common.kotlin.coroutines.android)
