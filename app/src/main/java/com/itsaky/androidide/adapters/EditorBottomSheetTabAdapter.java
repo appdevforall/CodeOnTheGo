@@ -24,17 +24,20 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 
-import com.itsaky.androidide.fragments.debug.DebuggerFragment;
 import com.itsaky.androidide.fragments.DiagnosticsListFragment;
 import com.itsaky.androidide.fragments.SearchResultFragment;
+import com.itsaky.androidide.fragments.debug.DebuggerFragment;
 import com.itsaky.androidide.fragments.output.AppLogFragment;
 import com.itsaky.androidide.fragments.output.BuildOutputFragment;
 import com.itsaky.androidide.fragments.output.IDELogFragment;
+import com.itsaky.androidide.idetooltips.TooltipTag;
 import com.itsaky.androidide.resources.R;
-import java.util.ArrayList;
-import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
 
@@ -52,19 +55,19 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
             BuildOutputFragment.class,
             ++index));
     this.fragments.add(
-        new Tab(fragmentActivity.getString(R.string.app_logs), AppLogFragment.class, ++index));
+            new Tab(fragmentActivity.getString(R.string.app_logs), AppLogFragment.class, ++index, TooltipTag.PROJECT_APP_LOGS));
     this.fragments.add(
-        new Tab(fragmentActivity.getString(R.string.ide_logs), IDELogFragment.class, ++index));
+            new Tab(fragmentActivity.getString(R.string.ide_logs), IDELogFragment.class, ++index, TooltipTag.PROJECT_IDE_LOGS));
     this.fragments.add(
         new Tab(
             fragmentActivity.getString(R.string.view_diags),
             DiagnosticsListFragment.class,
-            ++index));
+                ++index, TooltipTag.PROJECT_SEARCH_RESULTS));
     this.fragments.add(
         new Tab(
             fragmentActivity.getString(R.string.view_search_results),
             SearchResultFragment.class,
-            ++index));
+                ++index, TooltipTag.PROJECT_DIAGNOSTICS));
     this.fragments.add(
             new Tab(
                     fragmentActivity.getString(R.string.debugger_title),
@@ -123,6 +126,10 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
     return fragments.get(position).title;
   }
 
+  public @Nullable String getTooltipTag(int position) {
+    return fragments.get(position).tooltipTag;
+  }
+
   @Nullable
   public BuildOutputFragment getBuildOutputFragment() {
     return findFragmentByClass(BuildOutputFragment.class);
@@ -173,11 +180,17 @@ public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
     final String title;
     final String name;
     final long itemId;
+    final @Nullable String tooltipTag;
 
-    public Tab(String title, @NonNull Class<? extends Fragment> fragment, long id) {
+    public Tab(String title, @NonNull Class<? extends Fragment> fragment, long id, @Nullable String tooltipTag) {
       this.title = title;
       this.name = fragment.getName();
       this.itemId = id;
+      this.tooltipTag = tooltipTag;
+    }
+
+    public Tab(String title, @NonNull Class<? extends Fragment> fragment, long id) {
+      this(title, fragment, id, null);
     }
   }
 }

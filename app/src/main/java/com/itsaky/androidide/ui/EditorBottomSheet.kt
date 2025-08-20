@@ -54,6 +54,7 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
@@ -128,48 +129,35 @@ constructor(
     val mediator =
       TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
         tab.text = pagerAdapter.getTitle(position)
+        tab.view.setOnLongClickListener { view ->
+          val tooltipTag =
+            pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
+          val lifecycleOwner = context as? LifecycleOwner ?: return@setOnLongClickListener true
+          lifecycleOwner.lifecycleScope.launch {
+            try {
+              val tooltipData = withContext(Dispatchers.IO) {
+                TooltipManager.getTooltip(context, TooltipCategory.CATEGORY_IDE, tooltipTag)
+              }
+              tooltipData?.let {
+                TooltipUtils.showIDETooltip(
+                  context = context,
+                  level = 0,
+                  tooltipItem = tooltipData,
+                  anchorView = view
+                )
+              }
+            } catch (e: Exception) {
+              Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+            }
+          }
+
+          true
+        }
       }
 
     mediator.attach()
     binding.pager.isUserInputEnabled = false
-    binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1 // Do not remove any views
-
-    for (i in 0 until binding.tabs.tabCount) {
-      val tab = binding.tabs.getTabAt(i) ?: continue
-      val tabView = tab.view
-
-      tabView.setOnLongClickListener {
-        val title = pagerAdapter.getTitle(i)
-        val tooltipTag = when (title) {
-          context.getString(R.string.app_logs) -> "project.applogs"
-          context.getString(R.string.ide_logs) -> "project.idelogs"
-          context.getString(R.string.view_search_results) -> "project.searchresults"
-          context.getString(R.string.view_diags) -> "project.diagnostics"
-          else -> context.getString(R.string.default_tooltip)
-        }
-        val lifecycleOwner = context as? LifecycleOwner ?: return@setOnLongClickListener true
-        lifecycleOwner.lifecycleScope.launch {
-          try {
-            // Call the method on the interface.
-            val tooltipData = withContext(Dispatchers.IO) {
-              TooltipManager.getTooltip(context, "ide", tooltipTag)
-            }
-            tooltipData?.let {
-              TooltipUtils.showIDETooltip(
-                context = context,
-                level = 0,
-                tooltipItem = tooltipData,
-                anchorView = tabView
-              )
-            }
-          } catch (e: Exception) {
-            Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-          }
-        }
-
-        true
-      }
-    }
+    binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1
 
     binding.tabs.addOnTabSelectedListener(
       object : OnTabSelectedListener {
