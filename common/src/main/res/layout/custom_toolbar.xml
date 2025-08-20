@@ -36,7 +36,7 @@
             app:layout_constraintBottom_toBottomOf="@id/horizontal_scroll_view"
             app:layout_constraintEnd_toStartOf="@id/horizontal_scroll_view"
             app:layout_constraintTop_toTopOf="@id/horizontal_scroll_view"
-            app:tint="@color/warm_grey" />
+            app:tint="?attr/colorOutline" />
 
         <HorizontalScrollView
             android:id="@+id/horizontal_scroll_view"
@@ -66,6 +66,6 @@
             app:layout_constraintBottom_toBottomOf="@id/horizontal_scroll_view"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@id/horizontal_scroll_view"
-            app:tint="@color/warm_grey" />
+            app:tint="?attr/colorOutline" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.appbar.MaterialToolbar>

@@ -16,7 +16,7 @@
         android:text="@string/menu_find_file"
         android:textSize="16sp"
         app:drawableStartCompat="@drawable/ic_search_file"
-        app:drawableTint="@color/black" />
+        app:drawableTint="?attr/colorOnSurface" />
 
     <TextView
         android:id="@+id/find_in_project"
@@ -28,5 +28,5 @@
         android:text="@string/menu_find_project"
         android:textSize="16sp"
         app:drawableStartCompat="@drawable/ic_search_project"
-        app:drawableTint="@color/black" />
+        app:drawableTint="?attr/colorOnSurface" />
 </LinearLayout>
