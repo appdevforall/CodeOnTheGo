@@ -23,7 +23,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 
 class DiagnosticsListFragment : RecyclerViewFragment<DiagnosticsAdapter>() {
-
+  override val fragmentTooltipTag: String? = null // Tooltip pending to be defined
   override fun onCreateAdapter(): RecyclerView.Adapter<*> {
     return DiagnosticsAdapter(ArrayList(), null)
   }
