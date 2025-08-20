@@ -35,6 +35,7 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.resolveAttr
 
 class CrashReportFragment : Fragment() {
 
@@ -70,8 +71,7 @@ class CrashReportFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = LayoutCrashReportBinding.inflate(inflater, container, false)
-        val view = binding.root
-        return view
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -92,7 +92,6 @@ class CrashReportFragment : Fragment() {
 
             btnOkay.setOnClickListener { finishActivity() }
 
-            // Handle system back button
             requireActivity().onBackPressedDispatcher.addCallback(
                 viewLifecycleOwner,
                 object : OnBackPressedCallback(true) {
@@ -109,7 +108,7 @@ class CrashReportFragment : Fragment() {
         // Get crash message with placeholder
         val supportText = context.getString(R.string.contact_support_team)
         val fullText = context.getString(R.string.msg_crash_info, supportText)
-
+        val linkColor = requireContext().resolveAttr(com.itsaky.androidide.R.attr.colorOnSurface)
         val spannable = SpannableString(fullText)
 
         // Find clickable phrase in text
@@ -136,8 +135,7 @@ class CrashReportFragment : Fragment() {
 
                     override fun updateDrawState(ds: TextPaint) {
                         super.updateDrawState(ds)
-                        ds.color =
-                            ContextCompat.getColor(context, R.color.primary_blue) // your blue
+                        ds.color = linkColor
                         ds.isUnderlineText = true
                     }
                 },
