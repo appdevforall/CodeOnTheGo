@@ -20,6 +20,7 @@ package com.itsaky.androidide.actions.editor
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
@@ -30,7 +31,7 @@ class CopyAction(context: Context, override val order: Int) : BaseEditorAction()
 
     val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCopyDrawable))
     icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    tooltipTag = "editor.toolbar.copy"
+    tooltipTag = TooltipTag.EDITOR_TOOLBAR_COPY
     arr.recycle()
   }
 

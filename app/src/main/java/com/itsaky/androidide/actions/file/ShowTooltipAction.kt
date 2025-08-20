@@ -25,6 +25,7 @@ import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.TooltipUtils
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
@@ -36,7 +37,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     init {
         label = context.getString(R.string.title_show_tooltip)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
-        tooltipTag = "editor.toolbar.help"
+        tooltipTag = TooltipTag.EDITOR_TOOLBAR_HELP
     }
 
     override suspend fun execAction(data: ActionData): Any {

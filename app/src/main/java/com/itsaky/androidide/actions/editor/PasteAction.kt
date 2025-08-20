@@ -20,7 +20,7 @@ package com.itsaky.androidide.actions.editor
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
-
+import com.itsaky.androidide.idetooltips.TooltipTag
 /** @author Akash Yadav */
 class PasteAction(context: Context, override val order: Int) : BaseEditorAction() {
 
@@ -29,7 +29,7 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
 
     val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModePasteDrawable))
     icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    tooltipTag = "editor.toolbar.paste"
+    tooltipTag = TooltipTag.EDITOR_TOOLBAR_PASTE
     arr.recycle()
   }
 
