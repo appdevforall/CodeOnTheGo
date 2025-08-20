@@ -35,6 +35,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     init {
         label = context.getString(R.string.title_show_tooltip)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
+        tooltipTag = "editor.toolbar.help"
     }
 
     override suspend fun execAction(data: ActionData): Any {

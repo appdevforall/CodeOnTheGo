@@ -36,6 +36,7 @@ class ExpandSelectionAction(context: Context, override val order: Int) : EditorR
   init {
     label = context.getString(R.string.action_expand_selection)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_expand_selection)
+    tooltipTag = "editor.toolbar.expandselection"
   }
 
   override suspend fun execAction(data: ActionData): Any {

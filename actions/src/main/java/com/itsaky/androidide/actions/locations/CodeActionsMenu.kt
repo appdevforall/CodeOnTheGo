@@ -37,6 +37,7 @@ object CodeActionsMenu : ActionMenu {
   override var visible = true
   override var enabled: Boolean = true
   override var icon: Drawable? = null
+  override var tooltipTag: String = "editor.toolbar.codeactions"
 
   override var requiresUIThread: Boolean = false
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS

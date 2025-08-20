@@ -29,6 +29,7 @@ class CutAction(context: Context, override val order: Int) : BaseEditorAction() 
 
     val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCutDrawable))
     icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
+    tooltipTag = "editor.toolbar.cut"
     arr.recycle()
   }
 
