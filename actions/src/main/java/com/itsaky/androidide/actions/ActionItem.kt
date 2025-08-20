@@ -156,7 +156,7 @@ interface ActionItem {
     /** Location marker for action items shown in editor activity's toolbar submenu.
      * FindInFileAction and FindInProjectAction will use this location so
      * they don't show in the editor activity's toolbar*/
-    EDITOR_TOOLBAR_SUBMENU("ide.editor.toolbar.submenu"),
+    EDITOR_FIND_ACTION_MENU("ide.editor.toolbar.find.menu"),
 
     /**
      * Location marker for action items shown in editor activity's sidebar (navigation rail in the drawer).

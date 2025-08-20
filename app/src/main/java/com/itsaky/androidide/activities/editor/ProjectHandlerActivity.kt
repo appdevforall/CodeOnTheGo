@@ -30,7 +30,7 @@ import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
-import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR_SUBMENU
+import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
@@ -118,7 +118,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             shouldShowFindInFileAction = shouldHideFindInFileAction,
             onFindInFileClicked = { data ->
                 val findInFileAction = registry.findAction(
-                    location = EDITOR_TOOLBAR_SUBMENU,
+                    location = EDITOR_FIND_ACTION_MENU,
                     id = FindInFileAction().id
                 )
                 if (findInFileAction != null) {
@@ -127,7 +127,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             },
             onFindInProjectClicked = { data ->
                 val findInProjectAction = registry.findAction(
-                    location = EDITOR_TOOLBAR_SUBMENU,
+                    location = EDITOR_FIND_ACTION_MENU,
                     id = FindInProjectAction().id
                 )
                 if (findInProjectAction != null) {

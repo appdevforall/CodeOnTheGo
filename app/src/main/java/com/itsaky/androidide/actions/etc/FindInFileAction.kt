@@ -29,7 +29,7 @@ class FindInFileAction() : EditorRelatedAction() {
 
   override val id: String = "ide.editor.find.inFile"
   override var requiresUIThread: Boolean = true
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_TOOLBAR_SUBMENU
+  override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
 
   override var order: Int = 0
 
