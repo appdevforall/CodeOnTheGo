@@ -47,6 +47,7 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
@@ -414,13 +415,12 @@ open class EditorActionsMenu(val editor: IDEEditor) :
       if (action != null) {
         button.setOnLongClickListener {
           val tag = action.tooltipTag
-          val category = "ide"
           val activity = editor.context as? Activity
           activity?.let { act ->
             CoroutineScope(Dispatchers.Main).launch {
               val item = TooltipManager.getTooltip(
                 context = editor.context,
-                category = category,
+                category = TooltipCategory.CATEGORY_IDE,
                 tag = tag
               )
 
@@ -430,7 +430,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
                   editor,
                   0,
                   IDETooltipItem(
-                    tooltipCategory = category,
+                    tooltipCategory = TooltipCategory.CATEGORY_IDE,
                     tooltipTag = tooltipData.tooltipTag,
                     detail = tooltipData.detail,
                     summary = tooltipData.summary,
