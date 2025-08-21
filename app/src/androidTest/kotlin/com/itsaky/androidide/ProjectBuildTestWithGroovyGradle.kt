@@ -1,9 +1,8 @@
 package com.itsaky.androidide
 
-import android.content.Intent
-import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.rules.activityScenarioRule
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.navigateToMainScreen
@@ -15,36 +14,29 @@ import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.uncheckKotlinScript
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
-import org.junit.AfterClass
-import org.junit.BeforeClass
+import org.junit.After
+import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 
 
+@RunWith(AndroidJUnit4::class)
 class ProjectBuildTestWithGroovyGradle : TestCase() {
 
-    companion object {
-        @BeforeClass
-        @JvmStatic
-        fun setUpClass() {
-            // Start the app once for the entire test class
-            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-            val intent = Intent(context, SplashActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-        }
+    @get:Rule
+    val activityRule = activityScenarioRule<SplashActivity>()
 
-        @AfterClass
-        @JvmStatic
-        fun tearDownClass() {
-            // Clean up only after all tests are complete
-            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
-        }
+    @After
+    fun cleanUp() {
+        // Clean up after each test to ensure proper state for subsequent tests
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
     }
 
     @Test
     fun test_projectBuild_emptyProject_java_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -61,6 +53,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_kotlin_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -77,6 +71,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_java_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -93,6 +89,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_kotlin_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -109,6 +107,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_java_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -125,6 +125,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_kotlin_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -141,6 +143,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_java_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -157,6 +161,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_kotlin_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -173,6 +179,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_java_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -189,6 +197,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_kotlin_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -205,6 +215,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_java_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -221,6 +233,8 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_kotlin_groovyGradle() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(

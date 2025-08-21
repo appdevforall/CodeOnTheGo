@@ -1,9 +1,8 @@
 package com.itsaky.androidide
 
-import android.content.Intent
-import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.rules.activityScenarioRule
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.initializeProjectAndCancelBuild
 import com.itsaky.androidide.helper.navigateToMainScreen
@@ -14,30 +13,21 @@ import com.itsaky.androidide.screens.ProjectSettingsScreen.selectJavaLanguage
 import com.itsaky.androidide.screens.ProjectSettingsScreen.selectKotlinLanguage
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
-import org.junit.AfterClass
-import org.junit.BeforeClass
+import org.junit.After
+import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 
+@RunWith(AndroidJUnit4::class)
 class ProjectBuildTestWithKtsGradle : TestCase() {
 
-    companion object {
-        @BeforeClass
-        @JvmStatic
-        fun setUpClass() {
-            // Start the app once for the entire test class
-            val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-            val intent = Intent(context, SplashActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-        }
+    @get:Rule
+    val activityRule = activityScenarioRule<SplashActivity>()
 
-        @AfterClass
-        @JvmStatic
-        fun tearDownClass() {
-            // Clean up only after all tests are complete
-            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
-        }
+    @After
+    fun cleanUp() {
+        // Clean up after each test to ensure proper state for subsequent tests
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pm clear ${BuildConfig.APPLICATION_ID} && pm reset-permissions ${BuildConfig.APPLICATION_ID}")
     }
 
 
@@ -45,6 +35,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_java() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -60,6 +52,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_kotlin() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -75,6 +69,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_java() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             step("Navigate to main screen") {
                 flakySafely(timeoutMs = 30000) {
                     navigateToMainScreen()
@@ -119,6 +115,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_kotlin() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             step("Navigate to main screen") {
                 // Ensure consistent start state with increased timeout
                 flakySafely(timeoutMs = 30000) {
@@ -164,6 +162,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_java() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -179,6 +179,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_kotlin() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             step("Navigate to main screen") {
                 // Ensure consistent start state with increased timeout
                 flakySafely(timeoutMs = 30000) {
@@ -224,6 +226,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_java() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -239,6 +243,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_kotlin() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -254,6 +260,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_java() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -269,6 +277,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_kotlin() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -284,6 +294,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_noAnd2roidXProject_java() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -299,6 +311,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_kotlin() {
         run {
+            // Wait for activity transitions to complete
+            Thread.sleep(1000)
             step("Navigate to main screen") {
                 flakySafely(timeoutMs = 30000) {
                     navigateToMainScreen()
