@@ -76,7 +76,9 @@ jobs:
 
       - name: Assemble Universal APK
         run: |
+          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
       - name: Find APK file
         id: find_apk
@@ -163,6 +165,13 @@ jobs:
             exit 1
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
+
+      - name: Write CI Performance Data
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          GRADLE_START: ${{ 
+        run: |
+          uv run scripts/store-ci-performance-data.py $GRADLE_START $GRADLE_END $APK_PATH
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
