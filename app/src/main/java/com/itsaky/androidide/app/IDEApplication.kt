@@ -63,6 +63,8 @@ import com.termux.app.TermuxApplication
 import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import io.sentry.Sentry
+import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -159,6 +161,7 @@ class IDEApplication : TermuxApplication() {
 
             exitProcess(1)
         } catch (error: Throwable) {
+            Sentry.captureException(error)
             log.error("Unable to show crash handler activity", error)
         }
     }
