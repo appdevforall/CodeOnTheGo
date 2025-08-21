@@ -18,6 +18,7 @@
 
 package com.itsaky.androidide.app
 
+
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
@@ -27,9 +28,6 @@ import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
-import androidx.lifecycle.Observer
-import androidx.work.Operation
-import androidx.work.WorkManager
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
@@ -44,12 +42,8 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-
-
-
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
-import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TreeSitter
@@ -60,11 +54,9 @@ import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
-import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
-import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -96,7 +88,7 @@ class IDEApplication : TermuxApplication() {
         RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
     }
 
-  
+
     @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         instance = this
@@ -142,12 +134,13 @@ class IDEApplication : TermuxApplication() {
         }
 
 
-
         //Tooltip database access is now handled by direct SQLite queries
     }
 
     private fun handleCrash(thread: Thread, th: Throwable) {
         writeException(th)
+
+        Sentry.captureException(th)
 
         try {
             val intent = Intent()
@@ -161,7 +154,6 @@ class IDEApplication : TermuxApplication() {
 
             exitProcess(1)
         } catch (error: Throwable) {
-            Sentry.captureException(error)
             log.error("Unable to show crash handler activity", error)
         }
     }
