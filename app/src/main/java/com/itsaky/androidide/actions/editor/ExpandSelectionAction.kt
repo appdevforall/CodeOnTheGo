@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /**
@@ -36,6 +37,7 @@ class ExpandSelectionAction(context: Context, override val order: Int) : EditorR
   init {
     label = context.getString(R.string.action_expand_selection)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_expand_selection)
+    tooltipTag = TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
   }
 
   override suspend fun execAction(data: ActionData): Any {

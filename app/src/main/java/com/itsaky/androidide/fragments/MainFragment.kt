@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,7 +9,6 @@ import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.BuildConfig
@@ -25,6 +23,7 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
@@ -141,7 +140,11 @@ class MainFragment : BaseFragment() {
         val tag = action.id.toString()
         CoroutineScope(Dispatchers.IO).launch {
             val item =
-                TooltipManager.getTooltip(context = requireContext(), category = "ide", tag = tag)
+                TooltipManager.getTooltip(
+                    context = requireContext(),
+                    category = TooltipCategory.CATEGORY_IDE,
+                    tag = tag
+                )
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipManager.showIDETooltip(
@@ -149,7 +152,7 @@ class MainFragment : BaseFragment() {
                         view!!,
                         0,
                         IDETooltipItem(
-                            tooltipCategory = "ide",
+                            tooltipCategory = TooltipCategory.CATEGORY_IDE,
                             tooltipTag = item?.tooltipTag ?: "",
                             detail = item?.detail ?: "",
                             summary = item?.summary ?: "",

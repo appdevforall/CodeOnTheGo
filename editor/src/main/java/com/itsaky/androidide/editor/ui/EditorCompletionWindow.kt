@@ -23,6 +23,7 @@ import android.util.Log
 import android.widget.ListView
 import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.lsp.util.DocumentationReferenceProvider
 import com.itsaky.androidide.progress.ProgressManager
@@ -80,11 +81,11 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                 // Dismiss the completion window before showing tooltip
                 hide()
 
-                val category = when (editor.file!!.extension) {
-                    "java" -> "java"
-                    "kt" -> "kotlin"
-                    "xml" -> "xml"
-                    else -> "ide"
+                val category = when (editor.file?.extension) {
+                    "java" -> TooltipCategory.CATEGORY_JAVA
+                    "kt" -> TooltipCategory.CATEGORY_KOTLIN
+                    "xml" -> TooltipCategory.CATEGORY_XML
+                    else -> TooltipCategory.CATEGORY_IDE
                 }
                 Log.d("EditorCompletionWindow", "Showing tooltip for tag: $tag category: $category")
 
