@@ -35,8 +35,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_java() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -52,8 +51,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_kotlin() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -69,8 +67,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_java() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             step("Navigate to main screen") {
                 flakySafely(timeoutMs = 30000) {
                     navigateToMainScreen()
@@ -115,8 +112,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_kotlin() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             step("Navigate to main screen") {
                 // Ensure consistent start state with increased timeout
                 flakySafely(timeoutMs = 30000) {
@@ -162,8 +158,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_java() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -179,8 +174,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_kotlin() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             step("Navigate to main screen") {
                 // Ensure consistent start state with increased timeout
                 flakySafely(timeoutMs = 30000) {
@@ -226,8 +220,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_java() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -243,8 +236,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_kotlin() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -260,8 +252,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_java() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -277,8 +268,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_kotlin() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -294,8 +284,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_noAnd2roidXProject_java() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -311,8 +300,7 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_kotlin() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
+            
             step("Navigate to main screen") {
                 flakySafely(timeoutMs = 30000) {
                     navigateToMainScreen()

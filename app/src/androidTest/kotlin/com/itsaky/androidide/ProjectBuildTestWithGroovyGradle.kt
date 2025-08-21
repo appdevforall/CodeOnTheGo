@@ -35,8 +35,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_java_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -53,8 +51,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_emptyProject_kotlin_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -71,8 +67,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_java_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -89,8 +83,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_baseProject_kotlin_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -107,8 +99,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_java_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -125,8 +115,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_navigationDrawerProject_kotlin_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -143,8 +131,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_java_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -161,8 +147,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_bottomNavigationProject_kotlin_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -179,8 +163,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_java_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -197,8 +179,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_tabbedActivityProject_kotlin_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -215,8 +195,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_java_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(
@@ -233,8 +211,6 @@ class ProjectBuildTestWithGroovyGradle : TestCase() {
     @Test
     fun test_projectBuild_noAndroidXProject_kotlin_groovyGradle() {
         run {
-            // Wait for activity transitions to complete
-            Thread.sleep(1000)
             navigateToMainScreen()
             clickCreateProjectHomeScreen()
             selectProjectTemplate(

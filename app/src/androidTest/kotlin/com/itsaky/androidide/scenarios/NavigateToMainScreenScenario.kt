@@ -1,7 +1,6 @@
 package com.itsaky.androidide.scenarios
 
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.helper.grantAccessibilityPermission
 import com.itsaky.androidide.helper.grantOverlayPermission
 import com.itsaky.androidide.helper.grantStoragePermissions
 import com.itsaky.androidide.screens.InstallToolsScreen
@@ -103,27 +102,6 @@ class NavigateToMainScreenScenario : Scenario() {
                         Thread.sleep(2000)
                         grantOverlayPermission(device.uiDevice)
                         Thread.sleep(3000)
-
-                        device.uiDevice.pressBack()
-                        Thread.sleep(3000)
-
-                        Thread.sleep(2000)
-                        grantAccessibilityPermission(device.uiDevice)
-                        Thread.sleep(2000)
-
-                        rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(3) {
-                                flakySafely(10000) {
-                                    try {
-                                        grantButton.click()
-                                    } catch (e: Exception) {
-                                        println("Grant button 3 - permission may already be granted or button not available: ${e.message}")
-                                    }
-                                }
-                            }
-                        }
-                        Thread.sleep(3000)
-
                         device.uiDevice.pressBack()
                         Thread.sleep(3000)
 
