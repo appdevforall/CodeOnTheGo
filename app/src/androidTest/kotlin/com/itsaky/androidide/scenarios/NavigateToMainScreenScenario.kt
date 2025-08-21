@@ -124,10 +124,7 @@ class NavigateToMainScreenScenario : Scenario() {
                 device.uiDevice.waitForIdle(30000)
                 InstallToolsScreen.doneButton {
                     flakySafely(500000) {
-                        isVisible()
-                        isEnabled()
-                        isClickable()
-                        println("About to click DONE button on Install Tools Screen")
+                        println("Waiting for DONE button to become visible and clickable...")
                         click()
                         println("DONE button clicked successfully")
                     }
