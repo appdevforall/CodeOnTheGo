@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionMenu
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
@@ -37,6 +38,7 @@ object CodeActionsMenu : ActionMenu {
   override var visible = true
   override var enabled: Boolean = true
   override var icon: Drawable? = null
+  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_CODE_ACTIONS
 
   override var requiresUIThread: Boolean = false
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS

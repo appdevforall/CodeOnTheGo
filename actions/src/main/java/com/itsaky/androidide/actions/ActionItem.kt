@@ -70,6 +70,11 @@ interface ActionItem {
   var location: Location
 
   /**
+   * The tooltip tag of this [ActionItem].
+   */
+  var tooltipTag: String
+
+  /**
    * The order of this action item. This is used only at some locations and not everywhere.
    *
    * @see android.view.MenuItem.getOrder
