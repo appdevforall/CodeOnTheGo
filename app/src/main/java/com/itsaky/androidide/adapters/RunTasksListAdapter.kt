@@ -70,7 +70,7 @@ constructor(
       CoroutineScope(Dispatchers.Main).launch {
         val item = TooltipManager.getTooltip(
           context = binding.root.context,
-          category = "gradle_tasks",
+          category = "project.gradle.tasks",
           tag = task.name
         )
         item?.let { tooltipData ->
@@ -79,7 +79,7 @@ constructor(
             binding.root,
             0,
             IDETooltipItem(
-              tooltipCategory = "gradle_tasks",
+              tooltipCategory = "project.gradle.tasks",
               tooltipTag = tooltipData.tooltipTag,
               detail = tooltipData.detail,
               summary = tooltipData.summary,
