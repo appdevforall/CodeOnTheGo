@@ -47,6 +47,7 @@ import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import java.lang.ref.WeakReference
 
 /**
@@ -61,8 +62,6 @@ object ContactDetails {
 }
 
 internal object EditorSidebarActions {
-    val tooltipTags = mutableListOf<String>()
-
     @JvmStatic
     fun registerActions(context: Context) {
         val registry = ActionsRegistry.getInstance()
@@ -136,9 +135,8 @@ internal object EditorSidebarActions {
             val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
 
             if (view != null && action != null) {
-                val tag = action.tooltipTag()
-                sidebarFragment.setupTooltip(view, "ide", tag)
-                tooltipTags += tag
+                val tag = action.tooltipTag
+                sidebarFragment.setupTooltip(view, TooltipCategory.CATEGORY_IDE, tag)
             }
         }
 
@@ -217,7 +215,8 @@ internal object EditorSidebarActions {
         }
     }
 
-    fun SidebarActionItem.tooltipTag(): String {
-        return "ide.sidebar.${label.lowercase().replace("[^a-z0-9]+".toRegex(), "_")}.longpress"
+    fun showContactDialog(context: Context) {
+        FeedbackManager.showContactDialog(context)
     }
+
 }
