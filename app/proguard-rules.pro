@@ -127,3 +127,8 @@
 -keep class * implements com.itsaky.androidide.contributors.Contributor {
   *;
 }
+
+## Sentry
+-keepattributes SourceFile,LineNumberTable
+-keep class io.sentry.** { *; }
+-dontwarn io.sentry.**

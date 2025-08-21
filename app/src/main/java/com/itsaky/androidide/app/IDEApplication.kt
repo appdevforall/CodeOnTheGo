@@ -57,6 +57,7 @@ import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
+import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -96,6 +97,8 @@ class IDEApplication : TermuxApplication() {
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
         super.onCreate()
+
+        SentryAndroid.init(this)
 
         if (BuildConfig.DEBUG) {
             Sentry.captureMessage("Hello from debug build")
