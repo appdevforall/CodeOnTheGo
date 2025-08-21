@@ -39,6 +39,7 @@ abstract class AbstractSidebarAction : SidebarActionItem {
   // when the object instance is initialized
   override var icon: Drawable? = null
   override var label: String = ""
+  override var tooltipTag: String = ""
 
   override suspend fun execAction(data: ActionData): Any {
     return false
