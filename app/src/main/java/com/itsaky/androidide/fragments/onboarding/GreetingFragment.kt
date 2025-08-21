@@ -17,6 +17,11 @@
 
 package com.itsaky.androidide.fragments.onboarding
 
+import android.os.Bundle
+import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import com.itsaky.androidide.databinding.FragmentOnboardingGreetingBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 
@@ -24,4 +29,28 @@ import com.itsaky.androidide.fragments.FragmentWithBinding
  * @author Akash Yadav
  */
 class GreetingFragment :
-  FragmentWithBinding<FragmentOnboardingGreetingBinding>(FragmentOnboardingGreetingBinding::inflate)
+  FragmentWithBinding<FragmentOnboardingGreetingBinding>(FragmentOnboardingGreetingBinding::inflate){
+
+  override fun onCreateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?
+  ): View {
+    val binding = FragmentOnboardingGreetingBinding.inflate(inflater, container, false)
+    val view = binding.root
+
+      // Code to crash app
+      // TODO - Remove after testing Sentry integration
+    binding.icon.setOnLongClickListener {
+        val numerator = 10
+        val denominator = 0
+        // Dividing by zero
+        val result = numerator / denominator
+        Log.d("CrashTest", "Result: $result")
+      true
+    }
+    return view
+  }
+
+}
+
