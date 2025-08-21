@@ -117,14 +117,14 @@ jobs:
           # Run Kotlin DSL tests
           echo "Running Kotlin DSL tests..."
           echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
-          echo "Device: model=komodo,version=VanillaIceCream,locale=en,orientation=portrait"
+          echo "Device: model=caiman,version=35,locale=en,orientation=portrait"
           echo "Timeout: 45m, Flaky test attempts: 2"
 
           gcloud firebase test android run \
             --type instrumentation \
             --app "$APP_APK" \
             --test "$TEST_APK" \
-            --device model=komodo,version=VanillaIceCream,locale=en,orientation=portrait \
+            --device model=caiman,version=35,locale=en,orientation=portrait \
             --environment-variables clearPackageData=true \
             --use-orchestrator \
             --timeout 45m \
@@ -159,14 +159,14 @@ jobs:
           # Run Groovy DSL tests
           echo "Running Groovy DSL tests..."
           echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
-          echo "Device: model=komodo,version=VanillaIceCream,locale=en,orientation=portrait"
+          echo "Device: model=caiman,version=35,locale=en,orientation=portrait"
           echo "Timeout: 45m, Flaky test attempts: 2"
 
           gcloud firebase test android run \
             --type instrumentation \
             --app "$APP_APK" \
             --test "$TEST_APK" \
-            --device model=komodo,version=VanillaIceCream,locale=en,orientation=portrait \
+            --device model=caiman,version=35,locale=en,orientation=portrait \
             --environment-variables clearPackageData=true \
             --use-orchestrator \
             --timeout 45m \
