@@ -18,35 +18,36 @@ import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 
+
 object TooltipManager {
-    private val TAG = "TooltipManager"
+    private const val TAG = "TooltipManager"
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
-    val queryTooltip = """
-        SELECT T.summary, T.detail
-        FROM Tooltips AS T
-        JOIN TooltipCategories AS TC
-          ON T.categoryId = TC.id
-        WHERE T.tag = ?
+    private const val QUERY_TOOLTIP_ONE_CATEGORY = """
+        SELECT T.id, T.summary, T.detail
+        FROM Tooltips AS T, TooltipCategories AS TC
+        WHERE T.categoryId = TC.id
+          AND T.tag = ?
           AND TC.category = ?
     """
 
-    val queryTooltipButtons = """
-        SELECT TB.description, TB.uri
-        FROM TooltipButtons AS TB
-        JOIN Tooltips AS T
-          ON TB.tooltipId = T.id
-        JOIN TooltipCategories AS TC
-          ON T.categoryId = TC.id
-        WHERE T.tag = ?
-          AND TC.category = ?
-        ORDER BY TB.buttonNumberId
+    private const val QUERY_TOOLTIP_TWO_CATEGORIES = """
+        SELECT T.id, T.summary, T.detail
+        FROM Tooltips AS T, TooltipCategories AS TC
+        WHERE T.categoryId = TC.id
+          AND T.tag = ?
+          AND TC.category in ('?', 'a')
+    """
+
+    private const val QUERY_TOOLTIP_BUTTONS = """
+        SELECT description, uri
+        FROM TooltipButtons
+        WHERE tooltipId = ?
+        ORDER BY buttonNumberId
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
@@ -64,7 +65,10 @@ object TooltipManager {
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                val cursor = db.rawQuery(queryTooltip, arrayOf(tag, category))
+                val tooltipQuery = if   ((category == "j" || category == "k")) QUERY_TOOLTIP_TWO_CATEGORIES
+                                   else QUERY_TOOLTIP_ONE_CATEGORY
+
+                var cursor = db.rawQuery(tooltipQuery, arrayOf(tag, category))
                 
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
@@ -77,19 +81,19 @@ object TooltipManager {
 
                 cursor.moveToFirst()
 
-                val summary = cursor.getString(0)
-                val detail  = cursor.getString(1)
+                val tooltipId = cursor.getInt(0)
+                val summary   = cursor.getString(1)
+                val detail    = cursor.getString(2)
 
-                val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(tag, category))
+                cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
 
                 val buttons = ArrayList<Pair<String, String>>()
-                while (buttonCursor.moveToNext()) {
-                    buttons.add(Pair(buttonCursor.getString(0), "http://localhost:6174/" + buttonCursor.getString(1)))
+                while (cursor.moveToNext()) {
+                    buttons.add(Pair(cursor.getString(0), "http://localhost:6174/" + cursor.getString(1)))
                 }
 
                 Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")
                     
-                buttonCursor.close()
                 cursor.close()
                 db.close()
                     
@@ -162,7 +166,7 @@ object TooltipManager {
         fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
-        var tooltipHtmlContent = when (level) {
+        val tooltipHtmlContent = when (level) {
             0 -> tooltipItem.summary
             1 -> {
                 val detailContent = if (tooltipItem.detail.isNotBlank()) tooltipItem.detail else ""
@@ -222,11 +226,8 @@ object TooltipManager {
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
     }
-
 }
-

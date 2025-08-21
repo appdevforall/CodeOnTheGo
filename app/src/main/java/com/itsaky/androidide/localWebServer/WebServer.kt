@@ -19,17 +19,20 @@ data class ServerConfig(
     val databasePath: String,
     val bindName: String = "localhost",
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
-            "/Download/documentation.db"
+            "/Download/documentation.db",
+    val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+            "/Download/CodeOnTheGo.webserver.debug"
 )
 
 class WebServer(private val config: ServerConfig) {
     private lateinit var serverSocket: ServerSocket
     private lateinit var database: SQLiteDatabase
-    private var databaseTimestamp: Long = -1
-    private var brotliSupported = false
-    private val TAG = "WebServer"
-    private val encodingHeader : String = "Accept-Encoding"
-    private val brotliCompression : String = "br"
+    private          var databaseTimestamp: Long = -1
+    private          val TAG = "WebServer"
+    private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
+    private          val encodingHeader : String = "Accept-Encoding"
+    private          var brotliSupported = false
+    private          val brotliCompression : String = "br"
 
 
     //function to obtain the last modified date of a documentation.db database
@@ -44,9 +47,7 @@ class WebServer(private val config: ServerConfig) {
             if (!silent) {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
-                Log.d(
-                    TAG,
-                    "${pathname} was last modified at ${dateFormat.format(Date(timestamp))}.")
+                if (debugEnabled) Log.d(TAG, "${pathname} was last modified at ${dateFormat.format(Date(timestamp))}.")
             }
         }
 
@@ -56,7 +57,7 @@ class WebServer(private val config: ServerConfig) {
     fun start() {
         lateinit var clientSocket: Socket
         try {
-            Log.d(TAG, "Starting WebServer on ${config.bindName}, port ${config.port}")
+            Log.d(TAG, "Starting WebServer on ${config.bindName}, port ${config.port}, debugEnabled=${debugEnabled}, debugEnablePath='${config.debugEnablePath}', debugDatabasePath='${config.debugDatabasePath}'.")
 
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
 
@@ -73,12 +74,13 @@ class WebServer(private val config: ServerConfig) {
             while (true) {
                 try {
                     clientSocket = serverSocket.accept()
+                    if (debugEnabled) Log.d(TAG, "Returned from socket accept().")
                     handleClient(clientSocket)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error handling client: ${e.message}")
                     try {
                         val writer = PrintWriter(clientSocket.getOutputStream(), true)
-                        sendError(writer, 500, "Internal Server Error")
+                        sendError(writer, 500, "Internal Server Error 1")
                     } catch (e: Exception) {
                         Log.e(TAG, "Error sending error response: ${e.message}")
                     }
@@ -103,6 +105,7 @@ class WebServer(private val config: ServerConfig) {
 
         // Read the request method line, it is always the first line of the request
         var requestLine = reader.readLine() ?: return
+        if (debugEnabled) Log.d(TAG, "Request is ${requestLine}")
 
         // Parse the request
         // Request line should look like "GET /a/b/c.html HTTP/1.1"
@@ -125,6 +128,9 @@ class WebServer(private val config: ServerConfig) {
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
         while(requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
+
+           if (debugEnabled) Log.d(TAG, "Header: ${requestLine}")
+
             if(requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
                 if(parts.size == 0) {
@@ -143,20 +149,20 @@ class WebServer(private val config: ServerConfig) {
             database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
             databaseTimestamp = debugDatabaseTimestamp
         }
-        // TODO: Get rid of the extra test in the SQL WHERE clause below by fixing all the paths. --DS, 22-Jul-2025
+
         val query = """
-            SELECT c.content, ct.value, ct.compression
-            FROM Content c
-            JOIN ContentTypes ct ON c.contentTypeID = ct.id
-            WHERE c.path = ? OR c.path = ?
+SELECT C.content, CT.value, CT.compression
+FROM   Content C, ContentTypes CT
+WHERE  C.contentTypeID = CT.id
+  AND  C.path = ?
         """
-        val cursor = database.rawQuery(query, arrayOf(path, path.substring(1)))
+        val cursor = database.rawQuery(query, arrayOf(path,))
         val rowCount = cursor.getCount()
 
         if (rowCount != 1) {
             return when (rowCount) {
                 0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
-                else -> sendError(writer, 500, "Internal Server Error", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
+                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
             }
         }
 
@@ -164,6 +170,8 @@ class WebServer(private val config: ServerConfig) {
         var dbContent   = cursor.getBlob(0)
         val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
+
+        if (debugEnabled) Log.d(TAG, "len(content)=${dbContent.size}, MIME type=${dbMimeType}, compression=${compression}.")
 
         // If the Accept-Encoding header contains "br", the client can handle
         // Brotli. Send Brotli data as-is, without decompressing it here.
@@ -175,6 +183,7 @@ class WebServer(private val config: ServerConfig) {
                 compression = "br"
             } else {
                 try {
+                    if (debugEnabled) Log.d(TAG, "Brotli content but client doesn't support Brotli. Decoding locally.")
                     dbContent =
                         BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                     compression = "none"
