@@ -392,11 +392,6 @@
   <string name="msg_invalid_project_details">Неверные сведения о проекте</string>
   <string name="msg_use_kts">Использовать Kotlin Script (.kts) для файлов сборки Gradle</string>
   <string name="title_privacy">Конфиденциальность</string>
-  <string name="title_androidide_statistics">Статистика Code on the Go</string>
-  <string name="msg_androidide_statistics">Помогите нам улучшить Code on the Go, предоставив анонимную статистику. Мы собираем основную информацию о вашем устройстве только для статистики базы пользователей. Точные данные, которые передаются, можно посмотреть в настройках. Ваши данные надёжно защищены и не передаются сторонним сервисам. Вы можете отказаться от этой услуги в любое время в настройках.</string>
-  <string name="summary_anonymous_usage_stats">Анонимная статистика использования</string>
-  <string name="idepref_stats_optIn_title">Сбор статистики</string>
-  <string name="idepref_stats_optIn_summary">Разрешить сбор метрик установки и статистики устройств (полностью анонимно).</string>
   <string name="title_unique_id">Уникальный идентификатор</string>
   <string name="title_device">Устройство</string>
   <string name="title_app_version">Версия приложения</string>
@@ -419,8 +414,8 @@
   <string name="idepref_devOptions_enableLogsender_title">Включить LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">Если отключено, журналы из приложений не будут отображаться в Code on the Go</string>
   <string name="title_build_variants">Варианты сборки</string>
-  <string name="title_apply">Применить</string>
-  <string name="title_discard">Отменить</string>
+  <string name="build_variants_apply">Применить</string>
+  <string name="build_variants_cancel">Отменить</string>
   <string name="msg_build_variants_fetch_failed">Не удалось получить варианты сборки</string>
   <string name="title_choose_application">Выберите приложение</string>
   <string name="err_selected_variant_not_found">Выбранный вариант сборки не найден</string>

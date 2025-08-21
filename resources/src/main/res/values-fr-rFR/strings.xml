@@ -391,11 +391,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_invalid_project_details">Détails du projet incorrects</string>
   <string name="msg_use_kts">Utiliser les scripts Kotlin (.kts) pour les configurations Gradle</string>
   <string name="title_privacy">Confidentialité</string>
-  <string name="title_androidide_statistics">Statistiques d\'Code on the Go</string>
-  <string name="msg_androidide_statistics">Aidez-nous à améliorer Code on the Go en nous provenant des informations anonymes. Les données exactes peuvent être vérifiées dans les paramètres. Vos données sont sécurisées and non partagées avec des services tiers. Vous pouvez modifier votre accord quand vous le souhaitez dans les paramètres.</string>
-  <string name="summary_anonymous_usage_stats">Statistiques d\'utilisation anonymes</string>
-  <string name="idepref_stats_optIn_title">Collecte des statistiques</string>
-  <string name="idepref_stats_optIn_summary">Autoriser l\'installation métrique et les statistiques de l\'appareil à être collecté (totalement anonyme).</string>
   <string name="title_unique_id">Identifiant unique</string>
   <string name="title_device">Appareil</string>
   <string name="title_app_version">Version de l\'application</string>
@@ -418,8 +413,8 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
   <string name="title_build_variants">Build variants</string>
-  <string name="title_apply">Apply</string>
-  <string name="title_discard">Discard</string>
+  <string name="build_variants_apply">Apply</string>
+  <string name="build_variants_cancel">Discard</string>
   <string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
   <string name="title_choose_application">Choose application</string>
   <string name="err_selected_variant_not_found">Selected build variant not found</string>

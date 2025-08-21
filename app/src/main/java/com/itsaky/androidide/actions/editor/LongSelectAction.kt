@@ -24,7 +24,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.actions.markInvisible
-
+import com.itsaky.androidide.idetooltips.TooltipTag
 /**
  * An action to long select text in the editor.
  *
@@ -38,6 +38,7 @@ class LongSelectAction(context: Context, override val order: Int) : EditorRelate
   init {
     label = context.getString(R.string.title_begin_long_select)
     icon = ContextCompat.getDrawable(context, R.drawable.editor_text_select_start)
+    tooltipTag = TooltipTag.EDITOR_TOOLBAR_LONG_SELECT
   }
 
   override fun prepare(data: ActionData) {
