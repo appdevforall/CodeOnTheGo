@@ -214,9 +214,4 @@ internal object EditorSidebarActions {
             build()
         }
     }
-
-    fun showContactDialog(context: Context) {
-        FeedbackManager.showContactDialog(context)
-    }
-
 }
