@@ -122,9 +122,14 @@ class NavigateToMainScreenScenario : Scenario() {
         step("Click continue button on the Install Tools Screen") {
             flakySafely(600000) {
                 device.uiDevice.waitForIdle(30000)
+                // Wait for tools installation to complete and reach last slide
+                Thread.sleep(10000)
+                println("Waiting for tools installation to complete...")
                 InstallToolsScreen.doneButton {
                     flakySafely(500000) {
                         println("Waiting for DONE button to become visible and clickable...")
+                        isVisible()
+                        isClickable()
                         click()
                         println("DONE button clicked successfully")
                     }

@@ -176,8 +176,8 @@ class ProjectBuildTestWithKtsGradle : TestCase() {
         run {
             
             step("Navigate to main screen") {
-                // Ensure consistent start state with increased timeout
-                flakySafely(timeoutMs = 30000) {
+                // Ensure consistent start state with increased timeout for Firebase Test Lab
+                flakySafely(timeoutMs = 900000) {
                     navigateToMainScreen()
                 }
             }
