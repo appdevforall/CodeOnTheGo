@@ -132,7 +132,7 @@ class MainFragment : BaseFragment() {
         binding!!.greetingText.setOnClickListener {
             TooltipUtils.showWebPage(
                 requireContext(),
-                "file:///android_asset/idetooltips/getstarted_top.html"
+                "http://localhost:6174/i/getstarted_top.html"
             )
         }
 
