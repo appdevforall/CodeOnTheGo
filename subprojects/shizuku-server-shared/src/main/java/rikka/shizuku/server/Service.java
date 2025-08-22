@@ -29,7 +29,7 @@ import rikka.shizuku.server.util.UserHandleCompat;
 
 public abstract class Service<UserServiceMgr extends UserServiceManager, ClientMgr extends ClientManager<ConfigMgr>, ConfigMgr extends ConfigManager> extends IShizukuService.Stub {
 
-	protected static final Logger LOGGER = new Logger("Service");
+	protected static final Logger LOGGER = new Logger("ShizukuService");
 	private final UserServiceMgr userServiceManager;
 	private final ConfigMgr configManager;
 	private final ClientMgr clientManager;

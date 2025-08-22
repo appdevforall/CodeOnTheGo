@@ -96,7 +96,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 		IBinder token = null;
 
 		try {
-			provider = ActivityManagerApis.getContentProviderExternal(name, userId, token, name);
+			provider = ActivityManagerApis.getContentProviderExternal(name, userId, null, name);
 			if (provider == null) {
 				LOGGER.e("provider is null %s %d", name, userId);
 				return;

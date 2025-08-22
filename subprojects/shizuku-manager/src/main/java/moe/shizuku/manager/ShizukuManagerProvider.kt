@@ -1,6 +1,7 @@
 package moe.shizuku.manager
 
 import android.os.Bundle
+import android.util.Log
 import androidx.core.os.bundleOf
 import com.itsaky.androidide.buildinfo.BuildInfo
 import moe.shizuku.api.BinderContainer
@@ -30,6 +31,7 @@ class ShizukuManagerProvider : ShizukuProvider() {
 		arg: String?,
 		extras: Bundle?,
 	): Bundle? {
+		logger.debug("call: {}({}) extras={}", method, arg, extras)
 		if (extras == null) return null
 
 		return if (method == METHOD_SEND_USER_SERVICE) {

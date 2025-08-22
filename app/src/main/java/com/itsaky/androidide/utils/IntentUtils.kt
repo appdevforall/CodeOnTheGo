@@ -26,7 +26,10 @@ import androidx.core.content.FileProvider
 import com.blankj.utilcode.util.ImageUtils
 import com.blankj.utilcode.util.ImageUtils.ImageType.TYPE_UNKNOWN
 import com.itsaky.androidide.R
+import org.slf4j.LoggerFactory
+import rikka.shizuku.Shizuku
 import java.io.File
+import kotlin.math.log
 
 /**
  * Utilities for sharing files.
@@ -34,6 +37,8 @@ import java.io.File
  * @author Akash Yadav
  */
 object IntentUtils {
+
+  private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
 
   private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
 
@@ -87,6 +92,18 @@ object IntentUtils {
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
     context.startActivity(Intent.createChooser(intent, null))
+  }
+
+  fun launchAppInDebugMode(
+    context: Context,
+    packageName: String,
+  ) {
+    if (!Shizuku.pingBinder()) {
+      logger.debug("Shizuku service is not running!")
+      return
+    }
+
+
   }
 
   /**

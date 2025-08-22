@@ -22,7 +22,6 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
 
-
 plugins {
 	id("com.android.application")
 	id("kotlin-android")
@@ -189,7 +188,9 @@ dependencies {
 	implementation(projects.idestats)
 	implementation(projects.subprojects.aaptcompiler)
 	implementation(projects.subprojects.javacServices)
+	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
+	implementation(projects.subprojects.shizukuProvider)
 	implementation(projects.subprojects.xmlUtils)
 	implementation(projects.subprojects.projects)
 	implementation(projects.subprojects.toolingApi)
@@ -209,28 +210,6 @@ dependencies {
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
-
-	// LaoutEditor
-	// implementation(libs.desugar.jdk.libs)
-	// implementation(libs.editor)
-	// implementation(libs.textmate)
-	// implementation(libs.junit)
-	// implementation(libs.androidx.junit)
-	// implementation(libs.androidx.espresso.core)
-	// implementation(libs.androidx.lifecycle.runtime.ktx)
-	// implementation(libs.androidx.activity.compose)
-	// implementation(platform(libs.androidx.compose.bom))
-	// implementation(libs.androidx.ui)
-	// implementation(libs.androidx.ui.graphics)
-	// implementation(libs.androidx.ui.tooling)
-	// implementation(libs.androidx.ui.tooling.preview)
-	// implementation(libs.androidx.ui.test.manifest)
-	// implementation(libs.androidx.ui.test.junit4)
-	// implementation(libs.androidx.material3)
-	// implementation(libs.material)
-	// implementation(libs.utilcodex)
-	// implementation(libs.zoomage)
-	// implementation(files("libs/layouteditor-release.aar"))
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets

@@ -90,7 +90,7 @@ public class ServiceStarter {
 	}
 
 	private static boolean sendBinder(IBinder binder, String token, boolean retry) {
-		String packageName = "com.itsaky.androidide";
+		String packageName = BuildInfo.PACKAGE_NAME;
 		String name = packageName + ".shizuku";
 		int userId = 0;
 		IContentProvider provider = null;
@@ -100,7 +100,10 @@ public class ServiceStarter {
 			if (provider == null) {
 				Log.e(TAG, String.format("provider is null %s %d", name, userId));
 				return false;
+			} else {
+				Log.d(TAG, String.format("got provider with name '%s' for userId %d", name, userId));
 			}
+
 			if (!provider.asBinder().pingBinder()) {
 				Log.e(TAG, String.format("provider is dead %s %d", name, userId));
 

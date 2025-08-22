@@ -23,10 +23,9 @@ import androidx.collection.LongSparseArray;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
-
-import com.itsaky.androidide.fragments.debug.DebuggerFragment;
 import com.itsaky.androidide.fragments.DiagnosticsListFragment;
 import com.itsaky.androidide.fragments.SearchResultFragment;
+import com.itsaky.androidide.fragments.debug.DebuggerFragment;
 import com.itsaky.androidide.fragments.output.AppLogFragment;
 import com.itsaky.androidide.fragments.output.BuildOutputFragment;
 import com.itsaky.androidide.fragments.output.IDELogFragment;
@@ -38,146 +37,147 @@ import org.slf4j.LoggerFactory;
 
 public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
 
-  private static final Logger LOG = LoggerFactory.getLogger(EditorBottomSheetTabAdapter.class);
-  private final List<Tab> fragments;
+	private static final Logger LOG = LoggerFactory.getLogger(EditorBottomSheetTabAdapter.class);
+	private final List<Tab> fragments;
 
-  public EditorBottomSheetTabAdapter(@NonNull FragmentActivity fragmentActivity) {
-    super(fragmentActivity);
+	public EditorBottomSheetTabAdapter(@NonNull FragmentActivity fragmentActivity) {
+		super(fragmentActivity);
 
-    var index = -1;
-    this.fragments = new ArrayList<>();
-    this.fragments.add(
-        new Tab(
-            fragmentActivity.getString(R.string.build_output),
-            BuildOutputFragment.class,
-            ++index));
-    this.fragments.add(
-        new Tab(fragmentActivity.getString(R.string.app_logs), AppLogFragment.class, ++index));
-    this.fragments.add(
-        new Tab(fragmentActivity.getString(R.string.ide_logs), IDELogFragment.class, ++index));
-    this.fragments.add(
-        new Tab(
-            fragmentActivity.getString(R.string.view_diags),
-            DiagnosticsListFragment.class,
-            ++index));
-    this.fragments.add(
-        new Tab(
-            fragmentActivity.getString(R.string.view_search_results),
-            SearchResultFragment.class,
-            ++index));
-    this.fragments.add(
-            new Tab(
-                    fragmentActivity.getString(R.string.debugger_title),
-                    DebuggerFragment.class,
-                    ++index));
-  }
+		var index = -1;
+		this.fragments = new ArrayList<>();
+		this.fragments.add(
+				new Tab(
+						fragmentActivity.getString(R.string.build_output),
+						BuildOutputFragment.class,
+						++index));
+		this.fragments.add(
+				new Tab(fragmentActivity.getString(R.string.app_logs), AppLogFragment.class, ++index));
+		this.fragments.add(
+				new Tab(fragmentActivity.getString(R.string.ide_logs), IDELogFragment.class, ++index));
+		this.fragments.add(
+				new Tab(
+						fragmentActivity.getString(R.string.view_diags),
+						DiagnosticsListFragment.class,
+						++index));
+		this.fragments.add(
+				new Tab(
+						fragmentActivity.getString(R.string.view_search_results),
+						SearchResultFragment.class,
+						++index));
+		this.fragments.add(
+				new Tab(
+						fragmentActivity.getString(R.string.debugger_title),
+						DebuggerFragment.class,
+						++index));
+	}
 
-  public Fragment getFragmentAtIndex(int index) {
-    return getFragmentById(getItemId(index));
-  }
+	@NonNull
+	@Override
+	public Fragment createFragment(int position) {
+		try {
+			final var tab = fragments.get(position);
+			final var klass = Class.forName(tab.name).asSubclass(Fragment.class);
+			final var constructor = klass.getDeclaredConstructor();
+			constructor.setAccessible(true);
+			return constructor.newInstance();
+		} catch (Throwable th) {
+			throw new RuntimeException("Unable to create fragment", th);
+		}
+	}
 
-  @Nullable
-  public Fragment getFragmentById(long itemId) {
-    final var fragments = getFragments();
-    if (fragments != null) {
-      return fragments.get(itemId);
-    }
+	public <T extends Fragment> int findIndexOfFragmentByClass(@NonNull Class<T> tClass) {
+		final var name = tClass.getName();
+		for (int i = 0; i < this.fragments.size(); i++) {
+			final var tab = this.fragments.get(i);
+			if (tab.name.equals(name)) {
+				return i;
+			}
+		}
 
-    return null;
-  }
+		return -1;
+	}
 
-  @Nullable
-  private LongSparseArray<Fragment> getFragments() {
-    try {
-      final var field = FragmentStateAdapter.class.getDeclaredField("mFragments");
-      field.setAccessible(true);
-        //noinspection unchecked
-        return (LongSparseArray<Fragment>) field.get(this);
-    } catch (Throwable th) {
-      LOG.error("Unable to reflect fragment list from adapter.");
-    }
+	@Nullable
+	public BuildOutputFragment getBuildOutputFragment() {
+		return findFragmentByClass(BuildOutputFragment.class);
+	}
 
-    return null;
-  }
+	@Nullable
+	public DiagnosticsListFragment getDiagnosticsFragment() {
+		return findFragmentByClass(DiagnosticsListFragment.class);
+	}
 
-  @NonNull
-  @Override
-  public Fragment createFragment(int position) {
-    try {
-      final var tab = fragments.get(position);
-      final var klass = Class.forName(tab.name).asSubclass(Fragment.class);
-      final var constructor = klass.getDeclaredConstructor();
-      constructor.setAccessible(true);
-      return constructor.newInstance();
-    } catch (Throwable th) {
-      throw new RuntimeException("Unable to create fragment", th);
-    }
-  }
+	public <T extends Fragment> T getFragmentAtIndex(int index) {
+		return getFragmentById(getItemId(index));
+	}
 
-  @Override
-  public int getItemCount() {
-    return fragments.size();
-  }
+	@Nullable
+	public <T extends Fragment> T getFragmentById(long itemId) {
+		final var fragments = getFragments();
+		if (fragments != null) {
+			// noinspection unchecked
+			return (T) fragments.get(itemId);
+		}
 
-  public String getTitle(int position) {
-    return fragments.get(position).title;
-  }
+		return null;
+	}
 
-  @Nullable
-  public BuildOutputFragment getBuildOutputFragment() {
-    return findFragmentByClass(BuildOutputFragment.class);
-  }
+	@Override
+	public int getItemCount() {
+		return fragments.size();
+	}
 
-  @Nullable
-  private <T extends Fragment> T findFragmentByClass(Class<T> clazz) {
-    final var name = clazz.getName();
-    for (final var tab : this.fragments) {
-      if (tab.name.equals(name)) {
-          //noinspection unchecked
-          return (T) getFragmentById(tab.itemId);
-      }
-    }
+	@Nullable
+	public AppLogFragment getLogFragment() {
+		return findFragmentByClass(AppLogFragment.class);
+	}
 
-    return null;
-  }
+	@Nullable
+	public SearchResultFragment getSearchResultFragment() {
+		return findFragmentByClass(SearchResultFragment.class);
+	}
 
-  @Nullable
-  public AppLogFragment getLogFragment() {
-    return findFragmentByClass(AppLogFragment.class);
-  }
+	public String getTitle(int position) {
+		return fragments.get(position).title;
+	}
 
-  @Nullable
-  public DiagnosticsListFragment getDiagnosticsFragment() {
-    return findFragmentByClass(DiagnosticsListFragment.class);
-  }
+	@Nullable
+	private <T extends Fragment> T findFragmentByClass(Class<T> clazz) {
+		final var name = clazz.getName();
+		for (final var tab : this.fragments) {
+			if (tab.name.equals(name)) {
+				// noinspection unchecked
+				return (T) getFragmentById(tab.itemId);
+			}
+		}
 
-  @Nullable
-  public SearchResultFragment getSearchResultFragment() {
-    return findFragmentByClass(SearchResultFragment.class);
-  }
+		return null;
+	}
 
-  public <T extends Fragment> int findIndexOfFragmentByClass(@NonNull Class<T> tClass) {
-    final var name = tClass.getName();
-    for (int i = 0; i < this.fragments.size(); i++) {
-      final var tab = this.fragments.get(i);
-      if (tab.name.equals(name)) {
-        return i;
-      }
-    }
+	@Nullable
+	private LongSparseArray<Fragment> getFragments() {
+		try {
+			final var field = FragmentStateAdapter.class.getDeclaredField("mFragments");
+			field.setAccessible(true);
+			// noinspection unchecked
+			return (LongSparseArray<Fragment>) field.get(this);
+		} catch (Throwable th) {
+			LOG.error("Unable to reflect fragment list from adapter.");
+		}
 
-    return -1;
-  }
+		return null;
+	}
 
-  static class Tab {
+	static class Tab {
 
-    final String title;
-    final String name;
-    final long itemId;
+		final String title;
+		final String name;
+		final long itemId;
 
-    public Tab(String title, @NonNull Class<? extends Fragment> fragment, long id) {
-      this.title = title;
-      this.name = fragment.getName();
-      this.itemId = id;
-    }
-  }
+		public Tab(String title, @NonNull Class<? extends Fragment> fragment, long id) {
+			this.title = title;
+			this.name = fragment.getName();
+			this.itemId = id;
+		}
+	}
 }

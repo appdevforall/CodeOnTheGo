@@ -11,6 +11,7 @@ android {
 }
 
 dependencies {
+	implementation(projects.buildInfo)
 	implementation(projects.subprojects.shizukuCommon)
 	implementation(projects.subprojects.shizukuShared)
 	implementation(projects.subprojects.shizukuServerShared)

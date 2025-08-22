@@ -10,11 +10,13 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.util.Consumer
+import com.itsaky.androidide.buildinfo.BuildInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -44,14 +46,20 @@ class AdbPairingService : Service() {
 		private const val REMOTE_INPUT_RESULT_KEY = "paring_code"
 		private const val PORT_KEY = "paring_code"
 
-		fun startIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
+		const val ACTION_PAIR_SUCCEEDED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_SUCCEEDED"
+		const val ACTION_PAIR_FAILED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_FAILED"
 
-		private fun stopIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(STOP_ACTION)
+		fun startIntent(context: Context): Intent =
+			Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
+
+		private fun stopIntent(context: Context): Intent =
+			Intent(context, AdbPairingService::class.java).setAction(STOP_ACTION)
 
 		private fun replyIntent(
 			context: Context,
 			port: Int,
-		): Intent = Intent(context, AdbPairingService::class.java).setAction(REPLY_ACTION).putExtra(PORT_KEY, port)
+		): Intent = Intent(context, AdbPairingService::class.java).setAction(REPLY_ACTION)
+			.putExtra(PORT_KEY, port)
 	}
 
 	private var adbMdns: AdbMdns? = null
@@ -86,18 +94,15 @@ class AdbPairingService : Service() {
 		)
 	}
 
-	override fun onStartCommand(
-		intent: Intent?,
-		flags: Int,
-		startId: Int,
-	): Int {
+	override fun onBind(intent: Intent?): IBinder? = null
+
+	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		val notification =
 			when (intent?.action) {
-				START_ACTION -> {
-					onStart()
-				}
+				START_ACTION -> onStart()
 				REPLY_ACTION -> {
-					val code = RemoteInput.getResultsFromIntent(intent)?.getCharSequence(REMOTE_INPUT_RESULT_KEY) ?: ""
+					val code = RemoteInput.getResultsFromIntent(intent)
+						?.getCharSequence(REMOTE_INPUT_RESULT_KEY) ?: ""
 					val port = intent.getIntExtra(PORT_KEY, -1)
 					if (port != -1) {
 						onInput(code.toString(), port)
@@ -105,32 +110,36 @@ class AdbPairingService : Service() {
 						onStart()
 					}
 				}
+
 				STOP_ACTION -> {
 					stopForeground(STOP_FOREGROUND_REMOVE)
 					stopSelf()
 					null
 				}
-				else -> {
-					return START_NOT_STICKY
-				}
-			}
-		if (notification != null) {
-			try {
-				startForeground(
-					NOTIFICATION_ID,
-					notification,
-					ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST,
-				)
-			} catch (e: Throwable) {
-				Log.e(TAG, "startForeground failed", e)
 
-				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-					e is ForegroundServiceStartNotAllowedException
-				) {
-					getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
-				}
+				else -> null
+			}
+
+		if (notification == null) {
+			return START_NOT_STICKY
+		}
+
+		runCatching {
+			startForeground(
+				NOTIFICATION_ID,
+				notification,
+				ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST,
+			)
+		}.onFailure { error ->
+			logger.error("startForeground failed", error)
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+				error is ForegroundServiceStartNotAllowedException
+			) {
+				getSystemService(NotificationManager::class.java)
+					.notify(NOTIFICATION_ID, notification)
 			}
 		}
+
 		return START_REDELIVER_INTENT
 	}
 
@@ -200,6 +209,8 @@ class AdbPairingService : Service() {
 			text = getString(R.string.notification_adb_pairing_succeed_text)
 
 			stopSearch()
+
+			sendBroadcast(Intent(ACTION_PAIR_SUCCEEDED))
 		} else {
 			title = getString(R.string.notification_adb_pairing_failed_title)
 
@@ -208,18 +219,21 @@ class AdbPairingService : Service() {
 					is ConnectException -> {
 						getString(R.string.cannot_connect_port)
 					}
+
 					is AdbInvalidPairingCodeException -> {
 						getString(R.string.paring_code_is_wrong)
 					}
+
 					is AdbKeyException -> {
 						getString(R.string.adb_error_key_store)
 					}
+
 					else -> {
 						exception?.let { Log.getStackTraceString(it) }
 					}
 				}
 
-			logger.warn(TAG, "Pair failed", exception)
+			logger.warn("Pair failed", exception)
 		}
 
 		getSystemService(NotificationManager::class.java).notify(
@@ -346,6 +360,4 @@ class AdbPairingService : Service() {
 			.setSmallIcon(R.drawable.ic_launcher_fg_vector)
 			.build()
 	}
-
-	override fun onBind(intent: Intent?): IBinder? = null
 }

@@ -21,12 +21,15 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
 import moe.shizuku.server.IShizukuApplication;
 import moe.shizuku.server.IShizukuService;
 
@@ -430,16 +433,16 @@ public class Shizuku {
 			try {
 				binder.linkToDeath(DEATH_RECIPIENT, 0);
 			} catch (Throwable e) {
-				Log.i("ShizukuApplication", "attachApplication");
+				Log.i("Shizuku", "onBinderReceived: linkToDeath failure", e);
 			}
 
 			try {
 				if (!attachApplicationV13(binder, packageName) && !attachApplicationV11(binder, packageName)) {
 					preV11 = true;
 				}
-				Log.i("ShizukuApplication", "attachApplication");
+				Log.i("Shizuku", "onBinderReceived: attachApplication succeeded");
 			} catch (Throwable e) {
-				Log.w("ShizukuApplication", Log.getStackTraceString(e));
+				Log.w("Shizuku", "onBinderReceived: attachApplication failed", e);
 			}
 
 			if (preV11) {

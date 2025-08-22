@@ -40,6 +40,11 @@ class AdbMdns(
 		}
 	}
 
+	fun restart() {
+		stop()
+		start()
+	}
+
 	private fun onDiscoveryStart() {
 		registered = true
 	}
