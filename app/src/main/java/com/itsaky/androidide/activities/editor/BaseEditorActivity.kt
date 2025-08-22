@@ -487,6 +487,14 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             true
         }
 
+        content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
+            showTooltip(
+                category = TooltipCategory.CATEGORY_IDE,
+                tag = TooltipTag.EDITOR_BUILD_STATUS
+            )
+            true
+        }
+
         setupMemUsageChart()
         watchMemory()
     }
