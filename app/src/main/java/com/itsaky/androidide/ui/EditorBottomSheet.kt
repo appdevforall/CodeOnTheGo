@@ -52,6 +52,7 @@ import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.TaskExecutor.CallbackWithError
@@ -144,7 +145,7 @@ constructor(
           tabView,
           0,
           IDETooltipItem(
-            tooltipCategory = "ide",
+            tooltipCategory = TooltipCategory.CATEGORY_IDE,
             tooltipTag = tooltipMessage,
             detail = tooltipMessage,
             summary = context.getString(R.string.more_information_about, title),

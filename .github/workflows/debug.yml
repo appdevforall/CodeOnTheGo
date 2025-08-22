@@ -1,16 +1,13 @@
 name: Build and deploy to firebase app distribution
 
 permissions:
+  id-token: write
   contents: read
   actions: write
 
 on:
-  pull_request:
-    branches: [ "stage" ]
-    types: [ opened, synchronize, reopened, closed ]
-    paths-ignore:
-      - '**/*.md'
-      - 'fastlane/**'
+  push:
+
   workflow_dispatch: { }
 
 env:
@@ -36,10 +33,13 @@ jobs:
     timeout-minutes: 60
 
     steps:
+
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
+
+
 
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -101,56 +101,113 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             EVENT_PATH="${GITHUB_EVENT_PATH}"
-            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH")
+            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH" | tr -d '\n\r' | sed 's/[*]/•/g')
             PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
             PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
             echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           else
-            COMMIT_MSG=$(git log -1 --pretty=%B)
+            COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r' | sed 's/[*]/•/g')
             COMMIT_AUTHOR=$(git log -1 --pretty=%an)
             echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
             echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           fi
 
-      - name: Extract Jira Ticket
+      - name: Extract Jira Ticket and Fetch Title
         id: extract_jira
+        env:
+          COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+          
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
+          
+            # Fetch Jira ticket title if credentials are available
+            if [ -n "${{ secrets.JIRA_EMAIL }}" ] && [ -n "${{ secrets.JIRA_API_TOKEN }}" ]; then
+              JIRA_TITLE=$(curl -s \
+                -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+                -H "Accept: application/json" \
+                "https://appdevforall.atlassian.net/rest/api/3/issue/${JIRA_TICKET}?fields=summary" \
+                | jq -r '.fields.summary // ""' 2>/dev/null || echo "")
+          
+              # If unable to fetch title, default to commit message
+              if [ -z "$JIRA_TITLE" ]; then
+                JIRA_TITLE="$COMMIT_MSG"
+              fi
+            else
+              JIRA_TITLE="$COMMIT_MSG"
+            fi
           else
             JIRA_TICKET="N/A"
+            JIRA_TITLE="$COMMIT_MSG"
             JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
           fi
 
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
+          echo "JIRA_TITLE=$JIRA_TITLE" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud via Workload Identity
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: '${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}'
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
+
+      - name: Verify APK exists
+        run: |
+          if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
+            echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
+            exit 1
+          fi
+          ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          BUILD_TYPE: ${{ env.BUILD_TYPE }}
+          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
+          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
         run: |
-          npm install -g firebase-tools@13.10.1
+          echo "Starting Firebase deployment..."
+          echo "APK Path: $APK_PATH"
+          echo "Firebase App ID: $FIREBASE_APP_ID"
+          
+          # Check if Firebase CLI is authenticated
+          echo "Checking Firebase authentication..."
+          firebase projects:list || {
+            echo "ERROR: Firebase authentication failed"
+            exit 1
+          }
 
-          output=$(firebase appdistribution:distribute "${{ steps.find_apk.outputs.APK_PATH }}" \
-            --app "${{ secrets.FIREBASE_APP_ID }}" \
+          RELEASE_NOTES_FILE=$(mktemp)
+          cat > "$RELEASE_NOTES_FILE" << EOF
+          Build Type: $BUILD_TYPE
+          JIRA Title: $JIRA_TITLE
+          Ticket: $JIRA_URL
+          EOF
+          
+          echo "Running Firebase distribution command..."
+          set +e  # Disable exit on error temporarily
+          output=$(firebase appdistribution:distribute "$APK_PATH" \
+            --app "$FIREBASE_APP_ID" \
             --groups "testers" \
-            --release-notes "Build Type: ${{ env.BUILD_TYPE }}
-          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}")
-
+            --release-notes-file "$RELEASE_NOTES_FILE" 2>&1)
+          exit_code=$?
+          set -e  # Re-enable exit on error
+          
+          echo "Firebase command exit code: $exit_code"
+          echo "Firebase command output:"
           echo "$output"
+          
+          if [ $exit_code -ne 0 ]; then
+            echo "ERROR: Firebase deployment failed with exit code $exit_code"
+            exit 1
+          fi
 
           FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
 
@@ -160,22 +217,25 @@ jobs:
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
 
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send Rich Slack Notification
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
-          PR_AUTHOR="${{ steps.pr_info.outputs.PR_AUTHOR }}"
-          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
-          FIREBASE_CONSOLE_URL="${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}"
+          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
+          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
+          PR_AUTHOR: ${{ steps.pr_info.outputs.PR_AUTHOR }}
+          COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
+          FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
+        run: |          
           BRANCH_NAME="${{ env.BRANCH_NAME }}"
           BUILD_TYPE="${{ env.BUILD_TYPE }}"
-
+          
           jq -n \
             --arg jira_url "$JIRA_URL" \
+            --arg jira_title "$JIRA_TITLE" \
             --arg commit_msg "$COMMIT_MSG" \
             --arg build_type "$BUILD_TYPE" \
             --arg pr_author "$PR_AUTHOR" \
@@ -209,7 +269,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*Jira Ticket:* \($jira_url)"
+                    text: "*Jira Ticket:* <\($jira_url)|\($jira_title)>"
                   }
                 },
                 {
@@ -266,6 +326,7 @@ jobs:
                 }
               ]
             }' > payload.json
-
+          
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+
           rm -f payload.json

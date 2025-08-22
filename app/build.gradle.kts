@@ -120,8 +120,9 @@ dependencies {
   kapt(projects.annotationProcessors)
   kapt(libs.room.compiler)
 
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))    
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 
+  implementation(platform(libs.sora.bom))
   implementation(libs.common.editor)
   implementation(libs.common.utilcode)
   implementation(libs.common.glide)
@@ -187,7 +188,6 @@ dependencies {
   implementation(projects.eventbusAndroid)
   implementation(projects.eventbusEvents)
   implementation(projects.gradlePluginConfig)
-  implementation(projects.idestats)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
   implementation(projects.subprojects.xmlUtils)
@@ -207,7 +207,7 @@ dependencies {
   implementation(projects.uidesigner)
   implementation(projects.xmlInflater)
 
-  implementation(projects.layouteditor.layouteditorApp)
+  implementation(projects.layouteditor)
   implementation(projects.idetooltips)
 
   //LaoutEditor

@@ -34,7 +34,9 @@ dependencies {
     api(libs.androidx.nav.ui)
 
     implementation(projects.common)
+    implementation(projects.idetooltips)
     implementation(projects.resources)
+    implementation(platform(libs.sora.bom))
     implementation(libs.common.editor)
     implementation(libs.common.kotlin)
     implementation(libs.common.kotlin.coroutines.android)

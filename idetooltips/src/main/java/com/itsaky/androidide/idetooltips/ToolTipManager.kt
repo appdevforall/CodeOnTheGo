@@ -18,74 +18,89 @@ import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
+import java.io.File
+
 
 object TooltipManager {
+    private const val TAG = "TooltipManager"
+    private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
+    private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
+                                               "/Download/documentation.db")
+
+    private const val QUERY_TOOLTIP_ONE_CATEGORY = """
+        SELECT T.id, T.summary, T.detail
+        FROM Tooltips AS T, TooltipCategories AS TC
+        WHERE T.categoryId = TC.id
+          AND T.tag = ?
+          AND TC.category = ?
+    """
+
+    private const val QUERY_TOOLTIP_TWO_CATEGORIES = """
+        SELECT T.id, T.summary, T.detail
+        FROM Tooltips AS T, TooltipCategories AS TC
+        WHERE T.categoryId = TC.id
+          AND T.tag = ?
+          AND TC.category in ('?', 'a')
+    """
+
+    private const val QUERY_TOOLTIP_BUTTONS = """
+        SELECT description, uri
+        FROM TooltipButtons
+        WHERE tooltipId = ?
+        ORDER BY buttonNumberId
+    """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
+            var dbPath = Environment.DOC_DB.absolutePath
+
+            // TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
+            val debugDatabaseTimestamp = if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
+
+            if (debugDatabaseTimestamp > databaseTimestamp) {
+                // Switch to the debug database.
+                dbPath = debugDatabaseFile.absolutePath
+            }
+
             try {
-                val dbPath = Environment.DOC_DB.absolutePath
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
+
+                val tooltipQuery = if   ((category == "j" || category == "k")) QUERY_TOOLTIP_TWO_CATEGORIES
+                                   else QUERY_TOOLTIP_ONE_CATEGORY
+
+                var cursor = db.rawQuery(tooltipQuery, arrayOf(tag, category))
                 
-                val query = """
-                    SELECT tooltipCategory, tooltipTag, tooltipSummary, tooltipDetail, tooltipButtons
-                    FROM ide_tooltip_table
-                    WHERE tooltipCategory = ? AND tooltipTag = ?
-                    LIMIT 1
-                """
-                
-                val cursor = db.rawQuery(query, arrayOf(category, tag))
-                
-                if (cursor.moveToFirst()) {
-                    val tooltipCategory = cursor.getString(cursor.getColumnIndexOrThrow("tooltipCategory"))
-                    val tooltipTag = cursor.getString(cursor.getColumnIndexOrThrow("tooltipTag"))
-                    val summary = cursor.getString(cursor.getColumnIndexOrThrow("tooltipSummary"))
-                    val detail = cursor.getString(cursor.getColumnIndexOrThrow("tooltipDetail"))
-                    val buttonsJson = cursor.getString(cursor.getColumnIndexOrThrow("tooltipButtons"))
-                    
-                    // Parse buttons JSON
-                    val buttons = ArrayList<Pair<String, String>>()
-                    try {
-                        val jsonArray = JSONArray(buttonsJson)
-                        for (i in 0 until jsonArray.length()) {
-                            val buttonObj = jsonArray.getJSONObject(i)
-                            // Try both "label"/"url" and "first"/"second" formats
-                            val label = if (buttonObj.has("label")) {
-                                buttonObj.getString("label")
-                            } else if (buttonObj.has("first")) {
-                                buttonObj.getString("first")
-                            } else {
-                                continue
-                            }
-                            val url = if (buttonObj.has("url")) {
-                                buttonObj.getString("url")
-                            } else if (buttonObj.has("second")) {
-                                buttonObj.getString("second")
-                            } else {
-                                continue
-                            }
-                            buttons.add(Pair(label, url))
-                        }
-                        Log.d("TooltipManager", "Parsed ${buttons.size} buttons from JSON: $buttonsJson")
-                    } catch (e: Exception) {
-                        Log.e("TooltipManager", "Error parsing buttons JSON: ${e.message}")
-                        Log.e("TooltipManager", "Raw buttons JSON: $buttonsJson")
-                    }
-                    
-                    cursor.close()
-                    db.close()
-                    
-                    IDETooltipItem(tooltipCategory, tooltipTag, summary, detail, buttons)
-                } else {
-                    cursor.close()
-                    db.close()
-                    null
+                when (cursor.count) {
+                    0 -> throw NoTooltipFoundException(category, tag)
+                    1 -> { /* Expected case, continue processing */ }
+                    else -> throw DatabaseCorruptionException(
+                        "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
+                        "This indicates database corruption - each category/tag combination should be unique."
+                    )
                 }
+
+                cursor.moveToFirst()
+
+                val tooltipId = cursor.getInt(0)
+                val summary   = cursor.getString(1)
+                val detail    = cursor.getString(2)
+
+                cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
+
+                val buttons = ArrayList<Pair<String, String>>()
+                while (cursor.moveToNext()) {
+                    buttons.add(Pair(cursor.getString(0), "http://localhost:6174/" + cursor.getString(1)))
+                }
+
+                Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")
+                    
+                cursor.close()
+                db.close()
+                    
+                IDETooltipItem(category, tag, summary, detail, buttons)
                 
             } catch (e: Exception) {
-                Log.e("TooltipManager", "Error getting tooltip for category=$category, tag=$tag: ${e.message}")
+                Log.e(TAG, "Error getting tooltip for category='$category', tag='$tag': ${e.message}")
                 null
             }
         }
@@ -147,16 +162,17 @@ object TooltipManager {
             "Color attribute not found in theme"
         )
 
+// TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
         fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
-        var tooltipHtmlContent = when (level) {
+        val tooltipHtmlContent = when (level) {
             0 -> tooltipItem.summary
             1 -> {
                 val detailContent = if (tooltipItem.detail.isNotBlank()) tooltipItem.detail else ""
                 if (tooltipItem.buttons.isNotEmpty()) {
                     val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
-                        """<a href="$url" style="color:#233490;text-decoration:underline;">$label</a>"""
+                        context.getString(R.string.tooltip_links_html_template, url, label)
                     }
                     if (detailContent.isNotBlank()) {
                         "$detailContent<br><br>$linksHtml"
@@ -170,32 +186,9 @@ object TooltipManager {
             else -> ""
         }
 
-        Log.d("TooltipManager", "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
+        Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
-        val styledHtml = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                     body {
-                        margin: 0;
-                        padding: 10px;
-                        word-wrap: break-word;
-                        color: $hexColor;
-                     }
-                     a{
-                        color: #233490;
-                        text-decoration: underline;
-                       }
-                </style>
-            </head>
-            <body>
-                $tooltipHtmlContent
-            </body>
-
-        </html>
-        """.trimIndent()
+        val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -219,7 +212,7 @@ object TooltipManager {
                 level == 0 -> 1
                 else -> level + 1
             }
-            Log.d("TooltipManager", "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
+            Log.d(TAG, "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
             onSeeMoreClicked(popupWindow, nextLevel, tooltipItem)
         }
         val shouldShowSeeMore = when {
@@ -227,17 +220,14 @@ object TooltipManager {
             else -> false
         }
         seeMore.visibility = if (shouldShowSeeMore) View.VISIBLE else View.GONE
-        Log.d("TooltipManager", "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
+        Log.d(TAG, "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
 
         val transparentColor = getColor(context, android.R.color.transparent)
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
     }
-
 }
-
