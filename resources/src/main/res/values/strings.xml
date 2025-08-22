@@ -751,4 +751,5 @@
 
     <string name="build_variants_apply">Apply</string>
     <string name="build_variants_cancel">Cancel</string>
+  <string name="info_icon_content_description">Info icon</string>
 </resources>
