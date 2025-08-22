@@ -199,7 +199,11 @@ abstract class BaseEditorActivity :
 					val dataset =
 						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
 							?: run {
-								log.error("No dataset found for process: {}: {}", proc.pid, proc.pname)
+								log.error(
+									"No dataset found for process: {}: {}",
+									proc.pid,
+									proc.pname,
+								)
 								return@forEachValue
 							}
 
@@ -306,7 +310,10 @@ abstract class BaseEditorActivity :
 
 	private fun postStopDebuggerServiceIfNotConnected() {
 		debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
-		debuggerServiceStopHandler.postDelayed(debuggerServiceStopRunnable, DEBUGGER_SERVICE_STOP_DELAY_MS)
+		debuggerServiceStopHandler.postDelayed(
+			debuggerServiceStopRunnable,
+			DEBUGGER_SERVICE_STOP_DELAY_MS,
+		)
 	}
 
 	private var optionsMenuInvalidator: Runnable? = null
@@ -432,21 +439,38 @@ abstract class BaseEditorActivity :
 		val packageName = onResult(this, intent) ?: return
 		val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
 		if (!isDebugging) {
-			doLaunchApp(packageName)
+			doLaunchApp(packageName = packageName)
 			return
 		}
 
 		startDebuggerAndDo {
 			debuggerViewModel.debugeePackage = packageName
 			withContext(Dispatchers.Main.immediate) {
-				doLaunchApp(packageName)
+				doLaunchApp(
+					packageName = packageName,
+					debug = true,
+				)
 			}
 		}
 	}
 
-	private fun doLaunchApp(packageName: String) {
+	private fun doLaunchApp(
+		packageName: String,
+		debug: Boolean = false,
+	) {
+		val context = this
+		val performLaunch = {
+			activityScope.launch {
+				IntentUtils.launchApp(
+					context = context,
+					packageName = packageName,
+					debug = debug,
+				)
+			}
+		}
+
 		if (BuildPreferences.launchAppAfterInstall) {
-			IntentUtils.launchApp(this, packageName)
+			performLaunch()
 			return
 		}
 
@@ -455,7 +479,7 @@ abstract class BaseEditorActivity :
 		builder.setMessage(string.msg_action_open_application)
 		builder.setPositiveButton(string.yes) { dialog, _ ->
 			dialog.dismiss()
-			IntentUtils.launchApp(this, packageName)
+			performLaunch()
 		}
 		builder.setNegativeButton(string.no, null)
 		builder.show()
@@ -841,7 +865,8 @@ abstract class BaseEditorActivity :
 		log.debug(
 			"onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}",
 		)
-		val visible = editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+		val visible =
+			editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
 		content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
 		invalidateOptionsMenu()
 	}
@@ -906,7 +931,8 @@ abstract class BaseEditorActivity :
 				override fun onDragStateChanged(
 					swipeRevealLayout: SwipeRevealLayout,
 					state: Int,
-				) {}
+				) {
+				}
 
 				override fun onDragProgress(
 					swipeRevealLayout: SwipeRevealLayout,

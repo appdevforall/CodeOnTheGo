@@ -307,10 +307,8 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 		if (UserHandleCompat.getAppId(callingUid) == managerAppId) {
 			return true;
 		}
-		if (clientRecord == null && checkCallingPermission() == PackageManager.PERMISSION_GRANTED) {
-			return true;
-		}
-		return false;
+
+		return clientRecord == null && checkCallingPermission() == PackageManager.PERMISSION_GRANTED;
 	}
 
 	@Override

@@ -26,6 +26,9 @@ import androidx.core.content.FileProvider
 import com.blankj.utilcode.util.ImageUtils
 import com.blankj.utilcode.util.ImageUtils.ImageType.TYPE_UNKNOWN
 import com.itsaky.androidide.R
+import com.itsaky.androidide.lsp.java.debug.JdwpOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.io.File
@@ -86,7 +89,11 @@ object IntentUtils {
 		intentAction: String = Intent.ACTION_SEND,
 	) {
 		val uri =
-			FileProvider.getUriForFile(context, "${context.packageName}.providers.fileprovider", file)
+			FileProvider.getUriForFile(
+				context,
+				"${context.packageName}.providers.fileprovider",
+				file,
+			)
 		val intent =
 			ShareCompat
 				.IntentBuilder(context)
@@ -100,16 +107,6 @@ object IntentUtils {
 		context.startActivity(Intent.createChooser(intent, null))
 	}
 
-	fun launchAppInDebugMode(
-		context: Context,
-		packageName: String,
-	) {
-		if (!Shizuku.pingBinder()) {
-			logger.debug("Shizuku service is not running!")
-			return
-		}
-	}
-
 	/**
 	 * Launch the application with the given [package name][packageName].
 	 *
@@ -117,22 +114,23 @@ object IntentUtils {
 	 * @param packageName The package name of the application.
 	 */
 	@JvmOverloads
-	fun launchApp(
+	suspend fun launchApp(
 		context: Context,
 		packageName: String,
 		logError: Boolean = true,
+		debug: Boolean = false,
 	): Boolean {
-		if (Build.VERSION.SDK_INT >= 33) {
-			return launchAppApi33(context, packageName, logError)
+		if (debug || Build.VERSION.SDK_INT < 33) {
+			return doLaunchApp(context, packageName, logError, debug)
 		}
-
-		return doLaunchApp(context, packageName, logError)
+		return launchAppApi33(context, packageName, logError)
 	}
 
-	private fun doLaunchApp(
+	private suspend fun doLaunchApp(
 		context: Context,
 		packageName: String,
 		logError: Boolean = true,
+		debug: Boolean = false,
 	): Boolean {
 		try {
 			val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
@@ -141,12 +139,74 @@ object IntentUtils {
 				return false
 			}
 
-			context.startActivity(launchIntent)
-			return true
+			if (!debug) {
+				// launch-only, simply start the activity
+				context.startActivity(launchIntent)
+				return true
+			}
+
+			if (!Shizuku.pingBinder()) {
+				logger.debug("Shizuku service is not running. Cannot debug app.")
+				return false
+			}
+
+			val component = launchIntent.component!!
+			val action = launchIntent.action ?: Intent.ACTION_MAIN
+			val category = launchIntent.categories?.firstOrNull() ?: Intent.CATEGORY_LAUNCHER
+
+			// @formatter:off
+			val launchCmd = arrayOf(
+				"/system/bin/am",
+				"start",
+				"-n", component.flattenToString(), // component name (e.g. com.itsaky.example/com.itsaky.example.MainActivity)
+				"-a", action, // action (e.g. android.intent.action.MAIN)
+				"-c", category, // category (e.g. android.intent.category.LAUNCHER)
+				"-S", // force stop before launch
+				"-D", // launch in debug mode,
+
+				// Instead of using ADB to connect to the already-running JDWP server (like Android Studio),
+				// we instruct the system to attach the JDWP agent to process before it's started.
+				// We also provide options to the JDWP agent so that it connects to us on the right
+				// port.
+				//
+				// Why not use absolute path to our build of oj-libjdwp?
+				// - Because the system will only look for `libjdwp.so` in the library search paths
+				// already known to it. If we provide an absolute path, it'll still have to find
+				// the dependent libraries (like `libdt_socket.so`), which might fail. This can be
+				// fixed by recompiling libjdwp.so to include DT_RUNPATH/DT_RPATH entries in the
+				// elf file, but that's too much work given that we can already use libjdwp.so from
+				// the system. In case we need to add certain features to the debugger which are
+				// not already available in system's libjdwp.so, we'll have to update this to load
+				// our version of the agent.
+				"--attach-agent", "libjdwp.so=" + JdwpOptions.JDWP_OPTIONS,
+			)
+			// @formatter:on
+
+			logger.debug("Launching app with command: {}", launchCmd.joinToString(" "))
+
+			// TODO: Maybe use a UserService to handle this? Or maybe add custom APIs to Shizuku?
+			@Suppress("DEPRECATION")
+			val process =
+				Shizuku.newProcess(
+					// cmd =
+					launchCmd,
+					// env =
+					null,
+					// dir =
+					null,
+				)
+
+			val exitCode = withContext(Dispatchers.IO) { process.waitFor() }
+			logger.debug("Launch process exited with exit code {}", exitCode)
+			return exitCode == 0
 		} catch (e: Throwable) {
 			flashError(R.string.msg_app_launch_failed)
 			if (logError) {
-				ILogger.ROOT.error("Failed to launch application with package name '{}'", packageName, e)
+				logger.error(
+					"Failed to launch application with package name '{}'",
+					packageName,
+					e,
+				)
 			}
 			return false
 		}
@@ -171,7 +231,7 @@ object IntentUtils {
 		} catch (e: Throwable) {
 			flashError(R.string.msg_app_launch_failed)
 			if (logError) {
-				ILogger.ROOT.error("Failed to launch app", e)
+				logger.error("Failed to launch app", e)
 			}
 			false
 		}

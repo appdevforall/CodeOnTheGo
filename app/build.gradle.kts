@@ -72,11 +72,9 @@ android {
 		generateLocaleConfig = true
 	}
 
-	android {
-		sourceSets {
-			getByName("androidTest") {
-				manifest.srcFile("src/androidTest/AndroidManifest.xml")
-			}
+	sourceSets {
+		getByName("androidTest") {
+			manifest.srcFile("src/androidTest/AndroidManifest.xml")
 		}
 	}
 
