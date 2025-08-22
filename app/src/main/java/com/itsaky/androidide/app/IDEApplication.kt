@@ -101,7 +101,6 @@ class IDEApplication : TermuxApplication() {
         SentryAndroid.init(this)
 
         if (BuildConfig.DEBUG) {
-            Sentry.captureMessage("Hello from debug build")
             val builder = StrictMode.VmPolicy.Builder()
             StrictMode.setVmPolicy(builder.build())
             //TODO JMT

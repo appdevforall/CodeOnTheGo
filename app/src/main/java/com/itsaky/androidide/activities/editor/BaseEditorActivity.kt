@@ -461,10 +461,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         lifecycle.addObserver(mLifecycleObserver)
 
         setSupportActionBar(content.editorToolbar)
-        content.noEditorTitle.setOnLongClickListener {
-            crashApp()
-            true
-        }
 
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
@@ -994,12 +990,5 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         return ApkInstallationSessionCallback(this).also { installationCallback = it }
     }
 
-    private fun crashApp() {
-        val numerator = 10
-        val denominator = 0
-        // Dividing by zero
-        val result = numerator / denominator
-        Log.d("CrashTest", "Result: $result")
-    }
 }
 
