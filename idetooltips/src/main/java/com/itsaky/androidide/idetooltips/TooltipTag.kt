@@ -36,5 +36,5 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_FIND_IN_PROJECT = "project.find.in.project"
     const val EDITOR_TOOLBAR_SYNC = "project.sync"
     const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
-    const val EDITOR_BUILD_STATUS = "project.status.bar"
+    const val EDITOR_BUILD_STATUS = "project.status"
 }
