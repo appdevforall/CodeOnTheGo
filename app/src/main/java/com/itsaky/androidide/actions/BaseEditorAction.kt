@@ -31,6 +31,7 @@ abstract class BaseEditorAction : EditorActionItem {
   override var icon: Drawable? = null
   override var requiresUIThread: Boolean = true // all editor actions must be executed on UI thread
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
+  override var tooltipTag: String = ""
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

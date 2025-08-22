@@ -25,6 +25,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.activities.PreferencesActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import kotlin.reflect.KClass
 
 /**
@@ -42,6 +43,7 @@ class PreferencesSidebarAction(context: Context, override val order: Int) : Abst
   init {
     label = context.getString(R.string.ide_preferences)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_settings)
+    tooltipTag = TooltipTag.PREFERENCES_SIDEBAR
   }
 
   override suspend fun execAction(data: ActionData): Any {

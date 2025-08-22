@@ -190,7 +190,6 @@ dependencies {
   implementation(projects.eventbusAndroid)
   implementation(projects.eventbusEvents)
   implementation(projects.gradlePluginConfig)
-  implementation(projects.idestats)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
   implementation(projects.subprojects.xmlUtils)

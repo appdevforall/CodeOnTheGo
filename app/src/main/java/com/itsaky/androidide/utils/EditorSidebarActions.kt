@@ -18,11 +18,9 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.annotation.IdRes
-import androidx.core.net.toUri
 import androidx.core.view.forEach
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
@@ -36,7 +34,6 @@ import androidx.navigation.navOptions
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
-import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
@@ -45,14 +42,12 @@ import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
-import com.itsaky.androidide.actions.sidebar.EmailSidebarAction
 import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
-import com.itsaky.androidide.actions.sidebar.GitSidebarAction
 import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
-import com.itsaky.androidide.utils.ContactDetails.EMAIL_SUPPORT
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import java.lang.ref.WeakReference
 
 /**
@@ -67,8 +62,6 @@ object ContactDetails {
 }
 
 internal object EditorSidebarActions {
-    val tooltipTags = mutableListOf<String>()
-
     @JvmStatic
     fun registerActions(context: Context) {
         val registry = ActionsRegistry.getInstance()
@@ -76,11 +69,11 @@ internal object EditorSidebarActions {
 
         @Suppress("KotlinConstantConditions")
         registry.registerAction(FileTreeSidebarAction(context, ++order))
+        registry.registerAction(BuildVariantsSidebarAction(context, ++order))
         registry.registerAction(TerminalSidebarAction(context, ++order))
         registry.registerAction(PreferencesSidebarAction(context, ++order))
         registry.registerAction(CloseProjectSidebarAction(context, ++order))
         registry.registerAction(HelpSideBarAction(context, ++order))
-        registry.registerAction(EmailSidebarAction(context, ++order))
     }
 
     @JvmStatic
@@ -142,9 +135,8 @@ internal object EditorSidebarActions {
             val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
 
             if (view != null && action != null) {
-                val tag = action.tooltipTag()
-                sidebarFragment.setupTooltip(view, "ide", tag)
-                tooltipTags += tag
+                val tag = action.tooltipTag
+                sidebarFragment.setupTooltip(view, TooltipCategory.CATEGORY_IDE, tag)
             }
         }
 
@@ -221,13 +213,5 @@ internal object EditorSidebarActions {
             setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
             build()
         }
-    }
-
-    fun showContactDialog(context: Context) {
-        FeedbackManager.showContactDialog(context)
-    }
-
-    fun SidebarActionItem.tooltipTag(): String {
-        return "ide.sidebar.${label.lowercase().replace("[^a-z0-9]+".toRegex(), "_")}.longpress"
     }
 }
