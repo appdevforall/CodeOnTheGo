@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.Toast
 import com.google.android.material.appbar.MaterialToolbar
 import com.itsaky.androidide.common.R
 import com.itsaky.androidide.common.databinding.CustomToolbarBinding
@@ -25,7 +26,13 @@ class CustomToolbar @JvmOverloads constructor(
         }
     }
 
-    fun addMenuItem(icon: Drawable?, hint: String, onClick: () -> Unit, shouldAddMargin: Boolean) {
+    fun addMenuItem(
+        icon: Drawable?,
+        hint: String,
+        onClick: () -> Unit,
+        onLongClick: () -> Unit,
+        shouldAddMargin: Boolean
+    ) {
         val item = ImageButton(context).apply {
             tooltipText = hint
             setImageDrawable(icon)
@@ -41,6 +48,10 @@ class CustomToolbar @JvmOverloads constructor(
                 }
             }
             setOnClickListener { onClick() }
+            setOnLongClickListener {
+                onLongClick()
+                true
+            }
         }
         binding.menuContainer.addView(item)
     }
