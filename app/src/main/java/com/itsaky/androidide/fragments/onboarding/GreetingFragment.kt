@@ -18,10 +18,7 @@
 package com.itsaky.androidide.fragments.onboarding
 
 import android.os.Bundle
-import android.util.Log
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import com.itsaky.androidide.databinding.FragmentOnboardingGreetingBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.utils.FeatureFlags
@@ -32,13 +29,8 @@ import com.itsaky.androidide.utils.FeatureFlags
 class GreetingFragment :
     FragmentWithBinding<FragmentOnboardingGreetingBinding>(FragmentOnboardingGreetingBinding::inflate) {
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        val binding = FragmentOnboardingGreetingBinding.inflate(inflater, container, false)
-        val view = binding.root
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
         // EXPERIMENTAL MODE - Crash app in order to capture exception on Sentry
         if (FeatureFlags.isExperimentsEnabled()) {
@@ -47,14 +39,10 @@ class GreetingFragment :
                 true
             }
         }
-        return view
     }
 
     private fun crashApp() {
-        val numerator = 10
-        val denominator = 0
-        val result = numerator / denominator
-        Log.d("CrashTest", "Result: $result")
+        throw RuntimeException()
     }
 
 }
