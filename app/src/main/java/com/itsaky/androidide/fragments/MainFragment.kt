@@ -1,17 +1,19 @@
 package com.itsaky.androidide.fragments
 
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
@@ -25,6 +27,7 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.MainScreenAction
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
@@ -63,10 +66,13 @@ class MainFragment : BaseFragment() {
 
     private var currentCloneRequest: CloneRequest? = null
 
+    // Add these constants inside your companion object
     companion object {
-
         private val log = LoggerFactory.getLogger(MainFragment::class.java)
         const val KEY_TOOLTIP_URL = "tooltip_url"
+        private const val FAB_PREFS = "FabPrefs"
+        private const val KEY_FAB_X = "fab_x"
+        private const val KEY_FAB_Y = "fab_y"
     }
 
     private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
@@ -126,12 +132,110 @@ class MainFragment : BaseFragment() {
         binding!!.greetingText.setOnClickListener {
             TooltipUtils.showWebPage(
                 requireContext(),
-                "file:///android_asset/idetooltips/getstarted_top.html"
+                "http://localhost:6174/i/getstarted_top.html"
             )
         }
 
-        binding!!.floatingActionButton?.setOnClickListener {
+        setupDraggableFab()
+    }
+
+    private fun setupDraggableFab() {
+        val fab = binding?.floatingActionButton ?: return
+
+        fab.setOnClickListener {
             performFeedbackAction()
+        }
+
+        loadFabPosition(fab)
+
+        var initialX = 0f
+        var initialY = 0f
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var isDragging = false
+
+        fab.setOnTouchListener { v, event ->
+            val parentView = v.parent as? ViewGroup ?: return@setOnTouchListener false
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = v.x
+                    initialY = v.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isDragging = false
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dX = event.rawX - initialTouchX
+                    val dY = event.rawY - initialTouchY
+
+                    if (!isDragging && kotlin.math.sqrt((dX * dX + dY * dY).toDouble()) > ViewConfiguration.get(
+                            v.context
+                        ).scaledTouchSlop
+                    ) {
+                        isDragging = true
+                    }
+
+                    if (isDragging) {
+                        v.x = (initialX + dX).coerceIn(0f, (parentView.width - v.width).toFloat())
+                        v.y = (initialY + dY).coerceIn(0f, (parentView.height - v.height).toFloat())
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    if (isDragging) {
+                        // This is the new snap-to-edge logic
+                        val middle = parentView.width / 2
+                        val targetX = if ((v.x + v.width / 2) < middle) {
+                            0f // Snap to left edge
+                        } else {
+                            (parentView.width - v.width).toFloat() // Snap to right edge
+                        }
+
+                        // Animate to the target edge after a short delay
+                        v.postDelayed({
+                            v.animate()
+                                .x(targetX)
+                                .setDuration(200)
+                                .withEndAction {
+                                    // Save the final position AFTER the animation completes
+                                    saveFabPosition(targetX, v.y)
+                                }
+                                .start()
+                        }, 500) // 500ms delay before snapping
+                    } else {
+                        v.performClick()
+                    }
+                    true
+                }
+
+                else -> false
+            }
+        }
+    }
+
+    private fun saveFabPosition(x: Float, y: Float) {
+        activity?.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
+            putFloat(KEY_FAB_X, x)
+            putFloat(KEY_FAB_Y, y)
+            apply()
+        }
+    }
+
+    private fun loadFabPosition(fab: FloatingActionButton) {
+        val prefs = activity?.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
+
+        val x = prefs.getFloat(KEY_FAB_X, -1f)
+        val y = prefs.getFloat(KEY_FAB_Y, -1f)
+
+        if (x != -1f && y != -1f) {
+            fab.post {
+                fab.x = x
+                fab.y = y
+            }
         }
     }
 
@@ -141,7 +245,11 @@ class MainFragment : BaseFragment() {
         val tag = action.id.toString()
         CoroutineScope(Dispatchers.IO).launch {
             val item =
-                TooltipManager.getTooltip(context = requireContext(), category = "ide", tag = tag)
+                TooltipManager.getTooltip(
+                    context = requireContext(),
+                    category = TooltipCategory.CATEGORY_IDE,
+                    tag = tag
+                )
             withContext((Dispatchers.Main)) {
                 (context?.let {
                     TooltipManager.showIDETooltip(
@@ -149,7 +257,7 @@ class MainFragment : BaseFragment() {
                         view!!,
                         0,
                         IDETooltipItem(
-                            tooltipCategory = "ide",
+                            tooltipCategory = TooltipCategory.CATEGORY_IDE,
                             tooltipTag = item?.tooltipTag ?: "",
                             detail = item?.detail ?: "",
                             summary = item?.summary ?: "",
