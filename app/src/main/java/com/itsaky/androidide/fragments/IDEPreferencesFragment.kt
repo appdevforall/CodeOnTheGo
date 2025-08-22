@@ -17,16 +17,28 @@
 
 package com.itsaky.androidide.fragments
 
+import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.lifecycle.lifecycleScope
+import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
+import androidx.preference.PreferenceViewHolder
 import com.google.android.material.transition.MaterialSharedAxis
+import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
+import kotlinx.coroutines.launch
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
 
@@ -63,7 +75,15 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
       if (child is IPreferenceScreen) {
         preference.fragment = IDEPreferencesFragment::class.java.name
         preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
-        pref.addPreference(preference)
+
+        // Wrap target preferences with long-click support
+        val finalPreference = if (isTargetPreference(child.key)) {
+          createLongClickablePreference(preference, child.key)
+        } else {
+          preference
+        }
+
+        pref.addPreference(finalPreference)
         continue
       }
 
@@ -77,7 +97,93 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
     }
   }
 
+  private fun isTargetPreference(key: String): Boolean {
+    return key in listOf(
+      "idepref_general",
+      "idepref_editor",
+      "idepref_build_n_run",
+      "ide.preferences.terminal"
+    )
+  }
+
+  private fun createLongClickablePreference(originalPreference: Preference, key: String): Preference {
+    return object : Preference(requireContext()) {
+      init {
+        // Copy essential properties from original preference
+        this.key = originalPreference.key
+        title = originalPreference.title
+        summary = originalPreference.summary
+        fragment = originalPreference.fragment
+        extras.putAll(originalPreference.extras)
+        
+        // Match the original preference's icon space settings
+        icon = originalPreference.icon
+        isIconSpaceReserved = originalPreference.isIconSpaceReserved
+      }
+
+      override fun onBindViewHolder(holder: PreferenceViewHolder) {
+        super.onBindViewHolder(holder)
+        // Set up long click listener on the view
+        holder.itemView.setOnLongClickListener { view ->
+          val tooltipTag = getTooltipTag(key)
+          if (tooltipTag != null) {
+            showTooltip(view, tooltipTag)
+          } else {
+            Log.d("IDEPreferencesFragment", "Long click detected on preference: $key")
+          }
+          true
+        }
+      }
+    }
+  }
+
+  private fun getTooltipTag(key: String): String? {
+    return when (key) {
+      "idepref_general" -> "prefs.general"
+      "idepref_editor" -> "prefs.editor"
+      "idepref_build_n_run" -> "prefs.buildrun"
+      "ide.preferences.terminal" -> "prefs.termux"
+      else -> null
+    }
+  }
+
+  private fun showTooltip(anchorView: View, tooltipTag: String) {
+    lifecycleScope.launch {
+      try {
+        val tooltipData = TooltipManager.getTooltip(
+          context = requireContext(),
+          category = TooltipCategory.CATEGORY_IDE,
+          tag = tooltipTag
+        )
+
+        tooltipData?.let { data ->
+          TooltipManager.showIDETooltip(
+            context = requireContext(),
+            anchorView = anchorView,
+            level = 0,
+            tooltipItem = IDETooltipItem(
+              tooltipCategory = TooltipCategory.CATEGORY_IDE,
+              tooltipTag = data.tooltipTag,
+              detail = data.detail,
+              summary = data.summary,
+              buttons = data.buttons,
+            )
+          ) { context, url, title ->
+            val intent = Intent(context, HelpActivity::class.java).apply {
+              putExtra(CONTENT_KEY, url)
+              putExtra(CONTENT_TITLE_KEY, title)
+            }
+            context.startActivity(intent)
+          }
+        }
+      } catch (e: Exception) {
+        Log.e("IDEPreferencesFragment", "Error showing tooltip for tag: $tooltipTag", e)
+      }
+    }
+  }
+
   companion object {
     const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
   }
 }
+
