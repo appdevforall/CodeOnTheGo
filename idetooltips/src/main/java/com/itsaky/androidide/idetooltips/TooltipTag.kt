@@ -26,4 +26,14 @@ object TooltipTag {
     const val PREFS_BUILD_RUN = "prefs.buildrun"
     const val PREFS_TERMUX = "prefs.termux"
 
+    const val PROJECT_OVERVIEW_TEXT = "project.overview"
+    const val EDITOR_TOOLTIP_NAV_ICON = "project.menu"
+    const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
+    const val EDITOR_TOOLBAR_DEBUG = "project.debug"
+    const val EDITOR_TOOLBAR_RUN_TASKS = "project.gradle.tasks"
+    const val EDITOR_TOOLBAR_FIND = "project.find.top"
+    const val EDITOR_TOOLBAR_FIND_IN_PROJECT = "project.find.in.project"
+    const val EDITOR_TOOLBAR_SYNC = "project.sync"
+    const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
+    const val EDITOR_BUILD_STATUS = "project.status.bar"
 }

@@ -21,6 +21,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseBuildAction
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.resources.R.string
 
@@ -42,6 +43,8 @@ class ProjectSyncAction(context: Context, override val order: Int) : BaseBuildAc
     label = context.getString(string.title_sync_project)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_sync)
   }
+
+  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_SYNC
 
   override suspend fun execAction(data: ActionData): Any {
     return data.requireActivity().saveAll(requestSync = false)
