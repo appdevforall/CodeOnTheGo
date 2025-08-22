@@ -37,6 +37,7 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -90,6 +91,9 @@ import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.models.DiagnosticItem
@@ -125,6 +129,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -499,6 +505,12 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
+            setOnNavIconLongClickListener {
+                showTooltip(
+                    category = TooltipCategory.CATEGORY_IDE,
+                    tag = TooltipTag.EDITOR_TOOLTIP_NAV_ICON
+                )
+            }
         }
 
     }
@@ -709,7 +721,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         fragmentClass: Class<out Fragment>,
         sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
     ) {
-        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
+        val index =
+            content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
         if (index >= 0 && index < content.bottomSheet.binding.tabs.tabCount) {
             if (editorBottomSheet?.state != sheetState) {
                 editorBottomSheet?.state = sheetState
@@ -764,12 +777,14 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private fun handleUiDesignerResult(result: ActivityResult) {
         if (result.resultCode != RESULT_OK || result.data == null) {
             log.warn(
-                "UI Designer returned invalid result: resultCode={}, data={}", result.resultCode,
+                "UI Designer returned invalid result: resultCode={}, data={}",
+                result.resultCode,
                 result.data
             )
             return
         }
-        val generated = result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
+        val generated =
+            result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
         if (TextUtils.isEmpty(generated)) {
             log.warn("UI Designer returned blank generated XML code")
             return
@@ -804,8 +819,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         binding.apply {
             editorDrawerLayout.apply {
                 childId = contentCard.id
-                translationBehaviorStart = ContentTranslatingDrawerLayout.TranslationBehavior.FULL
-                translationBehaviorEnd = ContentTranslatingDrawerLayout.TranslationBehavior.FULL
+                translationBehaviorStart =
+                    ContentTranslatingDrawerLayout.TranslationBehavior.FULL
+                translationBehaviorEnd =
+                    ContentTranslatingDrawerLayout.TranslationBehavior.FULL
                 setScrimColor(Color.TRANSPARENT)
             }
         }
@@ -874,8 +891,16 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         binding.contentCard.progress = 0f
         binding.swipeReveal.dragListener = object : SwipeRevealLayout.OnDragListener {
-            override fun onDragStateChanged(swipeRevealLayout: SwipeRevealLayout, state: Int) {}
-            override fun onDragProgress(swipeRevealLayout: SwipeRevealLayout, progress: Float) {
+            override fun onDragStateChanged(
+                swipeRevealLayout: SwipeRevealLayout,
+                state: Int
+            ) {
+            }
+
+            override fun onDragProgress(
+                swipeRevealLayout: SwipeRevealLayout,
+                progress: Float
+            ) {
                 onSwipeRevealDragProgress(progress)
             }
         }
@@ -1012,6 +1037,35 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     open fun installationSessionCallback(): SessionCallback {
         return ApkInstallationSessionCallback(this).also { installationCallback = it }
+    }
+
+
+    private fun showTooltip(category: String, tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = TooltipManager.getTooltip(
+                this@BaseEditorActivity,
+                category,
+                tag,
+            )
+            if (tooltipItem != null) {
+                TooltipManager.showIDETooltip(
+                    context = this@BaseEditorActivity,
+                    anchorView = content.customToolbar,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("EditorHandlerActivity", "Tooltip item $tooltipItem is null")
+            }
+        }
     }
 }
 
