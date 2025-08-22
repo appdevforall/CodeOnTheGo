@@ -1,5 +1,1 @@
-[submodule "CoGoTooltips"]
-	path = app/src/main/assets/CoGoTooltips
-	url = https://github.com/CoGoAdmin/CoGoTooltips.git
-	branch=main
 
