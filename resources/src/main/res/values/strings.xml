@@ -932,13 +932,18 @@
 	<string name="adb_pairing_action_start">Click to start pairing</string>
 	<string name="adb_pairing_action_enable_notifications">Grant notification permission</string>
 	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.</string>
-	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" - \"Notification shade\" in system settings.</string>
+	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" -
+		\"Notification shade\" in system settings.</string>
 	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not able to enter paring code from the notification.</string>
 	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access local network. It is controlled by the network permission.</string>
-	<string name="adb_pairing_tutorial_content_network_limation_not_foreground">Some systems (such as MIUI) disallow apps to access the network when they are not visible, even if the app uses foreground service as standard. Please disable battery optimization features for Code on the Go on such systems.</string>
-	<string name="adb_pairing_tutorial_content_steps">Enter \"Developer options\" - \"Wireless debugging\". Tap \"Pair device with pairing code\", you will see a six-digit code.</string>
+	<string name="adb_pairing_tutorial_content_network_limation_not_foreground">Some systems (such as MIUI) disallow apps to access the network when they are not visible, even
+		if the app uses foreground service as standard. Please disable battery optimization features for Code on the Go
+		on such systems.</string>
+	<string name="adb_pairing_tutorial_content_steps">Enter \"Developer options\" - \"Wireless debugging\". Tap \"Pair device with pairing code\", you
+		will see a six-digit code.</string>
 	<string name="adb_pairing_tutorial_content_enter_pairing_code">Enter the code in the notification to complete pairing.</string>
-	<string name="adb_pairing_tutorial_content_left_is_clickable">Please note, left part of the \"Wireless debugging\" option is clickable, tapping it will open a new page. Only turing on the switch on the right is incorrect.</string>
+	<string name="adb_pairing_tutorial_content_left_is_clickable">Please note, left part of the \"Wireless debugging\" option is clickable, tapping it will open a
+		new page. Only turing on the switch on the right is incorrect.</string>
 	<string name="adb_pairing_tutorial_content_finish">Back to Code on the Go and the Shizuku service will start automatically.</string>
 	<string name="adb_pair_required">Please go through the pairing step first.</string>
 	<string name="adb_connection_finding">Finding ADB connection port…</string>

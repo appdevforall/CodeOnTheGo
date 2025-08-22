@@ -10,7 +10,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -49,17 +48,17 @@ class AdbPairingService : Service() {
 		const val ACTION_PAIR_SUCCEEDED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_SUCCEEDED"
 		const val ACTION_PAIR_FAILED = BuildInfo.PACKAGE_NAME + ".shizuku.action.PAIR_FAILED"
 
-		fun startIntent(context: Context): Intent =
-			Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
+		fun startIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(START_ACTION)
 
-		private fun stopIntent(context: Context): Intent =
-			Intent(context, AdbPairingService::class.java).setAction(STOP_ACTION)
+		private fun stopIntent(context: Context): Intent = Intent(context, AdbPairingService::class.java).setAction(STOP_ACTION)
 
 		private fun replyIntent(
 			context: Context,
 			port: Int,
-		): Intent = Intent(context, AdbPairingService::class.java).setAction(REPLY_ACTION)
-			.putExtra(PORT_KEY, port)
+		): Intent =
+			Intent(context, AdbPairingService::class.java)
+				.setAction(REPLY_ACTION)
+				.putExtra(PORT_KEY, port)
 	}
 
 	private var adbMdns: AdbMdns? = null
@@ -96,13 +95,19 @@ class AdbPairingService : Service() {
 
 	override fun onBind(intent: Intent?): IBinder? = null
 
-	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+	override fun onStartCommand(
+		intent: Intent?,
+		flags: Int,
+		startId: Int,
+	): Int {
 		val notification =
 			when (intent?.action) {
 				START_ACTION -> onStart()
 				REPLY_ACTION -> {
-					val code = RemoteInput.getResultsFromIntent(intent)
-						?.getCharSequence(REMOTE_INPUT_RESULT_KEY) ?: ""
+					val code =
+						RemoteInput
+							.getResultsFromIntent(intent)
+							?.getCharSequence(REMOTE_INPUT_RESULT_KEY) ?: ""
 					val port = intent.getIntExtra(PORT_KEY, -1)
 					if (port != -1) {
 						onInput(code.toString(), port)

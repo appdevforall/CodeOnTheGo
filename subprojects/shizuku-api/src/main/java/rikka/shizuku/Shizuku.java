@@ -21,15 +21,12 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.util.Log;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
 import moe.shizuku.server.IShizukuApplication;
 import moe.shizuku.server.IShizukuService;
 

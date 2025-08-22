@@ -2,7 +2,6 @@ package com.itsaky.androidide.actions.build
 
 import android.content.Context
 import android.content.Intent
-import androidx.activity.viewModels
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
@@ -19,7 +18,6 @@ import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
-import moe.shizuku.manager.ShizukuViewModel
 import rikka.shizuku.Shizuku
 
 /**

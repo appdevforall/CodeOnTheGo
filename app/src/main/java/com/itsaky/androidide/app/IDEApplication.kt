@@ -64,7 +64,6 @@ import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import moe.shizuku.manager.ShizukuManagerProvider
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
