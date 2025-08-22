@@ -29,82 +29,88 @@ class NavigateToMainScreenScenario : Scenario() {
                         device.uiDevice.waitForIdle(5000)
                         Thread.sleep(3000)
 
+                        // Grant Storage permission
                         rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(0) {
+                            childWith<PermissionScreen.PermissionItem> {
+                                withDescendant { withText("Storage") }
+                            } perform {
                                 flakySafely(10000) {
                                     try {
+                                        println("Granting Storage permission")
                                         grantButton.click()
+                                        Thread.sleep(2000)
+                                        grantStoragePermissions(device.uiDevice)
+                                        Thread.sleep(3000)
+                                        device.uiDevice.pressBack()
+                                        Thread.sleep(3000)
                                     } catch (e: Exception) {
-                                        println("Grant button 0 - permission may already be granted or button not available: ${e.message}")
+                                        println("Storage permission may already be granted: ${e.message}")
                                     }
                                 }
                             }
                         }
 
-                        Thread.sleep(2000)
-                        grantStoragePermissions(device.uiDevice)
-                        Thread.sleep(3000)
-
-                        device.uiDevice.pressBack()
-                        Thread.sleep(3000)
-
+                        // Grant Install packages permission
                         rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(1) {
+                            childWith<PermissionScreen.PermissionItem> {
+                                withDescendant { withText("Install packages") }
+                            } perform {
                                 flakySafely(10000) {
                                     try {
+                                        println("Granting Install packages permission")
                                         grantButton.click()
-                                    } catch (e: Exception) {
-                                        println("Grant button 1 - permission may already be granted or button not available: ${e.message}")
-                                    }
-                                }
-                            }
-                        }
-
-                        Thread.sleep(2000)
-                        flakySafely(20000) {
-                            SystemPermissionsScreen {
-                                try {
-                                    installPackagesPermission {
-                                        click()
-                                    }
-                                } catch (e: Exception) {
-                                    println("Trying alternative text for install packages permission")
-                                    try {
-                                        installPackagesPermissionAlt1 {
-                                            click()
+                                        Thread.sleep(2000)
+                                        flakySafely(20000) {
+                                            SystemPermissionsScreen {
+                                                try {
+                                                    installPackagesPermission {
+                                                        click()
+                                                    }
+                                                } catch (e: Exception) {
+                                                    println("Trying alternative text for install packages permission")
+                                                    try {
+                                                        installPackagesPermissionAlt1 {
+                                                            click()
+                                                        }
+                                                    } catch (e1: Exception) {
+                                                        println("Trying second alternative text for install packages permission")
+                                                        installPackagesPermissionAlt2 {
+                                                            click()
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
-                                    } catch (e1: Exception) {
-                                        println("Trying second alternative text for install packages permission")
-                                        installPackagesPermissionAlt2 {
-                                            click()
-                                        }
+                                        Thread.sleep(3000)
+                                        device.uiDevice.pressBack()
+                                        Thread.sleep(3000)
+                                    } catch (e: Exception) {
+                                        println("Install packages permission may already be granted: ${e.message}")
                                     }
                                 }
                             }
                         }
 
-                        Thread.sleep(3000)
-                        device.uiDevice.pressBack()
-                        Thread.sleep(3000)
-
+                        // Grant Overlay window permission
                         rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(2) {
+                            childWith<PermissionScreen.PermissionItem> {
+                                withDescendant { withText("Overlay window") }
+                            } perform {
                                 flakySafely(10000) {
                                     try {
+                                        println("Granting Overlay window permission")
                                         grantButton.click()
+                                        Thread.sleep(2000)
+                                        grantOverlayPermission(device.uiDevice)
+                                        Thread.sleep(3000)
+                                        device.uiDevice.pressBack()
+                                        Thread.sleep(3000)
                                     } catch (e: Exception) {
-                                        println("Grant button 2 - permission may already be granted or button not available: ${e.message}")
+                                        println("Overlay window permission may already be granted: ${e.message}")
                                     }
                                 }
                             }
                         }
-
-                        Thread.sleep(2000)
-                        grantOverlayPermission(device.uiDevice)
-                        Thread.sleep(3000)
-                        device.uiDevice.pressBack()
-                        Thread.sleep(3000)
-
                     }
                     flakySafely(20000) {
                         OnboardingScreen.nextButton {

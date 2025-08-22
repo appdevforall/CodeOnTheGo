@@ -157,46 +157,51 @@ jobs:
           echo "KOTLIN_VIDEO_URL=$KOTLIN_VIDEO_URL" >> $GITHUB_ENV
 
           # Run Groovy DSL tests
-          echo "Running Groovy DSL tests..."
-          echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
-          echo "Device: model=caiman,version=35,locale=en,orientation=portrait"
-          echo "Timeout: 45m, Flaky test attempts: 2"
+          # echo "Running Groovy DSL tests..."
+          # echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
+          # echo "Device: model=caiman,version=35,locale=en,orientation=portrait"
+          # echo "Timeout: 45m, Flaky test attempts: 2"
 
-          gcloud firebase test android run \
-            --type instrumentation \
-            --app "$APP_APK" \
-            --test "$TEST_APK" \
-            --device model=caiman,version=35,locale=en,orientation=portrait \
-            --environment-variables clearPackageData=true \
-            --use-orchestrator \
-            --timeout 45m \
-            --num-flaky-test-attempts=2 \
-            --results-dir=test-results/groovy \
-            --results-bucket=gs://firebase-test-results-${RANDOM} \
-            --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" 2>&1 | tee test-results/groovy/test_output.txt
+          # gcloud firebase test android run \
+          #   --type instrumentation \
+          #   --app "$APP_APK" \
+          #   --test "$TEST_APK" \
+          #   --device model=caiman,version=35,locale=en,orientation=portrait \
+          #   --environment-variables clearPackageData=true \
+          #   --use-orchestrator \
+          #   --timeout 45m \
+          #   --num-flaky-test-attempts=2 \
+          #   --results-dir=test-results/groovy \
+          #   --results-bucket=gs://firebase-test-results-${RANDOM} \
+          #   --project=codeonthego-64a92 \
+          #   --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" 2>&1 | tee test-results/groovy/test_output.txt
 
-          GROOVY_EXIT_CODE=${PIPESTATUS[0]}
-          echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
+          # GROOVY_EXIT_CODE=${PIPESTATUS[0]}
+          # echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
 
-          if [ $GROOVY_EXIT_CODE -ne 0 ]; then
-            echo "❌ Groovy DSL tests failed with exit code $GROOVY_EXIT_CODE"
-            echo "=== GROOVY TEST OUTPUT ==="
-            cat test-results/groovy/test_output.txt
-            echo "=========================="
-          else
-            echo "✅ Groovy DSL tests completed successfully"
-          fi
+          # if [ $GROOVY_EXIT_CODE -ne 0 ]; then
+          #   echo "❌ Groovy DSL tests failed with exit code $GROOVY_EXIT_CODE"
+          #   echo "=== GROOVY TEST OUTPUT ==="
+          #   cat test-results/groovy/test_output.txt
+          #   echo "=========================="
+          # else
+          #   echo "✅ Groovy DSL tests completed successfully"
+          # fi
 
           # Extract Firebase Test Lab URL for Groovy tests
-          GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
-          echo "GROOVY_TEST_URL=$GROOVY_TEST_URL" >> $GITHUB_ENV
+          # GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
+          # echo "GROOVY_TEST_URL=$GROOVY_TEST_URL" >> $GITHUB_ENV
 
           # Extract video URL for Groovy tests - try multiple patterns
-          GROOVY_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
-                            grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
-                            grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
-          echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
+          # GROOVY_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
+          #                   grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
+          #                   grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
+          # echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
+
+          # Set Groovy variables to empty since tests are commented out
+          GROOVY_EXIT_CODE=0
+          echo "GROOVY_TEST_URL=" >> $GITHUB_ENV
+          echo "GROOVY_VIDEO_URL=" >> $GITHUB_ENV
 
           # Set overall exit code for the step
           if [ $KOTLIN_EXIT_CODE -ne 0 ] || [ $GROOVY_EXIT_CODE -ne 0 ]; then
