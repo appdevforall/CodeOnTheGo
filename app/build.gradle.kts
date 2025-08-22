@@ -100,13 +100,13 @@ android {
     generateLocaleConfig = true
   }
 
-  android {
+
     sourceSets {
       getByName("androidTest") {
         manifest.srcFile("src/androidTest/AndroidManifest.xml")
       }
     }
-  }
+
 
   lint {
     abortOnError = false
@@ -136,7 +136,7 @@ desugaring {
 }
 
 dependencies {
-  //debugImplementation(libs.common.leakcanary)
+    //debugImplementation(libs.common.leakcanary)
 
   // Annotation processors
   kapt(libs.common.glide.ap)
@@ -144,7 +144,7 @@ dependencies {
   kapt(projects.annotationProcessors)
   kapt(libs.room.compiler)
 
-  implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 
   implementation(platform(libs.sora.bom))
   implementation(libs.common.editor)
@@ -373,6 +373,17 @@ tasks.register("recompressApk") {
 }
 
 afterEvaluate {
+  tasks.named("assembleV8Debug").configure {
+    finalizedBy("recompressApk")
+
+    doLast {
+      tasks.named("recompressApk").configure {
+        extensions.extraProperties["abi"] = "v8"
+        extensions.extraProperties["buildName"] = "debug"
+      }
+    }
+  }
+
   tasks.named("assembleV8Release").configure {
     finalizedBy("recompressApk")
 
@@ -380,6 +391,17 @@ afterEvaluate {
       tasks.named("recompressApk").configure {
         extensions.extraProperties["abi"] = "v8"
         extensions.extraProperties["buildName"] = "release"
+      }
+    }
+  }
+
+  tasks.named("assembleV7Debug").configure {
+    finalizedBy("recompressApk")
+
+    doLast {
+      tasks.named("recompressApk").configure {
+        extensions.extraProperties["abi"] = "v7"
+        extensions.extraProperties["buildName"] = "debug"
       }
     }
   }
