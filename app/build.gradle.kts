@@ -37,12 +37,16 @@ plugins {
   id("io.sentry.android.gradle") version "5.8.0"
 }
 
+fun propOrEnv(name: String): String {
+  return project.findProperty(name) as String?
+    ?: System.getenv(name)
+    ?: ""
+}
+
 val props = Properties().apply {
   val file = rootProject.file("local.properties")
   if (file.exists()) load(file.inputStream())
 }
-
-val sentryDsn = props.getProperty("sentryDsn") ?: ""
 
 apply {
   plugin(AndroidIDEAssetsPlugin::class.java)
@@ -67,7 +71,17 @@ android {
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
     testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
 
-    manifestPlaceholders["sentryDsn"] = sentryDsn
+  }
+
+  buildTypes {
+    debug {
+      manifestPlaceholders["sentryDsn"] =
+        props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
+    }
+    release {
+      manifestPlaceholders["sentryDsn"] =
+        props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
+    }
   }
 
   testOptions {
