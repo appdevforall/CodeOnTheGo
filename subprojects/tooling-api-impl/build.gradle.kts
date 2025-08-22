@@ -27,7 +27,7 @@ plugins {
 }
 
 tasks.withType<Jar> {
-  manifest { attributes("Main-Class" to "${BuildConfig.packageName}.tooling.impl.Main") }
+  manifest { attributes("Main-Class" to "${BuildConfig.PACKAGE_NAME}.tooling.impl.Main") }
 }
 
 tasks.register("deleteExistingJarFiles") {

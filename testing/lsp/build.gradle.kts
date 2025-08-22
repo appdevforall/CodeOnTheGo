@@ -23,7 +23,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.lsp.testing"
+    namespace = "${BuildConfig.PACKAGE_NAME}.lsp.testing"
 }
 
 dependencies {

@@ -23,7 +23,7 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.testing.unit"
+  namespace = "${BuildConfig.PACKAGE_NAME}.testing.unit"
 }
 
 dependencies {

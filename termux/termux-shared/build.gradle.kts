@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.termux.shared"
-    ndkVersion = BuildConfig.ndkVersion
+    ndkVersion = BuildConfig.NDK_VERSION
 
     externalNativeBuild {
         ndkBuild {
