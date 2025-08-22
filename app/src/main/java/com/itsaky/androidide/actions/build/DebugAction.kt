@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
@@ -30,6 +31,7 @@ class DebugAction(
 ) {
 
     override val id = ID
+    override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_DEBUG
 
     companion object {
         const val ID = "ide.editor.build.debug"

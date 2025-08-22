@@ -25,6 +25,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.openApplicationModuleChooser
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
@@ -39,6 +40,7 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
 
   override val id: String = "ide.editor.launchInstalledApp"
   override var requiresUIThread: Boolean = true
+  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
 
   init {
     label = context.getString(R.string.title_launch_app)
