@@ -15,7 +15,7 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_PASTE = "editor.toolbar.paste"
     const val EDITOR_TOOLBAR_SELECT_ALL = "editor.toolbar.selectall"
     const val EDITOR_TOOLBAR_HELP = "editor.toolbar.help"
-    const val PROJECT_OVERVIEW_TEXT = "project.overview"
+    const val EDITOR_PROJECT_OVERVIEW = "project.overview"
     const val EDITOR_TOOLTIP_NAV_ICON = "project.menu"
     const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
     const val EDITOR_TOOLBAR_DEBUG = "project.debug"

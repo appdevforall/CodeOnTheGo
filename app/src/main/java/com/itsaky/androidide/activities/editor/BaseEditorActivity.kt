@@ -479,6 +479,14 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             this::handleUiDesignerResult
         )
 
+        content.noEditorLayout.setOnLongClickListener {
+            showTooltip(
+                category = TooltipCategory.CATEGORY_IDE,
+                tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
+            )
+            true
+        }
+
         setupMemUsageChart()
         watchMemory()
     }
