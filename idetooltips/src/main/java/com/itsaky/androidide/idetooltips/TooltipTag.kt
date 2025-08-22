@@ -27,6 +27,7 @@ object TooltipTag {
     const val PREFS_TERMUX = "prefs.termux"
 
     const val PROJECT_OVERVIEW_TEXT = "project.overview"
+    const val EDITOR_PROJECT_OVERVIEW = "project.overview"
     const val EDITOR_TOOLTIP_NAV_ICON = "project.menu"
     const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
     const val EDITOR_TOOLBAR_DEBUG = "project.debug"
