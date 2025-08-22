@@ -390,11 +390,6 @@
   <string name="msg_invalid_project_details">Geçersiz proje detayları</string>
   <string name="msg_use_kts">Gradle inşa dosyaları için Kotlin Script (.kts) kullan</string>
   <string name="title_privacy">Gizlilik</string>
-  <string name="title_androidide_statistics">Code on the Go İstatistikleri</string>
-  <string name="msg_androidide_statistics">Code on the Go\'nin gelişmesine katkıda bulunmak amacıyla bize anonim istatistikler paylaşın. Sadece cihazınız hakkında kullanıcı tabanı istatistikleri topluyoruz. Paylaşılan veri seçenekler sekmesinden görüntülenebilir. Veriniz güvenlidir ve üçüncü parti servislerle paylaşılmaz. İstediğiniz an seçenekler üzerinden buna katılmayı kesebilirsiniz.</string>
-  <string name="summary_anonymous_usage_stats">Anonim kullanım istatistikleri</string>
-  <string name="idepref_stats_optIn_title">İstatistik topla</string>
-  <string name="idepref_stats_optIn_summary">Kurulum ölçümlerinin ve cihaz istatistiklerinin toplanmasına izin ver (tamamen anonimdir).</string>
   <string name="title_unique_id">Benzersiz ID</string>
   <string name="title_device">Cihaz</string>
   <string name="title_app_version">Uygulama sürümü</string>
@@ -417,8 +412,8 @@
   <string name="idepref_devOptions_enableLogsender_title">LogSender\'ı Etkinleştir</string>
   <string name="idepref_devOptions_enableLogsender_summary">Devre dışı bırakıldığında, uygulamalardan gelen loglar Code on the Go de görüntülenmeyecek</string>
   <string name="title_build_variants">İnşa türleri</string>
-  <string name="title_apply">Uygula</string>
-  <string name="title_discard">Vazgeç</string>
+  <string name="build_variants_apply">Uygula</string>
+  <string name="build_variants_cancel">Vazgeç</string>
   <string name="msg_build_variants_fetch_failed">İnşa türleri alınamadı</string>
   <string name="title_choose_application">Uygulama seç</string>
   <string name="err_selected_variant_not_found">Seçili inşa türü bulunamadı</string>

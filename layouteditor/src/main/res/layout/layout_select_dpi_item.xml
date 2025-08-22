@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:layout_margin="5dp"
+  app:cardCornerRadius="16dp">
+
+  <RelativeLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:adjustViewBounds="true"
+      android:src="@drawable/image_broken"
+      android:id="@+id/image"
+      android:scaleType="centerCrop" />
+
+    <CheckBox
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_alignParentRight="true"
+      android:layout_margin="3dp"
+      android:id="@+id/checkbox" />
+
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="TextView"
+      android:textSize="16sp"
+      android:layout_centerHorizontal="true"
+      android:layout_alignParentBottom="true"
+      android:padding="8dp"
+      android:gravity="center"
+      android:background="#B7000000"
+      android:id="@+id/dpi_name" />
+    
+    <android.widget.LinearLayout
+      android:id="@+id/shadow_view"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:background="#B1000000" />
+
+  </RelativeLayout>
+
+</androidx.cardview.widget.CardView>

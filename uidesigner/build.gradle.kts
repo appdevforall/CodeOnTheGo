@@ -17,6 +17,7 @@ dependencies {
   implementation(libs.androidx.fragment.ktx)
   implementation(libs.androidx.nav.fragment)
   implementation(libs.androidx.nav.ui)
+  implementation(platform(libs.sora.bom))
   implementation(libs.common.editor)
   implementation(libs.common.kotlin)
   implementation(libs.common.utilcode)
