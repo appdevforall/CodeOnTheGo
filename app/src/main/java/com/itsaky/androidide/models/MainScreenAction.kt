@@ -21,6 +21,7 @@ import android.view.View
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.FeatureFlags
 import java.util.Collections
 
 /**
@@ -122,7 +123,11 @@ constructor(
 
         @JvmStatic
         fun mainScreen(): List<MainScreenAction> {
-            return mainActions
+            return if (FeatureFlags.isExperimentsEnabled()) {
+                mainActions
+            } else {
+                mainActions.minus(cloneGitRepository)
+            }
         }
     }
 }
