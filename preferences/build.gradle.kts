@@ -24,7 +24,7 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.preferences"
+  namespace = "${BuildConfig.PACKAGE_NAME}.preferences"
 }
 
 dependencies {

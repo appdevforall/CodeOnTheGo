@@ -22,11 +22,10 @@ package com.itsaky.androidide.app
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
-import android.net.Uri
 import android.os.StrictMode
-import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
@@ -63,7 +62,6 @@ import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
@@ -71,6 +69,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
+import rikka.shizuku.ShizukuProvider
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
@@ -79,7 +78,6 @@ class IDEApplication : TermuxApplication() {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
 
-    private val applicationScope = CoroutineScope(SupervisorJob())
 
     companion object {
 
@@ -89,26 +87,28 @@ class IDEApplication : TermuxApplication() {
         lateinit var instance: IDEApplication
             private set
 
-        init {
-            Shell.setDefaultBuilder(Shell.Builder.create().setFlags(Shell.FLAG_REDIRECT_STDERR))
-            HiddenApiBypass.setHiddenApiExemptions("")
-            if (isAtLeastR()) {
-                System.loadLibrary("adb")
-            }
-        }
-    }
+		init {
+			ShizukuProvider.disableAutomaticSuiInitialization()
+			Shell.setDefaultBuilder(
+				Shell.Builder.create()
+					.setFlags(Shell.FLAG_REDIRECT_STDERR)
+			)
+			HiddenApiBypass.setHiddenApiExemptions("")
+			if (!VMUtils.isJvm() && !isTestMode()) {
+				try {
+					if (isAtLeastR()) {
+						System.loadLibrary("adb")
+					}
 
-    init {
-        if (!VMUtils.isJvm() && !isTestMode()) {
-            try {
-                TreeSitter.loadLibrary()
-            } catch (e: UnsatisfiedLinkError) {
-                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
-            }
-        }
+					TreeSitter.loadLibrary()
+				} catch (e: UnsatisfiedLinkError) {
+					log.warn("Failed to load native libraries", e)
+				}
+			}
 
-        RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
-    }
+			RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+		}
+	}
 
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -120,8 +120,6 @@ class IDEApplication : TermuxApplication() {
         super.onCreate()
 
 		ShizukuSettings.initialize(this)
-
-        SentryAndroid.init(this)
 
         if (BuildConfig.DEBUG) {
             val builder = StrictMode.VmPolicy.Builder()
@@ -160,8 +158,8 @@ class IDEApplication : TermuxApplication() {
         }
 
 
-        //Tooltip database access is now handled by direct SQLite queries
-    }
+		//Tooltip database access is now handled by direct SQLite queries
+	}
 
     private fun handleCrash(thread: Thread, th: Throwable) {
         writeException(th)

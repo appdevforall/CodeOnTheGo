@@ -116,4 +116,12 @@
     <item name="android:windowExitAnimation">@anim/popup_out</item>
   </style>
 
+  <style name="Theme.AndroidIDE.Material3.FullScreenDialog" parent="Theme.Material3.Light.Dialog">
+    <item name="colorPrimary">?attr/colorPrimary</item>
+    <item name="colorPrimaryDark">?attr/colorPrimaryDark</item>
+    <item name="colorAccent">?attr/colorAccent</item>
+    <item name="android:windowIsFloating">false</item>
+    <item name="android:windowBackground">?attr/colorSurface</item>
+    <item name="actionMenuTextColor">?attr/colorOnSurface</item>
+  </style>
 </resources>

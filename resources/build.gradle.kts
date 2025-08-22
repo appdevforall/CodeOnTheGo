@@ -22,7 +22,7 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.resources"
+  namespace = "${BuildConfig.PACKAGE_NAME}.resources"
 }
 
 dependencies {
