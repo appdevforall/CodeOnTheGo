@@ -166,12 +166,20 @@ jobs:
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
       - name: Write CI Performance Data
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          GRADLE_START: ${{ 
+          GRADLE_START: ${{ env.gradle_time_start }}
+          GRADLE_END: ${{ env.gradle_time_end }}
+          DB_NAME: performance
+          DB_HOST: 34.209.97.234
+          DB_USER: adfa
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
-          uv run scripts/store-ci-performance-data.py $GRADLE_START $GRADLE_END $APK_PATH
+          uv run --with psycopg scripts/capture_ci_performance.py $GRADLE_START $GRADLE_END $APK_PATH
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
