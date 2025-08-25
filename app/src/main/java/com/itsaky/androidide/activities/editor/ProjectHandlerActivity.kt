@@ -29,15 +29,8 @@ import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
-import com.itsaky.androidide.actions.ActionData
-import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
-import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
-import com.itsaky.androidide.actions.etc.FindInFileAction
-import com.itsaky.androidide.actions.etc.FindInProjectAction
-import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
-import com.itsaky.androidide.fragments.FindActionDialog
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
 import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
@@ -106,36 +99,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
             return mFindInProjectDialog!!
         }
-
-    fun findActionDialog(actionData: ActionData): FindActionDialog {
-        val shouldHideFindInFileAction = editorViewModel.getOpenedFileCount() != 0
-        val registry = getInstance() as DefaultActionsRegistry
-
-        return FindActionDialog(
-            anchor = content.customToolbar.findViewById(R.id.menu_container),
-            context = this,
-            actionData = actionData,
-            shouldShowFindInFileAction = shouldHideFindInFileAction,
-            onFindInFileClicked = { data ->
-                val findInFileAction = registry.findAction(
-                    location = EDITOR_FIND_ACTION_MENU,
-                    id = FindInFileAction().id
-                )
-                if (findInFileAction != null) {
-                    registry.executeAction(findInFileAction, data)
-                }
-            },
-            onFindInProjectClicked = { data ->
-                val findInProjectAction = registry.findAction(
-                    location = EDITOR_FIND_ACTION_MENU,
-                    id = FindInProjectAction().id
-                )
-                if (findInProjectAction != null) {
-                    registry.executeAction(findInProjectAction, data)
-                }
-            }
-        )
-    }
 
     protected val mBuildEventListener = EditorBuildEventListener()
 

@@ -46,11 +46,7 @@ class QuickRunAction(context: Context, override val order: Int) :
         iconRes = R.drawable.ic_run_outline
     ) {
 
-    override val id: String = ID
-
-    companion object {
-        const val ID = "ide.editor.build.quickRun"
-    }
+    override val id: String = "ide.editor.build.quickRun"
 
     override fun onCreateTaskExecMessage(
         data: ActionData,
