@@ -24,6 +24,7 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.isEmpty
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -844,7 +845,7 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveXml() {
-        if (binding.editorLayout.childCount == 0) {
+        if (binding.editorLayout.isEmpty()) {
             project.currentLayout.saveLayout("")
             ToastUtils.showShort(getString(string.layout_saved))
             binding.editorLayout.markAsSaved()

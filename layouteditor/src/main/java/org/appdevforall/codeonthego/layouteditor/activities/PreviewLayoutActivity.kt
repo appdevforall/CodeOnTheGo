@@ -1,10 +1,8 @@
 package org.appdevforall.codeonthego.layouteditor.activities
 
 import android.os.Bundle
-import android.view.Gravity
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
-import android.widget.FrameLayout
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.R
@@ -20,7 +18,7 @@ class PreviewLayoutActivity : BaseActivity() {
         @Suppress("DEPRECATION") val layoutFile =
             intent.extras!!.getParcelable<LayoutFile>(Constants.EXTRA_KEY_LAYOUT)
         val parser = XmlLayoutParser(this)
-        parser.parseFromXml(layoutFile!!.readDesignFile(), this)
+        layoutFile?.readDesignFile()?.let { parser.parseFromXml(it, this) }
 
         val previewContainer = binding.root.findViewById<ViewGroup>(R.id.preview_container)
 
