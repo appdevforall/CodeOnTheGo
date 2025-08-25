@@ -20,10 +20,7 @@ package com.itsaky.androidide.fragments.output
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.View
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentLogBinding
@@ -31,28 +28,15 @@ import com.itsaky.androidide.editor.language.treesitter.LogLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
-import com.itsaky.androidide.editor.ui.EditorLongPressEvent
-import com.itsaky.androidide.editor.ui.OnEditorLongPressListener
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.LOG_FREQUENCY
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.MAX_CHUNK_SIZE
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.MAX_LINE_COUNT
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.TRIM_ON_LINE_COUNT
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
-import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogLine
-import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
 import io.github.rosemoe.sora.widget.style.CursorAnimator
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.greenrobot.eventbus.EventBus
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -272,51 +256,12 @@ abstract class LogViewFragment :
       }
     }
   }
-  override fun onStart() {
-    super.onStart()
-    // Register this fragment to receive events
-    EventBus.getDefault().register(this)
-  }
 
-  override fun onStop() {
-    super.onStop()
-    // Unregister to avoid memory leaks
-    EventBus.getDefault().unregister(this)
-  }
-
-  // This method will be called when an EditorLongPressEvent is posted
-  @Subscribe(threadMode = ThreadMode.MAIN)
-  fun onEditorLongPressed(event: EditorLongPressEvent) {
-    activity?.lifecycleScope?.launch {
-      try {
-        val tooltipData = getTooltipData(TooltipCategory.CATEGORY_IDE, tooltipTag)
-        tooltipData?.let {
-            activity?.window?.decorView?.let { anchorView ->
-                TooltipUtils.showIDETooltip(
-                    context = requireContext(),
-                    anchorView = anchorView,
-                    level = 0,
-                    tooltipItem = it
-                )
-            }
-        }
-      } catch (e: Exception) {
-        Log.e("Tooltip", "Error loading tooltip for $tooltipTag", e)
-      }
-    }
-  }
-
-  suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
-    return withContext(Dispatchers.IO) {
-      TooltipManager.getTooltip(requireContext(), category, tag)
-    }
-  }
   override fun onDestroyView() {
     _binding?.editor?.release()
     logHandler.removeCallbacks(logRunnable)
     super.onDestroyView()
   }
-
   override fun getContent(): String {
     return this._binding?.editor?.text?.toString() ?: ""
   }
@@ -325,5 +270,9 @@ abstract class LogViewFragment :
     _binding?.editor?.setText("")?.also {
       emptyStateViewModel.isEmpty.value = true
     }
+  }
+
+  override fun onFragmentLongPressed() {
+    showTooltipDialog(tooltipTag)
   }
 }
