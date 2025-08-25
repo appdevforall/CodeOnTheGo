@@ -41,7 +41,6 @@ class CloseProjectSidebarAction(context: Context, override val order: Int) :
   init {
     label = context.getString(R.string.title_close_project)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_folder_close)
-    tooltipTag = TooltipTag.CLOSE_PROJECT_SIDEBAR
   }
 
   override suspend fun execAction(data: ActionData): Any {
@@ -49,4 +48,5 @@ class CloseProjectSidebarAction(context: Context, override val order: Int) :
     context.doConfirmProjectClose()
     return true
   }
+  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.CLOSE_PROJECT_SIDEBAR
 }

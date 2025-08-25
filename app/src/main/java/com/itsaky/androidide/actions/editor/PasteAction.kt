@@ -29,7 +29,6 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
 
     val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModePasteDrawable))
     icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    tooltipTag = TooltipTag.EDITOR_TOOLBAR_PASTE
     arr.recycle()
   }
 
@@ -51,4 +50,6 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
     editor.pasteText()
     return true
   }
+
+  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.EDITOR_TOOLBAR_PASTE
 }

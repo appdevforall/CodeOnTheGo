@@ -24,21 +24,30 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
-class CopyAction(context: Context, override val order: Int) : BaseEditorAction() {
+class CopyAction(context: Context, override val order: Int) :
+    BaseEditorAction() {
 
-  init {
-    label = context.getString(R.string.copy)
+    init {
+        label = context.getString(R.string.copy)
 
-    val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCopyDrawable))
-    icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    tooltipTag = TooltipTag.EDITOR_TOOLBAR_COPY
-    arr.recycle()
-  }
+        val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCopyDrawable))
+        icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
+        arr.recycle()
+    }
 
-  override val id: String = "ide.editor.code.text.copy"
-  override suspend fun execAction(data: ActionData): Boolean {
-    val editor = getEditor(data) ?: return false
-    editor.copyText()
-    return true
-  }
+    override val id: String = "ide.editor.code.text.copy"
+
+    override suspend fun execAction(data: ActionData): Boolean {
+        val editor = getEditor(data) ?: return false
+        editor.copyText()
+        return true
+    }
+
+    override fun retrieveTooltipTag(isOutput: Boolean): String {
+        return if (isOutput) {
+            TooltipTag.EDITOR_TOOLBAR_OUTPUT_COPY
+        } else {
+            TooltipTag.EDITOR_TOOLBAR_COPY
+        }
+    }
 }

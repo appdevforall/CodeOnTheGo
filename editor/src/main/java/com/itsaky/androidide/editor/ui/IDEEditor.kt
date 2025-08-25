@@ -27,6 +27,7 @@ import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
 import com.blankj.utilcode.util.SizeUtils
+import com.itsaky.androidide.editor.R
 import com.itsaky.androidide.editor.R.string
 import com.itsaky.androidide.editor.adapters.CompletionListAdapter
 import com.itsaky.androidide.editor.api.IEditor
@@ -140,6 +141,7 @@ open class IDEEditor @JvmOverloads constructor(
    */
   val editorScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEEditor"))
 
+  var isOutputParent = false
   protected val eventDispatcher = EditorEventDispatcher()
 
   private var setupTsLanguageJob: Job? = null
@@ -196,6 +198,20 @@ open class IDEEditor @JvmOverloads constructor(
   }
 
   init {
+    context.theme.obtainStyledAttributes(
+      attrs,
+      R.styleable.IDEEditor,
+      0, 0
+    ).apply {
+      try {
+        // Get the boolean value for 'isOutputEditor', defaulting to 'false'.
+        // The value is assigned to your existing 'isOutputParent' property.
+        isOutputParent = getBoolean(R.styleable.IDEEditor_isOutputEditor, false)
+      } finally {
+        // Always recycle the TypedArray to free up resources.
+        recycle()
+      }
+    }
     run {
       editorFeatures.editor = this
       eventDispatcher.editor = this

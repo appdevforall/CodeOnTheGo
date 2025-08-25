@@ -22,7 +22,6 @@ abstract class AbstractDebuggerAction(
     override var visible = true
     override var enabled = true
     override var icon: Drawable? = null
-    override var tooltipTag: String = ""
 
     protected val debugClient: IDEDebugClientImpl
         get() = IDEDebugClientImpl.requireInstance()
@@ -35,4 +34,5 @@ abstract class AbstractDebuggerAction(
         icon = ContextCompat.getDrawable(data.requireContext(), iconRes)
         enabled = checkEnabled(data)
     }
+    override fun retrieveTooltipTag(isOutput: Boolean) = ""
 }

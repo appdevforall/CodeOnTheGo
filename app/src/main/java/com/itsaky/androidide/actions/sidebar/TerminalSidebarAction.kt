@@ -44,7 +44,6 @@ class TerminalSidebarAction(context: Context, override val order: Int) : Abstrac
   init {
     label = context.getString(R.string.title_terminal)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_terminal)
-    tooltipTag = TooltipTag.TERMINAL_SIDEBAR
   }
 
   companion object {
@@ -72,4 +71,6 @@ class TerminalSidebarAction(context: Context, override val order: Int) : Abstrac
     startTerminalActivity(data, false)
     return true
   }
+
+  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.TERMINAL_SIDEBAR
 }

@@ -29,7 +29,6 @@ class CutAction(context: Context, override val order: Int) : BaseEditorAction() 
 
     val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCutDrawable))
     icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    tooltipTag = TooltipTag.EDITOR_TOOLBAR_CUT
     arr.recycle()
   }
 
@@ -50,4 +49,5 @@ class CutAction(context: Context, override val order: Int) : BaseEditorAction() 
     editor.cutText()
     return true
   }
+  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT
 }

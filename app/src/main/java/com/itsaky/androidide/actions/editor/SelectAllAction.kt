@@ -29,9 +29,10 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
 
     val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeSelectAllDrawable))
     icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    tooltipTag = TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
     arr.recycle()
   }
+
+  override fun retrieveTooltipTag(isOutput: Boolean): String = TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
 
   override val id: String = "ide.editor.code.text.selectAll"
 

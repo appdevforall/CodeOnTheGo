@@ -33,7 +33,6 @@ abstract class EditorActivityAction : ActionItem {
   override var visible: Boolean = true
   override var icon: Drawable? = null
   override var label: String = ""
-  override var tooltipTag: String = ""
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_TOOLBAR
 
   override var requiresUIThread: Boolean = false
@@ -60,5 +59,7 @@ abstract class EditorActivityAction : ActionItem {
     super.destroy()
     actionScope.cancelIfActive("Action is being destroyed")
   }
+
+  override fun retrieveTooltipTag(isOutput: Boolean) = ""
 
 }
