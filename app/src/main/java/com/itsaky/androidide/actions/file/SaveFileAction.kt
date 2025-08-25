@@ -21,6 +21,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R
@@ -31,11 +32,13 @@ import org.slf4j.LoggerFactory
 /** @author Akash Yadav */
 class SaveFileAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
-  override val id: String = "ide.editor.files.saveAll"
   override var requiresUIThread: Boolean = false
+  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_QUICK_SAVE
+  override val id: String = ID
 
   companion object {
     private val log = LoggerFactory.getLogger(SaveFileAction::class.java)
+    const val ID = "ide.editor.files.saveAll"
   }
 
   init {
