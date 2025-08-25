@@ -125,18 +125,21 @@ open class IDEEditor @JvmOverloads constructor(
   // Initialize the GestureDetector. It uses a listener to report detected gestures.
   private val gestureDetector =
     GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-      // ... onDown method is unchanged ...
+      override fun onDown(e: MotionEvent): Boolean {
+        return true
+      }
 
       override fun onLongPress(e: MotionEvent) {
-        // A long press was detected!
-        log.debug("Long press detected, posting event to EventBus.")
-
-        // --- THIS IS THE FIX ---
-        // Instead of calling the listener directly, post an event.
+        log.debug("Long press detected, posting event and canceling superclass handling.")
+        mLongPressHandled = true
         EventBus.getDefault().post(EditorLongPressEvent(e))
 
-        // You no longer need the flag or the direct listener call here.
-        mLongPressHandled = true
+        val cancelEvent = MotionEvent.obtain(e)
+        cancelEvent.action = MotionEvent.ACTION_CANCEL
+
+        // Use super@IDEEditor to refer to the outer class's superclass
+        super@IDEEditor.onTouchEvent(cancelEvent)
+        cancelEvent.recycle()
       }
     })
 
