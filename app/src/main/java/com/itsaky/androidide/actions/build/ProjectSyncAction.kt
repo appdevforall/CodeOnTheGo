@@ -31,12 +31,8 @@ import com.itsaky.androidide.resources.R.string
  */
 class ProjectSyncAction(context: Context, override val order: Int) : BaseBuildAction() {
 
-  override val id: String = ID
+  override val id: String = "ide.editor.syncProject"
   override var requiresUIThread = false
-
-  companion object {
-    const val ID = "ide.editor.syncProject"
-  }
 
   init {
     label = context.getString(string.title_sync_project)

@@ -40,9 +40,7 @@ abstract class AbstractCancellableRunAction(
             return
         }
 
-        if (data.getActivity()
-                .isBuildInProgress() && id == QuickRunAction.ID
-        ) {
+        if (data.getActivity().isBuildInProgress()) {
             label = context.getString(R.string.title_cancel_build)
             icon = ContextCompat.getDrawable(context, R.drawable.ic_stop_daemons)
         } else {
@@ -96,8 +94,7 @@ abstract class AbstractCancellableRunAction(
 
     companion object {
         @JvmStatic
-        protected val log: Logger =
-            LoggerFactory.getLogger(AbstractCancellableRunAction::class.java)
+        protected val log: Logger = LoggerFactory.getLogger(AbstractCancellableRunAction::class.java)
 
         fun EditorHandlerActivity?.isBuildInProgress(): Boolean {
             val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)

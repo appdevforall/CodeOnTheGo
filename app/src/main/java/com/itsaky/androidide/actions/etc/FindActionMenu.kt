@@ -20,36 +20,28 @@ package com.itsaky.androidide.actions.etc
 import android.content.Context
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
+import com.itsaky.androidide.actions.ActionMenu
 import com.itsaky.androidide.actions.EditorActivityAction
-import com.itsaky.androidide.actions.build.AbstractCancellableRunAction.Companion.isBuildInProgress
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
-class FindAction() : EditorActivityAction() {
+class FindActionMenu(context: Context, override val order: Int) : EditorActivityAction(),
+  ActionMenu {
 
-    override var requiresUIThread: Boolean = true
-    override var order: Int = 0
+  override val children: MutableSet<ActionItem> = mutableSetOf()
+  override val id: String = "ide.editor.find"
 
-    constructor(context: Context, order: Int) : this() {
-        this.label = context.getString(R.string.menu_find)
-        this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search)
-        this.order = order
-    }
+  init {
+    label = context.getString(R.string.menu_find)
+    icon = ContextCompat.getDrawable(context, R.drawable.ic_search)
 
-    override val id: String = "ide.editor.find"
+    addAction(FindInFileAction(context, 0))
+    addAction(FindInProjectAction(context, 1))
+  }
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
-        enabled = data.getActivity().isBuildInProgress().not()
-    }
-
-    override suspend fun execAction(data: ActionData): Boolean {
-        val context = data.getActivity() ?: return false
-        val dialog = context.findActionDialog(data)
-
-        return run {
-            dialog.show()
-            true
-        }
-    }
+  override fun prepare(data: ActionData) {
+    super<EditorActivityAction>.prepare(data)
+    super<ActionMenu>.prepare(data)
+  }
 }
