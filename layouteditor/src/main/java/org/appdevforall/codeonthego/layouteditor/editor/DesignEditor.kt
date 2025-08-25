@@ -11,7 +11,6 @@ import android.view.GestureDetector
 import android.view.GestureDetector.SimpleOnGestureListener
 import android.view.MotionEvent
 import android.view.View
-import android.view.View.OnDragListener
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -19,6 +18,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
+import androidx.core.view.isEmpty
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.VibrateUtils
@@ -42,7 +42,6 @@ import org.appdevforall.codeonthego.layouteditor.editor.dialogs.SizeDialog
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.StringDialog
 import org.appdevforall.codeonthego.layouteditor.editor.dialogs.ViewDialog
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeInitializer
-
 import org.appdevforall.codeonthego.layouteditor.editor.initializer.AttributeMap
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager
 import org.appdevforall.codeonthego.layouteditor.managers.IdManager.addId
@@ -86,7 +85,7 @@ class DesignEditor : LinearLayout {
     private var undoRedoManager: UndoRedoManager? = null
     private var isModified = false
     private lateinit var preferencesManager: PreferencesManager
-
+    private var parser: XmlLayoutParser? = null
 
     init {
         initAttributes()
@@ -108,6 +107,9 @@ class DesignEditor : LinearLayout {
         init(context)
     }
 
+    fun getParser(): XmlLayoutParser? {
+        return parser
+    }
     private fun init(context: Context) {
         viewType = ViewType.DESIGN
         isBlueprint = false
@@ -362,10 +364,11 @@ class DesignEditor : LinearLayout {
 
     fun loadLayoutFromParser(xml: String) {
         clearAll()
-
         if (xml.isEmpty()) return
 
         val parser = XmlLayoutParser(context)
+        this.parser = parser
+
         parser.parseFromXml(xml, context)
 
         addView(parser.root)
@@ -424,7 +427,7 @@ class DesignEditor : LinearLayout {
 
     private fun clearAll() {
         removeAllViews()
-        structureView!!.clear()
+        structureView?.clear()
         viewAttributeMap.clear()
     }
 
@@ -437,13 +440,14 @@ class DesignEditor : LinearLayout {
     }
 
     private fun updateStructure() {
-        if (childCount == 0) structureView!!.clear()
-        else structureView!!.setView(getChildAt(0))
+        if (isEmpty()) structureView?.clear()
+        else structureView?.setView(getChildAt(0))
     }
 
     fun updateUndoRedoHistory() {
         if (undoRedoManager == null) return
         val result = XmlLayoutGenerator().generate(this, false)
+
         undoRedoManager!!.addToHistory(result)
         markAsModified()
     }
@@ -546,40 +550,45 @@ class DesignEditor : LinearLayout {
     }
 
     fun showDefinedAttributes(target: View) {
-        val keys = viewAttributeMap[target]!!.keySet()
-        val values = viewAttributeMap[target]!!.values()
-
-        val attrs: MutableList<HashMap<String, Any>> = ArrayList()
+        val allKeysAndValues = viewAttributeMap[target] ?: return
         val allAttrs = initializer.getAllAttributesForView(target)
 
-        val dialog = BottomSheetDialog(context)
-        val binding =
-            ShowAttributesDialogBinding.inflate(dialog.layoutInflater)
+        val displayKeys: MutableList<String> = ArrayList()
+        val displayValues: MutableList<String> = ArrayList()
+        val displayAttrs: MutableList<HashMap<String, Any>> = ArrayList()
 
+        val originalKeys = allKeysAndValues.keySet()
+        val originalValues = allKeysAndValues.values()
+
+        for (i in originalKeys.indices) {
+            val key = originalKeys[i]
+
+            val foundAttrDef = allAttrs.find { it[Constants.KEY_ATTRIBUTE_NAME].toString() == key }
+
+            if (foundAttrDef != null) {
+                displayKeys.add(key)
+                displayValues.add(originalValues[i])
+                displayAttrs.add(foundAttrDef)
+            }
+        }
+
+        val dialog = BottomSheetDialog(context)
+        val binding = ShowAttributesDialogBinding.inflate(dialog.layoutInflater)
         dialog.setContentView(binding.root)
         TooltipCompat.setTooltipText(binding.btnAdd, "Add attribute")
         TooltipCompat.setTooltipText(binding.btnDelete, "Delete")
 
-        for (key: String in keys) {
-            for (map: HashMap<String, Any> in allAttrs) {
-                if ((map[Constants.KEY_ATTRIBUTE_NAME].toString() == key)) {
-                    attrs.add(map)
-                    break
-                }
-            }
-        }
+        // Now, we use our new, guaranteed-to-be-in-sync lists.
+        val appliedAttributesAdapter = AppliedAttributesAdapter(displayAttrs, displayValues)
 
-        val appliedAttributesAdapter = AppliedAttributesAdapter(attrs, values)
-
-        appliedAttributesAdapter.onClick = {
-            showAttributeEdit(target, keys[it])
+        appliedAttributesAdapter.onClick = { position ->
+            showAttributeEdit(target, displayKeys[position])
             dialog.dismiss()
         }
 
-        appliedAttributesAdapter.onRemoveButtonClick = {
+        appliedAttributesAdapter.onRemoveButtonClick = { position ->
             dialog.dismiss()
-
-            val view = removeAttribute(target, keys[it])
+            val view = removeAttribute(target, displayKeys[position])
             showDefinedAttributes(view)
         }
 
@@ -789,13 +798,11 @@ class DesignEditor : LinearLayout {
         @Suppress("NAME_SHADOWING")
         var target = target
         val allAttrs = initializer.getAllAttributesForView(target)
-        val currentAttr =
-            initializer.getAttributeFromKey(attributeKey, allAttrs)
-
+        val currentAttr = initializer.getAttributeFromKey(attributeKey, allAttrs)
         val attributeMap = viewAttributeMap[target]
 
-        if (currentAttr != null) {
-            if (currentAttr.containsKey(Constants.KEY_CAN_DELETE)) return target
+        if (currentAttr?.containsKey(Constants.KEY_CAN_DELETE) == true) {
+            return target
         }
 
         val name =
@@ -803,23 +810,18 @@ class DesignEditor : LinearLayout {
         val id = if (name != null) getViewId(name.replace("@+id/", "")) else -1
         attributeMap.removeValue(attributeKey)
 
-        if ((attributeKey == "android:id")) {
+        if (attributeKey == "android:id") {
             removeId(target, false)
             target.id = -1
             target.requestLayout()
 
-            // delete all id attributes for views
             for (view: View in viewAttributeMap.keys) {
                 val map = viewAttributeMap[view]
-
                 for (key: String in map!!.keySet()) {
                     val value = map.getValue(key)
-
-                    if (value.startsWith("@id/") && (value == name!!.replace(
-                            "+",
-                            ""
-                        ))
-                    ) map.removeValue(key)
+                    if (value.startsWith("@id/") && (value == name!!.replace("+", ""))) {
+                        map.removeValue(key)
+                    }
                 }
             }
             updateStructure()
@@ -827,36 +829,30 @@ class DesignEditor : LinearLayout {
         }
 
         viewAttributeMap.remove(target)
-
         val parent = target.parent as ViewGroup
         val indexOfView = parent.indexOfChild(target)
-
         parent.removeView(target)
 
         val childs: MutableList<View> = ArrayList()
-
         if (target is ViewGroup) {
             val group = target
-
             if (group.childCount > 0) {
                 for (i in 0 until group.childCount) {
                     childs.add(group.getChildAt(i))
                 }
             }
-
             group.removeAllViews()
         }
 
         if (name != null) removeId(target, false)
-
         target = InvokeUtil.createView(target.javaClass.name, context) as View
         rearrangeListeners(target)
 
         if (target is ViewGroup) {
-            target.setMinimumWidth(Utils.pxToDp(context, 20))
-            target.setMinimumHeight(Utils.pxToDp(context, 20))
+            target.minimumWidth = Utils.pxToDp(context, 20)
+            target.minimumHeight = Utils.pxToDp(context, 20)
             val group = target
-            if (childs.size > 0) {
+            if (childs.isNotEmpty()) {
                 for (i in childs.indices) {
                     group.addView(childs[i])
                 }
@@ -872,23 +868,21 @@ class DesignEditor : LinearLayout {
             target.requestLayout()
         }
 
-        val keys = attributeMap.keySet()
-        val values = attributeMap.values()
-        val attrs: MutableList<HashMap<String, Any>> = ArrayList()
+        val currentKeys = attributeMap.keySet()
+        val currentValues = attributeMap.values()
 
-        for (key: String in keys) {
-            for (map: HashMap<String, Any> in allAttrs) {
-                if ((map[Constants.KEY_ATTRIBUTE_NAME].toString() == key)) {
-                    attrs.add(map)
-                    break
-                }
+        for (i in currentKeys.indices) {
+            val key = currentKeys[i]
+
+            if (key == "android:id") {
+                continue
             }
-        }
 
-        for (i in keys.indices) {
-            val key = keys[i]
-            if ((key == "android:id")) continue
-            initializer.applyAttribute(target, values[i], attrs[i])
+            val attrDef = initializer.getAttributeFromKey(key, allAttrs)
+
+            if (attrDef != null) {
+                initializer.applyAttribute(target, currentValues[i], attrDef)
+            }
         }
 
         try {
