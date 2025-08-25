@@ -480,14 +480,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             this::handleUiDesignerResult
         )
 
-        content.noEditorLayout.setOnLongClickListener {
-            showTooltip(
-                category = TooltipCategory.CATEGORY_IDE,
-                tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
-            )
-            true
-        }
-
         content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
             showTooltip(
                 category = TooltipCategory.CATEGORY_IDE,
@@ -923,6 +915,13 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     private fun setupNoEditorView() {
+        content.noEditorLayout.setOnLongClickListener {
+            showTooltip(
+                category = TooltipCategory.CATEGORY_IDE,
+                tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
+            )
+            true
+        }
         content.noEditorSummary.movementMethod = LinkMovementMethod()
         val sb = SpannableStringBuilder()
         val indentParent = 80
