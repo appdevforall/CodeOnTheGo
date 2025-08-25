@@ -555,7 +555,7 @@ abstract class BaseEditorActivity :
             toggle.syncState()
             setOnNavIconLongClickListener {
                 showTooltip(
-                    tag = TooltipTag.EDITOR_TOOLTIP_NAV_ICON
+                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
                 )
             }
         }

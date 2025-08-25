@@ -31,6 +31,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import org.appdevforall.codeonthego.layouteditor.activities.EditorActivity
@@ -42,9 +43,13 @@ import java.io.File
 /** @author Akash Yadav */
 class PreviewLayoutAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
-  override val id: String = "ide.editor.previewLayout"
-
+  override val id: String = ID
+  override var tooltipTag = TooltipTag.EDITOR_TOOLBAR_PREVIEW_LAYOUT
   override var requiresUIThread: Boolean = false
+
+  companion object{
+    const val ID = "ide.editor.previewLayout"
+  }
 
   init {
     label = context.getString(R.string.title_preview_layout)
