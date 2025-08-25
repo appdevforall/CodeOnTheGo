@@ -222,7 +222,7 @@ constructor(
 
   private fun generateTooltipListener(
       tooltipTag: String
-  ): OnLongClickListener = { view: View ->
+  ): OnLongClickListener = OnLongClickListener { view: View ->
       // Get the LifecycleOwner from the context. It's safe because your
       // init block already ensures the context is a FragmentActivity.
       val lifecycleOwner = this.context as? LifecycleOwner
@@ -247,7 +247,7 @@ constructor(
 
       // A long-click listener must return true to indicate it has consumed the event.
       true
-  } as OnLongClickListener
+  }
 
   suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
     return withContext(Dispatchers.IO) {
