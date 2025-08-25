@@ -32,9 +32,7 @@ import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
 import com.itsaky.androidide.actions.editor.SelectAllAction
 import com.itsaky.androidide.actions.etc.DisconnectLogSendersAction
-import com.itsaky.androidide.actions.etc.FindAction
-import com.itsaky.androidide.actions.etc.FindInFileAction
-import com.itsaky.androidide.actions.etc.FindInProjectAction
+import com.itsaky.androidide.actions.etc.FindActionMenu
 import com.itsaky.androidide.actions.etc.LaunchAppAction
 import com.itsaky.androidide.actions.etc.PreviewLayoutAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
@@ -64,84 +62,86 @@ import com.itsaky.androidide.actions.text.UndoAction
  */
 class EditorActivityActions {
 
-    companion object {
+  companion object {
 
-        private const val ORDER_COPY_PATH = 100
-        private const val ORDER_DELETE = 200
-        private const val ORDER_NEW_FILE = 300
-        private const val ORDER_NEW_FOLDER = 400
-        private const val ORDER_OPEN_WITH = 500
-        private const val ORDER_RENAME = 600
-        private const val ORDER_HELP = 1000
+    private const val ORDER_COPY_PATH = 100
+    private const val ORDER_DELETE = 200
+    private const val ORDER_NEW_FILE = 300
+    private const val ORDER_NEW_FOLDER = 400
+    private const val ORDER_OPEN_WITH = 500
+    private const val ORDER_RENAME = 600
+    private const val ORDER_HELP = 1000
 
-        @JvmStatic
-        fun register(context: Context) {
-            clear()
-            val registry = ActionsRegistry.getInstance()
-            var order = 0
+    @JvmStatic
+    fun register(context: Context) {
+      clear()
+      val registry = ActionsRegistry.getInstance()
+      var order = 0
 
-            // Toolbar actions
-            registry.registerAction(QuickRunAction(context, order++))
-            registry.registerAction(ProjectSyncAction(context, order++))
-            registry.registerAction(DebugAction(context, order++))
-            registry.registerAction(RunTasksAction(context, order++))
-            registry.registerAction(UndoAction(context, order++))
-            registry.registerAction(RedoAction(context, order++))
-            registry.registerAction(SaveFileAction(context, order++))
-            registry.registerAction(PreviewLayoutAction(context, order++))
-            registry.registerAction(FindAction(context, order++))
-            registry.registerAction(FindInFileAction(context, order++))
-            registry.registerAction(FindInProjectAction(context, order++))
-            registry.registerAction(LaunchAppAction(context, order++))
-            registry.registerAction(DisconnectLogSendersAction(context, order++))
+      // Toolbar actions
+      registry.registerAction(UndoAction(context, order++))
+      registry.registerAction(RedoAction(context, order++))
+      registry.registerAction(QuickRunAction(context, order++))
+      registry.registerAction(DebugAction(context, order++))
+      registry.registerAction(RunTasksAction(context, order++))
+      registry.registerAction(SaveFileAction(context, order++))
+      registry.registerAction(PreviewLayoutAction(context, order++))
+      registry.registerAction(FindActionMenu(context, order++))
+      registry.registerAction(ProjectSyncAction(context, order++))
+      registry.registerAction(DisconnectLogSendersAction(context, order++))
+      registry.registerAction(LaunchAppAction(context, order++))
+      registry.registerAction(GitHubCommitAction(context, order++))
+      registry.registerAction(GitHubPushAction(context, order++))
+      registry.registerAction(GitHubFetchAction(context, order++))
+      registry.registerAction(GitHubPullAction(context, order++))
 
-            // editor text actions
-            registry.registerAction(ExpandSelectionAction(context, order++))
-            registry.registerAction(SelectAllAction(context, order++))
-            registry.registerAction(LongSelectAction(context, order++))
-            registry.registerAction(CutAction(context, order++))
-            registry.registerAction(CopyAction(context, order++))
-            registry.registerAction(PasteAction(context, order++))
-            registry.registerAction(FormatCodeAction(context, order++))
-            registry.registerAction(ShowTooltipAction(context, order++))
+      // editor text actions
+      registry.registerAction(ExpandSelectionAction(context, order++))
+      registry.registerAction(SelectAllAction(context, order++))
+      registry.registerAction(LongSelectAction(context, order++))
+      registry.registerAction(CutAction(context, order++))
+      registry.registerAction(CopyAction(context, order++))
+      registry.registerAction(PasteAction(context, order++))
+      registry.registerAction(FormatCodeAction(context, order++))
+      registry.registerAction(ShowTooltipAction(context,order++))
 
-            // file tab actions
-            registry.registerAction(CloseFileAction(context, order++))
-            registry.registerAction(CloseOtherFilesAction(context, order++))
-            registry.registerAction(CloseAllFilesAction(context, order++))
+      // file tab actions
+      registry.registerAction(CloseFileAction(context, order++))
+      registry.registerAction(CloseOtherFilesAction(context, order++))
+      registry.registerAction(CloseAllFilesAction(context, order++))
 
-            // file tree actions
-            registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
-            registry.registerAction(DeleteAction(context, ORDER_DELETE))
-            registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
-            registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
-            registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
-            registry.registerAction(RenameAction(context, ORDER_RENAME))
-            registry.registerAction(HelpAction(context, ORDER_HELP))
-        }
-
-        @JvmStatic
-        fun clear() {
-            // EDITOR_TEXT_ACTIONS should not be cleared as the language servers register actions there as
-            // well
-            val locations = arrayOf(EDITOR_TOOLBAR, EDITOR_FILE_TABS, EDITOR_FILE_TREE)
-            val registry = ActionsRegistry.getInstance()
-            locations.forEach(registry::clearActions)
-        }
-
-        @JvmStatic
-        fun clearActions() {
-            // Clear actions but preserve build actions to prevent cancellation during onPause
-            val locations = arrayOf(EDITOR_FILE_TABS, EDITOR_FILE_TREE)
-            val registry = ActionsRegistry.getInstance()
-            locations.forEach(registry::clearActions)
-
-            // Clear toolbar actions except build actions
-            registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
-                action.id == QuickRunAction.ID ||
-                        action.id == RunTasksAction.ID ||
-                        action.id == ProjectSyncAction.ID
-            }
-        }
+      // file tree actions
+      registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
+      registry.registerAction(DeleteAction(context, ORDER_DELETE))
+      registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
+      registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
+      registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
+      registry.registerAction(RenameAction(context, ORDER_RENAME))
+      registry.registerAction(HelpAction(context, ORDER_HELP))
     }
+
+    @JvmStatic
+    fun clear() {
+      // EDITOR_TEXT_ACTIONS should not be cleared as the language servers register actions there as
+      // well
+      val locations = arrayOf(EDITOR_TOOLBAR, EDITOR_FILE_TABS, EDITOR_FILE_TREE)
+      val registry = ActionsRegistry.getInstance()
+      locations.forEach(registry::clearActions)
+    }
+
+    @JvmStatic
+    fun clearActions() {
+      // Clear actions but preserve build actions to prevent cancellation during onPause
+      val locations = arrayOf(EDITOR_FILE_TABS, EDITOR_FILE_TREE)
+      val registry = ActionsRegistry.getInstance()
+      locations.forEach(registry::clearActions)
+      
+      // Clear toolbar actions except build actions
+      registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
+        action.id == "ide.editor.build.quickRun" || 
+        action.id == "ide.editor.build.runTasks" || 
+        action.id == "ide.editor.build.sync"
+      }
+    }
+  }
 }

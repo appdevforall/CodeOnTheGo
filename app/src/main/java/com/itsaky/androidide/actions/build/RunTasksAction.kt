@@ -26,12 +26,8 @@ import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
 class RunTasksAction(context: Context, override val order: Int) : BaseBuildAction() {
-  override val id: String = ID
+  override val id: String = "ide.editor.build.runTasks"
   private var dialog: RunTasksDialogFragment? = null
-
-  companion object {
-    const val ID = "ide.editor.build.runTasks"
-  }
 
   init {
     label = context.getString(R.string.title_run_tasks)
