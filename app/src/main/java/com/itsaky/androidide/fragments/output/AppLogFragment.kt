@@ -25,6 +25,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.services.log.ConnectionObserverParams
 import com.itsaky.androidide.services.log.LogReceiverImpl
@@ -44,6 +45,7 @@ class AppLogFragment : LogViewFragment() {
 
   private var logServiceConnection: LogReceiverServiceConnection? = null
   private var logReceiverImpl: LogReceiverImpl? = null
+  override val tooltipTag = TooltipTag.PROJECT_APP_LOGS
 
   private val logServiceConnectionObserver = object : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {

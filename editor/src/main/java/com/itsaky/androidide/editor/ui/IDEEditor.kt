@@ -23,6 +23,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
@@ -99,6 +101,10 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 
+fun interface OnEditorLongPressListener {
+  fun onLongPress(event: MotionEvent)
+}
+
 /**
  * [CodeEditor] implementation for the IDE.
  *
@@ -111,6 +117,28 @@ open class IDEEditor @JvmOverloads constructor(
   defStyleRes: Int = 0,
   private val editorFeatures: EditorFeatures = EditorFeatures()
 ) : CodeEditor(context, attrs, defStyleAttr, defStyleRes), IEditor by editorFeatures, ILspEditor {
+
+
+  // A flag to track when a long press has occurred within a single touch gesture.
+  private var mLongPressHandled = false
+
+  // Initialize the GestureDetector. It uses a listener to report detected gestures.
+  private val gestureDetector =
+    GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+      // ... onDown method is unchanged ...
+
+      override fun onLongPress(e: MotionEvent) {
+        // A long press was detected!
+        log.debug("Long press detected, posting event to EventBus.")
+
+        // --- THIS IS THE FIX ---
+        // Instead of calling the listener directly, post an event.
+        EventBus.getDefault().post(EditorLongPressEvent(e))
+
+        // You no longer need the flag or the direct listener call here.
+        mLongPressHandled = true
+      }
+    })
 
   @Suppress("PropertyName")
   internal var _file: File? = null
@@ -942,5 +970,27 @@ open class IDEEditor @JvmOverloads constructor(
 
   override fun setSelectionAround(line: Int, column: Int) {
     editorFeatures.setSelectionAround(line, column)
+  }
+
+  override fun onTouchEvent(event: MotionEvent): Boolean {
+    // On the first touch (ACTION_DOWN), reset the flag for the new gesture.
+    if (event.action == MotionEvent.ACTION_DOWN) {
+      mLongPressHandled = false
+    }
+
+    // Feed the touch event to our detector. If it detects a long press,
+    // it will call our onLongPress listener and set mLongPressHandled to true.
+    gestureDetector.onTouchEvent(event)
+
+    // If our flag is true, it means a long press was detected. We should
+    // consume this event and any subsequent events in this gesture (like ACTION_UP)
+    // to prevent the superclass from processing them as a tap.
+    if (mLongPressHandled) {
+      return true
+    }
+
+    // If no long press was handled, pass the event to the parent CodeEditor
+    // for default behavior (moving cursor, selecting text, etc.).
+    return super.onTouchEvent(event)
   }
 }
