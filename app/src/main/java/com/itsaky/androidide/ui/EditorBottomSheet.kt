@@ -196,7 +196,7 @@ constructor(
         shareText(it, filename)
       }
     }
-    binding.shareOutputFab.setOnLongClickListener(generateTooltipListener( TooltipTag.OUTPUT_SHARE_EXTERNAL))
+    binding.shareOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
 
     binding.clearFab.setOnClickListener {
       val fragment: Fragment = pagerAdapter.getFragmentAtIndex(binding.tabs.selectedTabPosition)
@@ -206,7 +206,7 @@ constructor(
       }
       (fragment as ShareableOutputFragment).clearOutput()
     }
-    binding.clearFab.setOnLongClickListener (generateTooltipListener( TooltipTag.OUTPUT_CLEAR))
+    binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
 
     binding.headerContainer.setOnClickListener {
       if (behavior.state != BottomSheetBehavior.STATE_EXPANDED) {
