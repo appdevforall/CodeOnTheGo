@@ -481,7 +481,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
             showTooltip(
-                category = TooltipCategory.CATEGORY_IDE,
                 tag = TooltipTag.EDITOR_BUILD_STATUS
             )
             true
@@ -514,7 +513,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             toggle.syncState()
             setOnNavIconLongClickListener {
                 showTooltip(
-                    category = TooltipCategory.CATEGORY_IDE,
                     tag = TooltipTag.EDITOR_TOOLTIP_NAV_ICON
                 )
             }
@@ -916,7 +914,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private fun setupNoEditorView() {
         content.noEditorLayout.setOnLongClickListener {
             showTooltip(
-                category = TooltipCategory.CATEGORY_IDE,
                 tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
             )
             true
@@ -1054,11 +1051,11 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
 
-    private fun showTooltip(category: String, tag: String) {
+    private fun showTooltip(tag: String) {
         CoroutineScope(Dispatchers.Main).launch {
             val tooltipItem = TooltipManager.getTooltip(
                 this@BaseEditorActivity,
-                category,
+                TooltipCategory.CATEGORY_IDE,
                 tag,
             )
             if (tooltipItem != null) {
