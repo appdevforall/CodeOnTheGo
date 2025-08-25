@@ -40,7 +40,7 @@ class DebugAction(
     override fun prepare(data: ActionData) {
         super.prepare(data)
         val buildIsInProgress = data.getActivity().isBuildInProgress()
-        enabled = JdwpOptions.JDWP_ENABLED && buildIsInProgress.not()
+        enabled = JdwpOptions.JDWP_ENABLED && !buildIsInProgress
     }
 
     override fun onCreateTaskExecMessage(

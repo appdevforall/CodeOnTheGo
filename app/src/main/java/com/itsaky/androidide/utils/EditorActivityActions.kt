@@ -138,9 +138,9 @@ class EditorActivityActions {
 
             // Clear toolbar actions except build actions
             registry.clearActionsExceptWhere(EDITOR_TOOLBAR) { action ->
-                action.id == "ide.editor.build.quickRun" ||
-                        action.id == "ide.editor.build.runTasks" ||
-                        action.id == "ide.editor.build.sync"
+                action.id == QuickRunAction.ID ||
+                        action.id == RunTasksAction.ID ||
+                        action.id == ProjectSyncAction.ID
             }
         }
     }

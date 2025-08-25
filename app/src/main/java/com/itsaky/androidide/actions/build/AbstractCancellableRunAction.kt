@@ -41,7 +41,7 @@ abstract class AbstractCancellableRunAction(
         }
 
         if (data.getActivity()
-                .isBuildInProgress() && label == context.getString(R.string.quick_run_debug)
+                .isBuildInProgress() && id == QuickRunAction.ID
         ) {
             label = context.getString(R.string.title_cancel_build)
             icon = ContextCompat.getDrawable(context, R.drawable.ic_stop_daemons)
