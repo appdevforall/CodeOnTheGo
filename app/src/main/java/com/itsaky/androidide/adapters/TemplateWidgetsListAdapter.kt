@@ -68,7 +68,6 @@ class TemplateWidgetsListAdapter(private val widgets: List<Widget<*>>) :
             val widget = widgets[position]
             val view = viewProvider.createView(root.context, widget)
             viewProvider.applyCallTooltip { tooltipTag ->
-                // The context is still an Activity, so it's also a LifecycleOwner.
                 val lifecycleOwner = root.context as? LifecycleOwner ?: return@applyCallTooltip
 
                 lifecycleOwner.lifecycleScope.launch {

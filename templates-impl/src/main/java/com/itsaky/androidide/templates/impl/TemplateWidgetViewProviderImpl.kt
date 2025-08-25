@@ -24,6 +24,7 @@ import android.widget.ArrayAdapter
 import androidx.core.content.ContextCompat
 import com.google.android.material.textfield.TextInputLayout
 import com.google.auto.service.AutoService
+import com.itsaky.androidide.resources.ITooltipView
 import com.itsaky.androidide.resources.databinding.LayoutSpinnerBinding
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
@@ -69,7 +70,6 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
   var callTooltip: ((String) -> Unit)? = null
   private fun showTooltipForView(tooltipTag: String) {
-
     callTooltip?.invoke(tooltipTag)
   }
 
@@ -92,7 +92,7 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
     }.also { createdView ->
       if (widget is ParameterWidget<T>) {
         widget.parameter.tooltipTag?.let { tag ->
-          (createdView as? TooltipTextInputLayout)?.onLongPress = {
+          (createdView as? ITooltipView)?.setTooltipLongPressListener {
             showTooltipForView(tag)
           }
         }

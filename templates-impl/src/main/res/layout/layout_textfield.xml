@@ -15,7 +15,7 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<com.itsaky.androidide.templates.impl.TooltipTextInputLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.itsaky.androidide.resources.TooltipTextInputLayout xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:tools="http://schemas.android.com/tools"
   style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
   android:layout_width="match_parent"
@@ -27,4 +27,4 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent" />
 
-</com.itsaky.androidide.templates.impl.TooltipTextInputLayout>
+</com.itsaky.androidide.resources.TooltipTextInputLayout>
