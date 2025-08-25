@@ -28,7 +28,6 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
 import androidx.annotation.GravityInt
-import androidx.appcompat.widget.TooltipCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -54,8 +53,10 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.TaskExecutor.CallbackWithError
@@ -195,8 +196,8 @@ constructor(
         shareText(it, filename)
       }
     }
+    binding.shareOutputFab.setOnLongClickListener(generateTooltipListener( TooltipTag.OUTPUT_SHARE_EXTERNAL))
 
-    TooltipCompat.setTooltipText(binding.clearFab, context.getString(string.title_clear_output))
     binding.clearFab.setOnClickListener {
       val fragment: Fragment = pagerAdapter.getFragmentAtIndex(binding.tabs.selectedTabPosition)
       if (fragment !is ShareableOutputFragment) {
@@ -205,6 +206,7 @@ constructor(
       }
       (fragment as ShareableOutputFragment).clearOutput()
     }
+    binding.clearFab.setOnLongClickListener (generateTooltipListener( TooltipTag.OUTPUT_CLEAR))
 
     binding.headerContainer.setOnClickListener {
       if (behavior.state != BottomSheetBehavior.STATE_EXPANDED) {
@@ -218,6 +220,40 @@ constructor(
     }
   }
 
+  private fun generateTooltipListener(
+      tooltipTag: String
+  ): OnLongClickListener = { view: View ->
+      // Get the LifecycleOwner from the context. It's safe because your
+      // init block already ensures the context is a FragmentActivity.
+      val lifecycleOwner = this.context as? LifecycleOwner
+
+      // Launch the coroutine on the obtained lifecycleScope
+      lifecycleOwner?.lifecycleScope?.launch {
+          try {
+              // Now you can safely call your suspend function
+              val tooltipData = getTooltipData(TooltipCategory.CATEGORY_IDE, tooltipTag)
+              tooltipData?.let {
+                  TooltipUtils.showIDETooltip(
+                      context,
+                      view,
+                      0,
+                      it,
+                  )
+              }
+          } catch (e: Exception) {
+              Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+          }
+      }
+
+      // A long-click listener must return true to indicate it has consumed the event.
+      true
+  } as OnLongClickListener
+
+  suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
+    return withContext(Dispatchers.IO) {
+      TooltipManager.getTooltip(context, category, tag)
+    }
+  }
   init {
     if (context !is FragmentActivity) {
       throw IllegalArgumentException("EditorBottomSheet must be set up with a FragmentActivity")
