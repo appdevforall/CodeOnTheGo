@@ -19,8 +19,8 @@ import androidx.core.content.ContextCompat.startForegroundService
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.activityViewModels
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.databinding.FragmentWabPermissionBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
@@ -65,7 +65,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 
 	// must be activity bound since it's also used in DebuggerFragment
 	private val debuggerViewModel by activityViewModels<DebuggerViewModel>()
-	private val wadbViewModel by viewModels<WADBViewModel>()
+	private val wadbViewModel by activityViewModels<WADBViewModel>()
 
 	private val pairingBroadcastReceiver =
 		object : BroadcastReceiver() {
@@ -123,6 +123,15 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 		val isMiui = DeviceUtils.isMiui()
 		val isNotificationEnabled = isNotificationEnabled()
 
+		val activity = requireActivity()
+		activity.lifecycleScope.launch {
+			activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				wadbViewModel.connectionState.collectLatest { state ->
+					onUpdateConnectionState(state)
+				}
+			}
+		}
+
 		viewLifecycleScope.launch {
 			adbMdnsConnector.start()
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -135,47 +144,6 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 				wadbViewModel.connectionStatus.collectLatest { status ->
 					withContext(Dispatchers.Main.immediate) {
 						binding.connection.statusText.text = status
-					}
-				}
-
-				wadbViewModel.output.collectLatest {
-					val output = it.output.trim()
-					withContext(Dispatchers.Main.immediate) {
-						if (output.endsWith("info: shizuku_starter exit with 0")) {
-							logger.debug("Shizuku starter exited successfully")
-							// starter was successful in starting the Shizuku service
-							// get the binder to communicate with it
-							Shizuku.addBinderReceivedListener(
-								object : Shizuku.OnBinderReceivedListener {
-									override fun onBinderReceived() {
-										Shizuku.removeBinderReceivedListener(this)
-										logger.debug("Shizuku service connected")
-
-										// reset state
-										wadbViewModel.setCurrentView(VIEW_PAIRING)
-										debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
-									}
-								},
-							)
-						} else if (it.error != null) {
-							logger.error("Failed to start Shizuku starter", it.error)
-							var message = 0
-							when (it.error) {
-								is AdbKeyException -> {
-									message = R.string.adb_error_key_store
-								}
-								is ConnectException -> {
-									message = R.string.cannot_connect_port
-								}
-								is SSLProtocolException -> {
-									message = R.string.adb_pair_required
-								}
-							}
-
-							if (message != 0) {
-								flashError(message)
-							}
-						}
 					}
 				}
 			}
@@ -342,8 +310,61 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 		}
 	}
 
+	private fun onUpdateConnectionState(state: WADBViewModel.ConnectionState) {
+		if (Shizuku.pingBinder()) {
+			// already connected
+			// reset state
+			wadbViewModel.setCurrentView(VIEW_PAIRING)
+			debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
+			return
+		}
+
+		if (isDetached) {
+			return
+		}
+
+		val output = state.output.toString()
+		logger.debug("shizuku_starter output: {}", output)
+		if (output.endsWith("info: shizuku_starter exit with 0")) {
+			logger.debug("Shizuku starter exited successfully")
+			// starter was successful in starting the Shizuku service
+			// get the binder to communicate with it
+			Shizuku.addBinderReceivedListener(
+				object : Shizuku.OnBinderReceivedListener {
+					override fun onBinderReceived() {
+						Shizuku.removeBinderReceivedListener(this)
+						logger.debug("Shizuku service connected")
+
+						// reset state
+						wadbViewModel.setCurrentView(VIEW_PAIRING)
+						debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
+					}
+				},
+			)
+		} else if (state.error != null) {
+			logger.error("Failed to start Shizuku starter", state.error)
+			var message = 0
+			when (state.error) {
+				is AdbKeyException -> {
+					message = R.string.adb_error_key_store
+				}
+				is ConnectException -> {
+					message = R.string.cannot_connect_port
+				}
+				is SSLProtocolException -> {
+					message = R.string.adb_pair_required
+				}
+			}
+
+			if (message != 0) {
+				flashError(message)
+			}
+		}
+	}
+
 	override fun onDestroyView() {
 		super.onDestroyView()
+		logger.debug("onDestroy")
 		runCatching { adbMdnsConnector.stop() }
 		_binding = null
 	}
