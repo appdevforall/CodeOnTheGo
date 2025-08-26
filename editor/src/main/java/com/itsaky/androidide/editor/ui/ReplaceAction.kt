@@ -18,10 +18,8 @@
 package com.itsaky.androidide.editor.ui
 
 import android.view.LayoutInflater
-import android.view.ViewGroup
-import android.widget.FrameLayout
 import com.itsaky.androidide.editor.databinding.LayoutEditorFindReplaceBinding
-import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
@@ -66,32 +64,11 @@ object ReplaceAction {
         }
 
         val dialog = builder.create()
-
-        // Add a FrameLayout overlay inside the dialog once it’s shown so the entire dialog window
-        // responds to touch events - long click for tooltips
-        dialog.setOnShowListener {
-            dialog.window?.decorView?.let { decor ->
-                val overlay = FrameLayout(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    isClickable = true
-                    isFocusable = true
-                    setOnLongClickListener {
-                        TooltipManager.showTooltip(
-                            context = binding.root.context,
-                            anchorView = binding.root,
-                            tag = TooltipTag.DIALOG_REPLACE_IN_FILE
-                        )
-                        true
-                    }
-                }
-
-                (decor as ViewGroup).addView(overlay)
-            }
-        }
-
+        dialog.showTooltip(
+            context = binding.root.context,
+            anchorView = binding.root,
+            tooltipTag = TooltipTag.DIALOG_REPLACE_IN_FILE
+        )
         dialog.show()
 
     }

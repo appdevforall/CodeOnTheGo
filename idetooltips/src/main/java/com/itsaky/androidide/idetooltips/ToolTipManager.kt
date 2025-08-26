@@ -15,6 +15,7 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
@@ -311,4 +312,43 @@ object TooltipManager {
             .setCancelable(true) // Allow dismissing by tapping outside
             .show()
     }
+
+
+    /**
+     * Sets up a long-press listener on an AlertDialog's decor view to show a tooltip.
+     *
+     * This extension function allows an AlertDialog to display a tooltip when its content area
+     * is long-pressed. It works by recursively attaching a long-press listener to the
+     * dialog's decor view and all its children.
+     *
+     * @param context The context used to show the tooltip.
+     * @param anchorView The view to which the tooltip will be anchored. Typically, this would be
+     *                   a view within the dialog itself or the view that triggered the dialog.
+     * @param tooltipTag The unique tag identifying the tooltip content to be displayed.
+     */
+    fun AlertDialog.showTooltip(context: Context, anchorView: View, tooltipTag: String) {
+        this.setOnShowListener {
+            this.window?.decorView?.let { decor ->
+                setupLongPressRecursively(decor, context, anchorView, tooltipTag)
+            }
+        }
+    }
+
+    private fun setupLongPressRecursively(view: View, context: Context, anchorView: View, tooltipTag: String) {
+        view.setOnLongClickListener {
+            showTooltip(
+                context = context,
+                anchorView = anchorView,
+                tag = tooltipTag
+            )
+            true
+        }
+
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                setupLongPressRecursively(view.getChildAt(i), context, anchorView, tooltipTag)
+            }
+        }
+    }
+
 }

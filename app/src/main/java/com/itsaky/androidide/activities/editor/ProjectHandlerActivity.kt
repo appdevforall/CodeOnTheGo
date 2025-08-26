@@ -21,8 +21,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
+import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
+import android.widget.FrameLayout
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
@@ -45,6 +47,7 @@ import com.itsaky.androidide.handlers.LspHandler.connectClient
 import com.itsaky.androidide.handlers.LspHandler.connectDebugClient
 import com.itsaky.androidide.handlers.LspHandler.destroyLanguageServers
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
@@ -668,14 +671,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         val builder = newMaterialDialogBuilder(this)
 
-        binding.rootLayout.setOnLongClickListener {
-            TooltipManager.showTooltip(
-                context = this,
-                anchorView = binding.rootLayout,
-                tag = TooltipTag.DIALOG_FIND_IN_PROJECT
-            )
-            true
-        }
         builder.setTitle(string.menu_find_project)
         builder.setView(binding.root)
         builder.setCancelable(false)
@@ -733,7 +728,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
 
         builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
-        mFindInProjectDialog = builder.create()
+
+        val dialog = builder.create()
+        dialog.showTooltip(binding.root.context,binding.root, TooltipTag.DIALOG_FIND_IN_PROJECT)
+
+        mFindInProjectDialog = dialog
         return mFindInProjectDialog
     }
 
