@@ -33,4 +33,5 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
     const val DIALOG_FIND_IN_PROJECT = "project.find.dialog"
     const val DIALOG_FIND_IN_FILE = "file.find.dialog"
+    const val DIALOG_FIND_IN_FILE_OPTIONS = "file.find.options"
 }
