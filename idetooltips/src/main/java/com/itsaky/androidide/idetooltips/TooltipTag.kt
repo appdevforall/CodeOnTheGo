@@ -25,6 +25,7 @@ object TooltipTag {
 	const val OUTPUT_SHARE_EXTERNAL = "output.share.external"
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
+    const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
 
 	// General Preferences
 	const val PREFS_EDITOR = "prefs.editor"
@@ -48,7 +49,6 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
     const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
     const val EDITOR_TOOLBAR_DEBUG = "project.debug"
-    const val EDITOR_TOOLBAR_RUN_TASKS = "project.gradle.tasks"
     const val EDITOR_TOOLBAR_FIND = "project.find.top"
     const val EDITOR_TOOLBAR_FIND_IN_PROJECT = "project.find.in.project"
     const val EDITOR_TOOLBAR_FIND_IN_FILE = "editor.find.in.file"
@@ -59,6 +59,7 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
     const val EDITOR_TOOLBAR_PREVIEW_LAYOUT = "editor.layout.preview"
 
+
     // Delete project
     const val DELETE_PROJECT = "project.delete"
     const val DELETE_PROJECT_SELECT = "project.delete.select"
@@ -68,4 +69,5 @@ object TooltipTag {
 	const val PROJECT_NEW = "project.new"
     const val EXIT_TO_MAIN = "exit.to.main"
     const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
+
 }
