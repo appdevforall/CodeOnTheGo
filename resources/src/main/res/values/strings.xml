@@ -743,5 +743,39 @@
   <!-- Tooltip Links HTML Template -->
   <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
   <string name="info_icon_content_description">Info icon</string>
-	<string name="title_alert">Alert!</string>
+  <string name="title_alert">Alert!</string>
+  <string name="unknown_error">"An unknown error occurred."</string>
+  <string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
+  <string name="error_build_service_not_found">Build service not found.</string>
+  <string name="error_task_execution_failed">Task execution failed.</string>
+  <string name="error_no_output_listing_file">No output listing file found in project model.</string>
+  <string name="error_no_apk_in_output_listing">No APK found in output listing file.</string>
+  <string name="error_apk_not_exist">APK file specified does not exist: %1$s</string>
+  <string name="info_build_cancelled">Build was cancelled by the user.</string>
+  <string name="error_quick_run_failed">Quick Run failed.</string>
+  <string name="status_building">Building…</string>
+  <string name="init_failed_with_reason">%1$s: %2$s</string>
+
+  <string name="log_installing_apk">Installing APK: %1$s</string>
+  <string name="log_no_variant_info_using_default">No variant selection information available. Default build variants will be selected.</string>
+  <string name="log_init_with_new_variants">Initializing project with new build variant selections: %1$s</string>
+  <string name="log_reinit_with_existing_variants">Re-initializing project with existing build variant selections</string>
+  <string name="log_skip_setup_config_change">Not setting up project as this is a configuration change</string>
+
+  <string name="log_reusing_gradle_service">Reusing already started Gradle build service</string>
+  <string name="log_binding_gradle_service">Binding to Gradle build service…</string>
+  <string name="log_gradle_bind_successful">Bind request for Gradle build service was successful…</string>
+  <string name="log_connected_to_gradle_service">Connected to Gradle build service</string>
+
+  <string name="warn_pid_mismatch">Tooling server pid mismatch. Expected: %1$d, Actual: %2$d. Replacing memory watcher…</string>
+  <string name="warn_no_root_project_model">No root project model found. Is the project initialized?</string>
+  <string name="warn_gradle_project_not_init">GradleProject not initialized. Skipping initial setup…</string>
+
+  <string name="error_apk_does_not_exist">APK file does not exist!</string>
+  <string name="error_gradle_service_inaccessible">Gradle build service doesn\'t exist or the IDE is not allowed to access it.</string>
+  <string name="error_project_dir_not_exist_cannot_init">Project directory does not exist. Cannot initialize project</string>
+  <string name="error_stop_editor_services">Unable to stop editor services. Please report this issue.</string>
+  <string name="error_failed_to_stop_editor_services">Failed to stop editor services.</string>
+  <string name="error_unable_to_unbind_service">Unable to unbind service</string>
+  <string name="error_failed_tooling_server_metadata">Failed to get tooling server metadata</string>
 </resources>

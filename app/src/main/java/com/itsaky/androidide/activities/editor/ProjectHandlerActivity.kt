@@ -1,18 +1,18 @@
 /*
- *  This file is part of AndroidIDE.
+ * This file is part of AndroidIDE.
  *
- *  AndroidIDE is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ * AndroidIDE is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *  AndroidIDE is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ * AndroidIDE is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.itsaky.androidide.activities.editor
@@ -30,7 +30,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.R.string
 import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
 import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.fragments.sheets.ProgressSheet
@@ -206,7 +205,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                         }
 
                         is BuildState.InProgress -> {
-                            setStatus("Building...")
+                            setStatus(getString(R.string.status_building))
                         }
 
                         is BuildState.Success -> {
@@ -232,10 +231,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     private fun installApk(apk: File) {
-        log.debug("Installing APK: {}", apk)
+        log.debug(getString(R.string.log_installing_apk, apk))
 
         if (!apk.exists()) {
-            log.error("APK file does not exist!")
+            log.error(getString(R.string.error_apk_does_not_exist))
             return
         }
 
@@ -290,14 +289,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             try {
                 stopLanguageServers()
             } catch (err: Exception) {
-                log.error("Failed to stop editor services.")
+                log.error(getString(R.string.error_failed_to_stop_editor_services))
             }
 
             try {
                 unbindService(buildServiceConnection)
                 buildServiceConnection.onConnected = {}
             } catch (err: Throwable) {
-                log.error("Unable to unbind service")
+                log.error(getString(R.string.error_unable_to_unbind_service))
             } finally {
                 Lookup.getDefault().apply {
 
@@ -344,13 +343,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                 R.drawable.ic_sync,
                 colorFilter = resolveAttr(R.attr.colorOnSecondaryContainer)
             )
-            .message(string.msg_sync_needed)
-            .positiveActionText(string.btn_sync)
+            .message(R.string.msg_sync_needed)
+            .positiveActionText(R.string.btn_sync)
             .positiveActionTapListener {
                 onConfirm()
                 it.dismiss()
             }
-            .negativeActionText(string.btn_ignore_changes)
+            .negativeActionText(R.string.btn_ignore_changes)
             .negativeActionTapListener(Flashbar::dismiss)
             .build()
 
@@ -362,11 +361,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val service =
             Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as GradleBuildService?
         if (editorViewModel.isBoundToBuildSerice && service != null) {
-            log.info("Reusing already started Gradle build service")
+            log.info(getString(R.string.log_reusing_gradle_service))
             onGradleBuildServiceConnected(service)
             return
         } else {
-            log.info("Binding to Gradle build service...")
+            log.info(getString(R.string.log_binding_gradle_service))
         }
 
         buildServiceConnection.onConnected = this::onGradleBuildServiceConnected
@@ -378,9 +377,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                 BIND_AUTO_CREATE or BIND_IMPORTANT
             )
         ) {
-            log.info("Bind request for Gradle build service was successful...")
+            log.info(getString(R.string.log_gradle_bind_successful))
         } else {
-            log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
+            log.error(getString(R.string.error_gradle_service_inaccessible))
         }
 
         initLspClient()
@@ -390,7 +389,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
      * Initialize (sync) the project.
      *
      * @param buildVariantsProvider A function which returns the map of project paths to the selected build variants.
-     *    This function is called asynchronously.
+     * This function is called asynchronously.
      */
     fun initializeProject(buildVariantsProvider: () -> Map<String, String>) {
         executeWithProgress { progress ->
@@ -400,7 +399,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                 }
 
                 if (result == null || error != null) {
-                    val msg = getString(string.msg_build_variants_fetch_failed)
+                    val msg = getString(R.string.msg_build_variants_fetch_failed)
                     flashError(msg)
                     log.error(msg, error)
                     return@executeAsyncProvideError
@@ -419,9 +418,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         // no information about the build variants is available
         // use the default variant selections
         if (currentVariants == null) {
-            log.debug(
-                "No variant selection information available. Default build variants will be selected."
-            )
+            log.debug(getString(R.string.log_no_variant_info_using_default))
             initializeProject(emptyMap())
             return
         }
@@ -434,7 +431,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             newSelections.putAll(buildVariantsViewModel.updatedBuildVariants)
             initializeProject {
                 newSelections.mapToSelectedVariants().also {
-                    log.debug("Initializing project with new build variant selections: {}", it)
+                    log.debug(getString(R.string.log_init_with_new_variants, it))
                 }
             }
             return
@@ -444,7 +441,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         // the user might be trying to sync the project from options menu
         // initialize the project with the existing selected variants
         initializeProject {
-            log.debug("Re-initializing project with existing build variant selections")
+            log.debug(getString(R.string.log_reinit_with_existing_variants))
             currentVariants.mapToSelectedVariants()
         }
     }
@@ -458,7 +455,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val manager = ProjectManagerImpl.getInstance()
         val projectDir = File(manager.projectPath)
         if (!projectDir.exists()) {
-            log.error("Project directory does not exist. Cannot initialize project")
+            log.error(getString(R.string.error_project_dir_not_exist_cannot_init))
             return
         }
 
@@ -496,12 +493,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         try {
             destroyLanguageServers(isChangingConfigurations)
         } catch (err: Throwable) {
-            log.error("Unable to stop editor services. Please report this issue.", err)
+            log.error(getString(R.string.error_stop_editor_services), err)
         }
     }
 
     protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
-        log.info("Connected to Gradle build service")
+        log.info(getString(R.string.log_connected_to_gradle_service))
 
         buildServiceConnection.onConnected = null
         editorViewModel.isBoundToBuildSerice = true
@@ -515,14 +512,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
                 service.metadata().whenComplete { metadata, err ->
                     if (metadata == null || err != null) {
-                        log.error("Failed to get tooling server metadata")
+                        log.error(getString(R.string.error_failed_tooling_server_metadata))
                         return@whenComplete
                     }
 
                     if (pid != metadata.pid) {
                         log.warn(
-                            "Tooling server pid mismatch. Expected: {}, Actual: {}. Replacing memory watcher...",
-                            pid, metadata.pid
+                            getString(R.string.warn_pid_mismatch, pid, metadata.pid)
                         )
                         memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
                         resetMemUsageChart()
@@ -539,7 +535,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     protected open fun onProjectInitialized(result: InitializeResult) {
         val manager = ProjectManagerImpl.getInstance()
         if (isFromSavedInstance && manager.projectInitialized && result == manager.cachedInitResult) {
-            log.debug("Not setting up project as this a configuration change")
+            log.debug(getString(R.string.log_skip_setup_config_change))
             return
         }
 
@@ -556,7 +552,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     protected open fun preProjectInit() {
-        setStatus(getString(string.msg_initializing_project))
+        setStatus(getString(R.string.msg_initializing_project))
         editorViewModel.isInitializing = true
     }
 
@@ -579,19 +575,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             val initFailed = if (projectName.isNotEmpty()) {
-                getString(string.msg_project_initialization_failed_with_name, projectName)
+                getString(R.string.msg_project_initialization_failed_with_name, projectName)
             } else {
-                getString(string.msg_project_initialization_failed)
+                getString(R.string.msg_project_initialization_failed)
             }
             setStatus(initFailed)
 
             val msg = when (failure) {
-                PROJECT_DIRECTORY_INACCESSIBLE -> string.msg_project_dir_inaccessible
-                PROJECT_NOT_DIRECTORY -> string.msg_file_is_not_dir
-                PROJECT_NOT_FOUND -> string.msg_project_dir_doesnt_exist
+                PROJECT_DIRECTORY_INACCESSIBLE -> R.string.msg_project_dir_inaccessible
+                PROJECT_NOT_DIRECTORY -> R.string.msg_file_is_not_dir
+                PROJECT_NOT_FOUND -> R.string.msg_project_dir_doesnt_exist
                 else -> null
             }?.let {
-                "$initFailed: ${getString(it)}"
+                getString(R.string.init_failed_with_reason, initFailed, getString(it))
             }
 
             flashError(msg ?: initFailed)
@@ -602,7 +598,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
 
         initialSetup()
-        setStatus(getString(string.msg_project_initialized))
+        setStatus(getString(R.string.msg_project_initialized))
         editorViewModel.isInitializing = false
         manager.projectInitialized = true
 
@@ -624,8 +620,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     protected open fun createFindInProjectDialog(): AlertDialog? {
         val manager = ProjectManagerImpl.getInstance()
         if (manager.rootProject == null) {
-            log.warn("No root project model found. Is the project initialized?")
-            flashError(getString(string.msg_project_not_initialized))
+            log.warn(getString(R.string.warn_no_root_project_model))
+            flashError(getString(R.string.msg_project_not_initialized))
             return null
         }
 
@@ -634,7 +630,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                 manager.rootProject!!.subProjects.stream().map(GradleProject::projectDir)
                     .collect(Collectors.toList())
             } catch (e: Throwable) {
-                flashError(getString(string.msg_no_modules))
+                flashError(getString(R.string.msg_no_modules))
                 emptyList()
             }
 
@@ -665,13 +661,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
 
         val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.menu_find_project)
+        builder.setTitle(R.string.menu_find_project)
         builder.setView(binding.root)
         builder.setCancelable(false)
-        builder.setPositiveButton(string.menu_find) { dialog, _ ->
+        builder.setPositiveButton(R.string.menu_find) { dialog, _ ->
             val text = binding.input.editText!!.text.toString().trim()
             if (text.isEmpty()) {
-                flashError(string.msg_empty_search_query)
+                flashError(R.string.msg_empty_search_query)
                 return@setPositiveButton
             }
 
@@ -703,11 +699,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             if (searchDirs.isEmpty()) {
-                flashError(string.msg_select_search_modules)
+                flashError(R.string.msg_select_search_modules)
             } else {
                 dialog.dismiss()
 
-                getProgressSheet(string.msg_searching_project)?.apply {
+                getProgressSheet(R.string.msg_searching_project)?.apply {
                     show(supportFragmentManager, "search_in_project_progress")
                 }
 
@@ -732,7 +728,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         try {
             val project = manager.rootProject
             if (project == null) {
-                log.warn("GradleProject not initialized. Skipping initial setup...")
+                log.warn(getString(R.string.warn_gradle_project_not_init))
                 return
             }
 
@@ -776,12 +772,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     private fun confirmProjectClose() {
         val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.title_confirm_project_close)
-        builder.setMessage(string.msg_confirm_project_close)
+        builder.setTitle(R.string.title_confirm_project_close)
+        builder.setMessage(R.string.msg_confirm_project_close)
 
-        builder.setNegativeButton(string.cancel_project_text, null)
+        builder.setNegativeButton(R.string.cancel_project_text, null)
 
-        builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
+        builder.setNeutralButton(R.string.close_without_saving) { dialog, _ ->
             dialog.dismiss()
 
             editorActivityScope.launch {
@@ -795,7 +791,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
         }
 
-        builder.setPositiveButton(string.save_close_project) { dialog, _ ->
+        builder.setPositiveButton(R.string.save_close_project) { dialog, _ ->
             dialog.dismiss()
             closeProject(true)
         }

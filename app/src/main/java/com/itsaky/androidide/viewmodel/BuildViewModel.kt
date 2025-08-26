@@ -1,7 +1,9 @@
 package com.itsaky.androidide.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.R
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -15,7 +17,7 @@ import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import kotlin.coroutines.cancellation.CancellationException
 
-class BuildViewModel : ViewModel() {
+class BuildViewModel(private val application: Application) : AndroidViewModel(application) {
 
     private val log = LoggerFactory.getLogger(BuildViewModel::class.java)
 
@@ -24,16 +26,18 @@ class BuildViewModel : ViewModel() {
 
     fun runQuickBuild(module: AndroidModule, variant: BasicAndroidVariantMetadata) {
         if (_buildState.value is BuildState.InProgress) {
-            log.warn("Build is already in progress. Ignoring new request.")
+            log.warn(application.getString(R.string.build_in_progress_warning))
             return
         }
 
         viewModelScope.launch {
+            val context = getApplication<Application>().applicationContext
             _buildState.value = BuildState.InProgress
 
             val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
             if (buildService == null) {
-                _buildState.value = BuildState.Error("Build service not found.")
+                _buildState.value =
+                    BuildState.Error(context.getString(R.string.error_build_service_not_found))
                 return@launch
             }
 
@@ -43,28 +47,29 @@ class BuildViewModel : ViewModel() {
                 val result = buildService.executeTasks(message).await()
 
                 if (result == null || !result.isSuccessful) {
-                    throw RuntimeException("Task execution failed.")
+                    throw RuntimeException(context.getString(R.string.error_task_execution_failed))
                 }
 
                 val outputListingFile = variant.mainArtifact.assembleTaskOutputListingFile
-                    ?: throw RuntimeException("No output listing file found in project model.")
+                    ?: throw RuntimeException(context.getString(R.string.error_no_output_listing_file))
 
                 val apkFile = ApkMetadata.findApkFile(outputListingFile)
-                    ?: throw RuntimeException("No APK found in output listing file.")
+                    ?: throw RuntimeException(context.getString(R.string.error_no_apk_in_output_listing))
 
                 if (!apkFile.exists()) {
-                    throw RuntimeException("APK file specified does not exist: $apkFile")
+                    throw RuntimeException(context.getString(R.string.error_apk_not_exist, apkFile))
                 }
 
                 _buildState.value = BuildState.AwaitingInstall(apkFile)
 
             } catch (e: Exception) {
                 if (e is CancellationException) {
-                    log.info("Build was cancelled by the user.")
+                    log.info(context.getString(R.string.info_build_cancelled))
                     _buildState.value = BuildState.Idle
                 } else {
-                    log.error("Quick Run failed.", e)
-                    _buildState.value = BuildState.Error(e.message ?: "An unknown error occurred.")
+                    log.error(context.getString(R.string.error_quick_run_failed), e)
+                    _buildState.value =
+                        BuildState.Error(e.message ?: context.getString(R.string.unknown_error))
                 }
             }
         }
