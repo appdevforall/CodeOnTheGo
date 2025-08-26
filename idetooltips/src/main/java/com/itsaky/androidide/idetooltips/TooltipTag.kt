@@ -40,7 +40,6 @@ object TooltipTag {
 	const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
 	const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
 	const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
-    const val DIALOG_FIND_IN_PROJECT = "project.find.dialog"
 
     // Editor screen
     const val EDITOR_PROJECT_OVERVIEW = "project.overview"
@@ -71,4 +70,6 @@ object TooltipTag {
     const val EXIT_TO_MAIN = "exit.to.main"
     const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 
+    const val DIALOG_FIND_IN_PROJECT = "project.find.dialog"
+    const val DIALOG_FIND_IN_FILE = "file.find.dialog"
 }

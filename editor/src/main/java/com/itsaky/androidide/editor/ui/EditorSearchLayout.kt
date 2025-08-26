@@ -31,6 +31,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.itsaky.androidide.editor.databinding.LayoutFindInFileBinding
 import com.itsaky.androidide.editor.ui.ReplaceAction.doReplace
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.SingleTextWatcher
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
@@ -57,6 +59,14 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
     findInFileBinding.next.setOnClickListener(::onSearchActionClick)
     findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
     findInFileBinding.close.setOnClickListener(::onSearchActionClick)
+    findInFileBinding.dialogRoot.setOnLongClickListener {
+      TooltipManager.showTooltip(
+        context = this.context,
+        anchorView = this,
+        tag = TooltipTag.DIALOG_FIND_IN_FILE
+      )
+      true
+    }
 
     optionsMenu = PopupMenu(context, findInFileBinding.moreOptions, Gravity.TOP)
     optionsMenu.menu.add(0, 0, 0, R.string.msg_ignore_case).apply {
