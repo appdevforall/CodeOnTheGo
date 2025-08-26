@@ -30,4 +30,6 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
     const val EDITOR_TOOLBAR_FIND_IN_FILE = "editor.find.in.file"
     const val EDITOR_TOOLBAR_PREVIEW_LAYOUT = "editor.layout.preview"
+    const val EDITOR_TOOLBAR_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
+
 }

@@ -43,6 +43,8 @@ import com.itsaky.androidide.R.string
 import com.itsaky.androidide.adapters.RunTasksListAdapter
 import com.itsaky.androidide.databinding.LayoutRunTaskBinding
 import com.itsaky.androidide.databinding.LayoutRunTaskDialogBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.projects.IProjectManager
@@ -143,36 +145,47 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
       }
     )
 
-    binding.exec.setOnClickListener {
-      if (viewModel.selected.isEmpty()) {
-        requireActivity().flashInfo(getString(string.msg_err_select_tasks))
-        return@setOnClickListener
-      }
-
-      if (viewModel.displayedChild == CHILD_TASKS) {
-        binding.confirm.msg.text =
-          getString(R.string.msg_tasks_to_run, viewModel.getSelectedTaskPaths())
-        viewModel.displayedChild = CHILD_CONFIRMATION
-        return@setOnClickListener
-      }
-
-      if (viewModel.displayedChild == CHILD_CONFIRMATION) {
-        val buildService =
-          Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-            ?: run {
-              log.error("Cannot find build service")
-              return@setOnClickListener
+    binding.exec.apply {
+        setOnClickListener {
+            if (viewModel.selected.isEmpty()) {
+                requireActivity().flashInfo(getString(string.msg_err_select_tasks))
+                return@setOnClickListener
             }
 
-        if (!buildService.isToolingServerStarted()) {
-          flashError(R.string.msg_tooling_server_unavailable)
-          return@setOnClickListener
-        }
+            if (viewModel.displayedChild == CHILD_TASKS) {
+                binding.confirm.msg.text =
+                    getString(R.string.msg_tasks_to_run, viewModel.getSelectedTaskPaths())
+                viewModel.displayedChild = CHILD_CONFIRMATION
+                return@setOnClickListener
+            }
 
-        val toRun = viewModel.selected.toTypedArray()
-        buildService.executeTasks(*toRun)
-        dismiss()
-      }
+            if (viewModel.displayedChild == CHILD_CONFIRMATION) {
+                val buildService =
+                    Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+                        ?: run {
+                            log.error("Cannot find build service")
+                            return@setOnClickListener
+                        }
+
+                if (!buildService.isToolingServerStarted()) {
+                    flashError(R.string.msg_tooling_server_unavailable)
+                    return@setOnClickListener
+                }
+
+                val toRun = viewModel.selected.toTypedArray()
+                buildService.executeTasks(*toRun)
+                dismiss()
+            }
+        }
+        setOnLongClickListener {
+
+            TooltipManager.showTooltip(
+                context = requireContext(),
+                anchorView = this,
+                tag = TooltipTag.EDITOR_TOOLBAR_RUN_GRADLE_TASKS
+            )
+            true
+        }
     }
 
     binding.confirm.cancel.setOnClickListener { viewModel.displayedChild = CHILD_TASKS }
