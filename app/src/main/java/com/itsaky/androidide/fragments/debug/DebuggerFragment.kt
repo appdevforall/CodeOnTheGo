@@ -21,6 +21,7 @@ import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
 import com.itsaky.androidide.utils.isAtLeastR
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +38,8 @@ import rikka.shizuku.Shizuku
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment :
+	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private val shizukuViewModel by activityViewModels<ShizukuViewModel>()
@@ -103,7 +105,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 					binding.root.displayedChild = viewIndex
 					emptyStateViewModel.isEmpty.value =
 						(emptyStateViewModel.isEmpty.value ?: false) &&
-						currentView == VIEW_DEBUGGER
+								currentView == VIEW_DEBUGGER
 				}
 
 				viewModel.observeConnectionState(
@@ -139,7 +141,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
 					emptyStateViewModel.isEmpty.value =
 						currentView == VIEW_DEBUGGER &&
-						message != null
+								message != null
 					emptyStateViewModel.emptyMessage.value = message
 
 					if (state == DebuggerConnectionState.ATTACHED) {
@@ -164,7 +166,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 					withContext(Dispatchers.Main) {
 						emptyStateViewModel.isEmpty.value =
 							currentView == VIEW_DEBUGGER &&
-							descriptors.isEmpty()
+									descriptors.isEmpty()
 						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
 							ThreadSelectorListAdapter(
 								requireContext(),
@@ -258,12 +260,12 @@ class ThreadSelectorListAdapter(
 		val inflater = LayoutInflater.from(this.context)
 		val view =
 			(
-				convertView ?: inflater.inflate(
-					android.R.layout.simple_dropdown_item_1line,
-					parent,
-					false,
-				)
-			) as TextView
+					convertView ?: inflater.inflate(
+						android.R.layout.simple_dropdown_item_1line,
+						parent,
+						false,
+					)
+					) as TextView
 
 		val item = getItem(position)
 		if (item == null) {

@@ -28,6 +28,8 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DeviceUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastS
+import com.itsaky.androidide.utils.viewLifecycleScope
+import com.itsaky.androidide.utils.viewLifecycleScopeOrNull
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.WADBViewModel
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -53,7 +55,8 @@ import javax.net.ssl.SSLProtocolException
  * Fragment to request wireless ADB permissions.
  */
 @RequiresApi(Build.VERSION_CODES.R)
-class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>(FragmentWabPermissionBinding::inflate) {
+class WADBPermissionFragment :
+	FragmentWithBinding<FragmentWabPermissionBinding>(FragmentWabPermissionBinding::inflate) {
 	companion object {
 		const val VIEW_PAIRING = 0
 		const val VIEW_CONNECTING = 1
@@ -76,7 +79,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 				when (intent?.action) {
 					AdbPairingService.ACTION_PAIR_SUCCEEDED,
 					AdbPairingService.ACTION_PAIR_FAILED,
-					-> onPairResult(intent)
+						-> onPairResult(intent)
 				}
 			}
 		}
@@ -210,6 +213,22 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 			else -> Unit
 		}
 
+	/**
+	 * This method always runs in [GlobalScope]. This is because we want to
+	 * complete the connection even when the fragment is destroyed. If the user
+	 * already completed the pairing process, but the fragment was somehow
+	 * destroyed, we don't want the user to go through the process again because
+	 * we're already paired. This will work as long as the user has already
+	 * completed pairing and has wireless debugging turned on. If wireless
+	 * debugging is turned off, there's no other way and the user will have
+	 * to go to Developer Options to turn on wireless debugging.
+	 *
+	 * Care must be taken when accessing fragment's resources, since it may
+	 * be destroyed at any time. Use [viewLifecycleScopeOrNull] to launch
+	 * coroutines in the fragment's view lifecycle. [viewLifecycleScopeOrNull]
+	 * returns null if the fragment's view has already been destroyed or not
+	 * yet created.
+	 */
 	@OptIn(DelicateCoroutinesApi::class)
 	private fun onFindAdbConnectionPort(port: Int) =
 		GlobalScope.launch(Dispatchers.IO) {
@@ -221,7 +240,14 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 				return@launch
 			}
 
-			wadbViewModel.setConnectionStatus(getString(R.string.adb_connection_connecting, port))
+			viewLifecycleScopeOrNull?.launch {
+				wadbViewModel.setConnectionStatus(
+					getString(
+						R.string.adb_connection_connecting,
+						port
+					)
+				)
+			}
 
 			val key =
 				runCatching {
@@ -230,12 +256,14 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 
 			if (key.isFailure) {
 				logger.error("Failed to get ADB key", key.exceptionOrNull())
-				wadbViewModel.setConnectionStatus(
-					getString(
-						R.string.adb_connection_failed,
-						key.exceptionOrNull()?.message ?: "<unknown error>",
-					),
-				)
+				viewLifecycleScopeOrNull?.launch {
+					wadbViewModel.setConnectionStatus(
+						getString(
+							R.string.adb_connection_failed,
+							key.exceptionOrNull()?.message ?: "<unknown error>",
+						),
+					)
+				}
 				return@launch
 			}
 
@@ -250,13 +278,15 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 					}
 				}.onFailure { error ->
 					logger.error("Failed to connect to ADB server", error)
-					wadbViewModel.recordConnectionFailure(error)
-					wadbViewModel.setConnectionStatus(
-						getString(
-							R.string.adb_connection_failed,
-							error.message ?: "<unknown error>",
-						),
-					)
+					viewLifecycleScopeOrNull?.launch {
+						wadbViewModel.recordConnectionFailure(error)
+						wadbViewModel.setConnectionStatus(
+							getString(
+								R.string.adb_connection_failed,
+								error.message ?: "<unknown error>",
+							),
+						)
+					}
 
 					// connection failed, no point in trying to find the port
 					if (port != -1) {
@@ -270,7 +300,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 		val nm = context.getSystemService(NotificationManager::class.java)
 		val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
 		return nm.areNotificationsEnabled() &&
-			(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+				(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
 	}
 
 	private fun onReloadNotificationSettings() {
@@ -348,9 +378,11 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 				is AdbKeyException -> {
 					message = R.string.adb_error_key_store
 				}
+
 				is ConnectException -> {
 					message = R.string.cannot_connect_port
 				}
+
 				is SSLProtocolException -> {
 					message = R.string.adb_pair_required
 				}
