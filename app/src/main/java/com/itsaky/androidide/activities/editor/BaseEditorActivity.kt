@@ -702,7 +702,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 			hideBottomSheet()
 		})
 
-		showSearchResults()
+		focusSearchResults()
 		doDismissSearchProgress()
 	}
 
@@ -720,13 +720,21 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 		}
 	}
 
-	open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
+	open fun focusSearchResults() = focusBottomSheetFragment(SearchResultFragment::class.java)
 
-	open fun showBottomSheetFragment(
+	open fun focusBottomSheetFragment(
 		fragmentClass: Class<out Fragment>,
-		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED,
 	) {
-		showAndGetBottomSheetFragment(fragmentClass, sheetState)
+		val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
+		if (index >= 0 && index < content.bottomSheet.binding.tabs.tabCount) {
+			if (editorBottomSheet?.state != sheetState) {
+				editorBottomSheet?.state = sheetState
+			}
+			content.bottomSheet.binding.tabs
+				.getTabAt(index)
+				?.select()
+		}
 	}
 
 	open fun <T: Fragment> showAndGetBottomSheetFragment(
@@ -854,12 +862,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				debuggerViewModel.connectionState.collectLatest { state ->
-					if (state == DebuggerConnectionState.ATTACHED) {
-						ensureDebuggerServiceBound()
+					onDebuggerConnectionStateChanged(state)
 					}
-					postStopDebuggerServiceIfNotConnected()
-				}
-
 				debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
 					debuggerService?.targetPackage = newPackage
 				}
@@ -871,7 +875,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 		editorViewModel._statusText.observe(this) {
 			content.bottomSheet.setStatus(
 				it.first,
-				it.second
+				it.second,
 			)
 		}
 
@@ -893,8 +897,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 		setupBottomSheet()
 
 		if (!app.prefManager.getBoolean(
-				KEY_BOTTOM_SHEET_SHOWN
-			) && editorBottomSheet?.state != BottomSheetBehavior.STATE_EXPANDED
+				KEY_BOTTOM_SHEET_SHOWN,
+				) &&
+			editorBottomSheet?.state != BottomSheetBehavior.STATE_EXPANDED
 		) {
 			editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
 			ThreadUtils.runOnUiThreadDelayed({
@@ -904,12 +909,37 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 		}
 
 		binding.contentCard.progress = 0f
-		binding.swipeReveal.dragListener = object : SwipeRevealLayout.OnDragListener {
-			override fun onDragStateChanged(swipeRevealLayout: SwipeRevealLayout, state: Int) {}
-			override fun onDragProgress(swipeRevealLayout: SwipeRevealLayout, progress: Float) {
+		binding.swipeReveal.dragListener =
+			object : SwipeRevealLayout.OnDragListener {
+				override fun onDragStateChanged(
+					swipeRevealLayout: SwipeRevealLayout,
+					state: Int,
+					) {}
+
+				override fun onDragProgress(
+					swipeRevealLayout: SwipeRevealLayout,
+					progress: Float,
+					) {
 				onSwipeRevealDragProgress(progress)
 			}
 		}
+	}
+
+	protected open fun onDebuggerConnectionStateChanged(state: DebuggerConnectionState) {
+		if (state == DebuggerConnectionState.ATTACHED) {
+			ensureDebuggerServiceBound()
+		}
+
+		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		content.bottomSheet.pagerAdapter.setFragmentVisibility(DebuggerFragment::class.java, state >= DebuggerConnectionState.ATTACHED)
+		if (state == DebuggerConnectionState.ATTACHED) {
+			// if a VM was just attached, make sure the debugger fragment is visible
+			focusBottomSheetFragment(
+				fragmentClass = DebuggerFragment::class.java,
+				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+				)
+		}
+		postStopDebuggerServiceIfNotConnected()
 	}
 
 	private fun setupNoEditorView() {
