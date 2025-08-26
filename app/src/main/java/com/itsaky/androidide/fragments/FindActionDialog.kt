@@ -46,7 +46,12 @@ class FindActionDialog(
                 onFindInFileClicked(actionData)
             }
             setOnLongClickListener {
-                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE)
+                popupWindow.dismiss()
+                TooltipManager.showTooltip(
+                    context = context,
+                    anchorView = this,
+                    tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
+                )
                 true
             }
         }
@@ -57,7 +62,12 @@ class FindActionDialog(
                 onFindInProjectClicked(actionData)
             }
             setOnLongClickListener {
-                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT)
+                popupWindow.dismiss()
+                TooltipManager.showTooltip(
+                    context = context,
+                    anchorView = this,
+                    tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT
+                )
                 true
             }
         }
@@ -94,31 +104,4 @@ class FindActionDialog(
         }
     }
 
-    private fun showTooltip(tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = TooltipManager.getTooltip(
-                context = context,
-                category = TooltipCategory.CATEGORY_IDE,
-                tag,
-            )
-            if (tooltipItem != null) {
-                TooltipManager.showIDETooltip(
-                    context = context,
-                    anchorView = anchor,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("EditorHandlerActivity", "Tooltip item $tooltipItem is null")
-            }
-        }
-    }
 }
