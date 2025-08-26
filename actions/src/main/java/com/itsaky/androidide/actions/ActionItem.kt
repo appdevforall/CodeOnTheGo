@@ -72,7 +72,7 @@ interface ActionItem {
   /**
    * The tooltip tag of this [ActionItem].
    */
-  fun retrieveTooltipTag(isOutput: Boolean): String
+  fun retrieveTooltipTag(isOutput: Boolean): String = ""
 
   /**
    * The order of this action item. This is used only at some locations and not everywhere.

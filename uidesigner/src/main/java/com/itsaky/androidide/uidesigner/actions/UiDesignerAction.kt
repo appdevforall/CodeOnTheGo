@@ -62,5 +62,4 @@ abstract class UiDesignerAction : ActionItem {
         "DesignerWorkspaceFragment instance is required in ActionData"
       )
   }
-  override fun retrieveTooltipTag(isOutput: Boolean) = ""
 }

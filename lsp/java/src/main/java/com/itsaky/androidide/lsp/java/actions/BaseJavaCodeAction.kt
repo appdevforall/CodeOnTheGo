@@ -111,6 +111,4 @@ abstract class BaseJavaCodeAction : EditorActionItem {
     }
     return JavaCompilerProvider.get(module)
   }
-
-  override fun retrieveTooltipTag(isOutput: Boolean) = ""
 }

@@ -34,5 +34,4 @@ abstract class AbstractDebuggerAction(
         icon = ContextCompat.getDrawable(data.requireContext(), iconRes)
         enabled = checkEnabled(data)
     }
-    override fun retrieveTooltipTag(isOutput: Boolean) = ""
 }

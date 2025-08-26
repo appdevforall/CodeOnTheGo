@@ -60,6 +60,4 @@ abstract class EditorActivityAction : ActionItem {
     actionScope.cancelIfActive("Action is being destroyed")
   }
 
-  override fun retrieveTooltipTag(isOutput: Boolean) = ""
-
 }

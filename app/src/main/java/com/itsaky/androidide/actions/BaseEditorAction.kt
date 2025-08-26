@@ -60,6 +60,4 @@ abstract class BaseEditorAction : EditorActionItem {
     )
     return drawable
   }
-
-  override fun retrieveTooltipTag(isOutput: Boolean) = ""
 }
