@@ -20,252 +20,256 @@ package com.itsaky.androidide.templates
 import android.view.View
 import androidx.annotation.StringRes
 import androidx.annotation.StyleableRes
-import org.adfa.constants.Sdk
 import com.itsaky.androidide.templates.Language.Java
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.ParameterConstraint.NONEMPTY
 import com.itsaky.androidide.templates.ParameterConstraint.PACKAGE
 import com.itsaky.androidide.templates.R.string
+import org.adfa.constants.Sdk
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 enum class ParameterConstraint {
 
-  /**
-   * Value must be unique.
-   */
-  UNIQUE,
+    /**
+     * Value must be unique.
+     */
+    UNIQUE,
 
-  /**
-   * Value must be a valid Java package name.
-   */
-  PACKAGE,
+    /**
+     * Value must be a valid Java package name.
+     */
+    PACKAGE,
 
-  /**
-   * Value must a valid fully qualified Java class name.
-   */
-  CLASS,
+    /**
+     * Value must a valid fully qualified Java class name.
+     */
+    CLASS,
 
-  /**
-   * Value must be a valid Java class name.
-   */
-  CLASS_NAME,
+    /**
+     * Value must be a valid Java class name.
+     */
+    CLASS_NAME,
 
-  /**
-   * Value must be a valid Gradle module name.
-   */
-  MODULE_NAME,
+    /**
+     * Value must be a valid Gradle module name.
+     */
+    MODULE_NAME,
 
-  /**
-   * Value must not be empty or blank.
-   */
-  NONEMPTY,
+    /**
+     * Value must not be empty or blank.
+     */
+    NONEMPTY,
 
-  /**
-   * Value must be a valid layout file name.
-   */
-  LAYOUT,
+    /**
+     * Value must be a valid layout file name.
+     */
+    LAYOUT,
 
-  /**
-   * Value must path to a file.
-   */
-  FILE,
+    /**
+     * Value must path to a file.
+     */
+    FILE,
 
-  /**
-   * Value must path to a directory.
-   */
-  DIRECTORY,
+    /**
+     * Value must path to a directory.
+     */
+    DIRECTORY,
 
-  /**
-   * Used with [FILE] and [DIRECTORY]. Asserts that the file/directory at the given path exists.
-   */
-  EXISTS
+    /**
+     * Used with [FILE] and [DIRECTORY]. Asserts that the file/directory at the given path exists.
+     */
+    EXISTS
 }
 
-abstract class Parameter<T>(@StringRes val name: Int,
-  @StringRes val description: Int?, val default: T,
-  var constraints: List<ParameterConstraint>
+abstract class Parameter<T>(
+    @StringRes val name: Int,
+    @StringRes val description: Int?, val default: T,
+    val tooltipTag: String? = null,
+    var constraints: List<ParameterConstraint>
 ) {
 
-  private val observers = hashSetOf<Observer<T>>()
-  private val lock = ReentrantLock()
-  private var _value: T? = null
+    private val observers = hashSetOf<Observer<T>>()
+    private val lock = ReentrantLock()
+    private var _value: T? = null
 
-  private var actionBeforeCreateView: ((Parameter<T>) -> Unit)? = null
-  private var actionAfterCreateView: ((Parameter<T>) -> Unit)? = null
+    private var actionBeforeCreateView: ((Parameter<T>) -> Unit)? = null
+    private var actionAfterCreateView: ((Parameter<T>) -> Unit)? = null
 
-  /**
-   * The value of this parameter.
-   */
-  val value: T
-    get() = _value ?: default
+    /**
+     * The value of this parameter.
+     */
+    val value: T
+        get() = _value ?: default
 
-  /**
-   * Set the new value to this parameter.
-   *
-   * @param value The new parameter value.
-   * @param notify Whether the observers must be notified of the change or not.
-   */
-  fun setValue(value: T, notify: Boolean = true) {
-    this._value = value
+    /**
+     * Set the new value to this parameter.
+     *
+     * @param value The new parameter value.
+     * @param notify Whether the observers must be notified of the change or not.
+     */
+    fun setValue(value: T, notify: Boolean = true) {
+        this._value = value
 
-    if (notify) {
-      notifyObservers()
-    }
-  }
-
-  /**
-   * Resets the parameter value to the default value and removes any external value observers.
-   *
-   * @param notify Whether the observers should be notified about this change or not.
-   */
-  fun reset(notify: Boolean = true) {
-    setValue(default, notify)
-    clearObservers()
-  }
-
-  /**
-   * Adds the [Observer] instance to the list of observers.
-   *
-   * @param observer The observer to add.
-   * @return Whether the observer was added or not.
-   */
-  fun observe(observer: Observer<T>): Boolean {
-    return lock.withLock {
-      observers.add(observer)
-    }
-  }
-
-  /**
-   * Removes the [Observer] instance from the list of observers.
-   *
-   * @param observer The observer to remove.
-   * @return Whether the observer was removed or not.
-   */
-  fun removeObserver(observer: Observer<T>): Boolean {
-    return lock.withLock {
-      observers.remove(observer)
-    }
-  }
-
-  fun release() {
-    clearObservers()
-
-    this.actionBeforeCreateView = null
-    this.actionAfterCreateView = null
-  }
-
-  private fun clearObservers() {
-    lock.withLock {
-      observers.clear()
-    }
-  }
-
-  /**
-   * Perform the given action before the view is created.
-   *
-   * @param action The action to execute.
-   * @see beforeCreateView
-   */
-  fun doBeforeCreateView(action: (Parameter<T>) -> Unit) {
-    this.actionBeforeCreateView = action
-  }
-
-  /**
-   * Perform the given action after the view is created.
-   *
-   * @param action The action to execute.
-   * @see afterCreateView
-   */
-  fun doAfterCreateView(action: (Parameter<T>) -> Unit) {
-    this.actionBeforeCreateView = action
-  }
-
-  /**
-   * Called before the layout for this widget is created.
-   */
-  open fun beforeCreateView() {
-    this.actionBeforeCreateView?.invoke(this)
-  }
-
-  /**
-   * Called after the layout for this widget is created.
-   */
-  open fun afterCreateView() {
-    this.actionAfterCreateView?.invoke(this)
-  }
-
-  private fun notifyObservers() {
-    lock.withLock {
-      observers.forEach {
-        if (it !is DefaultObserver || it.isEnabled) {
-          it.onChanged(this)
+        if (notify) {
+            notifyObservers()
         }
-      }
     }
-  }
-
-  /**
-   * An [Observer] observes changes to values of a [Parameter].
-   */
-  fun interface Observer<T> {
 
     /**
-     * Called when the value of the parameter is changed.
+     * Resets the parameter value to the default value and removes any external value observers.
      *
-     * @param parameter The parameter that was changed (contains the new value).
+     * @param notify Whether the observers should be notified about this change or not.
      */
-    fun onChanged(parameter: Parameter<T>)
-  }
-
-  /**
-   * Default implementation of [Observer] which can enabled or disabled.
-   */
-  abstract class DefaultObserver<T>(var isEnabled: Boolean = true) :
-    Observer<T> {
+    fun reset(notify: Boolean = true) {
+        setValue(default, notify)
+        clearObservers()
+    }
 
     /**
-     * Executes the given [action] with this observer disabled.
+     * Adds the [Observer] instance to the list of observers.
      *
-     * @param action The action to perform.
+     * @param observer The observer to add.
+     * @return Whether the observer was added or not.
      */
-    fun disableAndRun(action: () -> Unit) {
-      val enabled = isEnabled
-      isEnabled = false
-      action()
-      isEnabled = enabled
+    fun observe(observer: Observer<T>): Boolean {
+        return lock.withLock {
+            observers.add(observer)
+        }
     }
-  }
+
+    /**
+     * Removes the [Observer] instance from the list of observers.
+     *
+     * @param observer The observer to remove.
+     * @return Whether the observer was removed or not.
+     */
+    fun removeObserver(observer: Observer<T>): Boolean {
+        return lock.withLock {
+            observers.remove(observer)
+        }
+    }
+
+    fun release() {
+        clearObservers()
+
+        this.actionBeforeCreateView = null
+        this.actionAfterCreateView = null
+    }
+
+    private fun clearObservers() {
+        lock.withLock {
+            observers.clear()
+        }
+    }
+
+    /**
+     * Perform the given action before the view is created.
+     *
+     * @param action The action to execute.
+     * @see beforeCreateView
+     */
+    fun doBeforeCreateView(action: (Parameter<T>) -> Unit) {
+        this.actionBeforeCreateView = action
+    }
+
+    /**
+     * Perform the given action after the view is created.
+     *
+     * @param action The action to execute.
+     * @see afterCreateView
+     */
+    fun doAfterCreateView(action: (Parameter<T>) -> Unit) {
+        this.actionBeforeCreateView = action
+    }
+
+    /**
+     * Called before the layout for this widget is created.
+     */
+    open fun beforeCreateView() {
+        this.actionBeforeCreateView?.invoke(this)
+    }
+
+    /**
+     * Called after the layout for this widget is created.
+     */
+    open fun afterCreateView() {
+        this.actionAfterCreateView?.invoke(this)
+    }
+
+    private fun notifyObservers() {
+        lock.withLock {
+            observers.forEach {
+                if (it !is DefaultObserver || it.isEnabled) {
+                    it.onChanged(this)
+                }
+            }
+        }
+    }
+
+    /**
+     * An [Observer] observes changes to values of a [Parameter].
+     */
+    fun interface Observer<T> {
+
+        /**
+         * Called when the value of the parameter is changed.
+         *
+         * @param parameter The parameter that was changed (contains the new value).
+         */
+        fun onChanged(parameter: Parameter<T>)
+    }
+
+    /**
+     * Default implementation of [Observer] which can enabled or disabled.
+     */
+    abstract class DefaultObserver<T>(var isEnabled: Boolean = true) :
+        Observer<T> {
+
+        /**
+         * Executes the given [action] with this observer disabled.
+         *
+         * @param action The action to perform.
+         */
+        fun disableAndRun(action: () -> Unit) {
+            val enabled = isEnabled
+            isEnabled = false
+            action()
+            isEnabled = enabled
+        }
+    }
 }
 
 abstract class ParameterBuilder<T> {
 
-  @StringRes
-  var name: Int? = null
+    @StringRes
+    var name: Int? = null
 
-  @StringRes
-  var description: Int? = null
-  var default: T? = null
+    @StringRes
+    var description: Int? = null
+    var default: T? = null
+    var tooltipTag: String? = null
 
-  var constraints: List<ParameterConstraint> = emptyList()
+    var constraints: List<ParameterConstraint> = emptyList()
 
-  protected open fun validate() {
-    checkNotNull(name) { "Parameter must have a name" }
-    checkNotNull(default) { "Parameter must have a default value" }
-  }
+    protected open fun validate() {
+        checkNotNull(name) { "Parameter must have a name" }
+        checkNotNull(default) { "Parameter must have a default value" }
+    }
 
-  abstract fun build(): Parameter<T>
+    abstract fun build(): Parameter<T>
 }
 
-class BooleanParameter(@StringRes name: Int, @StringRes description: Int?,
-  default: Boolean, constraints: List<ParameterConstraint>
-) : Parameter<Boolean>(name, description, default, constraints)
+class BooleanParameter(
+    @StringRes name: Int, @StringRes description: Int?,
+    default: Boolean, tooltipTag: String?, constraints: List<ParameterConstraint>
+) : Parameter<Boolean>(name, description, default, tooltipTag, constraints)
 
 class BooleanParameterBuilder : ParameterBuilder<Boolean>() {
 
-  override fun build(): BooleanParameter {
-    return BooleanParameter(name!!, description, default!!, constraints)
-  }
+    override fun build(): BooleanParameter {
+        return BooleanParameter(name!!, description, default!!, tooltipTag, constraints)
+    }
 
 }
 
@@ -279,163 +283,195 @@ class BooleanParameterBuilder : ParameterBuilder<Boolean>() {
  * @property onEndIconClick Function which will be used when the end icon is
  *     clicked. Click listener to the icon will be set on if this is non-null.
  */
-abstract class TextFieldParameter<T>(@StringRes name: Int,
-  @StringRes description: Int?, default: T,
-  val startIcon: ((TextFieldParameter<T>) -> Int)?,
-  val endIcon: ((TextFieldParameter<T>) -> Int)?,
-  val onStartIconClick: View.OnClickListener?,
-  val onEndIconClick: View.OnClickListener?,
-  val inputType: Int?,
-  @StyleableRes val imeOptions: Int?,
-  val maxLines: Int?,
-  constraints: List<ParameterConstraint>
-) : Parameter<T>(name, description, default, constraints)
+abstract class TextFieldParameter<T>(
+    @StringRes name: Int,
+    @StringRes description: Int?, default: T,
+    val startIcon: ((TextFieldParameter<T>) -> Int)?,
+    val endIcon: ((TextFieldParameter<T>) -> Int)?,
+    val onStartIconClick: View.OnClickListener?,
+    val onEndIconClick: View.OnClickListener?,
+    val inputType: Int?,
+    @StyleableRes val imeOptions: Int?,
+    val maxLines: Int?, tooltipTag: String?, constraints: List<ParameterConstraint>
+) : Parameter<T>(name, description, default, tooltipTag, constraints)
 
 abstract class TextFieldParameterBuilder<T>(
-  var startIcon: ((TextFieldParameter<T>) -> Int)? = null,
-  var endIcon: ((TextFieldParameter<T>) -> Int)? = null,
-  var onStartIconClick: View.OnClickListener? = null,
-  var onEndIconClick: View.OnClickListener? = null,
-  var inputType: Int? = null,
-  var imeOptions: Int? = null,
-  var maxLines: Int? = null
+    var startIcon: ((TextFieldParameter<T>) -> Int)? = null,
+    var endIcon: ((TextFieldParameter<T>) -> Int)? = null,
+    var onStartIconClick: View.OnClickListener? = null,
+    var onEndIconClick: View.OnClickListener? = null,
+    var inputType: Int? = null,
+    var imeOptions: Int? = null,
+    var maxLines: Int? = null
 ) : ParameterBuilder<T>()
 
-class StringParameter(@StringRes name: Int, @StringRes description: Int?,
-  default: String,
-  startIcon: ((TextFieldParameter<String>) -> Int)?,
-  endIcon: ((TextFieldParameter<String>) -> Int)?,
-  onStartIconClick: View.OnClickListener?,
-  onEndIconClick: View.OnClickListener?,
-  inputType: Int? = null,
-  @StyleableRes imeOptions: Int? = null,
-  maxLines: Int? = null,
-  constraints: List<ParameterConstraint>
-) : TextFieldParameter<String>(name, description, default, startIcon, endIcon,
-  onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, constraints)
+class StringParameter(
+    @StringRes name: Int, @StringRes description: Int?,
+    default: String,
+    startIcon: ((TextFieldParameter<String>) -> Int)?,
+    endIcon: ((TextFieldParameter<String>) -> Int)?,
+    onStartIconClick: View.OnClickListener?,
+    onEndIconClick: View.OnClickListener?,
+    inputType: Int? = null,
+    @StyleableRes imeOptions: Int? = null,
+    maxLines: Int? = null,
+    tooltipTag: String?,
+    constraints: List<ParameterConstraint>
+) : TextFieldParameter<String>(
+    name, description, default, startIcon, endIcon,
+    onStartIconClick, onEndIconClick, inputType, imeOptions, maxLines, tooltipTag, constraints
+)
 
 class StringParameterBuilder : TextFieldParameterBuilder<String>() {
 
-  override fun build(): StringParameter {
-    return StringParameter(
-      name = name!!,
-      description = description,
-      default = default!!,
-      startIcon = startIcon,
-      endIcon = endIcon,
-      onStartIconClick = onStartIconClick,
-      onEndIconClick = onEndIconClick,
-      inputType = inputType,
-      imeOptions = imeOptions,
-      maxLines = maxLines,
-      constraints = constraints
-    )
-  }
+    override fun build(): StringParameter {
+        return StringParameter(
+            name = name!!,
+            description = description,
+            default = default!!,
+            startIcon = startIcon,
+            endIcon = endIcon,
+            onStartIconClick = onStartIconClick,
+            onEndIconClick = onEndIconClick,
+            inputType = inputType,
+            imeOptions = imeOptions,
+            maxLines = maxLines,
+            tooltipTag = tooltipTag,
+            constraints = constraints,
+        )
+    }
 }
 
-class EnumParameter<T : Enum<*>>(@StringRes name: Int,
-  @StringRes description: Int?, default: T,
-  startIcon: ((TextFieldParameter<T>) -> Int)?,
-  endIcon: ((TextFieldParameter<T>) -> Int)?,
-  onStartIconClick: View.OnClickListener?,
-  onEndIconClick: View.OnClickListener?,
-  constraints: List<ParameterConstraint>,
-  val displayName: ((T) -> String)? = null,
-  val filter: ((T) -> Boolean)? = null
-) : TextFieldParameter<T>(name, description, default, startIcon, endIcon,
-  onStartIconClick, onEndIconClick, null, null, null, constraints) {
+class EnumParameter<T : Enum<*>>(
+    @StringRes name: Int,
+    @StringRes description: Int?, default: T,
+    startIcon: ((TextFieldParameter<T>) -> Int)?,
+    endIcon: ((TextFieldParameter<T>) -> Int)?,
+    onStartIconClick: View.OnClickListener?,
+    onEndIconClick: View.OnClickListener?,
+    tooltipTag: String?, constraints: List<ParameterConstraint>,
+    val displayName: ((T) -> String)? = null,
+    val filter: ((T) -> Boolean)? = null
+) : TextFieldParameter<T>(
+    name, description, default, startIcon, endIcon, onStartIconClick,
+    onEndIconClick, null, null, null, tooltipTag, constraints
+) {
 
-  /**
-   * Get the display name for this [EnumParameter].
-   */
-  fun getDisplayName(): String? {
-    return this.displayName?.invoke(value)
-  }
+    /**
+     * Get the display name for this [EnumParameter].
+     */
+    fun getDisplayName(): String? {
+        return this.displayName?.invoke(value)
+    }
 }
 
 class EnumParameterBuilder<T : Enum<*>> : TextFieldParameterBuilder<T>() {
 
-  var displayName: ((T) -> String)? = null
-  var filter: ((T) -> Boolean)? = null
+    var displayName: ((T) -> String)? = null
+    var filter: ((T) -> Boolean)? = null
 
-  override fun build(): EnumParameter<T> {
-    return EnumParameter(name = name!!, description = description,
-      default = default!!, startIcon = startIcon, endIcon = endIcon,
-      onStartIconClick = onStartIconClick, onEndIconClick = onEndIconClick,
-      constraints = constraints, displayName = displayName, filter = filter)
-  }
+    override fun build(): EnumParameter<T> {
+        return EnumParameter(
+            name = name!!,
+            description = description,
+            default = default!!,
+            startIcon = startIcon,
+            endIcon = endIcon,
+            onStartIconClick = onStartIconClick,
+            onEndIconClick = onEndIconClick,
+            tooltipTag = tooltipTag,
+            constraints = constraints,
+            displayName = displayName,
+            filter = filter
+        )
+    }
 }
 
 /**
  * Create a new [StringParameter] for accepting string input.
  */
-inline fun stringParameter(crossinline block: StringParameterBuilder.() -> Unit
+inline fun stringParameter(
+    crossinline block: StringParameterBuilder.() -> Unit
 ): StringParameter = StringParameterBuilder().apply(block).build()
 
 /**
  * Create a new [BooleanParameter] for accepting boolean input.
  */
-inline fun booleanParameter(crossinline block: BooleanParameterBuilder.() -> Unit
+inline fun booleanParameter(
+    crossinline block: BooleanParameterBuilder.() -> Unit
 ): BooleanParameter = BooleanParameterBuilder().apply(block).build()
 
-inline fun <T : Enum<*>> enumParameter(crossinline block: EnumParameterBuilder<T>.() -> Unit
+inline fun <T : Enum<*>> enumParameter(
+    crossinline block: EnumParameterBuilder<T>.() -> Unit
 ): EnumParameter<T> = EnumParameterBuilder<T>().apply(block).build()
 
-inline fun projectNameParameter(crossinline configure: StringParameterBuilder.() -> Unit = {}) =
-  stringParameter {
-    name = string.project_app_name
-    default = "My Application"
-    startIcon = { R.drawable.ic_android }
-    constraints = listOf(NONEMPTY)
-    inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
-    maxLines = 1
-    configure()
-  }
+inline fun projectNameParameter(
+    crossinline configure: StringParameterBuilder.() -> Unit = {}
+) =
+    stringParameter {
+        name = string.project_app_name
+        default = "My Application"
+        startIcon = { R.drawable.ic_android }
+        constraints = listOf(NONEMPTY)
+        inputType =
+            android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
+        maxLines = 1
+        this.tooltipTag = "setup.app.name"
+        configure()
+    }
 
-inline fun packageNameParameter(crossinline configure: StringParameterBuilder.() -> Unit = {}) =
-  stringParameter {
-    name = string.package_name
-    default = "com.example.myapplication"
-    startIcon = { R.drawable.ic_package }
-    constraints = listOf(NONEMPTY, PACKAGE)
-    inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-    imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
-    maxLines = 1
-    configure()
-  }
+inline fun packageNameParameter(
+    crossinline configure: StringParameterBuilder.() -> Unit = {}
+) =
+    stringParameter {
+        name = string.package_name
+        default = "com.example.myapplication"
+        startIcon = { R.drawable.ic_package }
+        constraints = listOf(NONEMPTY, PACKAGE)
+        inputType =
+            android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
+        maxLines = 1
+        this.tooltipTag = "setup.package.name"
+        configure()
+    }
 
 inline fun projectLanguageParameter(
-  crossinline configure: EnumParameterBuilder<Language>.() -> Unit = {}
+    crossinline configure: EnumParameterBuilder<Language>.() -> Unit = {}
 ) = enumParameter<Language> {
-  name = string.wizard_language
-  default = Java
-  displayName = Language::lang
-  startIcon = {
-      if (it.value == Kotlin) {
-          R.drawable.ic_language_kotlin
-      } else {
-          R.drawable.ic_language_java
-      }
-  }
-
-  configure()
+    name = string.wizard_language
+    default = Java
+    displayName = Language::lang
+    startIcon = {
+        if (it.value == Kotlin) {
+            R.drawable.ic_language_kotlin
+        } else {
+            R.drawable.ic_language_java
+        }
+    }
+    this.tooltipTag = "setup.project.language"
+    configure()
 }
 
-inline fun minSdkParameter(crossinline configure: EnumParameterBuilder<Sdk>.() -> Unit = {}) =
-  enumParameter<Sdk> {
-    name = string.minimum_sdk
-    default = Sdk.Lollipop
-    displayName = Sdk::displayName
-    startIcon = { R.drawable.ic_min_sdk }
+inline fun minSdkParameter(
+    crossinline configure: EnumParameterBuilder<Sdk>.() -> Unit = {}
+) =
+    enumParameter<Sdk> {
+        name = string.minimum_sdk
+        default = Sdk.Lollipop
+        displayName = Sdk::displayName
+        startIcon = { R.drawable.ic_min_sdk }
+        this.tooltipTag = "setup.minimum.sdk"
+        configure()
+    }
 
-    configure()
-  }
-
-inline fun useKtsParameter(crossinline configure: BooleanParameterBuilder.() -> Unit = {}) =
-  booleanParameter {
-    name = string.msg_use_kts
-    default = true
-
-    configure()
-  }
+inline fun useKtsParameter(
+    crossinline configure: BooleanParameterBuilder.() -> Unit = {}
+) =
+    booleanParameter {
+        name = string.msg_use_kts
+        default = true
+        this.tooltipTag = "setup.kotlin.script.language"
+        configure()
+    }
