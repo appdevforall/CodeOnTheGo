@@ -53,4 +53,5 @@ interface ITemplateWidgetViewProvider {
    * @return The view.
    */
   fun <T> createView(context: Context, widget: Widget<T>): View
+  fun applyCallTooltip(callTooltip: (String) -> Unit)
 }
