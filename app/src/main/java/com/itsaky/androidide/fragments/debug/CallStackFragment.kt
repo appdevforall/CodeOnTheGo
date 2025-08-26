@@ -23,24 +23,26 @@ import kotlinx.coroutines.withContext
  * @author Akash Yadav
  */
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
-
 	private val viewHolder by activityViewModels<DebuggerViewModel>()
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 
 		viewLifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				viewHolder.observeLatestAllFrames(
 					scope = this,
-					notifyOn = Dispatchers.Main
+					notifyOn = Dispatchers.Main,
 				) {
 					setAdapter(onCreateAdapter())
 				}
 
 				viewHolder.observeLatestSelectedFrame(
 					scope = this,
-					notifyOn = Dispatchers.Main
+					notifyOn = Dispatchers.Main,
 				) { _, index ->
 					(_binding?.root?.adapter as? CallStackAdapter?)?.apply {
 						val currentSelected = selectedFrameIndex
@@ -64,16 +66,18 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 class CallStackAdapter(
 	private val coroutineScope: CoroutineScope,
 	private val frames: List<ResolvableStackFrame>,
-	private val onItemClickListener: ((Int) -> Unit)? = null
+	private val onItemClickListener: ((Int) -> Unit)? = null,
 ) : RecyclerView.Adapter<CallStackAdapter.VH>() {
-
 	var selectedFrameIndex: Int = 0
 
 	class VH(
-		val binding: DebuggerCallstackItemBinding
+		val binding: DebuggerCallstackItemBinding,
 	) : RecyclerView.ViewHolder(binding.root)
 
-	override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): VH {
 		val inflater = LayoutInflater.from(parent.context)
 		val binding = DebuggerCallstackItemBinding.inflate(inflater, parent, false)
 		return VH(binding)
@@ -82,7 +86,10 @@ class CallStackAdapter(
 	override fun getItemCount() = frames.size
 
 	@SuppressLint("SetTextI18n")
-	override fun onBindViewHolder(holder: VH, position: Int) {
+	override fun onBindViewHolder(
+		holder: VH,
+		position: Int,
+	) {
 		val binding = holder.binding
 		val frame = frames[position]
 

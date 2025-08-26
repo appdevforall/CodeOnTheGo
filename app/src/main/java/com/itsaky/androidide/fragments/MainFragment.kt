@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,7 +9,6 @@ import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.text.HtmlCompat
 import androidx.fragment.app.viewModels
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.BuildConfig
@@ -55,79 +53,90 @@ import java.io.File
 import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
-
 	private val viewModel by viewModels<MainViewModel>(
-		ownerProducer = { requireActivity() })
+		ownerProducer = { requireActivity() },
+	)
 	private var binding: FragmentMainBinding? = null
 
-	private data class CloneRequest(val url: String, val targetDir: File)
+	private data class CloneRequest(
+		val url: String,
+		val targetDir: File,
+	)
 
 	private var currentCloneRequest: CloneRequest? = null
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(MainFragment::class.java)
 		const val KEY_TOOLTIP_URL = "tooltip_url"
 	}
 
-	private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
-		ActivityResultContracts.StartActivityForResult()
-	) { //ACTION_SEND always returns RESULT_CANCELLED, ignore it
-		// There are no request codes
-	}
+	private val shareActivityResultLauncher =
+		registerForActivityResult<Intent, ActivityResult>(
+			ActivityResultContracts.StartActivityForResult(),
+		) {
+			// ACTION_SEND always returns RESULT_CANCELLED, ignore it
+			// There are no request codes
+		}
 
 	override fun onCreateView(
-		inflater: LayoutInflater, container: ViewGroup?,
-		savedInstanceState: Bundle?
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
 	): View {
 		binding = FragmentMainBinding.inflate(inflater, container, false)
 		return binding!!.root
 	}
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
-		val actions = MainScreenAction.mainScreen().also { actions ->
-			val onClick = { action: MainScreenAction, _: View ->
-				when (action.id) {
-					MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
-					MainScreenAction.ACTION_OPEN_PROJECT -> showViewSavedProjects()
-					MainScreenAction.ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
-					MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
-					MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
-						Intent(requireActivity(), TerminalActivity::class.java)
-					)
+		val actions =
+			MainScreenAction.mainScreen().also { actions ->
+				val onClick = { action: MainScreenAction, _: View ->
+					when (action.id) {
+						MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
+						MainScreenAction.ACTION_OPEN_PROJECT -> showViewSavedProjects()
+						MainScreenAction.ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
+						MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
+						MainScreenAction.ACTION_OPEN_TERMINAL ->
+							startActivity(
+								Intent(requireActivity(), TerminalActivity::class.java),
+							)
 
-					MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
+						MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
 
-					MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
+						MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
+					}
 				}
-			}
-			val onLongClick = { action: MainScreenAction, _: View ->
-				performOptionsMenuClick(action)
-				true
-			}
+				val onLongClick = { action: MainScreenAction, _: View ->
+					performOptionsMenuClick(action)
+					true
+				}
 
-			actions.forEach { action ->
-				action.onClick = onClick
-				action.onLongClick = onLongClick
+				actions.forEach { action ->
+					action.onClick = onClick
+					action.onLongClick = onLongClick
 
-				if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
-					action.onLongClick = { _: MainScreenAction, _: View ->
-						val intent = Intent(requireActivity(), TerminalActivity::class.java).apply {
-							putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
+					if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
+						action.onLongClick = { _: MainScreenAction, _: View ->
+							val intent =
+								Intent(requireActivity(), TerminalActivity::class.java).apply {
+									putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
+								}
+							startActivity(intent)
+							true
 						}
-						startActivity(intent)
-						true
 					}
 				}
 			}
-		}
 
 		binding!!.actions.adapter = MainActionsListAdapter(actions)
 		binding!!.greetingText.setOnClickListener {
 			TooltipUtils.showWebPage(
 				requireContext(),
-				"file:///android_asset/idetooltips/getstarted_top.html"
+				"file:///android_asset/idetooltips/getstarted_top.html",
 			)
 		}
 
@@ -144,28 +153,30 @@ class MainFragment : BaseFragment() {
 			val item =
 				TooltipManager.getTooltip(context = requireContext(), category = "ide", tag = tag)
 			withContext((Dispatchers.Main)) {
-				(context?.let {
-					TooltipManager.showIDETooltip(
-						it,
-						view!!,
-						0,
-						IDETooltipItem(
-							tooltipCategory = "ide",
-							tooltipTag = item?.tooltipTag ?: "",
-							detail = item?.detail ?: "",
-							summary = item?.summary ?: "",
-							buttons = item?.buttons ?: arrayListOf(),
-						),
-						{ context, url, title ->
-							val intent = Intent(context, HelpActivity::class.java).apply {
-								putExtra(CONTENT_KEY, url)
-								putExtra(CONTENT_TITLE_KEY, title)
-							}
-							context.startActivity(intent)
-
-						}
-					)
-				})
+				(
+					context?.let {
+						TooltipManager.showIDETooltip(
+							it,
+							view!!,
+							0,
+							IDETooltipItem(
+								tooltipCategory = "ide",
+								tooltipTag = item?.tooltipTag ?: "",
+								detail = item?.detail ?: "",
+								summary = item?.summary ?: "",
+								buttons = item?.buttons ?: arrayListOf(),
+							),
+							{ context, url, title ->
+								val intent =
+									Intent(context, HelpActivity::class.java).apply {
+										putExtra(CONTENT_KEY, url)
+										putExtra(CONTENT_TITLE_KEY, title)
+									}
+								context.startActivity(intent)
+							},
+						)
+					}
+				)
 			}
 		}
 	}
@@ -176,7 +187,7 @@ class MainFragment : BaseFragment() {
 				context = ctx,
 				currentScreen = getCurrentScreenName(),
 				shareActivityResultLauncher = shareActivityResultLauncher,
-				appVersion = BuildConfig.VERSION_NAME
+				appVersion = BuildConfig.VERSION_NAME,
 			)
 		}
 	}
@@ -221,7 +232,10 @@ class MainFragment : BaseFragment() {
 		builder.setCancelable(true)
 		builder.setPositiveButton(string.git_clone) { dialog, _ ->
 			dialog.dismiss()
-			val url = binding.name.editText?.text?.toString()
+			val url =
+				binding.name.editText
+					?.text
+					?.toString()
 			doClone(url)
 		}
 		builder.setNegativeButton(android.R.string.cancel, null)
@@ -264,47 +278,48 @@ class MainFragment : BaseFragment() {
 
 		var getDialog: Function0<AlertDialog?>? = null
 
-		val cloneJob = coroutineScope.launch(Dispatchers.IO) {
+		val cloneJob =
+			coroutineScope.launch(Dispatchers.IO) {
+				val git =
+					try {
+						val cmd: CloneCommand = Git.cloneRepository()
+						cmd
+							.setURI(url)
+							.setDirectory(targetDir)
+							.setProgressMonitor(progress)
+						val token = prefs.getString(GITHUB_PAT, "")
+						if (!token.isNullOrBlank()) {
+							cmd.setCredentialsProvider(
+								UsernamePasswordCredentialsProvider(
+									"<token>",
+									token,
+								),
+							)
+						}
+						cmd.call()
+					} catch (err: Throwable) {
+						if (!progress.isCancelled) {
+							err.printStackTrace()
+							withContext(Dispatchers.Main) {
+								getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
+								showCloneError(err)
+							}
+						}
+						null
+					}
 
-			val git = try {
-				val cmd: CloneCommand = Git.cloneRepository()
-				cmd
-					.setURI(url)
-					.setDirectory(targetDir)
-					.setProgressMonitor(progress)
-				val token = prefs.getString(GITHUB_PAT, "")
-				if (!token.isNullOrBlank()) {
-					cmd.setCredentialsProvider(
-						UsernamePasswordCredentialsProvider(
-							"<token>",
-							token
-						)
-					)
-				}
-				cmd.call()
-			} catch (err: Throwable) {
-				if (!progress.isCancelled) {
-					err.printStackTrace()
+				try {
+					git?.close()
+				} finally {
+					val success = git != null
 					withContext(Dispatchers.Main) {
-						getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
-						showCloneError(err)
-					}
-				}
-				null
-			}
-
-			try {
-				git?.close()
-			} finally {
-				val success = git != null
-				withContext(Dispatchers.Main) {
-					getDialog?.invoke()?.also { dialog ->
-						if (dialog.isShowing) dialog.dismiss()
-						if (success) flashSuccess(string.git_clone_success)
+						getDialog?.invoke()?.also { dialog ->
+							if (dialog.isShowing) dialog.dismiss()
+							if (success) flashSuccess(string.git_clone_success)
+						}
 					}
 				}
 			}
-		}
 
 		builder.setPositiveButton(android.R.string.cancel) { iface, _ ->
 			iface.dismiss()
@@ -322,8 +337,8 @@ class MainFragment : BaseFragment() {
 		builder?.setMessage(
 			getString(
 				R.string.git_clone_dir_exists_detailed,
-				targetDir.absolutePath
-			)
+				targetDir.absolutePath,
+			),
 		)
 		builder?.setPositiveButton(R.string.delete_and_clone) { _, _ ->
 			val progressBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
@@ -355,8 +370,8 @@ class MainFragment : BaseFragment() {
 						errorBuilder.setMessage(
 							getString(
 								R.string.error_deleting_directory,
-								e.localizedMessage
-							)
+								e.localizedMessage,
+							),
 						)
 						errorBuilder.setPositiveButton(android.R.string.ok, null)
 						errorBuilder.show()
@@ -394,46 +409,48 @@ class MainFragment : BaseFragment() {
 
 		var getDialog: Function0<AlertDialog?>? = null
 
-		val cloneJob = coroutineScope.launch(Dispatchers.IO) {
-			val git = try {
-				val cmd: CloneCommand = Git.cloneRepository()
-				cmd
-					.setURI(url)
-					.setDirectory(targetDir)
-					.setProgressMonitor(progress)
-				val token = prefs.getString(GITHUB_PAT, "")
-				if (!token.isNullOrBlank()) {
-					cmd.setCredentialsProvider(
-						UsernamePasswordCredentialsProvider(
-							"<token>",
-							token
-						)
-					)
-				}
-				cmd.call()
-			} catch (err: Throwable) {
-				if (!progress.isCancelled) {
-					err.printStackTrace()
-					withContext(Dispatchers.Main) {
-						getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
-						showCloneError(err)
+		val cloneJob =
+			coroutineScope.launch(Dispatchers.IO) {
+				val git =
+					try {
+						val cmd: CloneCommand = Git.cloneRepository()
+						cmd
+							.setURI(url)
+							.setDirectory(targetDir)
+							.setProgressMonitor(progress)
+						val token = prefs.getString(GITHUB_PAT, "")
+						if (!token.isNullOrBlank()) {
+							cmd.setCredentialsProvider(
+								UsernamePasswordCredentialsProvider(
+									"<token>",
+									token,
+								),
+							)
+						}
+						cmd.call()
+					} catch (err: Throwable) {
+						if (!progress.isCancelled) {
+							err.printStackTrace()
+							withContext(Dispatchers.Main) {
+								getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
+								showCloneError(err)
+							}
+						}
+						null
 					}
-				}
-				null
-			}
 
-			try {
-				git?.close()
-			} finally {
-				val success = git != null
-				withContext(Dispatchers.Main) {
-					getDialog?.invoke()?.also { dialog ->
-						if (dialog.isShowing) dialog.dismiss()
-						if (success) flashSuccess(string.git_clone_success)
+				try {
+					git?.close()
+				} finally {
+					val success = git != null
+					withContext(Dispatchers.Main) {
+						getDialog?.invoke()?.also { dialog ->
+							if (dialog.isShowing) dialog.dismiss()
+							if (success) flashSuccess(string.git_clone_success)
+						}
 					}
 				}
 			}
-		}
 
 		builder.setPositiveButton(android.R.string.cancel) { iface, _ ->
 			iface.dismiss()
@@ -459,7 +476,10 @@ class MainFragment : BaseFragment() {
 		builder.setCancelable(true)
 		builder.setPositiveButton(string.git_clone) { dialog, _ ->
 			dialog.dismiss()
-			val newDirName = binding.name.editText?.text?.toString()
+			val newDirName =
+				binding.name.editText
+					?.text
+					?.toString()
 			if (!newDirName.isNullOrBlank()) {
 				val newTargetDir = File(originalDir.parentFile, newDirName)
 
@@ -491,9 +511,8 @@ class MainFragment : BaseFragment() {
 	// TODO(itsaky) : Improve this implementation
 	class GitCloneProgressMonitor(
 		val progress: LinearProgressIndicator,
-		val message: TextView
+		val message: TextView,
 	) : ProgressMonitor {
-
 		private var cancelled = false
 
 		fun cancel() {
@@ -504,7 +523,10 @@ class MainFragment : BaseFragment() {
 			runOnUiThread { progress.max = totalTasks }
 		}
 
-		override fun beginTask(title: String?, totalWork: Int) {
+		override fun beginTask(
+			title: String?,
+			totalWork: Int,
+		) {
 			runOnUiThread { message.text = title }
 		}
 
@@ -518,8 +540,6 @@ class MainFragment : BaseFragment() {
 
 		override fun endTask() {}
 
-		override fun isCancelled(): Boolean {
-			return cancelled || Thread.currentThread().isInterrupted
-		}
+		override fun isCancelled(): Boolean = cancelled || Thread.currentThread().isInterrupted
 	}
 }
