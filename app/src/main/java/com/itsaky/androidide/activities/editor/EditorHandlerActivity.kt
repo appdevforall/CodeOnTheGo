@@ -81,6 +81,8 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
   protected val isOpenedFilesSaved = AtomicBoolean(false)
 
+  private val fileTimestamps = mutableMapOf<String, Long>()
+
   override fun doOpenFile(file: File, selection: Range?) {
     openFileAndSelect(file, selection)
   }
@@ -148,6 +150,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   override fun onPause() {
     super.onPause()
 
+    // Record timestamps for all currently open files before saving the cache
+    editorViewModel.getOpenedFiles().forEach { file ->
+      // Note: Using the file's absolutePath as the key
+      fileTimestamps[file.absolutePath] = file.lastModified()
+    }
+
     // if the user manually closes the project, this will be true
     // in this case, don't overwrite the already saved cache
     if (!isOpenedFilesSaved.get()) {
@@ -158,6 +166,30 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
   override fun onResume() {
     super.onResume()
     isOpenedFilesSaved.set(false)
+    checkForExternalFileChanges()
+  }
+
+  private fun checkForExternalFileChanges() {
+    // Get the list of files currently managed by the ViewModel
+    val openFiles = editorViewModel.getOpenedFiles()
+    if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
+
+    // Check each open file
+    openFiles.forEach { file ->
+      val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
+      val currentTimestamp = file.lastModified()
+      val editorView = getEditorForFile(file)
+
+      // If the file on disk is newer AND the editor for it exists AND has no unsaved changes...
+      if (currentTimestamp > lastKnownTimestamp && editorView != null && !editorView.isModified) {
+        val newContent = file.readText()
+        editorView.editor?.post {
+          editorView.editor?.setText(newContent)
+          editorView.markAsSaved()
+          updateTabs()
+        }
+      }
+    }
   }
 
   override fun saveOpenedFiles() {

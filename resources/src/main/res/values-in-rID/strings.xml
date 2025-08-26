@@ -390,11 +390,6 @@
   <string name="msg_invalid_project_details">Detail proyek tidak valid</string>
   <string name="msg_use_kts">Gunakan Skrip Kotlin (.kts) untuk file Build Gradle</string>
   <string name="title_privacy">Privasi</string>
-  <string name="title_androidide_statistics">Statistik Code on the Go</string>
-  <string name="msg_androidide_statistics">Bantu kami menyempurnakan Code on the Go dengan menyediakan statistik anonim. Kami mengumpulkan informasi dasar tentang perangkat Anda hanya untuk statistik basis pengguna. Data pasti yang dibagikan dapat dilihat di preferensi. Data Anda aman dan tidak dibagikan dengan layanan pihak ketiga. Anda dapat menyisih kapan saja di preferensi.</string>
-  <string name="summary_anonymous_usage_stats">Statistik penggunaan anonim</string>
-  <string name="idepref_stats_optIn_title">Koleksi statistik</string>
-  <string name="idepref_stats_optIn_summary">Izinkan metrik penginstalan dan statistik perangkat dikumpulkan (sepenuhnya anonim).</string>
   <string name="title_unique_id">ID Unik</string>
   <string name="title_device">Perangkat</string>
   <string name="title_app_version">Versi Aplikasi</string>
@@ -417,8 +412,8 @@
   <string name="idepref_devOptions_enableLogsender_title">Aktifkan LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">Saat dinonaktifkan, log dari aplikasi tidak akan ditampilkan di Code on the Go</string>
   <string name="title_build_variants">Bangun varian</string>
-  <string name="title_apply">Terapkan</string>
-  <string name="title_discard">Buang</string>
+  <string name="build_variants_apply">Terapkan</string>
+  <string name="build_variants_cancel">Buang</string>
   <string name="msg_build_variants_fetch_failed">Gagal mengambil varian build</string>
   <string name="title_choose_application">Pilih aplikasi</string>
   <string name="err_selected_variant_not_found">Varian build yang dipilih tidak ditemukan</string>

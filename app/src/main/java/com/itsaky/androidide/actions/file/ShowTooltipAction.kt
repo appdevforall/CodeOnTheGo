@@ -24,6 +24,8 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.TooltipUtils
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
@@ -35,16 +37,17 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     init {
         label = context.getString(R.string.title_show_tooltip)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
+        tooltipTag = TooltipTag.EDITOR_TOOLBAR_HELP
     }
 
     override suspend fun execAction(data: ActionData): Any {
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
         val activity = data.getActivity()
-        val category = when(editor.file!!.extension.toString()) {
-            "java" -> "java"
-            "kt" -> "kotlin"
-            else -> "ide"
+        val category = when (editor.file?.extension) {
+            "java" -> TooltipCategory.CATEGORY_JAVA
+            "kt" -> TooltipCategory.CATEGORY_KOTLIN
+            else -> TooltipCategory.CATEGORY_IDE
         }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {

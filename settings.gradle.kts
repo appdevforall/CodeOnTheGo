@@ -122,7 +122,6 @@ include(
     ":eventbus-events",
     ":gradle-plugin",
     ":gradle-plugin-config",
-    ":idestats",
     ":lexers",
     ":logger",
     ":logsender",

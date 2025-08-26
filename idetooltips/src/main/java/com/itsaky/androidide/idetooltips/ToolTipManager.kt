@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.content.ContextCompat.getColor
@@ -18,30 +19,37 @@ import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 
+
 object TooltipManager {
-    private val TAG = "TooltipManager"
+    private const val TAG = "TooltipManager"
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
-    val queryTooltip = """
-SELECT T.id, T.summary, T.detail
-FROM   Tooltips AS T, TooltipCategories as TC
-WHERE  T.tooltipCategoryId = TC.id
-  AND  TC.category         = ?
-  AND  T.tag               = ?
-"""
+    private const val QUERY_TOOLTIP_ONE_CATEGORY = """
+        SELECT T.id, T.summary, T.detail
+        FROM Tooltips AS T, TooltipCategories AS TC
+        WHERE T.categoryId = TC.id
+          AND T.tag = ?
+          AND TC.category = ?
+    """
 
-    val queryTooltipButtons = """
-SELECT description, uri
-FROM   TooltipButtons
-WHERE  tooltipId = ?
-ORDER  BY buttonNumberId
-"""
+    private const val QUERY_TOOLTIP_TWO_CATEGORIES = """
+        SELECT T.id, T.summary, T.detail
+        FROM Tooltips AS T, TooltipCategories AS TC
+        WHERE T.categoryId = TC.id
+          AND T.tag = ?
+          AND TC.category in ('?', 'a')
+    """
+
+    private const val QUERY_TOOLTIP_BUTTONS = """
+        SELECT description, uri
+        FROM TooltipButtons
+        WHERE tooltipId = ?
+        ORDER BY buttonNumberId
+    """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
@@ -58,7 +66,10 @@ ORDER  BY buttonNumberId
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                val cursor = db.rawQuery(queryTooltip, arrayOf(category, tag))
+                val tooltipQuery = if   ((category == "j" || category == "k")) QUERY_TOOLTIP_TWO_CATEGORIES
+                                   else QUERY_TOOLTIP_ONE_CATEGORY
+
+                var cursor = db.rawQuery(tooltipQuery, arrayOf(tag, category))
                 
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
@@ -71,20 +82,19 @@ ORDER  BY buttonNumberId
 
                 cursor.moveToFirst()
 
-                val id      = cursor.getInt(0)
-                val summary = cursor.getString(1)
-                val detail  = cursor.getString(2)
+                val tooltipId = cursor.getInt(0)
+                val summary   = cursor.getString(1)
+                val detail    = cursor.getString(2)
 
-                val buttonCursor = db.rawQuery(queryTooltipButtons, arrayOf(id.toString()))
-                    
+                cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
+
                 val buttons = ArrayList<Pair<String, String>>()
-                while (buttonCursor.moveToNext()) {
-                    buttons.add(Pair(buttonCursor.getString(0), buttonCursor.getString(1)))
+                while (cursor.moveToNext()) {
+                    buttons.add(Pair(cursor.getString(0), "http://localhost:6174/" + cursor.getString(1)))
                 }
 
                 Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")
-                    
-                buttonCursor.close()
+
                 cursor.close()
                 db.close()
                     
@@ -157,7 +167,7 @@ ORDER  BY buttonNumberId
         fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
-        var tooltipHtmlContent = when (level) {
+        val tooltipHtmlContent = when (level) {
             0 -> tooltipItem.summary
             1 -> {
                 val detailContent = if (tooltipItem.detail.isNotBlank()) tooltipItem.detail else ""
@@ -217,11 +227,34 @@ ORDER  BY buttonNumberId
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
         popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
 
-
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+        val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
+        infoButton.setOnClickListener {
+            onInfoButtonClicked(context, popupWindow, tooltipItem)
+        }
     }
+    /**
+     * Handles the click on the info icon in the tooltip.
+     */
+    private fun onInfoButtonClicked(context: Context, popupWindow: PopupWindow, tooltip: IDETooltipItem) {
+        popupWindow.dismiss()
 
+        val metadata = """
+        <b>ID:</b> "${tooltip.tooltipTag}"<br/>
+        <b>Raw Summary:</b> "${android.text.Html.escapeHtml(tooltip.summary)}"<br/>
+        <b>Raw Detail:</b> "${android.text.Html.escapeHtml(tooltip.detail)}"<br/>
+        <b>Buttons:</b> ${tooltip.buttons.joinToString { "\"${it.first} → ${it.second}\"" }}<br/>
+        """.trimIndent()
+
+        androidx.appcompat.app.AlertDialog.Builder(context)
+            .setTitle("Tooltip Debug Info")
+            .setMessage(android.text.Html.fromHtml(metadata, android.text.Html.FROM_HTML_MODE_LEGACY))
+            .setPositiveButton(android.R.string.ok) { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(true) // Allow dismissing by tapping outside
+            .show()
+    }
 }
-
