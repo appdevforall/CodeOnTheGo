@@ -14,170 +14,229 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+package com.itsaky.androidide.adapters
 
-package com.itsaky.androidide.adapters;
+import androidx.collection.LongSparseArray
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.itsaky.androidide.fragments.DiagnosticsListFragment
+import com.itsaky.androidide.fragments.SearchResultFragment
+import com.itsaky.androidide.fragments.debug.DebuggerFragment
+import com.itsaky.androidide.fragments.output.AppLogFragment
+import com.itsaky.androidide.fragments.output.BuildOutputFragment
+import com.itsaky.androidide.fragments.output.IDELogFragment
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.resources.R
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import java.lang.reflect.Constructor
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.collection.LongSparseArray;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentActivity;
-import androidx.viewpager2.adapter.FragmentStateAdapter;
+class EditorBottomSheetTabAdapter(
+	fragmentActivity: FragmentActivity,
+) : FragmentStateAdapter(fragmentActivity) {
+	private val allTabs =
+		mutableListOf<Tab>().apply {
+			@Suppress("KotlinConstantConditions")
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.build_output),
+					fragmentClass = BuildOutputFragment::class.java,
+					itemId = size.toLong()
+				),
+			)
 
-import com.itsaky.androidide.fragments.debug.DebuggerFragment;
-import com.itsaky.androidide.fragments.DiagnosticsListFragment;
-import com.itsaky.androidide.fragments.SearchResultFragment;
-import com.itsaky.androidide.fragments.output.AppLogFragment;
-import com.itsaky.androidide.fragments.output.BuildOutputFragment;
-import com.itsaky.androidide.fragments.output.IDELogFragment;
-import com.itsaky.androidide.resources.R;
-import java.util.ArrayList;
-import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.app_logs),
+					fragmentClass = AppLogFragment::class.java,
+					itemId = size.toLong(),
+					tooltipTag = TooltipTag.PROJECT_APP_LOGS
+				),
+			)
 
-public class EditorBottomSheetTabAdapter extends FragmentStateAdapter {
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.ide_logs),
+					fragmentClass = IDELogFragment::class.java,
+					itemId = size.toLong(),
+					tooltipTag = TooltipTag.PROJECT_IDE_LOGS
+				),
+			)
 
-  private static final Logger LOG = LoggerFactory.getLogger(EditorBottomSheetTabAdapter.class);
-  private final List<Tab> fragments;
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.view_diags),
+					fragmentClass = DiagnosticsListFragment::class.java,
+					itemId = size.toLong(),
+					tooltipTag = TooltipTag.PROJECT_SEARCH_RESULTS
+				),
+			)
 
-  public EditorBottomSheetTabAdapter(@NonNull FragmentActivity fragmentActivity) {
-    super(fragmentActivity);
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.view_search_results),
+					fragmentClass = SearchResultFragment::class.java,
+					itemId = size.toLong(),
+					tooltipTag = TooltipTag.PROJECT_DIAGNOSTICS
+				),
+			)
 
-    var index = -1;
-    this.fragments = new ArrayList<>();
-    this.fragments.add(
-        new Tab(
-            fragmentActivity.getString(R.string.build_output),
-            BuildOutputFragment.class,
-            ++index));
-    this.fragments.add(
-        new Tab(fragmentActivity.getString(R.string.app_logs), AppLogFragment.class, ++index));
-    this.fragments.add(
-        new Tab(fragmentActivity.getString(R.string.ide_logs), IDELogFragment.class, ++index));
-    this.fragments.add(
-        new Tab(
-            fragmentActivity.getString(R.string.view_diags),
-            DiagnosticsListFragment.class,
-            ++index));
-    this.fragments.add(
-        new Tab(
-            fragmentActivity.getString(R.string.view_search_results),
-            SearchResultFragment.class,
-            ++index));
-    this.fragments.add(
-            new Tab(
-                    fragmentActivity.getString(R.string.debugger_title),
-                    DebuggerFragment.class,
-                    ++index));
-  }
+			add(
+				Tab(
+					title = fragmentActivity.getString(R.string.debugger_title),
+					fragmentClass = DebuggerFragment::class.java,
+					itemId = size.toLong()
+				),
+			)
+		}
 
-  public Fragment getFragmentAtIndex(int index) {
-    return getFragmentById(getItemId(index));
-  }
+	private val tabs = MutableList(allTabs.size) { allTabs[it] }
 
-  @Nullable
-  public Fragment getFragmentById(long itemId) {
-    final var fragments = getFragments();
-    if (fragments != null) {
-      return fragments.get(itemId);
-    }
+	fun removeFragment(klass: Class<out Fragment>) {
+		val index = findIndexOfFragmentByClass(klass)
+		if (index == -1) {
+			return
+		}
 
-    return null;
-  }
+		tabs.removeAt(index)
+		notifyItemRemoved(index)
+	}
 
-  @Nullable
-  private LongSparseArray<Fragment> getFragments() {
-    try {
-      final var field = FragmentStateAdapter.class.getDeclaredField("mFragments");
-      field.setAccessible(true);
-        //noinspection unchecked
-        return (LongSparseArray<Fragment>) field.get(this);
-    } catch (Throwable th) {
-      LOG.error("Unable to reflect fragment list from adapter.");
-    }
+	fun restoreFragment(klass: Class<out Fragment>): Boolean {
+		if (findFragmentByClass(klass) != null) {
+			return false
+		}
 
-    return null;
-  }
+		val originalIndex = allTabs.indexOfFirst { it.fragmentClass == klass }
+		if (originalIndex == -1) return false
 
-  @NonNull
-  @Override
-  public Fragment createFragment(int position) {
-    try {
-      final var tab = fragments.get(position);
-      final var klass = Class.forName(tab.name).asSubclass(Fragment.class);
-      final var constructor = klass.getDeclaredConstructor();
-      constructor.setAccessible(true);
-      return constructor.newInstance();
-    } catch (Throwable th) {
-      throw new RuntimeException("Unable to create fragment", th);
-    }
-  }
+		// Calculate where to insert based on which tabs are currently shown
+		var insertIndex = 0
+		for (i in 0 until originalIndex) {
+			val tab = allTabs[i]
+			if (tabs.contains(tab)) {
+				insertIndex++
+			}
+		}
 
-  @Override
-  public int getItemCount() {
-    return fragments.size();
-  }
+		val tabToRestore = allTabs[originalIndex]
+		tabs.add(insertIndex, tabToRestore)
+		notifyItemInserted(insertIndex)
+		return true
+	}
 
-  public String getTitle(int position) {
-    return fragments.get(position).title;
-  }
+	fun toggleFragment(klass: Class<out Fragment>): Boolean {
+		val index = findIndexOfFragmentByClass(klass)
+		return if (index != -1) {
+			removeFragment(klass)
+			false
+		} else {
+			restoreFragment(klass)
+			true
+		}
+	}
 
-  @Nullable
-  public BuildOutputFragment getBuildOutputFragment() {
-    return findFragmentByClass(BuildOutputFragment.class);
-  }
+	fun setFragmentVisibility(
+		klass: Class<out Fragment>,
+		isVisible: Boolean,
+	) = if (isVisible) restoreFragment(klass) else removeFragment(klass)
 
-  @Nullable
-  private <T extends Fragment> T findFragmentByClass(Class<T> clazz) {
-    final var name = clazz.getName();
-    for (final var tab : this.fragments) {
-      if (tab.name.equals(name)) {
-          //noinspection unchecked
-          return (T) getFragmentById(tab.itemId);
-      }
-    }
+	fun getFragmentAtIndex(index: Int): Fragment? = getFragmentById(getItemId(index))
 
-    return null;
-  }
+	private fun getFragmentById(itemId: Long): Fragment? {
+		val fragments = getFragments()
+		if (fragments != null) {
+			return fragments[itemId]
+		}
 
-  @Nullable
-  public AppLogFragment getLogFragment() {
-    return findFragmentByClass(AppLogFragment.class);
-  }
+		return null
+	}
 
-  @Nullable
-  public DiagnosticsListFragment getDiagnosticsFragment() {
-    return findFragmentByClass(DiagnosticsListFragment.class);
-  }
+	@Suppress("UNCHECKED_CAST")
+	private fun getFragments(): LongSparseArray<Fragment?>? {
+		try {
+			val field = FragmentStateAdapter::class.java.getDeclaredField("mFragments")
+			field.isAccessible = true
+			return field.get(this) as LongSparseArray<Fragment?>?
+		} catch (th: Throwable) {
+			logger.error("Unable to reflect fragment list from adapter.", th)
+		}
 
-  @Nullable
-  public SearchResultFragment getSearchResultFragment() {
-    return findFragmentByClass(SearchResultFragment.class);
-  }
+		return null
+	}
 
-  public <T extends Fragment> int findIndexOfFragmentByClass(@NonNull Class<T> tClass) {
-    final var name = tClass.getName();
-    for (int i = 0; i < this.fragments.size(); i++) {
-      final var tab = this.fragments.get(i);
-      if (tab.name.equals(name)) {
-        return i;
-      }
-    }
+	override fun createFragment(position: Int): Fragment {
+		try {
+			val tab = tabs[position]
+			val klass = tab.fragmentClass
+			val constructor: Constructor<out Fragment> = klass.getDeclaredConstructor()
+			constructor.isAccessible = true
+			return constructor.newInstance()
+		} catch (th: Throwable) {
+			throw RuntimeException("Unable to create fragment", th)
+		}
+	}
 
-    return -1;
-  }
+	override fun getItemCount(): Int = tabs.size
 
-  static class Tab {
+	fun getTitle(position: Int): String? = tabs[position].title
 
-    final String title;
-    final String name;
-    final long itemId;
+	val buildOutputFragment: BuildOutputFragment?
+		get() = findFragmentByClass(BuildOutputFragment::class.java)
 
-    public Tab(String title, @NonNull Class<? extends Fragment> fragment, long id) {
-      this.title = title;
-      this.name = fragment.getName();
-      this.itemId = id;
-    }
-  }
+	val logFragment: AppLogFragment?
+		get() = findFragmentByClass(AppLogFragment::class.java)
+
+	val diagnosticsFragment: DiagnosticsListFragment?
+		get() = findFragmentByClass(DiagnosticsListFragment::class.java)
+
+	val searchResultFragment: SearchResultFragment?
+		get() = findFragmentByClass(SearchResultFragment::class.java)
+
+	fun <T : Fragment?> findIndexOfFragmentByClass(tClass: Class<T>): Int {
+		val pair = findTabAndIndexByClass(tClass)
+		if (pair == null) {
+			return -1
+		}
+
+		return pair.second
+	}
+
+	@Suppress("UNCHECKED_CAST")
+	private fun <T : Fragment> findFragmentByClass(clazz: Class<out T>): T? {
+		for (tab in tabs) {
+			if (tab.fragmentClass == clazz) {
+				return getFragmentById(tab.itemId) as T?
+			}
+		}
+
+		return null
+	}
+
+	private fun <T : Fragment?> findTabAndIndexByClass(tClass: Class<T>): Pair<Tab, Int>? {
+		for ((index, tab) in this.tabs.withIndex()) {
+			if (tab.fragmentClass == tClass) {
+				return tab to index
+			}
+		}
+
+		return null
+	}
+
+	internal data class Tab(
+		val title: String,
+		val fragmentClass: Class<out Fragment>,
+		val itemId: Long,
+		val tooltipTag: String? = null
+	)
+
+	companion object {
+		private val logger: Logger =
+			LoggerFactory.getLogger(EditorBottomSheetTabAdapter::class.java)
+	}
+
+	fun getTooltipTag(position: Int): String? {
+		return allTabs[position].tooltipTag
+	}
 }
