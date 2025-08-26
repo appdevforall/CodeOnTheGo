@@ -52,6 +52,7 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -224,14 +225,10 @@ class EditorBottomSheet
 		private fun generateTooltipListener(
       tooltipTag: String
   ): OnLongClickListener = OnLongClickListener { view: View ->
-      // Get the LifecycleOwner from the context. It's safe because your
-      // init block already ensures the context is a FragmentActivity.
       val lifecycleOwner = this.context as? LifecycleOwner
 
-      // Launch the coroutine on the obtained lifecycleScope
       lifecycleOwner?.lifecycleScope?.launch {
           try {
-              // Now you can safely call your suspend function
               val tooltipData = getTooltipData(TooltipCategory.CATEGORY_IDE, tooltipTag)
               tooltipData?.let {
                   TooltipUtils.showIDETooltip(
