@@ -17,8 +17,6 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import org.adfa.constants.LOCAL_MAVEN_REPO_FOLDER_DEST
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 
 /**
@@ -31,14 +29,17 @@ internal fun ProjectTemplateBuilder.settingsGradleSrcStr(): String {
   return """
 pluginManagement {
   repositories {
-    maven(uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"))
+    gradlePluginPortal()
+    google()
+    mavenCentral()
   }
 }
 
 dependencyResolutionManagement {
   repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
   repositories {
-    maven(uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"))
+    google()
+    mavenCentral()
   }
 }
 
@@ -51,16 +52,19 @@ ${modules.joinToString(separator = ", ") { "include(\"${it.name}\")" }}
 internal fun ProjectTemplateBuilder.settingsGroovyGradleSrcStr(): String {
   return """
 pluginManagement {
-    repositories {
-        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST") }
-    }
+  repositories {
+    gradlePluginPortal()
+    google()
+    mavenCentral()
+  }
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        maven { url = uri("/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST") }
-    }
+  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  repositories {
+    google()
+    mavenCentral()
+  }
 }
 
 rootProject.name = "${data.name}"
