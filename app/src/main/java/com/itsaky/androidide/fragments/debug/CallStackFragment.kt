@@ -1,6 +1,7 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -11,6 +12,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
 import com.itsaky.androidide.fragments.RecyclerViewFragment
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +24,7 @@ import kotlinx.coroutines.withContext
  * @author Akash Yadav
  */
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
-    override val fragmentTooltipTag: String? = null// Tooltip pending to be defined
+    override val fragmentTooltipTag: String? = DEBUG_OUTPUT_CALLSTACK
     private val viewHolder by activityViewModels<DebuggerViewModel>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -52,17 +54,25 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
         }
     }
 
-    override fun onCreateAdapter() = CallStackAdapter(viewLifecycleScope, viewHolder.allFrames.value) { newPosition ->
-        viewLifecycleScope.launch {
-            viewHolder.setSelectedFrameIndex(newPosition)
-        }
-    }
+    override fun onCreateAdapter() = CallStackAdapter(
+        viewLifecycleScope,
+        requireContext(),
+        viewHolder.allFrames.value,
+        { newPosition ->
+            viewLifecycleScope.launch {
+                viewHolder.setSelectedFrameIndex(newPosition)
+            }
+        },
+        parentFragment as? TooltipHost
+    )
 }
 
 class CallStackAdapter(
     private val coroutineScope: CoroutineScope,
+    private val context: Context,
     private val frames: List<ResolvableStackFrame>,
-    private val onItemClickListener: ((Int) -> Unit)? = null
+    private val onItemClickListener: ((Int) -> Unit)? = null,
+    private val tooltipHost: TooltipHost? = null
 ) : RecyclerView.Adapter<CallStackAdapter.VH>() {
 
     var selectedFrameIndex: Int = 0
@@ -98,12 +108,22 @@ class CallStackAdapter(
 
                 binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
                 binding.label.text = descriptor.displayText()
-                binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
+                binding.indicator.visibility =
+                    if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
 
                 binding.root.setOnClickListener {
                     onItemClickListener?.invoke(position)
                 }
+
+                binding.root.setOnLongClickListener {
+                    tooltipHost?.showToolTip(DEBUG_OUTPUT_CALLSTACK)
+                    true
+                }
             }
         }
+
+
     }
+
+
 }

@@ -20,4 +20,10 @@ object TooltipTag {
     const val PROJECT_SEARCH_RESULTS = "project.searchresults"
     const val PROJECT_DIAGNOSTICS = "project.diagnostics"
 
+    // Debugger
+    const val PROJECT_DEBUGGER_OUTPUT = "project.debugger.output"
+    const val DEBUG_THREAD_SELECTOR = "debug.thread.selector"
+    const val DEBUG_OUTPUT_VARIABLES = "debug.output.variables"
+    const val DEBUG_OUTPUT_CALLSTACK = "debug.output.callstack"
+
 }

@@ -1,6 +1,7 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -14,22 +15,29 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_THREAD_SELECTOR
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate), TooltipHost {
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 
@@ -149,6 +157,11 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			}
 		}
 
+		binding.threadLayoutSelector.spinnerText.setOnLongClickListener {
+			showToolTipDialog(DEBUG_THREAD_SELECTOR)
+			true
+		}
+
 		val mediator =
 			TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->
 				tab.text = tabs[position].first
@@ -156,6 +169,41 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
 		binding.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
 		mediator.attach()
+	}
+
+	 fun showToolTipDialog(
+		tag: String,
+		anchorView: View? = null
+	) {
+		
+		val category = TooltipCategory.CATEGORY_IDE
+		CoroutineScope(Dispatchers.Main).launch {
+			val item = TooltipManager.getTooltip(
+				context = requireContext(),
+				category = category,
+				tag = tag
+			)
+
+			item?.let { tooltipData ->
+				TooltipManager.showIDETooltip(
+					requireContext(),
+					anchorView ?: binding.root,
+					0,
+					item,
+					{ context, url, title ->
+						val intent = Intent(context, HelpActivity::class.java).apply {
+							putExtra(CONTENT_KEY, url)
+							putExtra(CONTENT_TITLE_KEY, title)
+						}
+						context.startActivity(intent)
+					}
+				)
+			}
+		}
+	}
+
+	override fun showToolTip(tag: String) {
+		showToolTipDialog(tag)
 	}
 }
 

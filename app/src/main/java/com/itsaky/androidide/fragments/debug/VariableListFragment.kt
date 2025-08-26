@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -9,6 +10,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
 class VariableListFragment : Fragment() {
 
     private lateinit var treeView: TreeView<ResolvableVariable<*>>
+    private var tooltipHost: TooltipHost? = null
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
 
@@ -46,6 +49,11 @@ class VariableListFragment : Fragment() {
             binder = VariableListBinder(viewLifecycleOwner.lifecycleScope, viewModel)
 
             bindCoroutineScope(viewLifecycleOwner.lifecycleScope)
+            
+            setOnLongClickListener {
+                tooltipHost?.showToolTip(DEBUG_OUTPUT_VARIABLES)
+                true
+            }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -60,5 +68,15 @@ class VariableListFragment : Fragment() {
             }
         }
 
+    }
+
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        tooltipHost = parentFragment as? TooltipHost
+    }
+
+    override fun onDetach() {
+        super.onDetach()
+        tooltipHost = null
     }
 }
