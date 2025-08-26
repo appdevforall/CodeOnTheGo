@@ -21,6 +21,7 @@ import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
 import com.itsaky.androidide.utils.isAtLeastR
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -89,7 +90,8 @@ class DebuggerFragment :
 
 		emptyStateViewModel.isEmpty.observe(viewLifecycleOwner) { isEmpty ->
 			if (isEmpty) {
-				binding.debuggerContents.threadLayoutSelector.spinnerText.clearListSelection()
+				binding.debuggerContents.threadLayoutSelector.spinnerText
+					.clearListSelection()
 			}
 		}
 
@@ -106,9 +108,15 @@ class DebuggerFragment :
 					notifyOn = Dispatchers.Main,
 				) { viewIndex ->
 					binding.root.displayedChild = viewIndex
+
+					// don't show debugger UI in the following cases
+					// 1. current view is not debugger UI
+					// 2. current view is debugger UI but not connected to a VM
+					// 3. current view is debugger UI but no thread data is available
 					emptyStateViewModel.isEmpty.value =
-						(emptyStateViewModel.isEmpty.value ?: false) &&
-								currentView == VIEW_DEBUGGER
+						currentView == VIEW_DEBUGGER &&
+								(viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
+										viewModel.allThreads.value.isEmpty())
 				}
 
 				viewModel.observeConnectionState(
@@ -159,8 +167,7 @@ class DebuggerFragment :
 
 					withContext(Dispatchers.Main) {
 						emptyStateViewModel.isEmpty.value =
-							currentView == VIEW_DEBUGGER &&
-									descriptors.isEmpty()
+							currentView == VIEW_DEBUGGER && descriptors.isEmpty()
 						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
 							ThreadSelectorListAdapter(
 								requireContext(),
@@ -212,7 +219,7 @@ class DebuggerFragment :
 		val mediator =
 			TabLayoutMediator(
 				binding.debuggerContents.tabs,
-				binding.debuggerContents.pager
+				binding.debuggerContents.pager,
 			) { tab, position ->
 				tab.text = tabs[position].first
 			}
