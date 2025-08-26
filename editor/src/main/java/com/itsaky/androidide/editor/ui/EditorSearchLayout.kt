@@ -59,7 +59,7 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
     findInFileBinding.next.setOnClickListener(::onSearchActionClick)
     findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
     findInFileBinding.close.setOnClickListener(::onSearchActionClick)
-    findInFileBinding.dialogRoot.setOnLongClickListener {
+    findInFileBinding.root.setOnLongClickListener {
       TooltipManager.showTooltip(
         context = this.context,
         anchorView = this,
