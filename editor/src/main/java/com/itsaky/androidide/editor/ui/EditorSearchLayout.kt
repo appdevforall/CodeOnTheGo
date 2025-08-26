@@ -98,7 +98,17 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
     }
 
     findInFileBinding.root.visibility = GONE
-    findInFileBinding.moreOptions.setOnClickListener { optionsMenu.show() }
+    findInFileBinding.moreOptions.apply {
+      setOnClickListener { optionsMenu.show() }
+      setOnLongClickListener {
+        TooltipManager.showTooltip(
+          context = this@EditorSearchLayout.context,
+          anchorView = this,
+          tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS
+        )
+        true
+      }
+    }
 
     addView(
       findInFileBinding.root,

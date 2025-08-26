@@ -72,4 +72,5 @@ object TooltipTag {
 
     const val DIALOG_FIND_IN_PROJECT = "project.find.dialog"
     const val DIALOG_FIND_IN_FILE = "file.find.dialog"
+    const val DIALOG_FIND_IN_FILE_OPTIONS = "file.find.options"
 }
