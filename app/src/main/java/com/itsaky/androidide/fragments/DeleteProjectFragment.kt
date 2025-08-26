@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 
@@ -22,6 +23,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_SELECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_BUTTON
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_CONFIRM
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
@@ -170,10 +172,10 @@ class DeleteProjectFragment : BaseFragment() {
 
     private fun showDeleteDialog() {
         val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle(org.appdevforall.codeonthego.layouteditor.R.string.delete_project)
+            .setTitle(R.string.delete_project)
             .setMessage(R.string.msg_delete_selected_project)
-            .setNegativeButton(org.appdevforall.codeonthego.layouteditor.R.string.no) { dialog, _ -> dialog.dismiss() }
-            .setPositiveButton(org.appdevforall.codeonthego.layouteditor.R.string.yes) { _, _ ->
+            .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
+            .setPositiveButton(R.string.yes) { _, _ ->
                 try {
                     adapter?.getSelectedProjects().let { locations ->
                         locations?.forEach {
@@ -190,6 +192,12 @@ class DeleteProjectFragment : BaseFragment() {
                 }
             }
             .show()
+
+        val contentView = dialog.findViewById<View>(android.R.id.content)
+        contentView?.setOnLongClickListener {
+            showToolTip(DELETE_PROJECT_DIALOG, contentView)
+            true
+        }
 
         dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
             ?.setOnLongClickListener { button ->

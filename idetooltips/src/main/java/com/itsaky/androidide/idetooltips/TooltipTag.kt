@@ -25,5 +25,6 @@ object TooltipTag {
     const val DELETE_PROJECT_SELECT = "project.delete.select"
     const val DELETE_PROJECT_BUTTON = "project.delete.button"
     const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
+    const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
     const val EXIT_TO_MAIN = "exit.to.main"
 }
