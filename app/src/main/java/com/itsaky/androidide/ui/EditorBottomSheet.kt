@@ -21,6 +21,7 @@ import android.app.Activity
 import android.content.Context
 import android.text.TextUtils
 import android.util.AttributeSet
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -35,6 +36,8 @@ import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import com.blankj.utilcode.util.KeyboardUtils
 import com.blankj.utilcode.util.SizeUtils
@@ -50,8 +53,8 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.TaskExecutor.CallbackWithError
@@ -61,6 +64,9 @@ import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
 import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -115,49 +121,45 @@ class EditorBottomSheet
 			const val CHILD_ACTION = 2
 		}
 
-		private fun initialize(context: FragmentActivity) {
-			val mediator =
-				TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
-					tab.text = pagerAdapter.getTitle(position)
-				}
+  private fun initialize(context: FragmentActivity) {
+
+    val mediator =
+      TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
+        tab.text = pagerAdapter.getTitle(position)
+        tab.view.setOnLongClickListener { view ->
+          val tooltipTag =
+            pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
+          val lifecycleOwner = context as? LifecycleOwner ?: return@setOnLongClickListener true
+          lifecycleOwner.lifecycleScope.launch {
+            try {
+              val tooltipData = withContext(Dispatchers.IO) {
+                TooltipManager.getTooltip(context, TooltipCategory.CATEGORY_IDE, tooltipTag)
+              }
+              tooltipData?.let {
+                TooltipUtils.showIDETooltip(
+                  context = context,
+                  level = 0,
+                  tooltipItem = tooltipData,
+                  anchorView = view
+                )
+              }
+							} catch (e: Exception) {
+              Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+            }
+          }
+
+          true
+        }
+      }
 
 			mediator.attach()
-			binding.pager.isUserInputEnabled = false
-			binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1 // Do not remove any views
+    binding.pager.isUserInputEnabled = false
+    binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1
 
-			for (i in 0 until binding.tabs.tabCount) {
-				val tab = binding.tabs.getTabAt(i) ?: continue
-				val tabView = tab.view
-
-				tabView.setOnLongClickListener {
-					val title = pagerAdapter.getTitle(i)
-					val tooltipMessage =
-						when (title) {
-							context.getString(R.string.app_logs) -> context.getString(R.string.app_logs)
-							context.getString(R.string.ide_logs) -> context.getString(R.string.ide_logs)
-							else -> context.getString(R.string.default_tooltip)
-						}
-					TooltipUtils.showIDETooltip(
-						context,
-						tabView,
-						0,
-						IDETooltipItem(
-							tooltipCategory = TooltipCategory.CATEGORY_IDE,
-							tooltipTag = tooltipMessage,
-							detail = tooltipMessage,
-							summary = context.getString(R.string.more_information_about, title),
-							buttons = arrayListOf(Pair(context.getString(R.string.learn_more), "~/help_top.html")),
-						),
-					)
-
-					true
-				}
-			}
-
-			binding.tabs.addOnTabSelectedListener(
-				object : OnTabSelectedListener {
-					override fun onTabSelected(tab: Tab) {
-						val fragment = pagerAdapter.getFragmentAtIndex(tab.position)
+    binding.tabs.addOnTabSelectedListener(
+      object : OnTabSelectedListener {
+        override fun onTabSelected(tab: Tab) {
+          val fragment = pagerAdapter.getFragmentAtIndex(tab.position)
 						if (fragment is ShareableOutputFragment) {
 							binding.clearFab.show()
 							binding.shareOutputFab.show()
