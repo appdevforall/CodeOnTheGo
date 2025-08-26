@@ -87,13 +87,7 @@ constructor(
                         binding.root.context,
                         binding.root,
                         0,
-                        IDETooltipItem(
-                            tooltipCategory = category,
-                            tooltipTag = tooltipData.tooltipTag,
-                            detail = tooltipData.detail,
-                            summary = tooltipData.summary,
-                            buttons = tooltipData.buttons,
-                        ),
+                        item,
                         { _, url, title ->
                             viewModel?.navigateToHelp(url, title)
                         }
