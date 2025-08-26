@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.editor.ui
 
-import android.app.Activity
 import android.content.Intent
 import android.util.Log
 import android.widget.ListView
@@ -89,38 +88,33 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                 }
                 Log.d("EditorCompletionWindow", "Showing tooltip for tag: $tag category: $category")
 
-                val activity = editor.context as? Activity
-                activity?.let { act ->
+                CoroutineScope(Dispatchers.Main).launch {
+                    val item = TooltipManager.getTooltip(
+                        context = editor.context,
+                        category = category,
+                        tag = tag
+                    )
 
-
-                    CoroutineScope(Dispatchers.Main).launch {
-                        val item = TooltipManager.getTooltip(
-                            context = editor.context,
-                            category = category,
-                            tag = tag
-                        )
-
-                        item?.let { tooltipData ->
-                            TooltipManager.showIDETooltip(
-                                editor.context,
-                                editor,
-                                0,
-                                IDETooltipItem(
-                                    tooltipCategory = category,
-                                    tooltipTag = tooltipData.tooltipTag,
-                                    detail = tooltipData.detail,
-                                    summary = tooltipData.summary,
-                                    buttons = tooltipData.buttons,
-                                ),
-                                { context, url, title ->
-                                    val intent = Intent(context, HelpActivity::class.java).apply {
-                                        putExtra(CONTENT_KEY, url)
-                                        putExtra(CONTENT_TITLE_KEY, title)
-                                    }
-                                    context.startActivity(intent)
+                    item?.let { tooltipData ->
+                        TooltipManager.showIDETooltip(
+                            editor.context,
+                            editor,
+                            0,
+                            IDETooltipItem(
+                                tooltipCategory = category,
+                                tooltipTag = tooltipData.tooltipTag,
+                                detail = tooltipData.detail,
+                                summary = tooltipData.summary,
+                                buttons = tooltipData.buttons,
+                            ),
+                            { context, url, title ->
+                                val intent = Intent(context, HelpActivity::class.java).apply {
+                                    putExtra(CONTENT_KEY, url)
+                                    putExtra(CONTENT_TITLE_KEY, title)
                                 }
-                            )
-                        }
+                                context.startActivity(intent)
+                            }
+                        )
                     }
                 }
                 true
