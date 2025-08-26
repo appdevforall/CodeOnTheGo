@@ -20,4 +20,10 @@ object TooltipTag {
     const val PROJECT_SEARCH_RESULTS = "project.searchresults"
     const val PROJECT_DIAGNOSTICS = "project.diagnostics"
 
+    // Delete project
+    const val DELETE_PROJECT = "project.delete"
+    const val DELETE_PROJECT_SELECT = "project.delete.select"
+    const val DELETE_PROJECT_BUTTON = "project.delete.button"
+    const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
+    const val EXIT_TO_MAIN = "exit.to.main"
 }

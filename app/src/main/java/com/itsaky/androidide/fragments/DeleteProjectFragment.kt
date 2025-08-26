@@ -1,5 +1,6 @@
 package com.itsaky.androidide.fragments
 
+import android.content.Intent
 import android.os.Bundle
 
 import android.view.LayoutInflater
@@ -11,13 +12,27 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.DeleteProjectListAdapter
 import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
+import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_SELECT
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_BUTTON
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_CONFIRM
+import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 
 import java.io.File
 
@@ -55,9 +70,17 @@ class DeleteProjectFragment : BaseFragment() {
         recentProjectsViewModel.projects.observe(viewLifecycleOwner) { projects ->
             if (adapter == null) {
                 // Create adapter and pass a callback to update delete button state on selection change
-                adapter = DeleteProjectListAdapter(projects) { enableBtn ->
-                    binding.delete.isEnabled = enableBtn
-                }
+                adapter = DeleteProjectListAdapter(
+                    projects,
+                    { enableBtn ->
+                        binding.delete.isEnabled = enableBtn
+                    },
+                    onCheckboxLongPress = {
+                        showToolTip(DELETE_PROJECT_SELECT)
+                        true
+                    }
+
+                )
                 binding.listProjects.adapter = adapter
             } else {
                 adapter?.updateProjects(projects)
@@ -87,15 +110,66 @@ class DeleteProjectFragment : BaseFragment() {
                 showDeleteDialog()
             }
         }
+        binding.delete.setOnLongClickListener {
+            showToolTip(DELETE_PROJECT_BUTTON)
+            true
+        }
+
         binding.exitButton.setOnClickListener { mainViewModel.setScreen(MainViewModel.SCREEN_MAIN) }
+        binding.exitButton.setOnLongClickListener {
+            showToolTip(EXIT_TO_MAIN)
+            true
+        }
+
+        binding.recentProjectsTxt.setOnLongClickListener {
+            showToolTip(DELETE_PROJECT)
+            true
+        }
     }
 
     private fun deleteProject(root: File) {
         (requireActivity() as MainActivity).deleteProject(root)
     }
 
+    fun showToolTip(
+        tag: String,
+        anchorView: View? = null
+    ) {
+
+        val category = TooltipCategory.CATEGORY_IDE
+        CoroutineScope(Dispatchers.Main).launch {
+            val item = TooltipManager.getTooltip(
+                context = requireContext(),
+                category = category,
+                tag = tag
+            )
+
+            item?.let { tooltipData ->
+                TooltipManager.showIDETooltip(
+                    requireContext(),
+                    anchorView ?: binding.root,
+                    0,
+                    IDETooltipItem(
+                        tooltipCategory = category,
+                        tooltipTag = tooltipData.tooltipTag,
+                        detail = tooltipData.detail,
+                        summary = tooltipData.summary,
+                        buttons = tooltipData.buttons,
+                    ),
+                    { context, url, title ->
+                        val intent = Intent(context, HelpActivity::class.java).apply {
+                            putExtra(CONTENT_KEY, url)
+                            putExtra(CONTENT_TITLE_KEY, title)
+                        }
+                        context.startActivity(intent)
+                    }
+                )
+            }
+        }
+    }
+
     private fun showDeleteDialog() {
-        MaterialAlertDialogBuilder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle(org.appdevforall.codeonthego.layouteditor.R.string.delete_project)
             .setMessage(R.string.msg_delete_selected_project)
             .setNegativeButton(org.appdevforall.codeonthego.layouteditor.R.string.no) { dialog, _ -> dialog.dismiss() }
@@ -116,6 +190,12 @@ class DeleteProjectFragment : BaseFragment() {
                 }
             }
             .show()
+
+        dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+            ?.setOnLongClickListener { button ->
+                showToolTip(DELETE_PROJECT_CONFIRM, button)
+                true
+            }
     }
 
     override fun onResume() {
@@ -128,3 +208,4 @@ class DeleteProjectFragment : BaseFragment() {
         _binding = null
     }
 }
+
