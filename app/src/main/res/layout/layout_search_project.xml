@@ -7,11 +7,12 @@
   android:fillViewport="true">
 
   <LinearLayout
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp">
+      android:id="@+id/root_layout"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:paddingTop="12dp"
+      android:paddingBottom="12dp">
 
     <TextView
       android:layout_width="wrap_content"
