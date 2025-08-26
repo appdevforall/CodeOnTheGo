@@ -21,6 +21,7 @@ import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_IS_TEST_ENV
 import com.itsaky.androidide.tooling.api.LogSenderConfig._PROPERTY_MAVEN_LOCAL_REPOSITORY
 import org.adfa.constants.ANDROIDIDE_HOME
+import org.adfa.constants.MAVEN_LOCAL_REPOSITORY
 import org.gradle.StartParameter
 import org.gradle.api.Plugin
 import org.gradle.api.artifacts.ExternalModuleDependency
@@ -60,7 +61,9 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
   override fun apply(target: Gradle) {
     removeDaemonLogs(target)
 
-    // NOTE disable access to non-local repos
+    target.settingsEvaluated { settings ->
+      settings.addDependencyRepositories()
+    }
 
     target.rootProject { rootProject ->
       rootProject.buildscript.apply {
@@ -115,7 +118,39 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 
   private fun Settings.addDependencyRepositories() {
     val (isTestEnv, mavenLocalRepos) = getTestEnvProps(startParameter)
-    addDependencyRepositories(isTestEnv, mavenLocalRepos)
+    if (isTestEnv) {
+      addDependencyRepositories(isTestEnv, mavenLocalRepos)
+    } else {
+      addDependencyRepositories(MAVEN_LOCAL_REPOSITORY)
+    }
+  }
+
+  @Suppress("UnstableApiUsage")
+  private fun Settings.addDependencyRepositories(
+    mavenLocalRepo: String
+  ) {
+    dependencyResolutionManagement.run {
+      repositories.configureRepositories(mavenLocalRepo)
+    }
+
+    pluginManagement.apply {
+      repositories.configureRepositories(mavenLocalRepo)
+    }
+  }
+
+  private fun RepositoryHandler.configureRepositories(
+    mavenLocalRepo: String
+  ) {
+
+    val repo = File(mavenLocalRepo)
+    if (!repo.exists() || !repo.isDirectory) {
+      throw FileNotFoundException("Maven local repository '$mavenLocalRepo' not found")
+    }
+
+    maven { repository ->
+      repository.url = repo.toURI()
+    }
+
   }
 
   @Suppress("UnstableApiUsage")

@@ -56,8 +56,11 @@ const val ARM_KEY = "armeabi"
 
 //Local maven repo
 const val LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME = "localMvnRepository.zip"
-val LOCAL_MAVEN_CACHES_DEST = HOME_PATH + File.separator + "maven"
+const val LOCAL_MAVEN_CACHES_DEST = "$HOME_PATH/maven"
 const val LOCAL_MAVEN_REPO_FOLDER_DEST = "localMvnRepository"
+
+@Suppress("SdCardPath")
+const val MAVEN_LOCAL_REPOSITORY = "/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"
 
 // Tooltips
 const val CONTENT_KEY = "CONTENT_KEY"
