@@ -41,5 +41,5 @@ class BuildVariantsSidebarAction(context: Context, override val order: Int) :
     icon = ContextCompat.getDrawable(context, R.drawable.ic_android)
   }
 
-  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.BUILD_VARIANT_SIDEBAR
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.BUILD_VARIANT_SIDEBAR
 }

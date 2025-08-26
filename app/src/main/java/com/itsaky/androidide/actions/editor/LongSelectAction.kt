@@ -48,5 +48,6 @@ class LongSelectAction(context: Context, override val order: Int) : EditorRelate
   override suspend fun execAction(data: ActionData): Any {
     return data.getEditor()?.beginLongSelect() ?: false
   }
-  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.EDITOR_TOOLBAR_LONG_SELECT
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) =
+    TooltipTag.EDITOR_TOOLBAR_LONG_SELECT
 }

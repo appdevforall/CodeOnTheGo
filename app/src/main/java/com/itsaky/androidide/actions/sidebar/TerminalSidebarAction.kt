@@ -72,5 +72,5 @@ class TerminalSidebarAction(context: Context, override val order: Int) : Abstrac
     return true
   }
 
-  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.TERMINAL_SIDEBAR
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.TERMINAL_SIDEBAR
 }

@@ -43,8 +43,8 @@ class CopyAction(context: Context, override val order: Int) :
         return true
     }
 
-    override fun retrieveTooltipTag(isOutput: Boolean): String {
-        return if (isOutput) {
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
+        return if (isReadOnlyContext) {
             TooltipTag.EDITOR_TOOLBAR_OUTPUT_COPY
         } else {
             TooltipTag.EDITOR_TOOLBAR_COPY

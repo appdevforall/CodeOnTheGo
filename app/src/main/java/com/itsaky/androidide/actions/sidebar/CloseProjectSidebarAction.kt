@@ -48,5 +48,5 @@ class CloseProjectSidebarAction(context: Context, override val order: Int) :
     context.doConfirmProjectClose()
     return true
   }
-  override fun retrieveTooltipTag(isOutput: Boolean) = TooltipTag.CLOSE_PROJECT_SIDEBAR
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.CLOSE_PROJECT_SIDEBAR
 }

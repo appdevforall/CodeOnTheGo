@@ -32,7 +32,8 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
     arr.recycle()
   }
 
-  override fun retrieveTooltipTag(isOutput: Boolean): String = TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+    TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
 
   override val id: String = "ide.editor.code.text.selectAll"
 
