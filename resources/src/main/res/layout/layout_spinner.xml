@@ -15,7 +15,7 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<com.google.android.material.textfield.TextInputLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.itsaky.androidide.resources.TooltipTextInputLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/spinner_layout"
     style="@style/Widget.Material3.TextInputLayout.FilledBox.ExposedDropdownMenu"
@@ -30,4 +30,4 @@
         android:background="@android:color/transparent"
         android:inputType="none" />
 
-</com.google.android.material.textfield.TextInputLayout>
+</com.itsaky.androidide.resources.TooltipTextInputLayout>
