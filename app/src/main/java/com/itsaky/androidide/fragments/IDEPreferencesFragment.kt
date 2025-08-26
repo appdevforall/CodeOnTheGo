@@ -33,6 +33,10 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILD_RUN
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GENERAL
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
@@ -139,10 +143,10 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 
   private fun getTooltipTag(key: String): String? {
     return when (key) {
-      "idepref_general" -> "prefs.general"
-      "idepref_editor" -> "prefs.editor"
-      "idepref_build_n_run" -> "prefs.buildrun"
-      "ide.preferences.terminal" -> "prefs.termux"
+      "idepref_general" -> PREFS_GENERAL
+      "idepref_editor" -> PREFS_EDITOR
+      "idepref_build_n_run" -> PREFS_BUILD_RUN
+      "ide.preferences.terminal" -> PREFS_TERMUX
       else -> null
     }
   }
