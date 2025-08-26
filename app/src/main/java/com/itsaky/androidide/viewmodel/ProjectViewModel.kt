@@ -2,7 +2,7 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.lookup.Lookup.*
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.services.builder.GradleBuildService
@@ -50,7 +50,7 @@ class ProjectViewModel : ViewModel() {
         viewModelScope.launch {
             _initState.value = TaskState.InProgress
 
-            val buildService = getDefault()
+            val buildService = Lookup.getDefault()
                 .lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 
             try {
