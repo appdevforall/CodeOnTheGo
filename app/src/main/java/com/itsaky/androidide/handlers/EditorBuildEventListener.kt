@@ -20,6 +20,7 @@ package com.itsaky.androidide.handlers
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.projects.builder.LaunchResult
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
@@ -102,13 +103,13 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
     val launchResult = LaunchResult(isSuccess = true, message = "Launch command issued.")
 
     // Pass the new launchResult to the BuildResult constructor
-//    act.notifyBuildResult(
-//      BuildResult(
-//        isSuccess = true,
-//        message = message,
-//        launchResult = launchResult
-//      )
-//    )
+    act.notifyBuildResult(
+      BuildResult(
+        isSuccess = true,
+        message = message,
+        launchResult = launchResult
+      )
+    )
 
     lastStatusLine = ""
   }
@@ -131,7 +132,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
     val message =
       if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
 
-//    act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
+    act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
 
     lastStatusLine = ""
   }
