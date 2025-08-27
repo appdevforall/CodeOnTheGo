@@ -30,7 +30,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.R
-import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
@@ -198,74 +197,73 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             notifySyncNeeded()
         }
 
-        observeProjectState()
-        observeBuildState()
+        observeStates()
         startServices()
     }
 
-    private fun observeProjectState() {
+    private fun observeStates() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                projectViewModel.initState.collect { state ->
-                    when (state) {
-                        is TaskState.Idle -> {
-                            editorViewModel.isInitializing = false
-                        }
-
-                        is TaskState.InProgress -> {
-                            preProjectInit()
-                        }
-
-                        is TaskState.Success -> {
-                            onProjectInitialized(state.result)
-                            postProjectInit(true, null)
-                        }
-
-                        is TaskState.Error -> {
-                            postProjectInit(false, state.failure)
-                        }
-                    }
-                    invalidateOptionsMenu()
+                launch {
+                    projectViewModel.initState.collect { onInitStateChanged(it) }
+                }
+                launch {
+                    buildViewModel.buildState.collect { onBuildStateChanged(it) }
                 }
             }
         }
     }
 
-    private fun observeBuildState() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                buildViewModel.buildState.collect { state ->
-                    editorViewModel.isBuildInProgress = (state is BuildState.InProgress)
+    private fun onInitStateChanged(state: TaskState) {
+        when (state) {
+            is TaskState.Idle -> {
+                editorViewModel.isInitializing = false
+            }
 
-                    when (state) {
-                        is BuildState.Idle -> {
-                            // Nothing to do, build is finished or not started.
-                        }
+            is TaskState.InProgress -> {
+                preProjectInit()
+            }
 
-                        is BuildState.InProgress -> {
-                            setStatus(getString(R.string.status_building))
-                        }
+            is TaskState.Success -> {
+                onProjectInitialized(state.result)
+                postProjectInit(true, null)
+            }
 
-                        is BuildState.Success -> {
-                            flashSuccess(state.message)
-                        }
-
-                        is BuildState.Error -> {
-                            flashError(state.reason)
-                        }
-
-                        is BuildState.AwaitingInstall -> {
-                            // ✅ The ViewModel has told us it's time to install!
-                            installApk(state.apkFile)
-                            // Tell the ViewModel we've handled the install event.
-                            buildViewModel.installationAttempted()
-                        }
-                    }
-                    // Refresh the toolbar icons (e.g., the run/stop button).
-                    invalidateOptionsMenu()
-                }
+            is TaskState.Error -> {
+                postProjectInit(false, state.failure)
             }
         }
+        invalidateOptionsMenu()
+    }
+
+    private fun onBuildStateChanged(state: BuildState) {
+        editorViewModel.isBuildInProgress = (state is BuildState.InProgress)
+        when (state) {
+            is BuildState.Idle -> {
+                // Nothing to do, build is finished or not started.
+            }
+
+            is BuildState.InProgress -> {
+                setStatus(getString(R.string.status_building))
+            }
+
+            is BuildState.Success -> {
+                flashSuccess(state.message)
+            }
+
+            is BuildState.Error -> {
+                flashError(state.reason)
+            }
+
+            is BuildState.AwaitingInstall -> {
+                // ✅ The ViewModel has told us it's time to install!
+                installApk(state.apkFile)
+                // Tell the ViewModel we've handled the install event.
+                buildViewModel.installationAttempted()
+            }
+        }
+        // Refresh the toolbar icons (e.g., the run/stop button).
+        invalidateOptionsMenu()
     }
 
     private fun installApk(apk: File) {
