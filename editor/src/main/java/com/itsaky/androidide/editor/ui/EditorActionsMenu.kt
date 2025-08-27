@@ -414,7 +414,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
       val action = registry.findAction(location, item.itemId)
       if (action != null) {
         button.setOnLongClickListener {
-          val tag = action.retrieveTooltipTag(editor.isOutputParent)
+          val tag = action.retrieveTooltipTag(editor.isReadOnlyContext)
           val activity = editor.context as? Activity
           activity?.let { act ->
             CoroutineScope(Dispatchers.Main).launch {

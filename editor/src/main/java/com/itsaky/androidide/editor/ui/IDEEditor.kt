@@ -172,7 +172,7 @@ open class IDEEditor @JvmOverloads constructor(
    */
   val editorScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEEditor"))
 
-  var isOutputParent = false
+  var isReadOnlyContext = false
   protected val eventDispatcher = EditorEventDispatcher()
 
   private var setupTsLanguageJob: Job? = null
@@ -235,9 +235,9 @@ open class IDEEditor @JvmOverloads constructor(
       0, 0
     ).apply {
       try {
-        // Get the boolean value for 'isOutputEditor', defaulting to 'false'.
+        // Get the boolean value for 'isReadOnlyContext', defaulting to 'false'.
         // The value is assigned to your existing 'isOutputParent' property.
-        isOutputParent = getBoolean(R.styleable.IDEEditor_isOutputEditor, false)
+        isReadOnlyContext = getBoolean(R.styleable.IDEEditor_isReadOnlyContext, false)
       } finally {
         // Always recycle the TypedArray to free up resources.
         recycle()
