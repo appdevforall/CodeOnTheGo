@@ -34,7 +34,7 @@ plugins {
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
   id("com.itsaky.androidide.desugaring")
-  id("io.sentry.android.gradle") version "5.8.0"
+  alias(libs.plugins.sentry)
 }
 
 fun propOrEnv(name: String): String {
