@@ -32,49 +32,42 @@ class XmlLayoutParser(context: Context) {
         val attributes = Gson()
             .fromJson<HashMap<String, List<HashMap<String, Any>>>>(
                 FileUtil.readFromAsset(Constants.ATTRIBUTES_FILE, context),
-                object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {
-                }.type
+                object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {}.type
             )
         val parentAttributes = Gson()
             .fromJson<HashMap<String, List<HashMap<String, Any>>>>(
                 FileUtil.readFromAsset(Constants.PARENT_ATTRIBUTES_FILE, context),
-                object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {
-                }.type
+                object : TypeToken<HashMap<String, List<HashMap<String, Any>>>>() {}.type
             )
-
         initializer = AttributeInitializer(context, attributes, parentAttributes)
     }
 
-    val root: View
-        get() {
-            return listViews[0]
-        }
+    val root: View?
+        get() = listViews.getOrNull(0)
 
     fun parseFromXml(xml: String, context: Context) {
+        listViews.clear()
+        viewAttributeMap.clear()
+        clear()
+
         try {
             val factory = XmlPullParserFactory.newInstance()
             val parser = factory.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
             parser.setInput(StringReader(xml))
-
             parseFromXml(parser, context)
-
         } catch (e: XmlPullParserException) {
             e.printStackTrace()
         } catch (e: IOException) {
             e.printStackTrace()
         }
 
-        clear()
-
-        for (view in viewAttributeMap.keys) {
-            val map = viewAttributeMap[view]!!
-            if ("android:id" in map.keySet()) {
+        for ((view, map) in viewAttributeMap) {
+            if (map.contains("android:id")) {
                 addNewId(view, map.getValue("android:id"))
             }
             applyAttributes(view, map)
         }
-
     }
 
     private fun parseFromXml(parser: XmlPullParser, context: Context) {
@@ -134,9 +127,8 @@ class XmlLayoutParser(context: Context) {
 
                         else -> {
                             val result = createView(tagName, context)
-                            if (result is Exception) {
-                                throw result
-                            } else {
+                            if (result is Exception) throw result
+                            else {
                                 view = result as? View
                                 view?.let { listViews.add(it) }
                             }
@@ -144,14 +136,11 @@ class XmlLayoutParser(context: Context) {
                     }
 
                     val map = AttributeMap()
-
                     for (i in 0 until parser.attributeCount) {
-                        val name = parser.getAttributeName(i)
-                        if (!name.startsWith("xmlns")) {
-                            map.putValue(name, parser.getAttributeValue(i))
-                        }
+                        val fullName = parser.getAttributeName(i)
+                        val value = parser.getAttributeValue(i)
+                        map.putValue(fullName, value)
                     }
-
                     view?.let { viewAttributeMap[it] = map }
                 }
 
@@ -180,8 +169,8 @@ class XmlLayoutParser(context: Context) {
                 XmlPullParser.END_TAG -> {
                     val depth = parser.depth
                     if (depth >= 2 && listViews.size >= 2) {
-                        val parent = listViews[depth - 2]
-                        val child = listViews[depth - 1]
+                        val parent = listViews.getOrNull(depth - 2) ?: return
+                        val child = listViews.getOrNull(depth - 1) ?: return
                         if (parent is ViewGroup) {
                             parent.addView(child)
                             listViews.removeAt(depth - 1)
