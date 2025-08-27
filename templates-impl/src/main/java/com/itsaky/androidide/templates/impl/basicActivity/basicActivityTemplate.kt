@@ -32,7 +32,7 @@ fun basicActivityProject(): ProjectTemplate {
     return baseProjectImpl {
         templateName = R.string.template_basic
         thumb = R.drawable.template_basic_activity
-        tooltipTag = "template.basic_activity"
+        tooltipTag = "template.basic.activity"
         defaultAppModule {
             recipe = createRecipe {
                 sources {
