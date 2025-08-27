@@ -25,7 +25,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
-import kotlinx.coroutines.CoroutineScope
+import androidx.annotation.UiThread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -171,16 +171,15 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		mediator.attach()
 	}
 
-	 fun showToolTipDialog(
+	@UiThread
+	fun showToolTipDialog(
 		tag: String,
 		anchorView: View? = null
 	) {
-		
-		val category = TooltipCategory.CATEGORY_IDE
-		CoroutineScope(Dispatchers.Main).launch {
+		viewLifecycleScope.launch {
 			val item = TooltipManager.getTooltip(
 				context = requireContext(),
-				category = category,
+				category = TooltipCategory.CATEGORY_IDE,
 				tag = tag
 			)
 
