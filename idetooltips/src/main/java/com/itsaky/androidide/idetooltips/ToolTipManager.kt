@@ -66,7 +66,7 @@ object TooltipManager {
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                val tooltipQuery = if   ((category == "java" || category == "kotlin")) QUERY_TOOLTIP_TWO_CATEGORIES
+                val tooltipQuery = if   ((category == "java" || category == "kotlin" || category == "ide")) QUERY_TOOLTIP_TWO_CATEGORIES
                                    else QUERY_TOOLTIP_ONE_CATEGORY
 
                 var cursor = db.rawQuery(tooltipQuery, arrayOf(tag, category))
