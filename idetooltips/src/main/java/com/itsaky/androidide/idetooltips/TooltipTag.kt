@@ -20,4 +20,10 @@ object TooltipTag {
     const val PROJECT_SEARCH_RESULTS = "project.searchresults"
     const val PROJECT_DIAGNOSTICS = "project.diagnostics"
 
+    // General Preferences
+    const val PREFS_EDITOR = "prefs.editor"
+    const val PREFS_GENERAL = "prefs.general"
+    const val PREFS_BUILD_RUN = "prefs.buildrun"
+    const val PREFS_TERMUX = "prefs.termux"
+
 }
