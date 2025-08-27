@@ -26,4 +26,10 @@ object TooltipTag {
     const val OUTPUT_SHARE_EXTERNAL = "output.share.external"
     const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 
+    // General Preferences
+    const val PREFS_EDITOR = "prefs.editor"
+    const val PREFS_GENERAL = "prefs.general"
+    const val PREFS_BUILD_RUN = "prefs.buildrun"
+    const val PREFS_TERMUX = "prefs.termux"
+
 }
