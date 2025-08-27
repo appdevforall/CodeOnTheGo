@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.databinding.FragmentRightEditorSidebarBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
+import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import com.itsaky.androidide.utils.RightEditorSidebarActions
 import com.itsaky.androidide.utils.TooltipUtils
 import kotlinx.coroutines.launch
@@ -38,6 +39,9 @@ class RightEditorSidebarFragment : FragmentWithBinding<FragmentRightEditorSideba
 ) {
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
+    if (!isExperimentsEnabled()) {
+      return
+    }
     RightEditorSidebarActions.setup(this)
   }
 
