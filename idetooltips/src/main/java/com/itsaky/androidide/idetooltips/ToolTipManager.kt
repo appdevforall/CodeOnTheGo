@@ -28,7 +28,7 @@ object TooltipManager {
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
-    private const val QUERY_TOOLTIP_ONE_CATEGORY = """
+    private const val QUERY_TOOLTIP_SINGLE_CATEGORY = """
         SELECT T.id, T.summary, T.detail
         FROM Tooltips AS T, TooltipCategories AS TC
         WHERE T.categoryId = TC.id
@@ -36,7 +36,7 @@ object TooltipManager {
           AND TC.category = ?
     """
 
-    private const val QUERY_TOOLTIP_TWO_CATEGORIES = """
+    private const val QUERY_TOOLTIP_LAYOUT_EDITOR = """
         SELECT T.id, T.summary, T.detail
         FROM Tooltips AS T, TooltipCategories AS TC
         WHERE T.categoryId = TC.id
@@ -51,6 +51,8 @@ object TooltipManager {
         ORDER BY buttonNumberId
     """
 
+    private val MAIN_CATEGORIES = listOf("java", "kotlin", "ide")
+
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return withContext(Dispatchers.IO) {
             var dbPath = Environment.DOC_DB.absolutePath
@@ -62,12 +64,16 @@ object TooltipManager {
                 // Switch to the debug database.
                 dbPath = debugDatabaseFile.absolutePath
             }
-
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                val tooltipQuery = if   ((category == "java" || category == "kotlin" || category == "ide")) QUERY_TOOLTIP_TWO_CATEGORIES
-                                   else QUERY_TOOLTIP_ONE_CATEGORY
+                // Check if requested tooltip category is in the main categories as of Aug 27, 2025:
+                // 'java', 'kotlin', 'ide'
+                val isInMainCategories = category in MAIN_CATEGORIES
+
+                // Allow layout editor tooltip fallback if the requested category is in main categories
+                val tooltipQuery = QUERY_TOOLTIP_LAYOUT_EDITOR.takeIf { isInMainCategories }
+                    ?: QUERY_TOOLTIP_SINGLE_CATEGORY
 
                 var cursor = db.rawQuery(tooltipQuery, arrayOf(tag, category))
                 
