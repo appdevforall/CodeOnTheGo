@@ -46,6 +46,7 @@ class DeleteProjectFragment : BaseFragment() {
     private val recentProjectsViewModel: RecentProjectsViewModel by activityViewModels()
     private val mainViewModel: MainViewModel by activityViewModels()
     private var adapter: DeleteProjectListAdapter? = null
+    private var isDeleteButtonClickable = false
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -75,7 +76,7 @@ class DeleteProjectFragment : BaseFragment() {
                 adapter = DeleteProjectListAdapter(
                     projects,
                     { enableBtn ->
-                        binding.delete.isEnabled = enableBtn
+                        updateDeleteButtonState(enableBtn)
                     },
                     onCheckboxLongPress = {
                         showToolTip(DELETE_PROJECT_SELECT)
@@ -96,11 +97,16 @@ class DeleteProjectFragment : BaseFragment() {
                 binding.delete.isEnabled = true
             } else {
                 binding.delete.text = getString(R.string.delete_project)
-                binding.delete.isEnabled = adapter?.getSelectedProjects()?.isNotEmpty() ?: false
+                updateDeleteButtonState(adapter?.getSelectedProjects()?.isNotEmpty() ?: false)
             }
         }
     }
 
+    private fun updateDeleteButtonState(hasSelection: Boolean) {
+        isDeleteButtonClickable = hasSelection
+        binding.delete.isEnabled = true
+        binding.delete.alpha = if (hasSelection) 1.0f else 0.5f
+    }
 
     private fun setupClickListeners() {
         binding.delete.setOnClickListener {
@@ -108,7 +114,7 @@ class DeleteProjectFragment : BaseFragment() {
             val projects = recentProjectsViewModel.projects.value
             if (projects.isNullOrEmpty()) {
                 mainViewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
-            } else {
+            } else if (isDeleteButtonClickable) {
                 showDeleteDialog()
             }
         }
