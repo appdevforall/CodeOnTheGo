@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.basicActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.android.defaultAppModule
@@ -32,7 +33,7 @@ fun basicActivityProject(): ProjectTemplate {
     return baseProjectImpl {
         templateName = R.string.template_basic
         thumb = R.drawable.template_basic_activity
-        tooltipTag = "template.basic.activity"
+        tooltipTag = TooltipTag.TEMPLATE_BASIC_ACTIVITY
         defaultAppModule {
             recipe = createRecipe {
                 sources {

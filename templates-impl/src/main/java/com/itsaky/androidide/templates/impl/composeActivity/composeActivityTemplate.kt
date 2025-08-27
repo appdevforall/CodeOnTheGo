@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.composeActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.ProjectVersionData
 import com.itsaky.androidide.templates.base.composeDependencies
@@ -45,7 +46,7 @@ fun composeActivityProject() =
 
         templateName = R.string.template_compose
         thumb = R.drawable.template_compose_empty_activity
-        tooltipTag = "template.compose.activity"
+        tooltipTag = TooltipTag.TEMPLATE_COMPOSE_ACTIVITY
 
         defaultAppModule(addAndroidX = false) {
 

@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.emptyActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.android.defaultAppModule
@@ -31,7 +32,7 @@ import com.itsaky.androidide.templates.impl.baseProjectImpl
 fun emptyActivityProject(): ProjectTemplate = baseProjectImpl {
   templateName = R.string.template_empty
   thumb = R.drawable.template_empty_activity
-  tooltipTag = "template.empty.activity"
+  tooltipTag = TooltipTag.TEMPLATE_EMPTY_ACTIVITY
   defaultAppModule {
     recipe = createRecipe {
       sources {

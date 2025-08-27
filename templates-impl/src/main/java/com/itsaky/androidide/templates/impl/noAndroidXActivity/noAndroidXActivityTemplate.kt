@@ -19,6 +19,7 @@ package com.itsaky.androidide.templates.impl.noAndroidXActivity
 
 import com.android.aaptcompiler.ConfigDescription
 import com.android.aaptcompiler.android.ResTableConfig
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.base.modules.android.defaultAppModule
 import com.itsaky.androidide.templates.base.util.AndroidModuleResManager.ResourceType.LAYOUT
 import com.itsaky.androidide.templates.base.util.AndroidModuleResManager.ResourceType.VALUES
@@ -31,7 +32,7 @@ import com.itsaky.androidide.templates.impl.baseProjectImpl
 fun noAndroidXActivityProject() = baseProjectImpl {
   templateName = R.string.template_no_AndroidX
   thumb = R.drawable.template_empty_noandroidx
-  tooltipTag = "template.legacy.project"
+  tooltipTag = TooltipTag.TEMPLATE_LEGACY_PROJECT
   val configNight = ConfigDescription().apply {
     uiMode = ResTableConfig.UI_MODE.NIGHT_YES
   }
