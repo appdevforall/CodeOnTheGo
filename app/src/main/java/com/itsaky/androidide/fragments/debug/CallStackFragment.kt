@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
  * @author Akash Yadav
  */
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
-
+    override val fragmentTooltipTag: String? = null// Tooltip pending to be defined
     private val viewHolder by activityViewModels<DebuggerViewModel>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
