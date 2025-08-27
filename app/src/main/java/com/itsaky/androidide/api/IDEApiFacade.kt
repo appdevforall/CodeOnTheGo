@@ -63,7 +63,7 @@ object IDEApiFacade {
                 }
             }
 
-            activity.addOneTimeBuildResultListener(listener)
+//            activity.addOneTimeBuildResultListener(listener)
 
             (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
                 action,
