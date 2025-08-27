@@ -257,11 +257,14 @@ class MainFragment : BaseFragment() {
                         view!!,
                         0,
                         IDETooltipItem(
-                            tooltipCategory = TooltipCategory.CATEGORY_IDE,
-                            tooltipTag = item?.tooltipTag ?: "",
+                            rowId = item?.rowId ?: -1,
+                            id = item?.id ?: -1,
+                            category = TooltipCategory.CATEGORY_IDE,
+                            tag = item?.tag ?: "",
                             detail = item?.detail ?: "",
                             summary = item?.summary ?: "",
                             buttons = item?.buttons ?: arrayListOf(),
+                            lastChange = item?.lastChange ?: "",
                         ),
                         { context, url, title ->
                             val intent = Intent(context, HelpActivity::class.java).apply {

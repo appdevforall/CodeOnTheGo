@@ -18,10 +18,13 @@
 package com.itsaky.androidide.idetooltips
 
 data class IDETooltipItem(
-    val tooltipCategory: String,
-    val tooltipTag: String,
+    val rowId: Int,
+    val id: Int,
+    val category: String,
+    val tag: String,
     val summary: String,
     val detail: String,
-    val buttons: ArrayList<Pair<String, String>>
+    val buttons: ArrayList<Pair<String, String>>,
+    val lastChange: String
 )
 
