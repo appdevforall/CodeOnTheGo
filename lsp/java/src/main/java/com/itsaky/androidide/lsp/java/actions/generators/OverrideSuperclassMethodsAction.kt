@@ -24,6 +24,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
@@ -66,6 +67,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
   override val titleTextRes: Int = R.string.action_override_superclass_methods
   override val id: String = "ide.editor.lsp.java.generator.overrideSuperclassMethods"
   override var label: String = ""
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_OVERRIDESUPER
   private var position: Long = -1
 
   companion object {

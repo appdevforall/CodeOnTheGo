@@ -51,6 +51,7 @@ dependencies {
     compileOnly(libs.google.material)
     compileOnly(projects.actions)
     compileOnly(projects.common)
+    compileOnly(projects.idetooltips)
     
     implementation(projects.editorApi)
     implementation(projects.resources)

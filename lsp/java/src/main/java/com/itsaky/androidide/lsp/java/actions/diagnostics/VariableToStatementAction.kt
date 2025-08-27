@@ -21,6 +21,7 @@ import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.models.DiagnosticCode
@@ -38,6 +39,7 @@ class VariableToStatementAction : BaseJavaCodeAction() {
   private val diagnosticCode = DiagnosticCode.UNUSED_LOCAL.id
 
   override val titleTextRes: Int = R.string.action_convert_to_statement
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_FIXIMPORTS
 
   companion object {
 

@@ -25,6 +25,7 @@ import com.github.javaparser.ast.body.ConstructorDeclaration
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
@@ -61,6 +62,7 @@ class GenerateConstructorAction : FieldBasedAction() {
   override val titleTextRes: Int = string.action_generate_constructor
   override val id: String = "ide.editor.lsp.java.generator.constructor"
   override var label: String = ""
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_GENCONSTRUCTOR
 
   companion object {
 

@@ -23,6 +23,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.javac.services.util.JavaDiagnosticUtils
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
@@ -45,6 +46,7 @@ class AddImportAction : BaseJavaCodeAction() {
   private val diagnosticCode = DiagnosticCode.NOT_IMPORTED.id
 
   override val titleTextRes: Int = R.string.action_import_classes
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_FIXIMPORTS
 
   companion object {
 

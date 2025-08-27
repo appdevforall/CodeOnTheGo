@@ -19,6 +19,7 @@ package com.itsaky.androidide.lsp.java.actions.diagnostics
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.javac.services.util.JavaDiagnosticUtils
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.models.DiagnosticCode
@@ -36,6 +37,7 @@ class ImplementAbstractMethodsAction : BaseJavaCodeAction() {
   private var diagnosticCode = DiagnosticCode.DOES_NOT_OVERRIDE_ABSTRACT.id
 
   override val titleTextRes: Int = R.string.action_implement_abstract_methods
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_OVERRIDESUPER
 
   companion object {
 

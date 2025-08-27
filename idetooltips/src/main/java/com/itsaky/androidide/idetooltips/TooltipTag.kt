@@ -20,4 +20,21 @@ object TooltipTag {
     const val PROJECT_SEARCH_RESULTS = "project.searchresults"
     const val PROJECT_DIAGNOSTICS = "project.diagnostics"
 
+    // Code Actions menu
+    const val EDITOR_CODEACTIONS_COMMENT = "editor.codeactions.comment"
+    const val EDITOR_CODEACTIONS_UNCOMMENT = "editor.codeactions.uncomment"
+    const val EDITOR_CODEACTIONS_GOTODEF = "editor.codeactions.gotodef"
+    const val EDITOR_CODEACTIONS_FINDREFS = "editor.codeactions.findrefs"
+    const val EDITOR_CODEACTIONS_FIXIMPORTS = "editor.codeactions.fiximports"
+    const val EDITOR_CODEACTIONS_SETTERGETTER = "editor.codeactions.settergetter"
+    const val EDITOR_CODEACTIONS_SETTERGETTER_DIALOG = "editor.codeactions.settergetter.dialog"
+    const val EDITOR_CODEACTIONS_OVERRIDESUPER = "editor.codeactions.overridesuper"
+    const val EDITOR_CODEACTIONS_OVERRIDESUPER_DIALOG = "editor.codeactions.overridesuper.dialog"
+    const val EDITOR_CODEACTIONS_GENCONSTRUCTOR = "editor.codeactions.genconstructor"
+    const val EDITOR_CODEACTIONS_GENCONSTRUCTOR_DIALOG = "editor.codeactions.genconstructor.dialog"
+    const val EDITOR_CODEACTIONS_GENTOSTRING = "editor.codeactions.gentostring"
+    const val EDITOR_CODEACTIONS_GENTOSTRING_DIALOG = "editor.codeactions.gentostring.dialog"
+    const val EDITOR_CODEACTIONS_UNUSEDIMPORTS = "editor.codeactions.unusedimports"
+    const val EDITOR_CODEACTIONS_ORGANIZEIMPORTS = "editor.codeactions.organizeimports"
+
 }

@@ -28,6 +28,7 @@ import com.github.javaparser.ast.type.VoidType
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
@@ -60,6 +61,7 @@ class GenerateSettersAndGettersAction : FieldBasedAction() {
   override var label: String = ""
 
   override val titleTextRes: Int = R.string.action_generate_setters_getters
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_SETTERGETTER
 
   companion object {
 

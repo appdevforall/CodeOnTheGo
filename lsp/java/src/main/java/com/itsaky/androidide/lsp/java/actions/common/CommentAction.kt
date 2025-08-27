@@ -18,6 +18,7 @@ package com.itsaky.androidide.lsp.java.actions.common
 
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireEditor
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.resources.R
 
@@ -29,6 +30,7 @@ class CommentAction : BaseJavaCodeAction() {
   override val titleTextRes: Int = R.string.action_comment_line
 
   override var requiresUIThread: Boolean = true
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_COMMENT
   
   override suspend fun execAction(data: ActionData): Boolean {
     val editor = data.requireEditor()

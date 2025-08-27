@@ -25,6 +25,7 @@ import com.github.javaparser.ast.stmt.ReturnStmt
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction
 import com.itsaky.androidide.lsp.java.actions.generators.GenerateConstructorAction.Companion
@@ -60,6 +61,7 @@ class GenerateToStringMethodAction : FieldBasedAction() {
   override val titleTextRes: Int = R.string.action_generate_toString
   override val id: String = "ide.editor.lsp.java.generator.toString"
   override var label: String = ""
+  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_GENTOSTRING
 
   companion object {
     private val log = LoggerFactory.getLogger(GenerateToStringMethodAction::class.java)
