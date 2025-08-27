@@ -21,7 +21,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.ViewGroup.LayoutParams
-import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
@@ -30,10 +29,6 @@ import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
-import com.itsaky.androidide.actions.FillMenuParams
-import com.itsaky.androidide.actions.build.ProjectSyncAction
-import com.itsaky.androidide.actions.build.QuickRunAction
-import com.itsaky.androidide.actions.file.SaveFileAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
@@ -57,12 +52,9 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
-import com.itsaky.androidide.utils.EditorActivityActions
-import com.itsaky.androidide.utils.EditorSidebarActions
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,6 +72,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     protected val isOpenedFilesSaved = AtomicBoolean(false)
+
+    private val fileTimestamps = mutableMapOf<String, Long>()
 
     override fun doOpenFile(file: File, selection: Range?) {
         openFileAndSelect(file, selection)
@@ -154,6 +148,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     override fun onPause() {
         super.onPause()
 
+        // Record timestamps for all currently open files before saving the cache
+        editorViewModel.getOpenedFiles().forEach { file ->
+            // Note: Using the file's absolutePath as the key
+            fileTimestamps[file.absolutePath] = file.lastModified()
+        }
+
         // if the user manually closes the project, this will be true
         // in this case, don't overwrite the already saved cache
         if (!isOpenedFilesSaved.get()) {
@@ -164,7 +164,30 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     override fun onResume() {
         super.onResume()
         isOpenedFilesSaved.set(false)
-        prepareOptionsMenu()
+        checkForExternalFileChanges()
+    }
+
+    private fun checkForExternalFileChanges() {
+        // Get the list of files currently managed by the ViewModel
+        val openFiles = editorViewModel.getOpenedFiles()
+        if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
+
+        // Check each open file
+        openFiles.forEach { file ->
+            val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
+            val currentTimestamp = file.lastModified()
+            val editorView = getEditorForFile(file)
+
+            // If the file on disk is newer AND the editor for it exists AND has no unsaved changes...
+            if (currentTimestamp > lastKnownTimestamp && editorView != null && !editorView.isModified) {
+                val newContent = file.readText()
+                editorView.editor?.post {
+                    editorView.editor?.setText(newContent)
+                    editorView.markAsSaved()
+                    updateTabs()
+                }
+            }
+        }
     }
 
     override fun saveOpenedFiles() {
@@ -213,35 +236,17 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         val data = createToolbarActionData()
         content.customToolbar.clearMenu()
 
-  open fun prepareOptionsMenu(menu: Menu) {
-    val isSyncInProgress = projectViewModel.initState.value is TaskState.InProgress
-    val currentEditor = getCurrentEditor()
-    val isFileOpen = currentEditor != null
-    val isFileModified = currentEditor?.isModified ?: false
+        val actions = getInstance().getActions(EDITOR_TOOLBAR)
+        actions.onEachIndexed { index, entry ->
+            val action = entry.value
+            val isLast = index == actions.size - 1
 
-    val data = createToolbarActionData()
-    val actions = getInstance().getActions(EDITOR_TOOLBAR)
-    actions.forEach { (_, action) ->
-      menu.findItem(action.itemId)?.let { item ->
-        action.prepare(data)
+            action.prepare(data)
 
-        var isEnabled = action.enabled // Start with the action's default state.
-
-        when (action) {
-          is ProjectSyncAction -> isEnabled = !isSyncInProgress
-          is QuickRunAction -> isEnabled = !isSyncInProgress
-          is SaveFileAction -> isEnabled = isFileOpen && isFileModified
-        }
-
-        item.isEnabled = isEnabled
-        item.isVisible = action.visible
-
-        item.title = action.label
-
-        item.icon = action.icon?.apply {
-          colorFilter = action.createColorFilter(data)
-          alpha = if (action.enabled) 255 else 76
-        }
+            action.icon?.apply {
+                colorFilter = action.createColorFilter(data)
+                alpha = if (action.enabled) 255 else 76
+            }
 
             content.customToolbar.addMenuItem(
                 icon = action.icon,
@@ -625,7 +630,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         }
     }
 
-    private fun notifyFilesUnsaved(unsavedEditors: List<CodeEditorView?>, invokeAfter: Runnable) {
+    private fun notifyFilesUnsaved(
+        unsavedEditors: List<CodeEditorView?>,
+        invokeAfter: Runnable
+    ) {
         if (isDestroying) {
             // Do not show unsaved files dialog if the activity is being destroyed
             // TODO Use a service to save files and to avoid file content loss
