@@ -148,7 +148,7 @@ object TooltipManager {
                     }
                 )
             } else {
-                Log.e("EditorHandlerActivity", "Tooltip item $tooltipItem is null")
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
             }
         }
     }
