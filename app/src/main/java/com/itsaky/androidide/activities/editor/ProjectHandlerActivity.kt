@@ -267,10 +267,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     private fun installApk(apk: File) {
-        log.debug(getString(R.string.log_installing_apk, apk))
+        log.debug("Installing APK: {}", apk)
 
         if (!apk.exists()) {
-            log.error(getString(R.string.error_apk_does_not_exist))
+            log.error("APK file does not exist!")
             return
         }
 
@@ -325,14 +325,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             try {
                 stopLanguageServers()
             } catch (err: Exception) {
-                log.error(getString(R.string.error_failed_to_stop_editor_services))
+                log.error("Failed to stop editor services.")
             }
 
             try {
                 unbindService(buildServiceConnection)
                 buildServiceConnection.onConnected = {}
             } catch (err: Throwable) {
-                log.error(getString(R.string.error_unable_to_unbind_service))
+                log.error("Unable to unbind service")
             } finally {
                 Lookup.getDefault().apply {
 
@@ -397,11 +397,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val service =
             Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as GradleBuildService?
         if (editorViewModel.isBoundToBuildSerice && service != null) {
-            log.info(getString(R.string.log_reusing_gradle_service))
+            log.info("Reusing already started Gradle build service")
             onGradleBuildServiceConnected(service)
             return
         } else {
-            log.info(getString(R.string.log_binding_gradle_service))
+            log.info("Binding to Gradle build service...")
         }
 
         buildServiceConnection.onConnected = this::onGradleBuildServiceConnected
@@ -413,9 +413,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                 BIND_AUTO_CREATE or BIND_IMPORTANT
             )
         ) {
-            log.info(getString(R.string.log_gradle_bind_successful))
+            log.info("Bind request for Gradle build service was successful...")
         } else {
-            log.error(getString(R.string.error_gradle_service_inaccessible))
+            log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
         }
 
         initLspClient()
@@ -454,7 +454,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         // no information about the build variants is available
         // use the default variant selections
         if (currentVariants == null) {
-            log.debug(getString(R.string.log_no_variant_info_using_default))
+            log.debug(
+                "No variant selection information available. Default build variants will be selected."
+            )
             initializeProject(emptyMap())
             return
         }
@@ -467,7 +469,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             newSelections.putAll(buildVariantsViewModel.updatedBuildVariants)
             initializeProject {
                 newSelections.mapToSelectedVariants().also {
-                    log.debug(getString(R.string.log_init_with_new_variants, it))
+                    log.debug("Initializing project with new build variant selections: {}", it)
                 }
             }
             return
@@ -477,7 +479,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         // the user might be trying to sync the project from options menu
         // initialize the project with the existing selected variants
         initializeProject {
-            log.debug(getString(R.string.log_reinit_with_existing_variants))
+            log.debug("Re-initializing project with existing build variant selections")
             currentVariants.mapToSelectedVariants()
         }
     }
@@ -491,7 +493,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val manager = ProjectManagerImpl.getInstance()
         val projectDir = File(manager.projectPath)
         if (!projectDir.exists()) {
-            log.error(getString(R.string.error_project_dir_not_exist_cannot_init))
+            log.error("Project directory does not exist. Cannot initialize project")
             return
         }
 
@@ -529,12 +531,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         try {
             destroyLanguageServers(isChangingConfigurations)
         } catch (err: Throwable) {
-            log.error(getString(R.string.error_stop_editor_services), err)
+            log.error("Unable to stop editor services. Please report this issue.", err)
         }
     }
 
     protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
-        log.info(getString(R.string.log_connected_to_gradle_service))
+        log.info("Connected to Gradle build service")
 
         buildServiceConnection.onConnected = null
         editorViewModel.isBoundToBuildSerice = true
@@ -548,13 +550,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
                 service.metadata().whenComplete { metadata, err ->
                     if (metadata == null || err != null) {
-                        log.error(getString(R.string.error_failed_tooling_server_metadata))
+                        log.error("Failed to get tooling server metadata")
                         return@whenComplete
                     }
 
                     if (pid != metadata.pid) {
                         log.warn(
-                            getString(R.string.warn_pid_mismatch, pid, metadata.pid)
+                            "Tooling server pid mismatch. Expected: {}, Actual: {}. Replacing memory watcher...",
+                            pid, metadata.pid
                         )
                         memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
                         resetMemUsageChart()
@@ -571,7 +574,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     protected open fun onProjectInitialized(result: InitializeResult) {
         val manager = ProjectManagerImpl.getInstance()
         if (isFromSavedInstance && manager.projectInitialized && result == manager.cachedInitResult) {
-            log.debug(getString(R.string.log_skip_setup_config_change))
+            log.debug("Not setting up project as this a configuration change")
             return
         }
 
@@ -656,7 +659,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     protected open fun createFindInProjectDialog(): AlertDialog? {
         val manager = ProjectManagerImpl.getInstance()
         if (manager.rootProject == null) {
-            log.warn(getString(R.string.warn_no_root_project_model))
+            log.warn("No root project model found. Is the project initialized?")
             flashError(getString(R.string.msg_project_not_initialized))
             return null
         }
@@ -764,7 +767,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         try {
             val project = manager.rootProject
             if (project == null) {
-                log.warn(getString(R.string.warn_gradle_project_not_init))
+                log.warn("GradleProject not initialized. Skipping initial setup...")
                 return
             }
 
