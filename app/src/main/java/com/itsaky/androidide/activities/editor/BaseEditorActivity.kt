@@ -58,7 +58,6 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -90,6 +89,7 @@ import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
 import com.itsaky.androidide.fragments.SearchResultFragment
+import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -249,6 +249,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 debuggerPostConnectionAction?.invoke()
             }
         }
+
         override fun onServiceDisconnected(name: ComponentName?) {
             debuggerService = null
             isDebuggerStarting = false
@@ -304,10 +305,13 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun postStopDebuggerServiceIfNotConnected() {
         debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
-        debuggerServiceStopHandler.postDelayed(debuggerServiceStopRunnable, DEBUGGER_SERVICE_STOP_DELAY_MS)
+        debuggerServiceStopHandler.postDelayed(
+            debuggerServiceStopRunnable,
+            DEBUGGER_SERVICE_STOP_DELAY_MS
+        )
     }
 
-    private var optionsMenuInvalidator: Runnable? = null
+    protected var optionsMenuInvalidator: Runnable? = null
 
     private lateinit var gestureDetector: GestureDetector
     private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
@@ -346,7 +350,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     protected abstract fun getOpenedFiles(): List<OpenedFile>
     internal abstract fun doConfirmProjectClose()
-  internal abstract fun doOpenHelp()
+    internal abstract fun doOpenHelp()
 
     protected open fun preDestroy() {
         BuildOutputProvider.clearBottomSheet()
@@ -412,10 +416,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
                 editorAppBarLayout.updatePadding(
                     top = insets.top
                 )
-                editorToolbar.updatePaddingRelative(
-                    start = editorToolbar.paddingStart + insets.left,
-                    end = editorToolbar.paddingEnd + insets.right
-                )
+                customToolbar.setContentInsetsRelative(0, 0)
             }
         }
     }
@@ -475,8 +476,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
         lifecycle.addObserver(mLifecycleObserver)
 
-        setSupportActionBar(content.editorToolbar)
-
+        setupToolbar()
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
 
@@ -495,6 +495,31 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         observeFileOperations()
 
         setupGestureDetector()
+    }
+
+    private fun setupToolbar() {
+        content.customToolbar.apply {
+            setTitleText(editorViewModel.getProjectName())
+
+            val toggle = object : ActionBarDrawerToggle(
+                this@BaseEditorActivity,
+                binding.editorDrawerLayout,
+                content.customToolbar,
+                string.app_name,
+                string.app_name
+            ) {
+                override fun onDrawerOpened(drawerView: View) {
+                    super.onDrawerOpened(drawerView)
+                    // Hide the keyboard when the drawer opens.
+                    closeKeyboard()
+                }
+            }
+
+
+            binding.editorDrawerLayout.addDrawerListener(toggle)
+            toggle.syncState()
+        }
+
     }
 
     private fun onSwipeRevealDragProgress(progress: Float) {
@@ -781,7 +806,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         val toggle = object : ActionBarDrawerToggle(
             this,
             binding.editorDrawerLayout,
-            content.editorToolbar,
+            content.customToolbar,
             string.app_name,
             string.app_name
         ) {
@@ -807,7 +832,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     private fun onUpdateProgressBarVisibility() {
         log.debug("onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}")
-        val visible = editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+        val visible =
+            editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
         content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
         invalidateOptionsMenu()
     }
@@ -913,7 +939,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         content.noEditorSummary.text = sb
     }
-
 
 
     private fun appendClickableSpan(

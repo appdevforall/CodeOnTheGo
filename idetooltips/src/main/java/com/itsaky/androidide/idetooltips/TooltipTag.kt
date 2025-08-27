@@ -15,4 +15,15 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_PASTE = "editor.toolbar.paste"
     const val EDITOR_TOOLBAR_SELECT_ALL = "editor.toolbar.selectall"
     const val EDITOR_TOOLBAR_HELP = "editor.toolbar.help"
+    const val PROJECT_APP_LOGS = "project.applogs"
+    const val PROJECT_IDE_LOGS = "project.idelogs"
+    const val PROJECT_SEARCH_RESULTS = "project.searchresults"
+    const val PROJECT_DIAGNOSTICS = "project.diagnostics"
+
+    // General Preferences
+    const val PREFS_EDITOR = "prefs.editor"
+    const val PREFS_GENERAL = "prefs.general"
+    const val PREFS_BUILD_RUN = "prefs.buildrun"
+    const val PREFS_TERMUX = "prefs.termux"
+
 }
