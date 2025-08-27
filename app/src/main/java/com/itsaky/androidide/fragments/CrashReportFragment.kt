@@ -16,6 +16,7 @@
  */
 package com.itsaky.androidide.fragments
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -117,19 +118,7 @@ class CrashReportFragment : Fragment() {
             spannable.setSpan(
                 object : ClickableSpan() {
                     override fun onClick(widget: View) {
-                        val email = "feedback@appdevforall.org"
-                        val subject = Uri.encode(context.getString(R.string.crash_email_subject))
-                        val body = Uri.encode(
-                            context.getString(
-                                R.string.crash_email_body,
-                                BuildInfo.VERSION_NAME_SIMPLE
-                            )
-                        )
-
-                        val uri = "mailto:$email?subject=$subject&body=$body".toUri()
-
-                        val intent = Intent(Intent.ACTION_SENDTO, uri)
-                        context.startActivity(intent)
+                        sendEmail(context = context)
 
                     }
 
@@ -147,6 +136,22 @@ class CrashReportFragment : Fragment() {
 
         text = spannable
         movementMethod = LinkMovementMethod.getInstance()
+    }
+
+    private fun sendEmail(context: Context) {
+        val email = "feedback@appdevforall.org"
+        val subject = Uri.encode(context.getString(R.string.crash_email_subject))
+        val body = Uri.encode(
+            context.getString(
+                R.string.crash_email_body,
+                BuildInfo.VERSION_NAME_SIMPLE
+            )
+        )
+
+        val uri = "mailto:$email?subject=$subject&body=$body".toUri()
+
+        val intent = Intent(Intent.ACTION_SENDTO, uri)
+        context.startActivity(intent)
     }
 
     private fun finishActivity() {
