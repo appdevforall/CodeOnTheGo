@@ -20,6 +20,7 @@ package com.itsaky.androidide.actions.etc
 import android.content.Context
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.resources.R
 
@@ -28,6 +29,7 @@ class FindInFileAction() : EditorRelatedAction() {
 
   override val id: String = "ide.editor.find.inFile"
   override var requiresUIThread: Boolean = true
+  override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
 
   override var order: Int = 0
 
