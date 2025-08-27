@@ -37,12 +37,8 @@ class DebugAction(
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
-        if (data.getActivity().isBuildInProgress()) {
-            // if a build is in progress, then the 'Quick run' action will be used to
-            // show the cancellation button
-            visible = false
-        }
-        enabled = JdwpOptions.JDWP_ENABLED
+        val buildIsInProgress = data.getActivity().isBuildInProgress()
+        enabled = JdwpOptions.JDWP_ENABLED && !buildIsInProgress
     }
 
     override fun onCreateTaskExecMessage(
