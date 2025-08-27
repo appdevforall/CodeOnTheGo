@@ -23,7 +23,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
@@ -78,6 +77,7 @@ import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
+import io.github.rosemoe.sora.event.LongPressEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
@@ -121,27 +121,6 @@ open class IDEEditor @JvmOverloads constructor(
 
   // A flag to track when a long press has occurred within a single touch gesture.
   private var mLongPressHandled = false
-
-  // Initialize the GestureDetector. It uses a listener to report detected gestures.
-  private val gestureDetector =
-    GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-      override fun onDown(e: MotionEvent): Boolean {
-        return true
-      }
-
-      override fun onLongPress(e: MotionEvent) {
-        log.debug("Long press detected, posting event and canceling superclass handling.")
-        mLongPressHandled = true
-        EventBus.getDefault().post(EditorLongPressEvent(e))
-
-        val cancelEvent = MotionEvent.obtain(e)
-        cancelEvent.action = MotionEvent.ACTION_CANCEL
-
-        // Use super@IDEEditor to refer to the outer class's superclass
-        super@IDEEditor.onTouchEvent(cancelEvent)
-        cancelEvent.recycle()
-      }
-    })
 
   @Suppress("PropertyName")
   internal var _file: File? = null
@@ -761,6 +740,11 @@ open class IDEEditor @JvmOverloads constructor(
     }
 
     EventBus.getDefault().register(this)
+
+    subscribeEvent(LongPressEvent::class.java) { event, _ ->
+      EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
+      event.intercept()
+    }
   }
 
   private inline fun launchCancellableAsyncWithProgress(@StringRes message: Int,
@@ -973,27 +957,5 @@ open class IDEEditor @JvmOverloads constructor(
 
   override fun setSelectionAround(line: Int, column: Int) {
     editorFeatures.setSelectionAround(line, column)
-  }
-
-  override fun onTouchEvent(event: MotionEvent): Boolean {
-    // On the first touch (ACTION_DOWN), reset the flag for the new gesture.
-    if (event.action == MotionEvent.ACTION_DOWN) {
-      mLongPressHandled = false
-    }
-
-    // Feed the touch event to our detector. If it detects a long press,
-    // it will call our onLongPress listener and set mLongPressHandled to true.
-    gestureDetector.onTouchEvent(event)
-
-    // If our flag is true, it means a long press was detected. We should
-    // consume this event and any subsequent events in this gesture (like ACTION_UP)
-    // to prevent the superclass from processing them as a tap.
-    if (mLongPressHandled) {
-      return true
-    }
-
-    // If no long press was handled, pass the event to the parent CodeEditor
-    // for default behavior (moving cursor, selecting text, etc.).
-    return super.onTouchEvent(event)
   }
 }
