@@ -166,11 +166,14 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
             anchorView = anchorView,
             level = 0,
             tooltipItem = IDETooltipItem(
-              tooltipCategory = TooltipCategory.CATEGORY_IDE,
-              tooltipTag = data.tooltipTag,
-              detail = data.detail,
+              rowId = data.rowId,
+              id = data.id,
+              category = TooltipCategory.CATEGORY_IDE,
+              tag = data.tag,
               summary = data.summary,
+              detail = data.detail,
               buttons = data.buttons,
+              lastChange = data.lastChange
             )
           ) { context, url, title ->
             val intent = Intent(context, HelpActivity::class.java).apply {

@@ -101,11 +101,14 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                             editor,
                             0,
                             IDETooltipItem(
-                                tooltipCategory = category,
-                                tooltipTag = tooltipData.tooltipTag,
+                                rowId = tooltipData.rowId,
+                                id = tooltipData.id,
+                                category = category,
+                                tag = tooltipData.tag,
                                 detail = tooltipData.detail,
                                 summary = tooltipData.summary,
                                 buttons = tooltipData.buttons,
+                                lastChange = tooltipData.lastChange,
                             ),
                             { context, url, title ->
                                 val intent = Intent(context, HelpActivity::class.java).apply {
