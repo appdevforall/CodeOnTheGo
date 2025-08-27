@@ -32,9 +32,6 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
     arr.recycle()
   }
 
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
-    TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
-
   override val id: String = "ide.editor.code.text.selectAll"
 
   override suspend fun execAction(data: ActionData): Boolean {
@@ -44,4 +41,12 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
   }
 
   override fun dismissOnAction() = false
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
+    return if (isReadOnlyContext) {
+      TooltipTag.EDITOR_TOOLBAR_OUTPUT_SELECT_ALL
+    } else {
+      TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
+    }
+  }
 }

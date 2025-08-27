@@ -43,11 +43,6 @@ class ExpandSelectionAction(context: Context, override val order: Int) : EditorR
         return data.getEditor()?.expandSelection() ?: false
     }
 
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
-        return if (isReadOnlyContext) {
-            TooltipTag.EDITOR_TOOLBAR_OUTPUT_EXPAND_SELECTION
-        } else {
-            TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
-        }
-    }
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) =
+        TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
 }
