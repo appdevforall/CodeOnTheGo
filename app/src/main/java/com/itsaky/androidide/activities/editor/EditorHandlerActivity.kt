@@ -173,6 +173,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     override fun onResume() {
         super.onResume()
+        ActionContextProvider.setActivity(this)
         isOpenedFilesSaved.set(false)
         prepareOptionsMenu()
         checkForExternalFileChanges()
