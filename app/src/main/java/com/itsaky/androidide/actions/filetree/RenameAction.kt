@@ -25,6 +25,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
@@ -50,6 +51,7 @@ class RenameAction(context: Context, override val order: Int) :
   ) {
 
   override val id: String = "ide.editor.fileTree.rename"
+  override var tooltipTag: String = TooltipTag.PROJECT_ITEM_RENAME
 
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()

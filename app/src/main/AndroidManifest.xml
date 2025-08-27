@@ -50,7 +50,7 @@
     android:name=".app.IDEApplication"
     android:preserveLegacyExternalStorage="true"
     android:requestLegacyExternalStorage="true"
-    android:resizeableActivity="false"
+      android:resizeableActivity="true"
     android:supportsRtl="true"
     android:theme="@style/Theme.AndroidIDE"
     tools:ignore="DiscouragedApi,MediaCapabilities,UnusedAttribute"

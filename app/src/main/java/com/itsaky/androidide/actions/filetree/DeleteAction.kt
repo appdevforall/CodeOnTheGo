@@ -23,6 +23,7 @@ import com.blankj.utilcode.util.FileUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
@@ -41,6 +42,7 @@ class DeleteAction(context: Context, override val order: Int) :
   BaseFileTreeAction(context, labelRes = R.string.delete_file, iconRes = R.drawable.ic_delete) {
 
   override val id: String = "ide.editor.fileTree.delete"
+  override var tooltipTag: String = TooltipTag.PROJECT_ITEM_DELETE
 
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()

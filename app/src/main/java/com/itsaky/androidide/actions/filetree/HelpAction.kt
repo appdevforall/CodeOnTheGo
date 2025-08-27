@@ -1,9 +1,10 @@
 package com.itsaky.androidide.actions.filetree
 
 import android.content.Context
-import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.R
+import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.UrlManager
 
 class HelpAction(context: Context, override val order: Int) :
@@ -13,6 +14,7 @@ class HelpAction(context: Context, override val order: Int) :
         iconRes = R.drawable.ic_action_help
     ) {
     override val id: String = "ide.editor.fileTree.help"
+    override var tooltipTag: String = TooltipTag.PROJECT_FOLDER_HELP
 
     override suspend fun execAction(data: ActionData) {
         val context = data.requireContext()

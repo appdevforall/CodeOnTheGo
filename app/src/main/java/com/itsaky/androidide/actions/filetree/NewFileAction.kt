@@ -26,6 +26,7 @@ import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
@@ -56,6 +57,7 @@ class NewFileAction(context: Context, override val order: Int) :
   ) {
 
   override val id: String = "ide.editor.fileTree.newFile"
+  override var tooltipTag: String = TooltipTag.PROJECT_FOLDER_NEWFILE
 
   companion object {
 

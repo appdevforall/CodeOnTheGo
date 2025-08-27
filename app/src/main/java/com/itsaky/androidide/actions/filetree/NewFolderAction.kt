@@ -22,6 +22,7 @@ import android.view.LayoutInflater
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
@@ -43,6 +44,7 @@ class NewFolderAction(context: Context, override val order: Int) :
   ) {
 
   override val id: String = "ide.editor.fileTree.newFolder"
+  override var tooltipTag: String = TooltipTag.PROJECT_FOLDER_NEW_FOLDER
 
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()

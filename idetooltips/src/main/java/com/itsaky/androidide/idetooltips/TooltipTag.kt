@@ -26,4 +26,18 @@ object TooltipTag {
     const val PREFS_BUILD_RUN = "prefs.buildrun"
     const val PREFS_TERMUX = "prefs.termux"
 
+    const val PROJECT_ITEM_COPYPATH = "project.item.copypath"
+    const val PROJECT_ITEM_DELETE = "project.item.delete"
+    const val PROJECT_CONFIRM_DELETE = "project.confirm.delete"
+    const val PROJECT_FOLDER_NEWFILE = "project.folder.newfile"
+    const val PROJECT_FOLDER_NEW_FOLDER = "project.folder.newfolder"
+    const val PROJECT_NEWFILE_DIALOG = "project.newfile.dialog"
+    const val PROJECT_FOLDER_NEWTYPE = "project.folder.newtype"
+    const val PROJECT_FOLDER_NEWXML = "project.folder.newxml"
+    const val PROJECT_ITEM_RENAME = "project.item.rename"
+    const val PROJECT_RENAME_DIALOG = "project.rename.dialog"
+    const val PROJECT_FOLDER_HELP = "project.folder.help"
+    const val PROJECT_FILE_OPENWITH = "project-file.openwith"
+    const val PROJECT_FILE_HELP = "project.file.help"
+
 }
