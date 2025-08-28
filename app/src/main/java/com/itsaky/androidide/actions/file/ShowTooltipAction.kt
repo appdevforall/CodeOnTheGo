@@ -57,11 +57,14 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
                     editor,
                     0,
                     IDETooltipItem(
-                        tooltipCategory = category,
-                        tooltipTag = tooltipData.tooltipTag,
+                        rowId = tooltipData.rowId,
+                        id = tooltipData.id,
+                        category = category,
+                        tag = tooltipData.tag,
                         detail = tooltipData.detail,
                         summary = tooltipData.summary,
                         buttons = tooltipData.buttons,
+                        lastChange = tooltipData.lastChange,
                     ),
                 )
             }
