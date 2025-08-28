@@ -24,6 +24,7 @@ object TooltipTag {
     const val OUTPUT_CLEAR = "output.clear"
     const val OUTPUT_SHARE_EXTERNAL = "output.share.external"
     const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
+    const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
 
     // General Preferences
     const val PREFS_EDITOR = "prefs.editor"
