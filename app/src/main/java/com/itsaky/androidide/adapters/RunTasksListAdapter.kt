@@ -22,9 +22,16 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.RunTasksListAdapter.VH
 import com.itsaky.androidide.databinding.LayoutRunTaskItemBinding
+import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_GRADLE_TASKS
 import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.tooling.api.models.GradleTask
-import com.itsaky.androidide.utils.AndroidUtils
+import com.itsaky.androidide.viewmodel.RunTasksViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Adapter for showing tasks list in [RunTaskDialogFragment]
@@ -35,33 +42,64 @@ import com.itsaky.androidide.utils.AndroidUtils
 class RunTasksListAdapter
 @JvmOverloads
 constructor(
-  tasks: List<Checkable<GradleTask>>,
-  val onCheckChanged: (Checkable<GradleTask>) -> Unit = {}
+    tasks: List<Checkable<GradleTask>>,
+    val onCheckChanged: (Checkable<GradleTask>) -> Unit = {},
+    private val viewModel: RunTasksViewModel? = null
 ) : FilterableRecyclerViewAdapter<VH, Checkable<GradleTask>>(tasks) {
 
-  data class VH(val binding: LayoutRunTaskItemBinding) : RecyclerView.ViewHolder(binding.root)
+    data class VH(val binding: LayoutRunTaskItemBinding) : RecyclerView.ViewHolder(binding.root)
 
-  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-    return VH(LayoutRunTaskItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
-  }
-
-  override fun onBindViewHolder(holder: VH, position: Int) {
-    val binding = holder.binding
-    val data = getItem(position)
-    val task = data.data
-
-    binding.check.isChecked = data.isChecked
-    binding.taskPath.text = task.path
-    binding.taskDesc.text = task.description
-
-    binding.root.setOnClickListener {
-      data.isChecked = !data.isChecked
-      binding.check.isChecked = data.isChecked
-      onCheckChanged(data)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        return VH(
+            LayoutRunTaskItemBinding.inflate(
+                LayoutInflater.from(parent.context),
+                parent,
+                false
+            )
+        )
     }
-  }
 
-  override fun getQueryCandidate(item: Checkable<GradleTask>): String {
-    return item.data.path
-  }
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val binding = holder.binding
+        val data = getItem(position)
+        val task = data.data
+
+        binding.check.isChecked = data.isChecked
+        binding.taskPath.text = task.path
+        binding.taskDesc.text = task.description
+
+        binding.root.setOnClickListener {
+            data.isChecked = !data.isChecked
+            binding.check.isChecked = data.isChecked
+            onCheckChanged(data)
+        }
+
+        binding.root.setOnLongClickListener {
+            CoroutineScope(Dispatchers.Main).launch {
+                val category = TooltipCategory.CATEGORY_IDE
+                val item = TooltipManager.getTooltip(
+                    context = binding.root.context,
+                    category = category,
+                    tag = PROJECT_GRADLE_TASKS
+                )
+                item?.let { tooltipData ->
+                    TooltipManager.showIDETooltip(
+                        binding.root.context,
+                        binding.root,
+                        0,
+                        item,
+                        { _, url, title ->
+                            viewModel?.navigateToHelp(url, title)
+                        }
+                    )
+                }
+            }
+            true
+        }
+    }
+
+
+    override fun getQueryCandidate(item: Checkable<GradleTask>): String {
+        return item.data.path
+    }
 }
