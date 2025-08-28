@@ -7,8 +7,14 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 12 * * *'
-  workflow_dispatch: #
+    - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: false
+        default: 'stage'
+        type: string
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,10 +45,23 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-      - name: Checkout PR branch
+      - name: Determine branch to checkout
+        id: determine_branch
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "BRANCH_TO_CHECKOUT=stage" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "BRANCH_TO_CHECKOUT=${{ github.event.inputs.branch || 'stage' }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "BRANCH_TO_CHECKOUT=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "BRANCH_TO_CHECKOUT=stage" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ steps.determine_branch.outputs.BRANCH_TO_CHECKOUT }}
           fetch-depth: 0
 
       - name: Install Git LFS
@@ -88,34 +107,24 @@ jobs:
 
       - name: Set branch name and build type
         run: |
-          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          BRANCH_NAME=${{ steps.determine_branch.outputs.BRANCH_TO_CHECKOUT }}
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           
           BUILD_TYPE="RELEASE"
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
-      - name: Get PR and Commit Information
-        id: pr_info
+      - name: Get Commit Information
+        id: commit_info
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            EVENT_PATH="${GITHUB_EVENT_PATH}"
-            COMMIT_MSG=$(jq -r '.pull_request.title' "$EVENT_PATH" | tr -d '\n\r' | sed 's/[*]/•/g')
-            PR_AUTHOR=$(jq -r '.pull_request.user.login' "$EVENT_PATH")
-            PR_URL=$(jq -r '.pull_request.html_url' "$EVENT_PATH")
-            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
-            echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_OUTPUT
-            echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
-          else
-            COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r' | sed 's/[*]/•/g')
-            COMMIT_AUTHOR=$(git log -1 --pretty=%an)
-            echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
-            echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
-          fi
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r' | sed 's/[*]/•/g')
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
 
       - name: Extract Jira Ticket and Fetch Title
         id: extract_jira
         env:
-          COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
+          COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
           
@@ -152,178 +161,4 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.IDENTITY_EMAIL }}
-
-      - name: Verify APK exists
-        run: |
-          if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
-            echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
-            exit 1
-          fi
-          ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
-
-      - name: Deploy to Firebase App Distribution
-        id: firebase_upload
-        env:
-          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          BUILD_TYPE: ${{ env.BUILD_TYPE }}
-          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
-          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
-        run: |
-          echo "Starting Firebase deployment..."
-          echo "APK Path: $APK_PATH"
-          echo "Firebase App ID: $FIREBASE_APP_ID"
-          
-          # Check if Firebase CLI is authenticated
-          echo "Checking Firebase authentication..."
-          firebase projects:list || {
-            echo "ERROR: Firebase authentication failed"
-            exit 1
-          }
-
-          RELEASE_NOTES_FILE=$(mktemp)
-          cat > "$RELEASE_NOTES_FILE" << EOF
-          Build Type: $BUILD_TYPE
-          JIRA Title: $JIRA_TITLE
-          Ticket: $JIRA_URL
-          EOF
-          
-          echo "Running Firebase distribution command..."
-          set +e  # Disable exit on error temporarily
-          output=$(firebase appdistribution:distribute "$APK_PATH" \
-            --app "$FIREBASE_APP_ID" \
-            --groups "testers" \
-            --release-notes-file "$RELEASE_NOTES_FILE" 2>&1)
-          exit_code=$?
-          set -e  # Re-enable exit on error
-          
-          echo "Firebase command exit code: $exit_code"
-          echo "Firebase command output:"
-          echo "$output"
-          
-          if [ $exit_code -ne 0 ]; then
-            echo "ERROR: Firebase deployment failed with exit code $exit_code"
-            exit 1
-          fi
-
-          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-
-          if [ -z "$FIREBASE_URL" ]; then
-            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          fi
-
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Send Rich Slack Notification
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-          JIRA_URL: ${{ steps.extract_jira.outputs.JIRA_URL }}
-          JIRA_TITLE: ${{ steps.extract_jira.outputs.JIRA_TITLE }}
-          PR_AUTHOR: ${{ steps.pr_info.outputs.PR_AUTHOR }}
-          COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
-          FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
-        run: |
-          BRANCH_NAME="${{ env.BRANCH_NAME }}"
-          BUILD_TYPE="${{ env.BUILD_TYPE }}"
-          
-          jq -n \
-            --arg jira_url "$JIRA_URL" \
-            --arg jira_title "$JIRA_TITLE" \
-            --arg commit_msg "$COMMIT_MSG" \
-            --arg build_type "$BUILD_TYPE" \
-            --arg pr_author "$PR_AUTHOR" \
-            --arg firebase_url "$FIREBASE_CONSOLE_URL" \
-            --arg branch_name "$BRANCH_NAME" \
-            '{
-              blocks: [
-                {
-                  type: "header",
-                  text: {
-                    type: "plain_text",
-                    text: ":rocket: [Release] New Build Available",
-                    emoji: true
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "@here Please review and test this build."
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Build Type:* \($build_type)"
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Jira Ticket:* <\($jira_url)|\($jira_title)>"
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Commit:* \($commit_msg)"
-                  }
-                },
-          
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Author:* @\($pr_author)"
-                  }
-                },
-                {
-                  type: "actions",
-                  elements: [
-                    {
-                      type: "button",
-                      text: {
-                        type: "plain_text",
-                        text: "View on Firebase",
-                        emoji: true
-                      },
-                      url: $firebase_url,
-                      action_id: "firebase-console"
-                    },
-                    {
-                      type: "button",
-                      text: {
-                        type: "plain_text",
-                        text: "View Ticket",
-                        emoji: true
-                      },
-                      url: $jira_url,
-                      action_id: "jira-ticket"
-                    }
-                  ]
-                },
-                {
-                  type: "divider"
-                },
-                {
-                  type: "context",
-                  elements: [
-                    {
-                      type: "mrkdwn",
-                      text: "Deployed from branch `\($branch_name)`"
-                    }
-                  ]
-                }
-              ]
-            }' > payload.json
-          
-          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
-
-          rm -f payload.json
+          service_account: ${{ secrets.
