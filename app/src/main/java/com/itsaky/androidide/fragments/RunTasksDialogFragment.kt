@@ -18,6 +18,7 @@
 package com.itsaky.androidide.fragments
 
 import android.app.Dialog
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -40,6 +41,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.R.string
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.RunTasksListAdapter
 import com.itsaky.androidide.databinding.LayoutRunTaskBinding
 import com.itsaky.androidide.databinding.LayoutRunTaskDialogBinding
@@ -131,6 +133,17 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
       adapter.filter(it)
     }
 
+    viewModel.observeHelpNavigation(viewLifecycleOwner) { event ->
+      event?.let {
+        val intent = Intent(requireContext(), HelpActivity::class.java).apply {
+          putExtra("CONTENT_KEY", it.url)
+          putExtra("CONTENT_TITLE_KEY", it.title)
+        }
+        startActivity(intent)
+        viewModel.onHelpNavigationHandled()
+      }
+    }
+
     run.searchInput.editText?.addTextChangedListener(
       object : SingleTextWatcher() {
         val searchRunner = Runnable {
@@ -201,7 +214,7 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
         }
       }
 
-      run.tasks.adapter = RunTasksListAdapter(viewModel.tasks, onCheckChanged)
+      run.tasks.adapter = RunTasksListAdapter(viewModel.tasks, onCheckChanged, viewModel)
     }
   }
 

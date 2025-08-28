@@ -24,6 +24,11 @@ import androidx.lifecycle.ViewModel
 import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.tooling.api.models.GradleTask
 
+data class HelpNavigationEvent(
+  val url: String,
+  val title: String
+)
+
 /** @author Akash Yadav */
 class RunTasksViewModel : ViewModel() {
   
@@ -31,6 +36,7 @@ class RunTasksViewModel : ViewModel() {
   private val _selected = MutableLiveData(mutableSetOf<String>())
   private val _displayedChild = MutableLiveData(0)
   private val _query = MutableLiveData("")
+  private val _helpNavigationEvent = MutableLiveData<HelpNavigationEvent?>()
 
   var tasks: List<Checkable<GradleTask>>
     get() = _tasks.value!!
@@ -71,5 +77,17 @@ class RunTasksViewModel : ViewModel() {
 
   fun getSelectedTaskPaths(): String {
     return selected.joinToString(separator = "\n")
+  }
+
+  fun observeHelpNavigation(owner: LifecycleOwner, observer: Observer<HelpNavigationEvent?>) {
+    _helpNavigationEvent.observe(owner, observer)
+  }
+
+  fun navigateToHelp(url: String, title: String) {
+    _helpNavigationEvent.value = HelpNavigationEvent(url, title)
+  }
+
+  fun onHelpNavigationHandled() {
+    _helpNavigationEvent.value = null
   }
 }
