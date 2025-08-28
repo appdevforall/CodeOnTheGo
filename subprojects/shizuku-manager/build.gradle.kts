@@ -40,7 +40,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.recyclerview)
 
-    implementation(projects.logger)
+    implementation(projects.common)
+	implementation(projects.logger)
     implementation(projects.resources)
     implementation(projects.subprojects.shizukuServer)
     implementation(projects.subprojects.shizukuRish)
@@ -54,7 +55,8 @@ dependencies {
 
     implementation(libs.libsu.core)
     implementation(libs.common.hiddenApiBypass)
-    implementation(libs.bcpkix.jdk18on)
+    implementation(libs.boringssl)
+	implementation(libs.bcpkix.jdk18on)
 
     //noinspection UseTomlInstead
     implementation ("org.lsposed.libcxx:libcxx:${BuildConfig.ndkVersion}")
