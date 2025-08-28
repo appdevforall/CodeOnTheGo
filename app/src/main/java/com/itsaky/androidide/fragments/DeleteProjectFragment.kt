@@ -157,13 +157,7 @@ class DeleteProjectFragment : BaseFragment() {
                     requireContext(),
                     anchorView ?: binding.root,
                     0,
-                    IDETooltipItem(
-                        tooltipCategory = category,
-                        tooltipTag = tooltipData.tooltipTag,
-                        detail = tooltipData.detail,
-                        summary = tooltipData.summary,
-                        buttons = tooltipData.buttons,
-                    ),
+                    item,
                     { context, url, title ->
                         val intent = Intent(context, HelpActivity::class.java).apply {
                             putExtra(CONTENT_KEY, url)
