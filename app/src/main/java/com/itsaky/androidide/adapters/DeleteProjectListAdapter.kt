@@ -11,7 +11,8 @@ import java.util.Locale
 
 class DeleteProjectListAdapter(
     private var projects: List<ProjectFile>,
-    private val onSelectionChange: (Boolean) -> Unit
+    private val onSelectionChange: (Boolean) -> Unit,
+    private val onCheckboxLongPress: () -> Boolean
 ) : RecyclerView.Adapter<DeleteProjectListAdapter.ProjectViewHolder>() {
 
     private val selectedProjects = mutableSetOf<ProjectFile>()
@@ -52,6 +53,10 @@ class DeleteProjectListAdapter(
                 )
                 onSelectionChange(selectedProjects.isNotEmpty())
             }
+
+            binding.checkbox.setOnLongClickListener {
+                onCheckboxLongPress()
+            }
         }
     }
 
@@ -75,3 +80,4 @@ class DeleteProjectListAdapter(
         }
     }
 }
+
