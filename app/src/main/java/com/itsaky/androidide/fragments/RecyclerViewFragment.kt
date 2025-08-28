@@ -68,6 +68,9 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
       override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
     }
 
+  override fun onFragmentLongPressed() {
+    showFragmentTooltip()
+  }
   /**
    * Creates the adapter for the [RecyclerView].
    */

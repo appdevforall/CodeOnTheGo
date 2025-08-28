@@ -414,7 +414,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
       val action = registry.findAction(location, item.itemId)
       if (action != null) {
         button.setOnLongClickListener {
-          val tag = action.tooltipTag
+          val tag = action.retrieveTooltipTag(editor.isReadOnlyContext)
           val activity = editor.context as? Activity
           activity?.let { act ->
             CoroutineScope(Dispatchers.Main).launch {
@@ -430,11 +430,14 @@ open class EditorActionsMenu(val editor: IDEEditor) :
                   editor,
                   0,
                   IDETooltipItem(
-                    tooltipCategory = TooltipCategory.CATEGORY_IDE,
-                    tooltipTag = tooltipData.tooltipTag,
+                    rowId = tooltipData.rowId,
+                    id = tooltipData.id,
+                    category = TooltipCategory.CATEGORY_IDE,
+                    tag = tooltipData.tag,
                     detail = tooltipData.detail,
                     summary = tooltipData.summary,
                     buttons = tooltipData.buttons,
+                    lastChange = tooltipData.lastChange,
                   ),
                   { context, url, title ->
                     val intent = Intent(context, HelpActivity::class.java).apply {

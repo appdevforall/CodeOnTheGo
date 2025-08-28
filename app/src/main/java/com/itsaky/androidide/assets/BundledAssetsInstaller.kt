@@ -84,7 +84,7 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
             }
 
             DOCUMENTATION_DB -> {
-                assets.open(ToolsManager.getDatabaseAsset(DOCUMENTATION_DB)).use { input ->
+                BrotliInputStream(assets.open(ToolsManager.getDatabaseAsset("${DOCUMENTATION_DB}.br"))).use { input ->
                     Environment.DOC_DB.outputStream().use { output ->
                         input.copyTo(output)
                     }
