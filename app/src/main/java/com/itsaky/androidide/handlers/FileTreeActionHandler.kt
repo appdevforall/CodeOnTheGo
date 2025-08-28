@@ -176,7 +176,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     checkNotNull(action) {
       "Invalid FileContextMenuItemClickEvent received. No action item registered with id '${option.id}'"
     }
-    val tag = action.retrieveTooltipTag(false)
+    val tag = action.retrieveTooltipTag(actionData.get(File::class.java)?.isDirectory == true)
     tag.isNotEmpty() || return
     val activity = event[Context::class.java] as? EditorHandlerActivity
     activity?.let { act ->

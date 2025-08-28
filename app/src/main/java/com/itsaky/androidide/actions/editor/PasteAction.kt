@@ -51,5 +51,5 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
     return true
   }
 
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_PASTE
+  override fun retrieveTooltipTag(isSecondaryVersion: Boolean) = TooltipTag.EDITOR_TOOLBAR_PASTE
 }

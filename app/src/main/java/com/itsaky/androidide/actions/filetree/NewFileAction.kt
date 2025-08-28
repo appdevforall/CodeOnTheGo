@@ -36,6 +36,7 @@ import com.itsaky.androidide.utils.ProjectWriter
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import jdkx.lang.model.SourceVersion
 import org.greenrobot.eventbus.EventBus
@@ -58,7 +59,7 @@ class NewFileAction(context: Context, override val order: Int) :
 
   override val id: String = "ide.editor.fileTree.newFile"
 
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_FOLDER_NEWFILE
+  override fun retrieveTooltipTag(isSecondaryVersion: Boolean): String = TooltipTag.PROJECT_FOLDER_NEWFILE
 
   companion object {
 
@@ -173,7 +174,10 @@ class NewFileAction(context: Context, override val order: Int) :
     }
     builder.setNegativeButton(android.R.string.cancel, null)
     builder.setCancelable(false)
-    builder.create().show()
+      .showWithLongPressTooltip(
+        context = context,
+        tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE
+      ).show()
   }
 
   private fun doCreateJavaFile(
@@ -337,7 +341,10 @@ class NewFileAction(context: Context, override val order: Int) :
         3 -> createNewFile(context, node, file, true)
       }
     }
-    builder.create().show()
+      .showWithLongPressTooltip(
+        context = context,
+        tooltipTag = TooltipTag.PROJECT_FOLDER_NEWXML
+      ).show()
   }
 
   private fun createNewEmptyFile(context: Context, node: TreeNode?, file: File) {
@@ -391,7 +398,10 @@ class NewFileAction(context: Context, override val order: Int) :
       }
     }
     builder.setNegativeButton(android.R.string.cancel, null)
-    builder.create().show()
+      .showWithLongPressTooltip(
+        context = context,
+        tooltipTag = TooltipTag.PROJECT_NEWFILE_DIALOG
+      ).show()
   }
 
   private fun createFile(

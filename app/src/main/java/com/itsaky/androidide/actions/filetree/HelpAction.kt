@@ -14,7 +14,13 @@ class HelpAction(context: Context, override val order: Int) :
         iconRes = R.drawable.ic_action_help
     ) {
     override val id: String = "ide.editor.fileTree.help"
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_FOLDER_HELP
+    override fun retrieveTooltipTag(isSecondaryVersion: Boolean): String {
+        return if (isSecondaryVersion) {
+            TooltipTag.PROJECT_FOLDER_HELP
+        } else {
+            TooltipTag.PROJECT_FILE_HELP
+        }
+    }
 
     override suspend fun execAction(data: ActionData) {
         val context = data.requireContext()

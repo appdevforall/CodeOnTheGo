@@ -49,5 +49,5 @@ class CutAction(context: Context, override val order: Int) : BaseEditorAction() 
     editor.cutText()
     return true
   }
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT
+  override fun retrieveTooltipTag(isSecondaryVersion: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT
 }
