@@ -57,7 +57,8 @@ class NewFileAction(context: Context, override val order: Int) :
   ) {
 
   override val id: String = "ide.editor.fileTree.newFile"
-  override var tooltipTag: String = TooltipTag.PROJECT_FOLDER_NEWFILE
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_FOLDER_NEWFILE
 
   companion object {
 

@@ -64,7 +64,8 @@ class RenameAction(context: Context, override val order: Int) :
   ) {
 
   override val id: String = "ide.editor.fileTree.rename"
-  override var tooltipTag: String = TooltipTag.PROJECT_ITEM_RENAME
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_ITEM_RENAME
 
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()

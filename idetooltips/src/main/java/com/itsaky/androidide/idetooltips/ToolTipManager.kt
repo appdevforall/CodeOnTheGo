@@ -3,7 +3,9 @@ package com.itsaky.androidide.idetooltips
 import android.annotation.SuppressLint
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.text.Html
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -14,6 +16,7 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.utils.Environment
@@ -58,11 +61,14 @@ object TooltipManager {
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
         return IDETooltipItem(
-            tooltipCategory = "ide",
-            tooltipTag = "tag: $tag",
             detail = "detail / category: $category / tag: $tag",
             summary = "summary / category: $category / tag: $tag",
-            buttons = arrayListOf()
+            rowId = 1,
+            id = 1,
+            category = category,
+            tag = tag,
+            buttons = ArrayList<Pair<String, String>>(),
+            lastChange = "",
         )
         return withContext(Dispatchers.IO) {
             var dbPath = Environment.DOC_DB.absolutePath
@@ -229,7 +235,7 @@ object TooltipManager {
         }
 
         webView.settings.javaScriptEnabled = true
-        webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        webView.setBackgroundColor(Color.TRANSPARENT)
         webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
 
         seeMore.setOnClickListener {
@@ -272,14 +278,14 @@ object TooltipManager {
         <b>ID:</b> ${tooltip.id}<br/>
         <b>Category:</b> '${tooltip.category}'<br/>
         <b>Tag:</b> '${tooltip.tag}'<br/>
-        <b>Raw Summary:</b> '${android.text.Html.escapeHtml(tooltip.summary)}'<br/>
-        <b>Raw Detail:</b> '${android.text.Html.escapeHtml(tooltip.detail)}'<br/>
+        <b>Raw Summary:</b> '${Html.escapeHtml(tooltip.summary)}'<br/>
+        <b>Raw Detail:</b> '${Html.escapeHtml(tooltip.detail)}'<br/>
         <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
         """.trimIndent()
 
-        androidx.appcompat.app.AlertDialog.Builder(context)
+        AlertDialog.Builder(context)
             .setTitle("Tooltip Debug Info")
-            .setMessage(android.text.Html.fromHtml(metadata, android.text.Html.FROM_HTML_MODE_LEGACY))
+            .setMessage(Html.fromHtml(metadata, Html.FROM_HTML_MODE_LEGACY))
             .setPositiveButton(android.R.string.ok) { dialog, _ ->
                 dialog.dismiss()
             }

@@ -22,6 +22,7 @@ import android.content.Intent
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.IntentUtils
 
@@ -38,6 +39,8 @@ class OpenWithAction(context: Context, override val order: Int) :
   ) {
 
   override val id: String = "ide.editor.fileTree.openWith"
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_FILE_OPENWITH
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

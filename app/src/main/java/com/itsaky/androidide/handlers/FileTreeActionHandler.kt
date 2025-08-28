@@ -35,7 +35,6 @@ import com.itsaky.androidide.events.FileContextMenuItemClickEvent
 import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent
 import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.SheetOption
@@ -166,7 +165,8 @@ class FileTreeActionHandler : BaseEventHandler() {
   @Subscribe(threadMode = MAIN)
   internal fun onFileOptionLongClicked(event: FileContextMenuItemLongClickEvent) {
     val option = event.option
-    if (option.extra !is ActionData) {
+    val actionData = option.extra
+    if (actionData !is ActionData) {
       return
     }
 
@@ -176,7 +176,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     checkNotNull(action) {
       "Invalid FileContextMenuItemClickEvent received. No action item registered with id '${option.id}'"
     }
-    val tag = action.tooltipTag
+    val tag = action.retrieveTooltipTag(false)
     tag.isNotEmpty() || return
     val activity = event[Context::class.java] as? EditorHandlerActivity
     activity?.let { act ->
@@ -192,13 +192,7 @@ class FileTreeActionHandler : BaseEventHandler() {
             act,
             act.window.decorView,
             0,
-            IDETooltipItem(
-              tooltipCategory = TooltipCategory.CATEGORY_IDE,
-              tooltipTag = tooltipData.tooltipTag,
-              detail = tooltipData.detail,
-              summary = tooltipData.summary,
-              buttons = tooltipData.buttons,
-            ),
+            tooltipData,
             { context, url, title ->
               val intent = Intent(context, HelpActivity::class.java).apply {
                 putExtra(CONTENT_KEY, url)
