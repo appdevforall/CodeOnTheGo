@@ -19,17 +19,33 @@ package com.itsaky.androidide.actions.filetree
 
 import android.app.ProgressDialog
 import android.content.Context
+import android.content.DialogInterface
+import android.util.Log
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.View
+import android.widget.TextView
+import android.widget.Toast
+import androidx.core.view.GestureDetectorCompat
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.FileUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.FlashType
+import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashMessage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -47,44 +63,11 @@ class DeleteAction(context: Context, override val order: Int) :
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()
     val file = data.requireFile()
-    val lastHeld = data.getTreeNode()
     val builder = DialogUtils.newMaterialDialogBuilder(context)
     builder
       .setNegativeButton(R.string.no, null)
       .setPositiveButton(R.string.yes) { dialogInterface, _ ->
         dialogInterface.dismiss()
-        @Suppress("DEPRECATION")
-        val progressDialog =
-          ProgressDialog.show(context, null, context.getString(R.string.please_wait), true, false)
-        executeAsync({ FileUtils.delete(file) }) {
-          progressDialog.dismiss()
-
-          val deleted = it ?: false
-
-          flashMessage(
-            if (deleted) R.string.deleted else R.string.delete_failed,
-            if (deleted) FlashType.SUCCESS else FlashType.ERROR
-          )
-
-          if (!deleted) {
-            return@executeAsync
-          }
-
-          notifyFileDeleted(file, context)
-
-          if (lastHeld != null) {
-            val parent = lastHeld.parent
-            parent.deleteChild(lastHeld)
-            requestExpandNode(parent)
-          } else {
-            requestFileListing()
-          }
-
-          val frag = context.getEditorForFile(file)
-          if (frag != null) {
-            context.closeFile(context.findIndexOfEditorByFile(frag.file))
-          }
-        }
       }
       .setTitle(R.string.title_confirm_delete)
       .setMessage(
@@ -94,8 +77,68 @@ class DeleteAction(context: Context, override val order: Int) :
         )
       )
       .setCancelable(false)
-      .create()
-      .show()
+
+    val dialog = builder.create()
+
+    // We need to call dialog.show() first to ensure the buttons are created
+    // and can be found. We'll attach the listeners immediately after.
+    dialog.show()
+
+    // 1. Create the Gesture Detector (same as before).
+    val gestureDetector = GestureDetectorCompat(context, object : GestureDetector.SimpleOnGestureListener() {
+      override fun onLongPress(e: MotionEvent) {
+        dialog.dismiss()
+
+        val tooltipTag = TooltipTag.PROJECT_CONFIRM_DELETE
+        val lifecycleOwner = context as? LifecycleOwner ?: return
+        lifecycleOwner.lifecycleScope.launch {
+          try {
+            val tooltipData = withContext(Dispatchers.IO) {
+              TooltipManager.getTooltip(context, TooltipCategory.CATEGORY_IDE, tooltipTag)
+            }
+            tooltipData?.let {
+              TooltipUtils.showIDETooltip(
+                context = context,
+                level = 0,
+                tooltipItem = tooltipData,
+                anchorView = context.window.decorView
+              )
+            }
+          } catch (e: Exception) {
+            Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+          }
+        }
+      }
+    })
+
+    // 2. Define a reusable OnTouchListener.
+    val universalTouchListener = View.OnTouchListener { view, event ->
+      // Let the gesture detector try to handle the event first.
+      // It will return 'true' if it consumed the event (e.g., a long press was detected).
+      val wasGestureHandled = gestureDetector.onTouchEvent(event)
+
+      // If the gesture detector did NOT handle the event, and the user just
+      // lifted their finger, we can treat it as a click.
+      if (event.action == MotionEvent.ACTION_UP && !wasGestureHandled) {
+        view.performClick()
+      }
+
+      // Return true to indicate that we've handled the touch event.
+      true
+    }
+
+    // 3. Find the specific views within the dialog.
+    val messageView = dialog.findViewById<TextView>(android.R.id.message)
+    val positiveButton = dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+    val negativeButton = dialog.getButton(DialogInterface.BUTTON_NEGATIVE)
+
+    // 4. Apply the listener to all target views.
+    dialog.window?.decorView?.setOnTouchListener(universalTouchListener)
+    messageView?.setOnTouchListener(universalTouchListener) // Custom view `TextView` has setOnTouchListener called on it but does not override performClick Toggle info (⌘F1)
+    positiveButton?.setOnTouchListener(universalTouchListener)
+    negativeButton?.setOnTouchListener(universalTouchListener)
+
+    // Note: We already called dialog.show(), so we don't call it again.
   }
 
   private fun notifyFileDeleted(file: File, context: Context) {

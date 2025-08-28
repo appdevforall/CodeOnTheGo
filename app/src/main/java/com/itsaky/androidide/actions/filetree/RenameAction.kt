@@ -18,22 +18,35 @@
 package com.itsaky.androidide.actions.filetree
 
 import android.content.Context
+import android.content.DialogInterface
+import android.util.Log
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.widget.TextView
+import androidx.core.view.GestureDetectorCompat
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.blankj.utilcode.util.FileUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.FlashType
+import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashMessage
 import com.unnamed.b.atv.model.TreeNode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import java.io.File
@@ -104,7 +117,57 @@ class RenameAction(context: Context, override val order: Int) :
             }
           })
     }
-    builder.create().show()
+    val dialog = builder.create()
+    dialog.show()
+    // 1. Create the Gesture Detector.
+    val gestureDetector =
+      GestureDetectorCompat(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onLongPress(e: MotionEvent) {
+          dialog.dismiss()
+
+          val tooltipTag = TooltipTag.PROJECT_RENAME_DIALOG
+          val lifecycleOwner = context as? LifecycleOwner ?: return
+          lifecycleOwner.lifecycleScope.launch {
+            try {
+              val tooltipData = withContext(Dispatchers.IO) {
+                TooltipManager.getTooltip(context, TooltipCategory.CATEGORY_IDE, tooltipTag)
+              }
+              tooltipData?.let {
+                TooltipUtils.showIDETooltip(
+                  context = context,
+                  level = 0,
+                  tooltipItem = tooltipData,
+                  anchorView = context.window.decorView
+                )
+              }
+            } catch (e: Exception) {
+              Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+            }
+          }
+        }
+      })
+
+    // 2. Define the accessibility-friendly OnTouchListener.
+    val universalTouchListener = View.OnTouchListener { view, event ->
+      val wasGestureHandled = gestureDetector.onTouchEvent(event)
+      if (event.action == MotionEvent.ACTION_UP && !wasGestureHandled) {
+        // Manually call performClick to trigger the standard click action
+        // and satisfy accessibility requirements.
+        view.performClick()
+      }
+      true // Consume the event
+    }
+
+    // 3. Find the specific views within the dialog.
+    val messageView = dialog.findViewById<TextView>(android.R.id.message)
+    val positiveButton = dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+    val negativeButton = dialog.getButton(DialogInterface.BUTTON_NEGATIVE)
+
+    // 4. Apply the listener to all target views.
+    dialog.window?.decorView?.setOnTouchListener(universalTouchListener)
+    messageView?.setOnTouchListener(universalTouchListener)
+    positiveButton?.setOnTouchListener(universalTouchListener)
+    negativeButton?.setOnTouchListener(universalTouchListener)
   }
 
   private fun notifyFileRenamed(file: File, name: String, context: Context) {
