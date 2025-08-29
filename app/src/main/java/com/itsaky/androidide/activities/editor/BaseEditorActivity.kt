@@ -1013,5 +1013,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     open fun installationSessionCallback(): SessionCallback {
         return ApkInstallationSessionCallback(this).also { installationCallback = it }
     }
+
 }
 

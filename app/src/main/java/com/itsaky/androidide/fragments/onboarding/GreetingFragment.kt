@@ -17,11 +17,33 @@
 
 package com.itsaky.androidide.fragments.onboarding
 
+import android.os.Bundle
+import android.view.View
 import com.itsaky.androidide.databinding.FragmentOnboardingGreetingBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
+import com.itsaky.androidide.utils.FeatureFlags
 
 /**
  * @author Akash Yadav
  */
 class GreetingFragment :
-  FragmentWithBinding<FragmentOnboardingGreetingBinding>(FragmentOnboardingGreetingBinding::inflate)
+    FragmentWithBinding<FragmentOnboardingGreetingBinding>(FragmentOnboardingGreetingBinding::inflate) {
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // EXPERIMENTAL MODE - Crash app in order to capture exception on Sentry
+        if (FeatureFlags.isExperimentsEnabled()) {
+            binding.icon.setOnLongClickListener {
+                crashApp()
+                true
+            }
+        }
+    }
+
+    private fun crashApp() {
+        throw RuntimeException()
+    }
+
+}
+

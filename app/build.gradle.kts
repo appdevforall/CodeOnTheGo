@@ -20,6 +20,7 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.nio.file.attribute.FileTime
 import java.util.zip.Deflater
+import java.util.Properties
 
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -33,6 +34,18 @@ plugins {
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
   id("com.itsaky.androidide.desugaring")
+  alias(libs.plugins.sentry)
+}
+
+fun propOrEnv(name: String): String {
+  return project.findProperty(name) as String?
+    ?: System.getenv(name)
+    ?: ""
+}
+
+val props = Properties().apply {
+  val file = rootProject.file("local.properties")
+  if (file.exists()) load(file.inputStream())
 }
 
 apply {
@@ -57,11 +70,23 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
     testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+
+  }
+
+  buildTypes {
+    debug {
+      manifestPlaceholders["sentryDsn"] =
+        props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
+    }
+    release {
+      manifestPlaceholders["sentryDsn"] =
+        props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
+    }
   }
 
   testOptions {
     execution = "ANDROIDX_TEST_ORCHESTRATOR"
-    
+
     unitTests {
       isIncludeAndroidResources = true
       all {
@@ -112,7 +137,7 @@ desugaring {
 }
 
 dependencies {
-    //debugImplementation(libs.common.leakcanary)
+  //debugImplementation(libs.common.leakcanary)
 
   // Annotation processors
   kapt(libs.common.glide.ap)
@@ -120,7 +145,7 @@ dependencies {
   kapt(projects.annotationProcessors)
   kapt(libs.room.compiler)
 
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+  implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 
   implementation(platform(libs.sora.bom))
   implementation(libs.common.editor)
