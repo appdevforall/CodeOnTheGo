@@ -37,7 +37,6 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     init {
         label = context.getString(R.string.title_show_tooltip)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help)
-        tooltipTag = TooltipTag.EDITOR_TOOLBAR_HELP
     }
 
     override suspend fun execAction(data: ActionData): Any {
@@ -71,5 +70,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         }
         return true
     }
+
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
 
 }

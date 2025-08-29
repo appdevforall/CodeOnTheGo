@@ -23,6 +23,7 @@ import androidx.lifecycle.Lifecycle
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.LoggerContext
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.logging.LifecycleAwareAppender
 import org.slf4j.LoggerFactory
 
@@ -36,6 +37,7 @@ class IDELogFragment : LogViewFragment() {
 
   override fun isSimpleFormattingEnabled() = true
   override fun getFilename() = "ide_logs"
+  override val tooltipTag = TooltipTag.PROJECT_IDE_LOGS
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)

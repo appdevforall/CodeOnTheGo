@@ -135,7 +135,7 @@ internal object EditorSidebarActions {
             val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
 
             if (view != null && action != null) {
-                val tag = action.tooltipTag
+                val tag = action.retrieveTooltipTag(false)
                 sidebarFragment.setupTooltip(view, TooltipCategory.CATEGORY_IDE, tag)
             }
         }
