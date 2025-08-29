@@ -43,11 +43,12 @@ class PreferencesSidebarAction(context: Context, override val order: Int) : Abst
   init {
     label = context.getString(R.string.ide_preferences)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_settings)
-    tooltipTag = TooltipTag.PREFERENCES_SIDEBAR
   }
 
   override suspend fun execAction(data: ActionData): Any {
     val context = data.requireContext()
     return context.startActivity(Intent(context, PreferencesActivity::class.java))
   }
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.PREFERENCES_SIDEBAR
+
 }
