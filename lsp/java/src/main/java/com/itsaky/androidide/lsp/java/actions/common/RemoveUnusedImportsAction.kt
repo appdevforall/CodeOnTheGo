@@ -17,7 +17,7 @@ class RemoveUnusedImportsAction : BaseJavaCodeAction() {
   override val id: String = "ide.editor.lsp.java.removeUnusedImports"
   override var label: String = ""
   override val titleTextRes: Int = string.action_remove_unused_imports
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_UNUSEDIMPORTS
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_UNUSED_IMPORTS
 
   companion object {
 

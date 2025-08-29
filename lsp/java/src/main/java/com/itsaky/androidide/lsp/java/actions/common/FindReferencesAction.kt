@@ -37,7 +37,7 @@ class FindReferencesAction : BaseJavaCodeAction() {
   override val id: String = "ide.editor.lsp.java.findReferences"
   override var label: String = ""
   override var requiresUIThread: Boolean = true
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_FINDREFS
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIND_REFS
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

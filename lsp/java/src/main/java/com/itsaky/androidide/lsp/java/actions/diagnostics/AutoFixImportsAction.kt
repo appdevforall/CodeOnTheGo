@@ -46,7 +46,7 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
   override val titleTextRes: Int = R.string.title_fix_imports
   override val id: String = "ide.editor.lsp.java.diagnostics.autoFixImports"
   override var label: String = ""
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_FIXIMPORTS
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
   companion object {
 

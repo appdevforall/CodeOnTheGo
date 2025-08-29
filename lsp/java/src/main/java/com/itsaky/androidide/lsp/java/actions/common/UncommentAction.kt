@@ -30,7 +30,7 @@ class UncommentAction : BaseJavaCodeAction() {
   override val titleTextRes: Int = R.string.action_uncomment_line
   
   override var requiresUIThread: Boolean = true
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_UNCOMMENT
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_UNCOMMENT
   
   override suspend fun execAction(data: ActionData): Boolean {
     val editor = data.requireEditor()

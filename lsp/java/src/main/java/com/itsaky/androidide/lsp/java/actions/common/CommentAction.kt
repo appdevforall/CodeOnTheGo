@@ -30,7 +30,7 @@ class CommentAction : BaseJavaCodeAction() {
   override val titleTextRes: Int = R.string.action_comment_line
 
   override var requiresUIThread: Boolean = true
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_COMMENT
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_COMMENT
   
   override suspend fun execAction(data: ActionData): Boolean {
     val editor = data.requireEditor()

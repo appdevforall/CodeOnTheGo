@@ -38,7 +38,7 @@ class GoToDefinitionAction : BaseJavaCodeAction() {
   override val id: String = "ide.editor.lsp.java.gotoDefinition"
   override var label: String = ""
   override var requiresUIThread: Boolean = true
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_GOTODEF
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GOTO_DEF
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

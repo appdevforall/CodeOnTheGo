@@ -38,7 +38,7 @@ class FieldToBlockAction : BaseJavaCodeAction() {
   override val id: String = "ide.editor.lsp.java.diagnostics.fieldToBlock"
   override var label: String = ""
   private val diagnosticCode = DiagnosticCode.UNUSED_FIELD.id
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_FIXIMPORTS
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
   override val titleTextRes: Int = R.string.action_convert_to_block
 

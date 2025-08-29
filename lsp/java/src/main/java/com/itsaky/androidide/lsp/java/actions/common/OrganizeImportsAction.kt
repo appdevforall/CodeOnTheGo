@@ -20,7 +20,7 @@ class OrganizeImportsAction : BaseJavaCodeAction() {
   override val id: String = "lsp_java_organizeImports"
   override var label: String = ""
   override val titleTextRes: Int = string.action_organize_imports
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_ORGANIZEIMPORTS
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS
 
   companion object {
 

@@ -39,7 +39,7 @@ class VariableToStatementAction : BaseJavaCodeAction() {
   private val diagnosticCode = DiagnosticCode.UNUSED_LOCAL.id
 
   override val titleTextRes: Int = R.string.action_convert_to_statement
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_FIXIMPORTS
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
   companion object {
 

@@ -38,7 +38,7 @@ class GenerateMissingConstructorAction : BaseJavaCodeAction() {
   override var label: String = ""
   private val diagnosticCode = DiagnosticCode.MISSING_CONSTRUCTOR.id
   override val titleTextRes: Int = R.string.action_generate_missing_constructor
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_GENCONSTRUCTOR
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR
 
   companion object {
 

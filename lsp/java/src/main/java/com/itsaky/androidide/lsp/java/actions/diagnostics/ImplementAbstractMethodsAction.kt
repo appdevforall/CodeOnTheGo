@@ -37,7 +37,7 @@ class ImplementAbstractMethodsAction : BaseJavaCodeAction() {
   private var diagnosticCode = DiagnosticCode.DOES_NOT_OVERRIDE_ABSTRACT.id
 
   override val titleTextRes: Int = R.string.action_implement_abstract_methods
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_OVERRIDESUPER
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER
 
   companion object {
 

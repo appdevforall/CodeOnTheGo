@@ -46,7 +46,7 @@ class AddImportAction : BaseJavaCodeAction() {
   private val diagnosticCode = DiagnosticCode.NOT_IMPORTED.id
 
   override val titleTextRes: Int = R.string.action_import_classes
-  override var tooltipTag: String = TooltipTag.EDITOR_CODEACTIONS_FIXIMPORTS
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
   companion object {
 
