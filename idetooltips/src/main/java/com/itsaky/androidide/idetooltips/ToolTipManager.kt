@@ -60,16 +60,6 @@ object TooltipManager {
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
-        return IDETooltipItem(
-            detail = "detail / category: $category / tag: $tag",
-            summary = "summary / category: $category / tag: $tag",
-            rowId = 1,
-            id = 1,
-            category = category,
-            tag = tag,
-            buttons = ArrayList<Pair<String, String>>(),
-            lastChange = "",
-        )
         return withContext(Dispatchers.IO) {
             var dbPath = Environment.DOC_DB.absolutePath
 
