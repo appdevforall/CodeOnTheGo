@@ -23,7 +23,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
-import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
 import com.blankj.utilcode.util.FileUtils
@@ -101,10 +100,6 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 
-fun interface OnEditorLongPressListener {
-  fun onLongPress(event: MotionEvent)
-}
-
 /**
  * [CodeEditor] implementation for the IDE.
  *
@@ -117,10 +112,6 @@ open class IDEEditor @JvmOverloads constructor(
   defStyleRes: Int = 0,
   private val editorFeatures: EditorFeatures = EditorFeatures()
 ) : CodeEditor(context, attrs, defStyleAttr, defStyleRes), IEditor by editorFeatures, ILspEditor {
-
-
-  // A flag to track when a long press has occurred within a single touch gesture.
-  private var mLongPressHandled = false
 
   @Suppress("PropertyName")
   internal var _file: File? = null
