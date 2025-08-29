@@ -42,7 +42,8 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.build_output),
 					fragmentClass = BuildOutputFragment::class.java,
-					itemId = size.toLong()
+					itemId = size.toLong(),
+					tooltipTag = TooltipTag.PROJECT_BUILD_OUTPUT
 				),
 			)
 

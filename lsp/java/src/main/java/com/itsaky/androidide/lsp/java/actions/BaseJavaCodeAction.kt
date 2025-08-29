@@ -50,7 +50,6 @@ abstract class BaseJavaCodeAction : EditorActionItem {
   override var icon: Drawable? = null
   override var requiresUIThread: Boolean = false
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_CODE_ACTIONS
-  override var tooltipTag: String = ""
 
   protected abstract val titleTextRes: Int
 
