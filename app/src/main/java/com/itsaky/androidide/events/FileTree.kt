@@ -20,7 +20,6 @@ package com.itsaky.androidide.events
 import com.itsaky.androidide.eventbus.events.Event
 import com.itsaky.androidide.models.SheetOption
 import com.unnamed.b.atv.model.TreeNode
-import java.io.File
 
 internal data class FileContextMenuItemClickEvent(val option: SheetOption) : Event()
 internal data class FileContextMenuItemLongClickEvent(val option: SheetOption) : Event()

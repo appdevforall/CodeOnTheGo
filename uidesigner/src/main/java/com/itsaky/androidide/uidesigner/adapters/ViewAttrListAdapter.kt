@@ -22,7 +22,6 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.inflater.IView.SingleAttributeChangeListener
 import com.itsaky.androidide.uidesigner.R
@@ -61,7 +60,7 @@ internal class ViewAttrListAdapter(
   override fun onBindViewHolder(holder: VH, position: Int) {
     val binding = holder.binding
     val attr = this.attributes[position] as UiAttribute
-  
+
     val ns = attr.namespace?.prefix?.let { "${it}:" } ?: ""
     binding.attrName.text = "${ns}${attr.name}"
     binding.attrValue.text = attr.value
@@ -87,7 +86,7 @@ internal class ViewAttrListAdapter(
   }
 
   private fun confirmDeleteAttr(context: Context, attribute: UiAttribute, position: Int) {
-    val builder = DialogUtils.newYesNoDialog(
+    DialogUtils.newYesNoDialog(
       context = context,
       title = context.getString(R.string.title_confirm_delete),
       message = context.getString(R.string.msg_confirm_delete, attribute.qualifiedName),
@@ -99,19 +98,6 @@ internal class ViewAttrListAdapter(
         }
       }
     )
-    val dialog = builder.create()
-    // 3. Get the root view of the dialog's window and set the listener.
-// The `decorView` is the top-level view that contains the entire dialog.
-    dialog.window?.decorView?.setOnLongClickListener {
-      // Perform your long-click action here.
-      // For example, show a Toast message.
-      Toast.makeText(context, "Dialog long-clicked!", Toast.LENGTH_SHORT).show()
-
-      // Return true to indicate that you have consumed the event.
-      true
-    }
-
-// 4. Finally, show the dialog.
-    dialog.show()
+      .show()
   }
 }
