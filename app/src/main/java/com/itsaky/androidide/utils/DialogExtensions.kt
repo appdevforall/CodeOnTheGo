@@ -1,5 +1,6 @@
 package com.itsaky.androidide.utils
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.DialogInterface
@@ -9,7 +10,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.GestureDetectorCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -26,7 +26,6 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
     dialog.show()
 
     val workingAnchorView = anchorView ?: (context as? Activity)?.window?.decorView ?: return dialog
-    // The lifecycle owner is needed for the coroutine scope
     val lifecycleOwner = context as? LifecycleOwner
         ?: run {
             Log.w("DialogExtensions", "Context is not a LifecycleOwner, cannot show tooltip.")
@@ -34,7 +33,7 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
         }
 
     val gestureDetector =
-        GestureDetectorCompat(context, object : GestureDetector.SimpleOnGestureListener() {
+        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onLongPress(e: MotionEvent) {
                 dialog.dismiss()
                 lifecycleOwner.lifecycleScope.launch {
@@ -49,7 +48,6 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
                                 context = context,
                                 level = 0,
                                 tooltipItem = it,
-                                // Use the provided anchor or default to the window's decorView
                                 anchorView = workingAnchorView
                             )
                         }
@@ -68,10 +66,12 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
         true
     }
 
-    // Apply listener to all relevant views
     dialog.window?.decorView?.setOnTouchListener(universalTouchListener)
+    @SuppressLint("ClickableViewAccessibility")
     dialog.findViewById<TextView>(android.R.id.message)?.setOnTouchListener(universalTouchListener)
+    @SuppressLint("ClickableViewAccessibility")
     dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.setOnTouchListener(universalTouchListener)
+    @SuppressLint("ClickableViewAccessibility")
     dialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.setOnTouchListener(universalTouchListener)
 
     return dialog
