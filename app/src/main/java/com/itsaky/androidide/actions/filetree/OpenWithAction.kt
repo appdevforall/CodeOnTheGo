@@ -40,7 +40,8 @@ class OpenWithAction(context: Context, override val order: Int) :
 
   override val id: String = "ide.editor.fileTree.openWith"
 
-  override fun retrieveTooltipTag(isSecondaryVersion: Boolean): String = TooltipTag.PROJECT_FILE_OPENWITH
+  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
+    TooltipTag.PROJECT_FILE_OPENWITH
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

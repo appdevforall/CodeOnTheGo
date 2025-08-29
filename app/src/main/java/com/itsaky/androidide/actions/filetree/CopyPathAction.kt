@@ -34,7 +34,8 @@ class CopyPathAction(context: Context, override val order: Int) :
   BaseFileTreeAction(context, labelRes = R.string.copy_path, iconRes = R.drawable.ic_copy) {
 
   override val id: String = "ide.editor.fileTree.copyPath"
-  override fun retrieveTooltipTag(isSecondaryVersion: Boolean): String =TooltipTag.PROJECT_ITEM_COPYPATH
+  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
+    TooltipTag.PROJECT_ITEM_COPYPATH
 
   override suspend fun execAction(data: ActionData) {
     val file = data.requireFile()

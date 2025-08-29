@@ -76,12 +76,13 @@ interface ActionItem {
    * the "Copy" action can have a different tooltip in a standard code editor
    * versus a read-only output panel where the user can only view, copy, and share content.
    *
-   * @param isSecondaryVersion `true` if the action is displayed in a context where the
-   * content is read-only (e.g., a build output or logcat panel), `false` otherwise.
+   * @param isAlternateContext `true` if the action is displayed in a context where the
+   * content is different from the original (e.g., a build output or logcat panel), `false`
+   * otherwise.
    * @return The appropriate tooltip tag for the given context, or an empty string if
    * no tooltip is available.
    */
-  fun retrieveTooltipTag(isSecondaryVersion: Boolean): String = ""
+  fun retrieveTooltipTag(isAlternateContext: Boolean): String = ""
 
   /**
    * The order of this action item. This is used only at some locations and not everywhere.

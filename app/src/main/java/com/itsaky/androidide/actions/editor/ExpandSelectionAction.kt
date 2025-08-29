@@ -43,6 +43,6 @@ class ExpandSelectionAction(context: Context, override val order: Int) : EditorR
         return data.getEditor()?.expandSelection() ?: false
     }
 
-    override fun retrieveTooltipTag(isSecondaryVersion: Boolean) =
+    override fun retrieveTooltipTag(isAlternateContext: Boolean) =
         TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
 }

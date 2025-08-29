@@ -48,6 +48,6 @@ object CodeActionsMenu : ActionMenu {
       icon = ContextCompat.getDrawable(data[Context::class.java]!!, R.drawable.ic_code)
     }
   }
-  override fun retrieveTooltipTag(isSecondaryVersion: Boolean) =
+  override fun retrieveTooltipTag(isAlternateContext: Boolean) =
     TooltipTag.EDITOR_TOOLBAR_CODE_ACTIONS
 }

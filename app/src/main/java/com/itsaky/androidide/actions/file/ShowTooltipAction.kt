@@ -71,6 +71,6 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         return true
     }
 
-    override fun retrieveTooltipTag(isSecondaryVersion: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
+    override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
 
 }

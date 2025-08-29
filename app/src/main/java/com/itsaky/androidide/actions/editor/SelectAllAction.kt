@@ -42,8 +42,8 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
 
   override fun dismissOnAction() = false
 
-  override fun retrieveTooltipTag(isSecondaryVersion: Boolean): String {
-    return if (isSecondaryVersion) {
+  override fun retrieveTooltipTag(isAlternateContext: Boolean): String {
+    return if (isAlternateContext) {
       TooltipTag.EDITOR_TOOLBAR_OUTPUT_SELECT_ALL
     } else {
       TooltipTag.EDITOR_TOOLBAR_SELECT_ALL

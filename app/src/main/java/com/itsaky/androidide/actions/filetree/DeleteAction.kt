@@ -43,7 +43,8 @@ class DeleteAction(context: Context, override val order: Int) :
   BaseFileTreeAction(context, labelRes = R.string.delete_file, iconRes = R.drawable.ic_delete) {
 
   override val id: String = "ide.editor.fileTree.delete"
-  override fun retrieveTooltipTag(isSecondaryVersion: Boolean): String = TooltipTag.PROJECT_ITEM_DELETE
+  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
+    TooltipTag.PROJECT_ITEM_DELETE
 
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()

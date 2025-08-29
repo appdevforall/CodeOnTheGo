@@ -49,6 +49,6 @@ class PreferencesSidebarAction(context: Context, override val order: Int) : Abst
     val context = data.requireContext()
     return context.startActivity(Intent(context, PreferencesActivity::class.java))
   }
-  override fun retrieveTooltipTag(isSecondaryVersion: Boolean) = TooltipTag.PREFERENCES_SIDEBAR
+  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.PREFERENCES_SIDEBAR
 
 }
