@@ -25,6 +25,7 @@ env:
   ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
   FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+  SENTRY_DSN_DEBUG: ${{ secrets.SENTRY_DSN_DEBUG }}
 
 jobs:
   build_apk:

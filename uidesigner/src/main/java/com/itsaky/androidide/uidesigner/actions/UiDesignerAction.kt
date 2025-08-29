@@ -42,7 +42,6 @@ abstract class UiDesignerAction : ActionItem {
   override var icon: Drawable? = null
   override var enabled: Boolean = true
   override var visible: Boolean = true
-  override var tooltipTag: String = ""
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

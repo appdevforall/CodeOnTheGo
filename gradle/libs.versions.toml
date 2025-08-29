@@ -38,6 +38,7 @@ viewpager2 = "1.1.0-beta02"
 zoomage = "1.3.1"
 monitor = "1.6.1"
 monitorVersion = "1.7.2"
+sentry = "5.8.0"
 
 ## IMPORTANT!
 ## When updating this value, please manually compile libbrotli.so from Brotli4j for Android and
@@ -232,3 +233,4 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish.base", version.ref = "maven-publish-plugin" }
 gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+sentry = { id = "io.sentry.android.gradle", version.ref = "sentry" }
