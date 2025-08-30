@@ -48,6 +48,29 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
+      - name: Check if new branch with no meaningful commits
+        id: check_new_branch
+        run: |
+          # Get the current branch name
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          
+          # Check if this is a new branch by looking at the commit count
+          # If it's a new branch, it might only have the initial commit
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          
+          # Get the latest commit message
+          LATEST_COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r')
+          
+          # Check if this looks like an initial commit (common patterns)
+          if [[ $COMMIT_COUNT -eq 1 ]] && [[ "$LATEST_COMMIT_MSG" =~ ^(Initial commit|Create .*|Add .*|Initial .*|Setup .*|First commit)$ ]]; then
+            echo "::notice::Skipping build for new branch with no meaningful commits"
+            echo "This prevents unnecessary notifications and deployments"
+            echo "The workflow will run normally once meaningful commits are added"
+            exit 78  # Use exit code 78 to indicate "skipped" status
+          else
+            echo "Branch has meaningful commits, proceeding with build"
+          fi
+
       - name: Install Git LFS
         run: |
           sudo apt-get update
