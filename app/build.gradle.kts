@@ -205,6 +205,7 @@ dependencies {
   implementation(projects.buildInfo)
   implementation(projects.common)
   implementation(projects.editor)
+  implementation(projects.logger)
   implementation(projects.termux.termuxApp)
   implementation(projects.termux.termuxView)
   implementation(projects.termux.termuxEmulator)
