@@ -50,6 +50,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import org.appdevforall.localwebserver.WebServer
 import org.appdevforall.localwebserver.ServerConfig
 import com.itsaky.androidide.utils.Environment
+import org.slf4j.LoggerFactory
 
 import java.io.File
 import java.io.FileOutputStream
@@ -62,7 +63,7 @@ import android.view.Display
 class MainActivity : EdgeToEdgeIDEActivity() {
 
     private val DATABASENAME = "documentation.db"
-    private val TAG = "MainActivity"
+    private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
     private val viewModel by viewModels<MainViewModel>()
     private var _binding: ActivityMainBinding? = null
@@ -273,16 +274,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             val dbFile = Environment.DOC_DB
             
             if (!dbFile.exists()) {
-                Log.w(TAG, "Database file not found at: ${dbFile.absolutePath} - WebServer will not start")
+                log.warn("Database file not found at: {} - WebServer will not start", dbFile.absolutePath)
                 return
             }
             
-            Log.i(TAG, "Starting WebServer - database file exists at: ${dbFile.absolutePath}")
+            log.info("Starting WebServer - database file exists at: {}", dbFile.absolutePath)
             val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
             Thread { webServer.start() }.start()
             
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start WebServer", e)
+            log.error("Failed to start WebServer", e)
         }
     }
 

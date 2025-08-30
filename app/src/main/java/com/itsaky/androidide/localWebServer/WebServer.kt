@@ -1,8 +1,8 @@
 package org.appdevforall.localwebserver
 
 import android.database.sqlite.SQLiteDatabase
-import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -28,7 +28,7 @@ class WebServer(private val config: ServerConfig) {
     private lateinit var serverSocket: ServerSocket
     private lateinit var database: SQLiteDatabase
     private          var databaseTimestamp: Long = -1
-    private          val TAG = "WebServer"
+    private          val log = LoggerFactory.getLogger(WebServer::class.java)
     private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
     private          val encodingHeader : String = "Accept-Encoding"
     private          var brotliSupported = false
@@ -47,7 +47,7 @@ class WebServer(private val config: ServerConfig) {
             if (!silent) {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
-                if (debugEnabled) Log.d(TAG, "${pathname} was last modified at ${dateFormat.format(Date(timestamp))}.")
+                if (debugEnabled) log.debug("{} was last modified at {}.", pathname, dateFormat.format(Date(timestamp)))
             }
         }
 
@@ -57,39 +57,40 @@ class WebServer(private val config: ServerConfig) {
     fun start() {
         lateinit var clientSocket: Socket
         try {
-            Log.d(TAG, "Starting WebServer on ${config.bindName}, port ${config.port}, debugEnabled=${debugEnabled}, debugEnablePath='${config.debugEnablePath}', debugDatabasePath='${config.debugDatabasePath}'.")
+            log.debug("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.", 
+                     config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
 
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
 
             try {
                 database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
             } catch (e: Exception) {
-                Log.e(TAG, "Cannot open database: ${e.message}")
+                log.error("Cannot open database: {}", e.message)
                 return
             }
 
             serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
-            Log.i(TAG, "WebServer started successfully.")
+            log.info("WebServer started successfully.")
 
             while (true) {
                 try {
                     clientSocket = serverSocket.accept()
-                    if (debugEnabled) Log.d(TAG, "Returned from socket accept().")
+                    if (debugEnabled) log.debug("Returned from socket accept().")
                     handleClient(clientSocket)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error handling client: ${e.message}")
+                    log.error("Error handling client: {}", e.message)
                     try {
                         val writer = PrintWriter(clientSocket.getOutputStream(), true)
                         sendError(writer, 500, "Internal Server Error 1")
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error sending error response: ${e.message}")
+                        log.error("Error sending error response: {}", e.message)
                     }
                 } finally {
                     clientSocket.close() // TODO: What if the client socket isn't open? How to check? --DS, 22-Jul-2025
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error: ${e.message}")
+            log.error("Error: {}", e.message)
         } finally {
             if (::serverSocket.isInitialized) {
                 serverSocket.close()
@@ -105,7 +106,7 @@ class WebServer(private val config: ServerConfig) {
 
         // Read the request method line, it is always the first line of the request
         var requestLine = reader.readLine() ?: return
-        if (debugEnabled) Log.d(TAG, "Request is ${requestLine}")
+        if (debugEnabled) log.debug("Request is {}", requestLine)
 
         // Parse the request
         // Request line should look like "GET /a/b/c.html HTTP/1.1"
@@ -129,7 +130,7 @@ class WebServer(private val config: ServerConfig) {
         while(requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
 
-           if (debugEnabled) Log.d(TAG, "Header: ${requestLine}")
+           if (debugEnabled) log.debug("Header: {}", requestLine)
 
             if(requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
@@ -171,7 +172,7 @@ WHERE  C.contentTypeID = CT.id
         val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
 
-        if (debugEnabled) Log.d(TAG, "len(content)=${dbContent.size}, MIME type=${dbMimeType}, compression=${compression}.")
+        if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
 
         // If the Accept-Encoding header contains "br", the client can handle
         // Brotli. Send Brotli data as-is, without decompressing it here.
@@ -183,12 +184,12 @@ WHERE  C.contentTypeID = CT.id
                 compression = "br"
             } else {
                 try {
-                    if (debugEnabled) Log.d(TAG, "Brotli content but client doesn't support Brotli. Decoding locally.")
+                    if (debugEnabled) log.debug("Brotli content but client doesn't support Brotli. Decoding locally.")
                     dbContent =
                         BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                     compression = "none"
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
+                    log.error("Error decompressing Brotli content: {}", e.message)
                     return sendError(writer, 500, "Internal Server Error")
                 }
             }
