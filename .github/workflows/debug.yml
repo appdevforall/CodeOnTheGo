@@ -53,37 +53,18 @@ jobs:
         run: |
           # Get the current branch name
           BRANCH_NAME=$(git branch --show-current)
-          
+
           # Check if this branch has any commits that are not in the stage branch
           # This workflow only handles stage branch and feature branches derived from stage
           BRANCH_ONLY_COMMITS=$(git log --oneline stage..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo "0")
           BASE_BRANCH="stage"
-          
-          # Debug: Show what commits are in the current branch vs stage
-          echo "Debug: Current branch commits:"
-          git log --oneline -5 HEAD
-          echo "Debug: Stage branch commits:"
-          git log --oneline -5 stage
-          echo "Debug: Commits ahead of stage:"
-          git log --oneline stage..HEAD
-          
-          # Get the latest commit message on this branch
-          LATEST_COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r')
-          
-          # Debug output
-          echo "Debug: BRANCH_ONLY_COMMITS='$BRANCH_ONLY_COMMITS'"
-          echo "Debug: LATEST_COMMIT_MSG='$LATEST_COMMIT_MSG'"
-          
-          # Check if this branch has no unique commits or only has initial/setup commits
-          if [[ "$BRANCH_ONLY_COMMITS" -eq 0 ]] || ([[ "$BRANCH_ONLY_COMMITS" -eq 1 ]] && [[ "$LATEST_COMMIT_MSG" =~ ^(Initial commit|Create .*|Add .*|Initial .*|Setup .*|First commit)$ ]]); then
-            echo "::notice::Skipping build for new branch with no meaningful commits"
-            echo "Branch '$BRANCH_NAME' has $BRANCH_ONLY_COMMITS unique commits"
-            echo "This prevents unnecessary notifications and deployments"
-            echo "The workflow will run normally once meaningful commits are added"
+
+          # Check if this branch has any commits
+          if [[ "$BRANCH_ONLY_COMMITS" -eq 0 ]]; then
+            echo "::notice::Skipping build for new branch"
             exit 78  # Use exit code 78 to indicate "skipped" status
           else
-            echo "Branch has meaningful commits, proceeding with build"
-            echo "Branch '$BRANCH_NAME' has $BRANCH_ONLY_COMMITS unique commits"
+            echo "Branch '$BRANCH_NAME' has $BRANCH_ONLY_COMMITS commits, proceeding with build"
           fi
 
       - name: Install Git LFS
