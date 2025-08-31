@@ -40,8 +40,6 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-
-
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
@@ -57,10 +55,10 @@ jobs:
           # Check if this branch has any commits that are not in the stage branch
           # This workflow only handles stage branch and feature branches derived from stage
           BRANCH_ONLY_COMMITS=$(git log --oneline stage..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-          BASE_BRANCH="stage"
 
           # Check if this branch has any commits
-          if [[ "$BRANCH_ONLY_COMMITS" -eq 0 ]]; then
+          # Skip only if it's a feature branch (not stage) with 0 commits ahead of stage
+          if [[ "$BRANCH_ONLY_COMMITS" -eq 0 ]] && [[ "$BRANCH_NAME" != "stage" ]]; then
             echo "::notice::Skipping build for new branch"
             exit 78  # Use exit code 78 to indicate "skipped" status
           else
