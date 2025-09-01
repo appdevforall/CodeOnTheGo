@@ -35,6 +35,8 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -557,7 +559,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
             }
 
             Bundle extra = new Bundle();
-            extra.putParcelable("com.itsaky.androidide.intent.extra.BINDER", new BinderContainer(binder));
+            extra.putParcelable(BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER", new BinderContainer(binder));
 
             Bundle reply = IContentProviderUtils.callCompat(provider, null, name, "sendBinder", null, extra);
             if (reply != null) {
