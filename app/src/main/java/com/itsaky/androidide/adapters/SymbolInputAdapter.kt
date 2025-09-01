@@ -18,18 +18,25 @@
 package com.itsaky.androidide.adapters
 
 import android.annotation.SuppressLint
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutSymbolItemBinding
 import com.itsaky.androidide.editor.ui.IDEEditor
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.Symbol
+import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.resolveAttr
 import io.github.rosemoe.sora.widget.SelectionMovement
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Objects
 
 class SymbolInputAdapter @JvmOverloads constructor(
@@ -72,7 +79,7 @@ class SymbolInputAdapter @JvmOverloads constructor(
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val symbol = symbols.get(position)
+        val symbol = symbols[position]
         holder.binding.symbol.text = symbol.label
         holder.binding.symbol.setTextColor(
             holder.binding.symbol.context.resolveAttr(R.attr.colorOnSurface)
@@ -84,20 +91,41 @@ class SymbolInputAdapter @JvmOverloads constructor(
             TooltipCompat.setTooltipText(holder.binding.symbol, description)
         }
 
-        holder.binding.symbol.setOnClickListener(View.OnClickListener { view: View? ->
+        holder.binding.symbol.setOnClickListener { view: View? ->
             insertSymbol(
                 symbol.commit,
                 symbol.offset
             )
         }
-        )
 
-        holder.binding.symbol.setOnLongClickListener(View.OnLongClickListener { view: View? ->
-            if (!description.isEmpty()) {
-                Toast.makeText(view!!.context, description, Toast.LENGTH_SHORT).show()
+        holder.binding.symbol.setOnLongClickListener { view: View? ->
+            val tooltipTag = TooltipTag.EDITOR_CHARACTER_TOOLBAR
+            editor.editorScope.launch {
+                try {
+                    val tooltipData = withContext(Dispatchers.IO) {
+                        TooltipManager.getTooltip(
+                            editor.context,
+                            TooltipCategory.CATEGORY_IDE,
+                            tooltipTag
+                        )
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        tooltipData?.let {
+                            TooltipUtils.showIDETooltip(
+                                context = editor.context,
+                                level = 0,
+                                tooltipItem = it,
+                                anchorView = holder.binding.symbol,
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+                }
             }
             true
-        })
+        }
     }
 
     override fun getItemCount(): Int {
@@ -134,8 +162,8 @@ class SymbolInputAdapter @JvmOverloads constructor(
         }
 
         if (cur.leftColumn < editor.text
-                .getColumnCount(cur.leftLine) && text.length == 1 && text.get(0) == editor.text
-                .charAt(cur.leftLine, cur.leftColumn) && pairs.contains(text.get(0))
+                .getColumnCount(cur.leftLine) && text.length == 1 && text[0] == editor.text
+                .charAt(cur.leftLine, cur.leftColumn) && pairs.contains(text[0])
         ) {
             editor.moveSelection(SelectionMovement.RIGHT)
         } else {
@@ -153,10 +181,9 @@ class SymbolInputAdapter @JvmOverloads constructor(
     )
 
     companion object {
-        private val pairs: MutableList<Char?>
+        private val pairs = ArrayList<Char?>()
 
         init {
-            pairs = ArrayList<Char?>()
             pairs.add('}')
             pairs.add(')')
             pairs.add(']')

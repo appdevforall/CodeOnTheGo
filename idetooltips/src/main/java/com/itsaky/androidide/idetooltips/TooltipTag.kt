@@ -39,4 +39,5 @@ object TooltipTag {
     const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
     const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
     const val EXIT_TO_MAIN = "exit.to.main"
+    const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 }
