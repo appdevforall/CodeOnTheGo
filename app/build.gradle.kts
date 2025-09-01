@@ -20,6 +20,7 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.nio.file.attribute.FileTime
 import java.util.zip.Deflater
+import java.util.Properties
 
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -33,6 +34,18 @@ plugins {
   id("kotlin-parcelize")
   id("androidx.navigation.safeargs.kotlin")
   id("com.itsaky.androidide.desugaring")
+  alias(libs.plugins.sentry)
+}
+
+fun propOrEnv(name: String): String {
+  return project.findProperty(name) as String?
+    ?: System.getenv(name)
+    ?: ""
+}
+
+val props = Properties().apply {
+  val file = rootProject.file("local.properties")
+  if (file.exists()) load(file.inputStream())
 }
 
 apply {
@@ -57,11 +70,23 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
     testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+
+  }
+
+  buildTypes {
+    debug {
+      manifestPlaceholders["sentryDsn"] =
+        props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
+    }
+    release {
+      manifestPlaceholders["sentryDsn"] =
+        props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
+    }
   }
 
   testOptions {
     execution = "ANDROIDX_TEST_ORCHESTRATOR"
-    
+
     unitTests {
       isIncludeAndroidResources = true
       all {
@@ -112,7 +137,7 @@ desugaring {
 }
 
 dependencies {
-    //debugImplementation(libs.common.leakcanary)
+  //debugImplementation(libs.common.leakcanary)
 
   // Annotation processors
   kapt(libs.common.glide.ap)
@@ -120,7 +145,7 @@ dependencies {
   kapt(projects.annotationProcessors)
   kapt(libs.room.compiler)
 
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+  implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 
   implementation(platform(libs.sora.bom))
   implementation(libs.common.editor)
@@ -164,6 +189,7 @@ dependencies {
   implementation(libs.androidx.work.ktx)
   implementation(libs.google.material)
   implementation(libs.google.flexbox)
+  implementation(libs.libsu.core)
 
   // Kotlin
   implementation(libs.androidx.core.ktx)
@@ -190,6 +216,7 @@ dependencies {
   implementation(projects.gradlePluginConfig)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
+  implementation(projects.subprojects.shizukuManager)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)
@@ -250,16 +277,6 @@ dependencies {
   // brotli4j
   implementation(libs.brotli4j)
 }
-
-
-//sentry {
-//    org.set("appdevforall-inc-pb")
-//    projectName.set("android")
-//
-//    // this will upload your source code to Sentry to show it as part of the stack traces
-//    // disable if you don't want to expose your sources
-//    includeSourceContext.set(true)
-//}
 
 tasks.register("downloadDocDb") {
   doLast {
@@ -377,17 +394,6 @@ tasks.register("recompressApk") {
 }
 
 afterEvaluate {
-  tasks.named("assembleV8Debug").configure {
-    finalizedBy("recompressApk")
-
-    doLast {
-      tasks.named("recompressApk").configure {
-        extensions.extraProperties["abi"] = "v8"
-        extensions.extraProperties["buildName"] = "debug"
-      }
-    }
-  }
-
   tasks.named("assembleV8Release").configure {
     finalizedBy("recompressApk")
 
@@ -395,17 +401,6 @@ afterEvaluate {
       tasks.named("recompressApk").configure {
         extensions.extraProperties["abi"] = "v8"
         extensions.extraProperties["buildName"] = "release"
-      }
-    }
-  }
-
-  tasks.named("assembleV7Debug").configure {
-    finalizedBy("recompressApk")
-
-    doLast {
-      tasks.named("recompressApk").configure {
-        extensions.extraProperties["abi"] = "v7"
-        extensions.extraProperties["buildName"] = "debug"
       }
     }
   }
