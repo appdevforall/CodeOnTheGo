@@ -1,4 +1,3 @@
-import com.android.build.gradle.internal.packaging.defaultExcludes
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {

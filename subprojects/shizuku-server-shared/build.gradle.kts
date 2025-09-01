@@ -12,6 +12,7 @@ dependencies {
     implementation(libs.androidx.core)
     implementation(libs.rikkax.parcelablelist)
 
+    api(projects.buildInfo)
     api(projects.subprojects.shizukuAidl)
     api(projects.subprojects.shizukuShared)
     api(projects.subprojects.shizukuRish)
