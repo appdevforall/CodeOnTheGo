@@ -61,10 +61,10 @@ buildscript {
 }
 
 android {
-  namespace = BuildConfig.packageName
+  namespace = BuildConfig.PACKAGE_NAME
 
   defaultConfig {
-    applicationId = BuildConfig.packageName
+    applicationId = BuildConfig.PACKAGE_NAME
     vectorDrawables.useSupportLibrary = true
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -115,7 +115,7 @@ android {
   }
 }
 
-kapt { arguments { arg("eventBusIndex", "${BuildConfig.packageName}.events.AppEventsIndex") } }
+kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
 
 desugaring {
   replacements {
@@ -189,6 +189,7 @@ dependencies {
   implementation(libs.androidx.work.ktx)
   implementation(libs.google.material)
   implementation(libs.google.flexbox)
+  implementation(libs.libsu.core)
 
   // Kotlin
   implementation(libs.androidx.core.ktx)
@@ -216,6 +217,9 @@ dependencies {
   implementation(projects.gradlePluginConfig)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
+  implementation(projects.subprojects.shizukuApi)
+  implementation(projects.subprojects.shizukuManager)
+  implementation(projects.subprojects.shizukuProvider)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)
