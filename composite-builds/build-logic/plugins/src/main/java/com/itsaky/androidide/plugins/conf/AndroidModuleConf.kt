@@ -111,7 +111,8 @@ fun Project.configureAndroidModule(
                         "META-INF/AL2.0",
                         "META-INF/LGPL2.1",
                         "META-INF/INDEX.LIST",
-                        "about_files/LICENSE-2.0.txt",
+                        "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+						"about_files/LICENSE-2.0.txt",
                         "plugin.xml",
                         "plugin.properties",
                         "about.mappings",
@@ -215,7 +216,7 @@ fun Project.configureAndroidModule(
             }
         }
 
-        if (!project.path.contains("shizuku")) {
+
             flavorDimensions("abi")
 
             productFlavors {
@@ -236,7 +237,7 @@ fun Project.configureAndroidModule(
 
             buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
                 initWith(buildTypes.getByName("debug"))
-            }
+            matchingFallbacks += "debug"
         }
 
         buildTypes.getByName("debug") {

@@ -14,6 +14,8 @@ import android.text.TextUtils;
 
 import androidx.annotation.RequiresApi;
 
+import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,8 +31,8 @@ public class BinderSender {
 
     private static final Logger LOGGER = new Logger("BinderSender");
 
-    private static final String PERMISSION_MANAGER = "moe.shizuku.manager.permission.MANAGER";
-    private static final String PERMISSION = "moe.shizuku.manager.permission.API_V23";
+    private static final String PERMISSION_MANAGER = BuildInfo.PACKAGE_NAME + ".shizuku.permission.SHIZUKU_MANAGER";
+    private static final String PERMISSION = BuildInfo.PACKAGE_NAME + ".shizuku.permission.SHIZUKU_API_V23";
 
     private static ShizukuService sShizukuService;
 
@@ -178,18 +180,13 @@ public class BinderSender {
             LOGGER.e(tr, "registerProcessObserver");
         }
 
-        if (Build.VERSION.SDK_INT >= 26) {
-            int flags = UID_OBSERVER_GONE | UID_OBSERVER_IDLE | UID_OBSERVER_ACTIVE;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                flags |= UID_OBSERVER_CACHED;
-            }
-            try {
-                ActivityManagerApis.registerUidObserver(new UidObserver(), flags,
-                        ActivityManagerHidden.PROCESS_STATE_UNKNOWN,
-                        null);
-            } catch (Throwable tr) {
-                LOGGER.e(tr, "registerUidObserver");
-            }
-        }
-    }
+		int flags = UID_OBSERVER_GONE | UID_OBSERVER_IDLE | UID_OBSERVER_ACTIVE | UID_OBSERVER_CACHED;
+		try {
+			ActivityManagerApis.registerUidObserver(new UidObserver(), flags,
+					ActivityManagerHidden.PROCESS_STATE_UNKNOWN,
+					null);
+		} catch (Throwable tr) {
+			LOGGER.e(tr, "registerUidObserver");
+		}
+	}
 }

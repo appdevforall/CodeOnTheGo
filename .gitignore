@@ -109,3 +109,6 @@ tests/test-home
 
 /composite-builds/build-deps-common/constants/build/
 /composite-builds/build-deps/build/
+
+# Kotlin build files
+.kotlin/

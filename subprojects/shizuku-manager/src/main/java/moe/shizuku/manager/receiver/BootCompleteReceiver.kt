@@ -20,7 +20,7 @@ import moe.shizuku.manager.adb.AdbClient
 import moe.shizuku.manager.adb.AdbKey
 import moe.shizuku.manager.adb.AdbMdns
 import moe.shizuku.manager.adb.PreferenceAdbKeyStore
-import moe.shizuku.manager.starter.Starter
+import moe.shizuku.manager.ShizukuStarter
 import moe.shizuku.manager.utils.UserHandleCompat
 import rikka.shizuku.Shizuku
 import java.util.concurrent.CountDownLatch
@@ -54,7 +54,7 @@ class BootCompleteReceiver : BroadcastReceiver() {
             return
         }
 
-        Shell.cmd(Starter.internalCommand).exec()
+        Shell.cmd(ShizukuStarter.internalCommand).exec()
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -70,10 +70,10 @@ class BootCompleteReceiver : BroadcastReceiver() {
                 if (port <= 0) return@AdbMdns
                 try {
                     val keystore = PreferenceAdbKeyStore(ShizukuSettings.getPreferences())
-                    val key = AdbKey(keystore, "shizuku")
+                    val key = AdbKey(keystore)
                     val client = AdbClient("127.0.0.1", port, key)
                     client.connect()
-                    client.shellCommand(Starter.internalCommand, null)
+                    client.shellCommand(ShizukuStarter.internalCommand, null)
                     client.close()
                 } catch (_: Exception) {
                 }
