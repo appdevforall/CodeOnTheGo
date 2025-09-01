@@ -119,6 +119,7 @@ class IDEApplication : TermuxApplication() {
 
         super.onCreate()
 
+        SentryAndroid.init(this)
 		ShizukuSettings.initialize(this)
 
         if (BuildConfig.DEBUG) {
@@ -134,8 +135,6 @@ class IDEApplication : TermuxApplication() {
             }
 
             checkForSecondDisplay()
-
-
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -188,7 +187,7 @@ class IDEApplication : TermuxApplication() {
         if (!version.startsWith('v')) {
             version = "v${version}"
         }
-        intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/${version}")
+        intent.data = "${BuildInfo.REPO_URL}/releases/tag/${version}".toUri()
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             startActivity(intent)
