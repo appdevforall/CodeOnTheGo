@@ -39,6 +39,9 @@ plugins {
 	alias(libs.plugins.kotlin.jvm) apply false
 	alias(libs.plugins.maven.publish) apply false
 	alias(libs.plugins.gradle.publish) apply false
+	alias(libs.plugins.rikka.autoresconfig) apply false
+	alias(libs.plugins.rikka.materialthemebuilder) apply false
+	alias(libs.plugins.rikka.refine) apply false
 	alias(libs.plugins.spotless)
 }
 

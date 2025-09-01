@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingTop="24dp"
+    android:paddingBottom="24dp">
+
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_system_icon"
+        android:tint="?android:colorAccent"
+        android:tintMode="src_in" />
+
+    <TextView
+        android:id="@android:id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingStart="24dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp"
+        android:textColor="?android:textColorPrimary"
+        android:textSize="20sp"
+        tools:text="@string/permission_warning_template" />
+
+    <TextView
+        android:id="@android:id/button1"
+        style="@style/GrantPermissionsButtons.Top"
+        android:text="@string/grant_dialog_button_allow_always" />
+
+    <TextView
+        android:id="@android:id/button3"
+        style="@style/GrantPermissionsButtons.Buttom"
+        android:text="@string/grant_dialog_button_deny" />
+
+</LinearLayout>
