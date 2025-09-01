@@ -157,6 +157,9 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		binding.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
 		mediator.attach()
 	}
+    override fun onFragmentLongPressed() {
+        //TODO be defined
+    }
 }
 
 class DebuggerPagerAdapter(

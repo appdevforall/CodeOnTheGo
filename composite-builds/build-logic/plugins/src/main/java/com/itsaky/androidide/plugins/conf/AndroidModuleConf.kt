@@ -111,7 +111,8 @@ fun Project.configureAndroidModule(
                         "META-INF/AL2.0",
                         "META-INF/LGPL2.1",
                         "META-INF/INDEX.LIST",
-                        "about_files/LICENSE-2.0.txt",
+                        "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+						"about_files/LICENSE-2.0.txt",
                         "plugin.xml",
                         "plugin.properties",
                         "about.mappings",
@@ -215,22 +216,28 @@ fun Project.configureAndroidModule(
             }
         }
 
-        flavorDimensions("abi")
 
-        productFlavors {
-            create("v7") {
-                dimension = "abi"
+            flavorDimensions("abi")
 
-                ndk.abiFilters.clear()
-                ndk.abiFilters += "armeabi-v7a"
+            productFlavors {
+                create("v7") {
+                    dimension = "abi"
+
+                    ndk.abiFilters.clear()
+                    ndk.abiFilters += "armeabi-v7a"
+                }
+
+                create("v8") {
+                    dimension = "abi"
+
+                    ndk.abiFilters.clear()
+                    ndk.abiFilters += "arm64-v8a"
+                }
             }
 
-            create("v8") {
-                dimension = "abi"
-
-                ndk.abiFilters.clear()
-                ndk.abiFilters += "arm64-v8a"
-            }
+            buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
+                initWith(buildTypes.getByName("debug"))
+            matchingFallbacks += "debug"
         }
 
         buildTypes.getByName("debug") {
@@ -249,10 +256,6 @@ fun Project.configureAndroidModule(
                 "proguard-rules.pro"
             )
             consumerProguardFiles("consumer-rules.pro")
-        }
-
-        buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
-            initWith(buildTypes.getByName("debug"))
         }
 
         testOptions { unitTests.isIncludeAndroidResources = true }
