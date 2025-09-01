@@ -126,11 +126,11 @@ fun Project.configureAndroidModule(
     }
 
     extensions.getByType(BaseExtension::class.java).run {
-        compileSdkVersion(BuildConfig.compileSdk)
+        compileSdkVersion(BuildConfig.COMPILE_SDK)
 
         defaultConfig {
-            minSdk = BuildConfig.minSdk
-            targetSdk = BuildConfig.targetSdk
+            minSdk = BuildConfig.MIN_SDK
+            targetSdk = BuildConfig.TARGET_SDK
             versionCode = projectVersionCode
             versionName = rootProject.simpleVersionName
 
@@ -141,8 +141,8 @@ fun Project.configureAndroidModule(
         }
 
         compileOptions {
-            sourceCompatibility = BuildConfig.javaVersion
-            targetCompatibility = BuildConfig.javaVersion
+            sourceCompatibility = BuildConfig.JAVA_VERSION
+            targetCompatibility = BuildConfig.JAVA_VERSION
         }
 
         configureCoreLibDesugaring(this, coreLibDesugDep)

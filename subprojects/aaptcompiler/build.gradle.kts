@@ -23,7 +23,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.aaptcompiler"
+    namespace = "${BuildConfig.PACKAGE_NAME}.aaptcompiler"
     
     buildTypes {
         release {
