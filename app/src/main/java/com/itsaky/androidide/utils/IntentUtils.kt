@@ -136,7 +136,9 @@ object IntentUtils {
       if (!debug) {
 				// launch-only, simply start the activitycontext.startActivity(launchIntent)
       return true
-    }if (!Shizuku.pingBinder()) {
+    }
+
+			if (!Shizuku.pingBinder()) {
 				logger.debug("Shizuku service is not running. Cannot debug app.")
 				return false
 			}
