@@ -419,30 +419,47 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             return
         }
 
-        startDebuggerAndDo {
-            debuggerViewModel.debugeePackage = packageName
-            withContext(Dispatchers.Main.immediate) {
-                doLaunchApp(packageName)
-            }
-        }
-    }
+		startDebuggerAndDo {
+			debuggerViewModel.debugeePackage = packageName
+			withContext(Dispatchers.Main.immediate) {
+				doLaunchApp(
+					packageName = packageName,
+					debug = true,
+				)
+			}
+		}
+	}
 
-    private fun doLaunchApp(packageName: String) {
-        if (BuildPreferences.launchAppAfterInstall) {
-            IntentUtils.launchApp(this, packageName)
-            return
-        }
+	private fun doLaunchApp(
+		packageName: String,
+		debug: Boolean = false,
+	) {
+		val context = this
+		val performLaunch = {
+			activityScope.launch {
+				IntentUtils.launchApp(
+					context = context,
+					packageName = packageName,
+					debug = debug,
+				)
+			}
+		}
 
-        val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.msg_action_open_title_application)
-        builder.setMessage(string.msg_action_open_application)
-        builder.setPositiveButton(string.yes) { dialog, _ ->
-            dialog.dismiss()
-            IntentUtils.launchApp(this, packageName)
-        }
-        builder.setNegativeButton(string.no, null)
-        builder.show()
-    }
+		if (BuildPreferences.launchAppAfterInstall) {
+			performLaunch()
+			return
+		}
+
+		val builder = newMaterialDialogBuilder(this)
+		builder.setTitle(string.msg_action_open_title_application)
+		builder.setMessage(string.msg_action_open_application)
+		builder.setPositiveButton(string.yes) { dialog, _ ->
+			dialog.dismiss()
+			performLaunch()
+		}
+		builder.setNegativeButton(string.no, null)
+		builder.show()
+	}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -705,18 +722,32 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
 
-    open fun showBottomSheetFragment(
-        fragmentClass: Class<out Fragment>,
-        sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
-    ) {
-        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
-        if (index >= 0 && index < content.bottomSheet.binding.tabs.tabCount) {
-            if (editorBottomSheet?.state != sheetState) {
-                editorBottomSheet?.state = sheetState
-            }
-            content.bottomSheet.binding.tabs.getTabAt(index)?.select()
-        }
-    }
+	open fun showBottomSheetFragment(
+		fragmentClass: Class<out Fragment>,
+		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+	) {
+		showAndGetBottomSheetFragment(fragmentClass, sheetState)
+	}
+
+	open fun <T: Fragment> showAndGetBottomSheetFragment(
+		fragmentClass: Class<T>,
+		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+	): T? = content.bottomSheet.run {
+		val index = pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
+		val fragment = pagerAdapter.getFragmentAtIndex<T>(index) ?: let {
+			log.error("Failed to get bottom sheet fragment at index: {}", index)
+			return@run null
+		}
+
+		if (index >= 0 && index < binding.tabs.tabCount) {
+			if (editorBottomSheet?.state != sheetState) {
+				editorBottomSheet?.state = sheetState
+			}
+			binding.tabs.getTabAt(index)?.select()
+		}
+
+		fragment
+	}
 
     open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
         content.bottomSheet.handleDiagnosticsResultVisibility(errorVisible)
@@ -1015,4 +1046,3 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
 }
-

@@ -35,12 +35,12 @@ public abstract class Service<
         ClientMgr extends ClientManager<ConfigMgr>,
         ConfigMgr extends ConfigManager> extends IShizukuService.Stub {
 
-    private final UserServiceMgr userServiceManager;
-    private final ConfigMgr configManager;
-    private final ClientMgr clientManager;
-    private final RishService rishService;
+	protected static final Logger LOGGER = new Logger("ShizukuService");
+	private final UserServiceMgr userServiceManager;
+	private final ConfigMgr configManager;
+	private final ClientMgr clientManager;
 
-    protected static final Logger LOGGER = new Logger("Service");
+	private final RishService rishService;
 
     public Service() {
         RishConfig.init(ShizukuApiConstants.BINDER_DESCRIPTOR, 30000);

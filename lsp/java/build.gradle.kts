@@ -24,12 +24,12 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.lsp.java"
+    namespace = "${BuildConfig.PACKAGE_NAME}.lsp.java"
 }
 
 kapt {
     arguments {
-        arg ("eventBusIndex", "${BuildConfig.packageName}.events.LspJavaEventsIndex")
+        arg ("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.LspJavaEventsIndex")
     }
 }
 

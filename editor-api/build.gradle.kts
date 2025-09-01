@@ -23,7 +23,7 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.editor.api"
+  namespace = "${BuildConfig.PACKAGE_NAME}.editor.api"
 }
 
 dependencies {

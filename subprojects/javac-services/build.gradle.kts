@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.javac.services"
+    namespace = "${BuildConfig.PACKAGE_NAME}.javac.services"
     
     buildTypes {
         release {
