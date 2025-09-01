@@ -17,6 +17,8 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import moe.shizuku.api.BinderContainer;
 import rikka.sui.Sui;
 
@@ -70,13 +72,9 @@ public class ShizukuProvider extends ContentProvider {
     // For share Binder between processes
     public static final String METHOD_GET_BINDER = "getBinder";
 
-    public static final String ACTION_BINDER_RECEIVED = "moe.shizuku.api.action.BINDER_RECEIVED";
+    public static final String ACTION_BINDER_RECEIVED = BuildInfo.PACKAGE_NAME + ".shizuku.api.action.BINDER_RECEIVED";
 
-    private static final String EXTRA_BINDER = "com.itsaky.androidide.intent.extra.BINDER";
-
-    public static final String PERMISSION = "moe.shizuku.manager.permission.API_V23";
-
-    public static final String MANAGER_APPLICATION_ID = "com.itsaky.androidide";
+    private static final String EXTRA_BINDER = BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER";
 
     private static boolean enableMultiProcess = false;
 

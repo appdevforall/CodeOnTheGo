@@ -24,6 +24,9 @@ import org.gradle.api.JavaVersion
  */
 object BuildConfig {
 
+  /** The internal name for the IDE */
+  const val internalName = "CodeOnTheGo"
+
   /** AndroidIDE's package name. */
   const val packageName = "com.itsaky.androidide"
 
