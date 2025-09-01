@@ -25,10 +25,10 @@ plugins {
 description = "LogSender is used to read logs from applications built with AndroidIDE"
 
 android {
-  namespace = "${BuildConfig.packageName}.logsender"
+  namespace = "${BuildConfig.PACKAGE_NAME}.logsender"
 
   defaultConfig {
-    minSdk = BuildConfig.minSdkForAppsBuiltInCogo
+    minSdk = BuildConfig.MIN_SDK_FOR_APPS_BUILT_WITH_COGO
 
     vectorDrawables {
       useSupportLibrary = true

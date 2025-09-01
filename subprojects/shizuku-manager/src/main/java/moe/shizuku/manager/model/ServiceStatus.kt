@@ -11,4 +11,8 @@ data class ServiceStatus(
 ) {
     val isRunning: Boolean
         get() = uid != -1 && Shizuku.pingBinder()
+
+	companion object {
+		val EMPTY = ServiceStatus()
+	}
 }

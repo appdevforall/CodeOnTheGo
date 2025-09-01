@@ -58,7 +58,7 @@ object VersionUtils {
       return cached
     }
 
-    val groupId = BuildConfig.packageName.replace('.', '/')
+    val groupId = BuildConfig.PACKAGE_NAME.replace('.', '/')
     val moduleMetadata = "$SONATYPE_SNAPSHOTS_REPO$groupId/${artifact}/maven-metadata.xml"
     return try {
        BufferedInputStream(URI.create(moduleMetadata).toURL().openStream()).use { inputStream ->

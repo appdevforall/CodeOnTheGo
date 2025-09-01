@@ -6,10 +6,10 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.libjdwp.remote"
+    namespace = "${BuildConfig.PACKAGE_NAME}.libjdwp.remote"
 
     defaultConfig {
-        minSdk = BuildConfig.minSdkForAppsBuiltInCogo
+        minSdk = BuildConfig.MIN_SDK_FOR_APPS_BUILT_WITH_COGO
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }

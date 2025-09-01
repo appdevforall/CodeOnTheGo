@@ -32,7 +32,7 @@ class LexerGeneratorPlugin : Plugin<Project> {
 
   companion object {
 
-    const val LEXER_BASE_PACKAGE = "${BuildConfig.packageName}.lexers"
+    const val LEXER_BASE_PACKAGE = "${BuildConfig.PACKAGE_NAME}.lexers"
     const val EXT_G4 = "g4"
   }
 
