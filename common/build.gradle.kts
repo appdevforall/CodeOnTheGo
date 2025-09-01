@@ -1,4 +1,3 @@
-import com.android.build.gradle.internal.packaging.defaultExcludes
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
@@ -7,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.common"
+    namespace = "${BuildConfig.PACKAGE_NAME}.common"
 }
 
 dependencies {

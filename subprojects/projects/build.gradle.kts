@@ -8,12 +8,12 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.projects"
+  namespace = "${BuildConfig.PACKAGE_NAME}.projects"
 }
 
 kapt {
   arguments {
-    arg("eventBusIndex", "${BuildConfig.packageName}.events.ProjectsApiEventsIndex")
+    arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.ProjectsApiEventsIndex")
   }
 }
 

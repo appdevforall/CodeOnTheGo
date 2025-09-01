@@ -82,7 +82,7 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
         val generateInitScript = tasks.register(
             "generate${variantName}InitScript", GenerateInitScriptTask::class.java
         ) {
-            mavenGroupId.set(BuildConfig.packageName)
+            mavenGroupId.set(BuildConfig.PACKAGE_NAME)
             downloadVersion.set(this@registerInitScriptGeneratorTask.downloadVersion)
         }
 

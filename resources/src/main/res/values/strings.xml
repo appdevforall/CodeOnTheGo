@@ -571,8 +571,8 @@
     <string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
     <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
     <string name="title_build_variants">Build variants</string>
-    <string name="title_apply">Apply</string>
-    <string name="title_discard">Discard</string>
+    <string name="build_variants_apply">Apply</string>
+    <string name="build_variants_cancel">Cancel</string>
     <string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
     <string name="title_choose_application">Choose application</string>
     <string name="err_selected_variant_not_found">Selected build variant not found</string>
@@ -614,7 +614,9 @@
     <string name="permission_title_accessibility">Accessibility</string>
     <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
-    <string name="onboarding_title_permissions">Permissions</string>
+    <string name="permission_title_notifications">Notifications</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to post notifications</string>
+	<string name="onboarding_title_permissions">Permissions</string>
     <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
     <string name="msg_grant_permissions">Please grant the permissions to continue.</string>
     <string name="msg_no_internet">It seems you\'re offline. Check your internet connection.</string>
@@ -755,11 +757,97 @@
         </html>
         ]]></string>
 
-    <!-- Tooltip Links HTML Template -->
-    <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
-    <string name="title_alert">Alert!</string>
+	<!-- Tooltip Links HTML Template -->
+	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
+	<string name="title_alert">Alert!</string>
+	<string name="info_icon_content_description">Info icon</string>
 
-    <string name="build_variants_apply">Apply</string>
-    <string name="build_variants_cancel">Cancel</string>
-  <string name="info_icon_content_description">Info icon</string>
+    <string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
+
+	<!-- Hint for the notification text field which asks the user to enter the wireless debugging pairing code -->
+    <string name="notification_adb_pairing_input_paring_code">Enter pairing code</string>
+	<!-- Title for the notification when the wireless debugging pairing service is being searched. -->
+    <string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
+	<!-- Title for the notification when the wireless debugging pairing service is found. -->
+    <string name="notification_adb_pairing_service_found_title">Pairing service found</string>
+	<!-- Text for the button in the notification to stop searching for the wireless debugging pairing service. -->
+    <string name="notification_adb_pairing_stop_searching">Stop searching</string>
+	<!-- Title for the notification when wireless debugging pairing is in progress. -->
+    <string name="notification_adb_pairing_working_title">Pairing in progress</string>
+
+	<!-- Title for the notification when wireless debugging pairing has succeeded. -->
+    <string name="notification_adb_pairing_succeed_title">Pairing successful</string>
+	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
+	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+	<!-- Title for the notification when wireless debugging pairing has failed. -->
+    <string name="notification_adb_pairing_failed_title">Pairing failed</string>
+
+	<!-- Text for the button in the notification to retry wireless debugging pairing after it has failed. -->
+    <string name="notification_adb_pairing_retry">Retry</string>
+	<!-- Error message displayed when the entered wireless debugging pairing code is incorrect. -->
+    <string name="paring_code_is_wrong">Pairing code is wrong.</string>
+	<!-- Error message displayed when the application cannot connect to the wireless debugging service port. -->
+    <string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
+	<!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless debugging. -->
+    <string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
+	<!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
+    <string name="dialog_adb_pairing_paring_code">Pairing code</string>
+
+	<!-- Text for an action button that initiates the wireless debugging pairing process. -->
+	<string name="adb_pairing_action_start">Click to start pairing</string>
+
+	<!-- Text for an action button that prompts the user to grant notification permission for wireless debugging pairing. -->
+	<string name="adb_pairing_action_enable_notifications">Grant notification permission</string>
+
+	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
+	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.</string>
+
+	<!-- Instructional text specific to MIUI users, advising them to change notification style for successful pairing. -->
+	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" - \"Notification shade\" in system settings.</string>
+	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not able to enter paring code from the notification.</string>
+
+	<!-- Instructional text explaining that the app needs local network access for wireless debugging pairing. -->
+	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access local network. It is controlled by the network permission.</string>
+
+	<!-- Instructional text for users on systems (like MIUI) that restrict background network access, advising to disable battery optimization. -->
+	<string name="adb_pairing_tutorial_content_network_limation_not_foreground">Some systems (such as MIUI) disallow apps to access the network when they are not visible, even if the app uses foreground service as standard. Please disable battery optimization features for Code on the Go on such systems.</string>
+
+	<!-- Instructional text outlining the steps to find the pairing code in device developer options. -->
+	<string name="adb_pairing_tutorial_content_steps">Enter \"Developer options\" - \"Wireless debugging\". Tap \"Pair device with pairing code\", you will see a six-digit code.</string>
+
+	<!-- Instructional text guiding the user to enter the pairing code in the notification. -->
+	<string name="adb_pairing_tutorial_content_enter_pairing_code">Enter the code in the notification to complete pairing.</string>
+
+	<!-- Instructional text clarifying how to correctly access the wireless debugging settings. -->
+	<string name="adb_pairing_tutorial_content_left_is_clickable">Please note, left part of the \"Wireless debugging\" option is clickable, tapping it will open a new page. Only turing on the switch on the right is incorrect.</string>
+
+	<!-- Instructional text indicating the final step after successful pairing. -->
+	<string name="adb_pairing_tutorial_content_finish">Back to Code on the Go and the Shizuku service will start automatically.</string>
+
+	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not been completed. -->
+	<string name="adb_pair_required">Please go through the pairing step first.</string>
+
+	<!-- Status message indicating that the application is searching for the ADB connection port. -->
+	<string name="adb_connection_finding">Finding ADB connection port…</string>
+
+	<!-- Status message indicating that the application is attempting to connect to the ADB daemon on a specific port. The %1$d is a placeholder for the port number. -->
+	<string name="adb_connection_connecting">Connecting to ADB daemon on port: %1$d…</string>
+
+	<!-- Status message indicating a successful connection to the ADB daemon. -->
+	<string name="adb_connection_succeeded">Successfully connected to ADB daemon!</string>
+
+	<!-- Status message indicating a failed connection to the ADB daemon. The %1$s is a placeholder for the error reason. -->
+	<string name="adb_connection_failed">Connection to ADB daemon failed: %1$s</string>
+
+	<!-- Status message indicating that the application is waiting for the ADB service to become available. -->
+	<string name="adb_connection_waiting_for_service">Waiting for service…</string>
+
+	<!-- Status message indicating that the ADB service has started. -->
+	<string name="adb_connection_done">Service started</string>
+
+	<!-- Error message displayed when the application is denied permission to start foreground services, which is necessary for some features. -->
+	<string name="err_foreground_service_denial">Code on the Go is not allowed to start foreground services (OP_START_FOREGROUND denial)</string>
+
+	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than 11, as it's a requirement. -->
+	<string name="err_debugger_requires_a11">The debugger features require Android 11 to work.</string>
 </resources>
