@@ -35,8 +35,9 @@ import com.itsaky.androidide.utils.AndroidUtils
  * @author Akash Yadav
  */
 class TemplateListAdapter(
-  templates: List<Template<*>>,
-  private val onClick: ((Template<*>, ViewHolder) -> Unit)? = null
+    templates: List<Template<*>>,
+    private val onClick: ((Template<*>, ViewHolder) -> Unit)? = null,
+    private val onLongClick: ((Template<*>, View) -> Unit)? = null
 ) : RecyclerView.Adapter<ViewHolder>() {
 
   private val templates = templates.toMutableList()
@@ -72,6 +73,13 @@ class TemplateListAdapter(
 
       root.setOnClickListener {
         onClick?.invoke(template, holder)
+      }
+
+      root.setOnLongClickListener {
+          template.tooltipTag?.let { tag ->
+              onLongClick?.invoke(template, it)
+          }
+          true // Consume the event
       }
     }
   }
