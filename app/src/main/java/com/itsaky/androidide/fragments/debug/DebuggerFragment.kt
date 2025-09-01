@@ -12,28 +12,61 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
+import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import moe.shizuku.manager.ShizukuViewModel
+import moe.shizuku.manager.model.ServiceStatus
+import org.slf4j.LoggerFactory
+import rikka.shizuku.Shizuku
 
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment :
+	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
+	private val shizukuViewModel by activityViewModels<ShizukuViewModel>()
+
+	var currentView: Int
+		get() = viewModel.currentView
+		set(value) {
+			if (value == VIEW_WADB_PAIRING && !isAtLeastR()) {
+				// WADB pairing is not available on pre-Android11 devices
+				throw IllegalStateException("WADB pairing is not supported on this device")
+			}
+
+			if (value == VIEW_WADB_PAIRING && Shizuku.pingBinder()) {
+				logger.error("Attempt to set current view to pairing mode while Shizuku service is running")
+				return
+			}
+
+			viewModel.currentView = value
+		}
 
 	companion object {
+		private val logger = LoggerFactory.getLogger(DebuggerFragment::class.java)
+
+		// values of the following variables are determined by the order in
+		// in which they are defined in fragment_debugger.xml
+		const val VIEW_DEBUGGER = 0
+		const val VIEW_WADB_PAIRING = 1
+
 		const val TABS_COUNT = 2
 		const val TAB_INDEX_VARIABLES = 0
 		const val TAB_INDEX_CALL_STACK = 1
@@ -56,14 +89,28 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
 		emptyStateViewModel.isEmpty.observe(viewLifecycleOwner) { isEmpty ->
 			if (isEmpty) {
-				binding.threadLayoutSelector.spinnerText.clearListSelection()
+				binding.debuggerContents.threadLayoutSelector.spinnerText.clearListSelection()
 			}
+		}
+
+		viewLifecycleScope.launch(Dispatchers.Main) {
+			shizukuViewModel.reload().await()
 		}
 
 		viewLifecycleScope.launch {
 			viewModel.setThreads(emptyList())
 
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				viewModel.observeCurrentView(
+					scope = this,
+					notifyOn = Dispatchers.Main,
+				) { viewIndex ->
+					binding.root.displayedChild = viewIndex
+					emptyStateViewModel.isEmpty.value =
+						(emptyStateViewModel.isEmpty.value ?: false) &&
+								currentView == VIEW_DEBUGGER
+				}
+
 				viewModel.observeConnectionState(
 					scope = this,
 					notifyOn = Dispatchers.Main,
@@ -76,7 +123,11 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							// connected, but not suspended
 							DebuggerConnectionState.ATTACHED -> {
 								viewModel.debugClient.clientOrNull?.let { client ->
-									getString(R.string.debugger_state_connected, client.name, client.version)
+									getString(
+										R.string.debugger_state_connected,
+										client.name,
+										client.version,
+									)
 								}
 							}
 
@@ -91,7 +142,8 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							DebuggerConnectionState.AWAITING_BREAKPOINT -> null
 						}
 
-					emptyStateViewModel.isEmpty.value = message != null
+					emptyStateViewModel.isEmpty.value =
+						currentView == VIEW_DEBUGGER && message != null
 					emptyStateViewModel.emptyMessage.value = message
 				}
 
@@ -106,8 +158,10 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							}.awaitAll()
 
 					withContext(Dispatchers.Main) {
-						emptyStateViewModel.isEmpty.value = descriptors.isEmpty()
-						binding.threadLayoutSelector.spinnerText.setAdapter(
+						emptyStateViewModel.isEmpty.value =
+							currentView == VIEW_DEBUGGER &&
+									descriptors.isEmpty()
+						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
 							ThreadSelectorListAdapter(
 								requireContext(),
 								descriptors,
@@ -127,7 +181,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 					val descriptor = thread!!.resolve()
 					withContext(Dispatchers.Main) {
 						this@DebuggerFragment.context?.also { context ->
-							binding.threadLayoutSelector.spinnerText.apply {
+							binding.debuggerContents.threadLayoutSelector.spinnerText.apply {
 								listSelection = index
 								setText(
 									descriptor?.displayText()
@@ -138,28 +192,49 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 						}
 					}
 				}
+
+				shizukuViewModel.serviceStatus.collectLatest { currentStatus ->
+					withContext(Dispatchers.IO) {
+						onShizukuServiceStatusChange(currentStatus)
+					}
+				}
 			}
 		}
 
 		emptyStateViewModel.emptyMessage.value = getString(R.string.debugger_state_not_connected)
 
-		binding.threadLayoutSelector.spinnerText.setOnItemClickListener { _, _, index, _ ->
+		binding.debuggerContents.threadLayoutSelector.spinnerText.setOnItemClickListener { _, _, index, _ ->
 			viewLifecycleScope.launch {
 				viewModel.setSelectedThreadIndex(index)
 			}
 		}
 
 		val mediator =
-			TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->
+			TabLayoutMediator(
+				binding.debuggerContents.tabs,
+				binding.debuggerContents.pager
+			) { tab, position ->
 				tab.text = tabs[position].first
 			}
 
-		binding.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
+		binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
 		mediator.attach()
 	}
-    override fun onFragmentLongPressed() {
-        //TODO be defined
-    }
+
+	override fun onFragmentLongPressed() {
+		//TODO be defined
+	}
+
+	private fun onShizukuServiceStatusChange(status: ServiceStatus?) {
+		logger.debug("Shizuku service status changed: {}", status)
+		var newView = VIEW_DEBUGGER
+
+		if (isAtLeastR() && status?.isRunning != true) {
+			newView = VIEW_WADB_PAIRING
+		}
+
+		viewModel.currentView = newView
+	}
 }
 
 class DebuggerPagerAdapter(
@@ -183,12 +258,12 @@ class ThreadSelectorListAdapter(
 		val inflater = LayoutInflater.from(this.context)
 		val view =
 			(
-				convertView ?: inflater.inflate(
-					android.R.layout.simple_dropdown_item_1line,
-					parent,
-					false,
-				)
-			) as TextView
+					convertView ?: inflater.inflate(
+						android.R.layout.simple_dropdown_item_1line,
+						parent,
+						false,
+					)
+					) as TextView
 
 		val item = getItem(position)
 		if (item == null) {

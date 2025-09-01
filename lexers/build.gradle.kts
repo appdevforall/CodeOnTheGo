@@ -28,8 +28,8 @@ apply {
 }
 
 java {
-  sourceCompatibility = BuildConfig.javaVersion
-  targetCompatibility = BuildConfig.javaVersion
+  sourceCompatibility = BuildConfig.JAVA_VERSION
+  targetCompatibility = BuildConfig.JAVA_VERSION
 }
 
 dependencies {

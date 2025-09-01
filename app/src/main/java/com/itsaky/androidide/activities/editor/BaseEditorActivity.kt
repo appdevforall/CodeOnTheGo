@@ -712,18 +712,32 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
     open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
 
-    open fun showBottomSheetFragment(
-        fragmentClass: Class<out Fragment>,
-        sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
-    ) {
-        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
-        if (index >= 0 && index < content.bottomSheet.binding.tabs.tabCount) {
-            if (editorBottomSheet?.state != sheetState) {
-                editorBottomSheet?.state = sheetState
-            }
-            content.bottomSheet.binding.tabs.getTabAt(index)?.select()
-        }
-    }
+	open fun showBottomSheetFragment(
+		fragmentClass: Class<out Fragment>,
+		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+	) {
+		showAndGetBottomSheetFragment(fragmentClass, sheetState)
+	}
+
+	open fun <T: Fragment> showAndGetBottomSheetFragment(
+		fragmentClass: Class<T>,
+		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+	): T? = content.bottomSheet.run {
+		val index = pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
+		val fragment = pagerAdapter.getFragmentAtIndex<T>(index) ?: let {
+			log.error("Failed to get bottom sheet fragment at index: {}", index)
+			return@run null
+		}
+
+		if (index >= 0 && index < binding.tabs.tabCount) {
+			if (editorBottomSheet?.state != sheetState) {
+				editorBottomSheet?.state = sheetState
+			}
+			binding.tabs.getTabAt(index)?.select()
+		}
+
+		fragment
+	}
 
     open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
         content.bottomSheet.handleDiagnosticsResultVisibility(errorVisible)
@@ -1038,4 +1052,3 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 }
-

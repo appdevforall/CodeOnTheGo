@@ -67,24 +67,24 @@ gradlePlugin {
 
   plugins {
     create("initScriptPlugin") {
-      id = "${BuildConfig.packageName}.init"
-      implementationClass = "${BuildConfig.packageName}.gradle.AndroidIDEInitScriptPlugin"
+      id = "${BuildConfig.PACKAGE_NAME}.init"
+      implementationClass = "${BuildConfig.PACKAGE_NAME}.gradle.AndroidIDEInitScriptPlugin"
       displayName = "AndroidIDE Init Script Gradle Plugin"
       description = "Init script Gradle plugin for projects that are built with AndroidIDE"
       tags.set(setOf("androidide", "init"))
     }
 
     create("gradlePlugin") {
-      id = BuildConfig.packageName
-      implementationClass = "${BuildConfig.packageName}.gradle.AndroidIDEGradlePlugin"
+      id = BuildConfig.PACKAGE_NAME
+      implementationClass = "${BuildConfig.PACKAGE_NAME}.gradle.AndroidIDEGradlePlugin"
       displayName = "AndroidIDE Gradle Plugin"
       description = "Gradle plugin for projects that are built with AndroidIDE"
       tags.set(setOf("androidide", "gradle"))
     }
 
     create("logsenderPlugin") {
-      id = "${BuildConfig.packageName}.logsender"
-      implementationClass = "${BuildConfig.packageName}.gradle.LogSenderPlugin"
+      id = "${BuildConfig.PACKAGE_NAME}.logsender"
+      implementationClass = "${BuildConfig.PACKAGE_NAME}.gradle.LogSenderPlugin"
       displayName = "AndroidIDE LogSender Gradle Plugin"
       description = "Gradle plugin for applying LogSender-specific configuration to projects that are built with AndroidIDE"
       tags.set(setOf("androidide", "logsender"))
