@@ -66,22 +66,19 @@ class EditorActivityActions {
 
     companion object {
 
-    private const val ORDER_COPY_PATH = 100
-    private const val ORDER_DELETE = 200
-    private const val ORDER_NEW_FILE = 300
-    private const val ORDER_NEW_FOLDER = 400
-    private const val ORDER_OPEN_WITH = 500
-    private const val ORDER_RENAME = 600
-    private const val ORDER_HELP = 1000
-    private var areActionsRegistered = false
+        private const val ORDER_COPY_PATH = 100
+        private const val ORDER_DELETE = 200
+        private const val ORDER_NEW_FILE = 300
+        private const val ORDER_NEW_FOLDER = 400
+        private const val ORDER_OPEN_WITH = 500
+        private const val ORDER_RENAME = 600
+        private const val ORDER_HELP = 1000
 
-    @JvmStatic
-    fun register(context: Context) {
-      if (areActionsRegistered) {
-        return
-      }
-      val registry = ActionsRegistry.getInstance()
-      var order = 0
+        @JvmStatic
+        fun register(context: Context) {
+            clear()
+            val registry = ActionsRegistry.getInstance()
+            var order = 0
 
             // Toolbar actions
             registry.registerAction(QuickRunAction(context, order++))
@@ -113,17 +110,15 @@ class EditorActivityActions {
             registry.registerAction(CloseOtherFilesAction(context, order++))
             registry.registerAction(CloseAllFilesAction(context, order++))
 
-      // file tree actions
-      registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
-      registry.registerAction(DeleteAction(context, ORDER_DELETE))
-      registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
-      registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
-      registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
-      registry.registerAction(RenameAction(context, ORDER_RENAME))
-      registry.registerAction(HelpAction(context, ORDER_HELP))
-
-      areActionsRegistered = true
-    }
+            // file tree actions
+            registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
+            registry.registerAction(DeleteAction(context, ORDER_DELETE))
+            registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
+            registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
+            registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
+            registry.registerAction(RenameAction(context, ORDER_RENAME))
+            registry.registerAction(HelpAction(context, ORDER_HELP))
+        }
 
         @JvmStatic
         fun clear() {
