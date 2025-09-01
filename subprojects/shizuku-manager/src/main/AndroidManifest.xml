@@ -41,7 +41,8 @@
             android:name=".adb.AdbPairingService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="shortService" />
+            android:foregroundServiceType="shortService"
+			tools:targetApi="30" />
         <receiver
             android:name=".receiver.BootCompleteReceiver"
             android:directBootAware="true"

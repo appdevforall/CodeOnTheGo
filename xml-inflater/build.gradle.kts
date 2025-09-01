@@ -24,7 +24,7 @@ plugins {
   id("com.google.devtools.ksp") version libs.versions.ksp
 }
 
-android { namespace = "${BuildConfig.packageName}.inflater" }
+android { namespace = "${BuildConfig.PACKAGE_NAME}.inflater" }
 
 dependencies {
   ksp(projects.annotationProcessorsKsp)

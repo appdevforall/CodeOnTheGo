@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.uidesigner"
+  namespace = "${BuildConfig.PACKAGE_NAME}.uidesigner"
 }
 
 dependencies {

@@ -23,7 +23,7 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.flashbar"
+  namespace = "${BuildConfig.PACKAGE_NAME}.flashbar"
 }
 
 dependencies {

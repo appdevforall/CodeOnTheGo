@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.idetooltips"
+    namespace = "${BuildConfig.PACKAGE_NAME}.idetooltips"
 }
 
 dependencies {

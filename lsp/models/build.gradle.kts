@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.lsp.models"
+    namespace = "${BuildConfig.PACKAGE_NAME}.lsp.models"
 }
 
 dependencies {

@@ -193,7 +193,7 @@ spotless {
 }
 
 allprojects {
-	project.group = BuildConfig.packageName
+	project.group = BuildConfig.PACKAGE_NAME
 	project.version = rootProject.version
 
 	plugins.withId("com.android.application") {
@@ -219,7 +219,7 @@ allprojects {
 	}
 
 	tasks.withType<KotlinCompile>().configureEach {
-		compilerOptions.jvmTarget.set(JvmTarget.fromTarget(BuildConfig.javaVersion.majorVersion))
+		compilerOptions.jvmTarget.set(JvmTarget.fromTarget(BuildConfig.JAVA_VERSION.majorVersion))
 	}
 }
 
