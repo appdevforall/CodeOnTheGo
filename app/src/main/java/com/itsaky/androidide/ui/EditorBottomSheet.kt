@@ -28,13 +28,13 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
 import androidx.annotation.GravityInt
-import androidx.appcompat.widget.TooltipCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -53,8 +53,10 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogLine
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.TaskExecutor.CallbackWithError
@@ -156,18 +158,18 @@ class EditorBottomSheet
     binding.pager.isUserInputEnabled = false
     binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1
 
-    binding.tabs.addOnTabSelectedListener(
-      object : OnTabSelectedListener {
-        override fun onTabSelected(tab: Tab) {
-          val fragment = pagerAdapter.getFragmentAtIndex(tab.position)
-						if (fragment is ShareableOutputFragment) {
-							binding.clearFab.show()
-							binding.shareOutputFab.show()
-						} else {
-							binding.clearFab.hide()
-							binding.shareOutputFab.hide()
-						}
+		binding.tabs.addOnTabSelectedListener(
+			object : OnTabSelectedListener {
+				override fun onTabSelected(tab: Tab) {
+					val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tab.position)
+					if (fragment is ShareableOutputFragment) {
+						binding.clearFab.show()
+						binding.shareOutputFab.show()
+					} else {
+						binding.clearFab.hide()
+						binding.shareOutputFab.hide()
 					}
+				}
 
 					override fun onTabUnselected(tab: Tab) {}
 
@@ -175,8 +177,9 @@ class EditorBottomSheet
 				},
 			)
 
-			binding.shareOutputFab.setOnClickListener {
-				val fragment = pagerAdapter.getFragmentAtIndex(binding.tabs.selectedTabPosition)
+		binding.shareOutputFab.setOnClickListener {
+			val fragment =
+				pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 
 				if (fragment !is ShareableOutputFragment) {
 					log.error("Unknown fragment: {}", fragment)
@@ -197,16 +200,18 @@ class EditorBottomSheet
 					shareText(it, filename)
 				}
 			}
+        binding.shareOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
 
-			TooltipCompat.setTooltipText(binding.clearFab, context.getString(string.title_clear_output))
-			binding.clearFab.setOnClickListener {
-				val fragment = pagerAdapter.getFragmentAtIndex(binding.tabs.selectedTabPosition)
+		binding.clearFab.setOnClickListener {
+			val fragment =
+				pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 				if (fragment !is ShareableOutputFragment) {
 					log.error("Unknown fragment: {}", fragment)
 					return@setOnClickListener
 				}
 				(fragment as ShareableOutputFragment).clearOutput()
 			}
+        binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
 
 			binding.headerContainer.setOnClickListener {
 				if (behavior.state != BottomSheetBehavior.STATE_EXPANDED) {
@@ -219,6 +224,37 @@ class EditorBottomSheet
 				insets
 			}
 		}
+
+    private fun generateTooltipListener(
+        tooltipTag: String
+    ): OnLongClickListener = OnLongClickListener { view: View ->
+        val lifecycleOwner = this.context as? LifecycleOwner
+
+        lifecycleOwner?.lifecycleScope?.launch {
+            try {
+                val tooltipData = getTooltipData(TooltipCategory.CATEGORY_IDE, tooltipTag)
+                tooltipData?.let {
+                    TooltipUtils.showIDETooltip(
+                        context,
+                        view,
+                        0,
+                        it,
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+            }
+        }
+
+        // A long-click listener must return true to indicate it has consumed the event.
+        true
+    }
+
+    suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
+        return withContext(Dispatchers.IO) {
+            TooltipManager.getTooltip(context, category, tag)
+        }
+    }
 
 		init {
 			if (context !is FragmentActivity) {

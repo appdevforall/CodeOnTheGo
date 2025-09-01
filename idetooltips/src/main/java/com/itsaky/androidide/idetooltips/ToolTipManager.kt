@@ -28,7 +28,7 @@ object TooltipManager {
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
-    private const val QUERY_TOOLTIP_ONE_CATEGORY = """
+    private const val QUERY_TOOLTIP = """
         SELECT T.rowid, T.id, T.summary, T.detail
         FROM Tooltips AS T, TooltipCategories AS TC
         WHERE T.categoryId = TC.id
@@ -36,13 +36,6 @@ object TooltipManager {
           AND TC.category = ?
     """
 
-    private const val QUERY_TOOLTIP_TWO_CATEGORIES = """
-        SELECT T.rowid, T.id, T.summary, T.detail
-        FROM Tooltips AS T, TooltipCategories AS TC
-        WHERE T.categoryId = TC.id
-          AND T.tag = ?
-          AND TC.category in ('?', 'a')
-    """
 
     private const val QUERY_TOOLTIP_BUTTONS = """
         SELECT description, uri
@@ -57,6 +50,8 @@ object TooltipManager {
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
+        Log.d(TAG, "In getTooltip() for category='$category', tag='$tag'.")
+
         return withContext(Dispatchers.IO) {
             var dbPath = Environment.DOC_DB.absolutePath
 
@@ -85,17 +80,14 @@ object TooltipManager {
 
                 Log.d(TAG, "last change is '${lastChange}'.")
 
-                val tooltipQuery = if   ((category == "j" || category == "k")) QUERY_TOOLTIP_TWO_CATEGORIES
-                                   else QUERY_TOOLTIP_ONE_CATEGORY
-
-                cursor = db.rawQuery(tooltipQuery, arrayOf(tag, category))
+                cursor = db.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category))
                 
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
                     1 -> { /* Expected case, continue processing */ }
                     else -> throw DatabaseCorruptionException(
                         "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
-                        "This indicates database corruption - each category/tag combination should be unique."
+                        "Each category/tag combination should be unique."
                     )
                 }
 

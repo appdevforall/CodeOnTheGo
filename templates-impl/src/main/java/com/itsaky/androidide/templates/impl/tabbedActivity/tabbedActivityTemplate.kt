@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.tabbedActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.models.Dependency
@@ -31,6 +32,7 @@ import com.itsaky.androidide.templates.impl.templateAsset
 fun tabbedActivityProject() = baseProjectImpl {
   templateName = R.string.template_tabs
   thumb = R.drawable.template_blank_activity_tabs
+  tooltipTag = TooltipTag.TEMPLATE_TABBED_ACTIVITY
   defaultAppModule {
     recipe = createRecipe {
       sources {

@@ -11,8 +11,8 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.libjdwp"
-    ndkVersion = BuildConfig.ndkVersion
+    namespace = "${BuildConfig.PACKAGE_NAME}.libjdwp"
+    ndkVersion = BuildConfig.NDK_VERSION
 }
 
 val OJ_LIBJDWP_REPO = "https://github.com/appdevforall/oj-libjdwp"

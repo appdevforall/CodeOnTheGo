@@ -26,9 +26,11 @@ import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 
 /**
@@ -40,9 +42,9 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
 
   override val id: String = "ide.editor.launchInstalledApp"
   override var requiresUIThread: Boolean = true
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = EDITOR_TOOLBAR_LAUNCH_APP
 
-  init {
+    init {
     label = context.getString(R.string.title_launch_app)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_open_external)
   }
@@ -85,7 +87,9 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
       log.info("Launching application: {}", applicationId)
 
       val activity = data.requireActivity()
-      IntentUtils.launchApp(activity, applicationId, logError = false)
+        activity.activityScope.launch {
+            IntentUtils.launchApp(activity, applicationId, logError = false)
+        }
     }
   }
 

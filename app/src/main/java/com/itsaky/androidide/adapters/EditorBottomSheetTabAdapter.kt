@@ -42,7 +42,8 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.build_output),
 					fragmentClass = BuildOutputFragment::class.java,
-					itemId = size.toLong()
+					itemId = size.toLong(),
+					tooltipTag = TooltipTag.PROJECT_BUILD_OUTPUT
 				),
 			)
 
@@ -142,12 +143,13 @@ class EditorBottomSheetTabAdapter(
 		isVisible: Boolean,
 	) = if (isVisible) restoreFragment(klass) else removeFragment(klass)
 
-	fun getFragmentAtIndex(index: Int): Fragment? = getFragmentById(getItemId(index))
+	fun <T : Fragment> getFragmentAtIndex(index: Int): T? = getFragmentById(getItemId(index))
 
-	private fun getFragmentById(itemId: Long): Fragment? {
+	@Suppress("UNCHECKED_CAST")
+	private fun <T : Fragment> getFragmentById(itemId: Long): T? {
 		val fragments = getFragments()
 		if (fragments != null) {
-			return fragments[itemId]
+			return fragments[itemId] as T?
 		}
 
 		return null
@@ -205,13 +207,8 @@ class EditorBottomSheetTabAdapter(
 
 	@Suppress("UNCHECKED_CAST")
 	private fun <T : Fragment> findFragmentByClass(clazz: Class<out T>): T? {
-		for (tab in tabs) {
-			if (tab.fragmentClass == clazz) {
-				return getFragmentById(tab.itemId) as T?
-			}
-		}
-
-		return null
+		val tab = findTabAndIndexByClass(clazz)?.first ?: return null
+		return getFragmentById(tab.itemId)
 	}
 
 	private fun <T : Fragment?> findTabAndIndexByClass(tClass: Class<T>): Pair<Tab, Int>? {
