@@ -402,17 +402,6 @@ tasks.register("recompressApk") {
 }
 
 afterEvaluate {
-  tasks.named("assembleV8Debug").configure {
-    finalizedBy("recompressApk")
-
-    doLast {
-      tasks.named("recompressApk").configure {
-        extensions.extraProperties["abi"] = "v8"
-        extensions.extraProperties["buildName"] = "debug"
-      }
-    }
-  }
-
   tasks.named("assembleV8Release").configure {
     finalizedBy("recompressApk")
 
@@ -420,17 +409,6 @@ afterEvaluate {
       tasks.named("recompressApk").configure {
         extensions.extraProperties["abi"] = "v8"
         extensions.extraProperties["buildName"] = "release"
-      }
-    }
-  }
-
-  tasks.named("assembleV7Debug").configure {
-    finalizedBy("recompressApk")
-
-    doLast {
-      tasks.named("recompressApk").configure {
-        extensions.extraProperties["abi"] = "v7"
-        extensions.extraProperties["buildName"] = "debug"
       }
     }
   }
