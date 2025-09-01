@@ -85,7 +85,8 @@ class DebugAction(
 		)
 
 		val debugArgs = mutableListOf<String>()
-		debugArgs.add("-P$PROP_JDWP_INJECT=${JdwpOptions.JDWP_ENABLED}")
+		debugArgs.add("-P$PROP_JDWP_INJECT=false")
+// 		debugArgs.add("-P$PROP_JDWP_INJECT=${JdwpOptions.JDWP_ENABLED}")
 		if (JdwpOptions.JDWP_ENABLED) {
 			debugArgs.add("-P$PROP_JDWP_DIR=${Environment.JDWP_DIR.absolutePath}")
 			debugArgs.add("-P$PROP_JDWP_OPTIONS=${JdwpOptions.JDWP_OPTIONS}")
