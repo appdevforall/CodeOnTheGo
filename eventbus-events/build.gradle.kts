@@ -23,7 +23,7 @@ plugins {
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.eventbus.events"
+    namespace = "${BuildConfig.PACKAGE_NAME}.eventbus.events"
 }
 
 dependencies {

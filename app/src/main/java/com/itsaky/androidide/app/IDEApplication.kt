@@ -22,11 +22,10 @@ package com.itsaky.androidide.app
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
-import android.net.Uri
 import android.os.StrictMode
-import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
@@ -52,21 +51,25 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
+import com.topjohnwu.superuser.Shell
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
 import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
+import rikka.shizuku.ShizukuProvider
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
@@ -75,19 +78,37 @@ class IDEApplication : TermuxApplication() {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
 
-    private val applicationScope = CoroutineScope(SupervisorJob())
 
-    init {
-        if (!VMUtils.isJvm() && !isTestMode()) {
-            try {
-                TreeSitter.loadLibrary()
-            } catch (e: UnsatisfiedLinkError) {
-                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
-            }
-        }
+    companion object {
 
-        RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
-    }
+        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
+
+        @JvmStatic
+        lateinit var instance: IDEApplication
+            private set
+
+		init {
+			ShizukuProvider.disableAutomaticSuiInitialization()
+			Shell.setDefaultBuilder(
+				Shell.Builder.create()
+					.setFlags(Shell.FLAG_REDIRECT_STDERR)
+			)
+			HiddenApiBypass.setHiddenApiExemptions("")
+			if (!VMUtils.isJvm() && !isTestMode()) {
+				try {
+					if (isAtLeastR()) {
+						System.loadLibrary("adb")
+					}
+
+					TreeSitter.loadLibrary()
+				} catch (e: UnsatisfiedLinkError) {
+					log.warn("Failed to load native libraries", e)
+				}
+			}
+
+			RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+		}
+	}
 
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -99,6 +120,7 @@ class IDEApplication : TermuxApplication() {
         super.onCreate()
 
         SentryAndroid.init(this)
+		ShizukuSettings.initialize(this)
 
         if (BuildConfig.DEBUG) {
             val builder = StrictMode.VmPolicy.Builder()
@@ -113,8 +135,6 @@ class IDEApplication : TermuxApplication() {
             }
 
             checkForSecondDisplay()
-
-
         }
 
         EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
@@ -137,8 +157,8 @@ class IDEApplication : TermuxApplication() {
         }
 
 
-        //Tooltip database access is now handled by direct SQLite queries
-    }
+		//Tooltip database access is now handled by direct SQLite queries
+	}
 
     private fun handleCrash(thread: Thread, th: Throwable) {
         writeException(th)
@@ -167,7 +187,7 @@ class IDEApplication : TermuxApplication() {
         if (!version.startsWith('v')) {
             version = "v${version}"
         }
-        intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/${version}")
+        intent.data = "${BuildInfo.REPO_URL}/releases/tag/${version}".toUri()
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             startActivity(intent)
@@ -231,14 +251,4 @@ class IDEApplication : TermuxApplication() {
             presentation.show()
         }
     }
-
-    companion object {
-
-        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
-
-        @JvmStatic
-        lateinit var instance: IDEApplication
-            private set
-    }
-
 }

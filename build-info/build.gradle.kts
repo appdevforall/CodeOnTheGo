@@ -51,8 +51,9 @@ tasks.create("generateBuildInfo") {
       comment = "//",
       candidates =
       arrayOf(
-        "PACKAGE_NAME" to BuildConfig.packageName,
-        "MVN_GROUP_ID" to BuildConfig.packageName,
+        "INTERNAL_NAME" to BuildConfig.INTERNAL_NAME,
+        "PACKAGE_NAME" to BuildConfig.PACKAGE_NAME,
+        "MVN_GROUP_ID" to BuildConfig.PACKAGE_NAME,
 
         "VERSION_NAME" to rootProject.version.toString(),
         "VERSION_NAME_SIMPLE" to rootProject.simpleVersionName,

@@ -28,6 +28,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateWidgetlistItemBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.templates.ITemplateWidgetViewProvider
 import com.itsaky.androidide.templates.Widget
@@ -73,7 +74,8 @@ class TemplateWidgetsListAdapter(private val widgets: List<Widget<*>>) :
                 lifecycleOwner.lifecycleScope.launch {
                     try {
                         // Call the method on the interface.
-                        val tooltipData = getTooltipData(root.context, "ide", tooltipTag)
+                        val tooltipData =
+                            getTooltipData(root.context, TooltipCategory.CATEGORY_IDE, tooltipTag)
                         tooltipData?.let {
                             TooltipUtils.showIDETooltip(
                                 context = root.context,
