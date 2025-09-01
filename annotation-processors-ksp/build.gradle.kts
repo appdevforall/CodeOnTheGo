@@ -22,7 +22,7 @@ plugins {
   kotlin("jvm")
 }
 
-group = "${BuildConfig.packageName}.annotations"
+group = "${BuildConfig.PACKAGE_NAME}.annotations"
 
 dependencies {
   implementation(kotlin("stdlib"))

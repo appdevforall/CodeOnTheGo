@@ -2,6 +2,7 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.debug.ResolvableStackFrame
 import com.itsaky.androidide.fragments.debug.ResolvableThreadInfo
 import com.itsaky.androidide.fragments.debug.ResolvableVariable
@@ -29,348 +30,406 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 private data class DebuggerState(
-    val threads: List<ResolvableThreadInfo>,
-    val threadIndex: Int,
-    val frameIndex: Int,
-    val variablesTree: Tree<ResolvableVariable<*>>
+	val threads: List<ResolvableThreadInfo>,
+	val threadIndex: Int,
+	val frameIndex: Int,
+	val variablesTree: Tree<ResolvableVariable<*>>,
 ) {
-    val selectedThread: ResolvableThreadInfo?
-        get() = threads.getOrNull(threadIndex)
+	val selectedThread: ResolvableThreadInfo?
+		get() = threads.getOrNull(threadIndex)
 
-    suspend fun selectedFrame() = selectedThread?.getFrames()?.getOrNull(frameIndex)
+	suspend fun selectedFrame() = selectedThread?.getFrames()?.getOrNull(frameIndex)
 
-    companion object {
-        val DEFAULT = DebuggerState(
-            threads = emptyList(),
-            threadIndex = -1,
-            frameIndex = -1,
-            variablesTree = Tree.createTree(
-                VariableTreeNodeGenerator.newInstance(emptySet())
-            ),
-        )
-    }
+	companion object {
+		val DEFAULT =
+			DebuggerState(
+				threads = emptyList(),
+				threadIndex = -1,
+				frameIndex = -1,
+				variablesTree =
+					Tree.createTree(
+						VariableTreeNodeGenerator.newInstance(emptySet()),
+					),
+			)
+	}
 }
 
-
 enum class DebuggerConnectionState {
-    // order of the enum constants matter
+	// order of the enum constants matter
 
-    /**
-     * Not connected to any remote client.
-     */
-    DETACHED,
+	/**
+	 * Not connected to any remote client.
+	 */
+	DETACHED,
 
-    /**
-     * Connected to a remote client, but not yet suspended.
-     */
-    ATTACHED,
+	/**
+	 * Connected to a remote client, but not yet suspended.
+	 */
+	ATTACHED,
 
-    /**
-     * Connected to a remote client and suspended, but not due to a breakpoint hit or step.
-     */
-    SUSPENDED,
+	/**
+	 * Connected to a remote client and suspended, but not due to a breakpoint hit or step.
+	 */
+	SUSPENDED,
 
-    /**
-     * Connected to a remote client and suspended due to a breakpoint hit or step.
-     */
-    AWAITING_BREAKPOINT,
+	/**
+	 * Connected to a remote client and suspended due to a breakpoint hit or step.
+	 */
+	AWAITING_BREAKPOINT,
 }
 
 /**
  * @author Akash Yadav
  */
 class DebuggerViewModel : ViewModel() {
+	private val _connectionState = MutableStateFlow(DebuggerConnectionState.DETACHED)
+	private val _debugeePackage = MutableStateFlow("")
+	private val _currentView = MutableStateFlow(DebuggerFragment.VIEW_DEBUGGER)
+	private val state = MutableStateFlow(DebuggerState.DEFAULT)
+	internal val debugClient = IDEDebugClientImpl(this)
 
-    private val _connectionState = MutableStateFlow(DebuggerConnectionState.DETACHED)
-    private val _debugeePackage = MutableStateFlow("")
-    private val state = MutableStateFlow(DebuggerState.DEFAULT)
-    internal val debugClient = IDEDebugClientImpl(this)
+	init {
+		Lookup.getDefault().register(IDEDebugClientImpl::class.java, debugClient)
+	}
 
-    init {
-        Lookup.getDefault().register(IDEDebugClientImpl::class.java, debugClient)
-    }
+	companion object {
+		private val logger = LoggerFactory.getLogger(DebuggerViewModel::class.java)
+	}
 
-    companion object {
-        private val logger = LoggerFactory.getLogger(DebuggerViewModel::class.java)
-    }
+	var currentView: Int
+		get() = _currentView.value
+		set(value) = _currentView.update { value }
 
-    val connectionState: StateFlow<DebuggerConnectionState>
-        get() = _connectionState.asStateFlow()
+	val connectionState: StateFlow<DebuggerConnectionState>
+		get() = _connectionState.asStateFlow()
 
-    val debugeePackageFlow: StateFlow<String>
-        get() = _debugeePackage.asStateFlow()
+	val debugeePackageFlow: StateFlow<String>
+		get() = _debugeePackage.asStateFlow()
 
-    var debugeePackage: String
-        get() = _debugeePackage.value
-        set(value) {
-            _debugeePackage.update { value }
-        }
+	var debugeePackage: String
+		get() = _debugeePackage.value
+		set(value) {
+			_debugeePackage.update { value }
+		}
 
-    val allThreads: StateFlow<List<ResolvableThreadInfo>>
-        get() = state.map { it.threads }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = emptyList()
-        )
+	val allThreads: StateFlow<List<ResolvableThreadInfo>>
+		get() =
+			state.map { it.threads }.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.Eagerly,
+				initialValue = emptyList(),
+			)
 
-    val selectedThread: StateFlow<Pair<ResolvableThreadInfo?, Int>>
-        get() = state.map { state ->
-            state.selectedThread to state.threadIndex
-        }.stateIn(
-            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = null to -1
-        )
+	val selectedThread: StateFlow<Pair<ResolvableThreadInfo?, Int>>
+		get() =
+			state
+				.map { state ->
+					state.selectedThread to state.threadIndex
+				}.stateIn(
+					scope = viewModelScope,
+					started = SharingStarted.Eagerly,
+					initialValue = null to -1,
+				)
 
-    val allFrames: StateFlow<List<ResolvableStackFrame>>
-        get() = selectedThread.map { (thread, _) ->
-            thread?.getFrames() ?: emptyList()
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = emptyList()
-        )
+	val allFrames: StateFlow<List<ResolvableStackFrame>>
+		get() =
+			selectedThread
+				.map { (thread, _) ->
+					thread?.getFrames() ?: emptyList()
+				}.stateIn(
+					scope = viewModelScope,
+					started = SharingStarted.Eagerly,
+					initialValue = emptyList(),
+				)
 
-    val selectedFrame: StateFlow<Pair<ResolvableStackFrame?, Int>>
-        get() = state.map { state ->
-            state.selectedFrame() to state.frameIndex
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = null to -1
-        )
+	val selectedFrame: StateFlow<Pair<ResolvableStackFrame?, Int>>
+		get() =
+			state
+				.map { state ->
+					state.selectedFrame() to state.frameIndex
+				}.stateIn(
+					scope = viewModelScope,
+					started = SharingStarted.Eagerly,
+					initialValue = null to -1,
+				)
 
-    val selectedFrameVariables: StateFlow<List<ResolvableVariable<*>>>
-        get() = selectedFrame.map { (frame, _) ->
-            frame?.getVariables() ?: emptyList()
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = emptyList()
-        )
+	val selectedFrameVariables: StateFlow<List<ResolvableVariable<*>>>
+		get() =
+			selectedFrame
+				.map { (frame, _) ->
+					frame?.getVariables() ?: emptyList()
+				}.stateIn(
+					scope = viewModelScope,
+					started = SharingStarted.Eagerly,
+					initialValue = emptyList(),
+				)
 
-    val variablesTree: StateFlow<Tree<ResolvableVariable<*>>>
-        get() = state.map { state ->
-            state.variablesTree
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = DebuggerState.DEFAULT.variablesTree
-        )
+	val variablesTree: StateFlow<Tree<ResolvableVariable<*>>>
+		get() =
+			state
+				.map { state ->
+					state.variablesTree
+				}.stateIn(
+					scope = viewModelScope,
+					started = SharingStarted.Eagerly,
+					initialValue = DebuggerState.DEFAULT.variablesTree,
+				)
 
-    override fun onCleared() {
-        super.onCleared()
-        Lookup.getDefault().unregister(IDEDebugClientImpl::class.java)
-    }
+	override fun onCleared() {
+		super.onCleared()
+		Lookup.getDefault().unregister(IDEDebugClientImpl::class.java)
+	}
 
-    fun setConnectionState(state: DebuggerConnectionState) {
-        _connectionState.update { state }
-    }
+	fun setConnectionState(state: DebuggerConnectionState) {
+		_connectionState.update { state }
+	}
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun observeConnectionState(
-        scope: CoroutineScope = viewModelScope,
-        observeOn: CoroutineDispatcher = Dispatchers.Default,
-        notifyOn: CoroutineDispatcher? = null,
-        consume: suspend (DebuggerConnectionState) -> Unit
-    ) = scope.launch(observeOn) {
-        connectionState.collectLatest { state ->
-            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-                withContext(notifyOn) {
-                    consume(state)
-                }
-            } else {
-                consume(state)
-            }
-        }
-    }
+	@OptIn(ExperimentalStdlibApi::class)
+	fun observeCurrentView(
+		scope: CoroutineScope = viewModelScope,
+		observeOn: CoroutineDispatcher = Dispatchers.Default,
+		notifyOn: CoroutineDispatcher? = null,
+		consume: suspend (Int) -> Unit,
+	) = scope.launch(observeOn) {
+		_currentView.collectLatest { viewIndex ->
+			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+				withContext(notifyOn) {
+					consume(viewIndex)
+				}
+			} else {
+				consume(viewIndex)
+			}
+		}
+	}
 
-    suspend fun setThreads(threads: List<ThreadInfo>) = withContext(Dispatchers.IO) {
-        val resolvableThreads = threads.map(ResolvableThreadInfo::create)
-            .filter { thread ->
-                val descriptor = thread.resolve()
-                if (descriptor == null) {
-                    logger.warn("Unable to resolve descriptor for thread: $thread")
-                    return@filter false
-                }
+	@OptIn(ExperimentalStdlibApi::class)
+	fun observeConnectionState(
+		scope: CoroutineScope = viewModelScope,
+		observeOn: CoroutineDispatcher = Dispatchers.Default,
+		notifyOn: CoroutineDispatcher? = null,
+		consume: suspend (DebuggerConnectionState) -> Unit,
+	) = scope.launch(observeOn) {
+		connectionState.collectLatest { state ->
+			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+				withContext(notifyOn) {
+					consume(state)
+				}
+			} else {
+				consume(state)
+			}
+		}
+	}
 
-                descriptor.state.isInteractable
-            }
+	suspend fun setThreads(threads: List<ThreadInfo>) =
+		withContext(Dispatchers.IO) {
+			val resolvableThreads =
+				threads
+					.map(ResolvableThreadInfo::create)
+					.filter { thread ->
+						val descriptor = thread.resolve()
+						if (descriptor == null) {
+							logger.warn("Unable to resolve descriptor for thread: $thread")
+							return@filter false
+						}
 
-        val threadIndex =
-            resolvableThreads.indexOfFirst { it.resolvedOrNull?.state?.isInteractable == true }
-        val frameIndex = if (resolvableThreads.getOrNull(threadIndex)?.getFrames()
-                ?.firstOrNull() != null
-        ) 0 else -1
-        val newState = DebuggerState(
-            threads = resolvableThreads,
-            threadIndex = threadIndex,
-            frameIndex = frameIndex,
-            variablesTree = createVariablesTree(
-                threads = resolvableThreads,
-                threadIndex = threadIndex,
-                frameIndex = frameIndex,
-                resolve = false
-            )
-        )
+						descriptor.state.isInteractable
+					}
 
-        state.update { newState }
-    }
+			val threadIndex =
+				resolvableThreads.indexOfFirst { it.resolvedOrNull?.state?.isInteractable == true }
+			val frameIndex =
+				if (resolvableThreads
+						.getOrNull(threadIndex)
+						?.getFrames()
+						?.firstOrNull() != null
+				) {
+					0
+				} else {
+					-1
+				}
+			val newState =
+				DebuggerState(
+					threads = resolvableThreads,
+					threadIndex = threadIndex,
+					frameIndex = frameIndex,
+					variablesTree =
+						createVariablesTree(
+							threads = resolvableThreads,
+							threadIndex = threadIndex,
+							frameIndex = frameIndex,
+							resolve = false,
+						),
+				)
 
-    fun refreshState() {
-        viewModelScope.launch {
-            debugClient.updateThreadInfo(
-                debugClient.requireClient,
-            )
-        }
-    }
+			state.update { newState }
+		}
 
-    private suspend fun createVariablesTree(
-        threads: List<ResolvableThreadInfo>,
-        threadIndex: Int,
-        frameIndex: Int,
-        resolve: Boolean = true,
-    ): Tree<ResolvableVariable<*>> = coroutineScope {
+	fun refreshState() {
+		viewModelScope.launch {
+			debugClient.updateThreadInfo(
+				debugClient.requireClient,
+			)
+		}
+	}
 
-        if (resolve) {
-            // resolve the data we need to render the UI
-            threads.forEach { thread ->
-                thread.resolve()
-            }
-        }
+	private suspend fun createVariablesTree(
+		threads: List<ResolvableThreadInfo>,
+		threadIndex: Int,
+		frameIndex: Int,
+		resolve: Boolean = true,
+	): Tree<ResolvableVariable<*>> =
+		coroutineScope {
+			if (resolve) {
+				// resolve the data we need to render the UI
+				threads.forEach { thread ->
+					thread.resolve()
+				}
+			}
 
-        val roots =
-            threads.getOrNull(threadIndex)
-                ?.getFrames()
-                ?.getOrNull(frameIndex)
-                ?.getVariables()
+			val roots =
+				threads
+					.getOrNull(threadIndex)
+					?.getFrames()
+					?.getOrNull(frameIndex)
+					?.getVariables()
 
-        Tree.createTree(VariableTreeNodeGenerator.newInstance(roots?.toSet() ?: emptySet()))
-    }
+			Tree.createTree(VariableTreeNodeGenerator.newInstance(roots?.toSet() ?: emptySet()))
+		}
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun observeLatestThreads(
-        scope: CoroutineScope = viewModelScope,
-        observeOn: CoroutineDispatcher = Dispatchers.Default,
-        notifyOn: CoroutineDispatcher? = null,
-        consume: suspend (List<ResolvableThreadInfo>) -> Unit
-    ) = scope.launch(observeOn) {
-        allThreads.collectLatest { threads ->
-            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-                withContext(notifyOn) {
-                    consume(threads)
-                }
-            } else {
-                consume(threads)
-            }
-        }
-    }
+	@OptIn(ExperimentalStdlibApi::class)
+	fun observeLatestThreads(
+		scope: CoroutineScope = viewModelScope,
+		observeOn: CoroutineDispatcher = Dispatchers.Default,
+		notifyOn: CoroutineDispatcher? = null,
+		consume: suspend (List<ResolvableThreadInfo>) -> Unit,
+	) = scope.launch(observeOn) {
+		allThreads.collectLatest { threads ->
+			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+				withContext(notifyOn) {
+					consume(threads)
+				}
+			} else {
+				consume(threads)
+			}
+		}
+	}
 
-    suspend fun setSelectedThreadIndex(index: Int) = withContext(Dispatchers.IO) {
-        state.update { current ->
-            check(index in 0..<current.threads.size) {
-                "Invalid thread index: $index"
-            }
+	suspend fun setSelectedThreadIndex(index: Int) =
+		withContext(Dispatchers.IO) {
+			state.update { current ->
+				check(index in 0..<current.threads.size) {
+					"Invalid thread index: $index"
+				}
 
-            val thread = current.threads[index]
-            if (thread.resolvedOrNull?.state?.isInteractable != true) {
-                // thread is non-interactive
-                // do not change the thread index
-                logger.warn("Attempt to interact with non-interactive thread: $thread")
-                return@update current
-            }
+				val thread = current.threads[index]
+				if (thread.resolvedOrNull?.state?.isInteractable != true) {
+					// thread is non-interactive
+					// do not change the thread index
+					logger.warn("Attempt to interact with non-interactive thread: $thread")
+					return@update current
+				}
 
-            val frameIndex = if (current.threads.getOrNull(index)?.getFrames()
-                    ?.firstOrNull() != null
-            ) 0 else -1
-            current.copy(
-                threadIndex = index,
-                frameIndex = frameIndex,
-                variablesTree = createVariablesTree(current.threads, index, frameIndex)
-            )
-        }
-    }
+				val frameIndex =
+					if (current.threads
+							.getOrNull(index)
+							?.getFrames()
+							?.firstOrNull() != null
+					) {
+						0
+					} else {
+						-1
+					}
+				current.copy(
+					threadIndex = index,
+					frameIndex = frameIndex,
+					variablesTree = createVariablesTree(current.threads, index, frameIndex),
+				)
+			}
+		}
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun observeLatestSelectedThread(
-        scope: CoroutineScope = viewModelScope,
-        observeOn: CoroutineDispatcher = Dispatchers.Default,
-        notifyOn: CoroutineDispatcher? = null,
-        consume: suspend (ResolvableThreadInfo?, Int) -> Unit
-    ) = scope.launch(observeOn) {
-        selectedThread.collectLatest { (thread, index) ->
-            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-                withContext(notifyOn) {
-                    consume(thread, index)
-                }
-            } else {
-                consume(thread, index)
-            }
-        }
-    }
+	@OptIn(ExperimentalStdlibApi::class)
+	fun observeLatestSelectedThread(
+		scope: CoroutineScope = viewModelScope,
+		observeOn: CoroutineDispatcher = Dispatchers.Default,
+		notifyOn: CoroutineDispatcher? = null,
+		consume: suspend (ResolvableThreadInfo?, Int) -> Unit,
+	) = scope.launch(observeOn) {
+		selectedThread.collectLatest { (thread, index) ->
+			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+				withContext(notifyOn) {
+					consume(thread, index)
+				}
+			} else {
+				consume(thread, index)
+			}
+		}
+	}
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun observeLatestAllFrames(
-        scope: CoroutineScope = viewModelScope,
-        observeOn: CoroutineDispatcher = Dispatchers.Default,
-        notifyOn: CoroutineDispatcher? = null,
-        consume: suspend (List<StackFrame>) -> Unit
-    ) = scope.launch(observeOn) {
-        allFrames.collectLatest { frames ->
-            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-                withContext(notifyOn) {
-                    consume(frames)
-                }
-            } else {
-                consume(frames)
-            }
-        }
-    }
+	@OptIn(ExperimentalStdlibApi::class)
+	fun observeLatestAllFrames(
+		scope: CoroutineScope = viewModelScope,
+		observeOn: CoroutineDispatcher = Dispatchers.Default,
+		notifyOn: CoroutineDispatcher? = null,
+		consume: suspend (List<StackFrame>) -> Unit,
+	) = scope.launch(observeOn) {
+		allFrames.collectLatest { frames ->
+			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+				withContext(notifyOn) {
+					consume(frames)
+				}
+			} else {
+				consume(frames)
+			}
+		}
+	}
 
-    suspend fun setSelectedFrameIndex(index: Int) = withContext(Dispatchers.IO) {
-        state.update { current ->
-            check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
-                "Invalid frame index: $index"
-            }
+	suspend fun setSelectedFrameIndex(index: Int) =
+		withContext(Dispatchers.IO) {
+			state.update { current ->
+				check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
+					"Invalid frame index: $index"
+				}
 
-            current.copy(
-                frameIndex = index,
-                variablesTree = createVariablesTree(current.threads, current.threadIndex, index)
-            )
-        }
-    }
+				current.copy(
+					frameIndex = index,
+					variablesTree = createVariablesTree(current.threads, current.threadIndex, index),
+				)
+			}
+		}
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun observeLatestSelectedFrame(
-        scope: CoroutineScope = viewModelScope,
-        observeOn: CoroutineDispatcher = Dispatchers.Default,
-        notifyOn: CoroutineDispatcher? = null,
-        consume: suspend (StackFrame?, Int) -> Unit,
-    ) = scope.launch(observeOn) {
-        selectedFrame.collectLatest { (frame, index) ->
-            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-                withContext(notifyOn) {
-                    consume(frame, index)
-                }
-            } else {
-                consume(frame, index)
-            }
-        }
-    }
+	@OptIn(ExperimentalStdlibApi::class)
+	fun observeLatestSelectedFrame(
+		scope: CoroutineScope = viewModelScope,
+		observeOn: CoroutineDispatcher = Dispatchers.Default,
+		notifyOn: CoroutineDispatcher? = null,
+		consume: suspend (StackFrame?, Int) -> Unit,
+	) = scope.launch(observeOn) {
+		selectedFrame.collectLatest { (frame, index) ->
+			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+				withContext(notifyOn) {
+					consume(frame, index)
+				}
+			} else {
+				consume(frame, index)
+			}
+		}
+	}
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun observeLatestVariablesTree(
-        scope: CoroutineScope = viewModelScope,
-        observeOn: CoroutineDispatcher = Dispatchers.Default,
-        notifyOn: CoroutineDispatcher? = null,
-        consume: suspend (Tree<ResolvableVariable<*>>) -> Unit
-    ) = scope.launch(observeOn) {
-        variablesTree.collectLatest { tree ->
-            if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-                withContext(notifyOn) {
-                    consume(tree)
-                }
-            } else {
-                consume(tree)
-            }
-        }
-    }
+	@OptIn(ExperimentalStdlibApi::class)
+	fun observeLatestVariablesTree(
+		scope: CoroutineScope = viewModelScope,
+		observeOn: CoroutineDispatcher = Dispatchers.Default,
+		notifyOn: CoroutineDispatcher? = null,
+		consume: suspend (Tree<ResolvableVariable<*>>) -> Unit,
+	) = scope.launch(observeOn) {
+		variablesTree.collectLatest { tree ->
+			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
+				withContext(notifyOn) {
+					consume(tree)
+				}
+			} else {
+				consume(tree)
+			}
+		}
+	}
 }

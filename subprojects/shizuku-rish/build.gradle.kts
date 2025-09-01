@@ -8,7 +8,7 @@ plugins {
 
 android {
 	namespace = "rikka.rish"
-	ndkVersion = BuildConfig.ndkVersion
+	ndkVersion = BuildConfig.NDK_VERSION
 
 	defaultConfig {
 		externalNativeBuild {
@@ -33,5 +33,5 @@ dependencies {
 	implementation(libs.androidx.annotation)
 
 	//noinspection UseTomlInstead
-	implementation("org.lsposed.libcxx:libcxx:${BuildConfig.ndkVersion}")
+	implementation("org.lsposed.libcxx:libcxx:${BuildConfig.NDK_VERSION}")
 }

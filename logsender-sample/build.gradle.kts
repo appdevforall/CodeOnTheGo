@@ -22,7 +22,7 @@ plugins {
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.logsender.sample"
+  namespace = "${BuildConfig.PACKAGE_NAME}.logsender.sample"
 
   defaultConfig {
     vectorDrawables {
