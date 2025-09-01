@@ -730,11 +730,12 @@ open class IDEEditor @JvmOverloads constructor(
       }
     }
 
-    EventBus.getDefault().register(this)
-
-    subscribeEvent(LongPressEvent::class.java) { event, _ ->
-      EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
-      event.intercept()
+    if (isReadOnlyContext) {
+      EventBus.getDefault().register(this)
+      subscribeEvent(LongPressEvent::class.java) { event, _ ->
+        EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
+        event.intercept()
+      }
     }
   }
 
