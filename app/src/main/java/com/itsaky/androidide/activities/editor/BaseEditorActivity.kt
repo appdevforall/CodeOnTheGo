@@ -419,30 +419,47 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             return
         }
 
-        startDebuggerAndDo {
-            debuggerViewModel.debugeePackage = packageName
-            withContext(Dispatchers.Main.immediate) {
-                doLaunchApp(packageName)
-            }
-        }
-    }
+		startDebuggerAndDo {
+			debuggerViewModel.debugeePackage = packageName
+			withContext(Dispatchers.Main.immediate) {
+				doLaunchApp(
+					packageName = packageName,
+					debug = true,
+				)
+			}
+		}
+	}
 
-    private fun doLaunchApp(packageName: String) {
-        if (BuildPreferences.launchAppAfterInstall) {
-            IntentUtils.launchApp(this, packageName)
-            return
-        }
+	private fun doLaunchApp(
+		packageName: String,
+		debug: Boolean = false,
+	) {
+		val context = this
+		val performLaunch = {
+			activityScope.launch {
+				IntentUtils.launchApp(
+					context = context,
+					packageName = packageName,
+					debug = debug,
+				)
+			}
+		}
 
-        val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.msg_action_open_title_application)
-        builder.setMessage(string.msg_action_open_application)
-        builder.setPositiveButton(string.yes) { dialog, _ ->
-            dialog.dismiss()
-            IntentUtils.launchApp(this, packageName)
-        }
-        builder.setNegativeButton(string.no, null)
-        builder.show()
-    }
+		if (BuildPreferences.launchAppAfterInstall) {
+			performLaunch()
+			return
+		}
+
+		val builder = newMaterialDialogBuilder(this)
+		builder.setTitle(string.msg_action_open_title_application)
+		builder.setMessage(string.msg_action_open_application)
+		builder.setPositiveButton(string.yes) { dialog, _ ->
+			dialog.dismiss()
+			performLaunch()
+		}
+		builder.setNegativeButton(string.no, null)
+		builder.show()
+	}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
