@@ -31,6 +31,14 @@ object TooltipTag {
     const val PREFS_GENERAL = "prefs.general"
     const val PREFS_BUILD_RUN = "prefs.buildrun"
     const val PREFS_TERMUX = "prefs.termux"
+    const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
+    const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
+    const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
+    const val TEMPLATE_BOTTOM_NAV_ACTIVITY = "template.bottomnav.activity"
+    const val TEMPLATE_COMPOSE_ACTIVITY = "template.compose.activity"
+    const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
+    const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
+    const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
 
     // Delete project
     const val DELETE_PROJECT = "project.delete"
