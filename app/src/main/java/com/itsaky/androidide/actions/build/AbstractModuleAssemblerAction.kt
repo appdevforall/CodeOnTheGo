@@ -1,16 +1,18 @@
 package com.itsaky.androidide.actions.build
 
 import android.content.Context
-import androidx.activity.viewModels
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.openApplicationModuleChooser
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.projects.api.AndroidModule
+import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.viewmodel.BuildViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
@@ -42,11 +44,57 @@ abstract class AbstractModuleAssemblerAction(
         module: AndroidModule,
         variant: BasicAndroidVariantMetadata
     ) {
-        val activity = data.requireActivity()
-        val buildViewModel: BuildViewModel by activity.viewModels()
-        actionScope.launch {
-            activity.saveAllResult()
+        val buildService = this.buildService ?: run {
+            log.error("Cannot execute task. BuildService not found.")
+            return
         }
-        buildViewModel.runQuickBuild(module, variant)
+
+        if (!buildService.isToolingServerStarted()) {
+            flashError(com.itsaky.androidide.R.string.msg_tooling_server_unavailable)
+            return
+        }
+
+        val activity =
+            data.getActivity()
+                ?: run {
+                    log.error(
+                        "Cannot execute task. Activity instance not provided in ActionData.")
+                    return
+                }
+
+        actionScope.launch(Dispatchers.Default) {
+            activity.saveAllResult()
+
+            val result = doBuild(
+                data,
+                module,
+                variant,
+                buildService,
+                activity
+            )
+
+            log.debug("Task execution result: {}", result)
+
+            handleResult(data, result, module, variant)
+        }.invokeOnCompletion { error ->
+            if (error != null) {
+                log.error("Failed to run task", error)
+            }
+        }
     }
+
+    protected abstract suspend fun doBuild(
+        data: ActionData,
+        module: AndroidModule,
+        variant: BasicAndroidVariantMetadata,
+        buildService: BuildService,
+        activity: EditorHandlerActivity,
+    ): TaskExecutionResult?
+
+    protected abstract suspend fun handleResult(
+        data: ActionData,
+        result: TaskExecutionResult?,
+        module: AndroidModule,
+        variant: BasicAndroidVariantMetadata
+    )
 }
