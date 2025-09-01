@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.navDrawerActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.models.Dependency
@@ -32,6 +33,7 @@ import com.itsaky.androidide.templates.impl.templateAsset
 fun navDrawerActivityProject() = baseProjectImpl {
   templateName = R.string.template_navigation_drawer
   thumb = R.drawable.template_blank_activity_drawer
+  tooltipTag = TooltipTag.TEMPLATE_NAV_DRAWER_ACTIVITY
   defaultAppModule {
     recipe = createRecipe {
       sources {
