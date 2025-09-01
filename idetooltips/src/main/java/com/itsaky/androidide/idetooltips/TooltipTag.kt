@@ -32,6 +32,14 @@ object TooltipTag {
     const val PREFS_BUILD_RUN = "prefs.buildrun"
     const val PREFS_TERMUX = "prefs.termux"
 
+    // Delete project
+    const val DELETE_PROJECT = "project.delete"
+    const val DELETE_PROJECT_SELECT = "project.delete.select"
+    const val DELETE_PROJECT_BUTTON = "project.delete.button"
+    const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
+    const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
+    const val EXIT_TO_MAIN = "exit.to.main"
+
     const val PROJECT_ITEM_COPYPATH = "project.item.copypath"
     const val PROJECT_ITEM_DELETE = "project.item.delete"
     const val PROJECT_CONFIRM_DELETE = "project.confirm.delete"
