@@ -189,6 +189,7 @@ dependencies {
   implementation(libs.androidx.work.ktx)
   implementation(libs.google.material)
   implementation(libs.google.flexbox)
+  implementation(libs.libsu.core)
 
   // Kotlin
   implementation(libs.androidx.core.ktx)
@@ -215,6 +216,7 @@ dependencies {
   implementation(projects.gradlePluginConfig)
   implementation(projects.subprojects.aaptcompiler)
   implementation(projects.subprojects.javacServices)
+  implementation(projects.subprojects.shizukuManager)
   implementation(projects.subprojects.xmlUtils)
   implementation(projects.subprojects.projects)
   implementation(projects.subprojects.toolingApi)
@@ -275,16 +277,6 @@ dependencies {
   // brotli4j
   implementation(libs.brotli4j)
 }
-
-
-//sentry {
-//    org.set("appdevforall-inc-pb")
-//    projectName.set("android")
-//
-//    // this will upload your source code to Sentry to show it as part of the stack traces
-//    // disable if you don't want to expose your sources
-//    includeSourceContext.set(true)
-//}
 
 tasks.register("downloadDocDb") {
   doLast {
@@ -402,17 +394,6 @@ tasks.register("recompressApk") {
 }
 
 afterEvaluate {
-  tasks.named("assembleV8Debug").configure {
-    finalizedBy("recompressApk")
-
-    doLast {
-      tasks.named("recompressApk").configure {
-        extensions.extraProperties["abi"] = "v8"
-        extensions.extraProperties["buildName"] = "debug"
-      }
-    }
-  }
-
   tasks.named("assembleV8Release").configure {
     finalizedBy("recompressApk")
 
@@ -420,17 +401,6 @@ afterEvaluate {
       tasks.named("recompressApk").configure {
         extensions.extraProperties["abi"] = "v8"
         extensions.extraProperties["buildName"] = "release"
-      }
-    }
-  }
-
-  tasks.named("assembleV7Debug").configure {
-    finalizedBy("recompressApk")
-
-    doLast {
-      tasks.named("recompressApk").configure {
-        extensions.extraProperties["abi"] = "v7"
-        extensions.extraProperties["buildName"] = "debug"
       }
     }
   }

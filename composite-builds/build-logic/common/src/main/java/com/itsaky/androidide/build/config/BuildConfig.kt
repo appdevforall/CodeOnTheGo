@@ -24,6 +24,9 @@ import org.gradle.api.JavaVersion
  */
 object BuildConfig {
 
+  /** The internal name for the IDE */
+  const val internalName = "CodeOnTheGo"
+
   /** AndroidIDE's package name. */
   const val packageName = "com.itsaky.androidide"
 
@@ -40,7 +43,7 @@ object BuildConfig {
   const val targetSdk = 28
 
   /** The NDK version. */
-  const val ndkVersion = "26.1.10909125"
+  const val ndkVersion = "28.1.13356709"
 
   /** The source and target Java compatibility. */
   val javaVersion = JavaVersion.VERSION_17
