@@ -30,8 +30,10 @@ class FindAction() : EditorActivityAction() {
 
     override var requiresUIThread: Boolean = true
     override var order: Int = 0
-    override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_FIND
-
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
+        return TooltipTag.EDITOR_TOOLBAR_FIND
+    }
+    
     constructor(context: Context, order: Int) : this() {
         this.label = context.getString(R.string.menu_find)
         this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search)

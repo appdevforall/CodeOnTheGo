@@ -44,7 +44,7 @@ class ProjectSyncAction(context: Context, override val order: Int) : BaseBuildAc
     icon = ContextCompat.getDrawable(context, R.drawable.ic_sync)
   }
 
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_SYNC
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_SYNC
 
   override suspend fun execAction(data: ActionData): Any {
     return data.requireActivity().saveAll(requestSync = false)

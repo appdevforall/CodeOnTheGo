@@ -33,7 +33,7 @@ class FindInProjectAction() : EditorActivityAction() {
   override var requiresUIThread: Boolean = true
   override var order: Int = 0
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT
 
   constructor(context: Context, order: Int) : this() {
     this.label = context.getString(R.string.menu_find_project)

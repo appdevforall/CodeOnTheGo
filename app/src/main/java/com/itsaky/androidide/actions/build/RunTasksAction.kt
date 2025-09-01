@@ -29,7 +29,7 @@ import com.itsaky.androidide.resources.R
 /** @author Akash Yadav */
 class RunTasksAction(context: Context, override val order: Int) : BaseBuildAction() {
   override val id: String = ID
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_RUN_TASKS
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_RUN_TASKS
   private var dialog: RunTasksDialogFragment? = null
 
   companion object {

@@ -51,7 +51,7 @@ class QuickRunAction(context: Context, override val order: Int) :
     companion object {
         const val ID = "ide.editor.build.quickRun"
     }
-    override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_QUICK_RUN
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_RUN
 
     override fun onCreateTaskExecMessage(
         data: ActionData,

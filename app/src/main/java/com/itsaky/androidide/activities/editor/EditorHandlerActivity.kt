@@ -232,7 +232,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                         val tooltipItem = TooltipManager.getTooltip(
                             this@EditorHandlerActivity,
                             TooltipCategory.CATEGORY_IDE,
-                            action.tooltipTag,
+                            action.retrieveTooltipTag(false),
                         )
                         if (tooltipItem != null) {
                             TooltipManager.showIDETooltip(
