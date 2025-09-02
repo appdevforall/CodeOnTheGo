@@ -5,27 +5,40 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
-
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
-
 import java.lang.annotation.Retention;
-
 import moe.shizuku.manager.utils.EmptySharedPreferencesImpl;
 
 public class ShizukuSettings {
 
-    public static final String NAME = "settings";
-    public static final String KEEP_START_ON_BOOT = "start_on_boot";
+	public static final String NAME = "settings";
+	public static final String KEEP_START_ON_BOOT = "start_on_boot";
 
-    private static SharedPreferences sPreferences;
+	private static SharedPreferences sPreferences;
 
-    public static SharedPreferences getPreferences() {
-        return sPreferences;
-    }
+	@LaunchMethod
+	public static int getLastLaunchMode() {
+		return getPreferences().getInt("mode", LaunchMethod.UNKNOWN);
+	}
 
-    @NonNull
-    private static Context getSettingsStorageContext(@NonNull Context context) {
+	public static SharedPreferences getPreferences() {
+		return sPreferences;
+	}
+
+	public static void initialize(Context context) {
+		if (sPreferences == null) {
+			sPreferences = getSettingsStorageContext(context)
+					.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+		}
+	}
+
+	public static void setLastLaunchMode(@LaunchMethod int method) {
+		getPreferences().edit().putInt("mode", method).apply();
+	}
+
+	@NonNull
+	private static Context getSettingsStorageContext(@NonNull Context context) {
 		return new ContextWrapper(context.createDeviceProtectedStorageContext()) {
 			@Override
 			public SharedPreferences getSharedPreferences(String name, int mode) {
@@ -37,33 +50,17 @@ public class ShizukuSettings {
 				}
 			}
 		};
-    }
+	}
 
-    public static void initialize(Context context) {
-        if (sPreferences == null) {
-            sPreferences = getSettingsStorageContext(context)
-                    .getSharedPreferences(NAME, Context.MODE_PRIVATE);
-        }
-    }
-
-    @IntDef({
-            LaunchMethod.UNKNOWN,
-            LaunchMethod.ROOT,
-            LaunchMethod.ADB,
-    })
-    @Retention(SOURCE)
-    public @interface LaunchMethod {
-        int UNKNOWN = -1;
-        int ROOT = 0;
-        int ADB = 1;
-    }
-
-    @LaunchMethod
-    public static int getLastLaunchMode() {
-        return getPreferences().getInt("mode", LaunchMethod.UNKNOWN);
-    }
-
-    public static void setLastLaunchMode(@LaunchMethod int method) {
-        getPreferences().edit().putInt("mode", method).apply();
-    }
+	@IntDef({
+			LaunchMethod.UNKNOWN,
+			LaunchMethod.ROOT,
+			LaunchMethod.ADB,
+	})
+	@Retention(SOURCE)
+	public @interface LaunchMethod {
+		int UNKNOWN = -1;
+		int ROOT = 0;
+		int ADB = 1;
+	}
 }

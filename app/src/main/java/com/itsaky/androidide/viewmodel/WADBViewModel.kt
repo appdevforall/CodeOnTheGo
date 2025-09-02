@@ -2,8 +2,6 @@ package com.itsaky.androidide.viewmodel
 
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.itsaky.androidide.fragments.debug.WADBPermissionFragment
 import com.itsaky.androidide.tasks.runOnUiThread
@@ -14,7 +12,6 @@ import kotlinx.coroutines.flow.update
 
 @RequiresApi(Build.VERSION_CODES.R)
 class WADBViewModel : ViewModel() {
-
 	@ConsistentCopyVisibility
 	data class ConnectionState internal constructor(
 		val output: StringBuilder = StringBuilder(),
@@ -48,18 +45,20 @@ class WADBViewModel : ViewModel() {
 
 	fun appendOutput(output: CharSequence) {
 		val currentState = _connectionState.value
-		val outputBuilder = currentState.output.apply {
-			append(output)
-			append(System.lineSeparator())
-		}
+		val outputBuilder =
+			currentState.output.apply {
+				append(output)
+				append(System.lineSeparator())
+			}
 
 		val newState = currentState.copy(output = outputBuilder)
 		_connectionState.update { newState }
 	}
 
-	fun recordConnectionFailure(err: Throwable? = null) = runOnUiThread {
-		val currentState = _connectionState.value
-		val newState = currentState.copy(error = err)
-		_connectionState.update { newState }
-	}
+	fun recordConnectionFailure(err: Throwable? = null) =
+		runOnUiThread {
+			val currentState = _connectionState.value
+			val newState = currentState.copy(error = err)
+			_connectionState.update { newState }
+		}
 }
