@@ -119,7 +119,10 @@ class DeleteProjectFragment : BaseFragment() {
             }
         }
         binding.delete.setOnLongClickListener {
-            showToolTip(DELETE_PROJECT_BUTTON)
+            val projects = recentProjectsViewModel.projects.value
+            if (projects?.isNotEmpty() == true) {
+                showToolTip(DELETE_PROJECT_BUTTON)
+            }
             true
         }
 
