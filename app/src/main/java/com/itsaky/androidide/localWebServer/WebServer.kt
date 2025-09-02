@@ -54,6 +54,16 @@ class WebServer(private val config: ServerConfig) {
         return timestamp
     }
 
+    fun logDatabaseLastChanged() {
+        val query = """
+SELECT now, who
+FROM   LastChange
+"""
+        val cursor = database.rawQuery(query, arrayOf())
+        cursor.moveToFirst()
+        Log.d(TAG, "Database last change: ${cursor.getString(0)} ${cursor.getString(1)}.")
+    }
+
     fun start() {
         lateinit var clientSocket: Socket
         try {
@@ -67,6 +77,7 @@ class WebServer(private val config: ServerConfig) {
                 Log.e(TAG, "Cannot open database: ${e.message}")
                 return
             }
+            if (debugEnabled) logDatabaseLastChanged()
 
             serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
             Log.i(TAG, "WebServer started successfully.")
@@ -105,7 +116,7 @@ class WebServer(private val config: ServerConfig) {
 
         // Read the request method line, it is always the first line of the request
         var requestLine = reader.readLine() ?: return
-        if (debugEnabled) Log.d(TAG, "Request is ${requestLine}")
+        if (debugEnabled) Log.d(TAG, "Request is '${requestLine}'.")
 
         // Parse the request
         // Request line should look like "GET /a/b/c.html HTTP/1.1"
@@ -129,7 +140,7 @@ class WebServer(private val config: ServerConfig) {
         while(requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
 
-           if (debugEnabled) Log.d(TAG, "Header: ${requestLine}")
+           if (debugEnabled) Log.d(TAG, "Header: '${requestLine}'")
 
             if(requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
@@ -141,13 +152,13 @@ class WebServer(private val config: ServerConfig) {
             }
         }
 
-        //check to see if there is a newer version of the documentation.db database on the sdcard
-        // if there is use that for our responses
+        // If there is a newer download of the documentation.db database on the sdcard, use it.
         val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
         if (debugDatabaseTimestamp > databaseTimestamp) {
             database.close()
             database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
             databaseTimestamp = debugDatabaseTimestamp
+            if (debugEnabled) logDatabaseLastChanged()
         }
 
         val query = """
@@ -155,14 +166,15 @@ SELECT C.content, CT.value, CT.compression
 FROM   Content C, ContentTypes CT
 WHERE  C.contentTypeID = CT.id
   AND  C.path = ?
+  AND  C.languageId = 1
         """
-        val cursor = database.rawQuery(query, arrayOf(path,))
+        var cursor = database.rawQuery(query, arrayOf(path,))
         val rowCount = cursor.getCount()
 
         if (rowCount != 1) {
             return when (rowCount) {
-                0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
-                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
+                0    -> sendError(writer, 404, "Not Found", "Path: '" + path + "'.")
+                else -> sendError(writer, 500, "Internal Server Error 2", "Data error: multiple records found when unique record expected. Path: '" + path + "'.")
             }
         }
 
@@ -170,6 +182,29 @@ WHERE  C.contentTypeID = CT.id
         var dbContent   = cursor.getBlob(0)
         val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
+
+        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
+            val query2 = """
+SELECT content
+FROM   Content
+WHERE  path = ?
+  AND  languageId = 1
+        """
+            var fragmentNumber = 1
+            var dbContent2 = dbContent
+
+            while (dbContent2.size == 1024 * 1024) {
+                val path2 = "${path}-${fragmentNumber}"
+                if (debugEnabled) Log.d(TAG, "DB item > 1 MB. fragment#${fragmentNumber}, path2='${path2}'.")
+
+                cursor = database.rawQuery(query2, arrayOf(path2))
+                cursor.moveToFirst()
+                dbContent2 = cursor.getBlob(0)
+                dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 30-Aug-2025
+                fragmentNumber += 1
+                if (debugEnabled) Log.d(TAG, "Fragment size=${dbContent2.size}, dbContent.length=${dbContent.size}.")
+            }
+        }
 
         if (debugEnabled) Log.d(TAG, "len(content)=${dbContent.size}, MIME type=${dbMimeType}, compression=${compression}.")
 
@@ -179,6 +214,7 @@ WHERE  C.contentTypeID = CT.id
         // compressed, decompress the content here.
 
         if (compression == "brotli") {
+
             if (brotliSupported) {
                 compression = "br"
             } else {
