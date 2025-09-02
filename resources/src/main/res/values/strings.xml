@@ -752,6 +752,7 @@
 	<string name="title_alert">Alert!</string>
 	<string name="info_icon_content_description">Info icon</string>
 
+	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
     <string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
 
 	<!-- Hint for the notification text field which asks the user to enter the wireless debugging pairing code -->

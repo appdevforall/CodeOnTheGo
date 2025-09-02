@@ -138,10 +138,25 @@ class EditorBottomSheetTabAdapter(
 		}
 	}
 
+	/**
+	 * Set the visibility of a fragment.
+	 *
+	 * @param klass The fragment class to show/hide.
+	 * @param isVisible Whether to show or hide the fragment.
+	 * @return `true` if fragment's state changed from hidden to visible, `false`
+	 * 			otherwise.
+	 */
 	fun setFragmentVisibility(
 		klass: Class<out Fragment>,
 		isVisible: Boolean,
-	) = if (isVisible) restoreFragment(klass) else removeFragment(klass)
+	): Boolean {
+		if (isVisible) {
+			return restoreFragment(klass)
+		}
+
+		removeFragment(klass)
+		return false
+	}
 
 	fun <T : Fragment> getFragmentAtIndex(index: Int): T? = getFragmentById(getItemId(index))
 
