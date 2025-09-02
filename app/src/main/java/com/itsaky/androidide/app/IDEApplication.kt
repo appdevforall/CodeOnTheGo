@@ -106,8 +106,8 @@ class IDEApplication : TermuxApplication() {
 				}
 			}
 
-			RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
-		}
+        RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+    }
 	}
 
 

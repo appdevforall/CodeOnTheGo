@@ -431,7 +431,8 @@ fun recompressZip(inputZip: File, outputZip: File) {
 						newEntry.lastModifiedTime = FileTime.fromMillis(0)
 						newEntry.lastAccessTime = FileTime.fromMillis(0)
 					} catch (_: Throwable) {
-					} // In case JVM doesn't support them
+						// In case JVM doesn't support them
+					}
 
 					zos.putNextEntry(newEntry)
 					zis.copyTo(zos)
@@ -466,9 +467,6 @@ fun signApk(apkFile: File) {
 		?.maxByOrNull { it.name }  // pick the highest version
 		?.resolve(signerExec)
 		?: error("Could not find apksigner in any build-tools directory")
-
-	//val apkSignerPath = File(android.sdkDirectory.absolutePath + File.separator +
-	//        "build-tools" + File.separator + "34.0.0" + File.separator + signerExec)
 
 	project.logger.lifecycle("APK Signer: ${apkSignerPath.absolutePath}")
 
