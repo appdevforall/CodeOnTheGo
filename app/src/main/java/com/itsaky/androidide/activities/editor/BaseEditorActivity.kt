@@ -118,6 +118,7 @@ import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
@@ -145,285 +146,300 @@ import kotlin.math.roundToLong
  * @author Akash Yadav
  */
 @Suppress("MemberVisibilityCanBePrivate")
-abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSelectedListener,
-    DiagnosticClickListener {
+abstract class BaseEditorActivity :
+	EdgeToEdgeIDEActivity(),
+	TabLayout.OnTabSelectedListener,
+	DiagnosticClickListener {
+	protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
+	protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
+	protected var filesTreeFragment: FileTreeFragment? = null
+	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
+	protected val memoryUsageWatcher = MemoryUsageWatcher()
+	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
-    protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
-    protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
-    protected var filesTreeFragment: FileTreeFragment? = null
-    protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
-    protected val memoryUsageWatcher = MemoryUsageWatcher()
-    protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
+	var isDestroying = false
+		protected set
 
-    var isDestroying = false
-        protected set
+	/**
+	 * Editor activity's [CoroutineScope] for executing tasks in the background.
+	 */
+	protected val editorActivityScope = CoroutineScope(Dispatchers.Default)
 
-    /**
-     * Editor activity's [CoroutineScope] for executing tasks in the background.
-     */
-    protected val editorActivityScope = CoroutineScope(Dispatchers.Default)
+	internal var installationCallback: ApkInstallationSessionCallback? = null
 
-    internal var installationCallback: ApkInstallationSessionCallback? = null
+	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
+	val editorViewModel by viewModels<EditorViewModel>()
+	val debuggerViewModel by viewModels<DebuggerViewModel>()
+	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 
-    var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
-    val editorViewModel by viewModels<EditorViewModel>()
-    val debuggerViewModel by viewModels<DebuggerViewModel>()
+	@Suppress("ktlint:standard:backing-property-naming")
+	internal var _binding: ActivityEditorBinding? = null
+	val binding: ActivityEditorBinding
+		get() = checkNotNull(_binding) { "Activity has been destroyed" }
+	val content: ContentEditorBinding
+		get() = binding.content
 
-    internal var _binding: ActivityEditorBinding? = null
-    val binding: ActivityEditorBinding
-        get() = checkNotNull(_binding) { "Activity has been destroyed" }
-    val content: ContentEditorBinding
-        get() = binding.content
+	override val subscribeToEvents: Boolean
+		get() = true
 
-    override val subscribeToEvents: Boolean
-        get() = true
+	private val onBackPressedCallback: OnBackPressedCallback =
+		object : OnBackPressedCallback(true) {
+			override fun handleOnBackPressed() {
+				if (binding.root.isDrawerOpen(GravityCompat.START)) {
+					binding.root.closeDrawer(GravityCompat.START)
+				} else if (bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_COLLAPSED) {
+					bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
+				} else if (binding.swipeReveal.isOpen) {
+					binding.swipeReveal.close()
+				} else {
+					doConfirmProjectClose()
+				}
+			}
+		}
 
-    private val onBackPressedCallback: OnBackPressedCallback =
-        object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (binding.root.isDrawerOpen(GravityCompat.START)) {
-                    binding.root.closeDrawer(GravityCompat.START)
-                } else if (editorBottomSheet?.state != BottomSheetBehavior.STATE_COLLAPSED) {
-                    editorBottomSheet?.setState(BottomSheetBehavior.STATE_COLLAPSED)
-                } else if (binding.swipeReveal.isOpen) {
-                    binding.swipeReveal.close()
-                } else {
-                    doConfirmProjectClose()
-                }
-            }
-        }
+	private val memoryUsageListener =
+		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
+			memoryUsage.forEachValue { proc ->
+				_binding?.memUsageView?.chart?.apply {
+					val dataset =
+						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
+							?: run {
+								log.error("No dataset found for process: {}: {}", proc.pid, proc.pname)
+								return@forEachValue
+							}
 
-    private val memoryUsageListener = MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
-        memoryUsage.forEachValue { proc ->
-            _binding?.memUsageView?.chart?.apply {
-                val dataset = (data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
-                    ?: run {
-                        log.error("No dataset found for process: {}: {}", proc.pid, proc.pname)
-                        return@forEachValue
-                    }
+					dataset.entries.mapIndexed { index, entry ->
+						entry.y =
+							byte2MemorySize(proc.usageHistory[index], MemoryConstants.MB).toFloat()
+					}
 
-                dataset.entries.mapIndexed { index, entry ->
-                    entry.y =
-                        byte2MemorySize(proc.usageHistory[index], MemoryConstants.MB).toFloat()
-                }
+					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
+					dataset.notifyDataSetChanged()
+					data.notifyDataChanged()
+					notifyDataSetChanged()
+					invalidate()
+				}
+			}
+		}
 
-                dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
-                dataset.notifyDataSetChanged()
-                data.notifyDataChanged()
-                notifyDataSetChanged()
-                invalidate()
-            }
-        }
-    }
+	private var isImeVisible = false
+	private var contentCardRealHeight: Int? = null
+	private val editorSurfaceContainerBackground by lazy {
+		resolveAttr(R.attr.colorSurfaceDim)
+	}
+	private val editorLayoutCorners by lazy {
+		resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
+	}
 
-    private var isImeVisible = false
-    private var contentCardRealHeight: Int? = null
-    private val editorSurfaceContainerBackground by lazy {
-        resolveAttr(R.attr.colorSurfaceDim)
-    }
-    private val editorLayoutCorners by lazy {
-        resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
-    }
+	private var isDebuggerStarting = false
+		@UiThread set(value) {
+			field = value
+			onUpdateProgressBarVisibility()
+		}
 
-    private var isDebuggerStarting = false
-        @UiThread set(value) {
-            field = value
-            onUpdateProgressBarVisibility()
-        }
+	private var debuggerService: DebuggerService? = null
+	private var debuggerPostConnectionAction: (suspend () -> Unit)? = null
+	private val debuggerServiceConnection =
+		object : ServiceConnection {
+			override fun onServiceConnected(
+				name: ComponentName,
+				service: IBinder,
+			) {
+				debuggerService = (service as DebuggerService.Binder).getService()
+				debuggerService!!.showOverlay()
 
-    private var debuggerService: DebuggerService? = null
-    private var debuggerPostConnectionAction: (suspend () -> Unit)? = null
-    private val debuggerServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            debuggerService = (service as DebuggerService.Binder).getService()
-            debuggerService!!.showOverlay()
+				isDebuggerStarting = false
+				activityScope.launch(Dispatchers.Main.immediate) {
+					doSetStatus(getString(string.debugger_started))
+					debuggerPostConnectionAction?.invoke()
+				}
+			}
 
-            isDebuggerStarting = false
-            activityScope.launch(Dispatchers.Main.immediate) {
-                doSetStatus(getString(string.debugger_started))
-                debuggerPostConnectionAction?.invoke()
-            }
-        }
+			override fun onServiceDisconnected(name: ComponentName?) {
+				debuggerService = null
+				isDebuggerStarting = false
+			}
+		}
 
-        override fun onServiceDisconnected(name: ComponentName?) {
-            debuggerService = null
-            isDebuggerStarting = false
-        }
-    }
+	private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
+	private val debuggerServiceStopRunnable =
+		Runnable {
+			if (debuggerService != null && debuggerViewModel.connectionState.value < DebuggerConnectionState.ATTACHED) {
+				unbindDebuggerService()
+			}
+		}
 
-    private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
-    private val debuggerServiceStopRunnable = Runnable {
-        if (debuggerService != null && debuggerViewModel.connectionState.value < DebuggerConnectionState.ATTACHED) {
-            unbindDebuggerService()
-        }
-    }
+	private fun unbindDebuggerService() {
+		try {
+			unbindService(debuggerServiceConnection)
+		} catch (e: Throwable) {
+			log.error("Failed to stop debugger service", e)
+		}
+	}
 
-    private fun unbindDebuggerService() {
-        try {
-            unbindService(debuggerServiceConnection)
-        } catch (e: Throwable) {
-            log.error("Failed to stop debugger service", e)
-        }
-    }
+	private fun startDebuggerAndDo(action: suspend () -> Unit) {
+		activityScope.launch(Dispatchers.Main.immediate) {
+			if (debuggerService != null) {
+				action()
+			} else {
+				debuggerPostConnectionAction = action
+				ensureDebuggerServiceBound()
+			}
+		}
+	}
 
-    private fun startDebuggerAndDo(action: suspend () -> Unit) {
-        activityScope.launch(Dispatchers.Main.immediate) {
-            if (debuggerService != null) {
-                action()
-            } else {
-                debuggerPostConnectionAction = action
-                ensureDebuggerServiceBound()
-            }
-        }
-    }
+	fun ensureDebuggerServiceBound() {
+		if (debuggerService != null) return
 
-    fun ensureDebuggerServiceBound() {
-        if (debuggerService != null) return
+		if (isDebuggerStarting) {
+			log.info("Debugger service is already starting, ignoring...")
+			return
+		}
 
-        if (isDebuggerStarting) {
-            log.info("Debugger service is already starting, ignoring...")
-            return
-        }
+		isDebuggerStarting = true
 
-        isDebuggerStarting = true
+		val intent = Intent(this, DebuggerService::class.java)
+		if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
+			postStopDebuggerServiceIfNotConnected()
+			doSetStatus(getString(string.debugger_starting))
+		} else {
+			isDebuggerStarting = false
+			log.error("Debugger service doesn't exist or the IDE is not allowed to access it.")
+			doSetStatus(getString(string.debugger_starting_failed))
+		}
+	}
 
-        val intent = Intent(this, DebuggerService::class.java)
-        if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
-            postStopDebuggerServiceIfNotConnected()
-            doSetStatus(getString(string.debugger_starting))
-        } else {
-            isDebuggerStarting = false
-            log.error("Debugger service doesn't exist or the IDE is not allowed to access it.")
-            doSetStatus(getString(string.debugger_starting_failed))
-        }
-    }
+	private fun postStopDebuggerServiceIfNotConnected() {
+		debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
+		debuggerServiceStopHandler.postDelayed(
+			debuggerServiceStopRunnable,
+			DEBUGGER_SERVICE_STOP_DELAY_MS,
+		)
+	}
 
-    private fun postStopDebuggerServiceIfNotConnected() {
-        debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
-        debuggerServiceStopHandler.postDelayed(
-            debuggerServiceStopRunnable,
-            DEBUGGER_SERVICE_STOP_DELAY_MS
-        )
-    }
+	protected var optionsMenuInvalidator: Runnable? = null
 
-    protected var optionsMenuInvalidator: Runnable? = null
+	companion object {
+		const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
-    companion object {
+		@JvmStatic
+		protected val PROC_IDE = "IDE"
 
-        const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
+		@JvmStatic
+		protected val PROC_GRADLE_TOOLING = "Gradle Tooling"
 
-        @JvmStatic
-        protected val PROC_IDE = "IDE"
+		@JvmStatic
+		protected val PROC_GRADLE_DAEMON = "Gradle Daemon"
 
-        @JvmStatic
-        protected val PROC_GRADLE_TOOLING = "Gradle Tooling"
+		@JvmStatic
+		protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
 
-        @JvmStatic
-        protected val PROC_GRADLE_DAEMON = "Gradle Daemon"
+		private const val OPTIONS_MENU_INVALIDATION_DELAY = 150L
 
-        @JvmStatic
-        protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
+		const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
+		const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
+		const val KEY_PROJECT_PATH = "saved_projectPath"
+	}
 
-        private const val OPTIONS_MENU_INVALIDATION_DELAY = 150L
+	protected abstract fun provideCurrentEditor(): CodeEditorView?
 
-        const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
-        const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
-        const val KEY_PROJECT_PATH = "saved_projectPath"
-    }
+	protected abstract fun provideEditorAt(index: Int): CodeEditorView?
 
-    protected abstract fun provideCurrentEditor(): CodeEditorView?
+	protected abstract fun doOpenFile(
+		file: File,
+		selection: Range?,
+	)
 
-    protected abstract fun provideEditorAt(index: Int): CodeEditorView?
+	protected abstract fun doDismissSearchProgress()
 
-    protected abstract fun doOpenFile(file: File, selection: Range?)
+	protected abstract fun getOpenedFiles(): List<OpenedFile>
 
-    protected abstract fun doDismissSearchProgress()
+	internal abstract fun doConfirmProjectClose()
 
-    protected abstract fun getOpenedFiles(): List<OpenedFile>
-    internal abstract fun doConfirmProjectClose()
-    internal abstract fun doOpenHelp()
+	internal abstract fun doOpenHelp()
 
-    protected open fun preDestroy() {
-        _binding = null
+	protected open fun preDestroy() {
+		_binding = null
 
-        optionsMenuInvalidator?.also {
-            ThreadUtils.getMainHandler().removeCallbacks(it)
-        }
+		optionsMenuInvalidator?.also {
+			ThreadUtils.getMainHandler().removeCallbacks(it)
+		}
 
-        optionsMenuInvalidator = null
+		optionsMenuInvalidator = null
 
-        installationCallback?.destroy()
-        installationCallback = null
+		installationCallback?.destroy()
+		installationCallback = null
 
-        if (isDestroying) {
-            memoryUsageWatcher.stopWatching(true)
-            memoryUsageWatcher.listener = null
-            editorActivityScope.cancelIfActive("Activity is being destroyed")
+		if (isDestroying) {
+			memoryUsageWatcher.stopWatching(true)
+			memoryUsageWatcher.listener = null
+			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
-            unbindDebuggerService()
-        }
-    }
+			unbindDebuggerService()
+		}
+	}
 
-    protected open fun postDestroy() {
-        if (isDestroying) {
-            Lookup.getDefault().unregisterAll()
-            ApiVersionsRegistry.getInstance().clear()
-            ResourceTableRegistry.getInstance().clear()
-            WidgetTableRegistry.getInstance().clear()
-        }
-    }
+	protected open fun postDestroy() {
+		if (isDestroying) {
+			Lookup.getDefault().unregisterAll()
+			ApiVersionsRegistry.getInstance().clear()
+			ResourceTableRegistry.getInstance().clear()
+			WidgetTableRegistry.getInstance().clear()
+		}
+	}
 
-    override fun bindLayout(): View {
-        this._binding = ActivityEditorBinding.inflate(layoutInflater)
-        this.diagnosticInfoBinding = this.content.diagnosticInfo
-        return this.binding.root
-    }
+	override fun bindLayout(): View {
+		this._binding = ActivityEditorBinding.inflate(layoutInflater)
+		this.diagnosticInfoBinding = this.content.diagnosticInfo
+		return this.binding.root
+	}
 
-    override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
-        super.onApplyWindowInsets(insets)
-        val height = contentCardRealHeight ?: return
-        val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+	override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
+		super.onApplyWindowInsets(insets)
+		val height = contentCardRealHeight ?: return
+		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 
-        _binding?.content?.bottomSheet?.setImeVisible(imeInsets.bottom > 0)
-        _binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
-            this.height = height - imeInsets.bottom
-        }
+		_binding?.content?.bottomSheet?.setImeVisible(imeInsets.bottom > 0)
+		_binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
+			this.height = height - imeInsets.bottom
+		}
 
-        val isImeVisible = imeInsets.bottom > 0
-        if (this.isImeVisible != isImeVisible) {
-            this.isImeVisible = isImeVisible
-            onSoftInputChanged()
-        }
-    }
+		val isImeVisible = imeInsets.bottom > 0
+		if (this.isImeVisible != isImeVisible) {
+			this.isImeVisible = isImeVisible
+			onSoftInputChanged()
+		}
+	}
 
-    override fun onApplySystemBarInsets(insets: Insets) {
-        super.onApplySystemBarInsets(insets)
-        this._binding?.apply {
-            drawerSidebar.getFragment<EditorSidebarFragment>()
-                .onApplyWindowInsets(insets)
+	override fun onApplySystemBarInsets(insets: Insets) {
+		super.onApplySystemBarInsets(insets)
+		this._binding?.apply {
+			drawerSidebar
+				.getFragment<EditorSidebarFragment>()
+				.onApplyWindowInsets(insets)
 
-            content.apply {
-                editorAppBarLayout.updatePadding(
-                    top = insets.top
-                )
-                customToolbar.setContentInsetsRelative(0, 0)
-            }
-        }
-    }
+			content.apply {
+				editorAppBarLayout.updatePadding(
+					top = insets.top,
+				)
+				customToolbar.setContentInsetsRelative(0, 0)
+			}
+		}
+	}
 
-    @Subscribe(threadMode = MAIN)
-    open fun onInstallationResult(event: InstallationResultEvent) {
-        val intent = event.intent
-        if (isDestroying) {
-            return
-        }
+	@Subscribe(threadMode = MAIN)
+	open fun onInstallationResult(event: InstallationResultEvent) {
+		val intent = event.intent
+		if (isDestroying) {
+			return
+		}
 
-        val packageName = onResult(this, intent) ?: return
-        val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
-        if (!isDebugging) {
-            doLaunchApp(packageName)
-            return
-        }
+		val packageName = onResult(this, intent) ?: return
+		val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
+		if (!isDebugging) {
+			doLaunchApp(packageName)
+			return
+		}
 
 		startDebuggerAndDo {
 			debuggerViewModel.debugeePackage = packageName

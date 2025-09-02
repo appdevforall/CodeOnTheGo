@@ -18,7 +18,6 @@
 
 package com.itsaky.androidide.app
 
-
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
@@ -59,7 +58,6 @@ import com.topjohnwu.superuser.Shell
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Sentry
 import io.sentry.android.core.SentryAndroid
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -74,24 +72,22 @@ import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
+	private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
+	private var ideLogcatReader: IDELogcatReader? = null
 
-    private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
-    private var ideLogcatReader: IDELogcatReader? = null
+	companion object {
+		private val log = LoggerFactory.getLogger(IDEApplication::class.java)
 
-
-    companion object {
-
-        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
-
-        @JvmStatic
-        lateinit var instance: IDEApplication
-            private set
+		@JvmStatic
+		lateinit var instance: IDEApplication
+			private set
 
 		init {
 			ShizukuProvider.disableAutomaticSuiInitialization()
 			Shell.setDefaultBuilder(
-				Shell.Builder.create()
-					.setFlags(Shell.FLAG_REDIRECT_STDERR)
+				Shell.Builder
+					.create()
+					.setFlags(Shell.FLAG_REDIRECT_STDERR),
 			)
 			HiddenApiBypass.setHiddenApiExemptions("")
 			if (!VMUtils.isJvm() && !isTestMode()) {
@@ -110,145 +106,151 @@ class IDEApplication : TermuxApplication() {
 		}
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
+	override fun onCreate() {
+		instance = this
+		uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+		Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
-    @OptIn(DelicateCoroutinesApi::class)
-    override fun onCreate() {
-        instance = this
-        uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
+		super.onCreate()
 
-        super.onCreate()
-
-        SentryAndroid.init(this)
+		SentryAndroid.init(this)
 		ShizukuSettings.initialize(this)
 
-        if (BuildConfig.DEBUG) {
-            val builder = StrictMode.VmPolicy.Builder()
-            StrictMode.setVmPolicy(builder.build())
-            //TODO JMT
+		if (BuildConfig.DEBUG) {
+			val builder = StrictMode.VmPolicy.Builder()
+			StrictMode.setVmPolicy(builder.build())
+			// TODO JMT
 //            StrictMode.setVmPolicy(
 //                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
 //                    .build()
 //            )
-            if (DevOpsPreferences.dumpLogs) {
-                startLogcatReader()
-            }
+			if (DevOpsPreferences.dumpLogs) {
+				startLogcatReader()
+			}
 
-            checkForSecondDisplay()
-        }
+			checkForSecondDisplay()
+		}
 
-        EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
-            .addIndex(ProjectsApiEventsIndex()).addIndex(LspApiEventsIndex())
-            .addIndex(LspJavaEventsIndex()).installDefaultEventBus(true)
+		EventBus
+			.builder()
+			.addIndex(AppEventsIndex())
+			.addIndex(EditorEventsIndex())
+			.addIndex(ProjectsApiEventsIndex())
+			.addIndex(LspApiEventsIndex())
+			.addIndex(LspJavaEventsIndex())
+			.installDefaultEventBus(true)
 
-        EventBus.getDefault().register(this)
+		EventBus.getDefault().register(this)
 
-        AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
-        if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-            DynamicColors.applyToActivitiesIfAvailable(this)
-        }
+		if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+			DynamicColors.applyToActivitiesIfAvailable(this)
+		}
 
-        EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
 
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-        GlobalScope.launch {
-            IDEColorSchemeProvider.init()
-        }
+		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
+		GlobalScope.launch {
+			IDEColorSchemeProvider.init()
+		}
 
-
-		//Tooltip database access is now handled by direct SQLite queries
+		// Tooltip database access is now handled by direct SQLite queries
 	}
 
-    private fun handleCrash(thread: Thread, th: Throwable) {
-        writeException(th)
+	private fun handleCrash(
+		thread: Thread,
+		th: Throwable,
+	) {
+		writeException(th)
 
-        Sentry.captureException(th)
+		Sentry.captureException(th)
 
-        try {
-            val intent = Intent()
-            intent.action = CrashHandlerActivity.REPORT_ACTION
-            intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            if (uncaughtExceptionHandler != null) {
-                uncaughtExceptionHandler!!.uncaughtException(thread, th)
-            }
+		try {
+			val intent = Intent()
+			intent.action = CrashHandlerActivity.REPORT_ACTION
+			intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
+			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+			startActivity(intent)
+			if (uncaughtExceptionHandler != null) {
+				uncaughtExceptionHandler!!.uncaughtException(thread, th)
+			}
 
-            exitProcess(1)
-        } catch (error: Throwable) {
-            log.error("Unable to show crash handler activity", error)
-        }
-    }
+			exitProcess(1)
+		} catch (error: Throwable) {
+			log.error("Unable to show crash handler activity", error)
+		}
+	}
 
-    fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW)
-        var version = BuildInfo.VERSION_NAME_SIMPLE
-        if (!version.startsWith('v')) {
-            version = "v${version}"
-        }
-        intent.data = "${BuildInfo.REPO_URL}/releases/tag/${version}".toUri()
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            startActivity(intent)
-        } catch (th: Throwable) {
-            log.error("Unable to start activity to show changelog", th)
-            flashError("Unable to start activity")
-        }
-    }
+	fun showChangelog() {
+		val intent = Intent(Intent.ACTION_VIEW)
+		var version = BuildInfo.VERSION_NAME_SIMPLE
+		if (!version.startsWith('v')) {
+			version = "v$version"
+		}
+		intent.data = "${BuildInfo.REPO_URL}/releases/tag/$version".toUri()
+		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+		try {
+			startActivity(intent)
+		} catch (th: Throwable) {
+			log.error("Unable to start activity to show changelog", th)
+			flashError("Unable to start activity")
+		}
+	}
 
-    private fun startLogcatReader() {
-        if (ideLogcatReader != null) {
-            // already started
-            return
-        }
+	private fun startLogcatReader() {
+		if (ideLogcatReader != null) {
+			// already started
+			return
+		}
 
-        log.info("Starting logcat reader...")
-        ideLogcatReader = IDELogcatReader().also { it.start() }
-    }
+		log.info("Starting logcat reader...")
+		ideLogcatReader = IDELogcatReader().also { it.start() }
+	}
 
-    private fun stopLogcatReader() {
-        log.info("Stopping logcat reader...")
-        ideLogcatReader?.stop()
-        ideLogcatReader = null
-    }
+	private fun stopLogcatReader() {
+		log.info("Stopping logcat reader...")
+		ideLogcatReader?.stop()
+		ideLogcatReader = null
+	}
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onPrefChanged(event: PreferenceChangeEvent) {
-        val enabled = event.value as? Boolean?
-        if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
-            if (enabled == true) {
-                startLogcatReader()
-            } else {
-                stopLogcatReader()
-            }
-        } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
-            AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
-        } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPrefChanged(event: PreferenceChangeEvent) {
+		val enabled = event.value as? Boolean?
+		if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+			if (enabled == true) {
+				startLogcatReader()
+			} else {
+				stopLogcatReader()
+			}
+		} else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
+			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		} else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
+			// Use empty locale list if the locale has been reset to 'System Default'
+			val selectedLocale = GeneralPreferences.selectedLocale
+			val localeListCompat =
+				selectedLocale?.let {
+					LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
+				} ?: LocaleListCompat.getEmptyLocaleList()
 
-            // Use empty locale list if the locale has been reset to 'System Default'
-            val selectedLocale = GeneralPreferences.selectedLocale
-            val localeListCompat = selectedLocale?.let {
-                LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
-            } ?: LocaleListCompat.getEmptyLocaleList()
+			AppCompatDelegate.setApplicationLocales(localeListCompat)
+		}
+	}
 
-            AppCompatDelegate.setApplicationLocales(localeListCompat)
-        }
-    }
-
-    private fun checkForSecondDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-        var secondDisplay: Display? = null
-        for (display in displays) {
-            if (display.displayId != Display.DEFAULT_DISPLAY) {
-                // This is a secondary display
-                secondDisplay = display
-            }
-        }
-        if (secondDisplay != null) {
-            val presentation = SecondaryScreen(this, secondDisplay!!)
-            presentation.show()
-        }
-    }
+	private fun checkForSecondDisplay() {
+		val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+		val displays = displayManager.displays
+		var secondDisplay: Display? = null
+		for (display in displays) {
+			if (display.displayId != Display.DEFAULT_DISPLAY) {
+				// This is a secondary display
+				secondDisplay = display
+			}
+		}
+		if (secondDisplay != null) {
+			val presentation = SecondaryScreen(this, secondDisplay!!)
+			presentation.show()
+		}
+	}
 }
