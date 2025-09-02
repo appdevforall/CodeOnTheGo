@@ -1,17 +1,17 @@
 plugins {
-    id("com.android.library")
+	id("com.android.library")
 }
 
 android {
-    namespace = "rikka.shizuku.api"
-    buildFeatures {
-        buildConfig = false
-    }
+	namespace = "rikka.shizuku.api"
+	buildFeatures {
+		buildConfig = false
+	}
 }
 
 dependencies {
-    api(projects.buildInfo)
-    api(projects.subprojects.shizukuAidl)
-    api(projects.subprojects.shizukuShared)
-    implementation(libs.androidx.annotation)
+	api(projects.buildInfo)
+	api(projects.subprojects.shizukuAidl)
+	api(projects.subprojects.shizukuShared)
+	implementation(libs.androidx.annotation)
 }

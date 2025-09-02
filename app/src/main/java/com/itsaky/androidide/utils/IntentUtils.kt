@@ -32,7 +32,6 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.io.File
-import kotlin.math.log
 
 /**
  * Utilities for sharing files.
@@ -40,7 +39,6 @@ import kotlin.math.log
  * @author Akash Yadav
  */
 object IntentUtils {
-
 	private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
 
 	private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
@@ -50,7 +48,10 @@ object IntentUtils {
 	private const val MIME_ANY = "*" + "/" + "*"
 
 	@JvmStatic
-	fun openImage(context: Context, file: File) {
+	fun openImage(
+		context: Context,
+		file: File,
+	) {
 		imageIntent(context = context, file = file, intentAction = Intent.ACTION_VIEW)
 	}
 
@@ -59,7 +60,7 @@ object IntentUtils {
 	fun imageIntent(
 		context: Context,
 		file: File,
-		intentAction: String = Intent.ACTION_SEND
+		intentAction: String = Intent.ACTION_SEND,
 	) {
 		val type = ImageUtils.getImageType(file)
 		var typeString = type.value
@@ -70,12 +71,16 @@ object IntentUtils {
 			context = context,
 			file = file,
 			mimeType = "image/$typeString",
-			intentAction = intentAction
+			intentAction = intentAction,
 		)
 	}
 
 	@JvmStatic
-	fun shareFile(context: Context, file: File, mimeType: String) {
+	fun shareFile(
+		context: Context,
+		file: File,
+		mimeType: String,
+	) {
 		startIntent(context = context, file = file, mimeType = mimeType)
 	}
 
@@ -85,7 +90,7 @@ object IntentUtils {
 		context: Context,
 		file: File,
 		mimeType: String = MIME_ANY,
-		intentAction: String = Intent.ACTION_SEND
+		intentAction: String = Intent.ACTION_SEND,
 	) {
 		val uri =
 			FileProvider.getUriForFile(
@@ -94,7 +99,8 @@ object IntentUtils {
 				file,
 			)
 		val intent =
-			ShareCompat.IntentBuilder(context)
+			ShareCompat
+				.IntentBuilder(context)
 				.setType(mimeType)
 				.setStream(uri)
 				.intent
@@ -213,16 +219,16 @@ object IntentUtils {
 	private fun launchAppApi33(
 		context: Context,
 		packageName: String,
-		logError: Boolean = true
-	): Boolean {
-		return try {
+		logError: Boolean = true,
+	): Boolean =
+		try {
 			val sender = context.packageManager.getLaunchIntentSenderForPackage(packageName)
 			sender.sendIntent(
 				context,
 				RESULT_LAUNCH_APP_INTENT_SENDER,
 				null,
 				null,
-				null
+				null,
 			)
 			true
 		} catch (e: Throwable) {
@@ -232,5 +238,4 @@ object IntentUtils {
 			}
 			false
 		}
-	}
 }
