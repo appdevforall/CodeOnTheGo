@@ -17,20 +17,30 @@
 
 package com.itsaky.androidide.fragments
 
+import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.google.android.flexbox.FlexDirection
 import com.google.android.flexbox.FlexboxLayoutManager
 import com.google.android.flexbox.JustifyContent
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.TemplateListAdapter
 import com.itsaky.androidide.databinding.FragmentTemplateListBinding
+import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.utils.FlexboxUtils
+import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.viewmodel.MainViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**
@@ -39,72 +49,119 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class TemplateListFragment :
-  FragmentWithBinding<FragmentTemplateListBinding>(R.layout.fragment_template_list,
-    FragmentTemplateListBinding::bind) {
+	FragmentWithBinding<FragmentTemplateListBinding>(
+		R.layout.fragment_template_list,
+		FragmentTemplateListBinding::bind,
+	) {
+	private var adapter: TemplateListAdapter? = null
+	private var layoutManager: FlexboxLayoutManager? = null
 
-  private var adapter: TemplateListAdapter? = null
-  private var layoutManager: FlexboxLayoutManager? = null
+	private lateinit var globalLayoutListener: OnGlobalLayoutListener
 
-  private lateinit var globalLayoutListener: OnGlobalLayoutListener
+	private val viewModel by viewModels<MainViewModel>(ownerProducer = { requireActivity() })
 
-  private val viewModel by viewModels<MainViewModel>(ownerProducer = { requireActivity() })
+	companion object {
+		private val log = LoggerFactory.getLogger(TemplateListFragment::class.java)
+	}
 
-  companion object {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-    private val log = LoggerFactory.getLogger(TemplateListFragment::class.java)
-  }
+		layoutManager = FlexboxLayoutManager(requireContext(), FlexDirection.ROW)
+		layoutManager!!.justifyContent = JustifyContent.SPACE_EVENLY
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
+		binding.list.layoutManager = layoutManager
 
-    layoutManager = FlexboxLayoutManager(requireContext(), FlexDirection.ROW)
-    layoutManager!!.justifyContent = JustifyContent.SPACE_EVENLY
+		// This makes sure that the items are evenly distributed in the list
+		// and the last row is always aligned to the start
+		globalLayoutListener =
+			FlexboxUtils.createGlobalLayoutListenerToDistributeFlexboxItemsEvenly(
+				{ adapter },
+				{ layoutManager },
+			) { adapter, diff ->
+				adapter.fillDiff(diff)
+			}
 
-    binding.list.layoutManager = layoutManager
+		binding.list.viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
 
-    // This makes sure that the items are evenly distributed in the list
-    // and the last row is always aligned to the start
-    globalLayoutListener = FlexboxUtils.createGlobalLayoutListenerToDistributeFlexboxItemsEvenly(
-      { adapter }, { layoutManager }) { adapter, diff ->
-      adapter.fillDiff(diff)
-    }
+		binding.exitButton.setOnClickListener {
+			viewModel.setScreen(MainViewModel.SCREEN_MAIN)
+		}
 
-    binding.list.viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
+		viewModel.currentScreen.observe(viewLifecycleOwner) { current ->
+			if (current == MainViewModel.SCREEN_TEMPLATE_DETAILS) {
+				return@observe
+			}
 
-    binding.exitButton.setOnClickListener {
-      viewModel.setScreen(MainViewModel.SCREEN_MAIN)
-    }
+			reloadTemplates()
+		}
+	}
 
-    viewModel.currentScreen.observe(viewLifecycleOwner) { current ->
-      if (current == MainViewModel.SCREEN_TEMPLATE_DETAILS) {
-        return@observe
-      }
+	override fun onDestroyView() {
+		binding.list.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
+		super.onDestroyView()
+	}
 
-      reloadTemplates()
-    }
-  }
+	private fun reloadTemplates() {
+		_binding ?: return
 
-  override fun onDestroyView() {
-    binding.list.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
-    super.onDestroyView()
-  }
+		log.debug("Reloading templates...")
 
-  private fun reloadTemplates() {
-    _binding ?: return
+		// Show only project templates
+		// reloading the tempaltes also makes sure that the resources are
+		// released from template parameter widgets
+		val templates =
+			ITemplateProvider
+				.getInstance(reload = true)
+				.getTemplates()
+				.filterIsInstance<ProjectTemplate>()
 
-    log.debug("Reloading templates...")
+		adapter =
+			TemplateListAdapter(
+				templates = templates,
+				onClick = { template, _ ->
+					viewModel.template.value = template
+					viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_DETAILS)
+				},
+				onLongClick = { template, itemView ->
+					template.tooltipTag?.let { tag -> showTooltipForView(itemView, tag) }
+				},
+			)
 
-    // Show only project templates
-    // reloading the tempaltes also makes sure that the resources are
-    // released from template parameter widgets
-    val templates = ITemplateProvider.getInstance(reload = true).getTemplates()
-      .filterIsInstance<ProjectTemplate>()
+		binding.list.adapter = adapter
+	}
 
-    adapter = TemplateListAdapter(templates) { template, _ ->
-      viewModel.template.value = template
-      viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_DETAILS)
-    }
+	private fun showTooltipForView(
+		root: View,
+		tooltipTag: String,
+	) {
+		val lifecycleOwner = root.context as? LifecycleOwner ?: return
+		lifecycleOwner.lifecycleScope.launch {
+			try {
+				val tooltipData = getTooltipData(root.context, "ide", tooltipTag)
+				tooltipData?.let {
+					TooltipUtils.showIDETooltip(
+						context = root.context,
+						level = 0,
+						tooltipItem = it,
+						anchorView = root,
+					)
+				}
+			} catch (e: Exception) {
+				Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+			}
+		}
+	}
 
-    binding.list.adapter = adapter
-  }
+	suspend fun getTooltipData(
+		context: Context,
+		category: String,
+		tag: String,
+	): IDETooltipItem? =
+		withContext(Dispatchers.IO) {
+			TooltipManager.getTooltip(context, category, tag)
+		}
 }
