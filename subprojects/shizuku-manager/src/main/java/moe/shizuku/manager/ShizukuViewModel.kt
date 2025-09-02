@@ -10,13 +10,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import moe.shizuku.manager.model.ServiceStatus
 import moe.shizuku.manager.utils.ShizukuSystemApis
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.math.log
 
 class ShizukuViewModel : ViewModel() {
 	companion object {

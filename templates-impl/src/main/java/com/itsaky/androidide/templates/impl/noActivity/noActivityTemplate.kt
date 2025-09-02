@@ -25,14 +25,14 @@ import com.itsaky.androidide.templates.impl.base.emptyThemesAndColors
 import com.itsaky.androidide.templates.impl.baseProjectImpl
 
 fun noActivityProjectTemplate() = baseProjectImpl {
-  templateName = R.string.template_no_activity
-  thumb = R.drawable.template_no_activity
-  tooltipTag = TooltipTag.TEMPLATE_NO_ACTIVITY
-  defaultAppModule {
-    recipe = createRecipe {
-      res {
-        emptyThemesAndColors(actionBar = true)
-      }
-    }
-  }
+templateName = R.string.template_no_activity
+thumb = R.drawable.template_no_activity
+tooltipTag = TooltipTag.TEMPLATE_NO_ACTIVITY
+defaultAppModule {
+	recipe = createRecipe {
+	res {
+		emptyThemesAndColors(actionBar = true)
+	}
+	}
+}
 }

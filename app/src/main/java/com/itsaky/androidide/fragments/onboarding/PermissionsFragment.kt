@@ -32,12 +32,12 @@ import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
 import com.itsaky.androidide.R
-import com.itsaky.androidide.utils.isAccessibilityEnabled
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.models.OnboardingPermissionItem
 import com.itsaky.androidide.services.debug.ForegroundDetectionService
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isAccessibilityEnabled
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastT
 import org.slf4j.LoggerFactory
@@ -45,45 +45,47 @@ import org.slf4j.LoggerFactory
 /**
  * @author Akash Yadav
  */
-class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
-
+class PermissionsFragment :
+	OnboardingMultiActionFragment(),
+	SlidePolicy {
 	var adapter: OnboardingPermissionsAdapter? = null
 
-	private val storagePermissionRequestLauncher = registerForActivityResult(
-		ActivityResultContracts.RequestMultiplePermissions()
-	) {
-		onPermissionsUpdated()
-	}
+	private val storagePermissionRequestLauncher =
+		registerForActivityResult(
+			ActivityResultContracts.RequestMultiplePermissions(),
+		) {
+			onPermissionsUpdated()
+		}
 
-	private val settingsTogglePermissionRequestLauncher = registerForActivityResult(
-		ActivityResultContracts.StartActivityForResult()
-	) {
-		onPermissionsUpdated()
-	}
+	private val settingsTogglePermissionRequestLauncher =
+		registerForActivityResult(
+			ActivityResultContracts.StartActivityForResult(),
+		) {
+			onPermissionsUpdated()
+		}
 
 	private val permissions by lazy {
 		getRequiredPermissions(requireContext())
 	}
 
 	companion object {
-
 		private val logger = LoggerFactory.getLogger(PermissionsFragment::class.java)
 
 		@JvmStatic
-		fun newInstance(context: Context): PermissionsFragment {
-			return PermissionsFragment().apply {
-				arguments = Bundle().apply {
-					putCharSequence(
-						KEY_ONBOARDING_TITLE,
-						context.getString(R.string.onboarding_title_permissions)
-					)
-					putCharSequence(
-						KEY_ONBOARDING_SUBTITLE,
-						context.getString(R.string.onboarding_subtitle_permissions)
-					)
-				}
+		fun newInstance(context: Context): PermissionsFragment =
+			PermissionsFragment().apply {
+				arguments =
+					Bundle().apply {
+						putCharSequence(
+							KEY_ONBOARDING_TITLE,
+							context.getString(R.string.onboarding_title_permissions),
+						)
+						putCharSequence(
+							KEY_ONBOARDING_SUBTITLE,
+							context.getString(R.string.onboarding_subtitle_permissions),
+						)
+					}
 			}
-		}
 
 		@JvmStatic
 		fun getRequiredPermissions(context: Context): List<OnboardingPermissionItem> {
@@ -95,17 +97,18 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
 						Manifest.permission.POST_NOTIFICATIONS,
 						R.string.permission_title_notifications,
 						R.string.permission_desc_notifications,
-						canPostNotifications(context)
-					)
+						canPostNotifications(context),
+					),
 				)
 			}
 
 			permissions.add(
 				OnboardingPermissionItem(
 					Manifest.permission_group.STORAGE,
-					R.string.permission_title_storage, R.string.permission_desc_storage,
-					isStoragePermissionGranted(context)
-				)
+					R.string.permission_title_storage,
+					R.string.permission_desc_storage,
+					isStoragePermissionGranted(context),
+				),
 			)
 
 			permissions.add(
@@ -113,8 +116,8 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
 					Manifest.permission.REQUEST_INSTALL_PACKAGES,
 					R.string.permission_title_install_packages,
 					R.string.permission_desc_install_packages,
-					canRequestPackageInstalls(context)
-				)
+					canRequestPackageInstalls(context),
+				),
 			)
 
 			permissions.add(
@@ -122,16 +125,18 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
 					Manifest.permission.SYSTEM_ALERT_WINDOW,
 					R.string.permission_title_overlay_window,
 					R.string.permission_desc_overlay_window,
-					canDrawOverlays(context)
-				)
+					canDrawOverlays(context),
+				),
 			)
 
 			permissions.add(
 				OnboardingPermissionItem(
 					Manifest.permission.BIND_ACCESSIBILITY_SERVICE,
-					R.string.permission_title_accessibility, R.string.permission_desc_accessibility,
-					canDetectForegroundApps(context), isOptional = true
-				)
+					R.string.permission_title_accessibility,
+					R.string.permission_desc_accessibility,
+					canDetectForegroundApps(context),
+					isOptional = true,
+				),
 			)
 
 			return permissions
@@ -139,19 +144,16 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
 
 		@JvmStatic
 		@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-		fun canPostNotifications(context: Context) =
-			isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
+		fun canPostNotifications(context: Context) = isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
 
 		@JvmStatic
-		fun canDetectForegroundApps(context: Context): Boolean =
-			context.isAccessibilityEnabled<ForegroundDetectionService>()
+		fun canDetectForegroundApps(context: Context): Boolean = context.isAccessibilityEnabled<ForegroundDetectionService>()
 
 		@JvmStatic
 		fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
 
 		@JvmStatic
-		fun areAllPermissionsGranted(context: Context): Boolean =
-			getRequiredPermissions(context).all { it.isOptional || it.isGranted }
+		fun areAllPermissionsGranted(context: Context): Boolean = getRequiredPermissions(context).all { it.isOptional || it.isGranted }
 
 		@JvmStatic
 		fun isStoragePermissionGranted(context: Context): Boolean {
@@ -161,44 +163,46 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
 
 			return checkSelfPermission(
 				context,
-				Manifest.permission.READ_EXTERNAL_STORAGE
-			) && checkSelfPermission(
-				context,
-				Manifest.permission.WRITE_EXTERNAL_STORAGE
-			)
+				Manifest.permission.READ_EXTERNAL_STORAGE,
+			) &&
+				checkSelfPermission(
+					context,
+					Manifest.permission.WRITE_EXTERNAL_STORAGE,
+				)
 		}
 
 		@JvmStatic
-		fun canRequestPackageInstalls(context: Context): Boolean {
-			return context.packageManager.canRequestPackageInstalls()
-		}
+		fun canRequestPackageInstalls(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
 
 		@JvmStatic
-		fun isPermissionGranted(context: Context, permission: String): Boolean {
-			return when (permission) {
+		fun isPermissionGranted(
+			context: Context,
+			permission: String,
+		): Boolean =
+			when (permission) {
 				Manifest.permission_group.STORAGE -> isStoragePermissionGranted(context)
 				Manifest.permission.REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
 				Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
 				Manifest.permission.BIND_ACCESSIBILITY_SERVICE -> canDetectForegroundApps(context)
 				else -> checkSelfPermission(context, permission)
 			}
-		}
 
 		@JvmStatic
-		fun checkSelfPermission(context: Context, permission: String): Boolean {
-			return ActivityCompat.checkSelfPermission(
+		fun checkSelfPermission(
+			context: Context,
+			permission: String,
+		): Boolean =
+			ActivityCompat.checkSelfPermission(
 				context,
-				permission
+				permission,
 			) == PackageManager.PERMISSION_GRANTED
-		}
 	}
 
-	override fun createAdapter(): RecyclerView.Adapter<*> {
-		return OnboardingPermissionsAdapter(
+	override fun createAdapter(): RecyclerView.Adapter<*> =
+		OnboardingPermissionsAdapter(
 			permissions,
-			this::requestPermission
+			this::requestPermission,
 		).also { this.adapter = it }
-	}
 
 	private fun onPermissionsUpdated() {
 		permissions.forEach { it.isGranted = isPermissionGranted(requireContext(), it.permission) }
@@ -208,20 +212,23 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
 	private fun requestPermission(permission: String) {
 		when (permission) {
 			Manifest.permission_group.STORAGE -> requestStoragePermission()
-			Manifest.permission.REQUEST_INSTALL_PACKAGES -> requestSettingsTogglePermission(
-				Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES
-			)
+			Manifest.permission.REQUEST_INSTALL_PACKAGES ->
+				requestSettingsTogglePermission(
+					Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+				)
 
 			Manifest.permission.SYSTEM_ALERT_WINDOW -> requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-			Manifest.permission.BIND_ACCESSIBILITY_SERVICE -> requestSettingsTogglePermission(
-				Settings.ACTION_ACCESSIBILITY_SETTINGS,
-				false
-			)
+			Manifest.permission.BIND_ACCESSIBILITY_SERVICE ->
+				requestSettingsTogglePermission(
+					Settings.ACTION_ACCESSIBILITY_SETTINGS,
+					false,
+				)
 
-			Manifest.permission.POST_NOTIFICATIONS -> requestSettingsTogglePermission(
-				Settings.ACTION_APP_NOTIFICATION_SETTINGS,
-				setData = false
-			)
+			Manifest.permission.POST_NOTIFICATIONS ->
+				requestSettingsTogglePermission(
+					Settings.ACTION_APP_NOTIFICATION_SETTINGS,
+					setData = false,
+				)
 		}
 	}
 
@@ -234,12 +241,15 @@ class PermissionsFragment : OnboardingMultiActionFragment(), SlidePolicy {
 		storagePermissionRequestLauncher.launch(
 			arrayOf(
 				Manifest.permission.READ_EXTERNAL_STORAGE,
-				Manifest.permission.WRITE_EXTERNAL_STORAGE
-			)
+				Manifest.permission.WRITE_EXTERNAL_STORAGE,
+			),
 		)
 	}
 
-	private fun requestSettingsTogglePermission(action: String, setData: Boolean = true) {
+	private fun requestSettingsTogglePermission(
+		action: String,
+		setData: Boolean = true,
+	) {
 		val intent = Intent(action)
 		intent.putExtra(Settings.EXTRA_APP_PACKAGE, BuildInfo.PACKAGE_NAME)
 		if (setData) {
