@@ -195,6 +195,38 @@ WHERE  C.contentTypeID = CT.id
 
         if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
 
+        // NEW FEATURE: Handle large content with fragmentation
+        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
+            val query2 = """
+SELECT content
+FROM   Content
+WHERE  path = ?
+  AND  languageId = 1
+        """
+            var fragmentNumber = 1
+            var dbContent2 = dbContent
+            var shouldContinue = true
+
+            while (dbContent2.size == 1024 * 1024 && shouldContinue) {
+                val path2 = "${path}-${fragmentNumber}"
+                try {
+                    val cursor2 = database.rawQuery(query2, arrayOf(path2,))
+                    if (cursor2.count > 0) {
+                        cursor2.moveToFirst()
+                        dbContent2 = cursor2.getBlob(0)
+                        cursor2.close()
+                        fragmentNumber++
+                    } else {
+                        cursor2.close()
+                        shouldContinue = false
+                    }
+                } catch (e: Exception) {
+                    log.debug("Error retrieving fragment {}: {}", fragmentNumber, e.message)
+                    shouldContinue = false
+                }
+            }
+        }
+
         // If the Accept-Encoding header contains "br", the client can handle
         // Brotli. Send Brotli data as-is, without decompressing it here.
         // If the client can't handle Brotli, and the content is Brotli-
@@ -231,38 +263,6 @@ WHERE  C.contentTypeID = CT.id
         output.write(dbContent)
         output.flush()
         cursor.close()
-
-        // NEW FEATURE: Handle large content with fragmentation
-        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
-            val query2 = """
-SELECT content
-FROM   Content
-WHERE  path = ?
-  AND  languageId = 1
-        """
-            var fragmentNumber = 1
-            var dbContent2 = dbContent
-            var shouldContinue = true
-
-            while (dbContent2.size == 1024 * 1024 && shouldContinue) {
-                val path2 = "${path}-${fragmentNumber}"
-                try {
-                    val cursor2 = database.rawQuery(query2, arrayOf(path2,))
-                    if (cursor2.count > 0) {
-                        cursor2.moveToFirst()
-                        dbContent2 = cursor2.getBlob(0)
-                        cursor2.close()
-                        fragmentNumber++
-                    } else {
-                        cursor2.close()
-                        shouldContinue = false
-                    }
-                } catch (e: Exception) {
-                    log.debug("Error retrieving fragment {}: {}", fragmentNumber, e.message)
-                    shouldContinue = false
-                }
-            }
-        }
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
