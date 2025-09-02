@@ -237,7 +237,7 @@ open class ModuleTemplateData(name: String, val appName: String?, val packageNam
  * @property thumb The thumbnail for the template.
  */
 open class Template<R : TemplateRecipeResult>(@StringRes open val templateName: Int,
-  @DrawableRes open val thumb: Int, open val widgets: List<Widget<*>>,
+  @DrawableRes open val thumb: Int, open val tooltipTag: String?, open val widgets: List<Widget<*>>,
   open val recipe: TemplateRecipe<R>) {
 
   /**
@@ -257,14 +257,14 @@ open class Template<R : TemplateRecipeResult>(@StringRes open val templateName: 
   companion object {
 
     @JvmStatic
-    val EMPTY = Template(-1, -1, emptyList(), EMPTY_RECIPE)
+    val EMPTY = Template(-1, -1, null, emptyList(), EMPTY_RECIPE)
   }
 }
 
 open class ProjectTemplate(val moduleTemplates: List<Template<*>>, @StringRes templateName: Int,
-  @DrawableRes thumb: Int, widgets: List<Widget<*>>,
+  @DrawableRes thumb: Int, tooltipTag: String?, widgets: List<Widget<*>>,
   recipe: TemplateRecipe<ProjectTemplateRecipeResult>) :
-  Template<ProjectTemplateRecipeResult>(templateName, thumb, widgets, recipe) {
+  Template<ProjectTemplateRecipeResult>(templateName, thumb, tooltipTag, widgets, recipe) {
 
   override val parameters: Collection<Parameter<*>>
     get() = if (moduleTemplates.isEmpty()) super.parameters else super.parameters.toMutableList()
@@ -300,13 +300,13 @@ open class ProjectTemplate(val moduleTemplates: List<Template<*>>, @StringRes te
 open class ModuleTemplate(val name: String, @StringRes templateName: Int, @DrawableRes thumb: Int,
   widgets: List<Widget<*>>,
   recipe: TemplateRecipe<ModuleTemplateRecipeResult>) :
-  Template<ModuleTemplateRecipeResult>(templateName, thumb, widgets, recipe)
+  Template<ModuleTemplateRecipeResult>(templateName, thumb, null, widgets, recipe)
 
 /**
  * Template for creating a file.
  */
 open class FileTemplate<R : FileTemplateRecipeResult>(@StringRes name: Int, @DrawableRes thumb: Int,
-  widgets: List<Widget<*>>, recipe: TemplateRecipe<R>) : Template<R>(name, thumb, widgets, recipe)
+  widgets: List<Widget<*>>, recipe: TemplateRecipe<R>) : Template<R>(name, thumb, null, widgets, recipe)
 
 /**
  * Base class for template builders.
@@ -317,7 +317,8 @@ open class FileTemplate<R : FileTemplateRecipeResult>(@StringRes name: Int, @Dra
  * @property recipe The recipe for building the template.
  */
 abstract class TemplateBuilder<R : TemplateRecipeResult>(
-  @StringRes open var templateName: Int? = null, @DrawableRes open var thumb: Int? = null,
+  @StringRes open var templateName: Int? = null,
+  @DrawableRes open var thumb: Int? = null, open var tooltipTag: String? = null,
   open var widgets: List<Widget<*>>? = null, open var recipe: TemplateRecipe<R>? = null) {
 
   /**

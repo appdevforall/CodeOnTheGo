@@ -35,7 +35,7 @@ class DebugAction(
 	context = context,
 	labelRes = R.string.action_start_debugger,
 	iconRes = R.drawable.ic_db_startdebugger,
-) {
+	) {
 	override val id = ID
 
 	companion object {

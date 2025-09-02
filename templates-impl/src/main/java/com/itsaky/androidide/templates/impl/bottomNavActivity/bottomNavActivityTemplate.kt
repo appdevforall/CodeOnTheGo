@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.bottomNavActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.models.Dependency
@@ -32,6 +33,7 @@ import com.itsaky.androidide.templates.impl.templateAsset
 fun bottomNavActivityProject() = baseProjectImpl {
     templateName = R.string.template_navigation_tabs
     thumb = R.drawable.template_bottom_navigation_activity
+    tooltipTag = TooltipTag.TEMPLATE_BOTTOM_NAV_ACTIVITY
     defaultAppModule {
         recipe = createRecipe {
             sources {

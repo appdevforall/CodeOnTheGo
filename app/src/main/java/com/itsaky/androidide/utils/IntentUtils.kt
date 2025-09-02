@@ -45,6 +45,10 @@ object IntentUtils {
 
 	private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
 
+	// using '*/*' results in weird syntax highlighting on github
+	// use this as a workaround
+	private const val MIME_ANY = "*" + "/" + "*"
+
 	@JvmStatic
 	fun openImage(context: Context, file: File) {
 		imageIntent(context = context, file = file, intentAction = Intent.ACTION_VIEW)
@@ -80,7 +84,7 @@ object IntentUtils {
 	fun startIntent(
 		context: Context,
 		file: File,
-		mimeType: String = "*/*",
+		mimeType: String = MIME_ANY,
 		intentAction: String = Intent.ACTION_SEND
 	) {
 		val uri =
@@ -134,7 +138,8 @@ object IntentUtils {
 			}
 
 			if (!debug) {
-				// launch-only, simply start the activitycontext.startActivity(launchIntent)
+				// launch-only, simply start the activity
+				context.startActivity(launchIntent)
 				return true
 			}
 			if (!Shizuku.pingBinder()) {

@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.noActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.base.modules.android.defaultAppModule
 import com.itsaky.androidide.templates.impl.R
 import com.itsaky.androidide.templates.impl.base.createRecipe
@@ -26,6 +27,7 @@ import com.itsaky.androidide.templates.impl.baseProjectImpl
 fun noActivityProjectTemplate() = baseProjectImpl {
   templateName = R.string.template_no_activity
   thumb = R.drawable.template_no_activity
+  tooltipTag = TooltipTag.TEMPLATE_NO_ACTIVITY
   defaultAppModule {
     recipe = createRecipe {
       res {
