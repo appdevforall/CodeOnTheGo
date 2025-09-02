@@ -247,33 +247,12 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		// TODO be defined
 	}
 
-    @UiThread
     fun showToolTipDialog(
         tag: String,
         anchorView: View? = null
     ) {
-        viewLifecycleScope.launch {
-            val item = TooltipManager.getTooltip(
-                context = requireContext(),
-                category = TooltipCategory.CATEGORY_IDE,
-                tag = tag
-            )
-
-            item?.let { tooltipData ->
-                TooltipManager.showIDETooltip(
-                    requireContext(),
-                    anchorView ?: binding.root,
-                    0,
-                    item,
-                    { context, url, title ->
-                        val intent = Intent(context, HelpActivity::class.java).apply {
-                            putExtra(CONTENT_KEY, url)
-                            putExtra(CONTENT_TITLE_KEY, title)
-                        }
-                        context.startActivity(intent)
-                    }
-                )
-            }
+        anchorView?.let {
+            TooltipManager.showTooltip(requireContext(), it, tag)
         }
     }
 

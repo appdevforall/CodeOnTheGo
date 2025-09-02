@@ -2,6 +2,7 @@ package com.itsaky.androidide.idetooltips
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.drawable.ColorDrawable
 import android.util.Log
@@ -16,9 +17,14 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 
 
@@ -143,6 +149,39 @@ object TooltipManager {
         )
     }
 
+    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
+    fun showTooltip(
+        context: Context,
+        anchorView: View,
+        tag: String,
+        category: String = TooltipCategory.CATEGORY_IDE
+    ) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                category,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+            }
+        }
+    }
     /**
      * Internal helper function to create, configure, and show the tooltip PopupWindow.
      * Contains the logic common to both showIDETooltip and showEditorTooltip.
