@@ -54,6 +54,24 @@ class WebServer(private val config: ServerConfig) {
         return timestamp
     }
 
+    // NEW FEATURE: Log database last change information
+    fun logDatabaseLastChanged() {
+        try {
+            val query = """
+SELECT now, who
+FROM   LastChange
+"""
+            val cursor = database.rawQuery(query, arrayOf())
+            if (cursor.count > 0) {
+                cursor.moveToFirst()
+                log.debug("Database last change: {} {}.", cursor.getString(0), cursor.getString(1))
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            log.debug("Could not retrieve database last change info: {}", e.message)
+        }
+    }
+
     fun start() {
         lateinit var clientSocket: Socket
         try {
@@ -68,6 +86,9 @@ class WebServer(private val config: ServerConfig) {
                 log.error("Cannot open database: {}", e.message)
                 return
             }
+
+            // NEW FEATURE: Log database metadata when debug is enabled
+            if (debugEnabled) logDatabaseLastChanged()
 
             serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
             log.info("WebServer started successfully.")
@@ -210,6 +231,38 @@ WHERE  C.contentTypeID = CT.id
         output.write(dbContent)
         output.flush()
         cursor.close()
+
+        // NEW FEATURE: Handle large content with fragmentation
+        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
+            val query2 = """
+SELECT content
+FROM   Content
+WHERE  path = ?
+  AND  languageId = 1
+        """
+            var fragmentNumber = 1
+            var dbContent2 = dbContent
+            var shouldContinue = true
+
+            while (dbContent2.size == 1024 * 1024 && shouldContinue) {
+                val path2 = "${path}-${fragmentNumber}"
+                try {
+                    val cursor2 = database.rawQuery(query2, arrayOf(path2,))
+                    if (cursor2.count > 0) {
+                        cursor2.moveToFirst()
+                        dbContent2 = cursor2.getBlob(0)
+                        cursor2.close()
+                        fragmentNumber++
+                    } else {
+                        cursor2.close()
+                        shouldContinue = false
+                    }
+                } catch (e: Exception) {
+                    log.debug("Error retrieving fragment {}: {}", fragmentNumber, e.message)
+                    shouldContinue = false
+                }
+            }
+        }
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
