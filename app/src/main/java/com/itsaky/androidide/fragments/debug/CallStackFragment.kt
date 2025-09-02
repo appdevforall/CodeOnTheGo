@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,8 +11,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
-import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
 import com.itsaky.androidide.fragments.RecyclerViewFragment
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,106 +23,97 @@ import kotlinx.coroutines.withContext
  * @author Akash Yadav
  */
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
-    override val fragmentTooltipTag: String? = DEBUG_OUTPUT_CALLSTACK
-    private val viewHolder by activityViewModels<DebuggerViewModel>()
+	override val fragmentTooltipTag: String? = null // Tooltip pending to be defined
+	private val viewHolder by activityViewModels<DebuggerViewModel>()
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-        viewLifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewHolder.observeLatestAllFrames(
-                    scope = this,
-                    notifyOn = Dispatchers.Main
-                ) {
-                    setAdapter(onCreateAdapter())
-                }
+		viewLifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				viewHolder.observeLatestAllFrames(
+					scope = this,
+					notifyOn = Dispatchers.Main,
+				) {
+					setAdapter(onCreateAdapter())
+				}
 
-                viewHolder.observeLatestSelectedFrame(
-                    scope = this,
-                    notifyOn = Dispatchers.Main
-                ) { _, index ->
-                    (_binding?.root?.adapter as? CallStackAdapter?)?.apply {
-                        val currentSelected = selectedFrameIndex
-                        selectedFrameIndex = index
-                        notifyItemChanged(currentSelected)
-                        notifyItemChanged(index)
-                    }
-                }
-            }
-        }
-    }
+				viewHolder.observeLatestSelectedFrame(
+					scope = this,
+					notifyOn = Dispatchers.Main,
+				) { _, index ->
+					(_binding?.root?.adapter as? CallStackAdapter?)?.apply {
+						val currentSelected = selectedFrameIndex
+						selectedFrameIndex = index
+						notifyItemChanged(currentSelected)
+						notifyItemChanged(index)
+					}
+				}
+			}
+		}
+	}
 
-    override fun onCreateAdapter() = CallStackAdapter(
-        viewLifecycleScope,
-        requireContext(),
-        viewHolder.allFrames.value,
-        { newPosition ->
-            viewLifecycleScope.launch {
-                viewHolder.setSelectedFrameIndex(newPosition)
-            }
-        },
-        parentFragment as? TooltipHost
-    )
+	override fun onCreateAdapter() =
+		CallStackAdapter(viewLifecycleScope, viewHolder.allFrames.value) { newPosition ->
+			viewLifecycleScope.launch {
+				viewHolder.setSelectedFrameIndex(newPosition)
+			}
+		}
 }
 
 class CallStackAdapter(
-    private val coroutineScope: CoroutineScope,
-    private val context: Context,
-    private val frames: List<ResolvableStackFrame>,
-    private val onItemClickListener: ((Int) -> Unit)? = null,
-    private val tooltipHost: TooltipHost? = null
+	private val coroutineScope: CoroutineScope,
+	private val frames: List<ResolvableStackFrame>,
+	private val onItemClickListener: ((Int) -> Unit)? = null,
 ) : RecyclerView.Adapter<CallStackAdapter.VH>() {
+	var selectedFrameIndex: Int = 0
 
-    var selectedFrameIndex: Int = 0
+	class VH(
+		val binding: DebuggerCallstackItemBinding,
+	) : RecyclerView.ViewHolder(binding.root)
 
-    class VH(
-        val binding: DebuggerCallstackItemBinding
-    ) : RecyclerView.ViewHolder(binding.root)
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): VH {
+		val inflater = LayoutInflater.from(parent.context)
+		val binding = DebuggerCallstackItemBinding.inflate(inflater, parent, false)
+		return VH(binding)
+	}
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val inflater = LayoutInflater.from(parent.context)
-        val binding = DebuggerCallstackItemBinding.inflate(inflater, parent, false)
-        return VH(binding)
-    }
+	override fun getItemCount() = frames.size
 
-    override fun getItemCount() = frames.size
+	@SuppressLint("SetTextI18n")
+	override fun onBindViewHolder(
+		holder: VH,
+		position: Int,
+	) {
+		val binding = holder.binding
+		val frame = frames[position]
 
-    @SuppressLint("SetTextI18n")
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val binding = holder.binding
-        val frame = frames[position]
+		if (!frame.isResolved) {
+			binding.source.text = binding.root.context.getString(R.string.debugger_status_resolving)
+		}
 
-        if (!frame.isResolved) {
-            binding.source.text = binding.root.context.getString(R.string.debugger_status_resolving)
-        }
+		coroutineScope.launch {
+			val descriptor = frame.resolve()
+			withContext(Dispatchers.Main) {
+				if (descriptor == null) {
+					binding.label.text = "<error>"
+					return@withContext
+				}
 
-        coroutineScope.launch {
-            val descriptor = frame.resolve()
-            withContext(Dispatchers.Main) {
-                if (descriptor == null) {
-                    binding.label.text = "<error>"
-                    return@withContext
-                }
+				binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
+				binding.label.text = descriptor.displayText()
+				binding.indicator.visibility = if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
 
-                binding.source.text = "${descriptor.sourceFile}:${descriptor.lineNumber}"
-                binding.label.text = descriptor.displayText()
-                binding.indicator.visibility =
-                    if (position == selectedFrameIndex) View.VISIBLE else View.INVISIBLE
-
-                binding.root.setOnClickListener {
-                    onItemClickListener?.invoke(position)
-                }
-
-                binding.root.setOnLongClickListener {
-                    tooltipHost?.showToolTip(DEBUG_OUTPUT_CALLSTACK)
-                    true
-                }
-            }
-        }
-
-
-    }
-
-
+				binding.root.setOnClickListener {
+					onItemClickListener?.invoke(position)
+				}
+			}
+		}
+	}
 }

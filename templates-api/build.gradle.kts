@@ -18,25 +18,25 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  id("org.jetbrains.kotlin.android")
+	id("com.android.library")
+	id("org.jetbrains.kotlin.android")
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.templates"
+	namespace = "${BuildConfig.PACKAGE_NAME}.templates"
 }
 
 dependencies {
-  api(libs.composite.javapoet)
+	api(libs.composite.javapoet)
 
-  api(projects.common)
-  api(projects.logger)
-  api(projects.resources)
-  api(projects.subprojects.xmlDom)
-  api(projects.subprojects.xmlUtils)
+	api(projects.common)
+	api(projects.logger)
+	api(projects.resources)
+	api(projects.subprojects.xmlDom)
+	api(projects.subprojects.xmlUtils)
 
-  api(libs.aapt2.common)
-  api(libs.androidx.annotation)
-  api(libs.androidx.appcompat)
-  api(libs.google.material)
+	api(libs.aapt2.common)
+	api(libs.androidx.annotation)
+	api(libs.androidx.appcompat)
+	api(libs.google.material)
 }

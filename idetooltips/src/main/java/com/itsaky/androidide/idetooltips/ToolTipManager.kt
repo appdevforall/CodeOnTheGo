@@ -28,21 +28,14 @@ object TooltipManager {
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
                                                "/Download/documentation.db")
 
-    private const val QUERY_TOOLTIP_ONE_CATEGORY = """
-        SELECT T.id, T.summary, T.detail
+    private const val QUERY_TOOLTIP = """
+        SELECT T.rowid, T.id, T.summary, T.detail
         FROM Tooltips AS T, TooltipCategories AS TC
         WHERE T.categoryId = TC.id
           AND T.tag = ?
           AND TC.category = ?
     """
 
-    private const val QUERY_TOOLTIP_TWO_CATEGORIES = """
-        SELECT T.id, T.summary, T.detail
-        FROM Tooltips AS T, TooltipCategories AS TC
-        WHERE T.categoryId = TC.id
-          AND T.tag = ?
-          AND TC.category in ('?', 'a')
-    """
 
     private const val QUERY_TOOLTIP_BUTTONS = """
         SELECT description, uri
@@ -51,7 +44,14 @@ object TooltipManager {
         ORDER BY buttonNumberId
     """
 
+    private const val QUERY_LAST_CHANGE = """
+        SELECT now, who
+        FROM LastChange
+    """
+
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
+        Log.d(TAG, "In getTooltip() for category='$category', tag='$tag'.")
+
         return withContext(Dispatchers.IO) {
             var dbPath = Environment.DOC_DB.absolutePath
 
@@ -63,47 +63,57 @@ object TooltipManager {
                 dbPath = debugDatabaseFile.absolutePath
             }
 
+            var lastChange = "n/a"
+            var rowId      = -1
+            var tooltipId  = -1
+            var summary    = "n/a"
+            var detail     = "n/a"
+            var buttons: ArrayList<Pair<String, String>> = ArrayList<Pair<String, String>>()
+
             try {
                 val db = SQLiteDatabase.openDatabase(dbPath, null, SQLiteDatabase.OPEN_READONLY)
 
-                val tooltipQuery = if   ((category == "j" || category == "k")) QUERY_TOOLTIP_TWO_CATEGORIES
-                                   else QUERY_TOOLTIP_ONE_CATEGORY
+                var cursor = db.rawQuery(QUERY_LAST_CHANGE, arrayOf())
+                cursor.moveToFirst()
 
-                var cursor = db.rawQuery(tooltipQuery, arrayOf(tag, category))
+                lastChange = "${cursor.getString(0)} ${cursor.getString(1)}"
+
+                Log.d(TAG, "last change is '${lastChange}'.")
+
+                cursor = db.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category))
                 
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
                     1 -> { /* Expected case, continue processing */ }
                     else -> throw DatabaseCorruptionException(
                         "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
-                        "This indicates database corruption - each category/tag combination should be unique."
+                        "Each category/tag combination should be unique."
                     )
                 }
 
                 cursor.moveToFirst()
 
-                val tooltipId = cursor.getInt(0)
-                val summary   = cursor.getString(1)
-                val detail    = cursor.getString(2)
+                rowId     = cursor.getInt(0)
+                tooltipId = cursor.getInt(1)
+                summary   = cursor.getString(2)
+                detail    = cursor.getString(3)
 
                 cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
 
-                val buttons = ArrayList<Pair<String, String>>()
                 while (cursor.moveToNext()) {
                     buttons.add(Pair(cursor.getString(0), "http://localhost:6174/" + cursor.getString(1)))
                 }
 
-                Log.d(TAG, "Retrieved ${buttons.size} buttons. They are $buttons.")
+                Log.d(TAG, "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons.")
 
                 cursor.close()
                 db.close()
-                    
-                IDETooltipItem(category, tag, summary, detail, buttons)
-                
+
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting tooltip for category='$category', tag='$tag': ${e.message}")
-                null
             }
+
+            IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
         }
     }
 
@@ -196,7 +206,7 @@ object TooltipManager {
                 url?.let { clickedUrl ->
                     popupWindow.dismiss()
                     // Find the button label for this URL to use as title
-                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first ?: tooltipItem.tooltipTag
+                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first ?: tooltipItem.tag
                     onActionButtonClick(popupWindow, Pair(clickedUrl, buttonLabel))
                 }
                 return true
@@ -242,10 +252,14 @@ object TooltipManager {
         popupWindow.dismiss()
 
         val metadata = """
-        <b>ID:</b> "${tooltip.tooltipTag}"<br/>
-        <b>Raw Summary:</b> "${android.text.Html.escapeHtml(tooltip.summary)}"<br/>
-        <b>Raw Detail:</b> "${android.text.Html.escapeHtml(tooltip.detail)}"<br/>
-        <b>Buttons:</b> ${tooltip.buttons.joinToString { "\"${it.first} → ${it.second}\"" }}<br/>
+        <b>Version</b> <small>'${tooltip.lastChange}'</small><br/>
+        <b>Row:</b> ${tooltip.rowId}<br/>
+        <b>ID:</b> ${tooltip.id}<br/>
+        <b>Category:</b> '${tooltip.category}'<br/>
+        <b>Tag:</b> '${tooltip.tag}'<br/>
+        <b>Raw Summary:</b> '${android.text.Html.escapeHtml(tooltip.summary)}'<br/>
+        <b>Raw Detail:</b> '${android.text.Html.escapeHtml(tooltip.detail)}'<br/>
+        <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
         """.trimIndent()
 
         androidx.appcompat.app.AlertDialog.Builder(context)
