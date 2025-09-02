@@ -702,7 +702,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             hideBottomSheet()
         })
 
-        showSearchResults()
+		focusSearchResults()
         doDismissSearchProgress()
     }
 
@@ -720,11 +720,11 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-	open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
+	open fun focusSearchResults() = focusBottomSheetFragment(SearchResultFragment::class.java)
 
-	open fun showBottomSheetFragment(
+	open fun focusBottomSheetFragment(
 		fragmentClass: Class<out Fragment>,
-		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED,
 	) {
 		showAndGetBottomSheetFragment(fragmentClass, sheetState)
 	}
@@ -850,21 +850,17 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         invalidateOptionsMenu()
     }
 
-    private fun setupViews() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                debuggerViewModel.connectionState.collectLatest { state ->
-                    if (state == DebuggerConnectionState.ATTACHED) {
-                        ensureDebuggerServiceBound()
-                    }
-                    postStopDebuggerServiceIfNotConnected()
-                }
-
-                debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
-                    debuggerService?.targetPackage = newPackage
-                }
-            }
-        }
+	private fun setupViews() {
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
+				debuggerViewModel.connectionState.collectLatest { state ->
+					onDebuggerConnectionStateChanged(state)
+					}
+				debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
+					debuggerService?.targetPackage = newPackage
+				}
+			}
+		}
 
         editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
         editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
@@ -911,6 +907,23 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             }
         }
     }
+
+	protected open fun onDebuggerConnectionStateChanged(state: DebuggerConnectionState) {
+		if (state == DebuggerConnectionState.ATTACHED) {
+			ensureDebuggerServiceBound()
+		}
+
+		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		content.bottomSheet.pagerAdapter.setFragmentVisibility(DebuggerFragment::class.java, state >= DebuggerConnectionState.ATTACHED)
+		if (state == DebuggerConnectionState.ATTACHED) {
+			// if a VM was just attached, make sure the debugger fragment is visible
+			focusBottomSheetFragment(
+				fragmentClass = DebuggerFragment::class.java,
+				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+				)
+		}
+		postStopDebuggerServiceIfNotConnected()
+	}
 
     private fun setupNoEditorView() {
         content.noEditorSummary.movementMethod = LinkMovementMethod()
