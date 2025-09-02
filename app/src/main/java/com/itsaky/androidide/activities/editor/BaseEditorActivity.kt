@@ -32,10 +32,8 @@ import android.os.Process
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
-import android.text.Spanned
 import android.text.TextUtils
 import android.text.method.LinkMovementMethod
-import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
 import android.view.Gravity
 import android.view.View
@@ -47,7 +45,6 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
-import androidx.annotation.StringRes
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
@@ -114,6 +111,7 @@ import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
@@ -162,6 +160,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
     val editorViewModel by viewModels<EditorViewModel>()
     val debuggerViewModel by viewModels<DebuggerViewModel>()
+	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 
     internal var _binding: ActivityEditorBinding? = null
     val binding: ActivityEditorBinding
@@ -177,8 +176,8 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             override fun handleOnBackPressed() {
                 if (binding.root.isDrawerOpen(GravityCompat.START)) {
                     binding.root.closeDrawer(GravityCompat.START)
-                } else if (editorBottomSheet?.state != BottomSheetBehavior.STATE_COLLAPSED) {
-                    editorBottomSheet?.setState(BottomSheetBehavior.STATE_COLLAPSED)
+				} else if (bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_COLLAPSED) {
+					bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
                 } else if (binding.swipeReveal.isOpen) {
                     binding.swipeReveal.close()
                 } else {
@@ -419,16 +418,16 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             return
         }
 
-		startDebuggerAndDo {
-			debuggerViewModel.debugeePackage = packageName
-			withContext(Dispatchers.Main.immediate) {
+        startDebuggerAndDo {
+            debuggerViewModel.debugeePackage = packageName
+            withContext(Dispatchers.Main.immediate) {
 				doLaunchApp(
 					packageName = packageName,
 					debug = true,
 				)
-			}
-		}
-	}
+            }
+        }
+    }
 
 	private fun doLaunchApp(
 		packageName: String,
@@ -702,7 +701,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             hideBottomSheet()
         })
 
-		focusSearchResults()
+		bottomSheetViewModel.setCurrentTab(SearchResultFragment::class.java)
         doDismissSearchProgress()
     }
 
@@ -714,39 +713,21 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         content.bottomSheet.setDiagnosticsAdapter(adapter)
     }
 
-    open fun hideBottomSheet() {
-        if (editorBottomSheet?.state != BottomSheetBehavior.STATE_COLLAPSED) {
-            editorBottomSheet?.state = BottomSheetBehavior.STATE_COLLAPSED
-        }
-    }
-
-	open fun focusSearchResults() = focusBottomSheetFragment(SearchResultFragment::class.java)
-
-	open fun focusBottomSheetFragment(
-		fragmentClass: Class<out Fragment>,
-		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED,
-	) {
-		showAndGetBottomSheetFragment(fragmentClass, sheetState)
+	open fun hideBottomSheet() {
+		bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
 	}
 
-	open fun <T: Fragment> showAndGetBottomSheetFragment(
+	private fun <T : Fragment> focusBottomSheetFragment(
 		fragmentClass: Class<T>,
-		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
-	): T? = content.bottomSheet.run {
+		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED,
+	): Unit = content.bottomSheet.run {
 		val index = pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
-		val fragment = pagerAdapter.getFragmentAtIndex<T>(index) ?: let {
-			log.error("Failed to get bottom sheet fragment at index: {}", index)
-			return@run null
-		}
-
 		if (index >= 0 && index < binding.tabs.tabCount) {
-			if (editorBottomSheet?.state != sheetState) {
-				editorBottomSheet?.state = sheetState
-			}
-			binding.tabs.getTabAt(index)?.select()
+			bottomSheetViewModel.setState(sheetState)
+			binding.tabs
+				.getTabAt(index)
+				?.select()
 		}
-
-		fragment
 	}
 
     open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
@@ -850,24 +831,30 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         invalidateOptionsMenu()
     }
 
-	private fun setupViews() {
-		lifecycleScope.launch {
-			repeatOnLifecycle(Lifecycle.State.STARTED) {
-				debuggerViewModel.connectionState.collectLatest { state ->
+    private fun setupViews() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                debuggerViewModel.connectionState.collectLatest { state ->
 					onDebuggerConnectionStateChanged(state)
-					}
+				}
 				debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
 					debuggerService?.targetPackage = newPackage
 				}
-			}
-		}
+				bottomSheetViewModel.state.collectLatest { state ->
+					editorBottomSheet?.state = state
+				}
+				bottomSheetViewModel.currentTab.collectLatest { fragmentClass ->
+					focusBottomSheetFragment(fragmentClass = fragmentClass)
+				}
+            }
+        }
 
         editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
         editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
         editorViewModel._statusText.observe(this) {
             content.bottomSheet.setStatus(
                 it.first,
-                it.second
+				it.second,
             )
         }
 
@@ -888,25 +875,35 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         setupNoEditorView()
         setupBottomSheet()
 
-        if (!app.prefManager.getBoolean(
-                KEY_BOTTOM_SHEET_SHOWN
-            ) && editorBottomSheet?.state != BottomSheetBehavior.STATE_EXPANDED
-        ) {
-            editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
-            ThreadUtils.runOnUiThreadDelayed({
-                editorBottomSheet?.state = BottomSheetBehavior.STATE_COLLAPSED
-                app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
-            }, 1500)
-        }
+		if (!app.prefManager.getBoolean(
+				KEY_BOTTOM_SHEET_SHOWN,
+				) &&
+			bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_EXPANDED
+		) {
+			bottomSheetViewModel.setState(BottomSheetBehavior.STATE_EXPANDED)
+			ThreadUtils.runOnUiThreadDelayed({
+				bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
+				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
+			}, 1500)
+		}
 
-        binding.contentCard.progress = 0f
-        binding.swipeReveal.dragListener = object : SwipeRevealLayout.OnDragListener {
-            override fun onDragStateChanged(swipeRevealLayout: SwipeRevealLayout, state: Int) {}
-            override fun onDragProgress(swipeRevealLayout: SwipeRevealLayout, progress: Float) {
-                onSwipeRevealDragProgress(progress)
-            }
-        }
-    }
+		binding.contentCard.progress = 0f
+		binding.swipeReveal.dragListener =
+			object : SwipeRevealLayout.OnDragListener {
+				override fun onDragStateChanged(
+					swipeRevealLayout: SwipeRevealLayout,
+					state: Int,
+				) {
+				}
+
+				override fun onDragProgress(
+					swipeRevealLayout: SwipeRevealLayout,
+					progress: Float,
+					) {
+				onSwipeRevealDragProgress(progress)
+			}
+		}
+	}
 
 	protected open fun onDebuggerConnectionStateChanged(state: DebuggerConnectionState) {
 		if (state == DebuggerConnectionState.ATTACHED) {
@@ -914,12 +911,11 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 		}
 
 		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
-		content.bottomSheet.pagerAdapter.setFragmentVisibility(DebuggerFragment::class.java, state >= DebuggerConnectionState.ATTACHED)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			// if a VM was just attached, make sure the debugger fragment is visible
 			focusBottomSheetFragment(
 				fragmentClass = DebuggerFragment::class.java,
-				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED
 				)
 		}
 		postStopDebuggerServiceIfNotConnected()
@@ -963,26 +959,6 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         appendHierarchicalText(R.string.msg_help_hint)
 
         content.noEditorSummary.text = sb
-    }
-
-
-    private fun appendClickableSpan(
-        sb: SpannableStringBuilder,
-        @StringRes textRes: Int,
-        span: ClickableSpan,
-    ) {
-        val str = getString(textRes)
-        val split = str.split("@@", limit = 3)
-        if (split.size != 3) {
-            // Not a valid format
-            sb.append(str)
-            sb.append('\n')
-            return
-        }
-        sb.append(split[0])
-        sb.append(split[1], span, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        sb.append(split[2])
-        sb.append('\n')
     }
 
     private fun setupBottomSheet() {
@@ -1046,16 +1022,9 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-    private fun showNeedHelpDialog() {
-        val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.need_help)
-        builder.setMessage(string.msg_need_help)
-        builder.setPositiveButton(android.R.string.ok, null)
-        builder.create().show()
-    }
-
     open fun installationSessionCallback(): SessionCallback {
         return ApkInstallationSessionCallback(this).also { installationCallback = it }
     }
 
 }
+
