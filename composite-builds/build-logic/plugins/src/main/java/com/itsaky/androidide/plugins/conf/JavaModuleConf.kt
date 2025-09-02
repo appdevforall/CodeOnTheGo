@@ -23,12 +23,12 @@ import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.kotlin.dsl.configure
 
 fun Project.configureJavaModule() {
-  assert(plugins.hasPlugin("java-library")) {
-    "${javaClass.simpleName} can only be applied to Java library projects."
-  }
+	assert(plugins.hasPlugin("java-library")) {
+		"${javaClass.simpleName} can only be applied to Java library projects."
+	}
 
-  configure<JavaPluginExtension> {
-    sourceCompatibility = BuildConfig.JAVA_VERSION
-    targetCompatibility = BuildConfig.JAVA_VERSION
-  }
+	configure<JavaPluginExtension> {
+		sourceCompatibility = BuildConfig.JAVA_VERSION
+		targetCompatibility = BuildConfig.JAVA_VERSION
+	}
 }

@@ -6,137 +6,136 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteCallbackList;
-
 import java.util.UUID;
-
 import moe.shizuku.server.IShizukuServiceConnection;
 import rikka.shizuku.server.util.HandlerUtil;
 import rikka.shizuku.server.util.Logger;
 
 public abstract class UserServiceRecord {
 
-    private Runnable startTimeoutCallback;
+	protected static final Logger LOGGER = new Logger("UserServiceRecord");
 
-    private class ConnectionList extends RemoteCallbackList<IShizukuServiceConnection> {
+	private Runnable startTimeoutCallback;
 
-        @Override
-        public void onCallbackDied(IShizukuServiceConnection callback) {
-            if (daemon || getRegisteredCallbackCount() != 0) {
-                return;
-            }
+	private final IBinder.DeathRecipient deathRecipient;
 
-            LOGGER.v("Remove service record %s since it does not run as a daemon and all connections are gone", token);
-            removeSelf();
-        }
-    }
+	public final int versionCode;
+	public String token;
+	public IBinder service;
+	public final RemoteCallbackList<IShizukuServiceConnection> callbacks = new ConnectionList();
+	public boolean daemon;
+	public boolean starting;
 
-    protected static final Logger LOGGER = new Logger("UserServiceRecord");
+	public UserServiceRecord(int versionCode, boolean daemon) {
+		this.versionCode = versionCode;
+		this.token = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
+		this.deathRecipient = () -> {
+			LOGGER.v("Binder for service record %s is dead", token);
+			removeSelf();
+		};
+		this.daemon = daemon;
+	}
 
-    private final IBinder.DeathRecipient deathRecipient;
-    public final int versionCode;
-    public String token;
-    public IBinder service;
-    public final RemoteCallbackList<IShizukuServiceConnection> callbacks = new ConnectionList();
-    public boolean daemon;
-    public boolean starting;
+	public void broadcastBinderDied() {
+		LOGGER.v("Broadcast binder died for service record %s", token);
 
-    public UserServiceRecord(int versionCode, boolean daemon) {
-        this.versionCode = versionCode;
-        this.token = UUID.randomUUID().toString() + "-" + System.currentTimeMillis();
-        this.deathRecipient = () -> {
-            LOGGER.v("Binder for service record %s is dead", token);
-            removeSelf();
-        };
-        this.daemon = daemon;
-    }
+		int count = callbacks.beginBroadcast();
+		for (int i = 0; i < count; i++) {
+			try {
+				callbacks.getBroadcastItem(i).died();
+			} catch (Throwable e) {
+				LOGGER.w("Failed to call died %s", token);
+			}
+		}
+		callbacks.finishBroadcast();
+	}
 
-    public void setStartingTimeout(long timeoutMillis) {
-        if (starting) {
-            LOGGER.w("Service record %s is already starting", token);
-            return;
-        }
+	public void broadcastBinderReceived() {
+		LOGGER.v("Broadcast binder received for service record %s", token);
 
-        LOGGER.v("Set starting timeout for service record %s: %d", token, timeoutMillis);
+		int count = callbacks.beginBroadcast();
+		for (int i = 0; i < count; i++) {
+			try {
+				callbacks.getBroadcastItem(i).connected(service);
+			} catch (Throwable e) {
+				LOGGER.w("Failed to call connected %s", token);
+			}
+		}
+		callbacks.finishBroadcast();
+	}
 
-        starting = true;
-        startTimeoutCallback = () -> {
-            if (starting) {
-                LOGGER.w("Service record %s is not started in %d ms", token, timeoutMillis);
-                removeSelf();
-            }
-        };
-        HandlerUtil.getMainHandler().postDelayed(startTimeoutCallback, timeoutMillis);
-    }
+	public void destroy() {
+		if (service != null) {
+			service.unlinkToDeath(deathRecipient, 0);
+		}
 
-    public void setDaemon(boolean daemon) {
-        this.daemon = daemon;
-    }
+		if (service != null && service.pingBinder()) {
+			Parcel data = Parcel.obtain();
+			Parcel reply = Parcel.obtain();
+			try {
+				data.writeInterfaceToken(service.getInterfaceDescriptor());
+				service.transact(USER_SERVICE_TRANSACTION_destroy, data, reply, Binder.FLAG_ONEWAY);
+			} catch (Throwable e) {
+				LOGGER.w("Failed to call destroy %s", token);
+			} finally {
+				data.recycle();
+				reply.recycle();
+			}
+		}
 
-    public void setBinder(IBinder binder) {
-        LOGGER.v("Binder received for service record %s", token);
+		callbacks.kill();
+	}
 
-        HandlerUtil.getMainHandler().removeCallbacks(startTimeoutCallback);
+	public abstract void removeSelf();
 
-        service = binder;
+	public void setBinder(IBinder binder) {
+		LOGGER.v("Binder received for service record %s", token);
 
-        try {
-            binder.linkToDeath(deathRecipient, 0);
-        } catch (Throwable tr) {
-            LOGGER.w("linkToDeath %s", token);
-        }
+		HandlerUtil.getMainHandler().removeCallbacks(startTimeoutCallback);
 
-        broadcastBinderReceived();
-    }
+		service = binder;
 
-    public void broadcastBinderReceived() {
-        LOGGER.v("Broadcast binder received for service record %s", token);
+		try {
+			binder.linkToDeath(deathRecipient, 0);
+		} catch (Throwable tr) {
+			LOGGER.w("linkToDeath %s", token);
+		}
 
-        int count = callbacks.beginBroadcast();
-        for (int i = 0; i < count; i++) {
-            try {
-                callbacks.getBroadcastItem(i).connected(service);
-            } catch (Throwable e) {
-                LOGGER.w("Failed to call connected %s", token);
-            }
-        }
-        callbacks.finishBroadcast();
-    }
+		broadcastBinderReceived();
+	}
 
-    public void broadcastBinderDied() {
-        LOGGER.v("Broadcast binder died for service record %s", token);
+	public void setDaemon(boolean daemon) {
+		this.daemon = daemon;
+	}
 
-        int count = callbacks.beginBroadcast();
-        for (int i = 0; i < count; i++) {
-            try {
-                callbacks.getBroadcastItem(i).died();
-            } catch (Throwable e) {
-                LOGGER.w("Failed to call died %s", token);
-            }
-        }
-        callbacks.finishBroadcast();
-    }
+	public void setStartingTimeout(long timeoutMillis) {
+		if (starting) {
+			LOGGER.w("Service record %s is already starting", token);
+			return;
+		}
 
-    public abstract void removeSelf();
+		LOGGER.v("Set starting timeout for service record %s: %d", token, timeoutMillis);
 
-    public void destroy() {
-        if (service != null) {
-            service.unlinkToDeath(deathRecipient, 0);
-        }
+		starting = true;
+		startTimeoutCallback = () -> {
+			if (starting) {
+				LOGGER.w("Service record %s is not started in %d ms", token, timeoutMillis);
+				removeSelf();
+			}
+		};
+		HandlerUtil.getMainHandler().postDelayed(startTimeoutCallback, timeoutMillis);
+	}
 
-        if (service != null && service.pingBinder()) {
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            try {
-                data.writeInterfaceToken(service.getInterfaceDescriptor());
-                service.transact(USER_SERVICE_TRANSACTION_destroy, data, reply, Binder.FLAG_ONEWAY);
-            } catch (Throwable e) {
-                LOGGER.w("Failed to call destroy %s", token);
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
-        }
+	private class ConnectionList extends RemoteCallbackList<IShizukuServiceConnection> {
 
-        callbacks.kill();
-    }
+		@Override
+		public void onCallbackDied(IShizukuServiceConnection callback) {
+			if (daemon || getRegisteredCallbackCount() != 0) {
+				return;
+			}
+
+			LOGGER.v("Remove service record %s since it does not run as a daemon and all connections are gone", token);
+			removeSelf();
+		}
+	}
 }

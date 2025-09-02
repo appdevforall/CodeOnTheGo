@@ -18,29 +18,29 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.application")
+	id("com.android.application")
 }
 
 android {
-  namespace = "${BuildConfig.PACKAGE_NAME}.logsender.sample"
+	namespace = "${BuildConfig.PACKAGE_NAME}.logsender.sample"
 
-  defaultConfig {
-    vectorDrawables {
-      useSupportLibrary = true
-    }
-  }
+	defaultConfig {
+		vectorDrawables {
+			useSupportLibrary = true
+		}
+	}
 }
 
 dependencies {
 
-  implementation(projects.logger)
-  implementation(projects.logsender)
+	implementation(projects.logger)
+	implementation(projects.logsender)
 
-  implementation(libs.androidx.appcompat)
-  implementation(libs.androidx.constraintlayout)
-  implementation(libs.google.material)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.google.material)
 
-  testImplementation(libs.tests.junit)
-  testImplementation(libs.tests.robolectric)
-  testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.google.truth)
 }

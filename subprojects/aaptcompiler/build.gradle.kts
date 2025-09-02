@@ -18,34 +18,34 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
+	id("com.android.library")
+	id("kotlin-android")
 }
 
 android {
-    namespace = "${BuildConfig.PACKAGE_NAME}.aaptcompiler"
-    
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-        }
-    }
+	namespace = "${BuildConfig.PACKAGE_NAME}.aaptcompiler"
+
+	buildTypes {
+		release {
+			isMinifyEnabled = false
+		}
+	}
 }
 
 dependencies {
-    implementation(libs.common.kotlin)
-    implementation(libs.androidx.collection)
-    implementation(projects.logger)
-    implementation(libs.composite.jaxp)
+	implementation(libs.common.kotlin)
+	implementation(libs.androidx.collection)
+	implementation(projects.logger)
+	implementation(libs.composite.jaxp)
 
-    api(libs.aapt2.annotations)
-    api(libs.aapt2.common)
-    api(libs.aapt2.proto)
-    api(libs.google.protobuf)
-    api(libs.composite.layoutlibApi)
-    
-    testImplementation(libs.tests.junit)
-    testImplementation(libs.tests.robolectric)
-    testImplementation(libs.tests.google.truth)
-    testImplementation(projects.shared)
+	api(libs.aapt2.annotations)
+	api(libs.aapt2.common)
+	api(libs.aapt2.proto)
+	api(libs.google.protobuf)
+	api(libs.composite.layoutlibApi)
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.google.truth)
+	testImplementation(projects.shared)
 }

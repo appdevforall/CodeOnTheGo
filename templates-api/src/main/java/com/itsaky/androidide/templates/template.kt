@@ -49,10 +49,10 @@ interface TemplateRecipeResult
 
 interface TemplateRecipeResultWithData<D : TemplateData> : TemplateRecipeResult {
 
-  /**
-   * The data used to create the template.
-   */
-  val data: D
+/**
+* The data used to create the template.
+*/
+val data: D
 }
 
 /**
@@ -82,13 +82,13 @@ typealias TemplateRecipeConfigurator = RecipeExecutor.() -> Unit
  */
 fun interface TemplateRecipe<T : TemplateRecipeResult> {
 
-  /**
-   * Execute the recipe and return the [result][TemplateRecipeResult].
-   *
-   * @param executor The [RecipeExecutor].
-   * @return The result of the execution.
-   */
-  fun execute(executor: RecipeExecutor): T?
+/**
+* Execute the recipe and return the [result][TemplateRecipeResult].
+*
+* @param executor The [RecipeExecutor].
+* @return The result of the execution.
+*/
+fun execute(executor: RecipeExecutor): T?
 }
 
 /**
@@ -107,14 +107,14 @@ typealias TemplateRecipeFinalizer = RecipeExecutor.() -> Unit
  * @property useKts Whether to use Kotlin DSL for Gradle build scripts.
  */
 abstract class BaseTemplateData(val name: String, val projectDir: File, val language: Language,
-  val useKts: Boolean, val useToml: Boolean = false) : TemplateData() {
+val useKts: Boolean, val useToml: Boolean = false) : TemplateData() {
 
-  /**
-   * Get the `build.gradle[.kts]` file for the project.
-   */
-  fun buildGradleFile(): File {
-    return File(projectDir, optonallyKts("build.gradle"))
-  }
+/**
+* Get the `build.gradle[.kts]` file for the project.
+*/
+fun buildGradleFile(): File {
+	return File(projectDir, optonallyKts("build.gradle"))
+}
 }
 
 /**
@@ -122,7 +122,7 @@ abstract class BaseTemplateData(val name: String, val projectDir: File, val lang
  */
 enum class Language(val lang: String, val ext: String) {
 
-  Java("Java", "java"), Kotlin("Kotlin", "kt");
+Java("Java", "java"), Kotlin("Kotlin", "kt");
 }
 
 /**
@@ -132,7 +132,7 @@ enum class Language(val lang: String, val ext: String) {
  */
 enum class ModuleType(val typeName: String) {
 
-  AndroidApp("Android Application"), AndroidLibrary("Android Library"), JavaLibrary("Java library")
+AndroidApp("Android Application"), AndroidLibrary("Android Library"), JavaLibrary("Java library")
 }
 
 /**
@@ -142,20 +142,20 @@ enum class ModuleType(val typeName: String) {
  */
 enum class SrcSet(val folder: String) {
 
-  /**
-   * `src/main`.
-   */
-  Main("main"),
+/**
+* `src/main`.
+*/
+Main("main"),
 
-  /**
-   * `src/test`.
-   */
-  Test("test"),
+/**
+* `src/test`.
+*/
+Test("test"),
 
-  /**
-   * `src/androidTest`.
-   */
-  AndroidTest("androidTest")
+/**
+* `src/androidTest`.
+*/
+AndroidTest("androidTest")
 }
 
 /**
@@ -166,8 +166,8 @@ enum class SrcSet(val folder: String) {
  * @property kotlin The Kotlin Plugin version.
  */
 open class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_VERSION,
-                              val gradle: String = GRADLE_DISTRIBUTION_VERSION,
-                              val kotlin: String = KOTLIN_VERSION
+							val gradle: String = GRADLE_DISTRIBUTION_VERSION,
+							val kotlin: String = KOTLIN_VERSION
 )
 
 /**
@@ -177,24 +177,24 @@ open class ProjectVersionData(val gradlePlugin: String = ANDROID_GRADLE_PLUGIN_V
  * @property buildTools The build tools version for modules.
  */
 data class ModuleVersionData(val minSdk: Sdk,
-                             val targetSdk: Sdk = TARGET_SDK_VERSION,
-                             val compileSdk: Sdk = COMPILE_SDK_VERSION,
-                             val javaSource: String = JAVA_SOURCE_VERSION,
-                             val javaTarget: String = JAVA_TARGET_VERSION,
-                             val composeSdk: Sdk = COMPOSE_SDK_VERSION,
+							val targetSdk: Sdk = TARGET_SDK_VERSION,
+							val compileSdk: Sdk = COMPILE_SDK_VERSION,
+							val javaSource: String = JAVA_SOURCE_VERSION,
+							val javaTarget: String = JAVA_TARGET_VERSION,
+							val composeSdk: Sdk = COMPOSE_SDK_VERSION,
 ) {
 
-  /**
-   * Get the Java source version string representation in the `JavaVersion.VERSION_${version}` format.
-   */
-  fun javaSource() = javaVersionPrefix(javaSource)
+/**
+* Get the Java source version string representation in the `JavaVersion.VERSION_${version}` format.
+*/
+fun javaSource() = javaVersionPrefix(javaSource)
 
-  /**
-   * Get the Java target version string representation in the `JavaVersion.VERSION_${version}` format.
-   */
-  fun javaTarget() = javaVersionPrefix(javaTarget)
+/**
+* Get the Java target version string representation in the `JavaVersion.VERSION_${version}` format.
+*/
+fun javaTarget() = javaVersionPrefix(javaTarget)
 
-  private fun javaVersionPrefix(version: String): String = "JavaVersion.VERSION_${version}"
+private fun javaVersionPrefix(version: String): String = "JavaVersion.VERSION_${version}"
 }
 
 /**
@@ -203,7 +203,7 @@ data class ModuleVersionData(val minSdk: Sdk,
  * @property version The version information for this project.
  */
 class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVersionData,
-  language: Language, useKts: Boolean, useToml: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml)
+language: Language, useKts: Boolean, useToml: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml)
 
 /**
  * Data for creating module projects.
@@ -217,17 +217,17 @@ class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVe
  * So in future we would not get confused.
  */
 open class ModuleTemplateData(name: String, val appName: String?, val packageName: String,
-                              projectDir: File, val type: ModuleType, language: Language, useKts: Boolean = true, minSdk: Sdk,
-                              val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
-  BaseTemplateData(name, projectDir, language, useKts, useToml) {
+							projectDir: File, val type: ModuleType, language: Language, useKts: Boolean = true, minSdk: Sdk,
+							val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
+BaseTemplateData(name, projectDir, language, useKts, useToml) {
 
-  private val srcDirs = mutableMapOf<SrcSet, File>()
+private val srcDirs = mutableMapOf<SrcSet, File>()
 
-  fun srcFolder(srcSet: SrcSet): File {
-    return srcDirs.computeIfAbsent(srcSet) {
-      File(projectDir, "src/${it.folder}")
-    }.also { it.mkdirs() }
-  }
+fun srcFolder(srcSet: SrcSet): File {
+	return srcDirs.computeIfAbsent(srcSet) {
+	File(projectDir, "src/${it.folder}")
+	}.also { it.mkdirs() }
+}
 }
 
 /**
@@ -237,59 +237,59 @@ open class ModuleTemplateData(name: String, val appName: String?, val packageNam
  * @property thumb The thumbnail for the template.
  */
 open class Template<R : TemplateRecipeResult>(@StringRes open val templateName: Int,
-  @DrawableRes open val thumb: Int, open val tooltipTag: String?, open val widgets: List<Widget<*>>,
-  open val recipe: TemplateRecipe<R>) {
+@DrawableRes open val thumb: Int, open val tooltipTag: String?, open val widgets: List<Widget<*>>,
+open val recipe: TemplateRecipe<R>) {
 
-  /**
-   * The ID for this template.
-   */
-  val templateId: String by lazy {
-    UUID.randomUUID().toString()
-  }
+/**
+* The ID for this template.
+*/
+val templateId: String by lazy {
+	UUID.randomUUID().toString()
+}
 
-  open val parameters: Collection<Parameter<*>>
-    get() = widgets.filterIsInstance<ParameterWidget<*>>().map { it.parameter }
+open val parameters: Collection<Parameter<*>>
+	get() = widgets.filterIsInstance<ParameterWidget<*>>().map { it.parameter }
 
-  open fun release() {
-    widgets.forEach { it.release() }
-  }
+open fun release() {
+	widgets.forEach { it.release() }
+}
 
-  companion object {
+companion object {
 
-    @JvmStatic
-    val EMPTY = Template(-1, -1, null, emptyList(), EMPTY_RECIPE)
-  }
+	@JvmStatic
+	val EMPTY = Template(-1, -1, null, emptyList(), EMPTY_RECIPE)
+}
 }
 
 open class ProjectTemplate(val moduleTemplates: List<Template<*>>, @StringRes templateName: Int,
-  @DrawableRes thumb: Int, tooltipTag: String?, widgets: List<Widget<*>>,
-  recipe: TemplateRecipe<ProjectTemplateRecipeResult>) :
-  Template<ProjectTemplateRecipeResult>(templateName, thumb, tooltipTag, widgets, recipe) {
+@DrawableRes thumb: Int, tooltipTag: String?, widgets: List<Widget<*>>,
+recipe: TemplateRecipe<ProjectTemplateRecipeResult>) :
+Template<ProjectTemplateRecipeResult>(templateName, thumb, tooltipTag, widgets, recipe) {
 
-  override val parameters: Collection<Parameter<*>>
-    get() = if (moduleTemplates.isEmpty()) super.parameters else super.parameters.toMutableList()
-      .apply {
-        addAll(moduleTemplates.flatMap { it.parameters })
-      }
+override val parameters: Collection<Parameter<*>>
+	get() = if (moduleTemplates.isEmpty()) super.parameters else super.parameters.toMutableList()
+	.apply {
+		addAll(moduleTemplates.flatMap { it.parameters })
+	}
 
-  override val widgets: List<Widget<*>>
-    get() = if (moduleTemplates.isEmpty()) super.widgets else super.widgets.toMutableList().apply {
-      addAll(moduleTemplates.flatMap { it.widgets })
-    }
+override val widgets: List<Widget<*>>
+	get() = if (moduleTemplates.isEmpty()) super.widgets else super.widgets.toMutableList().apply {
+	addAll(moduleTemplates.flatMap { it.widgets })
+	}
 
-  override val recipe: TemplateRecipe<ProjectTemplateRecipeResult>
-    get() = if (moduleTemplates.isEmpty()) super.recipe else super.recipe.let { projectRecipe ->
-      TemplateRecipe {
-        val result = projectRecipe.execute(it)
-        moduleTemplates.forEach { module -> module.recipe.execute(it) }
-        result
-      }
-    }
+override val recipe: TemplateRecipe<ProjectTemplateRecipeResult>
+	get() = if (moduleTemplates.isEmpty()) super.recipe else super.recipe.let { projectRecipe ->
+	TemplateRecipe {
+		val result = projectRecipe.execute(it)
+		moduleTemplates.forEach { module -> module.recipe.execute(it) }
+		result
+	}
+	}
 
-  override fun release() {
-    super.release()
-    moduleTemplates.forEach { it.release() }
-  }
+override fun release() {
+	super.release()
+	moduleTemplates.forEach { it.release() }
+}
 }
 
 /**
@@ -298,15 +298,15 @@ open class ProjectTemplate(val moduleTemplates: List<Template<*>>, @StringRes te
  * @property name The mdoule name (gradle format, e.g. ':app').
  */
 open class ModuleTemplate(val name: String, @StringRes templateName: Int, @DrawableRes thumb: Int,
-  widgets: List<Widget<*>>,
-  recipe: TemplateRecipe<ModuleTemplateRecipeResult>) :
-  Template<ModuleTemplateRecipeResult>(templateName, thumb, null, widgets, recipe)
+widgets: List<Widget<*>>,
+recipe: TemplateRecipe<ModuleTemplateRecipeResult>) :
+Template<ModuleTemplateRecipeResult>(templateName, thumb, null, widgets, recipe)
 
 /**
  * Template for creating a file.
  */
 open class FileTemplate<R : FileTemplateRecipeResult>(@StringRes name: Int, @DrawableRes thumb: Int,
-  widgets: List<Widget<*>>, recipe: TemplateRecipe<R>) : Template<R>(name, thumb, null, widgets, recipe)
+widgets: List<Widget<*>>, recipe: TemplateRecipe<R>) : Template<R>(name, thumb, null, widgets, recipe)
 
 /**
  * Base class for template builders.
@@ -317,35 +317,35 @@ open class FileTemplate<R : FileTemplateRecipeResult>(@StringRes name: Int, @Dra
  * @property recipe The recipe for building the template.
  */
 abstract class TemplateBuilder<R : TemplateRecipeResult>(
-  @StringRes open var templateName: Int? = null,
-  @DrawableRes open var thumb: Int? = null, open var tooltipTag: String? = null,
-  open var widgets: List<Widget<*>>? = null, open var recipe: TemplateRecipe<R>? = null) {
+@StringRes open var templateName: Int? = null,
+@DrawableRes open var thumb: Int? = null, open var tooltipTag: String? = null,
+open var widgets: List<Widget<*>>? = null, open var recipe: TemplateRecipe<R>? = null) {
 
-  /**
-   * Adds the given widgets to the widgets list.
-   *
-   * @param widgets The widgets to add.
-   */
-  fun widgets(vararg widgets: Widget<*>) {
-    var new = this.widgets?.toMutableList() ?: mutableListOf()
-    if (new.isNotEmpty()) {
-      // If any widgets have been already added, add the new widgets to the list
-      new.addAll(widgets)
-    } else {
-      new = widgets.toMutableList()
-    }
-    this.widgets = new
-  }
+/**
+* Adds the given widgets to the widgets list.
+*
+* @param widgets The widgets to add.
+*/
+fun widgets(vararg widgets: Widget<*>) {
+	var new = this.widgets?.toMutableList() ?: mutableListOf()
+	if (new.isNotEmpty()) {
+	// If any widgets have been already added, add the new widgets to the list
+	new.addAll(widgets)
+	} else {
+	new = widgets.toMutableList()
+	}
+	this.widgets = new
+}
 
-  fun build(): Template<R> {
-    requireNotNull(templateName) { "Template must have a name" }
-    requireNotNull(thumb) { "Template must have a thumbnail" }
-    requireNotNull(recipe) { "Template must have a recipe" }
+fun build(): Template<R> {
+	requireNotNull(templateName) { "Template must have a name" }
+	requireNotNull(thumb) { "Template must have a thumbnail" }
+	requireNotNull(recipe) { "Template must have a recipe" }
 
-    this.widgets = this.widgets ?: emptyList()
+	this.widgets = this.widgets ?: emptyList()
 
-    return buildInternal()
-  }
+	return buildInternal()
+}
 
-  protected abstract fun buildInternal(): Template<R>
+protected abstract fun buildInternal(): Template<R>
 }
