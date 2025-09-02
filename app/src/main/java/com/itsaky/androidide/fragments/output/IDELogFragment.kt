@@ -24,6 +24,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.LoggerContext
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.logging.GlobalBufferAppender
 import com.itsaky.androidide.logging.LifecycleAwareAppender
 import org.slf4j.LoggerFactory
 
@@ -43,6 +44,9 @@ class IDELogFragment : LogViewFragment() {
     super.onViewCreated(view, savedInstanceState)
     emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_idelogs)
 
+    // Register with GlobalBufferAppender to receive all logs (including buffered ones)
+    GlobalBufferAppender.registerConsumer(this::appendLine)
+
     lifecycleAwareAppender.consumer = this::appendLine
     lifecycleAwareAppender.attachTo(viewLifecycleOwner)
 
@@ -57,6 +61,10 @@ class IDELogFragment : LogViewFragment() {
 
   override fun onDestroy() {
     super.onDestroy()
+    
+    // Unregister from GlobalBufferAppender
+    GlobalBufferAppender.unregisterConsumer(this::appendLine)
+    
     lifecycleAwareAppender.stop()
 
     val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
