@@ -195,7 +195,6 @@ WHERE  C.contentTypeID = CT.id
 
         if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
 
-        // NEW FEATURE: Handle large content with fragmentation
         if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
             val query2 = """
 SELECT content
@@ -205,25 +204,17 @@ WHERE  path = ?
         """
             var fragmentNumber = 1
             var dbContent2 = dbContent
-            var shouldContinue = true
 
-            while (dbContent2.size == 1024 * 1024 && shouldContinue) {
+            while (dbContent2.size == 1024 * 1024) {
                 val path2 = "${path}-${fragmentNumber}"
-                try {
-                    val cursor2 = database.rawQuery(query2, arrayOf(path2,))
-                    if (cursor2.count > 0) {
-                        cursor2.moveToFirst()
-                        dbContent2 = cursor2.getBlob(0)
-                        cursor2.close()
-                        fragmentNumber++
-                    } else {
-                        cursor2.close()
-                        shouldContinue = false
-                    }
-                } catch (e: Exception) {
-                    log.debug("Error retrieving fragment {}: {}", fragmentNumber, e.message)
-                    shouldContinue = false
-                }
+                if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
+
+                val cursor2 = database.rawQuery(query2, arrayOf(path2))
+                cursor2.moveToFirst()
+                dbContent2 = cursor2.getBlob(0)
+                dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
+                fragmentNumber += 1
+                if (debugEnabled) log.debug("Fragment size={}, dbContent.length={}.", dbContent2.size, dbContent.size)
             }
         }
 
