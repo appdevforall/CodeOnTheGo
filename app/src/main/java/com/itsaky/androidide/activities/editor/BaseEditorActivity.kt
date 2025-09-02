@@ -720,7 +720,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-    open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
+	open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
 
 	open fun showBottomSheetFragment(
 		fragmentClass: Class<out Fragment>,
