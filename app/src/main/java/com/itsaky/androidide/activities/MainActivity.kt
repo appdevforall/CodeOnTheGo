@@ -19,10 +19,8 @@ package com.itsaky.androidide.activities
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
-import android.util.Log
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -40,6 +38,7 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
@@ -53,9 +52,6 @@ import com.itsaky.androidide.utils.Environment
 import org.slf4j.LoggerFactory
 
 import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.InputStream
 
 import android.hardware.display.DisplayManager
 import android.view.Display
@@ -262,9 +258,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     fun deleteRecursive(fileOrDirectory: File) {
-        if (fileOrDirectory.isDirectory) for (child in fileOrDirectory.listFiles()) deleteRecursive(
-            child
-        )
+        if (fileOrDirectory.isDirectory) {
+            fileOrDirectory.listFiles()?.forEach { child -> 
+                deleteRecursive(child)
+            }
+        }
 
         fileOrDirectory.delete()
     }
