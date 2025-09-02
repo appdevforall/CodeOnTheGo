@@ -41,65 +41,69 @@ import kotlin.math.log
  */
 object IntentUtils {
 
-  private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
+	private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
 
-  private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
+	private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
 
-  @JvmStatic
-  fun openImage(context: Context, file: File) {
-    imageIntent(context = context, file = file, intentAction = Intent.ACTION_VIEW)
-  }
+	// using '*/*' results in weird syntax highlighting on github
+	// use this as a workaround
+	private const val MIME_ANY = "*" + "/" + "*"
 
-  @JvmStatic
-  @JvmOverloads
-  fun imageIntent(
-    context: Context,
-    file: File,
-    intentAction: String = Intent.ACTION_SEND
-  ) {
-    val type = ImageUtils.getImageType(file)
-    var typeString = type.value
-    if (type == TYPE_UNKNOWN) {
-      typeString = "*"
-    }
-    startIntent(
-      context = context,
-      file = file,
-      mimeType = "image/$typeString",
-      intentAction = intentAction
-    )
-  }
+	@JvmStatic
+	fun openImage(context: Context, file: File) {
+		imageIntent(context = context, file = file, intentAction = Intent.ACTION_VIEW)
+	}
 
-  @JvmStatic
-  fun shareFile(context: Context, file: File, mimeType: String) {
-    startIntent(context = context, file = file, mimeType = mimeType)
-  }
+	@JvmStatic
+	@JvmOverloads
+	fun imageIntent(
+		context: Context,
+		file: File,
+		intentAction: String = Intent.ACTION_SEND
+	) {
+		val type = ImageUtils.getImageType(file)
+		var typeString = type.value
+		if (type == TYPE_UNKNOWN) {
+			typeString = "*"
+		}
+		startIntent(
+			context = context,
+			file = file,
+			mimeType = "image/$typeString",
+			intentAction = intentAction
+		)
+	}
 
-  @JvmStatic
-  @JvmOverloads
-  fun startIntent(
-    context: Context,
-    file: File,
-    mimeType: String = "*/*",
-    intentAction: String = Intent.ACTION_SEND
-  ) {
-    val uri =
-      FileProvider.getUriForFile(
+	@JvmStatic
+	fun shareFile(context: Context, file: File, mimeType: String) {
+		startIntent(context = context, file = file, mimeType = mimeType)
+	}
+
+	@JvmStatic
+	@JvmOverloads
+	fun startIntent(
+		context: Context,
+		file: File,
+		mimeType: String = MIME_ANY,
+		intentAction: String = Intent.ACTION_SEND
+	) {
+		val uri =
+			FileProvider.getUriForFile(
 				context,
 				"${context.packageName}.providers.fileprovider",
 				file,
 			)
-    val intent =
-      ShareCompat.IntentBuilder(context)
-        .setType(mimeType)
-        .setStream(uri)
-        .intent
-        .setAction(intentAction)
-        .setDataAndType(uri, mimeType)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+		val intent =
+			ShareCompat.IntentBuilder(context)
+				.setType(mimeType)
+				.setStream(uri)
+				.intent
+				.setAction(intentAction)
+				.setDataAndType(uri, mimeType)
+				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
-    context.startActivity(Intent.createChooser(intent, null))
-  }
+		context.startActivity(Intent.createChooser(intent, null))
+	}
 
 	/**
 	 * Launch the application with the given [package name][packageName].
@@ -133,10 +137,13 @@ object IntentUtils {
 				return false
 			}
 
-      if (!debug) {
-				// launch-only, simply start the activitycontext.startActivity(launchIntent)
-      return true
-    }if (!Shizuku.pingBinder()) {
+			if (!debug) {
+				// launch-only, simply start the activity
+				context.startActivity(launchIntent)
+				return true
+			}
+
+			if (!Shizuku.pingBinder()) {
 				logger.debug("Shizuku service is not running. Cannot debug app.")
 				return false
 			}
@@ -191,35 +198,40 @@ object IntentUtils {
 			logger.debug("Launch process exited with exit code {}", exitCode)
 			return exitCode == 0
 		} catch (e: Throwable) {
-      flashError(R.string.msg_app_launch_failed)
-      if (logError) {
-        logger.error(
+			flashError(R.string.msg_app_launch_failed)
+			if (logError) {
+				logger.error(
 					"Failed to launch application with package name '{}'",
 					packageName,
-					e,)
-      }
-      return false
-    }
-  }
+					e,
+				)
+			}
+			return false
+		}
+	}
 
-  @RequiresApi(33)
-  private fun launchAppApi33(context: Context, packageName: String, logError: Boolean = true) : Boolean {
-    return try {
-      val sender = context.packageManager.getLaunchIntentSenderForPackage(packageName)
-      sender.sendIntent(
-        context,
-        RESULT_LAUNCH_APP_INTENT_SENDER,
-        null,
-        null,
-        null
-      )
-      true
-    } catch (e: Throwable) {
-      flashError(R.string.msg_app_launch_failed)
-      if (logError) {
-        logger.error("Failed to launch app", e)
-      }
-      false
-    }
-  }
+	@RequiresApi(33)
+	private fun launchAppApi33(
+		context: Context,
+		packageName: String,
+		logError: Boolean = true
+	): Boolean {
+		return try {
+			val sender = context.packageManager.getLaunchIntentSenderForPackage(packageName)
+			sender.sendIntent(
+				context,
+				RESULT_LAUNCH_APP_INTENT_SENDER,
+				null,
+				null,
+				null
+			)
+			true
+		} catch (e: Throwable) {
+			flashError(R.string.msg_app_launch_failed)
+			if (logError) {
+				logger.error("Failed to launch app", e)
+			}
+			false
+		}
+	}
 }

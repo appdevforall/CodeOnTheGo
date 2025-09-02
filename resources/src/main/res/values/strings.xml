@@ -747,35 +747,41 @@
         </html>
         ]]></string>
 
-  <!-- Tooltip Links HTML Template -->
-  <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
+	<!-- Tooltip Links HTML Template -->
+	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
 	<string name="title_alert">Alert!</string>
-    <string name="info_icon_content_description">Info icon</string>
+	<string name="info_icon_content_description">Info icon</string>
 
-  <!-- Name of the notification channel which is used to show notifications for wireless debugging -->
-	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
+    <string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
 
 	<!-- Hint for the notification text field which asks the user to enter the wireless debugging pairing code -->
-  <string name="notification_adb_pairing_input_paring_code">Enter pairing code</string><!-- Title for the notification when the wireless debugging pairing service is being searched. -->
-  <string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
-  <!-- Title for the notification when the wireless debugging pairing service is found. --><string name="notification_adb_pairing_service_found_title">Pairing service found</string>
-  <!-- Text for the button in the notification to stop searching for the wireless debugging pairing service. --><string name="notification_adb_pairing_stop_searching">Stop searching</string>
-  <!-- Title for the notification when wireless debugging pairing is in progress. -->
-	<string name="notification_adb_pairing_working_title">Pairing in progress</string>
+    <string name="notification_adb_pairing_input_paring_code">Enter pairing code</string>
+	<!-- Title for the notification when the wireless debugging pairing service is being searched. -->
+    <string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
+	<!-- Title for the notification when the wireless debugging pairing service is found. -->
+    <string name="notification_adb_pairing_service_found_title">Pairing service found</string>
+	<!-- Text for the button in the notification to stop searching for the wireless debugging pairing service. -->
+    <string name="notification_adb_pairing_stop_searching">Stop searching</string>
+	<!-- Title for the notification when wireless debugging pairing is in progress. -->
+    <string name="notification_adb_pairing_working_title">Pairing in progress</string>
 
 	<!-- Title for the notification when wireless debugging pairing has succeeded. -->
-  <string name="notification_adb_pairing_succeed_title">Pairing successful</string><!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-  <string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
-  <!-- Title for the notification when wireless debugging pairing has failed. -->
-	<string name="notification_adb_pairing_failed_title">Pairing failed</string>
+    <string name="notification_adb_pairing_succeed_title">Pairing successful</string>
+	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
+	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+	<!-- Title for the notification when wireless debugging pairing has failed. -->
+    <string name="notification_adb_pairing_failed_title">Pairing failed</string>
 
 	<!-- Text for the button in the notification to retry wireless debugging pairing after it has failed. -->
-  <string name="notification_adb_pairing_retry">Retry</string>
-  <!-- Error message displayed when the entered wireless debugging pairing code is incorrect. --><string name="paring_code_is_wrong">Pairing code is wrong.</string>
-  <!-- Error message displayed when the application cannot connect to the wireless debugging service port. --><string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
-  <!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless debugging. --><string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
-  <!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
-	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
+    <string name="notification_adb_pairing_retry">Retry</string>
+	<!-- Error message displayed when the entered wireless debugging pairing code is incorrect. -->
+    <string name="paring_code_is_wrong">Pairing code is wrong.</string>
+	<!-- Error message displayed when the application cannot connect to the wireless debugging service port. -->
+    <string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
+	<!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless debugging. -->
+    <string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
+	<!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
+    <string name="dialog_adb_pairing_paring_code">Pairing code</string>
 
 	<!-- Text for an action button that initiates the wireless debugging pairing process. -->
 	<string name="adb_pairing_action_start">Click to start pairing</string>
@@ -788,8 +794,6 @@
 
 	<!-- Instructional text specific to MIUI users, advising them to change notification style for successful pairing. -->
 	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" - \"Notification shade\" in system settings.</string>
-
-	<!-- Further instructional text for MIUI users, explaining the consequence of not changing the notification style. -->
 	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not able to enter paring code from the notification.</string>
 
 	<!-- Instructional text explaining that the app needs local network access for wireless debugging pairing. -->
