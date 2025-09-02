@@ -87,7 +87,11 @@ class LaunchAppAction(
 
 			val activity = data.requireActivity()
 			activity.activityScope.launch {
-				IntentUtils.launchApp(activity, applicationId, logError = false)
+				IntentUtils.launchApp(
+					context = activity,
+					packageName = applicationId,
+					logError = false,
+				)
 			}
 		}
 	}
