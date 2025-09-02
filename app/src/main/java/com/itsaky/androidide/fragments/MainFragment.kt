@@ -12,6 +12,7 @@ import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -40,6 +41,7 @@ import com.itsaky.androidide.utils.FeedbackManager
 import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import kotlinx.coroutines.CoroutineScope
@@ -58,21 +60,21 @@ import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
 
-    private val viewModel by viewModels<MainViewModel>(
-        ownerProducer = { requireActivity() })
+    private val viewModel by activityViewModels<MainViewModel>()
     private var binding: FragmentMainBinding? = null
 
     private data class CloneRequest(val url: String, val targetDir: File)
 
     private var currentCloneRequest: CloneRequest? = null
 
-    // Add these constants inside your companion object
     companion object {
+
         private val log = LoggerFactory.getLogger(MainFragment::class.java)
         const val KEY_TOOLTIP_URL = "tooltip_url"
-        private const val FAB_PREFS = "FabPrefs"
-        private const val KEY_FAB_X = "fab_x"
-        private const val KEY_FAB_Y = "fab_y"
+
+		private const val FAB_PREFS = "FabPrefs"
+		private const val KEY_FAB_X = "fab_x"
+		private const val KEY_FAB_Y = "fab_y"
     }
 
     private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(

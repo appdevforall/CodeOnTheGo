@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,7 @@ import kotlinx.coroutines.withContext
  * @author Akash Yadav
  */
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
+
     override val fragmentTooltipTag: String? = null// Tooltip pending to be defined
     private val viewHolder by activityViewModels<DebuggerViewModel>()
 
