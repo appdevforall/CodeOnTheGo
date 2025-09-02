@@ -42,8 +42,13 @@ class IDELoggingConfigurator : ContextAwareBase(), Configurator {
     appender.context = context
     appender.start()
 
+    val globalBufferAppender = GlobalBufferAppender()
+    globalBufferAppender.context = context
+    globalBufferAppender.start()
+
     val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)
     rootLogger.addAppender(appender)
+    rootLogger.addAppender(globalBufferAppender)
 
     return Configurator.ExecutionStatus.DO_NOT_INVOKE_NEXT_IF_ANY
   }
