@@ -29,10 +29,13 @@ import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvid
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.LOG_FREQUENCY
+import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.MAX_CHUNK_SIZE
+import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.MAX_LINE_COUNT
+import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.TRIM_ON_LINE_COUNT
 import com.itsaky.androidide.models.LogLine
-import com.itsaky.androidide.utils.ILogger.Level
-import com.itsaky.androidide.utils.jetbrainsMono
 import com.itsaky.androidide.utils.isTestMode
+import com.itsaky.androidide.utils.jetbrainsMono
 import io.github.rosemoe.sora.widget.style.CursorAnimator
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ArrayBlockingQueue
@@ -200,11 +203,7 @@ abstract class LogViewFragment :
   }
 
   abstract fun isSimpleFormattingEnabled(): Boolean
-
-  protected open fun logLine(level: Level, tag: String, message: String) {
-    val line = LogLine.obtain(level, tag, message)
-    appendLog(line)
-  }
+  open val tooltipTag = ""
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
@@ -243,7 +242,6 @@ abstract class LogViewFragment :
         return 0f
       }
     }
-
     // Skip tree-sitter language setup during tests to avoid native library issues
     if (!isTestMode()) {
       IDEColorSchemeProvider.readSchemeAsync(context = requireContext(),
@@ -259,13 +257,11 @@ abstract class LogViewFragment :
     }
   }
 
-
   override fun onDestroyView() {
     _binding?.editor?.release()
     logHandler.removeCallbacks(logRunnable)
     super.onDestroyView()
   }
-
   override fun getContent(): String {
     return this._binding?.editor?.text?.toString() ?: ""
   }
@@ -274,5 +270,9 @@ abstract class LogViewFragment :
     _binding?.editor?.setText("")?.also {
       emptyStateViewModel.isEmpty.value = true
     }
+  }
+
+  override fun onFragmentLongPressed() {
+    showTooltipDialog(tooltipTag)
   }
 }
