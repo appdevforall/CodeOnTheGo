@@ -18,31 +18,31 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  kotlin("android")
+	id("com.android.library")
+	kotlin("android")
 }
 
 android {
-  namespace = "${BuildConfig.PACKAGE_NAME}.testing.android"
+	namespace = "${BuildConfig.PACKAGE_NAME}.testing.android"
 }
 
 dependencies {
-  api(libs.tests.androidx.test.core)
-  api(libs.tests.androidx.test.runner)
-  api(libs.tests.androidx.test.rules)
-  api(libs.tests.androidx.junit)
-  api(libs.tests.androidx.espresso.core)
-  api(libs.tests.androidx.espresso.contrib)
-  api(libs.tests.androidx.uiautomator)
-  api(libs.tests.junit)
-  api(libs.tests.google.truth)
-  api(libs.tests.barista) {
-    exclude("org.jetbrains.kotlin")
-  }
+	api(libs.tests.androidx.test.core)
+	api(libs.tests.androidx.test.runner)
+	api(libs.tests.androidx.test.rules)
+	api(libs.tests.androidx.junit)
+	api(libs.tests.androidx.espresso.core)
+	api(libs.tests.androidx.espresso.contrib)
+	api(libs.tests.androidx.uiautomator)
+	api(libs.tests.junit)
+	api(libs.tests.google.truth)
+	api(libs.tests.barista) {
+		exclude("org.jetbrains.kotlin")
+	}
 
-  api(projects.testing.common)
+	api(projects.testing.common)
 
-  api(projects.buildInfo)
-  api(projects.common)
-  api(projects.shared)
+	api(projects.buildInfo)
+	api(projects.common)
+	api(projects.shared)
 }
