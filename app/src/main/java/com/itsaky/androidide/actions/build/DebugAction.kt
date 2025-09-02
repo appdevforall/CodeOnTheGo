@@ -2,8 +2,6 @@ package com.itsaky.androidide.actions.build
 
 import android.content.Context
 import android.content.Intent
-import androidx.activity.viewModels
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
@@ -19,8 +17,6 @@ import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
-import kotlinx.coroutines.delay
-import moe.shizuku.manager.ShizukuViewModel
 import rikka.shizuku.Shizuku
 
 /**
@@ -32,9 +28,9 @@ class DebugAction(
 	context: Context,
 	override val order: Int,
 ) : AbstractRunAction(
-	context = context,
-	labelRes = R.string.action_start_debugger,
-	iconRes = R.drawable.ic_db_startdebugger,
+		context = context,
+		labelRes = R.string.action_start_debugger,
+		iconRes = R.drawable.ic_db_startdebugger,
 	) {
 	override val id = ID
 

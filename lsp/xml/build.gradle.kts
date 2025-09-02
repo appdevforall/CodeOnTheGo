@@ -18,46 +18,46 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
-    id("kotlin-kapt")
+	id("com.android.library")
+	id("kotlin-android")
+	id("kotlin-kapt")
 }
 
 android {
-    namespace = "${BuildConfig.PACKAGE_NAME}.lsp.xml"
+	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.xml"
 }
 
 kapt {
-    arguments {
-        arg ("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.LspXmlEventsIndex")
-    }
+	arguments {
+		arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.LspXmlEventsIndex")
+	}
 }
 
 dependencies {
-    
-    kapt(projects.annotationProcessors)
 
-    implementation(platform(libs.sora.bom))
-    implementation(libs.common.editor)
-    implementation(libs.common.utilcode)
-    implementation(libs.androidide.ts)
-    implementation(libs.androidide.ts.xml)
-    
-    implementation(projects.actions)
-    implementation(projects.lsp.api)
-    implementation(projects.lexers)
-    implementation(projects.subprojects.xmlDom)
-    implementation(projects.subprojects.xmlUtils)
-    
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.common.kotlin)
-    implementation(libs.google.material)
+	kapt(projects.annotationProcessors)
 
-    testImplementation(projects.actions)
-    testImplementation(projects.subprojects.projects)
-    testImplementation(projects.subprojects.toolingApi)
-    testImplementation(projects.testing.lsp)
+	implementation(platform(libs.sora.bom))
+	implementation(libs.common.editor)
+	implementation(libs.common.utilcode)
+	implementation(libs.androidide.ts)
+	implementation(libs.androidide.ts.xml)
 
-    compileOnly(projects.common)
-    compileOnly(libs.common.antlr4)
+	implementation(projects.actions)
+	implementation(projects.lsp.api)
+	implementation(projects.lexers)
+	implementation(projects.subprojects.xmlDom)
+	implementation(projects.subprojects.xmlUtils)
+
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.common.kotlin)
+	implementation(libs.google.material)
+
+	testImplementation(projects.actions)
+	testImplementation(projects.subprojects.projects)
+	testImplementation(projects.subprojects.toolingApi)
+	testImplementation(projects.testing.lsp)
+
+	compileOnly(projects.common)
+	compileOnly(libs.common.antlr4)
 }

@@ -55,8 +55,7 @@ import javax.net.ssl.SSLProtocolException
  * Fragment to request wireless ADB permissions.
  */
 @RequiresApi(Build.VERSION_CODES.R)
-class WADBPermissionFragment :
-	FragmentWithBinding<FragmentWabPermissionBinding>(FragmentWabPermissionBinding::inflate) {
+class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>(FragmentWabPermissionBinding::inflate) {
 	companion object {
 		const val VIEW_PAIRING = 0
 		const val VIEW_CONNECTING = 1
@@ -79,7 +78,7 @@ class WADBPermissionFragment :
 				when (intent?.action) {
 					AdbPairingService.ACTION_PAIR_SUCCEEDED,
 					AdbPairingService.ACTION_PAIR_FAILED,
-						-> onPairResult(intent)
+					-> onPairResult(intent)
 				}
 			}
 		}
@@ -244,8 +243,8 @@ class WADBPermissionFragment :
 				wadbViewModel.setConnectionStatus(
 					getString(
 						R.string.adb_connection_connecting,
-						port
-					)
+						port,
+					),
 				)
 			}
 
@@ -300,7 +299,7 @@ class WADBPermissionFragment :
 		val nm = context.getSystemService(NotificationManager::class.java)
 		val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
 		return nm.areNotificationsEnabled() &&
-				(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+			(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
 	}
 
 	private fun onReloadNotificationSettings() {

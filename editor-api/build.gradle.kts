@@ -18,19 +18,19 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  id("kotlin-android")
+	id("com.android.library")
+	id("kotlin-android")
 }
 
 android {
-  namespace = "${BuildConfig.PACKAGE_NAME}.editor.api"
+	namespace = "${BuildConfig.PACKAGE_NAME}.editor.api"
 }
 
 dependencies {
-  api(libs.androidide.ts)
-  api(projects.lsp.api)
-  api(projects.lsp.models)
-  
-  implementation(projects.common)
-  implementation(projects.logger)
+	api(libs.androidide.ts)
+	api(projects.lsp.api)
+	api(projects.lsp.models)
+
+	implementation(projects.common)
+	implementation(projects.logger)
 }

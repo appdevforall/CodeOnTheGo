@@ -27,59 +27,58 @@ import javax.xml.xpath.XPathFactory
  * @author Akash Yadav
  */
 object VersionUtils {
+	/**
+	 * The Sonatype snapshots repository.
+	 */
+	const val SONATYPE_SNAPSHOTS_REPO = "https://s01.oss.sonatype.org/content/repositories/snapshots/"
 
-  /**
-   * The Sonatype snapshots repository.
-   */
-  const val SONATYPE_SNAPSHOTS_REPO = "https://s01.oss.sonatype.org/content/repositories/snapshots/"
+	/**
+	 * The Sonatype release repository.
+	 */
+	const val SONATYPE_PUBLIC_REPO = "https://s01.oss.sonatype.org/content/groups/public/"
 
-  /**
-   * The Sonatype release repository.
-   */
-  const val SONATYPE_PUBLIC_REPO = "https://s01.oss.sonatype.org/content/groups/public/"
+	/**
+	 * The latest integration version name.
+	 */
+	const val LATEST_INTEGRATION = "latest.integration"
 
-  /**
-   * The latest integration version name.
-   */
-  const val LATEST_INTEGRATION = "latest.integration"
+	/**
+	 * The cached version name.
+	 */
+	private var cachedVersion: String? = null
 
-  /**
-   * The cached version name.
-   */
-  private var cachedVersion: String? = null
+	/**
+	 * Gets the latest snapshot version of the given artifact from the Sonatype snapshots repository.
+	 */
+	@JvmStatic
+	fun getLatestSnapshotVersion(artifact: String): String {
+		cachedVersion?.also { cached ->
+			println("Found latest version of artifact '$artifact' : '$cached' (cached)")
+			return cached
+		}
 
-  /**
-   * Gets the latest snapshot version of the given artifact from the Sonatype snapshots repository.
-   */
-  @JvmStatic
-  fun getLatestSnapshotVersion(artifact: String): String {
-    cachedVersion?.also { cached ->
-      println("Found latest version of artifact '$artifact' : '$cached' (cached)")
-      return cached
-    }
+		val groupId = BuildConfig.PACKAGE_NAME.replace('.', '/')
+		val moduleMetadata = "$SONATYPE_SNAPSHOTS_REPO$groupId/$artifact/maven-metadata.xml"
+		return try {
+			BufferedInputStream(URI.create(moduleMetadata).toURL().openStream()).use { inputStream ->
+				val builderFactory = DocumentBuilderFactory.newInstance()
+				val builder = builderFactory.newDocumentBuilder()
+				val document = builder.parse(inputStream)
 
-    val groupId = BuildConfig.PACKAGE_NAME.replace('.', '/')
-    val moduleMetadata = "$SONATYPE_SNAPSHOTS_REPO$groupId/${artifact}/maven-metadata.xml"
-    return try {
-       BufferedInputStream(URI.create(moduleMetadata).toURL().openStream()).use { inputStream ->
-        val builderFactory = DocumentBuilderFactory.newInstance()
-        val builder = builderFactory.newDocumentBuilder()
-        val document = builder.parse(inputStream)
+				val xPathFactory = XPathFactory.newInstance()
+				val xPath = xPathFactory.newXPath()
 
-        val xPathFactory = XPathFactory.newInstance()
-        val xPath = xPathFactory.newXPath()
-
-        val latestVersion = xPath.evaluate("/metadata/versioning/latest", document)
-         cachedVersion = latestVersion
-        println("Found latest version of artifact '$artifact' : '$latestVersion'")
-        return@use latestVersion
-      }
-    } catch (err: Throwable) {
-      if (CI.isCiBuild) {
-        throw GradleException("Failed to download: $moduleMetadata", err)
-      }
-      println("Failed to download $moduleMetadata: ${err.message}")
-      return LATEST_INTEGRATION
-    }
-  }
+				val latestVersion = xPath.evaluate("/metadata/versioning/latest", document)
+				cachedVersion = latestVersion
+				println("Found latest version of artifact '$artifact' : '$latestVersion'")
+				return@use latestVersion
+			}
+		} catch (err: Throwable) {
+			if (CI.isCiBuild) {
+				throw GradleException("Failed to download: $moduleMetadata", err)
+			}
+			println("Failed to download $moduleMetadata: ${err.message}")
+			return LATEST_INTEGRATION
+		}
+	}
 }
