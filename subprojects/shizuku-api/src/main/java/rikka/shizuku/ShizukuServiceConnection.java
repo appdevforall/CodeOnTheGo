@@ -6,78 +6,73 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
-
 import androidx.annotation.Nullable;
-
 import java.util.HashSet;
 import java.util.Set;
-
 import moe.shizuku.server.IShizukuServiceConnection;
 
 class ShizukuServiceConnection extends IShizukuServiceConnection.Stub {
 
-    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+	private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
-    private final Set<ServiceConnection> connections = new HashSet<>();
-    private final ComponentName componentName;
-    private IBinder binder;
+	private final Set<ServiceConnection> connections = new HashSet<>();
+	private final ComponentName componentName;
+	private IBinder binder;
 
-    public ShizukuServiceConnection(Shizuku.UserServiceArgs args) {
-        this.componentName = args.componentName;
-    }
+	private boolean dead = false;
 
-    private boolean dead = false;
+	public ShizukuServiceConnection(Shizuku.UserServiceArgs args) {
+		this.componentName = args.componentName;
+	}
 
-    public void addConnection(@Nullable ServiceConnection conn) {
-        if (conn != null) {
-            connections.add(conn);
-        }
-    }
+	public void addConnection(@Nullable ServiceConnection conn) {
+		if (conn != null) {
+			connections.add(conn);
+		}
+	}
 
-    public void removeConnection(@Nullable ServiceConnection conn) {
-        if (conn != null) {
-            connections.remove(conn);
-        }
-    }
+	public void clearConnections() {
+		connections.clear();
+	}
 
-    public void clearConnections() {
-        connections.clear();
-    }
+	@Override
+	public void connected(IBinder binder) {
+		MAIN_HANDLER.post(() -> {
+			for (ServiceConnection conn : connections) {
+				conn.onServiceConnected(componentName, binder);
+			}
+		});
 
-    @Override
-    public void connected(IBinder binder) {
-        MAIN_HANDLER.post(() -> {
-                    for (ServiceConnection conn : connections) {
-                        conn.onServiceConnected(componentName, binder);
-                    }
-                }
-        );
+		// Hold the binder, or linkToDeath will not work after reference to
+		// the binder is dropped
+		this.binder = binder;
 
-        // Hold the binder, or linkToDeath will not work after reference to
-        // the binder is dropped
-        this.binder = binder;
+		try {
+			this.binder.linkToDeath(this::died, 0);
+		} catch (RemoteException ignored) {}
+	}
 
-        try {
-            this.binder.linkToDeath(this::died, 0);
-        } catch (RemoteException ignored) {
-        }
-    }
+	@Override
+	public void died() {
+		binder = null;
 
-    @Override
-    public void died() {
-        binder = null;
+		if (dead)
+			return;
+		dead = true;
 
-        if (dead) return;
-        dead = true;
+		MAIN_HANDLER.post(() -> {
+			for (ServiceConnection conn : connections) {
+				conn.onServiceDisconnected(componentName);
+			}
 
-        MAIN_HANDLER.post(() -> {
-                    for (ServiceConnection conn : connections) {
-                        conn.onServiceDisconnected(componentName);
-                    }
+			connections.clear();
+			ShizukuServiceConnections.remove(this);
+		});
+	}
 
-                    connections.clear();
-                    ShizukuServiceConnections.remove(this);
-                }
-        );
-    }
+	public void removeConnection(@Nullable ServiceConnection conn) {
+		if (conn != null) {
+			connections.remove(conn);
+		}
+	}
 }
