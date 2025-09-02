@@ -44,7 +44,7 @@ import org.adfa.constants.CONTENT_TITLE_KEY
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate), TooltipHost  {
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private val shizukuViewModel by activityViewModels<ShizukuViewModel>()
@@ -287,6 +287,10 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
 		viewModel.currentView = newView
 	}
+
+    override fun showToolTip(tag: String) {
+        showToolTipDialog(tag)
+    }
 }
 
 class DebuggerPagerAdapter(

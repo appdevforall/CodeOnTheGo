@@ -1,8 +1,11 @@
 package com.itsaky.androidide.fragments.debug
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
@@ -10,6 +13,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
@@ -21,10 +25,19 @@ import kotlinx.coroutines.launch
  */
 class VariableListFragment : Fragment() {
 
+    val fragmentTooltipTag: String = DEBUG_OUTPUT_VARIABLES
+
     private lateinit var treeView: TreeView<ResolvableVariable<*>>
     private var tooltipHost: TooltipHost? = null
+    private lateinit var gestureDetector: GestureDetector
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
+
+    private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onLongPress(e: MotionEvent) {
+            tooltipHost?.showToolTip(fragmentTooltipTag)
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -39,8 +52,11 @@ class VariableListFragment : Fragment() {
         return treeView
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        gestureDetector = GestureDetector(requireContext(), gestureListener)
 
         treeView.apply {
             supportHorizontalScroll = true
@@ -50,9 +66,9 @@ class VariableListFragment : Fragment() {
 
             bindCoroutineScope(viewLifecycleOwner.lifecycleScope)
             
-            setOnLongClickListener {
-                tooltipHost?.showToolTip(DEBUG_OUTPUT_VARIABLES)
-                true
+            setOnTouchListener { _, event ->
+                gestureDetector.onTouchEvent(event)
+                false
             }
         }
 

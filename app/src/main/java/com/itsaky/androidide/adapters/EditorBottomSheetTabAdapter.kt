@@ -88,6 +88,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.debugger_title),
 					fragmentClass = DebuggerFragment::class.java,
 					itemId = size.toLong(),
+                    tooltipTag = TooltipTag.PROJECT_DEBUGGER_OUTPUT,
 				),
 			)
 		}
