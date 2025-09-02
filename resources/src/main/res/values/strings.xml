@@ -990,8 +990,10 @@
 		been completed. -->
 	<string name="adb_pair_required">Please go through the pairing step first.</string>
 
-	<!-- Status message indicating that the application is searching for the ADB connection port. -->
-	<string name="adb_connection_finding">Finding ADB connection port…</string>
+	<!-- Status message indicating that the application is searching for the ADB connection port. Placeholder %1$d represents
+		the number of times the IDE has tried to find the port. Placeholder %2$d represents the maximum number of attempts to find
+		the port. -->
+	<string name="adb_connection_finding">Finding ADB connection port (try %1$d/%2$d)…</string>
 
 	<!-- Status message indicating that the application is attempting to connect to the ADB daemon on a specific port. The
 		%1$d is a placeholder for the port number. -->
