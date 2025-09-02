@@ -2,8 +2,6 @@ package com.itsaky.androidide.actions.build
 
 import android.content.Context
 import android.content.Intent
-import androidx.activity.viewModels
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
@@ -19,7 +17,6 @@ import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
-import moe.shizuku.manager.ShizukuViewModel
 import rikka.shizuku.Shizuku
 
 /**
@@ -41,13 +38,17 @@ class DebugAction(
 		const val ID = "ide.editor.build.debug"
 	}
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
-        val buildIsInProgress = data.getActivity().isBuildInProgress()
-        enabled = JdwpOptions.JDWP_ENABLED && !buildIsInProgress
-    }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		val buildIsInProgress = data.getActivity().isBuildInProgress()
 
-	override fun doExec(data: ActionData): Boolean {
+		// should be enabled if Shizuku is not running
+		// the user should not be required to wait for the build to complete
+		// in order to start the ADB pairing process
+		enabled = !(Shizuku.pingBinder()) || (JdwpOptions.JDWP_ENABLED && !buildIsInProgress)
+	}
+
+	override suspend fun preExec(data: ActionData): Boolean {
 		val activity = data.requireActivity()
 		if (!isAtLeastR()) {
 			activity.flashError(R.string.err_debugger_requires_a11)
@@ -56,17 +57,18 @@ class DebugAction(
 
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
-			val debuggerFragment =
-				activity.showAndGetBottomSheetFragment(
-					fragmentClass = DebuggerFragment::class.java,
-					sheetState = BottomSheetBehavior.STATE_EXPANDED,
-				)
+			activity.bottomSheetViewModel.apply {
+				// the debugger UI might be hidden if no VM is connected
+				// in such cases, ensure that the debugger fragment is visible
+				// before switching to the WADB pairing screen
+				setCurrentTab(DebuggerFragment::class.java)
+			}
 
-			debuggerFragment?.currentView = DebuggerFragment.VIEW_WADB_PAIRING
+			activity.debuggerViewModel.currentView = DebuggerFragment.VIEW_WADB_PAIRING
 			return false
 		}
 
-		return super.doExec(data)
+		return Shizuku.pingBinder()
 	}
 
 	override fun onCreateTaskExecMessage(

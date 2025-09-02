@@ -5,7 +5,6 @@ import android.os.RemoteException;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.util.Log;
-
 import java.io.File;
 import java.io.FileDescriptor;
 import java.util.ArrayList;
@@ -14,153 +13,157 @@ import java.util.Map;
 
 public class RishTerminal {
 
-    private static final String TAG = "RishTerminal";
+	private static final String TAG = "RishTerminal";
 
-    public static int getFd(FileDescriptor[] fileDescriptor, int i) {
-        if (fileDescriptor == null) {
-            return -1;
-        }
-        return FileDescriptors.getFd(fileDescriptor[i]);
-    }
+	public static void closeFd(FileDescriptor[] fileDescriptor, int i) {
+		if (fileDescriptor == null) {
+			return;
+		}
+		FileDescriptors.closeSilently(fileDescriptor[i]);
+	}
 
-    public static void closeFd(FileDescriptor[] fileDescriptor, int i) {
-        if (fileDescriptor == null) {
-            return;
-        }
-        FileDescriptors.closeSilently(fileDescriptor[i]);
-    }
+	public static int getFd(FileDescriptor[] fileDescriptor, int i) {
+		if (fileDescriptor == null) {
+			return -1;
+		}
+		return FileDescriptors.getFd(fileDescriptor[i]);
+	}
 
-    private final String[] argv;
-    private final byte tty;
-    private FileDescriptor[] stdin;
-    private FileDescriptor[] stdout;
-    private FileDescriptor[] stderr;
-    private int ttyFd = -1;
-    private int exitCode;
+	private static native byte prepare();
 
-    public RishTerminal(String[] argv) throws ErrnoException, RemoteException {
-        this.argv = argv;
-        this.tty = prepare();
+	private static native int start(byte tty, int stdin, int stdout, int stderr);
 
-        createHost();
-    }
+	private static native void waitForProcessExit();
 
-    private void createHost() throws ErrnoException, RemoteException {
-        Log.d(TAG, "createHost");
-        Parcel data = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
+	private static native long waitForWindowSizeChange(int fd);
 
-        List<String> list = new ArrayList<>();
-        for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
-            list.add(entry.getKey() + "=" + entry.getValue());
-        }
-        String[] env = list.toArray(new String[0]);
+	private final String[] argv;
+	private final byte tty;
+	private FileDescriptor[] stdin;
 
-        String dir = new File("").getAbsolutePath();
+	private FileDescriptor[] stdout;
 
-        try {
-            data.writeInterfaceToken(RishConfig.getInterfaceToken());
-            data.writeByte(tty);
-            stdin = Os.pipe();
-            data.writeFileDescriptor(stdin[0]);
-            stdout = Os.pipe();
-            data.writeFileDescriptor(stdout[1]);
-            if ((tty & RishConstants.ATTY_ERR) == 0) {
-                stderr = Os.pipe();
-                data.writeFileDescriptor(stderr[1]);
-            }
-            data.writeStringArray(argv);
-            data.writeStringArray(env);
-            data.writeString(dir);
-            RishConfig.getBinder().transact(RishConfig.getTransactionCode(RishConfig.TRANSACTION_createHost), data, reply, 0);
-            reply.readException();
-        } finally {
-            data.recycle();
-            reply.recycle();
+	private FileDescriptor[] stderr;
 
-            closeFd(stdin, 0);
-            closeFd(stdout, 1);
-            closeFd(stderr, 1);
-        }
-    }
+	private int ttyFd = -1;
 
-    public void start() {
-        Log.d(TAG, "start");
+	private int exitCode;
 
-        ttyFd = start(tty, getFd(stdin, 1), getFd(stdout, 0), getFd(stdout, 0));
+	public RishTerminal(String[] argv) throws ErrnoException, RemoteException {
+		this.argv = argv;
+		this.tty = prepare();
 
-        if (ttyFd != -1) {
-            new Thread(() -> {
-                while (true) {
-                    Log.d(TAG, "waitForWindowSizeChange");
+		createHost();
+	}
 
-                    try {
-                        long size = waitForWindowSizeChange(ttyFd);
-                        setWindowSize(size);
-                    } catch (Throwable e) {
-                        Log.w(TAG, Log.getStackTraceString(e));
-                    }
-                }
-            }).start();
-        }
-    }
+	public int getExitCode() {
+		return exitCode;
+	}
 
-    private void setWindowSize(long size) throws RemoteException {
-        Log.d(TAG, "setWindowSize");
+	public void start() {
+		Log.d(TAG, "start");
 
-        Parcel data = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
+		ttyFd = start(tty, getFd(stdin, 1), getFd(stdout, 0), getFd(stdout, 0));
 
-        try {
-            data.writeInterfaceToken(RishConfig.getInterfaceToken());
-            data.writeLong(size);
-            RishConfig.getBinder().transact(RishConfig.getTransactionCode(RishConfig.TRANSACTION_setWindowSize), data, null, 0);
-            reply.readException();
-        } finally {
-            data.recycle();
-            reply.recycle();
-        }
-    }
+		if (ttyFd != -1) {
+			new Thread(() -> {
+				while (true) {
+					Log.d(TAG, "waitForWindowSizeChange");
 
-    private int requestExitCode() throws RemoteException {
-        Log.d(TAG, "requestExitCode");
+					try {
+						long size = waitForWindowSizeChange(ttyFd);
+						setWindowSize(size);
+					} catch (Throwable e) {
+						Log.w(TAG, Log.getStackTraceString(e));
+					}
+				}
+			}).start();
+		}
+	}
 
-        Parcel data = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
+	public int waitFor() {
+		Log.d(TAG, "waitFor");
 
-        try {
-            data.writeInterfaceToken(RishConfig.getInterfaceToken());
-            RishConfig.getBinder().transact(RishConfig.getTransactionCode(RishConfig.TRANSACTION_getExitCode), data, null, 0);
-            reply.readException();
-            return reply.readInt();
-        } finally {
-            data.recycle();
-            reply.recycle();
-        }
-    }
+		waitForProcessExit();
+		try {
+			exitCode = requestExitCode();
+		} catch (Throwable e) {
+			Log.w(TAG, Log.getStackTraceString(e));
+			exitCode = -1;
+		}
+		return exitCode;
+	}
 
-    public int waitFor() {
-        Log.d(TAG, "waitFor");
+	private void createHost() throws ErrnoException, RemoteException {
+		Log.d(TAG, "createHost");
+		Parcel data = Parcel.obtain();
+		Parcel reply = Parcel.obtain();
 
-        waitForProcessExit();
-        try {
-            exitCode = requestExitCode();
-        } catch (Throwable e) {
-            Log.w(TAG, Log.getStackTraceString(e));
-            exitCode = -1;
-        }
-        return exitCode;
-    }
+		List<String> list = new ArrayList<>();
+		for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
+			list.add(entry.getKey() + "=" + entry.getValue());
+		}
+		String[] env = list.toArray(new String[0]);
 
-    public int getExitCode() {
-        return exitCode;
-    }
+		String dir = new File("").getAbsolutePath();
 
-    private static native byte prepare();
+		try {
+			data.writeInterfaceToken(RishConfig.getInterfaceToken());
+			data.writeByte(tty);
+			stdin = Os.pipe();
+			data.writeFileDescriptor(stdin[0]);
+			stdout = Os.pipe();
+			data.writeFileDescriptor(stdout[1]);
+			if ((tty & RishConstants.ATTY_ERR) == 0) {
+				stderr = Os.pipe();
+				data.writeFileDescriptor(stderr[1]);
+			}
+			data.writeStringArray(argv);
+			data.writeStringArray(env);
+			data.writeString(dir);
+			RishConfig.getBinder().transact(RishConfig.getTransactionCode(RishConfig.TRANSACTION_createHost), data, reply, 0);
+			reply.readException();
+		} finally {
+			data.recycle();
+			reply.recycle();
 
-    private static native int start(byte tty, int stdin, int stdout, int stderr);
+			closeFd(stdin, 0);
+			closeFd(stdout, 1);
+			closeFd(stderr, 1);
+		}
+	}
 
-    private static native long waitForWindowSizeChange(int fd);
+	private int requestExitCode() throws RemoteException {
+		Log.d(TAG, "requestExitCode");
 
-    private static native void waitForProcessExit();
+		Parcel data = Parcel.obtain();
+		Parcel reply = Parcel.obtain();
+
+		try {
+			data.writeInterfaceToken(RishConfig.getInterfaceToken());
+			RishConfig.getBinder().transact(RishConfig.getTransactionCode(RishConfig.TRANSACTION_getExitCode), data, null, 0);
+			reply.readException();
+			return reply.readInt();
+		} finally {
+			data.recycle();
+			reply.recycle();
+		}
+	}
+
+	private void setWindowSize(long size) throws RemoteException {
+		Log.d(TAG, "setWindowSize");
+
+		Parcel data = Parcel.obtain();
+		Parcel reply = Parcel.obtain();
+
+		try {
+			data.writeInterfaceToken(RishConfig.getInterfaceToken());
+			data.writeLong(size);
+			RishConfig.getBinder().transact(RishConfig.getTransactionCode(RishConfig.TRANSACTION_setWindowSize), data, null, 0);
+			reply.readException();
+		} finally {
+			data.recycle();
+			reply.recycle();
+		}
+	}
 }
