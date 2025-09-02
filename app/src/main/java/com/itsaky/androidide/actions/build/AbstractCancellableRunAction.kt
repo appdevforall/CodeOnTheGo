@@ -54,13 +54,23 @@ abstract class AbstractCancellableRunAction(
         enabled = true
     }
 
-    final override suspend fun execAction(data: ActionData): Any {
-        if (data.getActivity().isBuildInProgress()) {
-            return cancelBuild()
-        }
+	/**
+	 * Called before the action is executed.
+	 *
+	 * @param data The action data.
+	 * @return Whether to continue executing the action.
+	 */
+	protected open suspend fun preExec(data: ActionData): Boolean = true
 
-        return doExec(data)
-    }
+	final override suspend fun execAction(data: ActionData): Any {
+		if (!preExec(data)) return false
+
+		if (data.getActivity().isBuildInProgress()) {
+			return cancelBuild()
+		}
+
+		return doExec(data)
+	}
 
     protected abstract fun doExec(data: ActionData): Any
 
