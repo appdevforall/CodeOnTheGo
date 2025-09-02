@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 class BottomSheetViewModel : ViewModel() {
-
 	private val _state = MutableStateFlow(BottomSheetBehavior.STATE_COLLAPSED)
 	private val _currentTab = MutableStateFlow<Class<out Fragment>>(BuildOutputFragment::class.java)
 	private val _isDebuggerUiVisible = MutableStateFlow(true)

@@ -6,134 +6,132 @@ import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.system.Os;
 import android.util.Log;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import java.util.HashMap;
 import java.util.Map;
 
 public abstract class RishService {
 
-    private static final String TAG = "RishService";
+	private static final String TAG = "RishService";
 
-    private static final Map<Integer, RishHost> HOSTS = new HashMap<>();
+	private static final Map<Integer, RishHost> HOSTS = new HashMap<>();
 
-    private static final boolean IS_ROOT = Os.getuid() == 0;
+	private static final boolean IS_ROOT = Os.getuid() == 0;
 
-    private void createHost(
-            String[] args, String[] env, String dir,
-            byte tty,
-            ParcelFileDescriptor stdin, ParcelFileDescriptor stdout, ParcelFileDescriptor stderr) {
+	public abstract void enforceCallingPermission(String func);
 
-        int callingPid = Binder.getCallingPid();
+	public boolean onTransact(int code, @NonNull Parcel data, @Nullable Parcel reply, int flags) {
+		if (code == RishConfig.getTransactionCode(RishConfig.TRANSACTION_createHost)) {
+			Log.d(TAG, "TRANSACTION_createHost");
 
-        // Termux app set PATH and LD_PRELOAD to Termux's internal path.
-        // Adb does not have sufficient permissions to access such places.
+			enforceCallingPermission("createHost");
 
-        // Under adb, users need to set RISH_PRESERVE_ENV=1 to preserve env.
-        // Under root, keep env unless RISH_PRESERVE_ENV=0 is set.
+			if (reply == null || (flags & IBinder.FLAG_ONEWAY) != 0) {
+				return true;
+			}
 
-        boolean allowEnv = IS_ROOT;
-        for (String e : env) {
-            if ("RISH_PRESERVE_ENV=1".equals(e)) {
-                allowEnv = true;
-                break;
-            } else if ("RISH_PRESERVE_ENV=0".equals(e)) {
-                allowEnv = false;
-                break;
-            }
-        }
-        if (!allowEnv) {
-            env = null;
-        }
+			ParcelFileDescriptor stdin;
+			ParcelFileDescriptor stdout;
+			ParcelFileDescriptor stderr = null;
 
-        RishHost host = new RishHost(args, env, dir, tty, stdin, stdout, stderr);
-        host.start();
-        Log.d(TAG, "Forked " + host.getPid());
+			data.enforceInterface(RishConfig.getInterfaceToken());
+			byte tty = data.readByte();
+			stdin = data.readFileDescriptor();
+			stdout = data.readFileDescriptor();
+			if ((tty & RishConstants.ATTY_ERR) == 0) {
+				stderr = data.readFileDescriptor();
+			}
+			String[] args = data.createStringArray();
+			String[] env = data.createStringArray();
+			String dir = data.readString();
+			createHost(args, env, dir, tty, stdin, stdout, stderr);
+			reply.writeNoException();
+			return true;
+		} else if (code == RishConfig.getTransactionCode(RishConfig.TRANSACTION_setWindowSize)) {
+			Log.d(TAG, "TRANSACTION_setWindowSize");
 
-        HOSTS.put(callingPid, host);
-    }
+			enforceCallingPermission("setWindowSize");
 
-    private void setWindowSize(long size) {
-        int callingPid = Binder.getCallingPid();
+			data.enforceInterface(RishConfig.getInterfaceToken());
+			long size = data.readLong();
+			setWindowSize(size);
+			if (reply != null) {
+				reply.writeNoException();
+			}
+			return true;
+		} else if (code == RishConfig.getTransactionCode(RishConfig.TRANSACTION_getExitCode)) {
+			Log.d(TAG, "TRANSACTION_getExitCode");
 
-        RishHost host = HOSTS.get(callingPid);
-        if (host == null) {
-            Log.d(TAG, "Not existing host created by " + callingPid);
-            return;
-        }
+			enforceCallingPermission("getExitCode");
 
-        host.setWindowSize(size);
-    }
+			data.enforceInterface(RishConfig.getInterfaceToken());
+			int exitCode = getExitCode();
+			if (reply != null) {
+				reply.writeNoException();
+				reply.writeInt(exitCode);
+			}
+			return true;
+		}
+		return false;
+	}
 
-    private int getExitCode() {
-        int callingPid = Binder.getCallingPid();
+	private void createHost(
+			String[] args, String[] env, String dir,
+			byte tty,
+			ParcelFileDescriptor stdin, ParcelFileDescriptor stdout, ParcelFileDescriptor stderr) {
 
-        RishHost host = HOSTS.get(callingPid);
-        if (host == null) {
-            Log.d(TAG, "Not existing host created by " + callingPid);
-            return -1;
-        }
+		int callingPid = Binder.getCallingPid();
 
-        return host.getExitCode();
-    }
+		// Termux app set PATH and LD_PRELOAD to Termux's internal path.
+		// Adb does not have sufficient permissions to access such places.
 
-    public abstract void enforceCallingPermission(String func);
+		// Under adb, users need to set RISH_PRESERVE_ENV=1 to preserve env.
+		// Under root, keep env unless RISH_PRESERVE_ENV=0 is set.
 
-    public boolean onTransact(int code, @NonNull Parcel data, @Nullable Parcel reply, int flags) {
-        if (code == RishConfig.getTransactionCode(RishConfig.TRANSACTION_createHost)) {
-            Log.d(TAG, "TRANSACTION_createHost");
+		boolean allowEnv = IS_ROOT;
+		for (String e : env) {
+			if ("RISH_PRESERVE_ENV=1".equals(e)) {
+				allowEnv = true;
+				break;
+			} else if ("RISH_PRESERVE_ENV=0".equals(e)) {
+				allowEnv = false;
+				break;
+			}
+		}
+		if (!allowEnv) {
+			env = null;
+		}
 
-            enforceCallingPermission("createHost");
+		RishHost host = new RishHost(args, env, dir, tty, stdin, stdout, stderr);
+		host.start();
+		Log.d(TAG, "Forked " + host.getPid());
 
-            if (reply == null || (flags & IBinder.FLAG_ONEWAY) != 0) {
-                return true;
-            }
+		HOSTS.put(callingPid, host);
+	}
 
-            ParcelFileDescriptor stdin;
-            ParcelFileDescriptor stdout;
-            ParcelFileDescriptor stderr = null;
+	private int getExitCode() {
+		int callingPid = Binder.getCallingPid();
 
-            data.enforceInterface(RishConfig.getInterfaceToken());
-            byte tty = data.readByte();
-            stdin = data.readFileDescriptor();
-            stdout = data.readFileDescriptor();
-            if ((tty & RishConstants.ATTY_ERR) == 0) {
-                stderr = data.readFileDescriptor();
-            }
-            String[] args = data.createStringArray();
-            String[] env = data.createStringArray();
-            String dir = data.readString();
-            createHost(args, env, dir, tty, stdin, stdout, stderr);
-            reply.writeNoException();
-            return true;
-        } else if (code == RishConfig.getTransactionCode(RishConfig.TRANSACTION_setWindowSize)) {
-            Log.d(TAG, "TRANSACTION_setWindowSize");
+		RishHost host = HOSTS.get(callingPid);
+		if (host == null) {
+			Log.d(TAG, "Not existing host created by " + callingPid);
+			return -1;
+		}
 
-            enforceCallingPermission("setWindowSize");
+		return host.getExitCode();
+	}
 
-            data.enforceInterface(RishConfig.getInterfaceToken());
-            long size = data.readLong();
-            setWindowSize(size);
-            if (reply != null) {
-                reply.writeNoException();
-            }
-            return true;
-        } else if (code == RishConfig.getTransactionCode(RishConfig.TRANSACTION_getExitCode)) {
-            Log.d(TAG, "TRANSACTION_getExitCode");
+	private void setWindowSize(long size) {
+		int callingPid = Binder.getCallingPid();
 
-            enforceCallingPermission("getExitCode");
+		RishHost host = HOSTS.get(callingPid);
+		if (host == null) {
+			Log.d(TAG, "Not existing host created by " + callingPid);
+			return;
+		}
 
-            data.enforceInterface(RishConfig.getInterfaceToken());
-            int exitCode = getExitCode();
-            if (reply != null) {
-                reply.writeNoException();
-                reply.writeInt(exitCode);
-            }
-            return true;
-        }
-        return false;
-    }
+		host.setWindowSize(size);
+	}
 
 }

@@ -12,10 +12,8 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.R
-import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
@@ -38,8 +36,7 @@ import rikka.shizuku.Shizuku
 /**
  * @author Akash Yadav
  */
-class DebuggerFragment :
-	EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
+class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private val shizukuViewModel by activityViewModels<ShizukuViewModel>()
@@ -115,8 +112,10 @@ class DebuggerFragment :
 					// 3. current view is debugger UI but no thread data is available
 					emptyStateViewModel.isEmpty.value =
 						currentView == VIEW_DEBUGGER &&
-								(viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
-										viewModel.allThreads.value.isEmpty())
+						(
+							viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
+								viewModel.allThreads.value.isEmpty()
+						)
 				}
 
 				viewModel.observeConnectionState(
@@ -151,7 +150,8 @@ class DebuggerFragment :
 						}
 
 					emptyStateViewModel.isEmpty.value =
-						currentView == VIEW_DEBUGGER && message != null
+						currentView == VIEW_DEBUGGER &&
+						message != null
 					emptyStateViewModel.emptyMessage.value = message
 				}
 
@@ -167,7 +167,8 @@ class DebuggerFragment :
 
 					withContext(Dispatchers.Main) {
 						emptyStateViewModel.isEmpty.value =
-							currentView == VIEW_DEBUGGER && descriptors.isEmpty()
+							currentView == VIEW_DEBUGGER &&
+							descriptors.isEmpty()
 						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
 							ThreadSelectorListAdapter(
 								requireContext(),
@@ -229,7 +230,7 @@ class DebuggerFragment :
 	}
 
 	override fun onFragmentLongPressed() {
-		//TODO be defined
+		// TODO be defined
 	}
 
 	private fun onShizukuServiceStatusChange(status: ServiceStatus?) {
@@ -265,12 +266,12 @@ class ThreadSelectorListAdapter(
 		val inflater = LayoutInflater.from(this.context)
 		val view =
 			(
-					convertView ?: inflater.inflate(
-						android.R.layout.simple_dropdown_item_1line,
-						parent,
-						false,
-					)
-					) as TextView
+				convertView ?: inflater.inflate(
+					android.R.layout.simple_dropdown_item_1line,
+					parent,
+					false,
+				)
+			) as TextView
 
 		val item = getItem(position)
 		if (item == null) {

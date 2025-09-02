@@ -18,16 +18,16 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
+	id("com.android.library")
 }
 
 android {
-  namespace = "${BuildConfig.PACKAGE_NAME}.resources"
+	namespace = "${BuildConfig.PACKAGE_NAME}.resources"
 }
 
 dependencies {
-  implementation(libs.androidx.appcompat)
-  implementation(libs.androidx.preference)
-  implementation(libs.androidx.splashscreen)
-  implementation(libs.google.material)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.preference)
+	implementation(libs.androidx.splashscreen)
+	implementation(libs.google.material)
 }

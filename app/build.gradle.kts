@@ -5,26 +5,23 @@ import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.ch.qos.logback.core.util.DesugarEnvUtil
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
-import java.nio.file.Files
-import kotlin.reflect.jvm.javaMethod
-
-import java.net.URL
-import java.net.URI
-import java.nio.file.StandardCopyOption
 import org.json.JSONObject
-
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.net.URI
+import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
-import java.util.zip.Deflater
 import java.util.Properties
-
+import java.util.zip.Deflater
 import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+import kotlin.reflect.jvm.javaMethod
 
 plugins {
 	id("com.android.application")
@@ -36,16 +33,16 @@ plugins {
 	alias(libs.plugins.sentry)
 }
 
-fun propOrEnv(name: String): String {
-	return project.findProperty(name) as String?
+fun propOrEnv(name: String): String =
+	project.findProperty(name) as String?
 		?: System.getenv(name)
 		?: ""
-}
 
-val props = Properties().apply {
-	val file = rootProject.file("local.properties")
-	if (file.exists()) load(file.inputStream())
-}
+val props =
+	Properties().apply {
+		val file = rootProject.file("local.properties")
+		if (file.exists()) load(file.inputStream())
+	}
 
 apply {
 	plugin(AndroidIDEAssetsPlugin::class.java)
@@ -69,7 +66,6 @@ android {
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
 		testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
-
 	}
 
 	buildTypes {
@@ -100,13 +96,11 @@ android {
 		generateLocaleConfig = true
 	}
 
-
 	sourceSets {
 		getByName("androidTest") {
 			manifest.srcFile("src/androidTest/AndroidManifest.xml")
 		}
 	}
-
 
 	lint {
 		abortOnError = false
@@ -130,13 +124,13 @@ desugaring {
 		// always returns null
 		replaceMethod(
 			EnvUtil::logbackVersion.javaMethod!!,
-			DesugarEnvUtil::logbackVersion.javaMethod!!
+			DesugarEnvUtil::logbackVersion.javaMethod!!,
 		)
 	}
 }
 
 dependencies {
-	//debugImplementation(libs.common.leakcanary)
+	// debugImplementation(libs.common.leakcanary)
 
 	// Annotation processors
 	kapt(libs.common.glide.ap)
@@ -162,7 +156,7 @@ dependencies {
 	implementation(libs.google.gson)
 	implementation(libs.google.guava)
 
-	//Room
+	// Room
 	implementation(libs.room.ktx)
 
 	// Git
@@ -284,14 +278,15 @@ tasks.register("downloadDocDb") {
 			val dbName = "documentation.db"
 			if (assetUrl != null && assetName != null) {
 				val destinationPath =
-					project.rootProject.projectDir.resolve("assets/${dbName}").toPath()
+					project.rootProject.projectDir
+						.resolve("assets/$dbName")
+						.toPath()
 
-
-				project.logger.lifecycle("Downloading : $assetUrl as ${destinationPath}")
+				project.logger.lifecycle("Downloading : $assetUrl as $destinationPath")
 
 				URL(assetUrl).openStream().use { input ->
 					Files.copy(input, destinationPath, StandardCopyOption.REPLACE_EXISTING)
-					println("Download complete: ${destinationPath.toString()}")
+					println("Download complete: $destinationPath")
 				}
 			} else {
 				project.logger.lifecycle("No `.sqlite` asset found in the latest release.")
@@ -302,10 +297,12 @@ tasks.register("downloadDocDb") {
 	}
 }
 
-fun createAssetsZip(
-	arch: String,
-) {
-	val outputDir = project.layout.buildDirectory.dir("outputs/assets").get().asFile
+fun createAssetsZip(arch: String) {
+	val outputDir =
+		project.layout.buildDirectory
+			.dir("outputs/assets")
+			.get()
+			.asFile
 	if (!outputDir.exists()) {
 		outputDir.mkdirs()
 		println("Creating output directory: ${outputDir.absolutePath}")
@@ -331,11 +328,12 @@ fun createAssetsZip(
 			}
 
 			project.logger.lifecycle("Zipping $fileName from ${filePath.absolutePath}")
-			val entryName = when (fileName) {
-				bootstrapName -> "bootstrap.zip"
-				androidSdkName -> "android-sdk.zip"
-				else -> fileName
-			}
+			val entryName =
+				when (fileName) {
+					bootstrapName -> "bootstrap.zip"
+					androidSdkName -> "android-sdk.zip"
+					else -> fileName
+				}
 
 			zipOut.putNextEntry(ZipEntry(entryName))
 			filePath.inputStream().use { input -> input.copyTo(zipOut) }
@@ -367,7 +365,7 @@ tasks.register("recompressApk") {
 		val abi: String = extensions.extraProperties["abi"].toString()
 		val buildName: String = extensions.extraProperties["buildName"].toString()
 
-		project.logger.lifecycle("Calling recompressApk abi:${abi} buildName:${buildName}")
+		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
 		recompressApk(abi, buildName)
 	}
@@ -395,12 +393,17 @@ afterEvaluate {
 			}
 		}
 	}
-
 }
 
-
-fun recompressApk(abi: String, buildName: String) {
-	val apkDir: File = layout.buildDirectory.dir("outputs/apk/$abi/$buildName").get().asFile
+fun recompressApk(
+	abi: String,
+	buildName: String,
+) {
+	val apkDir: File =
+		layout.buildDirectory
+			.dir("outputs/apk/$abi/$buildName")
+			.get()
+			.asFile
 	project.logger.lifecycle("Recompressing APK Dir: ${apkDir.path}")
 
 	apkDir.walk().filter { it.extension == "apk" }.forEach { apkFile ->
@@ -414,7 +417,10 @@ fun recompressApk(abi: String, buildName: String) {
 	}
 }
 
-fun recompressZip(inputZip: File, outputZip: File) {
+fun recompressZip(
+	inputZip: File,
+	outputZip: File,
+) {
 	ZipInputStream(BufferedInputStream(FileInputStream(inputZip))).use { zis ->
 		ZipOutputStream(BufferedOutputStream(FileOutputStream(outputZip))).use { zos ->
 			zos.setLevel(Deflater.BEST_COMPRESSION)
@@ -461,19 +467,20 @@ fun signApk(apkFile: File) {
 	val keyPassword = signingConfig.keyPassword ?: error("Key password missing!")
 
 	val androidSdkDir = android.sdkDirectory.absolutePath
-	val apkSignerPath: File = File(androidSdkDir, "build-tools")
-		.listFiles()
-		?.filter { it.isDirectory && File(it, signerExec).exists() }
-		?.maxByOrNull { it.name }  // pick the highest version
-		?.resolve(signerExec)
-		?: error("Could not find apksigner in any build-tools directory")
+	val apkSignerPath: File =
+		File(androidSdkDir, "build-tools")
+			.listFiles()
+			?.filter { it.isDirectory && File(it, signerExec).exists() }
+			?.maxByOrNull { it.name } // pick the highest version
+			?.resolve(signerExec)
+			?: error("Could not find apksigner in any build-tools directory")
 
 	project.logger.lifecycle("APK Signer: ${apkSignerPath.absolutePath}")
 
 	ant.withGroovyBuilder {
 		"exec"(
 			"executable" to apkSignerPath.absolutePath,
-			"failonerror" to "true"
+			"failonerror" to "true",
 		) {
 			"arg"("value" to "sign")
 			"arg"("value" to "--ks")
@@ -487,5 +494,4 @@ fun signApk(apkFile: File) {
 			"arg"("value" to apkFile.absolutePath)
 		}
 	}
-
 }

@@ -20,9 +20,10 @@ val Fragment.viewLifecycleScope: CoroutineScope
  * fragment's view has already been destroyed or not yet created.
  */
 val Fragment.viewLifecycleScopeOrNull: CoroutineScope?
-	get() = try {
-		viewLifecycleScope
-	} catch (e: IllegalStateException) {
-		// invalid state
-		null
-	}
+	get() =
+		try {
+			viewLifecycleScope
+		} catch (e: IllegalStateException) {
+			// invalid state
+			null
+		}

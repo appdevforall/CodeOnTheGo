@@ -174,10 +174,10 @@ class OnboardingActivity : AppIntro2() {
 	}
 
 	override fun onDonePressed(currentFragment: Fragment?) {
-        if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
-            finishAffinity()
-            return
-        }
+		if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
+			finishAffinity()
+			return
+		}
 
 		if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
 			activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
