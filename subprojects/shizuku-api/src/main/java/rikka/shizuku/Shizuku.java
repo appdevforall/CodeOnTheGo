@@ -407,6 +407,26 @@ public class Shizuku {
 		return preV11;
 	}
 
+	/**
+	 * Start a new process at remote service, parameters are passed to {@link Runtime#exec(String, String[], java.io.File)}. <br>
+	 * From version 11, like "su", the process will be killed when the caller process is dead. If you have complicated requirements, use {@link Shizuku#bindUserService(UserServiceArgs, ServiceConnection)}.
+	 * <p>
+	 * Note, you may need to read/write streams from RemoteProcess in different threads.
+	 * </p>
+	 *
+	 * @return RemoteProcess holds the binder of remote process
+	 * @deprecated This method should only be used when you are transitioning from "su". Use {@link Shizuku#transactRemote(Parcel, Parcel, int)} for binder calls and {@link Shizuku#bindUserService(UserServiceArgs, ServiceConnection)} for complicated requirements.
+	 *             <p>
+	 *             This method is planned to be removed from Shizuku API 14.
+	 */
+	public static ShizukuRemoteProcess newProcess(@NonNull String[] cmd, @Nullable String[] env, @Nullable String dir) {
+		try {
+			return new ShizukuRemoteProcess(requireService().newProcess(cmd, env, dir));
+		} catch (RemoteException e) {
+			throw rethrowAsRuntimeException(e);
+		}
+	}
+
 	@RestrictTo(LIBRARY_GROUP_PREFIX)
 	public static void onBinderReceived(@Nullable IBinder newBinder, String packageName) {
 		if (binder == newBinder)
@@ -694,26 +714,6 @@ public class Shizuku {
 		}
 
 		return result;
-	}
-
-	/**
-	 * Start a new process at remote service, parameters are passed to {@link Runtime#exec(String, String[], java.io.File)}. <br>
-	 * From version 11, like "su", the process will be killed when the caller process is dead. If you have complicated requirements, use {@link Shizuku#bindUserService(UserServiceArgs, ServiceConnection)}.
-	 * <p>
-	 * Note, you may need to read/write streams from RemoteProcess in different threads.
-	 * </p>
-	 *
-	 * @return RemoteProcess holds the binder of remote process
-	 * @deprecated This method should only be used when you are transitioning from "su". Use {@link Shizuku#transactRemote(Parcel, Parcel, int)} for binder calls and {@link Shizuku#bindUserService(UserServiceArgs, ServiceConnection)} for complicated requirements.
-	 *             <p>
-	 *             This method is planned to be removed from Shizuku API 14.
-	 */
-	private static ShizukuRemoteProcess newProcess(@NonNull String[] cmd, @Nullable String[] env, @Nullable String dir) {
-		try {
-			return new ShizukuRemoteProcess(requireService().newProcess(cmd, env, dir));
-		} catch (RemoteException e) {
-			throw rethrowAsRuntimeException(e);
-		}
 	}
 
 	private static RuntimeException rethrowAsRuntimeException(RemoteException e) {

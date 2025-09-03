@@ -17,32 +17,32 @@
 
 import com.itsaky.androidide.build.config.BuildConfig
 
-plugins{
-    id("com.android.library")
-    id("kotlin-android")
-    id("kotlin-kapt")
+plugins {
+	id("com.android.library")
+	id("kotlin-android")
+	id("kotlin-kapt")
 }
 
 android {
-    namespace = "${BuildConfig.PACKAGE_NAME}.actions"
+	namespace = "${BuildConfig.PACKAGE_NAME}.actions"
 }
 
 dependencies {
-    kapt(libs.google.auto.service)
+	kapt(libs.google.auto.service)
 
-    api(libs.androidx.nav.fragment)
-    api(libs.androidx.nav.ui)
+	api(libs.androidx.nav.fragment)
+	api(libs.androidx.nav.ui)
 
-    implementation(projects.common)
-    implementation(projects.idetooltips)
-    implementation(projects.resources)
-    implementation(platform(libs.sora.bom))
-    implementation(libs.common.editor)
-    implementation(libs.common.kotlin)
-    implementation(libs.common.kotlin.coroutines.android)
-    implementation(libs.common.utilcode)
-    implementation(libs.google.auto.service.annotations)
-    
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.google.material)
+	implementation(projects.common)
+	implementation(projects.idetooltips)
+	implementation(projects.resources)
+	implementation(platform(libs.sora.bom))
+	implementation(libs.common.editor)
+	implementation(libs.common.kotlin)
+	implementation(libs.common.kotlin.coroutines.android)
+	implementation(libs.common.utilcode)
+	implementation(libs.google.auto.service.annotations)
+
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.google.material)
 }

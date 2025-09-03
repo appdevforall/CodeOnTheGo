@@ -18,24 +18,24 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  kotlin("android")
+	id("com.android.library")
+	kotlin("android")
 }
 
 android {
-  namespace = "${BuildConfig.PACKAGE_NAME}.testing.unit"
+	namespace = "${BuildConfig.PACKAGE_NAME}.testing.unit"
 }
 
 dependencies {
-  api(libs.tests.androidx.test.core)
-  api(libs.tests.robolectric)
-  api(libs.tests.junit)
-  api(libs.tests.google.truth)
-  api(libs.tests.mockk)
+	api(libs.tests.androidx.test.core)
+	api(libs.tests.robolectric)
+	api(libs.tests.junit)
+	api(libs.tests.google.truth)
+	api(libs.tests.mockk)
 
-  api(projects.buildInfo)
-  api(projects.common)
-  api(projects.shared)
+	api(projects.buildInfo)
+	api(projects.common)
+	api(projects.shared)
 
-  api(projects.testing.common)
+	api(projects.testing.common)
 }

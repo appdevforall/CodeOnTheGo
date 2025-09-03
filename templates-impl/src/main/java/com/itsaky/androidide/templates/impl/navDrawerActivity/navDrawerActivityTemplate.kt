@@ -31,94 +31,94 @@ import com.itsaky.androidide.templates.impl.baseProjectImpl
 import com.itsaky.androidide.templates.impl.templateAsset
 
 fun navDrawerActivityProject() = baseProjectImpl {
-  templateName = R.string.template_navigation_drawer
-  thumb = R.drawable.template_blank_activity_drawer
-  tooltipTag = TooltipTag.TEMPLATE_NAV_DRAWER_ACTIVITY
-  defaultAppModule {
-    recipe = createRecipe {
-      sources {
-        writeMainActivity(this, ktSrc = ::navDrawerActivitySrcKt,
-          javaSrc = ::navDrawerActivitySrcJava)
-      }
+templateName = R.string.template_navigation_drawer
+thumb = R.drawable.template_blank_activity_drawer
+tooltipTag = TooltipTag.TEMPLATE_NAV_DRAWER_ACTIVITY
+defaultAppModule {
+	recipe = createRecipe {
+	sources {
+		writeMainActivity(this, ktSrc = ::navDrawerActivitySrcKt,
+		javaSrc = ::navDrawerActivitySrcJava)
+	}
 
-      res {
-        copyAssetsRecursively(templateAsset("navDrawer", "res"), mainResDir())
+	res {
+		copyAssetsRecursively(templateAsset("navDrawer", "res"), mainResDir())
 
-        writeXmlResource("mobile_navigation", NAVIGATION,
-          source = ::navDrawerNavigationXmlSrc)
+		writeXmlResource("mobile_navigation", NAVIGATION,
+		source = ::navDrawerNavigationXmlSrc)
 
-        putStringRes("navigation_drawer_open", "Open navigation drawer")
-        putStringRes("navigation_drawer_close", "Close navigation drawer")
-        putStringRes("nav_header_title", "Code on the Go")
-        putStringRes("nav_header_subtitle", "info@appdevforall.org")
-        putStringRes("nav_header_desc", "Navigation header")
-        putStringRes("action_settings", "Settings")
-        putStringRes("menu_home", "Home")
-        putStringRes("menu_gallery", "Gallery")
-        putStringRes("menu_slideshow", "Slideshow")
+		putStringRes("navigation_drawer_open", "Open navigation drawer")
+		putStringRes("navigation_drawer_close", "Close navigation drawer")
+		putStringRes("nav_header_title", "Code on the Go")
+		putStringRes("nav_header_subtitle", "info@appdevforall.org")
+		putStringRes("nav_header_desc", "Navigation header")
+		putStringRes("action_settings", "Settings")
+		putStringRes("menu_home", "Home")
+		putStringRes("menu_gallery", "Gallery")
+		putStringRes("menu_slideshow", "Slideshow")
 
-        emptyThemesAndColors()
-      }
+		emptyThemesAndColors()
+	}
 
-      if (data.language == Kotlin) {
-        navDrawerActivityProjectKt()
-      } else {
-        navDrawerActivityProjectJava()
-      }
-    }
-  }
+	if (data.language == Kotlin) {
+		navDrawerActivityProjectKt()
+	} else {
+		navDrawerActivityProjectJava()
+	}
+	}
+}
 }
 
 private fun AndroidModuleTemplateBuilder.navDrawerActivityProjectJava() {
-  executor.apply {
-    addDependency(Dependency.AndroidX.Navigation_Ui)
-    addDependency(Dependency.AndroidX.Navigation_Fragment)
-    addDependency(Dependency.AndroidX.LifeCycle_LiveData)
-    addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
-    addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
+executor.apply {
+	addDependency(Dependency.AndroidX.Navigation_Ui)
+	addDependency(Dependency.AndroidX.Navigation_Fragment)
+	addDependency(Dependency.AndroidX.LifeCycle_LiveData)
+	addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
+	addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
 
-    sources {
-      writeJavaSrc("${data.packageName}.ui.gallery", "GalleryFragment",
-        source = ::galleryFragmentSrcJava)
-      writeJavaSrc("${data.packageName}.ui.gallery", "GalleryViewModel",
-        source = ::galleryModelSrcJava)
+	sources {
+	writeJavaSrc("${data.packageName}.ui.gallery", "GalleryFragment",
+		source = ::galleryFragmentSrcJava)
+	writeJavaSrc("${data.packageName}.ui.gallery", "GalleryViewModel",
+		source = ::galleryModelSrcJava)
 
-      writeJavaSrc("${data.packageName}.ui.home", "HomeFragment",
-        source = ::homeFragmentSrcJava)
-      writeJavaSrc("${data.packageName}.ui.home", "HomeViewModel",
-        source = ::homeModelSrcJava)
+	writeJavaSrc("${data.packageName}.ui.home", "HomeFragment",
+		source = ::homeFragmentSrcJava)
+	writeJavaSrc("${data.packageName}.ui.home", "HomeViewModel",
+		source = ::homeModelSrcJava)
 
-      writeJavaSrc("${data.packageName}.ui.slideshow", "SlideshowFragment",
-        source = ::slideshowFragmentSrcJava)
-      writeJavaSrc("${data.packageName}.ui.slideshow", "SlideshowViewModel",
-        source = ::slideshowModelSrcJava)
-    }
-  }
+	writeJavaSrc("${data.packageName}.ui.slideshow", "SlideshowFragment",
+		source = ::slideshowFragmentSrcJava)
+	writeJavaSrc("${data.packageName}.ui.slideshow", "SlideshowViewModel",
+		source = ::slideshowModelSrcJava)
+	}
+}
 }
 
 private fun AndroidModuleTemplateBuilder.navDrawerActivityProjectKt() {
-  executor.apply {
-    addDependency(Dependency.AndroidX.Navigation_Ui_Ktx)
-    addDependency(Dependency.AndroidX.Navigation_Fragment_Ktx)
-    addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
-    addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
-    addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
+executor.apply {
+	addDependency(Dependency.AndroidX.Navigation_Ui_Ktx)
+	addDependency(Dependency.AndroidX.Navigation_Fragment_Ktx)
+	addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
+	addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
+	addDependency(Dependency.Kotlin.Kotlinx_Coroutines_Core)
 
-    sources {
-      writeKtSrc("${data.packageName}.ui.gallery", "GalleryFragment",
-        source = ::galleryFragmentSrcKt)
-      writeKtSrc("${data.packageName}.ui.gallery", "GalleryViewModel",
-        source = ::galleryModelSrcKt)
+	sources {
+	writeKtSrc("${data.packageName}.ui.gallery", "GalleryFragment",
+		source = ::galleryFragmentSrcKt)
+	writeKtSrc("${data.packageName}.ui.gallery", "GalleryViewModel",
+		source = ::galleryModelSrcKt)
 
-      writeKtSrc("${data.packageName}.ui.home", "HomeFragment",
-        source = ::homeFragmentSrcKt)
-      writeKtSrc("${data.packageName}.ui.home", "HomeViewModel",
-        source = ::homeModelSrcKt)
+	writeKtSrc("${data.packageName}.ui.home", "HomeFragment",
+		source = ::homeFragmentSrcKt)
+	writeKtSrc("${data.packageName}.ui.home", "HomeViewModel",
+		source = ::homeModelSrcKt)
 
-      writeKtSrc("${data.packageName}.ui.slideshow", "SlideshowFragment",
-        source = ::slideshowFragmentSrcKt)
-      writeKtSrc("${data.packageName}.ui.slideshow", "SlideshowViewModel",
-        source = ::slideshowModelSrcKt)
-    }
-  }
+	writeKtSrc("${data.packageName}.ui.slideshow", "SlideshowFragment",
+		source = ::slideshowFragmentSrcKt)
+	writeKtSrc("${data.packageName}.ui.slideshow", "SlideshowViewModel",
+		source = ::slideshowModelSrcKt)
+	}
+}
 }
