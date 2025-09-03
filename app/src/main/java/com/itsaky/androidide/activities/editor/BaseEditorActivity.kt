@@ -1103,5 +1103,4 @@ abstract class BaseEditorActivity :
             }
         }
     }
-	open fun installationSessionCallback(): SessionCallback = ApkInstallationSessionCallback(this).also { installationCallback = it }
 }
