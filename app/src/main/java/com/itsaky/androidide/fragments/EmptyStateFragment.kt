@@ -70,7 +70,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
 
-    // Initialize the detector
+
     gestureDetector = GestureDetector(requireContext(), gestureListener)
 
     // Set a non-consuming touch listener on the root ViewFlipper
