@@ -22,6 +22,8 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
@@ -29,6 +31,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
+import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.fragments.onboarding.GreetingFragment
 import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
@@ -37,9 +40,11 @@ import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
-import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.isAtLeastV
+import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.withStopWatch
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
@@ -53,187 +58,208 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
+	private val activityScope =
+		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
-    private val activityScope =
-        CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
+	private var listJdkInstallationsJob: Job? = null
 
-    private var listJdkInstallationsJob: Job? = null
+	companion object {
+		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
+		private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
+			"ide.archConfig.experimentalWarning.isShown"
+	}
 
-    companion object {
-        private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
-        private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
-            "ide.archConfig.experimentalWarning.isShown"
-    }
+	@SuppressLint("SourceLockedOrientationActivity")
+	override fun onCreate(savedInstanceState: Bundle?) {
+		IThemeManager.getInstance().applyTheme(this)
+		setOrientationFunction {
+			OrientationUtilities.setOrientation {
+				requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+			}
+		}
 
-    @SuppressLint("SourceLockedOrientationActivity")
-    override fun onCreate(savedInstanceState: Bundle?) {
-        IThemeManager.getInstance().applyTheme(this)
-        setOrientationFunction {
-            OrientationUtilities.setOrientation {
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            }
-        }
-        super.onCreate(savedInstanceState)
+		super.onCreate(savedInstanceState)
 
-        if (tryNavigateToMainIfSetupIsCompleted()) {
-            return
-        }
+		WindowCompat.getInsetsController(this.window, this.window.decorView).apply {
+			isAppearanceLightStatusBars = !isSystemInDarkMode()
+			isAppearanceLightNavigationBars = !isSystemInDarkMode()
+		}
 
-        setSwipeLock(true)
-        setTransformer(AppIntroPageTransformerType.Fade)
-        setProgressIndicator()
-        showStatusBar(true)
-        isIndicatorEnabled = true
-        isWizardMode = true
+		if (isAtLeastV()) {
+			ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+				view.setBackgroundColor(resolveAttr(R.attr.colorSurface))
+				insets
+			}
+		} else {
+			@Suppress("DEPRECATION")
+			window.statusBarColor = resolveAttr(R.attr.colorSurface)
+		}
 
-        addSlide(GreetingFragment())
+		if (tryNavigateToMainIfSetupIsCompleted()) {
+			return
+		}
 
-        if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
-            val errorMessage = getString(
-                string.bootstrap_error_not_primary_user_message,
-                MarkdownUtils.getMarkdownCodeForString(
-                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    false
-                )
-            )
-            addSlide(
-                OnboardingInfoFragment.newInstance(
-                    getString(string.title_unsupported_user),
-                    errorMessage,
-                    R.drawable.ic_alert,
-                    ContextCompat.getColor(this, R.color.color_error)
-                )
-            )
-            return
-        }
+		setSwipeLock(true)
+		setTransformer(AppIntroPageTransformerType.Fade)
+		setProgressIndicator()
+		showStatusBar(true)
+		isIndicatorEnabled = true
+		isWizardMode = true
 
-        if (isInstalledOnSdCard()) {
-            val errorMessage = getString(
-                string.bootstrap_error_installed_on_portable_sd,
-                MarkdownUtils.getMarkdownCodeForString(
-                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    false
-                )
-            )
-            addSlide(
-                OnboardingInfoFragment.newInstance(
-                    getString(string.title_install_location_error),
-                    errorMessage,
-                    R.drawable.ic_alert,
-                    ContextCompat.getColor(this, R.color.color_error)
-                )
-            )
-            return
-        }
+		addSlide(GreetingFragment())
 
-        if (!checkDeviceSupported()) {
-            return
-        }
+		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
+			val errorMessage =
+				getString(
+					string.bootstrap_error_not_primary_user_message,
+					MarkdownUtils.getMarkdownCodeForString(
+						TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+						false,
+					),
+				)
+			addSlide(
+				OnboardingInfoFragment.newInstance(
+					getString(string.title_unsupported_user),
+					errorMessage,
+					R.drawable.ic_alert,
+					ContextCompat.getColor(this, R.color.color_error),
+				),
+			)
+			return
+		}
 
-        if (!PermissionsFragment.areAllPermissionsGranted(this)) {
-            addSlide(PermissionsFragment.newInstance(this))
-        }
+		if (isInstalledOnSdCard()) {
+			val errorMessage =
+				getString(
+					string.bootstrap_error_installed_on_portable_sd,
+					MarkdownUtils.getMarkdownCodeForString(
+						TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+						false,
+					),
+				)
+			addSlide(
+				OnboardingInfoFragment.newInstance(
+					getString(string.title_install_location_error),
+					errorMessage,
+					R.drawable.ic_alert,
+					ContextCompat.getColor(this, R.color.color_error),
+				),
+			)
+			return
+		}
 
-        if (!checkToolsIsInstalled()) {
-            addSlide(IdeSetupConfigurationFragment.newInstance(this))
-        }
-    }
+		if (!checkDeviceSupported()) {
+			return
+		}
 
-    override fun onResume() {
-        super.onResume()
-        reloadJdkDistInfo {
-            tryNavigateToMainIfSetupIsCompleted()
-        }
-    }
+		if (!PermissionsFragment.areAllPermissionsGranted(this)) {
+			addSlide(PermissionsFragment.newInstance(this))
+		}
 
-    override fun onDestroy() {
-        super.onDestroy()
-        activityScope.cancel("Activity is being destroyed")
-    }
+		if (!checkToolsIsInstalled()) {
+			addSlide(IdeSetupConfigurationFragment.newInstance(this))
+		}
+	}
 
-    override fun onDonePressed(currentFragment: Fragment?) {
-        if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
-            finishAffinity()
-            return
-        }
+	override fun onResume() {
+		super.onResume()
+		reloadJdkDistInfo {
+			tryNavigateToMainIfSetupIsCompleted()
+		}
+	}
 
-        if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
-            activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
-                runOnUiThread {
-                    flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
-                }
+	override fun onDestroy() {
+		super.onDestroy()
+		activityScope.cancel("Activity is being destroyed")
+	}
 
-                val result = withStopWatch("Assets installation") {
-                    AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
-                        logger.debug("Assets installation progress: {}", progress.message)
-                    }
-                }
+	override fun onDonePressed(currentFragment: Fragment?) {
+		if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
+			finishAffinity()
+			return
+		}
 
-                logger.info("Assets installation result: {}", result)
+		if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
+			activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
+				runOnUiThread {
+					flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
+				}
 
-                withContext(Dispatchers.Main) {
-                    reloadJdkDistInfo {
-                        tryNavigateToMainIfSetupIsCompleted()
-                    }
-                }
-            }
-            return
-        }
+				val result =
+					withStopWatch("Assets installation") {
+						AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
+							logger.debug("Assets installation progress: {}", progress.message)
+						}
+					}
 
-        tryNavigateToMainIfSetupIsCompleted()
-    }
+				logger.info("Assets installation result: {}", result)
 
-    private fun checkToolsIsInstalled(): Boolean {
-        return IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty()
-                && Environment.ANDROID_HOME.exists()
-    }
+				withContext(Dispatchers.Main) {
+					reloadJdkDistInfo {
+						tryNavigateToMainIfSetupIsCompleted()
+					}
+				}
+			}
+			return
+		}
 
-    private fun isSetupCompleted(): Boolean {
-        return checkToolsIsInstalled()
-                && PermissionsFragment.areAllPermissionsGranted(this)
-    }
+		tryNavigateToMainIfSetupIsCompleted()
+	}
 
-    private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
-        if (isSetupCompleted()) {
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
-            return true
-        }
+	private fun checkToolsIsInstalled(): Boolean =
+		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
+			Environment.ANDROID_HOME.exists()
 
-        return false
-    }
+	private fun isSetupCompleted(): Boolean =
+		checkToolsIsInstalled() &&
+			PermissionsFragment.areAllPermissionsGranted(this)
 
-    private inline fun reloadJdkDistInfo(crossinline distConsumer: (List<JdkDistribution>) -> Unit) {
-        listJdkInstallationsJob?.cancel("Reloading JDK distributions")
+	private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
+		if (isSetupCompleted()) {
+			startActivity(Intent(this, MainActivity::class.java))
+			finish()
+			return true
+		}
 
-        listJdkInstallationsJob = activityScope.launchAsyncWithProgress(Dispatchers.Default,
-            configureFlashbar = { builder, _ ->
-                builder.message(string.please_wait)
-            }) { _, _ ->
-            val distributionProvider = IJdkDistributionProvider.getInstance()
-            distributionProvider.loadDistributions()
-            withContext(Dispatchers.Main) {
-                distConsumer(distributionProvider.installedDistributions)
-            }
-        }.also {
-            it?.invokeOnCompletion {
-                listJdkInstallationsJob = null
-            }
-        }
-    }
+		return false
+	}
 
-    private fun isInstalledOnSdCard(): Boolean {
-        // noinspection SdCardPath
-        return PackageUtils.isAppInstalledOnExternalStorage(this) &&
-                TermuxConstants.TERMUX_FILES_DIR_PATH != filesDir.absolutePath
-            .replace("^/data/user/0/".toRegex(), "/data/data/")
-    }
+	private inline fun reloadJdkDistInfo(crossinline distConsumer: (List<JdkDistribution>) -> Unit) {
+		listJdkInstallationsJob?.cancel("Reloading JDK distributions")
 
-    private fun checkDeviceSupported(): Boolean {
-        val configProvider = IDEBuildConfigProvider.getInstance()
+		listJdkInstallationsJob =
+			activityScope
+				.launchAsyncWithProgress(
+					Dispatchers.Default,
+					configureFlashbar = { builder, _ ->
+						builder.message(string.please_wait)
+					},
+				) { _, _ ->
+					val distributionProvider = IJdkDistributionProvider.getInstance()
+					distributionProvider.loadDistributions()
+					withContext(Dispatchers.Main) {
+						distConsumer(distributionProvider.installedDistributions)
+					}
+				}.also {
+					it?.invokeOnCompletion {
+						listJdkInstallationsJob = null
+					}
+				}
+	}
 
-        if (!configProvider.supportsCpuAbi()) {
-            //TODO JMT figure out how to build v8a and/or x64_86
+	private fun isInstalledOnSdCard(): Boolean {
+		// noinspection SdCardPath
+		return PackageUtils.isAppInstalledOnExternalStorage(this) &&
+			TermuxConstants.TERMUX_FILES_DIR_PATH !=
+			filesDir.absolutePath
+				.replace("^/data/user/0/".toRegex(), "/data/data/")
+	}
+
+	private fun checkDeviceSupported(): Boolean {
+		val configProvider = IDEBuildConfigProvider.getInstance()
+
+		if (!configProvider.supportsCpuAbi()) {
+			// TODO JMT figure out how to build v8a and/or x64_86
 //            addSlide(
 //                OnboardingInfoFragment.newInstance(
 //                    getString(string.title_unsupported_device),
@@ -247,14 +273,14 @@ class OnboardingActivity : AppIntro2() {
 //                )
 //            )
 //            return false
-            return true
-        }
+			return true
+		}
 
-        if (configProvider.cpuArch != configProvider.deviceArch) {
-            // IDE's build flavor is NOT the primary arch of the device
-            // warn the user
-            if (!archConfigExperimentalWarningIsShown()) {
-                //TODO JMT get build to support v8a and/or x86_64
+		if (configProvider.cpuArch != configProvider.deviceArch) {
+			// IDE's build flavor is NOT the primary arch of the device
+			// warn the user
+			if (!archConfigExperimentalWarningIsShown()) {
+				// TODO JMT get build to support v8a and/or x86_64
 //                addSlide(
 //                    OnboardingInfoFragment.newInstance(
 //                        getString(string.title_experiment_flavor),
@@ -267,13 +293,12 @@ class OnboardingActivity : AppIntro2() {
 //                        ContextCompat.getColor(this, R.color.color_warning)
 //                    )
 //                )
-                prefManager.putBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, true)
-            }
-        }
+				prefManager.putBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, true)
+			}
+		}
 
-        return true
-    }
+		return true
+	}
 
-    private fun archConfigExperimentalWarningIsShown() =
-        prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
+	private fun archConfigExperimentalWarningIsShown() = prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
 }
