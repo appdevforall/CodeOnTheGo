@@ -29,6 +29,9 @@ import com.itsaky.androidide.R.string
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.TemplateWidgetsListAdapter
 import com.itsaky.androidide.databinding.FragmentTemplateDetailsBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_CREATE_PROJECT
+import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_PREVIOUS
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.tasks.executeAsyncProvideError
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
@@ -40,7 +43,6 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import org.slf4j.LoggerFactory
 import java.util.Date
 
 /**
@@ -75,6 +77,16 @@ class TemplateDetailsFragment :
 
         binding.previous.setOnClickListener {
             viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
+        }
+
+        binding.previous.setOnLongClickListener {
+            TooltipManager.showTooltip(requireContext(), it, SETUP_PREVIOUS)
+            true
+        }
+
+        binding.finish.setOnLongClickListener {
+            TooltipManager.showTooltip(requireContext(), it, SETUP_CREATE_PROJECT)
+            true
         }
 
         binding.finish.setOnClickListener {
