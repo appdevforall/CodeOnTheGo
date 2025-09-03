@@ -2,19 +2,12 @@ name: Build and upload release version to Firebase App Distribution
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   actions: write
 
 on:
   schedule:
     - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to build from'
-        required: false
-        default: 'stage'
-        type: string
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,24 +38,28 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-      - name: Determine branch to checkout
-        id: determine_branch
-        run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "BRANCH_TO_CHECKOUT=stage" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "BRANCH_TO_CHECKOUT=${{ github.event.inputs.branch || 'stage' }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "BRANCH_TO_CHECKOUT=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          else
-            echo "BRANCH_TO_CHECKOUT=stage" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Checkout branch
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.determine_branch.outputs.BRANCH_TO_CHECKOUT }}
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Merge stage to main
+        run: |
+          git fetch origin stage
+          git checkout main
+          git merge origin/stage --no-ff -m "Daily merge from stage to main" -X theirs
+          git push origin main
+
+      - name: Set branch to main for build
+        id: determine_branch
+        run: |
+          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
 
       - name: Install Git LFS
         run: |
