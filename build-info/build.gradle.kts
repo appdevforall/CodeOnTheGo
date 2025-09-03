@@ -15,7 +15,6 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import com.android.SdkConstants
 import com.itsaky.androidide.build.config.AGP_VERSION_MINIMUM
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.CI
@@ -28,60 +27,58 @@ import com.itsaky.androidide.build.config.replaceContents
 import com.itsaky.androidide.build.config.simpleVersionName
 
 plugins {
-  //noinspection JavaPluginLanguageLevel
-  id("java-library")
-  id("com.vanniktech.maven.publish.base")
+//noinspection JavaPluginLanguageLevel
+	id("java-library")
+	id("com.vanniktech.maven.publish.base")
 }
 
 description = "Information about the AndroidIDE build"
 
-val buildInfoGenDir: Provider<Directory> = project.layout.buildDirectory.dir("generated/buildInfo")
-  .also { it.get().asFile.mkdirs() }
+val buildInfoGenDir: Provider<Directory> =
+	project.layout.buildDirectory
+		.dir("generated/buildInfo")
+		.also { it.get().asFile.mkdirs() }
 
 sourceSets { getByName("main").java.srcDir(buildInfoGenDir) }
 
 tasks.create("generateBuildInfo") {
-  val buildInfoPath = "com/itsaky/androidide/buildinfo/BuildInfo.java"
-  val buildInfo = buildInfoGenDir.get().file(buildInfoPath)
-  val buildInfoIn = project.file("src/main/java/${buildInfoPath}.in")
+	val buildInfoPath = "com/itsaky/androidide/buildinfo/BuildInfo.java"
+	val buildInfo = buildInfoGenDir.get().file(buildInfoPath)
+	val buildInfoIn = project.file("src/main/java/$buildInfoPath.in")
 
-  doLast {
-    buildInfoIn.replaceContents(
-      dest = buildInfo.asFile,
-      comment = "//",
-      candidates =
-      arrayOf(
-        "INTERNAL_NAME" to BuildConfig.internalName,
-        "PACKAGE_NAME" to BuildConfig.packageName,
-        "MVN_GROUP_ID" to BuildConfig.packageName,
-
-        "VERSION_NAME" to rootProject.version.toString(),
-        "VERSION_NAME_SIMPLE" to rootProject.simpleVersionName,
-        "VERSION_NAME_PUBLISHING" to rootProject.publishingVersion,
-        "VERSION_NAME_DOWNLOAD" to rootProject.downloadVersion,
-
-        "FDROID_BUILD" to FDroidConfig.isFDroidBuild.toString(),
-        "FDROID_BUILD_VERSION_NAME" to (FDroidConfig.fDroidVersionName ?: "null"),
-        "FDROID_BUILD_VERSION_CODE" to (FDroidConfig.fDroidVersionCode ?: -1).toString(),
-
-        "CI_BUILD" to CI.isCiBuild.toString(),
-        "CI_GIT_BRANCH" to CI.branchName,
-        "CI_COMMIT_HASH" to CI.commitHash,
-
-        "REPO_HOST" to ProjectConfig.REPO_HOST,
-        "REPO_OWNER" to ProjectConfig.REPO_OWNER,
-        "REPO_NAME" to ProjectConfig.REPO_NAME,
-        "PROJECT_SITE" to ProjectConfig.PROJECT_SITE,
-
-        "AGP_VERSION_MININUM" to AGP_VERSION_MINIMUM,
-        "AGP_VERSION_LATEST" to libs.versions.agp.tooling.get(),
-        "AGP_VERSION_GRADLE_LATEST" to "8.6" /*SdkConstants.GRADLE_LATEST_VERSION*/,
-
-        "SNAPSHOTS_REPOSITORY" to VersionUtils.SONATYPE_SNAPSHOTS_REPO,
-        "PUBLIC_REPOSITORY" to VersionUtils.SONATYPE_PUBLIC_REPO,
-      )
-    )
-  }
+	doLast {
+		buildInfoIn.replaceContents(
+			dest = buildInfo.asFile,
+			comment = "//",
+			candidates =
+				arrayOf(
+					"INTERNAL_NAME" to BuildConfig.INTERNAL_NAME,
+					"PACKAGE_NAME" to BuildConfig.PACKAGE_NAME,
+					"MVN_GROUP_ID" to BuildConfig.PACKAGE_NAME,
+					"VERSION_NAME" to rootProject.version.toString(),
+					"VERSION_NAME_SIMPLE" to rootProject.simpleVersionName,
+					"VERSION_NAME_PUBLISHING" to rootProject.publishingVersion,
+					"VERSION_NAME_DOWNLOAD" to rootProject.downloadVersion,
+					"FDROID_BUILD" to FDroidConfig.isFDroidBuild.toString(),
+					"FDROID_BUILD_VERSION_NAME" to (FDroidConfig.fDroidVersionName ?: "null"),
+					"FDROID_BUILD_VERSION_CODE" to (FDroidConfig.fDroidVersionCode ?: -1).toString(),
+					"CI_BUILD" to CI.isCiBuild.toString(),
+					"CI_GIT_BRANCH" to CI.branchName,
+					"CI_COMMIT_HASH" to CI.commitHash,
+					"REPO_HOST" to ProjectConfig.REPO_HOST,
+					"REPO_OWNER" to ProjectConfig.REPO_OWNER,
+					"REPO_NAME" to ProjectConfig.REPO_NAME,
+					"PROJECT_SITE" to ProjectConfig.PROJECT_SITE,
+					"AGP_VERSION_MININUM" to AGP_VERSION_MINIMUM,
+					"AGP_VERSION_LATEST" to
+						libs.versions.agp.tooling
+							.get(),
+					"AGP_VERSION_GRADLE_LATEST" to "8.6", // From SdkConstants.GRADLE_LATEST_VERSION
+					"SNAPSHOTS_REPOSITORY" to VersionUtils.SONATYPE_SNAPSHOTS_REPO,
+					"PUBLIC_REPOSITORY" to VersionUtils.SONATYPE_PUBLIC_REPO,
+				),
+		)
+	}
 }
 
 tasks.withType<JavaCompile> { dependsOn("generateBuildInfo") }

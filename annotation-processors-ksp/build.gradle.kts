@@ -18,22 +18,22 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("java-library")
-  kotlin("jvm")
+	id("java-library")
+	kotlin("jvm")
 }
 
-group = "${BuildConfig.packageName}.annotations"
+group = "${BuildConfig.PACKAGE_NAME}.annotations"
 
 dependencies {
-  implementation(kotlin("stdlib"))
-  
-  implementation(projects.annotations)
-  
-  implementation(libs.androidx.annotation)
-  implementation(libs.common.javapoet)
-  implementation(libs.common.ksp)
+	implementation(kotlin("stdlib"))
+
+	implementation(projects.annotations)
+
+	implementation(libs.androidx.annotation)
+	implementation(libs.common.javapoet)
+	implementation(libs.common.ksp)
 }
 
 sourceSets.main {
-  java.srcDirs("src/main/kotlin")
+	java.srcDirs("src/main/kotlin")
 }

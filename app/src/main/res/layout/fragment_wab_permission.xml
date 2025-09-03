@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ViewFlipper
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:padding="@dimen/content_padding_double">
+
+	<include
+		android:id="@+id/pairing"
+		layout="@layout/fragment_wadb_pairing" />
+
+	<include
+		android:id="@+id/connection"
+		layout="@layout/fragment_wadb_connection" />
+
+</ViewFlipper>

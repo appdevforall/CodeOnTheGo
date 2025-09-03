@@ -43,7 +43,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.build_output),
 					fragmentClass = BuildOutputFragment::class.java,
 					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_BUILD_OUTPUT
+					tooltipTag = TooltipTag.PROJECT_BUILD_OUTPUT,
 				),
 			)
 
@@ -52,7 +52,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.app_logs),
 					fragmentClass = AppLogFragment::class.java,
 					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_APP_LOGS
+					tooltipTag = TooltipTag.PROJECT_APP_LOGS,
 				),
 			)
 
@@ -61,7 +61,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.ide_logs),
 					fragmentClass = IDELogFragment::class.java,
 					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_IDE_LOGS
+					tooltipTag = TooltipTag.PROJECT_IDE_LOGS,
 				),
 			)
 
@@ -70,7 +70,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.view_diags),
 					fragmentClass = DiagnosticsListFragment::class.java,
 					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_SEARCH_RESULTS
+					tooltipTag = TooltipTag.PROJECT_SEARCH_RESULTS,
 				),
 			)
 
@@ -79,7 +79,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.view_search_results),
 					fragmentClass = SearchResultFragment::class.java,
 					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_DIAGNOSTICS
+					tooltipTag = TooltipTag.PROJECT_DIAGNOSTICS,
 				),
 			)
 
@@ -87,7 +87,7 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.debugger_title),
 					fragmentClass = DebuggerFragment::class.java,
-					itemId = size.toLong()
+					itemId = size.toLong(),
 				),
 			)
 		}
@@ -138,17 +138,33 @@ class EditorBottomSheetTabAdapter(
 		}
 	}
 
+	/**
+	 * Set the visibility of a fragment.
+	 *
+	 * @param klass The fragment class to show/hide.
+	 * @param isVisible Whether to show or hide the fragment.
+	 * @return `true` if fragment's state changed from hidden to visible, `false`
+	 * 			otherwise.
+	 */
 	fun setFragmentVisibility(
 		klass: Class<out Fragment>,
 		isVisible: Boolean,
-	) = if (isVisible) restoreFragment(klass) else removeFragment(klass)
+	): Boolean {
+		if (isVisible) {
+			return restoreFragment(klass)
+		}
 
-	fun getFragmentAtIndex(index: Int): Fragment? = getFragmentById(getItemId(index))
+		removeFragment(klass)
+		return false
+	}
 
-	private fun getFragmentById(itemId: Long): Fragment? {
+	fun <T : Fragment> getFragmentAtIndex(index: Int): T? = getFragmentById(getItemId(index))
+
+	@Suppress("UNCHECKED_CAST")
+	private fun <T : Fragment> getFragmentById(itemId: Long): T? {
 		val fragments = getFragments()
 		if (fragments != null) {
-			return fragments[itemId]
+			return fragments[itemId] as T?
 		}
 
 		return null
@@ -206,13 +222,8 @@ class EditorBottomSheetTabAdapter(
 
 	@Suppress("UNCHECKED_CAST")
 	private fun <T : Fragment> findFragmentByClass(clazz: Class<out T>): T? {
-		for (tab in tabs) {
-			if (tab.fragmentClass == clazz) {
-				return getFragmentById(tab.itemId) as T?
-			}
-		}
-
-		return null
+		val tab = findTabAndIndexByClass(clazz)?.first ?: return null
+		return getFragmentById(tab.itemId)
 	}
 
 	private fun <T : Fragment?> findTabAndIndexByClass(tClass: Class<T>): Pair<Tab, Int>? {
@@ -229,7 +240,7 @@ class EditorBottomSheetTabAdapter(
 		val title: String,
 		val fragmentClass: Class<out Fragment>,
 		val itemId: Long,
-		val tooltipTag: String? = null
+		val tooltipTag: String? = null,
 	)
 
 	companion object {
@@ -237,7 +248,5 @@ class EditorBottomSheetTabAdapter(
 			LoggerFactory.getLogger(EditorBottomSheetTabAdapter::class.java)
 	}
 
-	fun getTooltipTag(position: Int): String? {
-		return allTabs[position].tooltipTag
-	}
+	fun getTooltipTag(position: Int): String? = allTabs[position].tooltipTag
 }
