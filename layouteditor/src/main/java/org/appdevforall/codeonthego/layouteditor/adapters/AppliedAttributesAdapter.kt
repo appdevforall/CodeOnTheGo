@@ -5,6 +5,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import org.appdevforall.codeonthego.layouteditor.databinding.ShowAttributeItemBinding
 import org.appdevforall.codeonthego.layouteditor.utils.Constants
 
@@ -35,15 +37,22 @@ class AppliedAttributesAdapter(
     holder.attributeValue.text = values[position]
 
     TooltipCompat.setTooltipText(holder.btnRemove, "Remove")
-    TooltipCompat.setTooltipText(holder.binding.root, attrs[position]["name"].toString())
 
     if (attrs[position].containsKey(Constants.KEY_CAN_DELETE)) {
       holder.btnRemove.visibility = View.GONE
     }
 
-    holder.binding.root.setOnClickListener { onClick(position) }
-    holder.btnRemove.setOnClickListener { onRemoveButtonClick(position) }
-  }
+      holder.binding.root.apply {
+          setOnClickListener { onClick(position) }
+          displayTooltipOnLongPress(
+              context = this.context,
+              anchorView = this,
+              tooltipCategory = TooltipCategory.CATEGORY_XML,
+              tooltipTag = attrs[position]["name"].toString()
+          )
+        }
+      holder.btnRemove.setOnClickListener { onRemoveButtonClick(position) }
+    }
 
   override fun getItemCount(): Int {
     return attrs.size
