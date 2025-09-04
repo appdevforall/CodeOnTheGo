@@ -8,19 +8,20 @@ import android.os.RemoteException;
 import android.os.SELinux;
 import android.os.SystemProperties;
 import android.system.Os;
+
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+
 import moe.shizuku.server.IRemoteProcess;
 import moe.shizuku.server.IShizukuApplication;
 import moe.shizuku.server.IShizukuService;
 import moe.shizuku.server.IShizukuServiceConnection;
 import rikka.hidden.compat.PermissionManagerApis;
-import rikka.rish.RishConfig;
-import rikka.rish.RishService;
 import rikka.shizuku.ShizukuApiConstants;
 import rikka.shizuku.server.api.RemoteProcessHolder;
 import rikka.shizuku.server.util.Logger;
@@ -34,21 +35,10 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 	private final ConfigMgr configManager;
 	private final ClientMgr clientManager;
 
-	private final RishService rishService;
-
 	public Service() {
-		RishConfig.init(ShizukuApiConstants.BINDER_DESCRIPTOR, 30000);
-
 		userServiceManager = onCreateUserServiceManager();
 		configManager = onCreateConfigManager();
 		clientManager = onCreateClientManager();
-		rishService = new RishService() {
-
-			@Override
-			public void enforceCallingPermission(String func) {
-				Service.this.enforceCallingPermission(func);
-			}
-		};
 	}
 
 	@Override
@@ -236,8 +226,6 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 			args.putInt(ShizukuApiConstants.ATTACH_APPLICATION_API_VERSION, -1);
 			attachApplication(IShizukuApplication.Stub.asInterface(binder), args);
 			reply.writeNoException();
-			return true;
-		} else if (rishService.onTransact(code, data, reply, flags)) {
 			return true;
 		}
 		return super.onTransact(code, data, reply, flags);

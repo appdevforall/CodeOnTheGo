@@ -15,7 +15,6 @@ dependencies {
 	api(projects.buildInfo)
 	api(projects.subprojects.shizukuAidl)
 	api(projects.subprojects.shizukuShared)
-	api(projects.subprojects.shizukuRish)
 
 	implementation(libs.rikka.refine.runtime)
 	implementation(libs.rikka.hidden.compat)

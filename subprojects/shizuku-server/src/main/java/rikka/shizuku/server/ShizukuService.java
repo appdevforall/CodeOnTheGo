@@ -30,12 +30,16 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
 import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
 import kotlin.collections.ArraysKt;
 import moe.shizuku.api.BinderContainer;
 import moe.shizuku.common.util.BuildUtils;
@@ -47,7 +51,6 @@ import rikka.hidden.compat.PackageManagerApis;
 import rikka.hidden.compat.PermissionManagerApis;
 import rikka.hidden.compat.UserManagerApis;
 import rikka.parcelablelist.ParcelableListSlice;
-import rikka.rish.RishConfig;
 import rikka.shizuku.ShizukuApiConstants;
 import rikka.shizuku.server.api.IContentProviderUtils;
 import rikka.shizuku.server.util.HandlerUtil;
@@ -61,8 +64,6 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 
 	public static void main(String[] args) {
 		DdmHandleAppName.setAppName("cotg_server", 0);
-		RishConfig.setLibraryPath(System.getProperty("shizuku.library.path"));
-
 		Looper.prepareMainLooper();
 		new ShizukuService();
 		Looper.loop();
