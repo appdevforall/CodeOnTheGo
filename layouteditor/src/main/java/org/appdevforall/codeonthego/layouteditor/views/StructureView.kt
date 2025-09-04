@@ -46,7 +46,6 @@ import android.widget.TextView
 import android.widget.ToggleButton
 import android.widget.VideoView
 import androidx.appcompat.widget.LinearLayoutCompat
-import androidx.appcompat.widget.TooltipCompat
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.widget.NestedScrollView
@@ -67,7 +66,7 @@ import org.appdevforall.codeonthego.layouteditor.managers.IdManager.idMap
 
 class StructureView(context: Context?, attrs: AttributeSet?) : LinearLayoutCompat(
   context!!, attrs
-), View.OnClickListener {
+), View.OnClickListener, View.OnLongClickListener {
   private val inflater: LayoutInflater = LayoutInflater.from(context)
   private val paint = Paint()
   private val pointRadius: Int
@@ -75,6 +74,7 @@ class StructureView(context: Context?, attrs: AttributeSet?) : LinearLayoutCompa
   private val viewTextMap: MutableMap<View, TextView> = HashMap()
 
   var onItemClickListener: ((View) -> Unit)? = null
+  var onItemLongClickListener: ((View) -> Unit)? = null
 
   /**
    * This is the constructor of the StructureView class which takes context and attributeSet as
@@ -126,15 +126,11 @@ class StructureView(context: Context?, attrs: AttributeSet?) : LinearLayoutCompa
       viewId.visibility = GONE
       viewName.translationY = 0f
       viewId.translationY = 0f
-      TooltipCompat.setTooltipText(
-        binding.mainView, view.javaClass.superclass.simpleName
-      )
     } else {
       viewName.translationY = getDip(-7).toFloat()
       viewId.translationY = getDip(-3).toFloat()
       viewId.visibility = VISIBLE
       viewId.text = idMap[view]
-      TooltipCompat.setTooltipText(binding.mainView, idMap[view])
     }
     if (view is LinearLayout && view !is RadioGroup) {
       val orientation =
@@ -154,6 +150,7 @@ class StructureView(context: Context?, attrs: AttributeSet?) : LinearLayoutCompa
     }
 
     binding.mainView.setOnClickListener(this)
+    binding.mainView.setOnLongClickListener(this)
 
     addView(binding.root)
 
@@ -251,6 +248,18 @@ class StructureView(context: Context?, attrs: AttributeSet?) : LinearLayoutCompa
       }
     }
   }
+
+  override fun onLongClick(view: View): Boolean {
+    val parent = view as? ViewGroup ?: return false
+    val textView = parent.findViewById<TextView>(R.id.view_name) ?: return false
+
+    val associatedView = textViewMap[textView] ?: return false
+
+    onItemLongClickListener?.invoke(associatedView)
+
+    return true
+  }
+
 
   /** This method is used to convert the input into the equivalent dip value.  */
   private fun getDip(input: Int): Int {
