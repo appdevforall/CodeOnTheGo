@@ -32,7 +32,7 @@
 #define EXIT_FATAL_BINDER_BLOCKED_BY_SELINUX 10
 
 #define PACKAGE_NAME "com.itsaky.androidide"
-#define SERVER_NAME "shizuku_server"
+#define SERVER_NAME "cotg_server"
 #define SERVER_CLASS_PATH "rikka.shizuku.server.ShizukuService"
 
 #if defined(__arm__)
