@@ -14,17 +14,17 @@ public class UserUtils {
 	public static final int USER_PRIMARY = 0;
 
 	@NonNull
+	public static List<Integer> getUserIds() {
+		// Limit interaction to the primary user
+		return Collections.singletonList(USER_PRIMARY);
+	}
+
+	@NonNull
 	public static UserInfo getUserInfo(int userId) {
 		if (userId != USER_PRIMARY) {
 			throw new UnsupportedOperationException("Interaction with non-primary users is restricted!");
 		}
 
 		return UserManagerApis.getUserInfo(userId);
-	}
-
-	@NonNull
-	public static List<Integer> getUsers() {
-		// Limit interaction to the primary user
-		return Collections.singletonList(USER_PRIMARY);
 	}
 }

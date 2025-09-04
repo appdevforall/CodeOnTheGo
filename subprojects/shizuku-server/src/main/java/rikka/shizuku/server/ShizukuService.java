@@ -157,7 +157,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 	}
 
 	private static void sendBinderToManger(Binder binder) {
-		for (int userId : UserUtils.getUsers()) {
+		for (int userId : UserUtils.getUserIds()) {
 			sendBinderToManger(binder, userId);
 		}
 	}
@@ -491,7 +491,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 	}
 
 	void sendBinderToClient() {
-		for (int userId : UserUtils.getUsers()) {
+		for (int userId : UserUtils.getUserIds()) {
 			sendBinderToClient(this, userId);
 		}
 	}
@@ -515,7 +515,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 		List<PackageInfo> list = new ArrayList<>();
 		List<Integer> users = new ArrayList<>();
 		if (userId == -1) {
-			users.addAll(UserUtils.getUsers());
+			users.addAll(UserUtils.getUserIds());
 		} else {
 			users.add(userId);
 		}
