@@ -179,9 +179,8 @@
   <string name="title_generating_xml">Generarea codului XML</string>
   <string name="msg_swipe_up">Trageți cu degetul în sus pentru jurnale și multe altele.</string>
   <string name="msg_ide_crashed">Code on the Go s-a oprit</string>
-  <string name="msg_report_crash">Vă rugăm să deschideți o problemă pe github cu următorul stacktrace :</string>
-  <string name="msg_crash_report_hint">Faceți clic pe butonul de mai jos pentru a copia jurnalul și a deschide pagina de probleme.</string>
-  <string name="msg_copy_report_action">Copiere și raportarea</string>
+  <string name="msg_crash_info">Vă rugăm să deschideți o problemă pe github cu următorul stacktrace :</string>
+  <string name="msg_close_crash_page">Faceți clic pe butonul de mai jos pentru a copia jurnalul și a deschide pagina de probleme.</string>
   <string name="title_translations">Traduceri</string>
   <string name="action_expand_selection">Extinderea selecției</string>
   <string name="idepref_java_matchLower_title">Match completions in lower case</string>

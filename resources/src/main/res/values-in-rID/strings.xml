@@ -179,9 +179,8 @@
   <string name="title_generating_xml">Hasilkan kode XML</string>
   <string name="msg_swipe_up">Geser ke atas untuk hasil build, log dan lainnya.</string>
   <string name="msg_ide_crashed">Code on the Go crash</string>
-  <string name="msg_report_crash">Mohon buka isu di github dengan menyertakan stacktrace :</string>
-  <string name="msg_crash_report_hint">Klik tombol dibawah untuk menyalin log dan membuka halaman isu.</string>
-  <string name="msg_copy_report_action">Salin dan laporkan</string>
+  <string name="msg_crash_info">Mohon buka isu di github dengan menyertakan stacktrace :</string>
+  <string name="msg_close_crash_page">Klik tombol dibawah untuk menyalin log dan membuka halaman isu.</string>
   <string name="title_translations">Terjemahan</string>
   <string name="action_expand_selection">Perluas seleksi</string>
   <string name="idepref_java_matchLower_title">Samakan penyelesaian dalam huruf kecil</string>
