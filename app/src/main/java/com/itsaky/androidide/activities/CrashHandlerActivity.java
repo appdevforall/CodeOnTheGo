@@ -19,47 +19,48 @@ package com.itsaky.androidide.activities;
 
 import android.os.Bundle;
 import android.view.View;
+
 import androidx.annotation.NonNull;
+
 import com.itsaky.androidide.app.IDEActivity;
 import com.itsaky.androidide.databinding.ActivityCrashHandlerBinding;
 import com.itsaky.androidide.fragments.CrashReportFragment;
 
 public class CrashHandlerActivity extends IDEActivity {
 
-  public static final String REPORT_ACTION = "com.itsaky.androidide.REPORT_CRASH";
-  public static final String TRACE_KEY = "crash_trace";
-  private ActivityCrashHandlerBinding binding;
+    public static final String REPORT_ACTION = "com.itsaky.androidide.REPORT_CRASH";
+    public static final String TRACE_KEY = "crash_trace";
+    private ActivityCrashHandlerBinding binding;
 
-  @Override
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-    final var extra = getIntent().getExtras();
-    if (extra == null) {
-      finishAffinity();
-      return;
+        final var extra = getIntent().getExtras();
+        if (extra == null) {
+            finishAffinity();
+            return;
+        }
+
+        final var fragment = CrashReportFragment.newInstance();
+
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(binding.getRoot().getId(), fragment, "crash_report_fragment")
+                .addToBackStack(null)
+                .commit();
     }
 
-    final var report = extra.getString(TRACE_KEY, "Unable to get logs.");
-    final var fragment = CrashReportFragment.newInstance(report);
+    @Override
+    @NonNull
+    protected View bindLayout() {
+        binding = ActivityCrashHandlerBinding.inflate(getLayoutInflater());
+        return binding.getRoot();
+    }
 
-    getSupportFragmentManager()
-        .beginTransaction()
-        .replace(binding.getRoot().getId(), fragment, "crash_report_fragment")
-        .addToBackStack(null)
-        .commit();
-  }
-
-  @Override
-  @NonNull
-  protected View bindLayout() {
-    binding = ActivityCrashHandlerBinding.inflate(getLayoutInflater());
-    return binding.getRoot();
-  }
-
-  @Override
-  protected void onDestroy() {
-    super.onDestroy();
-    binding = null;
-  }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        binding = null;
+    }
 }

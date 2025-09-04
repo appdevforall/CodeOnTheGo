@@ -178,9 +178,8 @@
   <string name="title_generating_xml"> XML कोड जनरेट किया जा रहा है</string>
   <string name="msg_swipe_up">बिल्ड आउटपुट, लॉग आदि के लिए ऊपर की ओर स्वाइप करें।</string>
   <string name="msg_ide_crashed">Code on the Go क्रैश हो गया</string>
-  <string name="msg_report_crash">कृपया निम्नलिखित स्टैकट्रेस के साथ गिटहब पर एक मुद्दा खोलें :</string>
-  <string name="msg_crash_report_hint">लॉग कॉपी करने के लिए नीचे दिए गए बटन पर क्लिक करें और मुद्दों का पेज खोलें।</string>
-  <string name="msg_copy_report_action">कॉपी करके रिपोर्ट करे</string>
+  <string name="msg_crash_info">कृपया निम्नलिखित स्टैकट्रेस के साथ गिटहब पर एक मुद्दा खोलें :</string>
+  <string name="msg_close_crash_page">लॉग कॉपी करने के लिए नीचे दिए गए बटन पर क्लिक करें और मुद्दों का पेज खोलें।</string>
   <string name="title_translations">अनुवाद</string>
   <string name="action_expand_selection">चयन का विस्तार करें</string>
   <string name="idepref_java_matchLower_title">कम्पलेशन्स लोअर केस में मिलाये</string>
