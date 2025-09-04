@@ -20,6 +20,7 @@ package com.itsaky.androidide.lsp.java.actions
 import android.content.Context
 import android.content.Intent
 import android.view.View
+import android.view.ViewGroup
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
@@ -27,11 +28,6 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requirePath
 import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.idetooltips.TooltipCategory
-import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR_DIALOG
-import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG
-import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_SETTER_GETTER_DIALOG
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction.ActionId.CONSTRUCTOR
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction.ActionId.GETTER_SETTER
@@ -41,6 +37,7 @@ import com.itsaky.androidide.lsp.java.visitors.FindTypeDeclarationAt
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -237,36 +234,20 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
         builder.setNegativeButton(android.R.string.cancel, null)
 
         val dialog = builder.create()
-        val view = dialog.findViewById<View>(android.R.id.content)
 
-        view?.setOnLongClickListener {
-            CoroutineScope(Dispatchers.Main).launch {
-                val item =
-                    TooltipManager.getTooltip(
-                        context = context,
-                        category = TooltipCategory.CATEGORY_IDE,
-                        tag = getToolTipTag(actionId)
-                    )
+        dialog.setOnShowListener {
+            val root = dialog.window?.decorView?.findViewById<View>(android.R.id.content)
+            root?.applyLongPressRecursively { pressedView ->
 
-                item.let {
-                    TooltipManager.showIDETooltip(
-                        context = context,
-                        anchorView = view,
-                        tooltipItem = item!!,
-                        level = 0,
-                    )
-                    { context, url, title ->
-                        val intent = Intent(context, HelpActivity::class.java).apply {
-                            putExtra(CONTENT_KEY, url)
-                            putExtra(CONTENT_TITLE_KEY, title)
-                        }
-                        context.startActivity(intent)
-                    }
-                }
+                TooltipManager.showTooltip(context, root, getToolTipTag(actionId))
+
+                true
             }
-            true
         }
+
+
         dialog.show()
+
     }
 
     fun getToolTipTag(actionId: String): String {
