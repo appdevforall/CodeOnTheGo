@@ -53,7 +53,6 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -81,8 +80,6 @@ import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
-import com.itsaky.androidide.fragments.SearchResultFragment
-import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -178,8 +175,8 @@ abstract class BaseEditorActivity :
 			override fun handleOnBackPressed() {
 				if (binding.root.isDrawerOpen(GravityCompat.START)) {
 					binding.root.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
+				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
+					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 				} else if (binding.swipeReveal.isOpen) {
 					binding.swipeReveal.close()
 				} else {
@@ -722,7 +719,7 @@ abstract class BaseEditorActivity :
 			},
 		)
 
-		bottomSheetViewModel.setCurrentTab(SearchResultFragment::class.java)
+		bottomSheetViewModel.setSheetState(currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT)
 		doDismissSearchProgress()
 	}
 
@@ -735,22 +732,16 @@ abstract class BaseEditorActivity :
 	}
 
 	open fun hideBottomSheet() {
-		bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
+		bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 	}
 
-	private fun <T : Fragment> focusBottomSheetFragment(
-		fragmentClass: Class<T>,
-		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED,
-	): Unit =
-		content.bottomSheet.run {
-			val index = pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
-			if (index >= 0 && index < binding.tabs.tabCount) {
-				bottomSheetViewModel.setState(sheetState)
-				binding.tabs
-					.getTabAt(index)
-					?.select()
-			}
+	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
+		log.debug("updateSheetState: {}", state)
+		content.bottomSheet.setCurrentTab(state.currentTab)
+		if (editorBottomSheet?.state != state.sheetState) {
+			editorBottomSheet?.state = state.sheetState
 		}
+	}
 
 	open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
 		content.bottomSheet.handleDiagnosticsResultVisibility(errorVisible)
@@ -867,17 +858,20 @@ abstract class BaseEditorActivity :
 	private fun setupViews() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.STARTED) {
-				debuggerViewModel.connectionState.collectLatest { state ->
-					onDebuggerConnectionStateChanged(state)
+				launch {
+					debuggerViewModel.connectionState.collectLatest { state ->
+						onDebuggerConnectionStateChanged(state)
+					}
 				}
-				debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
-					debuggerService?.targetPackage = newPackage
+				launch {
+					debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
+						debuggerService?.targetPackage = newPackage
+					}
 				}
-				bottomSheetViewModel.state.collectLatest { state ->
-					editorBottomSheet?.state = state
-				}
-				bottomSheetViewModel.currentTab.collectLatest { fragmentClass ->
-					focusBottomSheetFragment(fragmentClass = fragmentClass)
+				launch {
+					bottomSheetViewModel.sheetState.collectLatest { state ->
+						updateBottomSheetState(state = state)
+					}
 				}
 			}
 		}
@@ -911,11 +905,11 @@ abstract class BaseEditorActivity :
 		if (!app.prefManager.getBoolean(
 				KEY_BOTTOM_SHEET_SHOWN,
 			) &&
-			bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_EXPANDED
+			bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_EXPANDED
 		) {
-			bottomSheetViewModel.setState(BottomSheetBehavior.STATE_EXPANDED)
+			bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_EXPANDED)
 			ThreadUtils.runOnUiThreadDelayed({
-				bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
+				bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
 				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
 			}, 1500)
 		}
@@ -946,9 +940,9 @@ abstract class BaseEditorActivity :
 		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			// if a VM was just attached, make sure the debugger fragment is visible
-			focusBottomSheetFragment(
-				fragmentClass = DebuggerFragment::class.java,
+			bottomSheetViewModel.setSheetState(
 				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+				currentTab = BottomSheetViewModel.TAB_DEBUGGER,
 			)
 		}
 		postStopDebuggerServiceIfNotConnected()
@@ -1004,6 +998,9 @@ abstract class BaseEditorActivity :
 					bottomSheet: View,
 					newState: Int,
 				) {
+					// update the sheet state so that the ViewModel is in sync
+					bottomSheetViewModel.setSheetState(sheetState = newState)
+
 					if (newState == BottomSheetBehavior.STATE_EXPANDED) {
 						val editor = provideCurrentEditor()
 						editor?.editor?.ensureWindowsDismissed()
