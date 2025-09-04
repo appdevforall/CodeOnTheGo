@@ -19,6 +19,7 @@ import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_SELECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_BUTTON
@@ -119,7 +120,14 @@ class DeleteProjectFragment : BaseFragment() {
             }
         }
         binding.delete.setOnLongClickListener {
-            showToolTip(DELETE_PROJECT_BUTTON)
+            val projects = recentProjectsViewModel.projects.value
+
+            val tooltipTag = if (projects.isNullOrEmpty()) {
+                PROJECT_NEW
+            } else {
+                DELETE_PROJECT_BUTTON
+            }
+            showToolTip(tooltipTag)
             true
         }
 
