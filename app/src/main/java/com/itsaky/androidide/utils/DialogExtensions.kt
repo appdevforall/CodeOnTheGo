@@ -8,6 +8,7 @@ import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.widget.AdapterView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.LifecycleOwner
@@ -32,29 +33,33 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
             return dialog // Return the dialog without the gesture
         }
 
+    fun longPressAction() {
+        dialog.dismiss()
+        lifecycleOwner.lifecycleScope.launch {
+            try {
+                val tooltipData = TooltipManager.getTooltip(
+                    context,
+                    TooltipCategory.CATEGORY_IDE,
+                    tooltipTag
+                )
+                tooltipData?.let {
+                    TooltipUtils.showIDETooltip(
+                        context = context,
+                        level = 0,
+                        tooltipItem = it,
+                        anchorView = workingAnchorView
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+            }
+        }
+    }
+
     val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onLongPress(e: MotionEvent) {
-                dialog.dismiss()
-                lifecycleOwner.lifecycleScope.launch {
-                    try {
-                        val tooltipData = TooltipManager.getTooltip(
-                            context,
-                            TooltipCategory.CATEGORY_IDE,
-                            tooltipTag
-                        )
-                        tooltipData?.let {
-                            TooltipUtils.showIDETooltip(
-                                context = context,
-                                level = 0,
-                                tooltipItem = it,
-                                anchorView = workingAnchorView
-                            )
-                        }
-                    } catch (e: Exception) {
-                        Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-                    }
-                }
+                longPressAction()
             }
         })
 
@@ -74,5 +79,10 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
     @SuppressLint("ClickableViewAccessibility")
     dialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.setOnTouchListener(universalTouchListener)
 
+    dialog.listView?.onItemLongClickListener =
+        AdapterView.OnItemLongClickListener { _, itemView, position, _ ->
+            longPressAction()
+            true // Consume the long-press event
+        }
     return dialog
 }
