@@ -86,7 +86,6 @@ import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
 import com.itsaky.androidide.fragments.SearchResultFragment
-import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -136,6 +135,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import rikka.shizuku.Shizuku
 import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -187,8 +187,8 @@ abstract class BaseEditorActivity :
 			override fun handleOnBackPressed() {
 				if (binding.root.isDrawerOpen(GravityCompat.START)) {
 					binding.root.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
+				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
+					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 				} else if (binding.swipeReveal.isOpen) {
 					binding.swipeReveal.close()
 				} else {
@@ -222,13 +222,15 @@ abstract class BaseEditorActivity :
 			}
 		}
 
+	private val shizukuBinderReceivedListener =
+		Shizuku.OnBinderReceivedListener {
+			invalidateOptionsMenu()
+		}
+
 	private var isImeVisible = false
 	private var contentCardRealHeight: Int? = null
 	private val editorSurfaceContainerBackground by lazy {
 		resolveAttr(R.attr.colorSurfaceDim)
-	}
-	private val editorLayoutCorners by lazy {
-		resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
 	}
 
 	private var isDebuggerStarting = false
@@ -360,6 +362,8 @@ abstract class BaseEditorActivity :
 
 	protected open fun preDestroy() {
 		_binding = null
+
+		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
 		optionsMenuInvalidator?.also {
 			ThreadUtils.getMainHandler().removeCallbacks(it)
