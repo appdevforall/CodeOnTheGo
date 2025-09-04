@@ -27,6 +27,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
+import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
@@ -66,6 +67,7 @@ import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
 import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -114,6 +116,8 @@ class EditorBottomSheet
 		private val insetBottom: Int
 			get() = if (isImeVisible) 0 else windowInsets?.bottom ?: 0
 
+		private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
+
 		companion object {
 			private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
 			private const val COLLAPSE_HEADER_AT_OFFSET = 0.5f
@@ -123,6 +127,20 @@ class EditorBottomSheet
 			const val CHILD_ACTION = 2
 		}
 
+		init {
+			require(context is FragmentActivity)
+
+			val inflater = LayoutInflater.from(context)
+			binding = LayoutEditorBottomSheetBinding.inflate(inflater)
+			pagerAdapter = EditorBottomSheetTabAdapter(context)
+			binding.pager.adapter = pagerAdapter
+
+			removeAllViews()
+			addView(binding.root)
+
+			initialize(context)
+		}
+
 		private fun initialize(context: FragmentActivity) {
 			val mediator =
 				TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
@@ -130,12 +148,17 @@ class EditorBottomSheet
 					tab.view.setOnLongClickListener { view ->
 						val tooltipTag =
 							pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
-						val lifecycleOwner = context as? LifecycleOwner ?: return@setOnLongClickListener true
+						val lifecycleOwner =
+							context as? LifecycleOwner ?: return@setOnLongClickListener true
 						lifecycleOwner.lifecycleScope.launch {
 							try {
 								val tooltipData =
 									withContext(Dispatchers.IO) {
-										TooltipManager.getTooltip(context, TooltipCategory.CATEGORY_IDE, tooltipTag)
+										TooltipManager.getTooltip(
+											context,
+											TooltipCategory.CATEGORY_IDE,
+											tooltipTag,
+										)
 									}
 								tooltipData?.let {
 									TooltipUtils.showIDETooltip(
@@ -161,6 +184,10 @@ class EditorBottomSheet
 			binding.tabs.addOnTabSelectedListener(
 				object : OnTabSelectedListener {
 					override fun onTabSelected(tab: Tab) {
+						// update view model in case the tab was selected
+						// by user input
+						viewModel.setSheetState(currentTab = tab.position)
+
 						val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tab.position)
 						if (fragment is ShareableOutputFragment) {
 							binding.clearFab.show()
@@ -257,20 +284,18 @@ class EditorBottomSheet
 				TooltipManager.getTooltip(context, category, tag)
 			}
 
-		init {
-			if (context !is FragmentActivity) {
-				throw IllegalArgumentException("EditorBottomSheet must be set up with a FragmentActivity")
+		fun setCurrentTab(
+			@BottomSheetViewModel.TabDef tabIndex: Int,
+		) {
+			if (binding.tabs.selectedTabPosition == tabIndex) {
+				return
 			}
 
-			val inflater = LayoutInflater.from(context)
-			binding = LayoutEditorBottomSheetBinding.inflate(inflater)
-			pagerAdapter = EditorBottomSheetTabAdapter(context)
-			binding.pager.adapter = pagerAdapter
+			if (tabIndex < 0 || tabIndex > binding.tabs.tabCount) {
+				return
+			}
 
-			removeAllViews()
-			addView(binding.root)
-
-			initialize(context)
+			binding.tabs.getTabAt(tabIndex)?.select()
 		}
 
 		/**
