@@ -20,7 +20,6 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.databinding.FragmentWabPermissionBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
@@ -35,6 +34,7 @@ import com.itsaky.androidide.viewmodel.WADBViewModel
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,6 +59,9 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 	companion object {
 		const val VIEW_PAIRING = 0
 		const val VIEW_CONNECTING = 1
+
+		const val CONNECTION_RETRY_COUNT = 3
+		const val CONNECTION_RETRY_DELAY_MS = 3 * 1000L
 
 		private val logger = LoggerFactory.getLogger(WADBPermissionFragment::class.java)
 
@@ -125,27 +128,22 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 		val isMiui = DeviceUtils.isMiui()
 		val isNotificationEnabled = isNotificationEnabled()
 
-		val activity = requireActivity()
-		activity.lifecycleScope.launch {
-			activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
-				wadbViewModel.connectionState.collectLatest { state ->
-					onUpdateConnectionState(state)
-				}
-			}
-		}
-
 		viewLifecycleScope.launch {
 			adbMdnsConnector.start()
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-				wadbViewModel.currentView.collectLatest { currentView ->
-					withContext(Dispatchers.Main.immediate) {
-						binding.root.displayedChild = currentView
+				launch {
+					wadbViewModel.currentView.collectLatest { currentView ->
+						withContext(Dispatchers.Main.immediate) {
+							binding.root.displayedChild = currentView
+						}
 					}
 				}
 
-				wadbViewModel.connectionStatus.collectLatest { status ->
-					withContext(Dispatchers.Main.immediate) {
-						binding.connection.statusText.text = status
+				launch {
+					wadbViewModel.connectionStatus.collectLatest { status ->
+						withContext(Dispatchers.Main.immediate) {
+							binding.connection.statusText.text = status
+						}
 					}
 				}
 			}
@@ -196,12 +194,10 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 				// use GlobalScope so that we can complete the connection even
 				// when the fragment is destroyed
 				GlobalScope.launch(context = Dispatchers.IO) {
-					// restart ADB connection finder in case it was already running
-					adbMdnsConnector.restart()
+					beginShizukuConnection()
 				}
 
 				viewLifecycleScope.launch(Dispatchers.Main) {
-					wadbViewModel.setConnectionStatus(getString(R.string.adb_connection_finding))
 					wadbViewModel.setCurrentView(VIEW_CONNECTING)
 				}
 			}
@@ -211,6 +207,49 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 
 			else -> Unit
 		}
+
+	/**
+	 * Called in the global scope. Be extra careful when access fragment's
+	 * instance properties or states.
+	 */
+	@DelicateAdbApi
+	private suspend fun beginShizukuConnection() {
+		var retryCount = 0
+		while (retryCount < CONNECTION_RETRY_COUNT) {
+			logger.debug("Finding ADB connection port (try {})", retryCount)
+			viewLifecycleScopeOrNull?.launch {
+				wadbViewModel.setConnectionStatus(
+					getString(
+						R.string.adb_connection_finding,
+						retryCount + 1,
+						CONNECTION_RETRY_COUNT,
+					),
+				)
+			}
+
+			// restart ADB connection finder
+			adbMdnsConnector.restart()
+
+			// once started, wait for it to connect
+			delay(CONNECTION_RETRY_DELAY_MS)
+
+			if (Shizuku.pingBinder()) {
+				// connected successfully
+				break
+			}
+
+			// connection failed, retry if needed
+			retryCount++
+		}
+
+		if (!Shizuku.pingBinder()) {
+			logger.error("Failed to connect to ADB server")
+			viewLifecycleScopeOrNull?.launch {
+				wadbViewModel.setConnectionStatus(getString(R.string.adb_connection_failed))
+				wadbViewModel.setCurrentView(VIEW_PAIRING)
+			}
+		}
+	}
 
 	/**
 	 * This method always runs in [GlobalScope]. This is because we want to
@@ -229,9 +268,14 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 	 * yet created.
 	 */
 	@OptIn(DelicateCoroutinesApi::class)
+	@DelicateAdbApi
 	private fun onFindAdbConnectionPort(port: Int) =
 		GlobalScope.launch(Dispatchers.IO) {
-			logger.debug("onFindAdbConnectionPort: {}", port)
+			logger.debug(
+				"onFindAdbConnectionPort: port={}, isFragmentAlive={}",
+				port,
+				viewLifecycleScopeOrNull != null,
+			)
 
 			if (Shizuku.pingBinder()) {
 				logger.debug("Shizuku service is already running")
@@ -250,7 +294,12 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 
 			val key =
 				runCatching {
-					AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()))
+					AdbKey(
+						adbKeyStore =
+							PreferenceAdbKeyStore(
+								preference = ShizukuSettings.getPreferences(),
+							),
+					)
 				}
 
 			if (key.isFailure) {
@@ -266,25 +315,31 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 				return@launch
 			}
 
+			val state = WADBViewModel.ConnectionState()
+
 			val host = "127.0.0.1"
-			AdbClient(host, port, key.getOrThrow())
+			AdbClient(host = host, port = port, key = key.getOrThrow())
 				.runCatching {
 					connect()
 					shellCommand(ShizukuStarter.internalCommand) { outputBytes ->
 						val output = String(outputBytes)
-						wadbViewModel.appendOutput(output)
 						logger.debug("[shizuku_starter] {}", output)
+
+						state.appendOutput(output)
+						onUpdateConnectionState(state)
 					}
 				}.onFailure { error ->
 					logger.error("Failed to connect to ADB server", error)
 					viewLifecycleScopeOrNull?.launch {
-						wadbViewModel.recordConnectionFailure(error)
 						wadbViewModel.setConnectionStatus(
 							getString(
 								R.string.adb_connection_failed,
 								error.message ?: "<unknown error>",
 							),
 						)
+
+						state.recordConnectionFailure(error)
+						onUpdateConnectionState(state)
 					}
 
 					// connection failed, no point in trying to find the port
@@ -339,6 +394,11 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 		}
 	}
 
+	/**
+	 * Called in the [GlobalScope], take care when accessing fragment's
+	 * resources here.
+	 */
+	@DelicateAdbApi
 	private fun onUpdateConnectionState(state: WADBViewModel.ConnectionState) {
 		if (Shizuku.pingBinder()) {
 			// already connected
@@ -348,14 +408,12 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 			return
 		}
 
-		if (isDetached) {
-			return
-		}
-
-		val output = state.output.toString()
-		logger.debug("shizuku_starter output: {}", output)
+		val output = state.output.toString().trim()
 		if (output.endsWith("info: shizuku_starter exit with 0")) {
+			state.clearOutput()
+
 			logger.debug("Shizuku starter exited successfully")
+
 			// starter was successful in starting the Shizuku service
 			// get the binder to communicate with it
 			Shizuku.addBinderReceivedListener(
@@ -400,3 +458,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 		_binding = null
 	}
 }
+
+@Retention(AnnotationRetention.SOURCE)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY)
+annotation class DelicateAdbApi
