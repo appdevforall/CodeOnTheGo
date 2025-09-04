@@ -2,6 +2,7 @@ package com.itsaky.androidide.actions.build
 
 import android.content.Context
 import android.content.Intent
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
@@ -17,6 +18,7 @@ import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import rikka.shizuku.Shizuku
 
 /**
@@ -57,13 +59,13 @@ class DebugAction(
 
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
-			activity.bottomSheetViewModel.apply {
-				// the debugger UI might be hidden if no VM is connected
-				// in such cases, ensure that the debugger fragment is visible
-				// before switching to the WADB pairing screen
-				setCurrentTab(DebuggerFragment::class.java)
-			}
-
+			// the debugger UI might be hidden if no VM is connected
+			// in such cases, ensure that the debugger fragment is visible
+			// before switching to the WADB pairing screen
+			activity.bottomSheetViewModel.setSheetState(
+				sheetState = BottomSheetBehavior.STATE_EXPANDED,
+				currentTab = BottomSheetViewModel.TAB_DEBUGGER,
+			)
 			activity.debuggerViewModel.currentView = DebuggerFragment.VIEW_WADB_PAIRING
 			return false
 		}
