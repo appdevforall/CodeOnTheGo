@@ -124,6 +124,7 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import rikka.shizuku.Shizuku
 import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -210,13 +211,15 @@ abstract class BaseEditorActivity :
 			}
 		}
 
+	private val shizukuBinderReceivedListener =
+		Shizuku.OnBinderReceivedListener {
+			invalidateOptionsMenu()
+		}
+
 	private var isImeVisible = false
 	private var contentCardRealHeight: Int? = null
 	private val editorSurfaceContainerBackground by lazy {
 		resolveAttr(R.attr.colorSurfaceDim)
-	}
-	private val editorLayoutCorners by lazy {
-		resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
 	}
 
 	private var isDebuggerStarting = false
@@ -349,6 +352,8 @@ abstract class BaseEditorActivity :
 	protected open fun preDestroy() {
 		_binding = null
 
+		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+
 		optionsMenuInvalidator?.also {
 			ThreadUtils.getMainHandler().removeCallbacks(it)
 		}
@@ -473,6 +478,8 @@ abstract class BaseEditorActivity :
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
