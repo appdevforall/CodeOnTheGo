@@ -43,5 +43,6 @@ dependencies {
 
     implementation(libs.commons.text)
     implementation(libs.common.io)
+    implementation(projects.idetooltips)
 
 }
