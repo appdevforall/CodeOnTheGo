@@ -48,7 +48,7 @@ class AppliedAttributesAdapter(
               context = this.context,
               anchorView = this,
               tooltipCategory = TooltipCategory.CATEGORY_XML,
-              tooltipTag = attrs[position]["name"].toString()
+              tooltipTag = attrs[position]["name"].toString().substringAfterLast(":")
           )
         }
       holder.btnRemove.setOnClickListener { onRemoveButtonClick(position) }
