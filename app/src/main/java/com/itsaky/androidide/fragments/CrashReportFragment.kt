@@ -16,123 +16,154 @@
  */
 package com.itsaky.androidide.fragments
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
-import com.blankj.utilcode.util.ClipboardUtils
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.utils.resolveAttr
 
 class CrashReportFragment : Fragment() {
 
-  private var binding: LayoutCrashReportBinding? = null
-  private var closeAppOnClick = true
+    private var _binding: LayoutCrashReportBinding? = null
+    private val binding get() = _binding!!
 
-  companion object {
+    private var closeAppOnClick = true
 
-    const val KEY_TITLE = "crash_title"
-    const val KEY_MESSAGE = "crash_message"
-    const val KEY_TRACE = "crash_trace"
-    const val KEY_CLOSE_APP_ON_CLICK = "close_on_app_click"
+    companion object {
+        const val KEY_CLOSE_APP_ON_CLICK = "close_on_app_click"
 
-    @JvmStatic
-    fun newInstance(trace: String): CrashReportFragment {
-      return newInstance(null, null, trace, true)
-    }
-
-    @JvmStatic
-    fun newInstance(
-      title: String?,
-      message: String?,
-      trace: String,
-      closeAppOnClick: Boolean
-    ): CrashReportFragment {
-      val frag = CrashReportFragment()
-      val args = Bundle().apply {
-        putString(KEY_TRACE, trace)
-        putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
-        title?.let { putString(KEY_TITLE, it) }
-        message?.let { putString(KEY_MESSAGE, it) }
-      }
-      frag.arguments = args
-      return frag
-    }
-  }
-
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    return LayoutCrashReportBinding.inflate(inflater, container, false).also { binding = it }.root
-  }
-
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    val args = requireArguments()
-    closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
-    var title: String? = getString(R.string.msg_ide_crashed)
-    var message: String? = getString(R.string.msg_report_crash)
-    if (args.containsKey(KEY_TITLE)) {
-      title = args.getString(KEY_TITLE)
-    }
-
-    if (args.containsKey(KEY_MESSAGE)) {
-      message = args.getString(KEY_MESSAGE)
-    }
-
-    val trace: String = if (args.containsKey(KEY_TRACE)) {
-      buildReportText(args.getString(KEY_TRACE))
-    } else {
-      "No stack strace was provided for the report"
-    }
-
-    binding!!.apply {
-      crashTitle.text = title
-      crashSubtitle.text = message
-      logText.text = trace
-
-      val report: String = trace
-      closeButton.setOnClickListener {
-        if (closeAppOnClick) {
-          requireActivity().finishAffinity()
-        } else {
-          requireActivity().finish()
+        @JvmStatic
+        fun newInstance(): CrashReportFragment {
+            return newInstance(true)
         }
-      }
 
-      reportButton.setOnClickListener { reportTrace(report) }
+        @JvmStatic
+        fun newInstance(
+            closeAppOnClick: Boolean
+        ): CrashReportFragment {
+            val frag = CrashReportFragment()
+            val args = Bundle().apply {
+                putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
+            }
+            frag.arguments = args
+            return frag
+        }
     }
-  }
 
-  private fun reportTrace(report: String) {
-    ClipboardUtils.copyText("AndroidIDE CrashLog", report)
-    val url = BuildInfo.REPO_URL + "/issues"
-    val intent = Intent()
-    intent.action = Intent.ACTION_VIEW
-    intent.data = Uri.parse(url)
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    startActivity(intent)
-  }
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = LayoutCrashReportBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-  private fun buildReportText(trace: String?): String {
-    return """
-AndroidIDE Crash Report
-${BuildInfoUtils.getBuildInfoHeader()}
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val args = requireArguments()
+        closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
+        val title = getString(R.string.msg_ide_crashed)
 
-Stacktrace:
-$trace
-    """
-  }
+        binding.apply {
+            crashTitle.text = title
+            crashSubtitle.apply {
+                setCrashInfoText()
+            }
 
-  override fun onDestroyView() {
-    super.onDestroyView()
-    binding = null
-  }
+            closeButton.setOnClickListener {
+                finishActivity()
+            }
+
+            btnOkay.setOnClickListener { finishActivity() }
+
+            requireActivity().onBackPressedDispatcher.addCallback(
+                viewLifecycleOwner,
+                object : OnBackPressedCallback(true) {
+                    override fun handleOnBackPressed() {
+                        finishActivity()
+                    }
+                }
+            )
+
+        }
+    }
+
+    fun TextView.setCrashInfoText() {
+        // Get crash message with placeholder
+        val supportText = context.getString(R.string.contact_support_team)
+        val fullText = context.getString(R.string.msg_crash_info, supportText)
+        val linkColor = requireContext().resolveAttr(com.itsaky.androidide.R.attr.colorOnSurface)
+        val spannable = SpannableString(fullText)
+
+        // Find clickable phrase in text
+        val start = fullText.indexOf(supportText)
+        if (start != -1) {
+            spannable.setSpan(
+                object : ClickableSpan() {
+                    override fun onClick(widget: View) {
+                        sendEmail(context = context)
+
+                    }
+
+                    override fun updateDrawState(ds: TextPaint) {
+                        super.updateDrawState(ds)
+                        ds.color = linkColor
+                        ds.isUnderlineText = true
+                    }
+                },
+                start,
+                start + supportText.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        text = spannable
+        movementMethod = LinkMovementMethod.getInstance()
+    }
+
+    private fun sendEmail(context: Context) {
+        val email = "feedback@appdevforall.org"
+        val subject = Uri.encode(context.getString(R.string.crash_email_subject))
+        val body = Uri.encode(
+            context.getString(
+                R.string.crash_email_body,
+                BuildInfo.VERSION_NAME_SIMPLE
+            )
+        )
+
+        val uri = "mailto:$email?subject=$subject&body=$body".toUri()
+
+        val intent = Intent(Intent.ACTION_SENDTO, uri)
+        context.startActivity(intent)
+    }
+
+    private fun finishActivity() {
+        if (closeAppOnClick) {
+            requireActivity().finishAffinity()
+        } else {
+            requireActivity().finish()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
 }

@@ -178,9 +178,8 @@
   <string name="title_generating_xml">生成 XML 代码</string>
   <string name="msg_swipe_up">上滑可查看构建输出、日志等。</string>
   <string name="msg_ide_crashed">Code on the Go 崩溃了</string>
-  <string name="msg_report_crash">请使用以下堆栈跟踪在 Github 上打开一个 issue：</string>
-  <string name="msg_crash_report_hint">单击下面的按钮以复制日志和打开 issues 页面。</string>
-  <string name="msg_copy_report_action">复制并报告</string>
+  <string name="msg_crash_info">请使用以下堆栈跟踪在 Github 上打开一个 issue：</string>
+  <string name="msg_close_crash_page">单击下面的按钮以复制日志和打开 issues 页面。</string>
   <string name="title_translations">翻译</string>
   <string name="action_expand_selection">扩选</string>
   <string name="idepref_java_matchLower_title">代码补全匹配小写字母</string>
