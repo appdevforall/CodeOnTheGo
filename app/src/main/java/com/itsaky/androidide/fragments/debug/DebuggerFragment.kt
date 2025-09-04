@@ -15,10 +15,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.R
-import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_THREAD_SELECTOR
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
@@ -27,7 +25,8 @@ import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
-import androidx.annotation.UiThread
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -38,8 +37,6 @@ import moe.shizuku.manager.ShizukuViewModel
 import moe.shizuku.manager.model.ServiceStatus
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 
 /**
  * @author Akash Yadav
@@ -100,12 +97,11 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			}
 		}
 
-        binding.debuggerContents.threadLayoutSelector.spinnerText.setOnLongClickListener {
-            showToolTipDialog(DEBUG_THREAD_SELECTOR)
-            true
+        binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
+            showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.threadLayoutSelector.root)
         }
 
-		viewLifecycleScope.launch(Dispatchers.Main) {
+        viewLifecycleScope.launch(Dispatchers.Main) {
 			shizukuViewModel.reload().await()
 		}
 
@@ -237,6 +233,13 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 				binding.debuggerContents.pager,
 			) { tab, position ->
 				tab.text = tabs[position].first
+                tab.view.setOnLongClickListener { view ->
+                    when(position){
+                        0 -> showToolTipDialog(DEBUG_OUTPUT_VARIABLES, view)
+                        1 -> showToolTipDialog(DEBUG_OUTPUT_CALLSTACK, view)
+                    }
+                    true
+                }
 			}
 
 		binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })

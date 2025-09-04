@@ -13,7 +13,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
@@ -28,14 +28,13 @@ class VariableListFragment : Fragment() {
     val fragmentTooltipTag: String = DEBUG_OUTPUT_VARIABLES
 
     private lateinit var treeView: TreeView<ResolvableVariable<*>>
-    private var tooltipHost: TooltipHost? = null
     private lateinit var gestureDetector: GestureDetector
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
 
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onLongPress(e: MotionEvent) {
-            tooltipHost?.showToolTip(fragmentTooltipTag)
+            TooltipManager.showTooltip(requireContext(), treeView, fragmentTooltipTag)
         }
     }
 
@@ -56,7 +55,6 @@ class VariableListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        gestureDetector = GestureDetector(requireContext(), gestureListener)
 
         treeView.apply {
             supportHorizontalScroll = true
@@ -65,12 +63,11 @@ class VariableListFragment : Fragment() {
             binder = VariableListBinder(viewLifecycleOwner.lifecycleScope, viewModel)
 
             bindCoroutineScope(viewLifecycleOwner.lifecycleScope)
-            
-            setOnTouchListener { _, event ->
-                gestureDetector.onTouchEvent(event)
-                false
-            }
         }
+
+        gestureDetector = GestureDetector(requireContext(), gestureListener)
+
+
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -80,19 +77,14 @@ class VariableListFragment : Fragment() {
                 ) { tree ->
                     treeView.tree = tree
                     treeView.refresh()
+
+                    treeView.setOnTouchListener { _, event ->
+                        gestureDetector.onTouchEvent(event)
+                        false
+                    }
                 }
             }
         }
 
-    }
-
-    override fun onAttach(context: Context) {
-        super.onAttach(context)
-        tooltipHost = parentFragment as? TooltipHost
-    }
-
-    override fun onDetach() {
-        super.onDetach()
-        tooltipHost = null
     }
 }
