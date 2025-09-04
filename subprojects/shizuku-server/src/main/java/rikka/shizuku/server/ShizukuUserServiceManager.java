@@ -6,9 +6,9 @@ import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import moe.shizuku.common.util.UserUtils;
 import moe.shizuku.starter.ServiceStarter;
 import rikka.hidden.compat.PackageManagerApis;
-import rikka.hidden.compat.UserManagerApis;
 
 public class ShizukuUserServiceManager extends UserServiceManager {
 
@@ -44,7 +44,7 @@ public class ShizukuUserServiceManager extends UserServiceManager {
 			public void onApkChanged() {
 				String newSourceDir = null;
 
-				for (int userId : UserManagerApis.getUserIdsNoThrow()) {
+				for (int userId : UserUtils.getUsers()) {
 					PackageInfo pi = PackageManagerApis.getPackageInfoNoThrow(packageName, 0, userId);
 					if (pi != null && pi.applicationInfo != null && pi.applicationInfo.sourceDir != null) {
 						newSourceDir = pi.applicationInfo.sourceDir;
