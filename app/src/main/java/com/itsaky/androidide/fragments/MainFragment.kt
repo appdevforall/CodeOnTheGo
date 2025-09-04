@@ -168,6 +168,11 @@ class MainFragment : BaseFragment() {
             true
         }
 
+        binding!!.greetingText.setOnLongClickListener {
+            TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
+            true
+        }
+
         setupDraggableFab()
     }
 
