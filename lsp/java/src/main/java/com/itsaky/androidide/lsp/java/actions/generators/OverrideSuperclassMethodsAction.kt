@@ -217,6 +217,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
         val dialog = builder.create()
         val view = dialog.findViewById<View>(android.R.id.content)
 
+
         view?.setOnLongClickListener {
             CoroutineScope(Dispatchers.Main).launch {
                 val item =

@@ -21,6 +21,8 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ListView
+import android.widget.Toast
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
@@ -28,6 +30,11 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requirePath
 import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR_DIALOG
+import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG
+import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_SETTER_GETTER_DIALOG
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction.ActionId.CONSTRUCTOR
 import com.itsaky.androidide.lsp.java.actions.FieldBasedAction.ActionId.GETTER_SETTER
@@ -54,6 +61,7 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
+
 
 /**
  * Any action that has to work with fields in the current class can inherit this action.
@@ -209,45 +217,67 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
         val checkedNames = mutableSetOf<String>()
         val builder = newDialogBuilder(data)
         val context = data[Context::class.java]!!
+
         builder.setTitle(context.getString(R.string.msg_select_fields))
         builder.setMultiChoiceItems(names, BooleanArray(fields.size)) { _, which, checked ->
             checkedNames.apply {
                 val item = names[which]
-                if (checked) {
-                    add(item)
-                } else {
-                    remove(item)
-                }
+                if (checked) add(item) else remove(item)
             }
         }
 
         builder.setPositiveButton(android.R.string.ok) { dialog, _ ->
             dialog.dismiss()
-
             if (checkedNames.isEmpty()) {
-                flashInfo(data[Context::class.java]!!.getString(R.string.msg_no_fields_selected))
+                flashInfo(context.getString(R.string.msg_no_fields_selected))
                 return@setPositiveButton
             }
-
             listener?.onFieldsSelected(checkedNames)
         }
         builder.setNegativeButton(android.R.string.cancel, null)
 
         val dialog = builder.create()
 
+        val listView = dialog.listView
+        listView.setOnItemLongClickListener { _, view, position, _ ->
+            showTooltip(context, view, actionId)
+            true
+        }
+
         dialog.setOnShowListener {
-            val root = dialog.window?.decorView?.findViewById<View>(android.R.id.content)
-            root?.applyLongPressRecursively { pressedView ->
+            val root = dialog.window?.decorView ?: return@setOnShowListener
 
-                TooltipManager.showTooltip(context, root, getToolTipTag(actionId))
-
+            root.applyLongPressRecursively {
+                showTooltip(context, root, actionId)
                 true
             }
         }
 
-
         dialog.show()
+    }
 
+    private fun showTooltip(context: Context, anchor: View, actionId: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val item = TooltipManager.getTooltip(
+                context = context,
+                category = TooltipCategory.CATEGORY_IDE,
+                tag = getToolTipTag(actionId)
+            )
+            item?.let {
+                TooltipManager.showIDETooltip(
+                    context = context,
+                    anchorView = anchor,
+                    tooltipItem = it,
+                    level = 0,
+                ) { ctx, url, title ->
+                    val intent = Intent(ctx, HelpActivity::class.java).apply {
+                        putExtra(CONTENT_KEY, url)
+                        putExtra(CONTENT_TITLE_KEY, title)
+                    }
+                    ctx.startActivity(intent)
+                }
+            }
+        }
     }
 
     fun getToolTipTag(actionId: String): String {
