@@ -51,6 +51,7 @@ import org.appdevforall.localwebserver.ServerConfig
 import com.itsaky.androidide.utils.Environment
 import org.slf4j.LoggerFactory
 
+import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
 
 import android.hardware.display.DisplayManager
@@ -249,22 +250,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     internal fun deleteProject(root: File) {
         ProjectManagerImpl.getInstance().projectPath = root.absolutePath
         try {
-            val directory = File(ProjectManagerImpl.getInstance().projectPath)
-            val parentDir = directory.parent
-            deleteRecursive(directory)
+            FileDeleteUtils.deleteRecursive(root)
         } catch (e: Exception) {
             flashInfo(string.msg_delete_existing_project_failed)
         }
-    }
-
-    fun deleteRecursive(fileOrDirectory: File) {
-        if (fileOrDirectory.isDirectory) {
-            fileOrDirectory.listFiles()?.forEach { child -> 
-                deleteRecursive(child)
-            }
-        }
-
-        fileOrDirectory.delete()
     }
 
     private fun startWebServer() {
