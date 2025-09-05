@@ -20,9 +20,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import kotlin.collections.ArraysKt;
+import moe.shizuku.common.util.UserUtils;
 import rikka.hidden.compat.PackageManagerApis;
 import rikka.hidden.compat.PermissionManagerApis;
-import rikka.hidden.compat.UserManagerApis;
 import rikka.shizuku.server.ktx.HandlerKt;
 
 public class ShizukuConfigManager extends ConfigManager {
@@ -35,7 +35,7 @@ public class ShizukuConfigManager extends ConfigManager {
 
 	private static final long WRITE_DELAY = 10 * 1000;
 
-	private static final File FILE = new File("/data/user_de/0/com.android.shell/shizuku.json");
+	private static final File FILE = new File("/data/user_de/0/com.android.shell/cotg_shizuku.json");
 	private static final AtomicFile ATOMIC_FILE = new AtomicFile(FILE);
 
 	public static ShizukuConfig load() {
@@ -145,7 +145,7 @@ public class ShizukuConfigManager extends ConfigManager {
 			}
 		}
 
-		for (int userId : UserManagerApis.getUserIdsNoThrow()) {
+		for (int userId : UserUtils.getUserIds()) {
 			for (PackageInfo pi : PackageManagerApis.getInstalledPackagesNoThrow(PackageManager.GET_PERMISSIONS, userId)) {
 				if (pi == null
 						|| pi.applicationInfo == null
