@@ -9,8 +9,6 @@ import android.os.SELinux;
 import android.os.SystemProperties;
 import android.system.Os;
 import androidx.annotation.CallSuper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -19,65 +17,33 @@ import moe.shizuku.server.IShizukuApplication;
 import moe.shizuku.server.IShizukuService;
 import moe.shizuku.server.IShizukuServiceConnection;
 import rikka.hidden.compat.PermissionManagerApis;
-import rikka.rish.RishConfig;
-import rikka.rish.RishService;
 import rikka.shizuku.ShizukuApiConstants;
 import rikka.shizuku.server.api.RemoteProcessHolder;
 import rikka.shizuku.server.util.Logger;
-import rikka.shizuku.server.util.OsUtils;
-import rikka.shizuku.server.util.UserHandleCompat;
 
-public abstract class Service<UserServiceMgr extends UserServiceManager, ClientMgr extends ClientManager<ConfigMgr>, ConfigMgr extends ConfigManager> extends IShizukuService.Stub {
+public abstract class Service<UserServiceMgr extends UserServiceManager> extends IShizukuService.Stub {
 
 	protected static final Logger LOGGER = new Logger("ShizukuService");
 	private final UserServiceMgr userServiceManager;
-	private final ConfigMgr configManager;
-	private final ClientMgr clientManager;
-
-	private final RishService rishService;
 
 	public Service() {
-		RishConfig.init(ShizukuApiConstants.BINDER_DESCRIPTOR, 30000);
-
 		userServiceManager = onCreateUserServiceManager();
-		configManager = onCreateConfigManager();
-		clientManager = onCreateClientManager();
-		rishService = new RishService() {
-
-			@Override
-			public void enforceCallingPermission(String func) {
-				Service.this.enforceCallingPermission(func);
-			}
-		};
 	}
 
 	@Override
 	public final int addUserService(IShizukuServiceConnection conn, Bundle options) {
 		enforceCallingPermission("addUserService");
-
-		int callingUid = Binder.getCallingUid();
-		int callingPid = Binder.getCallingPid();
-		int callingApiVersion;
-
-		ClientRecord clientRecord = clientManager.findClient(callingUid, callingPid);
-		if (clientRecord == null) {
-			callingApiVersion = ShizukuApiConstants.SERVER_VERSION;
-		} else {
-			callingApiVersion = clientRecord.apiVersion;
-		}
-		return userServiceManager.addUserService(conn, options, callingApiVersion);
+		// COTG Changed: removed client manager
+		return userServiceManager.addUserService(conn, options, ShizukuApiConstants.SERVER_VERSION);
 	}
 
 	@Override
 	public void attachUserService(IBinder binder, Bundle options) {
+		enforceManagerPermission("attachUserService");
 		userServiceManager.attachUserService(binder, options);
 	}
 
 	public boolean checkCallerManagerPermission(String func, int callingUid, int callingPid) {
-		return false;
-	}
-
-	public boolean checkCallerPermission(String func, int callingUid, int callingPid, @Nullable ClientRecord clientRecord) {
 		return false;
 	}
 
@@ -87,47 +53,9 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 		return PermissionManagerApis.checkPermission(permission, Os.getuid());
 	}
 
-	@Override
-	public final boolean checkSelfPermission() {
-		int callingUid = Binder.getCallingUid();
-		int callingPid = Binder.getCallingPid();
-
-		if (callingUid == OsUtils.getUid() || callingPid == OsUtils.getPid()) {
-			return true;
-		}
-
-		return clientManager.requireClient(callingUid, callingPid).allowed;
-	}
-
 	public final void enforceCallingPermission(String func) {
-		int callingUid = Binder.getCallingUid();
-		int callingPid = Binder.getCallingPid();
-
-		if (callingUid == OsUtils.getUid()) {
-			return;
-		}
-
-		ClientRecord clientRecord = clientManager.findClient(callingUid, callingPid);
-
-		if (checkCallerPermission(func, callingUid, callingPid, clientRecord)) {
-			return;
-		}
-
-		if (clientRecord == null) {
-			String msg = "Permission Denial: " + func + " from pid="
-					+ Binder.getCallingPid()
-					+ " is not an attached client";
-			LOGGER.w(msg);
-			throw new SecurityException(msg);
-		}
-
-		if (!clientRecord.allowed) {
-			String msg = "Permission Denial: " + func + " from pid="
-					+ Binder.getCallingPid()
-					+ " requires permission";
-			LOGGER.w(msg);
-			throw new SecurityException(msg);
-		}
+		// COTG Changed: all operations require manager permission
+		enforceManagerPermission(func);
 	}
 
 	public final void enforceManagerPermission(String func) {
@@ -147,14 +75,6 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 				+ " is not manager ";
 		LOGGER.w(msg);
 		throw new SecurityException(msg);
-	}
-
-	public final ClientMgr getClientManager() {
-		return clientManager;
-	}
-
-	public ConfigMgr getConfigManager() {
-		return configManager;
 	}
 
 	@Override
@@ -195,6 +115,8 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 		return ShizukuApiConstants.SERVER_VERSION;
 	}
 
+	public abstract boolean isManager(int uid);
+
 	@Override
 	public final IRemoteProcess newProcess(String[] cmd, String[] env, String dir) {
 		enforceCallingPermission("newProcess");
@@ -208,15 +130,9 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 			throw new IllegalStateException(e.getMessage());
 		}
 
-		ClientRecord clientRecord = clientManager.findClient(Binder.getCallingUid(), Binder.getCallingPid());
-		IBinder token = clientRecord != null ? clientRecord.client.asBinder() : null;
-
-		return new RemoteProcessHolder(process, token);
+		// COTG Changed: removed client manager
+		return new RemoteProcessHolder(process, null);
 	}
-
-	public abstract ClientMgr onCreateClientManager();
-
-	public abstract ConfigMgr onCreateConfigManager();
 
 	public abstract UserServiceMgr onCreateUserServiceManager();
 
@@ -237,8 +153,6 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 			attachApplication(IShizukuApplication.Stub.asInterface(binder), args);
 			reply.writeNoException();
 			return true;
-		} else if (rishService.onTransact(code, data, reply, flags)) {
-			return true;
 		}
 		return super.onTransact(code, data, reply, flags);
 	}
@@ -248,32 +162,6 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 		enforceCallingPermission("removeUserService");
 
 		return userServiceManager.removeUserService(conn, options);
-	}
-
-	@Override
-	public final void requestPermission(int requestCode) {
-		int callingUid = Binder.getCallingUid();
-		int callingPid = Binder.getCallingPid();
-		int userId = UserHandleCompat.getUserId(callingUid);
-
-		if (callingUid == OsUtils.getUid() || callingPid == OsUtils.getPid()) {
-			return;
-		}
-
-		ClientRecord clientRecord = clientManager.requireClient(callingUid, callingPid);
-
-		if (clientRecord.allowed) {
-			clientRecord.dispatchRequestPermissionResult(requestCode, true);
-			return;
-		}
-
-		ConfigPackageEntry entry = configManager.find(callingUid);
-		if (entry != null && entry.isDenied()) {
-			clientRecord.dispatchRequestPermissionResult(requestCode, false);
-			return;
-		}
-
-		showPermissionConfirmation(requestCode, clientRecord, callingUid, callingPid, userId);
 	}
 
 	@Override
@@ -287,40 +175,11 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 		}
 	}
 
-	@Override
-	public final boolean shouldShowRequestPermissionRationale() {
-		int callingUid = Binder.getCallingUid();
-		int callingPid = Binder.getCallingPid();
-
-		if (callingUid == OsUtils.getUid() || callingPid == OsUtils.getPid()) {
-			return true;
-		}
-
-		clientManager.requireClient(callingUid, callingPid);
-
-		ConfigPackageEntry entry = configManager.find(callingUid);
-		return entry != null && entry.isDenied();
-	}
-
-	public abstract void showPermissionConfirmation(
-			int requestCode, @NonNull ClientRecord clientRecord, int callingUid, int callingPid, int userId);
-
 	public final void transactRemote(Parcel data, Parcel reply, int flags) throws RemoteException {
 		enforceCallingPermission("transactRemote");
 
 		IBinder targetBinder = data.readStrongBinder();
 		int targetCode = data.readInt();
-		int targetFlags;
-
-		int callingUid = Binder.getCallingUid();
-		int callingPid = Binder.getCallingPid();
-		ClientRecord clientRecord = clientManager.findClient(callingUid, callingPid);
-
-		if (clientRecord != null && clientRecord.apiVersion >= 13) {
-			targetFlags = data.readInt();
-		} else {
-			targetFlags = flags;
-		}
 
 		LOGGER.d("transact: uid=%d, descriptor=%s, code=%d", Binder.getCallingUid(), targetBinder.getInterfaceDescriptor(), targetCode);
 		Parcel newData = Parcel.obtain();
@@ -332,7 +191,7 @@ public abstract class Service<UserServiceMgr extends UserServiceManager, ClientM
 		}
 		try {
 			long id = Binder.clearCallingIdentity();
-			targetBinder.transact(targetCode, newData, reply, targetFlags);
+			targetBinder.transact(targetCode, newData, reply, flags);
 			Binder.restoreCallingIdentity(id);
 		} finally {
 			newData.recycle();

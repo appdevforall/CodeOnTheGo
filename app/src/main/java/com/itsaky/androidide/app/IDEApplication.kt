@@ -67,7 +67,6 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
-import rikka.shizuku.ShizukuProvider
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
@@ -83,7 +82,6 @@ class IDEApplication : TermuxApplication() {
 			private set
 
 		init {
-			ShizukuProvider.disableAutomaticSuiInitialization()
 			Shell.setDefaultBuilder(
 				Shell.Builder
 					.create()
