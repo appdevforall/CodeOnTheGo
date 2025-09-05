@@ -1,7 +1,10 @@
 package com.itsaky.androidide.viewmodel
 
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.debug.ResolvableStackFrame
 import com.itsaky.androidide.fragments.debug.ResolvableThreadInfo
@@ -12,6 +15,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.debug.model.StackFrame
 import com.itsaky.androidide.lsp.debug.model.ThreadInfo
+import com.itsaky.androidide.utils.PrivilegedActions
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +32,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import rikka.shizuku.Shizuku
 
 private data class DebuggerState(
 	val threads: List<ResolvableThreadInfo>,
@@ -100,11 +105,9 @@ class DebuggerViewModel : ViewModel() {
 		get() = _currentView.value
 		set(value) = _currentView.update { value }
 
-	val connectionState: StateFlow<DebuggerConnectionState>
-		get() = _connectionState.asStateFlow()
+	val connectionState = _connectionState.asStateFlow()
 
-	val debugeePackageFlow: StateFlow<String>
-		get() = _debugeePackage.asStateFlow()
+	val debugeePackageFlow = _debugeePackage.asStateFlow()
 
 	var debugeePackage: String
 		get() = _debugeePackage.value
@@ -392,7 +395,12 @@ class DebuggerViewModel : ViewModel() {
 
 				current.copy(
 					frameIndex = index,
-					variablesTree = createVariablesTree(current.threads, current.threadIndex, index),
+					variablesTree =
+						createVariablesTree(
+							current.threads,
+							current.threadIndex,
+							index,
+						),
 				)
 			}
 		}
@@ -430,6 +438,53 @@ class DebuggerViewModel : ViewModel() {
 			} else {
 				consume(tree)
 			}
+		}
+	}
+
+	fun switchToIde(context: Context) {
+		val packageManager = context.packageManager
+		val launchIntent = packageManager.getLaunchIntentForPackage(BuildInfo.PACKAGE_NAME)
+		val component = launchIntent?.component
+
+		val launchWithIntent: () -> Unit = {
+			runCatching {
+				// fall back to startActivity
+				context.startActivity(launchIntent)
+			}.onFailure { err ->
+				logger.error("Failed to switch to IDE using intent: {}", launchIntent, err)
+			}
+		}
+
+		if (launchIntent != null && component != null) {
+			if (!Shizuku.pingBinder()) {
+				logger.warn("Shizuku is not running, falling back to startActivity.")
+				launchWithIntent()
+				return
+			}
+
+			viewModelScope.launch {
+				val launchSuccessful =
+					PrivilegedActions.launchApp(
+						component = component,
+						action = launchIntent.action ?: Intent.ACTION_MAIN,
+						categories = launchIntent.categories ?: setOf(Intent.CATEGORY_LAUNCHER),
+						forceStop = false,
+						debugMode = false,
+					)
+
+				if (!launchSuccessful) {
+					logger.warn("Failed to launch IDE using privileged APIs. Falling back to startActivity.")
+					withContext(Dispatchers.Main.immediate) {
+						launchWithIntent()
+					}
+				}
+			}
+		} else {
+			logger.error(
+				"Unable to switch to IDE. Cannot find launch intent for package {}. Found intent: {}",
+				BuildInfo.PACKAGE_NAME,
+				launchIntent,
+			)
 		}
 	}
 }
