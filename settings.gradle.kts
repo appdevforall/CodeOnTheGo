@@ -147,7 +147,6 @@ include(
 	":subprojects:framework-stubs",
 	":subprojects:javac-services",
 	":subprojects:libjdwp",
-	":subprojects:libjdwp-remote",
 	":subprojects:projects",
 	":subprojects:shizuku-aidl",
 	":subprojects:shizuku-api",
