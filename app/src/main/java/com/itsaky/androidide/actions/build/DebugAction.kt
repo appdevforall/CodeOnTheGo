@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.resources.R
@@ -26,6 +27,7 @@ class DebugAction(
 		iconRes = R.drawable.ic_db_startdebugger,
 	) {
 	override val id = ID
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_DEBUG
 
 	companion object {
 		const val ID = "ide.editor.build.debug"
