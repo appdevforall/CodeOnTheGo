@@ -24,12 +24,6 @@ interface IShizukuService {
 
     int removeUserService(in IShizukuServiceConnection conn, in Bundle args) = 12;
 
-    void requestPermission(int requestCode) = 14;
-
-    boolean checkSelfPermission() = 15;
-
-    boolean shouldShowRequestPermissionRationale() = 16;
-
     void attachApplication(in IShizukuApplication application,in Bundle args) = 17;
 
     void exit() = 100;
@@ -39,10 +33,4 @@ interface IShizukuService {
     oneway void dispatchPackageChanged(in Intent intent) = 102;
 
     boolean isHidden(int uid) = 103;
-
-    oneway void dispatchPermissionConfirmationResult(int requestUid, int requestPid, int requestCode, in Bundle data) = 104;
-
-    int getFlagsForUid(int uid, int mask) = 105;
-
-    void updateFlagsForUid(int uid, int mask, int value) = 106;
  }
