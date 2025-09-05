@@ -13,8 +13,29 @@ import com.itsaky.androidide.common.R
 import com.itsaky.androidide.common.databinding.CustomToolbarBinding
 
 class CustomToolbar @JvmOverloads constructor(
-    context: Context, attrs: AttributeSet? = null
+    context: Context,
+    attrs: AttributeSet? = null,
+    var onNavIconLongClick: (() -> Unit)? = null
 ) : MaterialToolbar(context, attrs) {
+
+    init {
+        this.post {
+            var navButton: ImageButton? = null
+            for (i in 0 until this.childCount) {
+                val child = this.getChildAt(i)
+                if (child is ImageButton && child.contentDescription == this.navigationContentDescription) {
+                    navButton = child
+                    break
+                }
+            }
+
+            navButton?.setOnLongClickListener {
+                onNavIconLongClick?.invoke()
+                true
+            }
+
+        }
+    }
 
     private val binding: CustomToolbarBinding =
         CustomToolbarBinding.inflate(LayoutInflater.from(context), this, true)
@@ -25,7 +46,13 @@ class CustomToolbar @JvmOverloads constructor(
         }
     }
 
-    fun addMenuItem(icon: Drawable?, hint: String, onClick: () -> Unit, shouldAddMargin: Boolean) {
+    fun addMenuItem(
+        icon: Drawable?,
+        hint: String,
+        onClick: () -> Unit,
+        onLongClick: () -> Unit,
+        shouldAddMargin: Boolean
+    ) {
         val item = ImageButton(context).apply {
             tooltipText = hint
             setImageDrawable(icon)
@@ -41,6 +68,10 @@ class CustomToolbar @JvmOverloads constructor(
                 }
             }
             setOnClickListener { onClick() }
+            setOnLongClickListener {
+                onLongClick()
+                true
+            }
         }
         binding.menuContainer.addView(item)
     }
@@ -56,5 +87,9 @@ class CustomToolbar @JvmOverloads constructor(
 
     fun clearMenu() {
         binding.menuContainer.removeAllViews()
+    }
+
+    fun setOnNavIconLongClickListener(listener: (() -> Unit)?) {
+        this.onNavIconLongClick = listener
     }
 }
