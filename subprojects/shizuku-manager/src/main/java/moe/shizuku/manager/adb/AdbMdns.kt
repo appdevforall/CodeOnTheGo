@@ -14,121 +14,138 @@ import java.net.ServerSocket
 
 @RequiresApi(Build.VERSION_CODES.R)
 class AdbMdns(
-    context: Context, private val serviceType: String,
-    private val observer: Consumer<Int>,
+	context: Context,
+	private val serviceType: String,
+	private val observer: Consumer<Int>,
 ) {
+	private var registered = false
+	private var running = false
+	private var serviceName: String? = null
+	private val listener = DiscoveryListener(this)
+	private val nsdManager: NsdManager = context.getSystemService(NsdManager::class.java)
 
-    private var registered = false
-    private var running = false
-    private var serviceName: String? = null
-    private val listener = DiscoveryListener(this)
-    private val nsdManager: NsdManager = context.getSystemService(NsdManager::class.java)
+	fun start() {
+		if (running) return
+		running = true
+		if (!registered) {
+			nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
+		}
+	}
 
-    fun start() {
-        if (running) return
-        running = true
-        if (!registered) {
-            nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
-        }
-    }
+	fun stop() {
+		if (!running) return
+		running = false
+		if (registered) {
+			nsdManager.stopServiceDiscovery(listener)
+		}
+	}
 
-    fun stop() {
-        if (!running) return
-        running = false
-        if (registered) {
-            nsdManager.stopServiceDiscovery(listener)
-        }
-    }
-
-    fun restart() {
+	fun restart() {
 		stop()
 		start()
-	}private fun onDiscoveryStart() {
-        registered = true
-    }
+	}
 
-    private fun onDiscoveryStop() {
-        registered = false
-    }
+	private fun onDiscoveryStart() {
+		registered = true
+	}
 
-    private fun onServiceFound(info: NsdServiceInfo) {
-        nsdManager.resolveService(info, ResolveListener(this))
-    }
+	private fun onDiscoveryStop() {
+		registered = false
+	}
 
-    private fun onServiceLost(info: NsdServiceInfo) {
-        if (info.serviceName == serviceName) observer.accept(-1)
-    }
+	private fun onServiceFound(info: NsdServiceInfo) {
+		nsdManager.resolveService(info, ResolveListener(this))
+	}
 
-    private fun onServiceResolved(resolvedService: NsdServiceInfo) {
-        if (running && NetworkInterface.getNetworkInterfaces()
-                .asSequence()
-                .any { networkInterface ->
-                    networkInterface.inetAddresses
-                        .asSequence()
-                        .any { resolvedService.host.hostAddress == it.hostAddress }
-                }
-            && isPortAvailable(resolvedService.port)
-        ) {
-            serviceName = resolvedService.serviceName
-            observer.accept(resolvedService.port)
-        }
-    }
+	private fun onServiceLost(info: NsdServiceInfo) {
+		if (info.serviceName == serviceName) observer.accept(-1)
+	}
 
-    private fun isPortAvailable(port: Int) = try {
-        ServerSocket().use {
-            it.bind(InetSocketAddress("127.0.0.1", port), 1)
-            false
-        }
-    } catch (e: IOException) {
-        true
-    }
+	private fun onServiceResolved(resolvedService: NsdServiceInfo) {
+		if (running &&
+			NetworkInterface
+				.getNetworkInterfaces()
+				.asSequence()
+				.any { networkInterface ->
+					networkInterface.inetAddresses
+						.asSequence()
+						.any { resolvedService.host.hostAddress == it.hostAddress }
+				} &&
+			isPortAvailable(resolvedService.port)
+		) {
+			serviceName = resolvedService.serviceName
+			observer.accept(resolvedService.port)
+		}
+	}
 
-    internal class DiscoveryListener(private val adbMdns: AdbMdns) : NsdManager.DiscoveryListener {
-        override fun onDiscoveryStarted(serviceType: String) {
-            Log.v(TAG, "onDiscoveryStarted: $serviceType")
+	private fun isPortAvailable(port: Int) =
+		try {
+			ServerSocket().use {
+				it.bind(InetSocketAddress("127.0.0.1", port), 1)
+				false
+			}
+		} catch (e: IOException) {
+			true
+		}
 
-            adbMdns.onDiscoveryStart()
-        }
+	internal class DiscoveryListener(
+		private val adbMdns: AdbMdns,
+	) : NsdManager.DiscoveryListener {
+		override fun onDiscoveryStarted(serviceType: String) {
+			Log.v(TAG, "onDiscoveryStarted: $serviceType")
 
-        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-            Log.v(TAG, "onStartDiscoveryFailed: $serviceType, $errorCode")
-        }
+			adbMdns.onDiscoveryStart()
+		}
 
-        override fun onDiscoveryStopped(serviceType: String) {
-            Log.v(TAG, "onDiscoveryStopped: $serviceType")
+		override fun onStartDiscoveryFailed(
+			serviceType: String,
+			errorCode: Int,
+		) {
+			Log.v(TAG, "onStartDiscoveryFailed: $serviceType, $errorCode")
+		}
 
-            adbMdns.onDiscoveryStop()
-        }
+		override fun onDiscoveryStopped(serviceType: String) {
+			Log.v(TAG, "onDiscoveryStopped: $serviceType")
 
-        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-            Log.v(TAG, "onStopDiscoveryFailed: $serviceType, $errorCode")
-        }
+			adbMdns.onDiscoveryStop()
+		}
 
-        override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-            Log.v(TAG, "onServiceFound: ${serviceInfo.serviceName}")
+		override fun onStopDiscoveryFailed(
+			serviceType: String,
+			errorCode: Int,
+		) {
+			Log.v(TAG, "onStopDiscoveryFailed: $serviceType, $errorCode")
+		}
 
-            adbMdns.onServiceFound(serviceInfo)
-        }
+		override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+			Log.v(TAG, "onServiceFound: ${serviceInfo.serviceName}")
 
-        override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-            Log.v(TAG, "onServiceLost: ${serviceInfo.serviceName}")
+			adbMdns.onServiceFound(serviceInfo)
+		}
 
-            adbMdns.onServiceLost(serviceInfo)
-        }
-    }
+		override fun onServiceLost(serviceInfo: NsdServiceInfo) {
+			Log.v(TAG, "onServiceLost: ${serviceInfo.serviceName}")
 
-    internal class ResolveListener(private val adbMdns: AdbMdns) : NsdManager.ResolveListener {
-        override fun onResolveFailed(nsdServiceInfo: NsdServiceInfo, i: Int) {}
+			adbMdns.onServiceLost(serviceInfo)
+		}
+	}
 
-        override fun onServiceResolved(nsdServiceInfo: NsdServiceInfo) {
-            adbMdns.onServiceResolved(nsdServiceInfo)
-        }
+	internal class ResolveListener(
+		private val adbMdns: AdbMdns,
+	) : NsdManager.ResolveListener {
+		override fun onResolveFailed(
+			nsdServiceInfo: NsdServiceInfo,
+			i: Int,
+		) {}
 
-    }
+		override fun onServiceResolved(nsdServiceInfo: NsdServiceInfo) {
+			adbMdns.onServiceResolved(nsdServiceInfo)
+		}
+	}
 
-    companion object {
-        const val TLS_CONNECT = "_adb-tls-connect._tcp"
-        const val TLS_PAIRING = "_adb-tls-pairing._tcp"
-        const val TAG = "AdbMdns"
-    }
+	companion object {
+		const val TLS_CONNECT = "_adb-tls-connect._tcp"
+		const val TLS_PAIRING = "_adb-tls-pairing._tcp"
+		const val TAG = "AdbMdns"
+	}
 }

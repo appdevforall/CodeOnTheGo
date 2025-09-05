@@ -4,7 +4,6 @@ import com.itsaky.androidide.app.BaseApplication
 import java.io.File
 
 object ShizukuStarter {
-
 	private val starterFile =
 		File(BaseApplication.getBaseInstance().applicationInfo.nativeLibraryDir, "libshizuku.so")
 

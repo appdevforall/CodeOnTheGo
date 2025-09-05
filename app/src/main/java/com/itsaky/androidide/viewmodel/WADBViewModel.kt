@@ -11,21 +11,32 @@ import kotlinx.coroutines.flow.update
 
 @RequiresApi(Build.VERSION_CODES.R)
 class WADBViewModel : ViewModel() {
-
-	class ConnectionState(
+	@ConsistentCopyVisibility
+	data class ConnectionState internal constructor(
 		val output: StringBuilder = StringBuilder(),
-		var error: Throwable? = null
-	)
+		var error: Throwable? = null,
+	) {
+		fun appendOutput(output: CharSequence) {
+			this.output.apply {
+				append(output)
+				append(System.lineSeparator())
+			}
+		}
+
+		fun clearOutput() {
+			this.output.clear()
+		}
+
+		fun recordConnectionFailure(err: Throwable? = null) {
+			this.error = err
+		}
+	}
 
 	private val _currentView = MutableStateFlow(WADBPermissionFragment.VIEW_PAIRING)
-	private val _connectionState = MutableStateFlow(ConnectionState())
 	private val _connectionStatus = MutableStateFlow("")
 
 	val currentView: StateFlow<Int>
 		get() = _currentView.asStateFlow()
-
-	val output: StateFlow<ConnectionState>
-		get() = _connectionState.asStateFlow()
 
 	val connectionStatus: StateFlow<String>
 		get() = _connectionStatus.asStateFlow()
@@ -36,20 +47,5 @@ class WADBViewModel : ViewModel() {
 
 	fun setConnectionStatus(connectionStatus: String) {
 		_connectionStatus.update { connectionStatus }
-	}
-
-	fun appendOutput(output: CharSequence) {
-		_connectionState.update { state ->
-			state.output.append(output)
-			state.output.append(System.lineSeparator())
-			state
-		}
-	}
-
-	fun recordConnectionFailure(err: Throwable? = null) {
-		_connectionState.update { state ->
-			state.error = err
-			state
-		}
 	}
 }

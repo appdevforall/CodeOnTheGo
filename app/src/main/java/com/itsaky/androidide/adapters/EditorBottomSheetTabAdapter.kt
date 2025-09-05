@@ -28,13 +28,26 @@ import com.itsaky.androidide.fragments.output.BuildOutputFragment
 import com.itsaky.androidide.fragments.output.IDELogFragment
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
-import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
 
 class EditorBottomSheetTabAdapter(
 	fragmentActivity: FragmentActivity,
 ) : FragmentStateAdapter(fragmentActivity) {
+	companion object {
+		private val logger = LoggerFactory.getLogger(EditorBottomSheetTabAdapter::class.java)
+
+		// These constants correspond their actual position
+		// in the tabs list. Any update here requires updating
+		// BottomSheetViewModel.
+		const val TAB_BUILD_OUTPUT = 0
+		const val TAB_APPLICATION_LOGS = 1
+		const val TAB_IDE_LOGS = 2
+		const val TAB_DIAGNOSTICS = 3
+		const val TAB_SEARCH_RESULTS = 4
+		const val TAB_DEBUGGER = 5
+	}
+
 	private val allTabs =
 		mutableListOf<Tab>().apply {
 			@Suppress("KotlinConstantConditions")
@@ -42,8 +55,8 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.build_output),
 					fragmentClass = BuildOutputFragment::class.java,
-					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_BUILD_OUTPUT
+					itemId = TAB_BUILD_OUTPUT,
+					tooltipTag = TooltipTag.PROJECT_BUILD_OUTPUT,
 				),
 			)
 
@@ -51,8 +64,8 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.app_logs),
 					fragmentClass = AppLogFragment::class.java,
-					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_APP_LOGS
+					itemId = TAB_APPLICATION_LOGS,
+					tooltipTag = TooltipTag.PROJECT_APP_LOGS,
 				),
 			)
 
@@ -60,8 +73,8 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.ide_logs),
 					fragmentClass = IDELogFragment::class.java,
-					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_IDE_LOGS
+					itemId = TAB_IDE_LOGS,
+					tooltipTag = TooltipTag.PROJECT_IDE_LOGS,
 				),
 			)
 
@@ -69,8 +82,8 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.view_diags),
 					fragmentClass = DiagnosticsListFragment::class.java,
-					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_SEARCH_RESULTS
+					itemId = TAB_DIAGNOSTICS,
+					tooltipTag = TooltipTag.PROJECT_SEARCH_RESULTS,
 				),
 			)
 
@@ -78,8 +91,8 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.view_search_results),
 					fragmentClass = SearchResultFragment::class.java,
-					itemId = size.toLong(),
-					tooltipTag = TooltipTag.PROJECT_DIAGNOSTICS
+					itemId = TAB_SEARCH_RESULTS,
+					tooltipTag = TooltipTag.PROJECT_DIAGNOSTICS,
 				),
 			)
 
@@ -87,7 +100,7 @@ class EditorBottomSheetTabAdapter(
 				Tab(
 					title = fragmentActivity.getString(R.string.debugger_title),
 					fragmentClass = DebuggerFragment::class.java,
-					itemId = size.toLong()
+					itemId = TAB_DEBUGGER,
 				),
 			)
 		}
@@ -138,10 +151,25 @@ class EditorBottomSheetTabAdapter(
 		}
 	}
 
+	/**
+	 * Set the visibility of a fragment.
+	 *
+	 * @param klass The fragment class to show/hide.
+	 * @param isVisible Whether to show or hide the fragment.
+	 * @return `true` if fragment's state changed from hidden to visible, `false`
+	 * 			otherwise.
+	 */
 	fun setFragmentVisibility(
 		klass: Class<out Fragment>,
 		isVisible: Boolean,
-	) = if (isVisible) restoreFragment(klass) else removeFragment(klass)
+	): Boolean {
+		if (isVisible) {
+			return restoreFragment(klass)
+		}
+
+		removeFragment(klass)
+		return false
+	}
 
 	fun <T : Fragment> getFragmentAtIndex(index: Int): T? = getFragmentById(getItemId(index))
 
@@ -225,15 +253,15 @@ class EditorBottomSheetTabAdapter(
 		val title: String,
 		val fragmentClass: Class<out Fragment>,
 		val itemId: Long,
-		val tooltipTag: String? = null
-	)
-
-	companion object {
-		private val logger: Logger =
-			LoggerFactory.getLogger(EditorBottomSheetTabAdapter::class.java)
+		val tooltipTag: String? = null,
+	) {
+		constructor(
+			title: String,
+			fragmentClass: Class<out Fragment>,
+			itemId: Int,
+			tooltipTag: String? = null,
+		) : this(title, fragmentClass, itemId.toLong(), tooltipTag)
 	}
 
-	fun getTooltipTag(position: Int): String? {
-		return allTabs[position].tooltipTag
-	}
+	fun getTooltipTag(position: Int): String? = allTabs[position].tooltipTag
 }

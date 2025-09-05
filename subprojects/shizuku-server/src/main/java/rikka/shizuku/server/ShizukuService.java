@@ -60,7 +60,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 	}
 
 	public static void main(String[] args) {
-		DdmHandleAppName.setAppName("shizuku_server", 0);
+		DdmHandleAppName.setAppName("cotg_server", 0);
 		RishConfig.setLibraryPath(System.getProperty("shizuku.library.path"));
 
 		Looper.prepareMainLooper();
@@ -307,10 +307,8 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 		if (UserHandleCompat.getAppId(callingUid) == managerAppId) {
 			return true;
 		}
-		if (clientRecord == null && checkCallingPermission() == PackageManager.PERMISSION_GRANTED) {
-			return true;
-		}
-		return false;
+
+		return clientRecord == null && checkCallingPermission() == PackageManager.PERMISSION_GRANTED;
 	}
 
 	@Override

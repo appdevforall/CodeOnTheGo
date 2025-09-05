@@ -177,9 +177,8 @@
   <string name="title_generating_xml">Генерация кода XML</string>
   <string name="msg_swipe_up">Провведите вверх, для просмотра сообщений сборки, логов и прочего.</string>
   <string name="msg_ide_crashed">Code on the Go приостановила работу из-за непридвиденной ошибки</string>
-  <string name="msg_report_crash">Пожалуйста, создайте issue на нашем GitHub, прикрепив сообщение ниже:</string>
-  <string name="msg_crash_report_hint">Нажмите на кнопку ниже, чтобы скопировать лог и открыть страницу создания issue.</string>
-  <string name="msg_copy_report_action">Копировать и сообщить</string>
+  <string name="msg_crash_info">Пожалуйста, создайте issue на нашем GitHub, прикрепив сообщение ниже:</string>
+  <string name="msg_close_crash_page">Нажмите на кнопку ниже, чтобы скопировать лог и открыть страницу создания issue.</string>
   <string name="title_translations">Переводчики</string>
   <string name="action_expand_selection">Расширить выделение</string>
   <string name="idepref_java_matchLower_title">Искать совпадения в строчном регистре</string>
