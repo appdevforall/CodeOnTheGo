@@ -22,107 +22,124 @@ import java.io.File
  * @author Akash Yadav
  */
 abstract class AbstractRunAction(
-    context: Context,
-    @StringRes labelRes: Int,
-    @DrawableRes iconRes: Int,
-): AbstractModuleAssemblerAction(context, labelRes, iconRes) {
+	context: Context,
+	@StringRes labelRes: Int,
+	@DrawableRes iconRes: Int,
+) : AbstractModuleAssemblerAction(context, labelRes, iconRes) {
+	/**
+	 * Create the task execution message for the build.
+	 */
+	protected open fun onCreateTaskExecMessage(
+		data: ActionData,
+		module: AndroidModule,
+		variant: BasicAndroidVariantMetadata,
+		buildService: BuildService,
+		activity: EditorHandlerActivity,
+	): TaskExecutionMessage {
+		val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
+		log.info(
+			"Running task '{}' to assemble variant '{}' of project '{}'",
+			taskName,
+			variant.name,
+			module.path,
+		)
 
-    /**
-     * Create the task execution message for the build.
-     */
-    protected abstract fun onCreateTaskExecMessage(
-        data: ActionData,
-        module: AndroidModule,
-        variant: BasicAndroidVariantMetadata,
-        buildService: BuildService,
-        activity: EditorHandlerActivity
-    ): TaskExecutionMessage
+		return TaskExecutionMessage(tasks = listOf(taskName))
+	}
 
-    override suspend fun doBuild(
-        data: ActionData,
-        module: AndroidModule,
-        variant: BasicAndroidVariantMetadata,
-        buildService: BuildService,
-        activity: EditorHandlerActivity
-    ): TaskExecutionResult? {
-        val message = onCreateTaskExecMessage(
-            data,
-            module,
-            variant,
-            buildService,
-            activity,
-        )
+	override suspend fun doBuild(
+		data: ActionData,
+		module: AndroidModule,
+		variant: BasicAndroidVariantMetadata,
+		buildService: BuildService,
+		activity: EditorHandlerActivity,
+	): TaskExecutionResult? {
+		val message =
+			onCreateTaskExecMessage(
+				data,
+				module,
+				variant,
+				buildService,
+				activity,
+			)
 
-        val result = withContext(Dispatchers.IO) {
-            buildService.executeTasks(message).get()
-        }
+		val result =
+			withContext(Dispatchers.IO) {
+				buildService.executeTasks(message).get()
+			}
 
-        if (result?.isSuccessful != true) {
-            log.error("Tasks failed to execute: '{}'", message.tasks)
-        }
+		if (result?.isSuccessful != true) {
+			log.error("Tasks failed to execute: '{}'", message.tasks)
+		}
 
-        return result
-    }
+		return result
+	}
 
-    override suspend fun handleResult(
-        data: ActionData,
-        result: TaskExecutionResult?,
-        module: AndroidModule,
-        variant: BasicAndroidVariantMetadata
-    ) {
-        if (result == null || !result.isSuccessful) {
-            log.debug("Cannot install APK. Task execution failed.")
-            return
-        }
+	override suspend fun handleResult(
+		data: ActionData,
+		result: TaskExecutionResult?,
+		module: AndroidModule,
+		variant: BasicAndroidVariantMetadata,
+	) {
+		if (result == null || !result.isSuccessful) {
+			log.debug("Cannot install APK. Task execution failed.")
+			return
+		}
 
-        log.debug("Installing APK(s) for project: '{}' variant: '{}'", module.path, variant.name)
+		log.debug("Installing APK(s) for project: '{}' variant: '{}'", module.path, variant.name)
 
-        val main = variant.mainArtifact
-        val outputListingFile = main.assembleTaskOutputListingFile
-        if (outputListingFile == null) {
-            log.error("No output listing file provided with project model")
-            return
-        }
+		val main = variant.mainArtifact
+		val outputListingFile = main.assembleTaskOutputListingFile
+		if (outputListingFile == null) {
+			log.error("No output listing file provided with project model")
+			return
+		}
 
-        log.trace("Parsing metadata")
-        val apkFile = ApkMetadata.findApkFile(outputListingFile)
-        if (apkFile == null) {
-            log.error("No apk file specified in output listing file: {}", outputListingFile)
-            return
-        }
+		log.trace("Parsing metadata")
+		val apkFile = ApkMetadata.findApkFile(outputListingFile)
+		if (apkFile == null) {
+			log.error("No apk file specified in output listing file: {}", outputListingFile)
+			return
+		}
 
-        if (!apkFile.exists()) {
-            log.error("APK file specified in output listing file does not exist! {}", apkFile)
-            return
-        }
+		if (!apkFile.exists()) {
+			log.error("APK file specified in output listing file does not exist! {}", apkFile)
+			return
+		}
 
-        install(data, apkFile)
-    }
+		install(data, apkFile)
+	}
 
-    protected open suspend fun install(data: ActionData, apk: File) {
-        val activity =
-            data.getActivity()
-                ?: run {
-                    log.error("Cannot install APK. Unable to get activity instance.")
-                    return
-                }
+	protected open suspend fun install(
+		data: ActionData,
+		apk: File,
+	) {
+		val activity =
+			data.getActivity()
+				?: run {
+					log.error("Cannot install APK. Unable to get activity instance.")
+					return
+				}
 
-        withContext(Dispatchers.Main) {
-            log.debug("Installing APK: {}", apk)
+		withContext(Dispatchers.Main) {
+			log.debug("Installing APK: {}", apk)
 
-            if (!apk.exists()) {
-                log.error("APK file does not exist!")
-                return@withContext
-            }
+			if (!apk.exists()) {
+				log.error("APK file does not exist!")
+				return@withContext
+			}
 
-            ApkInstaller.installApk(
-                activity,
-                InstallationResultHandler.createEditorActivitySender(activity, ::onCreateLaunchIntent),
-                apk,
-                activity.installationSessionCallback()
-            )
-        }
-    }
+			ApkInstaller.installApk(
+				activity,
+				InstallationResultHandler.createEditorActivitySender(
+					activity,
+					::onCreateLaunchIntent,
+				),
+				apk,
+				activity.installationSessionCallback(),
+			)
+		}
+	}
 
-    protected open fun onCreateLaunchIntent() = Intent()
+	protected open fun onCreateLaunchIntent() = Intent()
 }
