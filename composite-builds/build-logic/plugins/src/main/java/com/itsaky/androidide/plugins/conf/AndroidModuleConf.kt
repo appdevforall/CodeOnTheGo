@@ -242,8 +242,6 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		}
 
 		buildTypes.getByName("release") {
-			// TODO: disable minify until issues with minified release build is resolved -- jm 2025-06-06
-			isAppModule = false
 
 			isMinifyEnabled = isAppModule
 			isShrinkResources = isAppModule
