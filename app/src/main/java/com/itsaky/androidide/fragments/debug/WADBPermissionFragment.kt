@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.ShizukuStarter
+import moe.shizuku.manager.ShizukuViewModel
 import moe.shizuku.manager.adb.AdbClient
 import moe.shizuku.manager.adb.AdbKey
 import moe.shizuku.manager.adb.AdbKeyException
@@ -71,6 +72,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 	// must be activity bound since it's also used in DebuggerFragment
 	private val debuggerViewModel by activityViewModels<DebuggerViewModel>()
 	private val wadbViewModel by activityViewModels<WADBViewModel>()
+	private val shizukuViewModel by activityViewModels<ShizukuViewModel>()
 
 	private val pairingBroadcastReceiver =
 		object : BroadcastReceiver() {
@@ -197,7 +199,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 					beginShizukuConnection()
 				}
 
-				viewLifecycleScope.launch(Dispatchers.Main) {
+				viewLifecycleScopeOrNull?.launch(Dispatchers.Main) {
 					wadbViewModel.setCurrentView(VIEW_CONNECTING)
 				}
 			}
@@ -419,8 +421,10 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 			Shizuku.addBinderReceivedListener(
 				object : Shizuku.OnBinderReceivedListener {
 					override fun onBinderReceived() {
-						Shizuku.removeBinderReceivedListener(this)
 						logger.debug("Shizuku service connected")
+
+						Shizuku.removeBinderReceivedListener(this)
+						shizukuViewModel.reload()
 
 						// reset state
 						wadbViewModel.setCurrentView(VIEW_PAIRING)

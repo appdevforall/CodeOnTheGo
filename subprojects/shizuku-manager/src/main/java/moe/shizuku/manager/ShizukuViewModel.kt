@@ -3,7 +3,6 @@ package moe.shizuku.manager
 import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.buildinfo.BuildInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,7 +10,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import moe.shizuku.manager.model.ServiceStatus
-import moe.shizuku.manager.utils.ShizukuSystemApis
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import kotlin.coroutines.cancellation.CancellationException
@@ -76,14 +74,6 @@ class ShizukuViewModel : ViewModel() {
 
 		val permissionTest =
 			Shizuku.checkRemotePermission("android.permission.GRANT_RUNTIME_PERMISSIONS") == PackageManager.PERMISSION_GRANTED
-
-		// Before a526d6bb, server will not exit on uninstall, manager installed later will get not permission
-		// Run a random remote transaction here, report no permission as not running
-		ShizukuSystemApis.checkPermission(
-			Manifest.permission.API_V23,
-			BuildInfo.PACKAGE_NAME,
-			0,
-		)
 		return ServiceStatus(uid, apiVersion, patchVersion, seContext, permissionTest)
 	}
 }
