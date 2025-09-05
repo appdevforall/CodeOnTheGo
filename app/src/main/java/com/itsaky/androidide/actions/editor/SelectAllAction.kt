@@ -29,7 +29,6 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
 
     val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeSelectAllDrawable))
     icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    tooltipTag = TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
     arr.recycle()
   }
 
@@ -42,4 +41,12 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
   }
 
   override fun dismissOnAction() = false
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
+    return if (isReadOnlyContext) {
+      TooltipTag.EDITOR_TOOLBAR_OUTPUT_SELECT_ALL
+    } else {
+      TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
+    }
+  }
 }

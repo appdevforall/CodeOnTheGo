@@ -25,6 +25,7 @@ env:
   ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
   FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+  SENTRY_DSN_DEBUG: ${{ secrets.SENTRY_DSN_DEBUG }}
 
 jobs:
   build_apk:
@@ -39,8 +40,6 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-
-
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
@@ -53,11 +52,6 @@ jobs:
           sudo apt-get install -y git-lfs
           git lfs install
           git lfs pull
-
-      - name: Initialize submodules
-        run: |
-          git submodule init
-          git submodule update --remote
 
       - name: Check if Nix is installed
         id: check_nix
@@ -120,7 +114,6 @@ jobs:
           COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-          
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
@@ -216,7 +209,6 @@ jobs:
           fi
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq

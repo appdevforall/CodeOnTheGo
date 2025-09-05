@@ -28,6 +28,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateWidgetlistItemBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.templates.ITemplateWidgetViewProvider
 import com.itsaky.androidide.templates.Widget
@@ -41,65 +42,73 @@ import kotlinx.coroutines.withContext
  *
  * @author Akash Yadav
  */
-class TemplateWidgetsListAdapter(private val widgets: List<Widget<*>>) :
-    RecyclerView.Adapter<WidgetViewHolder>() {
+class TemplateWidgetsListAdapter(
+	private val widgets: List<Widget<*>>,
+) : RecyclerView.Adapter<WidgetViewHolder>() {
+	class WidgetViewHolder(
+		internal val binding: LayoutTemplateWidgetlistItemBinding,
+	) : RecyclerView.ViewHolder(binding.root)
 
-    class WidgetViewHolder(
-        internal val binding: LayoutTemplateWidgetlistItemBinding
-    ) : RecyclerView.ViewHolder(binding.root)
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): WidgetViewHolder =
+		WidgetViewHolder(
+			LayoutTemplateWidgetlistItemBinding.inflate(
+				LayoutInflater.from(parent.context),
+				parent,
+				false,
+			),
+		)
 
-    override fun onCreateViewHolder(
-        parent: ViewGroup, viewType: Int
-    ): WidgetViewHolder {
-        return WidgetViewHolder(
-            LayoutTemplateWidgetlistItemBinding.inflate(
-                LayoutInflater.from(parent.context), parent, false
-            )
-        )
-    }
+	override fun getItemCount(): Int = widgets.size
 
-    override fun getItemCount(): Int {
-        return widgets.size
-    }
+	override fun onBindViewHolder(
+		holder: WidgetViewHolder,
+		position: Int,
+	) {
+		holder.binding.apply {
+			val viewProvider = ITemplateWidgetViewProvider.getInstance()
+			val widget = widgets[position]
+			val view = viewProvider.createView(root.context, widget)
+			viewProvider.applyCallTooltip { tooltipTag ->
+				val lifecycleOwner = root.context as? LifecycleOwner ?: return@applyCallTooltip
 
-    override fun onBindViewHolder(holder: WidgetViewHolder, position: Int) {
-        holder.binding.apply {
-            val viewProvider = ITemplateWidgetViewProvider.getInstance()
-            val widget = widgets[position]
-            val view = viewProvider.createView(root.context, widget)
-            viewProvider.applyCallTooltip { tooltipTag ->
-                val lifecycleOwner = root.context as? LifecycleOwner ?: return@applyCallTooltip
+				lifecycleOwner.lifecycleScope.launch {
+					try {
+						// Call the method on the interface.
+						val tooltipData =
+							getTooltipData(root.context, TooltipCategory.CATEGORY_IDE, tooltipTag)
+						tooltipData?.let {
+							TooltipUtils.showIDETooltip(
+								context = root.context,
+								level = 0,
+								tooltipItem = tooltipData,
+								anchorView = root,
+							)
+						}
+					} catch (e: Exception) {
+						Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
+					}
+				}
+			}
+			root.removeAllViews()
+			root.addView(
+				view,
+				LinearLayout.LayoutParams(
+					ViewGroup.LayoutParams.MATCH_PARENT,
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+				),
+			)
+		}
+	}
 
-                lifecycleOwner.lifecycleScope.launch {
-                    try {
-                        // Call the method on the interface.
-                        val tooltipData = getTooltipData(root.context, "ide", tooltipTag)
-                        tooltipData?.let {
-                            TooltipUtils.showIDETooltip(
-                                context = root.context,
-                                level = 0,
-                                tooltipItem = tooltipData,
-                                anchorView = root
-                            )
-                        }
-                    } catch (e: Exception) {
-                        Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-                    }
-                }
-
-            }
-            root.removeAllViews()
-            root.addView(
-                view, LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-        }
-    }
-
-    suspend fun getTooltipData(context: Context, category: String, tag: String): IDETooltipItem? {
-        return withContext(Dispatchers.IO) {
-            TooltipManager.getTooltip(context, category, tag)
-        }
-    }
+	suspend fun getTooltipData(
+		context: Context,
+		category: String,
+		tag: String,
+	): IDETooltipItem? =
+		withContext(Dispatchers.IO) {
+			TooltipManager.getTooltip(context, category, tag)
+		}
 }

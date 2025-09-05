@@ -106,4 +106,8 @@ class BuildVariantsFragment :
   private fun checkIsEmpty() {
     emptyStateViewModel.isEmpty.value = _binding?.variantsList?.adapter?.itemCount == 0
   }
+
+  override fun onFragmentLongPressed() {
+    //TODO be defined
+  }
 }
