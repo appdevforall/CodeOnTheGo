@@ -272,10 +272,20 @@ class EditorViewModel : ViewModel() {
                 return@launch
             }
 
-            val gson = GsonBuilder().setPrettyPrinting().create()
-            val string = gson.toJson(cache)
-            file.createNewFile()
-            file.writeText(string)
+            try {
+                file.parentFile?.mkdirs()
+
+                // Convert data to JSON and write to the file.
+                // `writeText` will create the file if it doesn't exist.
+                val gson = GsonBuilder().setPrettyPrinting().create()
+                val string = gson.toJson(cache)
+                file.writeText(string)
+            } catch (e: IOException) {
+                ILogger.ROOT.error(
+                    "[EditorViewModel] Failed to write opened files cache",
+                    e
+                )
+            }
         }.also { job ->
             handleOpenedFilesCacheJobCompletion(job, "write")
         }
@@ -288,12 +298,6 @@ class EditorViewModel : ViewModel() {
         if (file.exists() && forWrite) {
             FileUtils.rename(file, "${file.name}.bak")
         }
-
-        if (file.parentFile?.exists() == false) {
-            file.parentFile?.mkdirs()
-        }
-
-        file.createNewFile()
 
         return file
     }
