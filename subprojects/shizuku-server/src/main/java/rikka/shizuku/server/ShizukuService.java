@@ -40,12 +40,12 @@ import kotlin.collections.ArraysKt;
 import moe.shizuku.api.BinderContainer;
 import moe.shizuku.common.util.BuildUtils;
 import moe.shizuku.common.util.OsUtils;
+import moe.shizuku.common.util.UserUtils;
 import moe.shizuku.server.IShizukuApplication;
 import rikka.hidden.compat.ActivityManagerApis;
 import rikka.hidden.compat.DeviceIdleControllerApis;
 import rikka.hidden.compat.PackageManagerApis;
 import rikka.hidden.compat.PermissionManagerApis;
-import rikka.hidden.compat.UserManagerApis;
 import rikka.parcelablelist.ParcelableListSlice;
 import rikka.rish.RishConfig;
 import rikka.shizuku.ShizukuApiConstants;
@@ -157,7 +157,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 	}
 
 	private static void sendBinderToManger(Binder binder) {
-		for (int userId : UserManagerApis.getUserIdsNoThrow()) {
+		for (int userId : UserUtils.getUserIds()) {
 			sendBinderToManger(binder, userId);
 		}
 	}
@@ -428,7 +428,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 		}
 
 		PackageInfo pi = PackageManagerApis.getPackageInfoNoThrow(MANAGER_APPLICATION_ID, 0, userId);
-		UserInfo userInfo = UserManagerApis.getUserInfo(userId);
+		UserInfo userInfo = UserUtils.getUserInfo(userId);
 		boolean isWorkProfileUser = BuildUtils.atLeast30() ? "android.os.usertype.profile.MANAGED".equals(userInfo.userType) : (userInfo.flags & UserInfo.FLAG_MANAGED_PROFILE) != 0;
 		if (pi == null && !isWorkProfileUser) {
 			LOGGER.w("Manager not found in non work profile user %d. Revoke permission", userId);
@@ -491,7 +491,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 	}
 
 	void sendBinderToClient() {
-		for (int userId : UserManagerApis.getUserIdsNoThrow()) {
+		for (int userId : UserUtils.getUserIds()) {
 			sendBinderToClient(this, userId);
 		}
 	}
@@ -515,7 +515,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 		List<PackageInfo> list = new ArrayList<>();
 		List<Integer> users = new ArrayList<>();
 		if (userId == -1) {
-			users.addAll(UserManagerApis.getUserIdsNoThrow());
+			users.addAll(UserUtils.getUserIds());
 		} else {
 			users.add(userId);
 		}
