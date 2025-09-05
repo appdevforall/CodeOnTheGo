@@ -1005,7 +1005,13 @@ abstract class BaseEditorActivity :
         sb.append("\n")
         appendHierarchicalText(R.string.msg_help_hint)
 
-        content.noEditorSummary.text = sb
+        content.noEditorSummary.apply {
+            text = sb
+            setOnLongClickListener {
+                content.noEditorLayout.performLongClick()
+                true
+            }
+        }
     }
 
 
