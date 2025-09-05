@@ -20,11 +20,6 @@ class ShizukuManagerProvider : ShizukuProvider() {
 		private const val METHOD_SEND_USER_SERVICE = "sendUserService"
 	}
 
-	override fun onCreate(): Boolean {
-		disableAutomaticSuiInitialization()
-		return super.onCreate()
-	}
-
 	override fun call(
 		method: String,
 		arg: String?,
