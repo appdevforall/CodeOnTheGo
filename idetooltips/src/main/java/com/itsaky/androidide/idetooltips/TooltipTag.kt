@@ -70,6 +70,7 @@ object TooltipTag {
     const val PROJECT_FOLDER_NEWXML = "project.folder.newxml"
     const val PROJECT_ITEM_RENAME = "project.item.rename"
     const val PROJECT_RENAME_DIALOG = "project.rename.dialog"
+    const val PROJECT_NEW_FOLDER_DIALOG = "project.newfolder.dialog"
     const val PROJECT_FOLDER_HELP = "project.folder.help"
     const val PROJECT_FILE_OPENWITH = "project.file.openwith"
     const val PROJECT_FILE_HELP = "project.file.help"

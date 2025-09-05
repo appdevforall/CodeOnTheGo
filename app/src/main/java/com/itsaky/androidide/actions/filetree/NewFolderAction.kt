@@ -92,7 +92,7 @@ class NewFolderAction(context: Context, override val order: Int) :
     builder.setNegativeButton(android.R.string.cancel, null)
       builder.showWithLongPressTooltip(
           context = context,
-          tooltipTag = TooltipTag.PROJECT_FOLDER_NEWXML
+          tooltipTag = TooltipTag.PROJECT_NEW_FOLDER_DIALOG
       )
   }
 }
