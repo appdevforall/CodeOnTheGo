@@ -193,7 +193,11 @@ abstract class BaseEditorActivity :
 					val dataset =
 						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
 							?: run {
-								log.error("No dataset found for process: {}: {}", proc.pid, proc.pname)
+								log.error(
+									"No dataset found for process: {}: {}",
+									proc.pid,
+									proc.pname,
+								)
 								return@forEachValue
 							}
 
@@ -864,12 +868,17 @@ abstract class BaseEditorActivity :
 
 	private fun setupViews() {
 		lifecycleScope.launch {
-			repeatOnLifecycle(Lifecycle.State.STARTED) {
+			repeatOnLifecycle(Lifecycle.State.CREATED) {
 				launch {
+					// should be active from CREATED through DESTROYED because
+					// debugger connection updates can happen in the background
+					// which won't be reported if we use Lifecycle.State.STARTED
 					debuggerViewModel.connectionState.collectLatest { state ->
 						onDebuggerConnectionStateChanged(state)
 					}
 				}
+			}
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
 					debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
 						debuggerService?.targetPackage = newPackage
@@ -940,6 +949,7 @@ abstract class BaseEditorActivity :
 	}
 
 	protected open fun onDebuggerConnectionStateChanged(state: DebuggerConnectionState) {
+		log.debug("onDebuggerConnectionStateChanged: {}", state)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			ensureDebuggerServiceBound()
 		}
@@ -952,6 +962,12 @@ abstract class BaseEditorActivity :
 				currentTab = BottomSheetViewModel.TAB_DEBUGGER,
 			)
 		}
+
+		if (state == DebuggerConnectionState.AWAITING_BREAKPOINT) {
+			// breakpoint hit, ensure IDE is in foreground
+			debuggerViewModel.switchToIde(context = this)
+		}
+
 		postStopDebuggerServiceIfNotConnected()
 	}
 
