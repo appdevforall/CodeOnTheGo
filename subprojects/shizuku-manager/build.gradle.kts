@@ -44,7 +44,6 @@ dependencies {
 	implementation(projects.logger)
 	implementation(projects.resources)
 	implementation(projects.subprojects.shizukuServer)
-	implementation(projects.subprojects.shizukuRish)
 	implementation(projects.subprojects.shizukuStarter)
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuProvider)
