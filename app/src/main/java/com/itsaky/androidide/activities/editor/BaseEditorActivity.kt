@@ -204,7 +204,11 @@ abstract class BaseEditorActivity :
 					val dataset =
 						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
 							?: run {
-								log.error("No dataset found for process: {}: {}", proc.pid, proc.pname)
+								log.error(
+									"No dataset found for process: {}: {}",
+									proc.pid,
+									proc.pname,
+								)
 								return@forEachValue
 							}
 

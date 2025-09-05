@@ -3,13 +3,10 @@ package rikka.shizuku;
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP_PREFIX;
 import static rikka.shizuku.ShizukuApiConstants.ATTACH_APPLICATION_API_VERSION;
 import static rikka.shizuku.ShizukuApiConstants.ATTACH_APPLICATION_PACKAGE_NAME;
-import static rikka.shizuku.ShizukuApiConstants.BIND_APPLICATION_PERMISSION_GRANTED;
 import static rikka.shizuku.ShizukuApiConstants.BIND_APPLICATION_SERVER_PATCH_VERSION;
 import static rikka.shizuku.ShizukuApiConstants.BIND_APPLICATION_SERVER_SECONTEXT;
 import static rikka.shizuku.ShizukuApiConstants.BIND_APPLICATION_SERVER_UID;
 import static rikka.shizuku.ShizukuApiConstants.BIND_APPLICATION_SERVER_VERSION;
-import static rikka.shizuku.ShizukuApiConstants.BIND_APPLICATION_SHOULD_SHOW_REQUEST_PERMISSION_RATIONALE;
-import static rikka.shizuku.ShizukuApiConstants.REQUEST_PERMISSION_REPLY_ALLOWED;
 
 import android.content.ComponentName;
 import android.content.ServiceConnection;
@@ -39,8 +36,6 @@ public class Shizuku {
 	private static int serverApiVersion = -1;
 	private static int serverPatchVersion = -1;
 	private static String serverContext = null;
-	private static boolean permissionGranted = false;
-	private static boolean shouldShowRequestPermissionRationale = false;
 	private static boolean preV11 = false;
 	private static boolean binderReady = false;
 
@@ -52,21 +47,7 @@ public class Shizuku {
 			serverApiVersion = data.getInt(BIND_APPLICATION_SERVER_VERSION, -1);
 			serverPatchVersion = data.getInt(BIND_APPLICATION_SERVER_PATCH_VERSION, -1);
 			serverContext = data.getString(BIND_APPLICATION_SERVER_SECONTEXT);
-			permissionGranted = data.getBoolean(BIND_APPLICATION_PERMISSION_GRANTED, false);
-			shouldShowRequestPermissionRationale = data.getBoolean(BIND_APPLICATION_SHOULD_SHOW_REQUEST_PERMISSION_RATIONALE, false);
-
 			scheduleBinderReceivedListeners();
-		}
-
-		@Override
-		public void dispatchRequestPermissionResult(int requestCode, Bundle data) {
-			boolean allowed = data.getBoolean(REQUEST_PERMISSION_REPLY_ALLOWED, false);
-			scheduleRequestPermissionResultListener(requestCode, allowed ? PackageManager.PERMISSION_GRANTED : PackageManager.PERMISSION_DENIED);
-		}
-
-		@Override
-		public void showPermissionConfirmation(int requestUid, int requestPid, String requestPackageName, int requestCode) {
-			// non-app
 		}
 	};
 
@@ -78,8 +59,6 @@ public class Shizuku {
 	private static final List<ListenerHolder<OnBinderReceivedListener>> RECEIVED_LISTENERS = new ArrayList<>();
 
 	private static final List<ListenerHolder<OnBinderDeadListener>> DEAD_LISTENERS = new ArrayList<>();
-
-	private static final List<ListenerHolder<OnRequestPermissionResultListener>> PERMISSION_LISTENERS = new ArrayList<>();
 
 	private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
@@ -179,37 +158,6 @@ public class Shizuku {
 		addBinderReceivedListener(Objects.requireNonNull(listener), true, handler);
 	}
 
-	/**
-	 * Add a listener to receive the result of {@link #requestPermission(int)}.
-	 * <p>
-	 * Note:
-	 * </p>
-	 * <ul>
-	 * <li>The listener will be called in main thread.</li>
-	 * </ul>
-	 * <p>
-	 *
-	 * @param listener
-	 *            OnBinderReceivedListener
-	 */
-	public static void addRequestPermissionResultListener(@NonNull OnRequestPermissionResultListener listener) {
-		addRequestPermissionResultListener(listener, null);
-	}
-
-	/**
-	 * Add a listener to receive the result of {@link #requestPermission(int)}.
-	 *
-	 * @param listener
-	 *            OnBinderReceivedListener
-	 * @param handler
-	 *            Where the listener would be called. If null, the listener will be called in main thread.
-	 */
-	public static void addRequestPermissionResultListener(@NonNull OnRequestPermissionResultListener listener, @Nullable Handler handler) {
-		synchronized (RECEIVED_LISTENERS) {
-			PERMISSION_LISTENERS.add(new ListenerHolder<>(listener, handler));
-		}
-	}
-
 	@RestrictTo(LIBRARY_GROUP_PREFIX)
 	public static void attachUserService(@NonNull IBinder binder, @NonNull Bundle options) {
 		try {
@@ -264,32 +212,6 @@ public class Shizuku {
 		}
 	}
 
-	/**
-	 * Check if self has permission.
-	 *
-	 * @return Either {@link android.content.pm.PackageManager#PERMISSION_GRANTED} or {@link android.content.pm.PackageManager#PERMISSION_DENIED}.
-	 * @since Added from version 11
-	 */
-	public static int checkSelfPermission() {
-		if (permissionGranted)
-			return PackageManager.PERMISSION_GRANTED;
-		try {
-			permissionGranted = requireService().checkSelfPermission();
-		} catch (RemoteException e) {
-			throw rethrowAsRuntimeException(e);
-		}
-		return permissionGranted ? PackageManager.PERMISSION_GRANTED : PackageManager.PERMISSION_DENIED;
-	}
-
-	@RestrictTo(LIBRARY_GROUP_PREFIX)
-	public static void dispatchPermissionConfirmationResult(int requestUid, int requestPid, int requestCode, @NonNull Bundle data) {
-		try {
-			requireService().dispatchPermissionConfirmationResult(requestUid, requestPid, requestCode, data);
-		} catch (RemoteException e) {
-			throw rethrowAsRuntimeException(e);
-		}
-	}
-
 	@RestrictTo(LIBRARY_GROUP_PREFIX)
 	public static void exit() {
 		try {
@@ -307,15 +229,6 @@ public class Shizuku {
 	@Nullable
 	public static IBinder getBinder() {
 		return binder;
-	}
-
-	@RestrictTo(LIBRARY_GROUP_PREFIX)
-	public static int getFlagsForUid(int uid, int mask) {
-		try {
-			return requireService().getFlagsForUid(uid, mask);
-		} catch (RemoteException e) {
-			throw rethrowAsRuntimeException(e);
-		}
 	}
 
 	/**
@@ -541,56 +454,6 @@ public class Shizuku {
 	}
 
 	/**
-	 * Remove the listener added by {@link #addRequestPermissionResultListener(OnRequestPermissionResultListener)}.
-	 *
-	 * @param listener
-	 *            OnRequestPermissionResultListener
-	 * @return If the listener is removed.
-	 */
-	public static boolean removeRequestPermissionResultListener(@NonNull OnRequestPermissionResultListener listener) {
-		synchronized (RECEIVED_LISTENERS) {
-			return PERMISSION_LISTENERS.removeIf(holder -> holder.listener == listener);
-		}
-	}
-
-	/**
-	 * Request permission.
-	 * <p>
-	 * Different from runtime permission, you need to add a listener to receive the result.
-	 *
-	 * @param requestCode
-	 *            Application specific request code to match with a result reported to {@link OnRequestPermissionResultListener#onRequestPermissionResult(int, int)}.
-	 * @see #addRequestPermissionResultListener(OnRequestPermissionResultListener)
-	 * @see #removeRequestPermissionResultListener(OnRequestPermissionResultListener)
-	 * @since Added from version 11
-	 */
-	public static void requestPermission(int requestCode) {
-		try {
-			requireService().requestPermission(requestCode);
-		} catch (RemoteException e) {
-			throw rethrowAsRuntimeException(e);
-		}
-	}
-
-	/**
-	 * Should show UI with rationale before requesting the permission.
-	 *
-	 * @since Added from version 11
-	 */
-	public static boolean shouldShowRequestPermissionRationale() {
-		if (permissionGranted)
-			return false;
-		if (shouldShowRequestPermissionRationale)
-			return true;
-		try {
-			shouldShowRequestPermissionRationale = requireService().shouldShowRequestPermissionRationale();
-		} catch (RemoteException e) {
-			throw rethrowAsRuntimeException(e);
-		}
-		return shouldShowRequestPermissionRationale;
-	}
-
-	/**
 	 * Call {@link IBinder#transact(int, Parcel, Parcel, int)} at remote service.
 	 * <p>
 	 * Use {@link ShizukuBinderWrapper} to wrap the original binder.
@@ -638,15 +501,6 @@ public class Shizuku {
 			/* As a solution for older versions of the server, we can clear the connections[] here. */
 			connection.clearConnections();
 			ShizukuServiceConnections.remove(connection);
-		}
-	}
-
-	@RestrictTo(LIBRARY_GROUP_PREFIX)
-	public static void updateFlagsForUid(int uid, int mask, int value) {
-		try {
-			requireService().updateFlagsForUid(uid, mask, value);
-		} catch (RemoteException e) {
-			throw rethrowAsRuntimeException(e);
 		}
 	}
 
@@ -756,41 +610,12 @@ public class Shizuku {
 
 	// --------------------- non-app ----------------------
 
-	private static void scheduleRequestPermissionResultListener(int requestCode, int result) {
-		synchronized (RECEIVED_LISTENERS) {
-			for (ListenerHolder<OnRequestPermissionResultListener> holder : PERMISSION_LISTENERS) {
-				if (holder.handler != null) {
-					holder.handler.post(() -> holder.listener.onRequestPermissionResult(requestCode, result));
-				} else {
-					if (Looper.myLooper() == Looper.getMainLooper()) {
-						holder.listener.onRequestPermissionResult(requestCode, result);
-					} else {
-						MAIN_HANDLER.post(() -> holder.listener.onRequestPermissionResult(requestCode, result));
-					}
-				}
-			}
-		}
-	}
-
 	public interface OnBinderDeadListener {
 		void onBinderDead();
 	}
 
 	public interface OnBinderReceivedListener {
 		void onBinderReceived();
-	}
-
-	public interface OnRequestPermissionResultListener {
-
-		/**
-		 * Callback for the result from requesting permission.
-		 *
-		 * @param requestCode
-		 *            The code passed in {@link #requestPermission(int)}.
-		 * @param grantResult
-		 *            The grant result for which is either {@link android.content.pm.PackageManager#PERMISSION_GRANTED} or {@link android.content.pm.PackageManager#PERMISSION_DENIED}.
-		 */
-		void onRequestPermissionResult(int requestCode, int grantResult);
 	}
 
 	public static class UserServiceArgs {
