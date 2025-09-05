@@ -53,8 +53,91 @@ jobs:
         run: |
           git fetch origin stage
           git checkout main
-          git merge origin/stage --no-ff -m "Daily merge from stage to main" -X theirs
+          
+          # Attempt merge - if it fails due to conflicts, send notification and stop workflow
+          if ! git merge origin/stage --no-ff -m "Daily merge from stage to main"; then
+            echo "Merge failed due to conflicts. Sending notification and stopping workflow."
+            
+            # Get conflicted files for notification
+            CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+            
+            # Reset to clean state
+            git merge --abort
+            
+            # Send Slack notification
+            jq -n \
+              --arg conflicted_files "$CONFLICTED_FILES" \
+              '{
+                blocks: [
+                  {
+                    type: "header",
+                    text: {
+                      type: "plain_text",
+                      text: ":warning: Daily Merge Failed - Conflicts Detected",
+                      emoji: true
+                    }
+                  },
+                  {
+                    type: "section",
+                    text: {
+                      type: "mrkdwn",
+                      text: "@here The daily merge from `stage` to `main` failed due to merge conflicts."
+                    }
+                  },
+                  {
+                    type: "section",
+                    text: {
+                      type: "mrkdwn",
+                      text: "*Conflicted Files:*\n```\($conflicted_files)```"
+                    }
+                  },
+                  {
+                    type: "section",
+                    text: {
+                      type: "mrkdwn",
+                      text: "*Action Required:*\n1. Review the conflicts manually\n2. Resolve conflicts in the affected files\n3. Push the resolved changes to `stage`\n4. The next daily build will attempt the merge again"
+                    }
+                  },
+                  {
+                    type: "actions",
+                    elements: [
+                      {
+                        type: "button",
+                        text: {
+                          type: "plain_text",
+                          text: "View Repository",
+                          emoji: true
+                        },
+                        url: "https://github.com/${{ github.repository }}",
+                        action_id: "view-repo"
+                      }
+                    ]
+                  },
+                  {
+                    type: "divider"
+                  },
+                  {
+                    type: "context",
+                    elements: [
+                      {
+                        type: "mrkdwn",
+                        text: "Failed merge attempt from `stage` to `main` branch"
+                      }
+                    ]
+                  }
+                ]
+              }' > conflict_payload.json
+            
+            curl -X POST -H "Content-type: application/json" --data @conflict_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+            rm -f conflict_payload.json
+            
+            echo "Merge conflicts detected in files: $CONFLICTED_FILES"
+            exit 1
+          fi
+          
+          # If merge succeeds, push to main
           git push origin main
+          echo "Merge completed successfully"
 
       - name: Set branch to main for build
         id: determine_branch
