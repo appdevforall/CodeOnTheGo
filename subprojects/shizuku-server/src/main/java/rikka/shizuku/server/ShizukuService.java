@@ -25,12 +25,12 @@ import com.itsaky.androidide.buildinfo.BuildInfo;
 import java.util.List;
 import moe.shizuku.api.BinderContainer;
 import moe.shizuku.common.util.OsUtils;
+import moe.shizuku.common.util.UserUtils;
 import moe.shizuku.server.IShizukuApplication;
 import rikka.hidden.compat.ActivityManagerApis;
 import rikka.hidden.compat.DeviceIdleControllerApis;
 import rikka.hidden.compat.PackageManagerApis;
 import rikka.hidden.compat.PermissionManagerApis;
-import rikka.hidden.compat.UserManagerApis;
 import rikka.shizuku.ShizukuApiConstants;
 import rikka.shizuku.server.api.IContentProviderUtils;
 import rikka.shizuku.server.util.HandlerUtil;
@@ -123,7 +123,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 	}
 
 	private static void sendBinderToManager(Binder binder) {
-		for (int userId : UserManagerApis.getUserIdsNoThrow()) {
+		for (int userId : UserUtils.getUserIds()) {
 			sendBinderToManager(binder, userId);
 		}
 	}
