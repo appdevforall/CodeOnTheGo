@@ -4,18 +4,10 @@ import android.content.Context
 import android.content.Intent
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.actions.ActionData
-import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
-import com.itsaky.androidide.projects.api.AndroidModule
-import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_DIR
-import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_INJECT
-import com.itsaky.androidide.tooling.api.ToolingConfig.PROP_JDWP_OPTIONS
-import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
-import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
-import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
@@ -35,6 +27,7 @@ class DebugAction(
 		iconRes = R.drawable.ic_db_startdebugger,
 	) {
 	override val id = ID
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_DEBUG
 
 	companion object {
 		const val ID = "ide.editor.build.debug"
@@ -71,38 +64,6 @@ class DebugAction(
 		}
 
 		return Shizuku.pingBinder()
-	}
-
-	override fun onCreateTaskExecMessage(
-		data: ActionData,
-		module: AndroidModule,
-		variant: BasicAndroidVariantMetadata,
-		buildService: BuildService,
-		activity: EditorHandlerActivity,
-	): TaskExecutionMessage {
-		val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
-		log.info(
-			"Running task '{}' to debug variant '{}' of project '{}'",
-			taskName,
-			variant.name,
-			module.path,
-		)
-
-		val debugArgs = mutableListOf<String>()
-		debugArgs.add("-P$PROP_JDWP_INJECT=false")
-// 		debugArgs.add("-P$PROP_JDWP_INJECT=${JdwpOptions.JDWP_ENABLED}")
-		if (JdwpOptions.JDWP_ENABLED) {
-			debugArgs.add("-P$PROP_JDWP_DIR=${Environment.JDWP_DIR.absolutePath}")
-			debugArgs.add("-P$PROP_JDWP_OPTIONS=${JdwpOptions.JDWP_OPTIONS}")
-		}
-
-		val executionMessage =
-			TaskExecutionMessage(
-				tasks = listOf(taskName),
-				gradleArgs = debugArgs,
-			)
-
-		return executionMessage
 	}
 
 	override fun onCreateLaunchIntent(): Intent =

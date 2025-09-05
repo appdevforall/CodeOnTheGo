@@ -10,5 +10,4 @@ public class ServerConstants {
 	public static final String PERMISSION = MANAGER_APPLICATION_ID + ".shizuku.permission.SHIZUKU_API_V23";
 	public static final String REQUEST_PERMISSION_ACTION = MANAGER_APPLICATION_ID + ".shizuku.intent.action.REQUEST_PERMISSION";
 
-	public static final int BINDER_TRANSACTION_getApplications = 10001;
 }
