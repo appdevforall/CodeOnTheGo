@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.build.AbstractCancellableRunAction.Companion.isBuildInProgress
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
@@ -29,7 +30,10 @@ class FindAction() : EditorActivityAction() {
 
     override var requiresUIThread: Boolean = true
     override var order: Int = 0
-
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
+        return TooltipTag.EDITOR_TOOLBAR_FIND
+    }
+    
     constructor(context: Context, order: Int) : this() {
         this.label = context.getString(R.string.menu_find)
         this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search)
