@@ -15,6 +15,8 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+@file:Suppress("UnstableApiUsage")
+
 import com.itsaky.androidide.build.config.AGP_VERSION_MINIMUM
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.ProjectConfig
@@ -86,7 +88,8 @@ gradlePlugin {
 			id = "${BuildConfig.PACKAGE_NAME}.logsender"
 			implementationClass = "${BuildConfig.PACKAGE_NAME}.gradle.LogSenderPlugin"
 			displayName = "AndroidIDE LogSender Gradle Plugin"
-			description = "Gradle plugin for applying LogSender-specific configuration to projects that are built with AndroidIDE"
+			description =
+				"Gradle plugin for applying LogSender-specific configuration to projects that are built with AndroidIDE"
 			tags.set(setOf("androidide", "logsender"))
 		}
 	}
@@ -95,7 +98,5 @@ gradlePlugin {
 tasks.named<Jar>("jar") {
 	archiveBaseName.set("cogo-plugin")
 	archiveClassifier.set("") // Removes the default "all" classifier
-//  archiveVersion.set("1.0.0")
 	archiveVersion.set("")
-	//  archiveFileName .set("cogo-plugin-1.0.0.jar") // Specify your desired JAR name
 }
