@@ -226,14 +226,18 @@ class RecentProjectsAdapter(
 
 
         val contentView = dialog.window?.decorView
-        contentView?.applyLongPressRecursively {
-            TooltipManager.showTooltip(
-                context = context,
-                anchorView = contentView,
-                tag = DELETE_PROJECT_DIALOG
-            )
-            true
+
+        dialog.setOnShowListener {
+            contentView?.applyLongPressRecursively {
+                TooltipManager.showTooltip(
+                    context = context,
+                    anchorView = contentView,
+                    tag = DELETE_PROJECT_DIALOG
+                )
+                true
+            }
         }
+
         dialog.show()
     }
 
@@ -267,13 +271,16 @@ class RecentProjectsAdapter(
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
 
         val contentView = dialog.window?.decorView
-        contentView?.applyLongPressRecursively {
-            TooltipManager.showTooltip(
-                context = context,
-                anchorView = contentView,
-                tag = PROJECT_RENAME_DIALOG
-            )
-            true
+
+        dialog.setOnShowListener {
+            contentView?.applyLongPressRecursively {
+                TooltipManager.showTooltip(
+                    context = context,
+                    anchorView = contentView,
+                    tag = PROJECT_RENAME_DIALOG
+                )
+                true
+            }
         }
 
         dialog.show()
