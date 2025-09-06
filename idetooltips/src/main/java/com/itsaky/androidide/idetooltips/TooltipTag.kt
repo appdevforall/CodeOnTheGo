@@ -50,9 +50,21 @@ object TooltipTag {
 
     // Main Page
     const val MAIN_GET_STARTED = "main.get.started"
-    const val PROJECT_NEW = "project.new"
     const val PROJECT_OPEN = "project.open"
     const val MAIN_PROJECT_DELETE = "main.project.delete"
     const val MAIN_HELP = "main.help"
     const val FEEDBACK = "feedback"
+    const val EDITOR_PROJECT_OVERVIEW = "project.overview"
+    const val EDITOR_TOOLTIP_NAV_ICON = "project.menu"
+    const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
+    const val EDITOR_TOOLBAR_DEBUG = "project.debug"
+    const val EDITOR_TOOLBAR_RUN_TASKS = "project.gradle.tasks"
+    const val EDITOR_TOOLBAR_FIND = "project.find.top"
+    const val EDITOR_TOOLBAR_FIND_IN_PROJECT = "project.find.in.project"
+    const val EDITOR_TOOLBAR_SYNC = "project.sync"
+    const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
+    const val EDITOR_BUILD_STATUS = "project.status"
+
+	const val PROJECT_NEW = "project.new"
+    const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 }

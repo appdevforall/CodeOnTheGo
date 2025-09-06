@@ -1,15 +1,11 @@
 package rikka.shizuku;
 
-import android.content.BroadcastReceiver;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.ProviderInfo;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
@@ -17,7 +13,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import moe.shizuku.api.BinderContainer;
-import rikka.sui.Sui;
 
 /**
  * <p>
@@ -53,7 +48,6 @@ import rikka.sui.Sui;
  * <li><code>android:multiprocess</code> must be <code>false</code> since Shizuku server only gets uid when app starts.</li>
  * </ol>
  * <p>
- * If your app runs in multiple processes, this provider also provides the functionality of sharing the binder across processes. See {@link #enableMultiProcessSupport(boolean)}.
  * </p>
  */
 public class ShizukuProvider extends ContentProvider {
@@ -70,84 +64,6 @@ public class ShizukuProvider extends ContentProvider {
 
 	private static final String EXTRA_BINDER = BuildInfo.PACKAGE_NAME + ".shizuku.intent.extra.BINDER";
 
-	private static boolean enableMultiProcess = false;
-
-	private static boolean isProviderProcess = false;
-
-	private static boolean enableSuiInitialization = true;
-
-	/**
-	 * Disable automatic Sui initialization.
-	 */
-	public static void disableAutomaticSuiInitialization() {
-		ShizukuProvider.enableSuiInitialization = false;
-	}
-
-	/**
-	 * Enables built-in multi-process support.
-	 * <p>
-	 * This method MUST be called as early as possible (e.g., static block in Application).
-	 */
-	public static void enableMultiProcessSupport(boolean isProviderProcess) {
-		Log.d(TAG, "Enable built-in multi-process support (from " + (isProviderProcess ? "provider process" : "non-provider process") + ")");
-
-		ShizukuProvider.isProviderProcess = isProviderProcess;
-		ShizukuProvider.enableMultiProcess = true;
-	}
-
-	/**
-	 * Require binder for non-provider process, should have {@link #enableMultiProcessSupport(boolean)} called first.
-	 *
-	 * @param context
-	 *            Context
-	 */
-	public static void requestBinderForNonProviderProcess(@NonNull Context context) {
-		if (isProviderProcess) {
-			return;
-		}
-
-		Log.d(TAG, "request binder in non-provider process");
-
-		BroadcastReceiver receiver = new BroadcastReceiver() {
-			@Override
-			public void onReceive(Context context, Intent intent) {
-				BinderContainer container = intent.getParcelableExtra(EXTRA_BINDER);
-				if (container != null && container.binder != null) {
-					Log.i(TAG, "binder received from broadcast");
-					Shizuku.onBinderReceived(container.binder, context.getPackageName());
-				}
-			}
-		};
-
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-			context.registerReceiver(receiver, new IntentFilter(ACTION_BINDER_RECEIVED), Context.RECEIVER_NOT_EXPORTED);
-		} else {
-			context.registerReceiver(receiver, new IntentFilter(ACTION_BINDER_RECEIVED));
-		}
-
-		Bundle reply;
-		try {
-			reply = context.getContentResolver().call(Uri.parse("content://" + context.getPackageName() + ".shizuku"),
-					ShizukuProvider.METHOD_GET_BINDER, null, new Bundle());
-		} catch (Throwable tr) {
-			reply = null;
-		}
-
-		if (reply != null) {
-			reply.setClassLoader(BinderContainer.class.getClassLoader());
-
-			BinderContainer container = reply.getParcelable(EXTRA_BINDER);
-			if (container != null && container.binder != null) {
-				Log.i(TAG, "Binder received from other process");
-				Shizuku.onBinderReceived(container.binder, context.getPackageName());
-			}
-		}
-	}
-
-	public static void setIsProviderProcess(boolean isProviderProcess) {
-		ShizukuProvider.isProviderProcess = isProviderProcess;
-	}
-
 	@Override
 	public void attachInfo(Context context, ProviderInfo info) {
 		super.attachInfo(context, info);
@@ -158,17 +74,11 @@ public class ShizukuProvider extends ContentProvider {
 		if (!info.exported)
 			throw new IllegalStateException("android:exported must be true");
 
-		isProviderProcess = true;
 	}
 
 	@Nullable
 	@Override
 	public Bundle call(@NonNull String method, @Nullable String arg, @Nullable Bundle extras) {
-		if (Sui.isSui()) {
-			Log.w(TAG, "Provider called when Sui is available. Are you using Shizuku and Sui at the same time?");
-			return new Bundle();
-		}
-
 		if (extras == null) {
 			return null;
 		}
@@ -210,10 +120,6 @@ public class ShizukuProvider extends ContentProvider {
 
 	@Override
 	public boolean onCreate() {
-		if (enableSuiInitialization && !Sui.isSui()) {
-			boolean result = Sui.init(getContext().getPackageName());
-			Log.d(TAG, "Initialize Sui: " + result);
-		}
 		return true;
 	}
 
@@ -248,17 +154,7 @@ public class ShizukuProvider extends ContentProvider {
 		BinderContainer container = extras.getParcelable(EXTRA_BINDER);
 		if (container != null && container.binder != null) {
 			Log.d(TAG, "binder received");
-
 			Shizuku.onBinderReceived(container.binder, getContext().getPackageName());
-
-			if (enableMultiProcess) {
-				Log.d(TAG, "broadcast binder");
-
-				Intent intent = new Intent(ACTION_BINDER_RECEIVED)
-						.putExtra(EXTRA_BINDER, container)
-						.setPackage(getContext().getPackageName());
-				getContext().sendBroadcast(intent);
-			}
 		}
 	}
 }
