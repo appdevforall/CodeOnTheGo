@@ -27,6 +27,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.FlashType
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.flashSuccess
@@ -224,8 +225,8 @@ class RecentProjectsAdapter(
             .create()
 
 
-        val contentView = dialog.findViewById<View>(android.R.id.content)
-        contentView?.setOnLongClickListener {
+        val contentView = dialog.window?.decorView
+        contentView?.applyLongPressRecursively {
             TooltipManager.showTooltip(
                 context = context,
                 anchorView = contentView,
@@ -233,8 +234,6 @@ class RecentProjectsAdapter(
             )
             true
         }
-
-
         dialog.show()
     }
 
@@ -267,8 +266,8 @@ class RecentProjectsAdapter(
         val dialog = builder.create()
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
 
-        val contentView = dialog.findViewById<View>(android.R.id.content)
-        contentView?.setOnLongClickListener {
+        val contentView = dialog.window?.decorView
+        contentView?.applyLongPressRecursively {
             TooltipManager.showTooltip(
                 context = context,
                 anchorView = contentView,
