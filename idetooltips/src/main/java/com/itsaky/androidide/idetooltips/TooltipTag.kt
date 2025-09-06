@@ -51,7 +51,6 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
     const val EDITOR_BUILD_STATUS = "project.status"
 
-    const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 
     // Delete project
     const val DELETE_PROJECT = "project.delete"
@@ -65,4 +64,5 @@ object TooltipTag {
     // Template Details
     const val SETUP_PREVIOUS = "setup.previous"
     const val SETUP_CREATE_PROJECT = "setup.create.project"
+    const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 }
