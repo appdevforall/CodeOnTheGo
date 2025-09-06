@@ -40,6 +40,19 @@ object TooltipTag {
     const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
     const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
 
+    const val EDITOR_PROJECT_OVERVIEW = "project.overview"
+    const val EDITOR_TOOLTIP_NAV_ICON = "project.menu"
+    const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
+    const val EDITOR_TOOLBAR_DEBUG = "project.debug"
+    const val EDITOR_TOOLBAR_RUN_TASKS = "project.gradle.tasks"
+    const val EDITOR_TOOLBAR_FIND = "project.find.top"
+    const val EDITOR_TOOLBAR_FIND_IN_PROJECT = "project.find.in.project"
+    const val EDITOR_TOOLBAR_SYNC = "project.sync"
+    const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
+    const val EDITOR_BUILD_STATUS = "project.status"
+
+    const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
+
     // Delete project
     const val DELETE_PROJECT = "project.delete"
     const val DELETE_PROJECT_SELECT = "project.delete.select"

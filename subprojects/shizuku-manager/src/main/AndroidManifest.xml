@@ -21,7 +21,7 @@
 	<permission
 		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_API_V23"
 		android:permissionGroup="com.itsaky.androidide.shizuku.permission-group.SHIZUKU_API"
-		android:protectionLevel="dangerous" />
+		android:protectionLevel="signature" />
 
 	<uses-permission
 		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_API_V23"
@@ -42,7 +42,6 @@
 			android:enabled="true"
 			android:exported="false"
 			tools:targetApi="30" />
-
 		<receiver
 			android:name=".receiver.BootCompleteReceiver"
 			android:directBootAware="true"
@@ -55,17 +54,6 @@
 				<action android:name="android.intent.action.BOOT_COMPLETED" />
 			</intent-filter>
 		</receiver>
-		<receiver
-			android:name=".receiver.ShizukuReceiver"
-			android:directBootAware="true"
-			android:enabled="true"
-			android:exported="true"
-			tools:ignore="ExportedReceiver">
-			<intent-filter>
-				<action android:name="com.itsaky.androidide.shizuku.intent.action.REQUEST_BINDER" />
-			</intent-filter>
-		</receiver>
-
 		<provider
 			android:name=".ShizukuManagerProvider"
 			android:authorities="com.itsaky.androidide.shizuku"

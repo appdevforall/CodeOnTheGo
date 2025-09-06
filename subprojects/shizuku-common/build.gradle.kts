@@ -11,4 +11,5 @@ android {
 
 dependencies {
 	compileOnly(libs.rikka.hidden.stub)
+	api(libs.rikka.hidden.compat)
 }

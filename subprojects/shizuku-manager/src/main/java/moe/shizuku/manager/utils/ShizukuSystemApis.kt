@@ -6,7 +6,6 @@ import android.content.pm.ParceledListSlice
 import android.os.RemoteException
 import rikka.hidden.compat.PackageManagerApis
 import rikka.hidden.compat.PermissionManagerApis
-import rikka.hidden.compat.UserManagerApis
 import rikka.hidden.compat.util.SystemServiceBinder
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
@@ -21,20 +20,8 @@ object ShizukuSystemApis {
 	private val users = arrayListOf<UserInfoCompat>()
 
 	private fun getUsers(): List<UserInfoCompat> {
-		return if (!Shizuku.pingBinder()) {
-			arrayListOf(UserInfoCompat(UserHandleCompat.myUserId(), "Owner"))
-		} else {
-			try {
-				val list = UserManagerApis.getUsers(true, true, true)
-				val users: MutableList<UserInfoCompat> = ArrayList<UserInfoCompat>()
-				for (ui in list) {
-					users.add(UserInfoCompat(ui.id, ui.name))
-				}
-				return users
-			} catch (tr: Throwable) {
-				arrayListOf(UserInfoCompat(UserHandleCompat.myUserId(), "Owner"))
-			}
-		}
+		// COTG Changed: Limit to single user
+		return arrayListOf(UserInfoCompat(UserHandleCompat.myUserId(), "Owner"))
 	}
 
 	fun getUsers(useCache: Boolean = true): List<UserInfoCompat> {
