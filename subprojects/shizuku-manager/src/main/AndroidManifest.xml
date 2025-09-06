@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:tools="http://schemas.android.com/tools">
+
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+	<uses-permission
+		android:name="android.permission.WRITE_SECURE_SETTINGS"
+		tools:ignore="ProtectedPermissions" />
+
+	<permission-group android:name="com.itsaky.androidide.shizuku.permission-group.SHIZUKU_API" />
+
+	<permission
+		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_MANAGER"
+		android:protectionLevel="signature" />
+
+	<uses-permission android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_MANAGER" />
+
+	<permission
+		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_API_V23"
+		android:permissionGroup="com.itsaky.androidide.shizuku.permission-group.SHIZUKU_API"
+		android:protectionLevel="signature" />
+
+	<uses-permission
+		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_API_V23"
+		tools:node="remove" />
+
+	<permission
+		android:name="com.itsaky.androidide.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+		android:protectionLevel="signature"
+		tools:node="remove" />
+
+	<uses-permission
+		android:name="com.itsaky.androidide.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+		tools:node="remove" />
+
+	<application android:directBootAware="true">
+		<service
+			android:name=".adb.AdbPairingService"
+			android:enabled="true"
+			android:exported="false"
+			tools:targetApi="30" />
+		<receiver
+			android:name=".receiver.BootCompleteReceiver"
+			android:directBootAware="true"
+			android:enabled="true"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.BOOT_COMPLETED" />
+			</intent-filter>
+		</receiver>
+		<provider
+			android:name=".ShizukuManagerProvider"
+			android:authorities="com.itsaky.androidide.shizuku"
+			android:directBootAware="true"
+			android:enabled="true"
+			android:exported="true"
+			android:multiprocess="false"
+			android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+	</application>
+</manifest>

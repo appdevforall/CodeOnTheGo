@@ -18,6 +18,8 @@
 package com.itsaky.androidide.editor.ui
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
@@ -41,8 +43,12 @@ import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.EditorActionItem
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
+import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.models.DiagnosticItem
@@ -56,6 +62,11 @@ import io.github.rosemoe.sora.event.SubscriptionReceipt
 import io.github.rosemoe.sora.text.Cursor
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorTouchEventHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -284,7 +295,8 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     registry.registerActionExecListener(this)
     onFillMenu(registry, data)
 
-    this.list.adapter = ActionsListAdapter(getMenu())
+    this.list.adapter = ActionsListAdapter(getMenu(), onGetActionLocation(), editor = editor)
+
   }
 
   protected open fun onFillMenu(registry: ActionsRegistry, data: ActionData) {
@@ -355,8 +367,14 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     )
   }
 
-  private class ActionsListAdapter(val menu: Menu?, val forceShowTitle: Boolean = false) :
-    RecyclerView.Adapter<VH>() {
+  private class ActionsListAdapter(
+    val menu: Menu?,
+    val location: ActionItem.Location,
+    val forceShowTitle: Boolean = false,
+    val editor: IDEEditor
+  ) : RecyclerView.Adapter<VH>() {
+
+    private val registry = getInstance()
 
     override fun getItemCount(): Int {
       return menu?.size() ?: 0
@@ -392,6 +410,49 @@ open class EditorActionsMenu(val editor: IDEEditor) :
       button.setOnClickListener {
         (item as MenuItemImpl).invoke()
       }
+
+      val action = registry.findAction(location, item.itemId)
+      if (action != null) {
+        button.setOnLongClickListener {
+          val tag = action.retrieveTooltipTag(editor.isReadOnlyContext)
+          val activity = editor.context as? Activity
+          activity?.let { act ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val item = TooltipManager.getTooltip(
+                context = editor.context,
+                category = TooltipCategory.CATEGORY_IDE,
+                tag = tag
+              )
+
+              item?.let { tooltipData ->
+                TooltipManager.showIDETooltip(
+                  editor.context,
+                  editor,
+                  0,
+                  IDETooltipItem(
+                    rowId = tooltipData.rowId,
+                    id = tooltipData.id,
+                    category = TooltipCategory.CATEGORY_IDE,
+                    tag = tooltipData.tag,
+                    detail = tooltipData.detail,
+                    summary = tooltipData.summary,
+                    buttons = tooltipData.buttons,
+                    lastChange = tooltipData.lastChange,
+                  ),
+                  { context, url, title ->
+                    val intent = Intent(context, HelpActivity::class.java).apply {
+                      putExtra(CONTENT_KEY, url)
+                      putExtra(CONTENT_TITLE_KEY, title)
+                    }
+                    context.startActivity(intent)
+                  }
+                )
+              }
+            }
+          }
+          true
+        }
+      }
     }
 
     inner class VH(val binding: LayoutPopupMenuItemBinding) : ViewHolder(binding.root)
@@ -411,7 +472,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
     this.editor.post {
       TransitionManager.beginDelayedTransition(this.list, ChangeBounds())
       this.list.layoutManager = LinearLayoutManager(editor.context)
-      this.list.adapter = ActionsListAdapter(item.subMenu, true)
+      this.list.adapter = ActionsListAdapter(item.subMenu, onGetActionLocation(), true, editor)
 
       this.list.post {
         measureActionsList()

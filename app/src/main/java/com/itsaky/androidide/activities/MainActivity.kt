@@ -19,10 +19,8 @@ package com.itsaky.androidide.activities
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
-import android.util.Log
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -40,6 +38,7 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
@@ -50,11 +49,10 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import org.appdevforall.localwebserver.WebServer
 import org.appdevforall.localwebserver.ServerConfig
 import com.itsaky.androidide.utils.Environment
+import org.slf4j.LoggerFactory
 
+import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.InputStream
 
 import android.hardware.display.DisplayManager
 import android.view.Display
@@ -62,7 +60,7 @@ import android.view.Display
 class MainActivity : EdgeToEdgeIDEActivity() {
 
     private val DATABASENAME = "documentation.db"
-    private val TAG = "MainActivity"
+    private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
     private val viewModel by viewModels<MainViewModel>()
     private var _binding: ActivityMainBinding? = null
@@ -252,20 +250,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     internal fun deleteProject(root: File) {
         ProjectManagerImpl.getInstance().projectPath = root.absolutePath
         try {
-            val directory = File(ProjectManagerImpl.getInstance().projectPath)
-            val parentDir = directory.parent
-            deleteRecursive(directory)
+            FileDeleteUtils.deleteRecursive(root)
         } catch (e: Exception) {
             flashInfo(string.msg_delete_existing_project_failed)
         }
-    }
-
-    fun deleteRecursive(fileOrDirectory: File) {
-        if (fileOrDirectory.isDirectory) for (child in fileOrDirectory.listFiles()) deleteRecursive(
-            child
-        )
-
-        fileOrDirectory.delete()
     }
 
     private fun startWebServer() {
@@ -273,16 +261,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             val dbFile = Environment.DOC_DB
             
             if (!dbFile.exists()) {
-                Log.w(TAG, "Database file not found at: ${dbFile.absolutePath} - WebServer will not start")
+                log.warn("Database file not found at: {} - WebServer will not start", dbFile.absolutePath)
                 return
             }
             
-            Log.i(TAG, "Starting WebServer - database file exists at: ${dbFile.absolutePath}")
+            log.info("Starting WebServer - database file exists at: {}", dbFile.absolutePath)
             val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
             Thread { webServer.start() }.start()
             
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start WebServer", e)
+            log.error("Failed to start WebServer", e)
         }
     }
 

@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.layouteditor.activities
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -9,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
@@ -24,6 +26,7 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.isEmpty
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -32,6 +35,14 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager.getTooltip
+import com.itsaky.androidide.idetooltips.TooltipManager.showIDETooltip
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -254,9 +265,46 @@ class EditorActivity : BaseActivity() {
     private fun setupStructureView() {
         binding.editorLayout.setStructureView(binding.structureView)
 
-        binding.structureView.onItemClickListener = {
-            binding.editorLayout.showDefinedAttributes(it)
-            drawerLayout.closeDrawer(GravityCompat.END)
+        binding.structureView.apply {
+            onItemClickListener = {
+                binding.editorLayout.showDefinedAttributes(it)
+                drawerLayout.closeDrawer(GravityCompat.END)
+            }
+            onItemLongClickListener = { view ->
+                showTooltip(
+                    context = this@EditorActivity,
+                    anchorView = view,
+                    tag = view.javaClass.superclass.name
+                )
+            }
+        }
+    }
+
+    private fun showTooltip(context: Context, anchorView: View, tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                TooltipCategory.CATEGORY_JAVA,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+            }
         }
     }
 
@@ -844,7 +892,7 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveXml() {
-        if (binding.editorLayout.childCount == 0) {
+        if (binding.editorLayout.isEmpty()) {
             project.currentLayout.saveLayout("")
             ToastUtils.showShort(getString(string.layout_saved))
             binding.editorLayout.markAsSaved()

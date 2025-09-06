@@ -25,6 +25,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.activities.PreferencesActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import kotlin.reflect.KClass
 
 /**
@@ -48,4 +49,6 @@ class PreferencesSidebarAction(context: Context, override val order: Int) : Abst
     val context = data.requireContext()
     return context.startActivity(Intent(context, PreferencesActivity::class.java))
   }
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.PREFERENCES_SIDEBAR
+
 }

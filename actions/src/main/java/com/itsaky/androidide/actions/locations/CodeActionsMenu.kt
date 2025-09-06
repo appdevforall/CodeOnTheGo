@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionMenu
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
@@ -47,4 +48,6 @@ object CodeActionsMenu : ActionMenu {
       icon = ContextCompat.getDrawable(data[Context::class.java]!!, R.drawable.ic_code)
     }
   }
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) =
+    TooltipTag.EDITOR_TOOLBAR_CODE_ACTIONS
 }

@@ -21,9 +21,10 @@ import android.view.View
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 class DiagnosticsListFragment : RecyclerViewFragment<DiagnosticsAdapter>() {
-
+  override val fragmentTooltipTag: String? = TooltipTag.PROJECT_DIAGNOSTICS
   override fun onCreateAdapter(): RecyclerView.Adapter<*> {
     return DiagnosticsAdapter(ArrayList(), null)
   }

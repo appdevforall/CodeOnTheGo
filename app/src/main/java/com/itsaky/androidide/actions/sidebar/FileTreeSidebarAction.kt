@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
+import com.itsaky.androidide.idetooltips.TooltipTag
 import kotlin.reflect.KClass
 
 /**
@@ -42,4 +43,6 @@ class FileTreeSidebarAction(context: Context, override val order: Int) : Abstrac
     label = context.getString(R.string.msg_file_tree)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_folder)
   }
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.FILE_TREE_SIDEBAR
 }

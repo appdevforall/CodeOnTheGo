@@ -20,7 +20,7 @@ package com.itsaky.androidide.actions.editor
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
-
+import com.itsaky.androidide.idetooltips.TooltipTag
 /** @author Akash Yadav */
 class PasteAction(context: Context, override val order: Int) : BaseEditorAction() {
 
@@ -50,4 +50,6 @@ class PasteAction(context: Context, override val order: Int) : BaseEditorAction(
     editor.pasteText()
     return true
   }
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_PASTE
 }
