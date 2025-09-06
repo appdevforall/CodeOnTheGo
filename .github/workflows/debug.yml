@@ -32,7 +32,7 @@ jobs:
     name: Check for meaningful changes
     runs-on: self-hosted
     outputs:
-      should_skip: ${{ steps.check.outputs.should_skip }}
+      must_build: ${{ steps.check.outputs.must_build }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -47,27 +47,25 @@ jobs:
           BRANCH_NAME=$(git branch --show-current)
           echo "Current branch: $BRANCH_NAME"
 
-          # Check if this branch has any commits that are not in the stage branch
+          # Check commit count for logging
           BRANCH_ONLY_COMMITS=$(git log --oneline origin/stage..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo "0")
           echo "Commits ahead of stage: $BRANCH_ONLY_COMMITS"
 
-          # For non-stage branches, check if they have meaningful commits
-          # Skip only if it's a non-stage branch with 0 meaningful commits AND it's identical to stage
-          if [[ "$BRANCH_NAME" != "stage" ]] && [[ "$BRANCH_ONLY_COMMITS" -eq 0 ]]; then
-            # Double-check: are we actually identical to stage?
+          # For non-stage branches, check if they are identical to stage
+          if [[ "$BRANCH_NAME" != "stage" ]]; then
             DIFF_COUNT=$(git diff --name-only origin/stage..HEAD | wc -l | tr -d ' ' || echo "0")
             echo "Files changed from stage: $DIFF_COUNT"
             
             if [[ "$DIFF_COUNT" -eq 0 ]]; then
               echo "::notice::Skipping build for branch identical to stage"
-              echo "should_skip=true" >> $GITHUB_OUTPUT
+              echo "must_build=false" >> $GITHUB_OUTPUT
             else
-              echo "Branch has uncommitted changes, proceeding with build"
-              echo "should_skip=false" >> $GITHUB_OUTPUT
+              echo "Branch has changes, proceeding with build"
+              echo "must_build=true" >> $GITHUB_OUTPUT
             fi
           else
-            echo "Branch '$BRANCH_NAME' has $BRANCH_ONLY_COMMITS commits, proceeding with build"
-            echo "should_skip=false" >> $GITHUB_OUTPUT
+            echo "Stage branch detected, proceeding with build"
+            echo "must_build=true" >> $GITHUB_OUTPUT
           fi
 
   build_apk:
@@ -75,7 +73,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 60
     needs: check_changes
-    if: needs.check_changes.outputs.should_skip != 'true'
+    if: needs.check_changes.outputs.must_build == 'true'
 
     steps:
 
