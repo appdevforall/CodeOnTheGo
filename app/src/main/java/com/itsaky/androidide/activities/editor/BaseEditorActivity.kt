@@ -32,9 +32,12 @@ import android.os.Process
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextUtils
 import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -45,6 +48,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
+import androidx.annotation.StringRes
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
@@ -82,11 +86,13 @@ import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
 import com.itsaky.androidide.fragments.SearchResultFragment
-import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.models.DiagnosticItem
@@ -123,10 +129,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import rikka.shizuku.Shizuku
 import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -178,8 +187,8 @@ abstract class BaseEditorActivity :
 			override fun handleOnBackPressed() {
 				if (binding.root.isDrawerOpen(GravityCompat.START)) {
 					binding.root.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
+				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
+					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 				} else if (binding.swipeReveal.isOpen) {
 					binding.swipeReveal.close()
 				} else {
@@ -195,7 +204,11 @@ abstract class BaseEditorActivity :
 					val dataset =
 						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
 							?: run {
-								log.error("No dataset found for process: {}: {}", proc.pid, proc.pname)
+								log.error(
+									"No dataset found for process: {}: {}",
+									proc.pid,
+									proc.pname,
+								)
 								return@forEachValue
 							}
 
@@ -213,13 +226,15 @@ abstract class BaseEditorActivity :
 			}
 		}
 
+	private val shizukuBinderReceivedListener =
+		Shizuku.OnBinderReceivedListener {
+			invalidateOptionsMenu()
+		}
+
 	private var isImeVisible = false
 	private var contentCardRealHeight: Int? = null
 	private val editorSurfaceContainerBackground by lazy {
 		resolveAttr(R.attr.colorSurfaceDim)
-	}
-	private val editorLayoutCorners by lazy {
-		resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
 	}
 
 	private var isDebuggerStarting = false
@@ -352,6 +367,8 @@ abstract class BaseEditorActivity :
 	protected open fun preDestroy() {
 		_binding = null
 
+		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+
 		optionsMenuInvalidator?.also {
 			ThreadUtils.getMainHandler().removeCallbacks(it)
 		}
@@ -474,599 +491,652 @@ abstract class BaseEditorActivity :
 		builder.show()
 	}
 
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-
-		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
-
-		registerLanguageServers()
-
-		if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
-			savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
-				ProjectManagerImpl.getInstance().projectPath = path
-			}
-		}
-
-		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-		lifecycle.addObserver(mLifecycleObserver)
-
-		setupToolbar()
-		setupDrawers()
-		content.tabs.addOnTabSelectedListener(this)
-
-		setupViews()
-
-		setupContainers()
-		setupDiagnosticInfo()
-
-		uiDesignerResultLauncher =
-			registerForActivityResult(
-				StartActivityForResult(),
-				this::handleUiDesignerResult,
-			)
-
-		setupMemUsageChart()
-		watchMemory()
-	}
-
-	private fun setupToolbar() {
-		content.customToolbar.apply {
-			setTitleText(editorViewModel.getProjectName())
-
-			val toggle =
-				object : ActionBarDrawerToggle(
-					this@BaseEditorActivity,
-					binding.editorDrawerLayout,
-					content.customToolbar,
-					string.app_name,
-					string.app_name,
-				) {
-					override fun onDrawerOpened(drawerView: View) {
-						super.onDrawerOpened(drawerView)
-						// Hide the keyboard when the drawer opens.
-						closeKeyboard()
-					}
-				}
-
-			binding.editorDrawerLayout.addDrawerListener(toggle)
-			toggle.syncState()
-		}
-	}
-
-	private fun onSwipeRevealDragProgress(progress: Float) {
-		_binding?.apply {
-			contentCard.progress = progress
-			val insetsTop = systemBarInsets?.top ?: 0
-			content.editorAppBarLayout.updatePadding(
-				top = (insetsTop * (1f - progress)).roundToInt(),
-			)
-			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-				topMargin = (insetsTop * progress).roundToInt()
-			}
-		}
-	}
-
-	private fun setupMemUsageChart() {
-		binding.memUsageView.chart.apply {
-			val colorAccent = resolveAttr(R.attr.colorAccent)
-
-			isDragEnabled = false
-			description.isEnabled = false
-			xAxis.axisLineColor = colorAccent
-			axisRight.axisLineColor = colorAccent
-
-			setPinchZoom(false)
-			setBackgroundColor(editorSurfaceContainerBackground)
-			setDrawGridBackground(true)
-			setScaleEnabled(true)
-
-			axisLeft.isEnabled = false
-			axisRight.valueFormatter =
-				object :
-					IAxisValueFormatter {
-					override fun getFormattedValue(
-						value: Float,
-						axis: AxisBase?,
-					): String = "%dMB".format(value.roundToLong())
-				}
-		}
-	}
-
-	private fun watchMemory() {
-		memoryUsageWatcher.listener = memoryUsageListener
-		memoryUsageWatcher.watchProcess(Process.myPid(), PROC_IDE)
-		resetMemUsageChart()
-	}
-
-	protected fun resetMemUsageChart() {
-		val processes = memoryUsageWatcher.getMemoryUsages()
-		val datasets =
-			Array(processes.size) { index ->
-				LineDataSet(
-					List(MemoryUsageWatcher.MAX_USAGE_ENTRIES) { Entry(it.toFloat(), 0f) },
-					processes[index].pname,
-				)
-			}
-
-		val bgColor = editorSurfaceContainerBackground
-		val textColor = resolveAttr(R.attr.colorOnSurface)
-
-		for ((index, proc) in processes.withIndex()) {
-			val dataset = datasets[index]
-			dataset.color = getMemUsageLineColorFor(proc)
-			dataset.setDrawIcons(false)
-			dataset.setDrawCircles(false)
-			dataset.setDrawCircleHole(false)
-			dataset.setDrawValues(false)
-			dataset.formLineWidth = 1f
-			dataset.formSize = 15f
-			dataset.isHighlightEnabled = false
-			pidToDatasetIdxMap[proc.pid] = index
-		}
-
-		binding.memUsageView.chart.setBackgroundColor(bgColor)
-
-		binding.memUsageView.chart.apply {
-			data = LineData(*datasets)
-			axisRight.textColor = textColor
-			axisLeft.textColor = textColor
-			legend.textColor = textColor
-
-			data.setValueTextColor(textColor)
-			setBackgroundColor(bgColor)
-			setGridBackgroundColor(bgColor)
-			notifyDataSetChanged()
-			invalidate()
-		}
-	}
-
-	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
-		when (proc.pname) {
-			PROC_IDE -> Color.BLUE
-			PROC_GRADLE_TOOLING -> Color.RED
-			PROC_GRADLE_DAEMON -> Color.GREEN
-			else -> throw IllegalArgumentException("Unknown process: $proc")
-		}
-
-	override fun onPause() {
-		super.onPause()
-		memoryUsageWatcher.listener = null
-		memoryUsageWatcher.stopWatching(false)
-
-		this.isDestroying = isFinishing
-		getFileTreeFragment()?.saveTreeState()
-	}
-
-	override fun onResume() {
-		super.onResume()
-		invalidateOptionsMenu()
-
-		memoryUsageWatcher.listener = memoryUsageListener
-		memoryUsageWatcher.startWatching()
-
-		try {
-			getFileTreeFragment()?.listProjectFiles()
-		} catch (th: Throwable) {
-			log.error("Failed to update files list", th)
-			flashError(string.msg_failed_list_files)
-		}
-	}
-
-	override fun onStop() {
-		super.onStop()
-		checkIsDestroying()
-	}
-
-	override fun onDestroy() {
-		checkIsDestroying()
-		preDestroy()
-		super.onDestroy()
-		postDestroy()
-	}
-
-	override fun onSaveInstanceState(outState: Bundle) {
-		outState.putString(KEY_PROJECT_PATH, IProjectManager.getInstance().projectDirPath)
-		super.onSaveInstanceState(outState)
-	}
-
-	override fun invalidateOptionsMenu() {
-		val mainHandler = ThreadUtils.getMainHandler()
-		optionsMenuInvalidator?.also {
-			mainHandler.removeCallbacks(it)
-			mainHandler.postDelayed(it, OPTIONS_MENU_INVALIDATION_DELAY)
-		}
-	}
-
-	override fun onTabSelected(tab: Tab) {
-		val position = tab.position
-		editorViewModel.displayedFileIndex = position
-
-		val editorView = provideEditorAt(position)!!
-		editorView.onEditorSelected()
-
-		editorViewModel.setCurrentFile(position, editorView.file)
-		refreshSymbolInput(editorView)
-		invalidateOptionsMenu()
-	}
-
-	override fun onTabUnselected(tab: Tab) {}
-
-	override fun onTabReselected(tab: Tab) {
-		createMenu(this, tab.view, EDITOR_FILE_TABS, true).show()
-	}
-
-	override fun onGroupClick(group: DiagnosticGroup?) {
-		if (group?.file?.exists() == true && FileUtils.isUtf8(group.file)) {
-			doOpenFile(group.file, null)
-			hideBottomSheet()
-		}
-	}
-
-	override fun onDiagnosticClick(
-		file: File,
-		diagnostic: DiagnosticItem,
-	) {
-		doOpenFile(file, diagnostic.range)
-		hideBottomSheet()
-	}
-
-	open fun handleSearchResults(map: Map<File, List<SearchResult>>?) {
-		val results = map ?: emptyMap()
-		setSearchResultAdapter(
-			SearchListAdapter(results, { file ->
-				doOpenFile(file, null)
-				hideBottomSheet()
-			}) { match ->
-				doOpenFile(match.file, match)
-				hideBottomSheet()
-			},
-		)
-
-		bottomSheetViewModel.setCurrentTab(SearchResultFragment::class.java)
-		doDismissSearchProgress()
-	}
-
-	open fun setSearchResultAdapter(adapter: SearchListAdapter) {
-		content.bottomSheet.setSearchResultAdapter(adapter)
-	}
-
-	open fun setDiagnosticsAdapter(adapter: DiagnosticsAdapter) {
-		content.bottomSheet.setDiagnosticsAdapter(adapter)
-	}
-
-	open fun hideBottomSheet() {
-		bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
-	}
-
-	private fun <T : Fragment> focusBottomSheetFragment(
-		fragmentClass: Class<T>,
-		sheetState: Int = BottomSheetBehavior.STATE_EXPANDED,
-	): Unit =
-		content.bottomSheet.run {
-			val index = pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
-			if (index >= 0 && index < binding.tabs.tabCount) {
-				bottomSheetViewModel.setState(sheetState)
-				binding.tabs
-					.getTabAt(index)
-					?.select()
-			}
-		}
-
-	open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
-		content.bottomSheet.handleDiagnosticsResultVisibility(errorVisible)
-	}
-
-	open fun handleSearchResultVisibility(errorVisible: Boolean) {
-		content.bottomSheet.handleSearchResultVisibility(errorVisible)
-	}
-
-	open fun showFirstBuildNotice() {
-		newMaterialDialogBuilder(this)
-			.setPositiveButton(android.R.string.ok, null)
-			.setTitle(string.title_first_build)
-			.setMessage(string.msg_first_build)
-			.setCancelable(false)
-			.create()
-			.show()
-	}
-
-	open fun getFileTreeFragment(): FileTreeFragment? {
-		if (filesTreeFragment == null) {
-			filesTreeFragment =
-				supportFragmentManager.findFragmentByTag(
-					FileTreeFragment.TAG,
-				) as FileTreeFragment?
-		}
-		return filesTreeFragment
-	}
-
-	fun doSetStatus(
-		text: CharSequence,
-		@GravityInt gravity: Int = Gravity.CENTER,
-	) {
-		editorViewModel.statusText = text
-		editorViewModel.statusGravity = gravity
-	}
-
-	fun refreshSymbolInput() {
-		provideCurrentEditor()?.also { refreshSymbolInput(it) }
-	}
-
-	fun refreshSymbolInput(editor: CodeEditorView) {
-		content.bottomSheet.refreshSymbolInput(editor)
-	}
-
-	private fun checkIsDestroying() {
-		if (!isDestroying && isFinishing) {
-			isDestroying = true
-		}
-	}
-
-	private fun handleUiDesignerResult(result: ActivityResult) {
-		if (result.resultCode != RESULT_OK || result.data == null) {
-			log.warn(
-				"UI Designer returned invalid result: resultCode={}, data={}",
-				result.resultCode,
-				result.data,
-			)
-			return
-		}
-		val generated = result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
-		if (TextUtils.isEmpty(generated)) {
-			log.warn("UI Designer returned blank generated XML code")
-			return
-		}
-		val view = provideCurrentEditor()
-		val text =
-			view?.editor?.text ?: run {
-				log.warn("No file opened to append UI designer result")
-				return
-			}
-		val endLine = text.lineCount - 1
-		text.replace(0, 0, endLine, text.getColumnCount(endLine), generated)
-	}
-
-	private fun setupDrawers() {
-		val toggle =
-			object : ActionBarDrawerToggle(
-				this,
-				binding.editorDrawerLayout,
-				content.customToolbar,
-				string.app_name,
-				string.app_name,
-			) {
-				override fun onDrawerOpened(drawerView: View) {
-					super.onDrawerOpened(drawerView)
-					// Hide the keyboard when the drawer opens.
-					closeKeyboard()
-				}
-			}
-
-		binding.editorDrawerLayout.addDrawerListener(toggle)
-		toggle.syncState()
-		binding.apply {
-			editorDrawerLayout.apply {
-				childId = contentCard.id
-				translationBehaviorStart = ContentTranslatingDrawerLayout.TranslationBehavior.FULL
-				translationBehaviorEnd = ContentTranslatingDrawerLayout.TranslationBehavior.FULL
-				setScrimColor(Color.TRANSPARENT)
-			}
-		}
-	}
-
-	private fun onUpdateProgressBarVisibility() {
-		log.debug(
-			"onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}",
-		)
-		val visible =
-			editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
-		content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
-		invalidateOptionsMenu()
-	}
-
-	private fun setupViews() {
-		lifecycleScope.launch {
-			repeatOnLifecycle(Lifecycle.State.STARTED) {
-				debuggerViewModel.connectionState.collectLatest { state ->
-					onDebuggerConnectionStateChanged(state)
-				}
-				debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
-					debuggerService?.targetPackage = newPackage
-				}
-				bottomSheetViewModel.state.collectLatest { state ->
-					editorBottomSheet?.state = state
-				}
-				bottomSheetViewModel.currentTab.collectLatest { fragmentClass ->
-					focusBottomSheetFragment(fragmentClass = fragmentClass)
-				}
-			}
-		}
-
-		editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
-		editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
-		editorViewModel._statusText.observe(this) {
-			content.bottomSheet.setStatus(
-				it.first,
-				it.second,
-			)
-		}
-
-		editorViewModel.observeFiles(this) { files ->
-			content.apply {
-				if (files.isNullOrEmpty()) {
-					tabs.visibility = View.GONE
-					viewContainer.displayedChild = 1
-				} else {
-					tabs.visibility = View.VISIBLE
-					viewContainer.displayedChild = 0
-				}
-			}
-
-			invalidateOptionsMenu()
-		}
-
-		setupNoEditorView()
-		setupBottomSheet()
-
-		if (!app.prefManager.getBoolean(
-				KEY_BOTTOM_SHEET_SHOWN,
-			) &&
-			bottomSheetViewModel.state.value != BottomSheetBehavior.STATE_EXPANDED
-		) {
-			bottomSheetViewModel.setState(BottomSheetBehavior.STATE_EXPANDED)
-			ThreadUtils.runOnUiThreadDelayed({
-				bottomSheetViewModel.setState(BottomSheetBehavior.STATE_COLLAPSED)
-				app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
-			}, 1500)
-		}
-
-		binding.contentCard.progress = 0f
-		binding.swipeReveal.dragListener =
-			object : SwipeRevealLayout.OnDragListener {
-				override fun onDragStateChanged(
-					swipeRevealLayout: SwipeRevealLayout,
-					state: Int,
-				) {
-				}
-
-				override fun onDragProgress(
-					swipeRevealLayout: SwipeRevealLayout,
-					progress: Float,
-				) {
-					onSwipeRevealDragProgress(progress)
-				}
-			}
-	}
-
-	protected open fun onDebuggerConnectionStateChanged(state: DebuggerConnectionState) {
-		if (state == DebuggerConnectionState.ATTACHED) {
-			ensureDebuggerServiceBound()
-		}
-
-		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
-		if (state == DebuggerConnectionState.ATTACHED) {
-			// if a VM was just attached, make sure the debugger fragment is visible
-			focusBottomSheetFragment(
-				fragmentClass = DebuggerFragment::class.java,
-				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
-			)
-		}
-		postStopDebuggerServiceIfNotConnected()
-	}
-
-	private fun setupNoEditorView() {
-		content.noEditorSummary.movementMethod = LinkMovementMethod()
-		val sb = SpannableStringBuilder()
-		val indentParent = 80
-		val indentChild = 140
-
-		fun appendHierarchicalText(textRes: Int) {
-			val text = getString(textRes)
-			text.split("\n").forEach { line ->
-				val trimmed = line.trimStart()
-
-				val margin =
-					when {
-						trimmed.startsWith("-") -> indentChild
-						trimmed.startsWith("•") -> indentParent
-						else -> 0
-					}
-
-				val spannable = SpannableString("$trimmed\n")
-
-				if (margin > 0) {
-					spannable.setSpan(
-						LeadingMarginSpan.Standard(margin, margin),
-						0,
-						spannable.length,
-						Spannable.SPAN_EXCLUSIVE_EXCLUSIVE,
-					)
-				}
-
-				sb.append(spannable)
-			}
-		}
-
-		appendHierarchicalText(R.string.msg_drawer_for_files)
-		sb.append("\n")
-		appendHierarchicalText(R.string.msg_swipe_for_output)
-		sb.append("\n")
-		appendHierarchicalText(R.string.msg_help_hint)
-
-		content.noEditorSummary.text = sb
-	}
-
-	private fun setupBottomSheet() {
-		editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
-		editorBottomSheet?.addBottomSheetCallback(
-			object : BottomSheetCallback() {
-				override fun onStateChanged(
-					bottomSheet: View,
-					newState: Int,
-				) {
-					if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-						val editor = provideCurrentEditor()
-						editor?.editor?.ensureWindowsDismissed()
-					}
-				}
-
-				override fun onSlide(
-					bottomSheet: View,
-					slideOffset: Float,
-				) {
-					content.apply {
-						val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-						this.bottomSheet.onSlide(slideOffset)
-						this.viewContainer.scaleX = editorScale
-						this.viewContainer.scaleY = editorScale
-					}
-				}
-			},
-		)
-
-		val observer: OnGlobalLayoutListener =
-			object : OnGlobalLayoutListener {
-				override fun onGlobalLayout() {
-					contentCardRealHeight = binding.contentCard.height
-					content.also {
-						it.realContainer.pivotX = it.realContainer.width.toFloat() / 2f
-						it.realContainer.pivotY =
-							(it.realContainer.height.toFloat() / 2f) + (
-								systemBarInsets?.run { bottom - top }
-									?: 0
-							)
-						it.viewContainer.viewTreeObserver.removeOnGlobalLayoutListener(this)
-					}
-				}
-			}
-
-		content.apply {
-			viewContainer.viewTreeObserver.addOnGlobalLayoutListener(observer)
-			bottomSheet.setOffsetAnchor(editorAppBarLayout)
-		}
-	}
-
-	private fun setupDiagnosticInfo() {
-		val gd = GradientDrawable()
-		gd.shape = GradientDrawable.RECTANGLE
-		gd.setColor(-0xdededf)
-		gd.setStroke(1, -0x1)
-		gd.cornerRadius = 8f
-		diagnosticInfoBinding?.root?.background = gd
-		diagnosticInfoBinding?.root?.visibility = View.GONE
-	}
-
-	private fun setupContainers() {
-		handleDiagnosticsResultVisibility(true)
-		handleSearchResultVisibility(true)
-	}
-
-	private fun onSoftInputChanged() {
-		if (!isDestroying) {
-			invalidateOptionsMenu()
-			content.bottomSheet.onSoftInputChanged()
-		}
-	}
-
-	open fun installationSessionCallback(): SessionCallback = ApkInstallationSessionCallback(this).also { installationCallback = it }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
+
+        registerLanguageServers()
+
+        if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
+            savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
+                ProjectManagerImpl.getInstance().projectPath = path
+            }
+        }
+
+        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+        lifecycle.addObserver(mLifecycleObserver)
+
+        setupToolbar()
+        setupDrawers()
+        content.tabs.addOnTabSelectedListener(this)
+
+        setupViews()
+
+        setupContainers()
+        setupDiagnosticInfo()
+
+        uiDesignerResultLauncher = registerForActivityResult(
+            StartActivityForResult(),
+            this::handleUiDesignerResult
+        )
+
+        content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
+            showTooltip(
+                tag = TooltipTag.EDITOR_BUILD_STATUS
+            )
+            true
+        }
+
+        setupMemUsageChart()
+        watchMemory()
+    }
+
+    private fun setupToolbar() {
+        content.customToolbar.apply {
+            setTitleText(editorViewModel.getProjectName())
+
+            val toggle = object : ActionBarDrawerToggle(
+                this@BaseEditorActivity,
+                binding.editorDrawerLayout,
+                content.customToolbar,
+                string.app_name,
+                string.app_name
+            ) {
+                override fun onDrawerOpened(drawerView: View) {
+                    super.onDrawerOpened(drawerView)
+                    // Hide the keyboard when the drawer opens.
+                    closeKeyboard()
+                }
+            }
+
+
+            binding.editorDrawerLayout.addDrawerListener(toggle)
+            toggle.syncState()
+            setOnNavIconLongClickListener {
+                showTooltip(
+                    tag = TooltipTag.EDITOR_TOOLTIP_NAV_ICON
+                )
+            }
+        }
+
+    }
+
+    private fun onSwipeRevealDragProgress(progress: Float) {
+        _binding?.apply {
+            contentCard.progress = progress
+            val insetsTop = systemBarInsets?.top ?: 0
+            content.editorAppBarLayout.updatePadding(
+                top = (insetsTop * (1f - progress)).roundToInt()
+            )
+            memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                topMargin = (insetsTop * progress).roundToInt()
+            }
+        }
+    }
+
+    private fun setupMemUsageChart() {
+        binding.memUsageView.chart.apply {
+            val colorAccent = resolveAttr(R.attr.colorAccent)
+
+            isDragEnabled = false
+            description.isEnabled = false
+            xAxis.axisLineColor = colorAccent
+            axisRight.axisLineColor = colorAccent
+
+            setPinchZoom(false)
+            setBackgroundColor(editorSurfaceContainerBackground)
+            setDrawGridBackground(true)
+            setScaleEnabled(true)
+
+            axisLeft.isEnabled = false
+            axisRight.valueFormatter = object :
+                IAxisValueFormatter {
+                override fun getFormattedValue(value: Float, axis: AxisBase?): String {
+                    return "%dMB".format(value.roundToLong())
+                }
+            }
+        }
+    }
+
+    private fun watchMemory() {
+        memoryUsageWatcher.listener = memoryUsageListener
+        memoryUsageWatcher.watchProcess(Process.myPid(), PROC_IDE)
+        resetMemUsageChart()
+    }
+
+    protected fun resetMemUsageChart() {
+        val processes = memoryUsageWatcher.getMemoryUsages()
+        val datasets = Array(processes.size) { index ->
+            LineDataSet(
+                List(MemoryUsageWatcher.MAX_USAGE_ENTRIES) { Entry(it.toFloat(), 0f) },
+                processes[index].pname
+            )
+        }
+
+        val bgColor = editorSurfaceContainerBackground
+        val textColor = resolveAttr(R.attr.colorOnSurface)
+
+        for ((index, proc) in processes.withIndex()) {
+            val dataset = datasets[index]
+            dataset.color = getMemUsageLineColorFor(proc)
+            dataset.setDrawIcons(false)
+            dataset.setDrawCircles(false)
+            dataset.setDrawCircleHole(false)
+            dataset.setDrawValues(false)
+            dataset.formLineWidth = 1f
+            dataset.formSize = 15f
+            dataset.isHighlightEnabled = false
+            pidToDatasetIdxMap[proc.pid] = index
+        }
+
+        binding.memUsageView.chart.setBackgroundColor(bgColor)
+
+        binding.memUsageView.chart.apply {
+            data = LineData(*datasets)
+            axisRight.textColor = textColor
+            axisLeft.textColor = textColor
+            legend.textColor = textColor
+
+            data.setValueTextColor(textColor)
+            setBackgroundColor(bgColor)
+            setGridBackgroundColor(bgColor)
+            notifyDataSetChanged()
+            invalidate()
+        }
+    }
+
+    private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int {
+        return when (proc.pname) {
+            PROC_IDE -> Color.BLUE
+            PROC_GRADLE_TOOLING -> Color.RED
+            PROC_GRADLE_DAEMON -> Color.GREEN
+            else -> throw IllegalArgumentException("Unknown process: $proc")
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        memoryUsageWatcher.listener = null
+        memoryUsageWatcher.stopWatching(false)
+
+        this.isDestroying = isFinishing
+        getFileTreeFragment()?.saveTreeState()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        invalidateOptionsMenu()
+
+        memoryUsageWatcher.listener = memoryUsageListener
+        memoryUsageWatcher.startWatching()
+
+        try {
+            getFileTreeFragment()?.listProjectFiles()
+        } catch (th: Throwable) {
+            log.error("Failed to update files list", th)
+            flashError(string.msg_failed_list_files)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        checkIsDestroying()
+    }
+
+    override fun onDestroy() {
+        checkIsDestroying()
+        preDestroy()
+        super.onDestroy()
+        postDestroy()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(KEY_PROJECT_PATH, IProjectManager.getInstance().projectDirPath)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun invalidateOptionsMenu() {
+        val mainHandler = ThreadUtils.getMainHandler()
+        optionsMenuInvalidator?.also {
+            mainHandler.removeCallbacks(it)
+            mainHandler.postDelayed(it, OPTIONS_MENU_INVALIDATION_DELAY)
+        }
+    }
+
+    override fun onTabSelected(tab: Tab) {
+        val position = tab.position
+        editorViewModel.displayedFileIndex = position
+
+        val editorView = provideEditorAt(position)!!
+        editorView.onEditorSelected()
+
+        editorViewModel.setCurrentFile(position, editorView.file)
+        refreshSymbolInput(editorView)
+        invalidateOptionsMenu()
+    }
+
+    override fun onTabUnselected(tab: Tab) {}
+
+    override fun onTabReselected(tab: Tab) {
+        createMenu(this, tab.view, EDITOR_FILE_TABS, true).show()
+    }
+
+    override fun onGroupClick(group: DiagnosticGroup?) {
+        if (group?.file?.exists() == true && FileUtils.isUtf8(group.file)) {
+            doOpenFile(group.file, null)
+            hideBottomSheet()
+        }
+    }
+
+    override fun onDiagnosticClick(file: File, diagnostic: DiagnosticItem) {
+        doOpenFile(file, diagnostic.range)
+        hideBottomSheet()
+    }
+
+    open fun handleSearchResults(map: Map<File, List<SearchResult>>?) {
+        val results = map ?: emptyMap()
+        setSearchResultAdapter(SearchListAdapter(results, { file ->
+            doOpenFile(file, null)
+            hideBottomSheet()
+        }) { match ->
+            doOpenFile(match.file, match)
+            hideBottomSheet()
+        })
+
+        showSearchResults()
+        doDismissSearchProgress()
+    }
+
+    open fun setSearchResultAdapter(adapter: SearchListAdapter) {
+        content.bottomSheet.setSearchResultAdapter(adapter)
+    }
+
+    open fun setDiagnosticsAdapter(adapter: DiagnosticsAdapter) {
+        content.bottomSheet.setDiagnosticsAdapter(adapter)
+    }
+
+    open fun hideBottomSheet() {
+        if (editorBottomSheet?.state != BottomSheetBehavior.STATE_COLLAPSED) {
+            editorBottomSheet?.state = BottomSheetBehavior.STATE_COLLAPSED
+        }
+    }
+
+    open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
+
+    open fun showBottomSheetFragment(
+        fragmentClass: Class<out Fragment>,
+        sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+    ) {
+        showAndGetBottomSheetFragment(fragmentClass, sheetState)
+    }
+
+    open fun <T: Fragment> showAndGetBottomSheetFragment(
+        fragmentClass: Class<T>,
+        sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
+    ): T? = content.bottomSheet.run {
+        val index = pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
+        val fragment = pagerAdapter.getFragmentAtIndex<T>(index) ?: let {
+            log.error("Failed to get bottom sheet fragment at index: {}", index)
+            return@run null
+        }
+
+        if (index >= 0 && index < binding.tabs.tabCount) {
+            if (editorBottomSheet?.state != sheetState) {
+                editorBottomSheet?.state = sheetState
+            }
+            binding.tabs.getTabAt(index)?.select()
+        }
+
+        fragment
+    }
+
+    open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
+        content.bottomSheet.handleDiagnosticsResultVisibility(errorVisible)
+    }
+
+    open fun handleSearchResultVisibility(errorVisible: Boolean) {
+        content.bottomSheet.handleSearchResultVisibility(errorVisible)
+    }
+
+    open fun showFirstBuildNotice() {
+        newMaterialDialogBuilder(this).setPositiveButton(android.R.string.ok, null)
+            .setTitle(string.title_first_build).setMessage(string.msg_first_build)
+            .setCancelable(false)
+            .create().show()
+    }
+
+    open fun getFileTreeFragment(): FileTreeFragment? {
+        if (filesTreeFragment == null) {
+            filesTreeFragment = supportFragmentManager.findFragmentByTag(
+                FileTreeFragment.TAG
+            ) as FileTreeFragment?
+        }
+        return filesTreeFragment
+    }
+
+    fun doSetStatus(text: CharSequence, @GravityInt gravity: Int = Gravity.CENTER) {
+        editorViewModel.statusText = text
+        editorViewModel.statusGravity = gravity
+    }
+
+    fun refreshSymbolInput() {
+        provideCurrentEditor()?.also { refreshSymbolInput(it) }
+    }
+
+    fun refreshSymbolInput(editor: CodeEditorView) {
+        content.bottomSheet.refreshSymbolInput(editor)
+    }
+
+    private fun checkIsDestroying() {
+        if (!isDestroying && isFinishing) {
+            isDestroying = true
+        }
+    }
+
+    private fun handleUiDesignerResult(result: ActivityResult) {
+        if (result.resultCode != RESULT_OK || result.data == null) {
+            log.warn(
+                "UI Designer returned invalid result: resultCode={}, data={}",
+                result.resultCode,
+                result.data
+            )
+            return
+        }
+        val generated =
+            result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
+        if (TextUtils.isEmpty(generated)) {
+            log.warn("UI Designer returned blank generated XML code")
+            return
+        }
+        val view = provideCurrentEditor()
+        val text = view?.editor?.text ?: run {
+            log.warn("No file opened to append UI designer result")
+            return
+        }
+        val endLine = text.lineCount - 1
+        text.replace(0, 0, endLine, text.getColumnCount(endLine), generated)
+    }
+
+    private fun setupDrawers() {
+        val toggle = object : ActionBarDrawerToggle(
+            this,
+            binding.editorDrawerLayout,
+            content.customToolbar,
+            string.app_name,
+            string.app_name
+        ) {
+            override fun onDrawerOpened(drawerView: View) {
+                super.onDrawerOpened(drawerView)
+                // Hide the keyboard when the drawer opens.
+                closeKeyboard()
+            }
+        }
+
+
+        binding.editorDrawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
+        binding.apply {
+            editorDrawerLayout.apply {
+                childId = contentCard.id
+                translationBehaviorStart =
+                    ContentTranslatingDrawerLayout.TranslationBehavior.FULL
+                translationBehaviorEnd =
+                    ContentTranslatingDrawerLayout.TranslationBehavior.FULL
+                setScrimColor(Color.TRANSPARENT)
+            }
+        }
+    }
+
+    private fun onUpdateProgressBarVisibility() {
+        log.debug("onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}")
+        val visible =
+            editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+        content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
+        invalidateOptionsMenu()
+    }
+
+    private fun setupViews() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                debuggerViewModel.connectionState.collectLatest { state ->
+                    if (state == DebuggerConnectionState.ATTACHED) {
+                        ensureDebuggerServiceBound()
+                    }
+                    postStopDebuggerServiceIfNotConnected()
+                }
+
+                debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
+                    debuggerService?.targetPackage = newPackage
+                }
+            }
+        }
+
+        editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
+        editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
+        editorViewModel._statusText.observe(this) {
+            content.bottomSheet.setStatus(
+                it.first,
+                it.second
+            )
+        }
+
+        editorViewModel.observeFiles(this) { files ->
+            content.apply {
+                if (files.isNullOrEmpty()) {
+                    tabs.visibility = View.GONE
+                    viewContainer.displayedChild = 1
+                } else {
+                    tabs.visibility = View.VISIBLE
+                    viewContainer.displayedChild = 0
+                }
+            }
+
+            invalidateOptionsMenu()
+        }
+
+        setupNoEditorView()
+        setupBottomSheet()
+
+        if (!app.prefManager.getBoolean(
+                KEY_BOTTOM_SHEET_SHOWN
+            ) && editorBottomSheet?.state != BottomSheetBehavior.STATE_EXPANDED
+        ) {
+            editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
+            ThreadUtils.runOnUiThreadDelayed({
+                editorBottomSheet?.state = BottomSheetBehavior.STATE_COLLAPSED
+                app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
+            }, 1500)
+        }
+
+        binding.contentCard.progress = 0f
+        binding.swipeReveal.dragListener = object : SwipeRevealLayout.OnDragListener {
+            override fun onDragStateChanged(
+                swipeRevealLayout: SwipeRevealLayout,
+                state: Int
+            ) {
+            }
+
+            override fun onDragProgress(
+                swipeRevealLayout: SwipeRevealLayout,
+                progress: Float
+            ) {
+                onSwipeRevealDragProgress(progress)
+            }
+        }
+    }
+
+    private fun setupNoEditorView() {
+        content.noEditorLayout.setOnLongClickListener {
+            showTooltip(
+                tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
+            )
+            true
+        }
+        content.noEditorSummary.movementMethod = LinkMovementMethod()
+        val sb = SpannableStringBuilder()
+        val indentParent = 80
+        val indentChild = 140
+
+        fun appendHierarchicalText(textRes: Int) {
+            val text = getString(textRes)
+            text.split("\n").forEach { line ->
+                val trimmed = line.trimStart()
+
+                val margin = when {
+                    trimmed.startsWith("-") -> indentChild
+                    trimmed.startsWith("•") -> indentParent
+                    else -> 0
+                }
+
+                val spannable = SpannableString("$trimmed\n")
+
+                if (margin > 0) {
+                    spannable.setSpan(
+                        LeadingMarginSpan.Standard(margin, margin),
+                        0, spannable.length,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+
+                sb.append(spannable)
+            }
+        }
+
+        appendHierarchicalText(R.string.msg_drawer_for_files)
+        sb.append("\n")
+        appendHierarchicalText(R.string.msg_swipe_for_output)
+        sb.append("\n")
+        appendHierarchicalText(R.string.msg_help_hint)
+
+        content.noEditorSummary.apply {
+            text = sb
+            setOnLongClickListener {
+                content.noEditorLayout.performLongClick()
+                true
+            }
+        }
+    }
+
+
+    private fun appendClickableSpan(
+        sb: SpannableStringBuilder,
+        @StringRes textRes: Int,
+        span: ClickableSpan,
+    ) {
+        val str = getString(textRes)
+        val split = str.split("@@", limit = 3)
+        if (split.size != 3) {
+            // Not a valid format
+            sb.append(str)
+            sb.append('\n')
+            return
+        }
+        sb.append(split[0])
+        sb.append(split[1], span, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.append(split[2])
+        sb.append('\n')
+    }
+
+    private fun setupBottomSheet() {
+        editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
+        editorBottomSheet?.addBottomSheetCallback(object : BottomSheetCallback() {
+            override fun onStateChanged(bottomSheet: View, newState: Int) {
+                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+                    val editor = provideCurrentEditor()
+                    editor?.editor?.ensureWindowsDismissed()
+                }
+            }
+
+            override fun onSlide(bottomSheet: View, slideOffset: Float) {
+                content.apply {
+                    val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+                    this.bottomSheet.onSlide(slideOffset)
+                    this.viewContainer.scaleX = editorScale
+                    this.viewContainer.scaleY = editorScale
+                }
+            }
+        })
+
+        val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                contentCardRealHeight = binding.contentCard.height
+                content.also {
+                    it.realContainer.pivotX = it.realContainer.width.toFloat() / 2f
+                    it.realContainer.pivotY =
+                        (it.realContainer.height.toFloat() / 2f) + (systemBarInsets?.run { bottom - top }
+                            ?: 0)
+                    it.viewContainer.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                }
+            }
+        }
+
+        content.apply {
+            viewContainer.viewTreeObserver.addOnGlobalLayoutListener(observer)
+            bottomSheet.setOffsetAnchor(editorAppBarLayout)
+        }
+    }
+
+    private fun setupDiagnosticInfo() {
+        val gd = GradientDrawable()
+        gd.shape = GradientDrawable.RECTANGLE
+        gd.setColor(-0xdededf)
+        gd.setStroke(1, -0x1)
+        gd.cornerRadius = 8f
+        diagnosticInfoBinding?.root?.background = gd
+        diagnosticInfoBinding?.root?.visibility = View.GONE
+    }
+
+    private fun setupContainers() {
+        handleDiagnosticsResultVisibility(true)
+        handleSearchResultVisibility(true)
+    }
+
+    private fun onSoftInputChanged() {
+        if (!isDestroying) {
+            invalidateOptionsMenu()
+            content.bottomSheet.onSoftInputChanged()
+        }
+    }
+
+    private fun showNeedHelpDialog() {
+        val builder = newMaterialDialogBuilder(this)
+        builder.setTitle(string.need_help)
+        builder.setMessage(string.msg_need_help)
+        builder.setPositiveButton(android.R.string.ok, null)
+        builder.create().show()
+    }
+
+    open fun installationSessionCallback(): SessionCallback {
+        return ApkInstallationSessionCallback(this).also { installationCallback = it }
+    }
+
+    private fun showTooltip(tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = TooltipManager.getTooltip(
+                this@BaseEditorActivity,
+                TooltipCategory.CATEGORY_IDE,
+                tag,
+            )
+            if (tooltipItem != null) {
+                TooltipManager.showIDETooltip(
+                    context = this@BaseEditorActivity,
+                    anchorView = content.customToolbar,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("EditorHandlerActivity", "Tooltip item $tooltipItem is null")
+            }
+        }
+    }
 }
+
