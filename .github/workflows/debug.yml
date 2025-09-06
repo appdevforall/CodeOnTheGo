@@ -169,7 +169,10 @@ jobs:
           GRADLE_END: ${{ env.gradle_time_end }}
           DB_PASSWORD: ${{ secrets.PG_PERFORMANCE_PASSWORD }}
         run: |
-          uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $APK_PATH $GRADLE_START $GRADLE_END $( /usr/bin/stat $APK_PATH | /usr/bin/awk '{print $8}')
+          echo BEFORE
+          /usr/bin/stat $APK_PATH
+          echo AFTER
+          uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $( basename $APK_PATH ) $GRADLE_START $GRADLE_END $( /usr/bin/stat $APK_PATH | /usr/bin/awk '{print $8}')
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
