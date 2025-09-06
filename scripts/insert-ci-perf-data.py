@@ -61,10 +61,12 @@ if __name__ == "__main__":
     parser.add_argument("apk_name", type=str, help="The name of the APK.")
     parser.add_argument("start_time", type=int, help="The build start time (seconds since epoch).")
     parser.add_argument("end_time", type=int, help="The build end time (seconds since epoch).")
-    parser.add_argument("apk_size_mb", type=float, help="The size of the APK in megabytes.")
+    parser.add_argument("apk_size_bytes", type=float, help="The size of the APK in bytes.")
     
     args = parser.parse_args()
 
+    apk_size_mb = args.apk_size_bytes / 1048576
+    
     # Call the function with the parsed arguments
     insert_ci_perf(
         db_name="postgres",  # Or your specific database name
@@ -74,5 +76,5 @@ if __name__ == "__main__":
         apk_name=args.apk_name,
         start_time=args.start_time,
         end_time=args.end_time,
-        apk_size_mb=args.apk_size_mb
+        apk_size_mb=apk_size_mb
     )
