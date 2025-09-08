@@ -84,8 +84,8 @@ public class ToolsManager {
             writeNoMediaFile();
             extractCogoPlugin();
             extractColorScheme(app);
-            extractJdwp(app);
             writeInitScript();
+            extractJdwp(app);
 
             deleteIdeenv();
         }).whenComplete((__, error) -> {
