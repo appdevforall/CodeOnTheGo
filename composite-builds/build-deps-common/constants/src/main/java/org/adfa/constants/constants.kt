@@ -17,8 +17,6 @@
 
 package org.adfa.constants
 
-import java.io.File
-
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.11.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.14.3"
 const val KOTLIN_VERSION = "1.9.22"
@@ -71,12 +69,11 @@ const val TOML_FILE_NAME = "libs.versions.toml"
 
 // Help
 const val HELP_PAGE_URL =
-    "file:///android_asset/CoGoTooltips/html/cogohelp/index.html"
+	"file:///android_asset/CoGoTooltips/html/cogohelp/index.html"
 
 // Documentation
 const val DOCUMENTATION_DB = "documentation.db"
 
-const val JDWP_AAR_NAME = "libjdwp-remote.aar"
 const val LOGSENDER_AAR_NAME = "logsender.aar"
 
 // Generated Gradle Api Jar
