@@ -241,7 +241,6 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		}
 
 		buildTypes.getByName("release") {
-
 			isMinifyEnabled = isAppModule
 			isShrinkResources = isAppModule
 
