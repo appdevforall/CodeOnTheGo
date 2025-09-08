@@ -7,6 +7,9 @@ import com.itsaky.androidide.fragments.EmptyStateFragment
 
 class GitFragmentContainer :
     EmptyStateFragment<FragmentGitContainerBinding>(FragmentGitContainerBinding::inflate) {
+    override fun onFragmentLongPressed() {
+
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

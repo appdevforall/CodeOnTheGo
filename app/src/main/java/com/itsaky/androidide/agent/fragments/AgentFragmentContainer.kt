@@ -7,6 +7,9 @@ import com.itsaky.androidide.fragments.EmptyStateFragment
 
 class AgentFragmentContainer :
     EmptyStateFragment<FragmentAgentContainerBinding>(FragmentAgentContainerBinding::inflate) {
+    override fun onFragmentLongPressed() {
+
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

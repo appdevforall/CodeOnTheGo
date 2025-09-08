@@ -27,6 +27,10 @@ class GitFragment :
         updateGitButtonVisibility()
     }
 
+    override fun onFragmentLongPressed() {
+
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         emptyStateViewModel.emptyMessage.value = "No git actions yet"

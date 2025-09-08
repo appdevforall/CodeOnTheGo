@@ -570,8 +570,6 @@
     <string name="title_agent">Agent</string>
     <string name="build_variants_apply">Apply</string>
     <string name="build_variants_cancel">Cancel</string>
-    <string name="build_variants_apply">Apply</string>
-    <string name="build_variants_cancel">Cancel</string>
     <string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
     <string name="title_choose_application">Choose application</string>
     <string name="err_selected_variant_not_found">Selected build variant not found</string>
@@ -769,11 +767,6 @@
 
 		</html>
 		]]></string>
-
-	<!-- Tooltip Links HTML Template -->
-	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
-	<string name="title_alert">Alert!</string>
-	<string name="info_icon_content_description">Info icon</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
