@@ -9,7 +9,6 @@ commonsText = "1.11.0"
 commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
-firebaseBom = "34.0.0"
 gradle-tooling = "8.6"
 gson = "2.10.1"
 junit-jupiter = "5.10.2"
@@ -82,9 +81,6 @@ composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" 
 composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
-firebase-ai = { module = "com.google.firebase:firebase-ai" }
-firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
-gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }

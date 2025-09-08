@@ -39,7 +39,6 @@ plugins {
   id("com.itsaky.androidide.desugaring")
   alias(libs.plugins.sentry)
   kotlin("plugin.serialization")
-  id("com.google.gms.google-services")
 }
 
 fun propOrEnv(name: String): String =
@@ -263,12 +262,6 @@ dependencies {
 
   // brotli4j
   implementation(libs.brotli4j)
-
-  // Firebase BoM
-  implementation(platform(libs.firebase.bom))
-
-  // Firebase AI Logic SDK for Gemini
-  implementation(libs.firebase.ai)
 
   // Koin for Dependency Injection
   implementation("io.insert-koin:koin-android:3.5.3")
