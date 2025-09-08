@@ -421,7 +421,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
 
             button.setOnLongClickListener {
                 val tag = item.contentDescription?.toString() ?: ""
-                
+
                 if (tag.isNotEmpty()) {
                     CoroutineScope(Dispatchers.Main).launch {
                         val tooltipItem = TooltipManager.getTooltip(

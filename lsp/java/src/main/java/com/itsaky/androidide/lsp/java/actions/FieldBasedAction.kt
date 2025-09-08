@@ -257,27 +257,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
     }
 
     private fun showTooltip(context: Context, anchor: View, actionId: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val item = TooltipManager.getTooltip(
-                context = context,
-                category = TooltipCategory.CATEGORY_IDE,
-                tag = getToolTipTag(actionId)
-            )
-            item?.let {
-                TooltipManager.showIDETooltip(
-                    context = context,
-                    anchorView = anchor,
-                    tooltipItem = it,
-                    level = 0,
-                ) { ctx, url, title ->
-                    val intent = Intent(ctx, HelpActivity::class.java).apply {
-                        putExtra(CONTENT_KEY, url)
-                        putExtra(CONTENT_TITLE_KEY, title)
-                    }
-                    ctx.startActivity(intent)
-                }
-            }
-        }
+        TooltipManager.showTooltip(context, anchor, getToolTipTag(actionId))
     }
 
     fun getToolTipTag(actionId: String): String {

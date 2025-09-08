@@ -47,6 +47,7 @@ import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.ElementKind
@@ -215,37 +216,26 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
         builder.setNegativeButton(android.R.string.cancel, null)
 
         val dialog = builder.create()
-        val view = dialog.findViewById<View>(android.R.id.content)
 
-
-        view?.setOnLongClickListener {
-            CoroutineScope(Dispatchers.Main).launch {
-                val item =
-                    TooltipManager.getTooltip(
-                        context = context,
-                        category = TooltipCategory.CATEGORY_IDE,
-                        tag = EDITOR_CODE_ACTIONS_OVERRIDE_SUPER_DIALOG
-                    )
-
-                item.let {
-                    TooltipManager.showIDETooltip(
-                        context = context,
-                        anchorView = view,
-                        tooltipItem = item!!,
-                        level = 0,
-                    )
-                    { context, url, title ->
-                        val intent = Intent(context, HelpActivity::class.java).apply {
-                            putExtra(CONTENT_KEY, url)
-                            putExtra(CONTENT_TITLE_KEY, title)
-                        }
-                        context.startActivity(intent)
-                    }
-                }
-            }
+        val listView = dialog.listView
+        listView.setOnItemLongClickListener { _, view, position, _ ->
+            showTooltip(context, view, tooltipTag)
             true
         }
+
+        dialog.setOnShowListener {
+            val root = dialog.window?.decorView ?: return@setOnShowListener
+
+            root.applyLongPressRecursively {
+                showTooltip(context, root, tooltipTag)
+                true
+            }
+        }
         dialog.show()
+    }
+
+    private fun showTooltip(context: Context, anchor: View, toolTip: String) {
+        TooltipManager.showTooltip(context, anchor, toolTip)
     }
 
     private fun overrideMethods(data: ActionData, checkedMethods: MutableList<MethodPtr>) {

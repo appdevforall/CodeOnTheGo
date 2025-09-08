@@ -18,53 +18,53 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
-    id("kotlin-kapt")
+	id("com.android.library")
+	id("kotlin-android")
+	id("kotlin-kapt")
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.lsp.java"
+	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.java"
 }
 
 kapt {
-    arguments {
-        arg ("eventBusIndex", "${BuildConfig.packageName}.events.LspJavaEventsIndex")
-    }
+	arguments {
+		arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.LspJavaEventsIndex")
+	}
 }
 
 dependencies {
-    
-    kapt(projects.annotationProcessors)
-    
-    implementation(libs.androidide.ts)
-    implementation(libs.androidide.ts.java)
-    implementation(platform(libs.sora.bom))
-    implementation(libs.common.editor)
-    implementation(libs.common.javaparser)
-    implementation(libs.common.utilcode)
-    implementation(libs.androidx.annotation)
-    implementation(libs.google.guava)
-    implementation(libs.google.gson)
-    
-    compileOnly(libs.androidx.appcompat)
-    compileOnly(libs.google.material)
-    compileOnly(projects.actions)
-    compileOnly(projects.common)
-    compileOnly(projects.idetooltips)
-    
-    implementation(projects.editorApi)
-    implementation(projects.resources)
-    implementation(projects.lsp.api)
-    implementation(projects.subprojects.libjdwp)
-    implementation(projects.subprojects.javacServices)
 
-    implementation(libs.composite.javac)
-    implementation(libs.composite.javapoet)
-    implementation(libs.composite.googleJavaFormat)
+	kapt(projects.annotationProcessors)
 
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.common.kotlin)
+	implementation(libs.androidide.ts)
+	implementation(libs.androidide.ts.java)
+	implementation(platform(libs.sora.bom))
+	implementation(libs.common.editor)
+	implementation(libs.common.javaparser)
+	implementation(libs.common.utilcode)
+	implementation(libs.androidx.annotation)
+	implementation(libs.google.guava)
+	implementation(libs.google.gson)
 
-    testImplementation(projects.testing.lsp)
+	compileOnly(libs.androidx.appcompat)
+	compileOnly(libs.google.material)
+	compileOnly(projects.actions)
+	compileOnly(projects.common)
+
+	implementation(projects.editorApi)
+	implementation(projects.resources)
+	implementation(projects.lsp.api)
+	implementation(projects.subprojects.libjdwp)
+	implementation(projects.subprojects.javacServices)
+	implementation(projects.idetooltips)
+
+	implementation(libs.composite.javac)
+	implementation(libs.composite.javapoet)
+	implementation(libs.composite.googleJavaFormat)
+
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.common.kotlin)
+
+	testImplementation(projects.testing.lsp)
 }

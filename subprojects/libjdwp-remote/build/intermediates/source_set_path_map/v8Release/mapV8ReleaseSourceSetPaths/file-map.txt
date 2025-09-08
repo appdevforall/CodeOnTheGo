@@ -1,0 +1,9 @@
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-v8-0 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/build/generated/res/pngs/v8/release
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-v8-1 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/build/generated/res/resValues/v8/release
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-mergeV8ReleaseResources-2 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/build/intermediates/incremental/v8Release/mergeV8ReleaseResources/merged.dir
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-mergeV8ReleaseResources-3 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/build/intermediates/incremental/v8Release/mergeV8ReleaseResources/stripped.dir
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-v8Release-4 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/build/intermediates/merged_res/v8Release/mergeV8ReleaseResources
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-main-5 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/src/main/res
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-release-6 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/src/release/res
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-v8-7 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/src/v8/res
+com.itsaky.androidide.libjdwp.remote.libjdwp-remote-v8Release-8 /Users/astrocoder/Desktop/Adfa/CodeOnTheGo/subprojects/libjdwp-remote/src/v8Release/res

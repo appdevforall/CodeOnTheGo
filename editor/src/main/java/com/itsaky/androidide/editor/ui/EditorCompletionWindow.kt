@@ -70,15 +70,6 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
             listView = it
             it.adapter = this.adapter
             it.setOnItemLongClickListener { _, view, position, _ ->
-                val data =
-                    (items[position] as? com.itsaky.androidide.lsp.models.CompletionItem)?.data
-                        ?: return@setOnItemLongClickListener false
-
-                val tag = DocumentationReferenceProvider.getTag(data)
-                    ?: return@setOnItemLongClickListener false
-
-                // Dismiss the completion window before showing tooltip
-                hide()
 
                 val category = when (editor.file?.extension) {
                     "java" -> TooltipCategory.CATEGORY_JAVA
@@ -86,13 +77,28 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                     "xml" -> TooltipCategory.CATEGORY_XML
                     else -> TooltipCategory.CATEGORY_IDE
                 }
+
+                val completionItem =
+                    items[position] as? com.itsaky.androidide.lsp.models.CompletionItem
+                val completionData = completionItem?.data
+
+                val tag = if (completionData == null) {
+                    // completionData is null for XML attributes; use ideLabel instead
+                    completionItem?.ideLabel?.takeIf {labelString -> labelString.contains("android") }?.substringAfterLast(":")
+                } else {
+                    DocumentationReferenceProvider.getTag(completionData)
+                }
+
+                // Dismiss the completion window before showing tooltip
+                hide()
+
                 Log.d("EditorCompletionWindow", "Showing tooltip for tag: $tag category: $category")
 
                 CoroutineScope(Dispatchers.Main).launch {
                     val item = TooltipManager.getTooltip(
                         context = editor.context,
                         category = category,
-                        tag = tag
+                        tag = tag ?: ""
                     )
 
                     item?.let { tooltipData ->
@@ -101,11 +107,14 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                             editor,
                             0,
                             IDETooltipItem(
-                                tooltipCategory = category,
-                                tooltipTag = tooltipData.tooltipTag,
+                                rowId = tooltipData.rowId,
+                                id = tooltipData.id,
+                                category = category,
+                                tag = tooltipData.tag,
                                 detail = tooltipData.detail,
                                 summary = tooltipData.summary,
                                 buttons = tooltipData.buttons,
+                                lastChange = tooltipData.lastChange,
                             ),
                             { context, url, title ->
                                 val intent = Intent(context, HelpActivity::class.java).apply {
