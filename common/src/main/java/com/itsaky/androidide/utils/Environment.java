@@ -16,9 +16,8 @@
  */
 package com.itsaky.androidide.utils;
 
-import static org.adfa.constants.ConstantsKt.JDWP_AAR_NAME;
-import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 import static org.adfa.constants.ConstantsKt.GRADLE_DISTRIBUTION_VERSION;
+import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 
 import android.annotation.SuppressLint;
 
@@ -60,9 +59,6 @@ public final class Environment {
   public static File TMP_DIR;
   public static File BIN_DIR;
   public static File OPT_DIR;
-  public static File JDWP_DIR;
-  public static File JDWP_LIB_DIR;
-  public static File JDWP_AAR;
   public static File LOGSENDER_DIR;
   public static File LOGSENDER_AAR;
   public static File PROJECTS_DIR;
@@ -106,9 +102,6 @@ public final class Environment {
     TMP_DIR = mkdirIfNotExits(new File(PREFIX, "tmp"));
     BIN_DIR = mkdirIfNotExits(new File(PREFIX, "bin"));
     OPT_DIR = mkdirIfNotExits(new File(PREFIX, "opt"));
-    JDWP_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "oj-libjdwp"));
-    JDWP_LIB_DIR = mkdirIfNotExits(new File(JDWP_DIR, "jniLibs"));
-    JDWP_AAR = mkdirIfNotExits(new File(JDWP_DIR, JDWP_AAR_NAME));
     LOGSENDER_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "logsender"));
     LOGSENDER_AAR = mkdirIfNotExits(new File(LOGSENDER_DIR, LOGSENDER_AAR_NAME));
     PROJECTS_DIR = mkdirIfNotExits(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));

@@ -20,7 +20,6 @@ package com.itsaky.androidide.managers;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
-import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.os.Build;
 
@@ -57,11 +56,6 @@ import java.util.concurrent.CompletableFuture;
 public class ToolsManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(ToolsManager.class);
-    private static final String[] EXTRACT_JDWP_LIBS = {
-            "jdwp",
-            "dt_socket",
-            "npt"
-    };
 
     public static String COMMON_ASSET_DATA_DIR = "data/common";
 
@@ -85,7 +79,6 @@ public class ToolsManager {
             extractCogoPlugin();
             extractColorScheme(app);
             writeInitScript();
-            extractJdwp(app);
 
             deleteIdeenv();
         }).whenComplete((__, error) -> {
@@ -148,52 +141,6 @@ public class ToolsManager {
             } catch (IOException e) {
                 LOG.error("Failed to close tooling API jar stream", e);
             }
-        }
-    }
-
-    private static void extractJdwp(final BaseApplication app) {
-        try {
-            if (Environment.JDWP_AAR.exists()) {
-                FileUtils.delete(Environment.JDWP_AAR);
-            }
-
-            if (!Environment.JDWP_LIB_DIR.exists() && !Environment.JDWP_LIB_DIR.mkdirs()) {
-                throw new RuntimeException("Unable to create directory " + Environment.JDWP_LIB_DIR.getAbsolutePath());
-            }
-
-            final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
-            ResourceUtils.copyFileFromAssets(getCommonAsset("libjdwp-remote-" + variant + "-release.aar"),
-                    Environment.JDWP_AAR.getAbsolutePath());
-
-            final var packageManager = app.getPackageManager();
-            final var packageInfo = packageManager.getPackageInfo(app.getPackageName(), PackageManager.GET_META_DATA);
-            Objects.requireNonNull(packageManager, "Unable to get package info for current context");
-
-            final var appInfo = packageInfo.applicationInfo;
-            Objects.requireNonNull(appInfo, "Unable to get application info for current context");
-
-            final var nativeLibsDir = new File(appInfo.nativeLibraryDir);
-
-            for (var libName : EXTRACT_JDWP_LIBS) {
-                final var libIN = new File(nativeLibsDir, "lib" + libName + ".so");
-
-                if (!libIN.exists()) {
-                    throw new IllegalStateException("Unable to find lib" + libName + ".so in " + nativeLibsDir.getAbsolutePath());
-                }
-
-                final var buildConfigProvider = IDEBuildConfigProvider.getInstance();
-                final var libOUTDir = new File(Environment.JDWP_LIB_DIR, buildConfigProvider.getDeviceArch().getAbi());
-                final var libOUT = new File(libOUTDir, libIN.getName());
-                if (!libOUTDir.exists() && !libOUTDir.mkdirs()) {
-                    throw new RuntimeException("Unable to create directory " + libOUT.getParentFile().getAbsolutePath());
-                }
-
-                if (!libOUT.exists()) {
-                    FileUtils.copy(libIN, libOUT);
-                }
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            throw new RuntimeException(e);
         }
     }
 

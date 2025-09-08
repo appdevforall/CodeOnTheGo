@@ -50,7 +50,6 @@ private val disableCoreLibDesugaringForModules =
 	arrayOf(
 		":logsender",
 		":logger",
-		":subprojects:libjdwp-remote",
 	)
 
 /**
