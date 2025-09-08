@@ -32,8 +32,10 @@ import java.io.File
 object TooltipManager {
     private const val TAG = "TooltipManager"
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
-    private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
-                                               "/Download/documentation.db")
+    private val debugDatabaseFile: File = File(
+        android.os.Environment.getExternalStorageDirectory().toString() +
+                "/Download/documentation.db"
+    )
 
     private const val QUERY_TOOLTIP = """
         SELECT T.rowid, T.id, T.summary, T.detail
@@ -63,7 +65,8 @@ object TooltipManager {
             var dbPath = Environment.DOC_DB.absolutePath
 
             // TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
-            val debugDatabaseTimestamp = if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
+            val debugDatabaseTimestamp =
+                if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
 
             if (debugDatabaseTimestamp > databaseTimestamp) {
                 // Switch to the debug database.
@@ -71,10 +74,10 @@ object TooltipManager {
             }
 
             var lastChange = "n/a"
-            var rowId      = -1
-            var tooltipId  = -1
-            var summary    = "n/a"
-            var detail     = "n/a"
+            var rowId = -1
+            var tooltipId = -1
+            var summary = "n/a"
+            var detail = "n/a"
             var buttons: ArrayList<Pair<String, String>> = ArrayList<Pair<String, String>>()
 
             try {
@@ -88,36 +91,49 @@ object TooltipManager {
                 Log.d(TAG, "last change is '${lastChange}'.")
 
                 cursor = db.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category))
-                
+
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
-                    1 -> { /* Expected case, continue processing */ }
+                    1 -> { /* Expected case, continue processing */
+                    }
+
                     else -> throw DatabaseCorruptionException(
                         "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
-                        "Each category/tag combination should be unique."
+                                "Each category/tag combination should be unique."
                     )
                 }
 
                 cursor.moveToFirst()
 
-                rowId     = cursor.getInt(0)
+                rowId = cursor.getInt(0)
                 tooltipId = cursor.getInt(1)
-                summary   = cursor.getString(2)
-                detail    = cursor.getString(3)
+                summary = cursor.getString(2)
+                detail = cursor.getString(3)
 
                 cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
 
                 while (cursor.moveToNext()) {
-                    buttons.add(Pair(cursor.getString(0), "http://localhost:6174/" + cursor.getString(1)))
+                    buttons.add(
+                        Pair(
+                            cursor.getString(0),
+                            "http://localhost:6174/" + cursor.getString(1)
+                        )
+                    )
                 }
 
-                Log.d(TAG, "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons.")
+                Log.d(
+                    TAG,
+                    "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons."
+                )
 
                 cursor.close()
                 db.close()
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error getting tooltip for category='$category', tag='$tag': ${e.message}")
+                Log.e(
+                    TAG,
+                    "Error getting tooltip for category='$category', tag='$tag': ${e.message}"
+                )
             }
 
             IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
@@ -209,7 +225,7 @@ object TooltipManager {
             "Color attribute not found in theme"
         )
 
-// TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
+        // TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
         fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
@@ -230,19 +246,22 @@ object TooltipManager {
                     detailContent
                 }
             }
+
             else -> ""
         }
 
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
-        val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
+        val styledHtml =
+            context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 url?.let { clickedUrl ->
                     popupWindow.dismiss()
                     // Find the button label for this URL to use as title
-                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first ?: tooltipItem.tag
+                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first
+                        ?: tooltipItem.tag
                     onActionButtonClick(popupWindow, Pair(clickedUrl, buttonLabel))
                 }
                 return true
@@ -259,7 +278,10 @@ object TooltipManager {
                 level == 0 -> 1
                 else -> level + 1
             }
-            Log.d(TAG, "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
+            Log.d(
+                TAG,
+                "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
+            )
             onSeeMoreClicked(popupWindow, nextLevel, tooltipItem)
         }
         val shouldShowSeeMore = when {
@@ -267,7 +289,10 @@ object TooltipManager {
             else -> false
         }
         seeMore.visibility = if (shouldShowSeeMore) View.VISIBLE else View.GONE
-        Log.d(TAG, "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
+        Log.d(
+            TAG,
+            "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
+        )
 
         val transparentColor = getColor(context, android.R.color.transparent)
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
@@ -281,10 +306,15 @@ object TooltipManager {
             onInfoButtonClicked(context, popupWindow, tooltipItem)
         }
     }
+
     /**
      * Handles the click on the info icon in the tooltip.
      */
-    private fun onInfoButtonClicked(context: Context, popupWindow: PopupWindow, tooltip: IDETooltipItem) {
+    private fun onInfoButtonClicked(
+        context: Context,
+        popupWindow: PopupWindow,
+        tooltip: IDETooltipItem
+    ) {
         popupWindow.dismiss()
 
         val metadata = """
@@ -312,7 +342,6 @@ object TooltipManager {
             .setCancelable(true) // Allow dismissing by tapping outside
             .show()
     }
-
 
     /**
      * Sets up a long-press listener on an AlertDialog's decor view to show a tooltip.

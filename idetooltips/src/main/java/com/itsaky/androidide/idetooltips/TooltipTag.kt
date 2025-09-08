@@ -27,23 +27,32 @@ object TooltipTag {
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
     const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
 
-	// General Preferences
-	const val PREFS_EDITOR = "prefs.editor"
-	const val PREFS_GENERAL = "prefs.general"
-	const val PREFS_BUILD_RUN = "prefs.buildrun"
-	const val PREFS_TERMUX = "prefs.termux"
-	const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
-	const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
-	const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
-	const val TEMPLATE_BOTTOM_NAV_ACTIVITY = "template.bottomnav.activity"
-	const val TEMPLATE_COMPOSE_ACTIVITY = "template.compose.activity"
-	const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
-	const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
-	const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
+    // General Preferences
+    const val PREFS_EDITOR = "prefs.editor"
+    const val PREFS_GENERAL = "prefs.general"
+    const val PREFS_BUILD_RUN = "prefs.buildrun"
+    const val PREFS_TERMUX = "prefs.termux"
+    const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
+    const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
+    const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
+    const val TEMPLATE_BOTTOM_NAV_ACTIVITY = "template.bottomnav.activity"
+    const val TEMPLATE_COMPOSE_ACTIVITY = "template.compose.activity"
+    const val TEMPLATE_BASIC_ACTIVITY = "template.basic.activity"
+    const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
+    const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
 
     // Editor screen
     const val EDITOR_PROJECT_OVERVIEW = "project.overview"
     const val EDITOR_BUILD_STATUS = "project.status"
+
+    const val EXIT_TO_MAIN = "exit.to.main"
+
+    // Main Page
+    const val MAIN_GET_STARTED = "main.get.started"
+    const val PROJECT_OPEN = "project.open"
+    const val MAIN_PROJECT_DELETE = "main.project.delete"
+    const val MAIN_HELP = "main.help"
+    const val FEEDBACK = "feedback"
 
     // Editor toolbar
     const val EDITOR_TOOLBAR_NAV_ICON = "project.menu"
@@ -67,7 +76,10 @@ object TooltipTag {
     const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
 
 	const val PROJECT_NEW = "project.new"
-    const val EXIT_TO_MAIN = "exit.to.main"
+    const val PROJECT_RECENT_TOP = "project.recent.top"
+	const val PROJECT_RECENT_RENAME = "project.recent.rename"
+	const val PROJECT_RENAME_DIALOG = "project.rename.dialog"
+	const val PROJECT_OPEN_FOLDER = "project.open.folder"
     const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 
     const val DIALOG_FIND_IN_PROJECT = "project.find.dialog"
