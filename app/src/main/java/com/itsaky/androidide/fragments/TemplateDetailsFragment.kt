@@ -31,6 +31,7 @@ import com.itsaky.androidide.adapters.TemplateWidgetsListAdapter
 import com.itsaky.androidide.databinding.FragmentTemplateDetailsBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_CREATE_PROJECT
+import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_PREVIOUS
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.tasks.executeAsyncProvideError
@@ -146,6 +147,14 @@ class TemplateDetailsFragment :
         }
 
         binding.widgets.layoutManager = LinearLayoutManager(requireContext())
+
+        binding.title.setOnLongClickListener {
+            TooltipManager.showTooltip(
+                requireContext(), binding.root,
+                SETUP_OVERVIEW
+            )
+            true
+        }
     }
 
     private fun bindWithTemplate(template: Template<*>?) {

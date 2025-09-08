@@ -17,10 +17,16 @@
 
 package com.itsaky.androidide.templates.impl
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.PopupWindow
+import android.widget.ListView
+import android.view.ViewGroup
+import android.view.HapticFeedbackConstants
 import androidx.core.content.ContextCompat
 import com.google.android.material.textfield.TextInputLayout
 import com.google.auto.service.AutoService
@@ -93,6 +99,7 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
       if (widget is ParameterWidget<T>) {
         widget.parameter.tooltipTag?.let { tag ->
           (createdView as? ITooltipView)?.setTooltipLongPressListener {
+            createdView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             showTooltipForView(tag)
           }
         }
@@ -157,6 +164,7 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
     }.root
   }
 
+  @SuppressLint("ClickableViewAccessibility")
   private fun createSpinner(context: Context, widget: SpinnerWidget<*>): View {
     return LayoutSpinnerBinding.inflate(LayoutInflater.from(context)).apply {
       val param = widget.parameter as EnumParameter<Enum<*>>
@@ -180,14 +188,9 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
       val array = nameToEnum.keys.toTypedArray()
 
-      spinnerText.setAdapter(ArrayAdapter(context,
-        androidx.appcompat.R.layout.support_simple_spinner_dropdown_item,
-        array))
-
       val defaultName = enumToName[param.default] ?: param.default.name
 
       root.isEnabled = nameToEnum.size > 1
-      spinnerText.listSelection = array.indexOf(defaultName)
       spinnerText.setText(defaultName, false)
 
       val observer = object : DefaultObserver<Enum<*>>() {
@@ -200,24 +203,72 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         }
       }
 
-      if (param.default != nameToEnum[defaultName]) {
-        // the default value may have been filtered
-        // reset the value to the first item
-        val first = checkNotNull(
-          nameToEnum.values.firstOrNull()) { "No entries available for enum parameter (all entries filtered out?)." }
-        param.setValue(first)
+      fun showSelectionDialog() {
+        val listView = ListView(context)
+        val adapter = ArrayAdapter(context, android.R.layout.simple_list_item_1, array)
+        listView.adapter = adapter
+        listView.divider = null
+        listView.dividerHeight = 0
+        
+        val width = spinnerText.width.coerceAtLeast(200)
+        val popupWindow = PopupWindow(
+          listView,
+          width,
+          ViewGroup.LayoutParams.WRAP_CONTENT,
+          true
+        )
+        
+        popupWindow.setBackgroundDrawable(ContextCompat.getDrawable(context, android.R.color.white))
+        popupWindow.elevation = 4f
+        
+        listView.setPadding(16, 8, 16, 8)
+        
+        listView.setOnItemClickListener { _, _, position, _ ->
+          val selectedName = array[position]
+          val selectedEnum = nameToEnum[selectedName] ?: param.default
+          param.setValue(selectedEnum)
+          param.resetStartAndEndIcons(root.context, root)
+          popupWindow.dismiss()
+        }
+        
+        listView.setOnItemLongClickListener { _, view, position, _ ->
+          view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+          popupWindow.dismiss()
+          showTooltipForView(widget.parameter.tooltipTag ?: "")
+          true
+        }
+        
+        popupWindow.showAsDropDown(spinnerText, 0, 0)
       }
 
-      param.configureTextField(context, root) {
-        observer.disableAndRun {
-          param.setValue(nameToEnum[it] ?: param.default)
-          param.resetStartAndEndIcons(root.context, root)
+      spinnerText.setOnTouchListener { _, ev ->
+        if (!root.isEnabled) return@setOnTouchListener false
+        if (ev.action == MotionEvent.ACTION_UP) {
+          spinnerText.performClick()
+          showSelectionDialog()
+          true
+        } else {
+          false
         }
       }
 
       param.observe(observer)
+
+      param.configureTextField(context, root) {
+        param.setValue(nameToEnum[it] ?: param.default)
+        param.resetStartAndEndIcons(root.context, root)
+      }
+
+      // If default was filtered out, set to first entry
+      if (param.default != nameToEnum[defaultName]) {
+        val first = checkNotNull(
+          nameToEnum.values.firstOrNull()
+        ) { "No entries available for enum parameter (all entries filtered out?)." }
+        param.setValue(first)
+      }
     }.root
   }
+
   private inline fun TextFieldParameter<*>.configureTextField(
     context: Context,
     root: TextInputLayout,
@@ -252,7 +303,7 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
   }
 
   private fun <T> TextFieldParameter<T>.resetStartAndEndIcons(context: Context,
-                                                          root: TextInputLayout
+                                                        root: TextInputLayout
   ) {
     startIcon?.let {
       root.startIconDrawable = ContextCompat.getDrawable(context, it(this))

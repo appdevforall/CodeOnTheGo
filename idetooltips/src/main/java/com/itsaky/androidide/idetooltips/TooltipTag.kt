@@ -74,6 +74,7 @@ object TooltipTag {
 
     // Template Details
     const val SETUP_PREVIOUS = "setup.previous"
+    const val SETUP_OVERVIEW = "setup.overview"
     const val SETUP_CREATE_PROJECT = "setup.create.project"
     const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 }
