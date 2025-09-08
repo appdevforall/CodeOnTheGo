@@ -6,6 +6,7 @@ import com.itsaky.androidide.agent.data.Content
 import com.itsaky.androidide.agent.data.GeminiRequest
 import com.itsaky.androidide.agent.data.GeminiResponse
 import com.itsaky.androidide.agent.data.Part
+import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.viewmodel.ExecutorAgent
 import com.itsaky.androidide.api.IDEApiFacade
@@ -43,7 +44,7 @@ class GeminiRepositoryImpl(
     private val toolTracker = ToolExecutionTracker()
 
     // Callbacks remain the same
-    override var onToolCall: ((FunctionCallPart) -> Unit)? = null
+    override var onToolCall: ((ToolCall) -> Unit)? = null
     override var onToolMessage: ((String) -> Unit)? = null
     override var onStateUpdate: ((AgentState) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
@@ -104,7 +105,7 @@ class GeminiRepositoryImpl(
         }
     }
 
-    suspend fun executeTool(functionCall: FunctionCallPart): ToolResult {
+    suspend fun executeTool(functionCall: ToolCall): ToolResult {
         return when (functionCall.name) {
 //            "google_search" -> {
 //                return try {
