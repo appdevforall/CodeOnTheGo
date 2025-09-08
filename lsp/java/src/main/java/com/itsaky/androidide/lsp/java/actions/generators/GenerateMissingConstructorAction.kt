@@ -21,6 +21,7 @@ import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.models.DiagnosticCode
@@ -37,6 +38,7 @@ class GenerateMissingConstructorAction : BaseJavaCodeAction() {
   override var label: String = ""
   private val diagnosticCode = DiagnosticCode.MISSING_CONSTRUCTOR.id
   override val titleTextRes: Int = R.string.action_generate_missing_constructor
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR
 
   companion object {
 
