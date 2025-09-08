@@ -20,8 +20,12 @@ import android.os.Bundle
 import android.view.View
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 class BuildOutputFragment : NonEditableEditorFragment() {
+  override fun onFragmentLongPressed() {
+    showTooltipDialog(TooltipTag.PROJECT_BUILD_OUTPUT)
+  }
   private val unsavedLines: MutableList<String?> = ArrayList()
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)

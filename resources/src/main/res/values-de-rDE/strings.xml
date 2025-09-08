@@ -178,9 +178,8 @@
   <string name="title_generating_xml">Generieren von XML-Code</string>
   <string name="msg_swipe_up">Wischen Sie nach oben, um Build Ausgaben, Logs und mehr anzuzeigen.</string>
   <string name="msg_ide_crashed">Code on the Go ist abgest&#xFC;rzt</string>
-  <string name="msg_report_crash">Bitte &#xF6;ffnen Sie ein Issue auf GitHub mit dem folgenden Stacktrace:</string>
-  <string name="msg_crash_report_hint">Klicken Sie auf die Schaltfl&#xE4;che unten, um den Log zu kopieren und die Problemseite zu &#xF6;ffnen.</string>
-  <string name="msg_copy_report_action">Kopieren und melden</string>
+  <string name="msg_crash_info">Bitte &#xF6;ffnen Sie ein Issue auf GitHub mit dem folgenden Stacktrace:</string>
+  <string name="msg_close_crash_page">Klicken Sie auf die Schaltfl&#xE4;che unten, um den Log zu kopieren und die Problemseite zu &#xF6;ffnen.</string>
   <string name="title_translations">&#xDC;bersetzungen</string>
   <string name="action_expand_selection">Auswahl erweitern</string>
   <string name="idepref_java_matchLower_title">Vervollständigungen in Kleinbuchstaben nutzen</string>

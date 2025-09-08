@@ -39,6 +39,9 @@ plugins {
 	alias(libs.plugins.kotlin.jvm) apply false
 	alias(libs.plugins.maven.publish) apply false
 	alias(libs.plugins.gradle.publish) apply false
+	alias(libs.plugins.rikka.autoresconfig) apply false
+	alias(libs.plugins.rikka.materialthemebuilder) apply false
+	alias(libs.plugins.rikka.refine) apply false
 	alias(libs.plugins.spotless)
 }
 
@@ -193,7 +196,7 @@ spotless {
 }
 
 allprojects {
-	project.group = BuildConfig.packageName
+	project.group = BuildConfig.PACKAGE_NAME
 	project.version = rootProject.version
 
 	plugins.withId("com.android.application") {
@@ -219,7 +222,7 @@ allprojects {
 	}
 
 	tasks.withType<KotlinCompile>().configureEach {
-		compilerOptions.jvmTarget.set(JvmTarget.fromTarget(BuildConfig.javaVersion.majorVersion))
+		compilerOptions.jvmTarget.set(JvmTarget.fromTarget(BuildConfig.JAVA_VERSION.majorVersion))
 	}
 }
 

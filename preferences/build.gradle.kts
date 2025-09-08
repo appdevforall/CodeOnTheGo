@@ -18,21 +18,21 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  id("kotlin-android")
-  id("kotlin-parcelize")
+	id("com.android.library")
+	id("kotlin-android")
+	id("kotlin-parcelize")
 }
 
 android {
-  namespace = "${BuildConfig.packageName}.preferences"
+	namespace = "${BuildConfig.PACKAGE_NAME}.preferences"
 }
 
 dependencies {
-  implementation(projects.common)
-  implementation(projects.eventbusEvents)
-  implementation(projects.resources)
-  implementation(projects.shared)
-  implementation(libs.androidx.annotation)
-  implementation(libs.androidx.preference)
-  implementation(libs.google.material)
+	implementation(projects.common)
+	implementation(projects.eventbusEvents)
+	implementation(projects.resources)
+	implementation(projects.shared)
+	implementation(libs.androidx.annotation)
+	implementation(libs.androidx.preference)
+	implementation(libs.google.material)
 }

@@ -42,5 +42,8 @@ fun isAtLeastT() = isAtLeast(Build.VERSION_CODES.TIRAMISU)
 @ChecksSdkIntAtLeast(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 fun isAtLeastU() = isAtLeast(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 
+@ChecksSdkIntAtLeast(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+fun isAtLeastV() = isAtLeast(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+
 @ChecksSdkIntAtLeast(parameter = 0)
 fun isAtLeast(version: Int) : Boolean = Build.VERSION.SDK_INT >= version
