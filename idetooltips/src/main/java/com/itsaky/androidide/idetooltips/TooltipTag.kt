@@ -40,6 +40,20 @@ object TooltipTag {
     const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
     const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
 
+    // Delete project
+    const val DELETE_PROJECT = "project.delete"
+    const val DELETE_PROJECT_SELECT = "project.delete.select"
+    const val DELETE_PROJECT_BUTTON = "project.delete.button"
+    const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
+    const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
+    const val EXIT_TO_MAIN = "exit.to.main"
+
+    // Main Page
+    const val MAIN_GET_STARTED = "main.get.started"
+    const val PROJECT_OPEN = "project.open"
+    const val MAIN_PROJECT_DELETE = "main.project.delete"
+    const val MAIN_HELP = "main.help"
+    const val FEEDBACK = "feedback"
     const val EDITOR_PROJECT_OVERVIEW = "project.overview"
     const val EDITOR_TOOLTIP_NAV_ICON = "project.menu"
     const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
@@ -52,14 +66,11 @@ object TooltipTag {
     const val EDITOR_BUILD_STATUS = "project.status"
 
 
-    // Delete project
-    const val DELETE_PROJECT = "project.delete"
-    const val DELETE_PROJECT_SELECT = "project.delete.select"
-    const val DELETE_PROJECT_BUTTON = "project.delete.button"
-    const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
-    const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
     const val PROJECT_NEW = "project.new"
-    const val EXIT_TO_MAIN = "exit.to.main"
+    const val PROJECT_RECENT_TOP = "project.recent.top"
+	const val PROJECT_RECENT_RENAME = "project.recent.rename"
+	const val PROJECT_RENAME_DIALOG = "project.rename.dialog"
+    const val PROJECT_OPEN_FOLDER = "project.open.folder"
 
     // Template Details
     const val SETUP_PREVIOUS = "setup.previous"
