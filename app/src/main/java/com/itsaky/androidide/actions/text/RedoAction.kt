@@ -31,7 +31,7 @@ import com.itsaky.androidide.resources.R
 /** @author Akash Yadav */
 class RedoAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_REDO
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_REDO
   override val id: String = ID
 
   companion object {

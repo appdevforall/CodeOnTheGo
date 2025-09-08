@@ -44,7 +44,7 @@ import java.io.File
 class PreviewLayoutAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
   override val id: String = ID
-  override var tooltipTag = TooltipTag.EDITOR_TOOLBAR_PREVIEW_LAYOUT
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_PREVIEW_LAYOUT
   override var requiresUIThread: Boolean = false
 
   companion object{

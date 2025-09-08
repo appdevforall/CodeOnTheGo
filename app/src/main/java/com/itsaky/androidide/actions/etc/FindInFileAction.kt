@@ -32,7 +32,7 @@ class FindInFileAction() : EditorRelatedAction() {
   override var requiresUIThread: Boolean = true
   override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
   override var order: Int = 0
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
 
   companion object{
     const val ID = "ide.editor.find.inFile"

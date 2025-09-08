@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory
 class SaveFileAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
   override var requiresUIThread: Boolean = false
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_QUICK_SAVE
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_SAVE
   override val id: String = ID
 
   companion object {

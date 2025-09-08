@@ -27,7 +27,7 @@ import com.itsaky.androidide.resources.R
 /** @author Akash Yadav */
 class UndoAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
-  override var tooltipTag: String = TooltipTag.EDITOR_TOOLBAR_UNDO
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_UNDO
   override val id: String = ID
 
   companion object {
