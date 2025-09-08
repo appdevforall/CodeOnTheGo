@@ -23,7 +23,13 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.getContext
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.projects.api.AndroidModule
+import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
+import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import com.itsaky.androidide.utils.resolveAttr
 
 /**
@@ -34,31 +40,41 @@ import com.itsaky.androidide.utils.resolveAttr
  *
  * @author Akash Yadav
  */
-class QuickRunAction(
-	context: Context,
-	override val order: Int,
-) : AbstractRunAction(
-		context = context,
-		labelRes = R.string.quick_run_debug,
-		iconRes = R.drawable.ic_run_outline,
-	) {
-	override val id: String = ID
+class QuickRunAction(context: Context, override val order: Int) :
+    AbstractRunAction(
+        context = context,
+        labelRes = R.string.quick_run_debug,
+        iconRes = R.drawable.ic_run_outline
+    ) {
 
-	companion object {
-		const val ID = "ide.editor.build.quickRun"
-	}
+    override val id: String = ID
+    companion object {
+        const val ID = "ide.editor.build.quickRun"
+    }
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_RUN
 
-	override fun createColorFilter(data: ActionData): ColorFilter? =
-		data.getContext()?.let {
-			PorterDuffColorFilter(
-				it.resolveAttr(
-					if (data.getActivity().isBuildInProgress()) {
-						R.attr.colorError
-					} else {
-						R.attr.colorSuccess
-					},
-				),
-				PorterDuff.Mode.SRC_ATOP,
-			)
-		}
+    override fun onCreateTaskExecMessage(
+        data: ActionData,
+        module: AndroidModule,
+        variant: BasicAndroidVariantMetadata,
+        buildService: BuildService,
+        activity: EditorHandlerActivity
+    ): TaskExecutionMessage {
+        val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
+        log.info("Running task '{}' to assemble variant '{}' of project '{}'", taskName, variant.name, module.path)
+
+        return TaskExecutionMessage(tasks = listOf(taskName))
+    }
+
+    override fun createColorFilter(data: ActionData): ColorFilter? {
+        return data.getContext()?.let {
+            PorterDuffColorFilter(
+                it.resolveAttr(
+                    if (data.getActivity().isBuildInProgress())
+                        R.attr.colorError
+                    else R.attr.colorSuccess
+                ), PorterDuff.Mode.SRC_ATOP
+            )
+        }
+    }
 }

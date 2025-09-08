@@ -264,7 +264,12 @@ object TooltipManager {
 
         androidx.appcompat.app.AlertDialog.Builder(context)
             .setTitle("Tooltip Debug Info")
-            .setMessage(android.text.Html.fromHtml(metadata, android.text.Html.FROM_HTML_MODE_LEGACY))
+            .setMessage(
+                android.text.Html.fromHtml(
+                    metadata,
+                    android.text.Html.FROM_HTML_MODE_LEGACY
+                )
+            )
             .setPositiveButton(android.R.string.ok) { dialog, _ ->
                 dialog.dismiss()
             }

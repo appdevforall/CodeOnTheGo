@@ -21,7 +21,6 @@ dependencies {
 	implementation(projects.subprojects.shizukuCommon)
 	implementation(projects.subprojects.shizukuShared)
 	implementation(projects.subprojects.shizukuStarter)
-	implementation(projects.subprojects.shizukuRish)
 	implementation(projects.subprojects.shizukuServerShared)
 	implementation(libs.rikka.hidden.compat)
 
