@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import com.itsaky.androidide.fragments.RecyclerViewFragment
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
@@ -29,12 +30,12 @@ import kotlinx.coroutines.withContext
 class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 	override val fragmentTooltipTag: String = DEBUG_OUTPUT_CALLSTACK
 	private val viewHolder by activityViewModels<DebuggerViewModel>()
-	private var tooltipHost: TooltipHost? = null
+
 	private lateinit var gestureDetector: GestureDetector
 
 	private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
 		override fun onLongPress(e: MotionEvent) {
-			tooltipHost?.showToolTip(fragmentTooltipTag)
+            TooltipManager.showTooltip(requireContext(), _binding!!.root, fragmentTooltipTag)
 		}
 	}
 
@@ -82,16 +83,6 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 			}
 		}
 
-
-	override fun onAttach(context: Context) {
-		super.onAttach(context)
-		tooltipHost = parentFragment as? TooltipHost
-	}
-
-	override fun onDetach() {
-		super.onDetach()
-		tooltipHost = null
-	}
 }
 
 class CallStackAdapter(
