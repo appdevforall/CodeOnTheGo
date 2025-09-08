@@ -924,7 +924,7 @@ abstract class BaseEditorActivity :
 			// observed in the CREATED state in order to ensure that we get
 			// notified about the updates even when the IDE is in the background
 			//
-			// if we you need to observe state for UI updates, please add a new
+			// if you need to observe state for UI updates, please add a new
 			// repeatOnLifecycle call with Lifecycle.State.STARTED
 			repeatOnLifecycle(Lifecycle.State.CREATED) {
 				launch {
