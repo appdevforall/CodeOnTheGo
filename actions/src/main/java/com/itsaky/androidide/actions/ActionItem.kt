@@ -69,6 +69,13 @@ interface ActionItem {
    */
   var location: Location
 
+    /**
+     * The tooltip tag of this [ActionItem].
+     */
+    var tooltipTag: String
+      get() = ""
+      set(_) {}
+
   /**
    * Retrieves the tooltip tag for this [ActionItem].
    *

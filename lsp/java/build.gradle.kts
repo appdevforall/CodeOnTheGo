@@ -57,6 +57,7 @@ dependencies {
 	implementation(projects.lsp.api)
 	implementation(projects.subprojects.libjdwp)
 	implementation(projects.subprojects.javacServices)
+	implementation(projects.idetooltips)
 
 	implementation(libs.composite.javac)
 	implementation(libs.composite.javapoet)

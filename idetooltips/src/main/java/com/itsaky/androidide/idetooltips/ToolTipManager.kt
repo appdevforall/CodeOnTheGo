@@ -31,10 +31,8 @@ import java.io.File
 object TooltipManager {
     private const val TAG = "TooltipManager"
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
-    private val debugDatabaseFile: File = File(
-        android.os.Environment.getExternalStorageDirectory().toString() +
-                "/Download/documentation.db"
-    )
+    private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
+            "/Download/documentation.db")
 
     private const val QUERY_TOOLTIP = """
         SELECT T.rowid, T.id, T.summary, T.detail
