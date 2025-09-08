@@ -1,6 +1,6 @@
 package com.itsaky.androidide.agent.repository
 
-import com.google.firebase.ai.type.FunctionCallPart
+import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
@@ -46,7 +46,7 @@ class SwitchableGeminiRepository(
             localLlmRepository.onStateUpdate = value
         }
 
-    override var onToolCall: ((FunctionCallPart) -> Unit)? = null
+    override var onToolCall: ((ToolCall) -> Unit)? = null
         set(value) {
             field = value
             geminiRepository.onToolCall = value

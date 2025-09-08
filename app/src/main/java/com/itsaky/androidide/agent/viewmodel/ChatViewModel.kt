@@ -7,8 +7,8 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.ai.type.FunctionCallPart
 import com.itsaky.androidide.agent.data.ChatStorageManager
+import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
@@ -113,7 +113,7 @@ class ChatViewModel(
         }
     }
 
-    private fun formatToolCallForDisplay(functionCall: FunctionCallPart): String {
+    private fun formatToolCallForDisplay(functionCall: ToolCall): String {
         val args = functionCall.args.map { (key, value) ->
             "  - **$key**: `${value.toString().removeSurrounding("\"")}`"
         }.joinToString("\n")

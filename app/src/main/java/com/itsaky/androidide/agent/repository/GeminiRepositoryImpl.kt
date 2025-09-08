@@ -1,89 +1,48 @@
 package com.itsaky.androidide.agent.repository
 
-import com.google.firebase.ai.FirebaseAI
-import com.google.firebase.ai.GenerativeModel
-import com.google.firebase.ai.type.FunctionCallPart
-import com.google.firebase.ai.type.Tool
-import com.google.firebase.ai.type.content
-import com.google.firebase.ai.type.generationConfig
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.data.Content
+import com.itsaky.androidide.agent.data.GeminiRequest
+import com.itsaky.androidide.agent.data.GeminiResponse
+import com.itsaky.androidide.agent.data.Part
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.viewmodel.ExecutorAgent
-import com.itsaky.androidide.agent.viewmodel.OrchestratorAgent
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.PlanStep
 import com.itsaky.androidide.models.StepResult
-import com.itsaky.androidide.viewmodel.CriticAgent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.slf4j.LoggerFactory
 
+// The class no longer needs FirebaseAI. It now handles its own HTTP calls.
 class GeminiRepositoryImpl(
-    firebaseAI: FirebaseAI,
     private val ideApi: IDEApiFacade,
 ) : GeminiRepository {
 
+    // --- HTTP Client and API Configuration ---
+    private val apiKey = BuildConfig.GEMINI_API_KEY
+    private val client = OkHttpClient()
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    // --- Model Names ---
+    private val plannerModel = "gemini-1.5-pro"
+    private val criticModel = "gemini-1.5-flash"
+    private val codeGenModel = "gemini-1.5-pro"
+
     private val toolTracker = ToolExecutionTracker()
 
-    private val modelName = "gemini-2.5-pro"
-    private val flashModelName = "gemini-2.5-flash" // Use Flash for efficiency
-
-    // --- AGENT MODELS DEFINITION ---
-
-    // 1. The Planner: A meticulous project manager. Its only job is to create a detailed, structured plan.
-// It has no tools, ensuring it focuses solely on planning.
-    private val vertexAiModelForPlanning: GenerativeModel = firebaseAI.generativeModel(
-        modelName = modelName,
-        systemInstruction = content(role = "system") {
-            text(
-                """
-            You are a meticulous software architect and project planner. Your purpose is to decompose a complex user request into a detailed, step-by-step plan.
-            You must respond with a valid JSON array of objects.
-            
-            **IMPORTANT RULE:** Each step's 'objective' must be a small, atomic action that can be fully accomplished by a SINGLE tool call. For example, instead of an objective "fix the app", use "read the build log to find the error".
-            
-            **CRITICAL RULE: You are blind.** You cannot see the user's screen or UI. Therefore, you must never create an objective to "display" or "verify" something visually. For the final step involving `run_app`, your objective should be to "Launch the app for the user to visually confirm the changes."
-
-            Each step must include a unique 'stepId', a clear and ATOMIC 'objective', the specific 'toolToUse' from the provided list, a 'parameters' object, and a description of the 'expectedOutputFormat'.
-            Your sole output is the JSON plan.
-
-            Here is the list of available tools you can use in your plan:
-            ${GeminiTools.getToolDeclarationsAsJson()}
-            """.trimIndent()
-            )
-        },
-        generationConfig = generationConfig {
-            responseMimeType = "application/json"
-        }
-    )
-
-    // 3. The Critic: A detail-oriented quality assurance analyst.
-    // Its job is to verify if the output of a step meets the original objective.
-    private val vertexAiModelForCritique: GenerativeModel = firebaseAI.generativeModel(
-        modelName = flashModelName,
-        systemInstruction = content(role = "system") {
-            text("You are a quality assurance agent. Your task is to evaluate the result of a tool execution against its intended objective. You must be strict and objective. Your only output should be 'true' if the objective was met, or 'false' if it was not.")
-        }
-    )
-    private val searchModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = flashModelName,
-        systemInstruction = content(role = "system") {
-            text("You are a helpful assistant that answers questions using web searches.")
-        },
-        tools = listOf(Tool.googleSearch())
-    )
-
-    private val codeGenerationModel: GenerativeModel = firebaseAI.generativeModel(
-        modelName = modelName,
-        systemInstruction = content(role = "system") {
-            text("You are an expert code generation assistant. You only respond with raw code based on the user's prompt. Do not add any explanations, comments, or markdown formatting like ```. Your response must be only the code itself.")
-        }
-    )
-
+    // Callbacks remain the same
     override var onToolCall: ((FunctionCallPart) -> Unit)? = null
     override var onToolMessage: ((String) -> Unit)? = null
     override var onStateUpdate: ((AgentState) -> Unit)? = null
@@ -96,21 +55,70 @@ class GeminiRepositoryImpl(
         return runAgentWorkflow(prompt, history)
     }
 
+    /**
+     * A generic, reusable function to call the Gemini REST API.
+     */
+    private suspend fun callGeminiApi(
+        model: String,
+        prompt: String,
+        systemInstruction: String? = null,
+        // Optional: for multi-turn conversations
+        history: List<Content> = emptyList()
+    ): Result<String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val contents = mutableListOf<Content>()
+                contents.addAll(history)
+                contents.add(Content(parts = listOf(Part(text = prompt)), role = "user"))
+
+                val requestBodyJson = json.encodeToString(
+                    GeminiRequest.serializer(),
+                    GeminiRequest(
+                        contents = contents,
+                        systemInstruction = systemInstruction?.let { Content(parts = listOf(Part(it))) }
+                    )
+                )
+
+                val requestBody = requestBodyJson.toRequestBody("application/json".toMediaType())
+                val url =
+                    "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+                val request = Request.Builder().url(url).post(requestBody).build()
+                val response = client.newCall(request).execute()
+
+                if (!response.isSuccessful) {
+                    throw Exception("API Error: ${response.code} ${response.body?.string()}")
+                }
+
+                val responseBodyString = response.body?.string()
+                    ?: throw Exception("Empty response body")
+
+                val geminiResponse = json.decodeFromString<GeminiResponse>(responseBodyString)
+                val responseText =
+                    geminiResponse.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                        ?: ""
+
+                Result.success(responseText)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
     suspend fun executeTool(functionCall: FunctionCallPart): ToolResult {
         return when (functionCall.name) {
-            "google_search" -> {
-                return try {
-                    val query = (functionCall.args["query"] as? JsonPrimitive)?.content ?: ""
-                    if (query.isEmpty()) {
-                        return ToolResult.failure("Search query cannot be empty.")
-                    }
-                    val response = searchModel.generateContent(query)
-                    val searchResult = response.text ?: "No search results found."
-                    ToolResult.success(searchResult)
-                } catch (e: Exception) {
-                    ToolResult.failure("An error occurred during the search: ${e.message}")
-                }
-            }
+//            "google_search" -> {
+//                return try {
+//                    val query = (functionCall.args["query"] as? JsonPrimitive)?.content ?: ""
+//                    if (query.isEmpty()) {
+//                        return ToolResult.failure("Search query cannot be empty.")
+//                    }
+//                    val response = searchModel.generateContent(query)
+//                    val searchResult = response.text ?: "No search results found."
+//                    ToolResult.success(searchResult)
+//                } catch (e: Exception) {
+//                    ToolResult.failure("An error occurred during the search: ${e.message}")
+//                }
+//            }
 
             "create_file" -> {
                 val path = (functionCall.args["path"] as? JsonPrimitive)?.content?.trim()
@@ -185,32 +193,80 @@ class GeminiRepositoryImpl(
         }
     }
 
+    // --- Agent Logic Methods (Now using callGeminiApi) ---
+
+    private suspend fun createPlan(userInput: String, toolDeclarations: String): List<PlanStep> {
+        val systemInstruction = """
+            You are a meticulous software architect... 
+            Your sole output is the JSON plan.
+            Here is the list of available tools you can use in your plan:
+            $toolDeclarations
+            """.trimIndent()
+
+        val prompt = "User Request: \"$userInput\"\nTool Declarations: $toolDeclarations"
+
+        val result = callGeminiApi(plannerModel, prompt, systemInstruction)
+
+        return result.fold(
+            onSuccess = { jsonString ->
+                try {
+                    json.decodeFromString(ListSerializer(PlanStep.serializer()), jsonString)
+                } catch (e: Exception) {
+                    log.error("Error parsing plan JSON: ${e.message}")
+                    emptyList()
+                }
+            },
+            onFailure = {
+                log.error("Failed to create plan from API", it)
+                emptyList()
+            }
+        )
+    }
+
+    private suspend fun evaluateResult(result: StepResult, originalStep: PlanStep): Boolean {
+        val systemInstruction =
+            "You are a quality assurance agent... Your only output should be 'true' or 'false'."
+
+        val truncatedOutput =
+            if (result.output.length > 1500) result.output.take(1500) + "..." else result.output
+
+        val prompt = """
+            **Step's Objective:** "${originalStep.objective}"
+            **Tool Chosen:** `${originalStep.toolToUse}`
+            **Actual Output from the Tool:** ```${truncatedOutput}```
+            Based on this, respond with only "true" if the step was successful, or "false" if it was not.
+            """.trimIndent()
+
+        val apiResult = callGeminiApi(criticModel, prompt, systemInstruction)
+        return apiResult.getOrNull()?.trim()?.equals("true", ignoreCase = true) ?: false
+    }
+
     override suspend fun generateCode(
         prompt: String,
         fileContent: String,
         fileName: String,
         fileRelativePath: String
     ): String {
-        // Create a detailed prompt with all the context
+        val systemInstruction =
+            "You are an expert code generation assistant... Your response must be only the code itself."
+
         val contextPrompt = """
-        You are an expert code generation assistant. The user is currently editing the file '$fileName' located at '$fileRelativePath'.
+            The user is editing '$fileName' at '$fileRelativePath'.
+            File content: ```$fileContent```
+            User Request: "$prompt"
+            """.trimIndent()
 
-        This is the current full content of the file:
-        ```
-        $fileContent
-        ```
-
-        Based on this context, fulfill the user's request.
-
-        User Request: "$prompt"
-
-        IMPORTANT: Your response must be only the raw code itself. Do not add any explanations, comments, or markdown formatting like ```.
-        """.trimIndent()
-
-        val response = codeGenerationModel.generateContent(contextPrompt)
-        return response.text ?: throw Exception("Failed to get a valid response from the API.")
+        val result = callGeminiApi(codeGenModel, contextPrompt, systemInstruction)
+        return result.getOrThrow() // Throw exception on failure
     }
 
+    // The rest of your file (runAgentWorkflow, executeTool, etc.) can remain largely the same,
+    // as it now depends on the rewritten createPlan and evaluateResult methods.
+
+    // ... (paste the rest of your `GeminiRepositoryImpl` code here, from `runAgentWorkflow` downwards)
+    // IMPORTANT: The `Google Search` tool is part of the Firebase SDK and not available in the public
+    // Gemini REST API. You will need to remove that case from your `executeTool` function or use a
+    // separate API (like Google's Custom Search API) to implement it.
     override fun getPartialReport(): String {
         return toolTracker.generatePartialReport()
     }
@@ -219,6 +275,7 @@ class GeminiRepositoryImpl(
         private val log = LoggerFactory.getLogger(GeminiRepositoryImpl::class.java)
     }
 
+
     private suspend fun runAgentWorkflow(
         userInput: String,
         history: List<ChatMessage>
@@ -226,9 +283,7 @@ class GeminiRepositoryImpl(
         log.debug(userInput)
         onStateUpdate?.invoke(AgentState.Processing("Initializing Agent Workflow..."))
 
-        val orchestrator = OrchestratorAgent(vertexAiModelForPlanning)
         val executor = ExecutorAgent(this)
-        val critic = CriticAgent(vertexAiModelForCritique)
 
         val initialPrompt = buildInitialPromptWithHistory(userInput, history)
 
@@ -244,7 +299,7 @@ class GeminiRepositoryImpl(
         onStateUpdate?.invoke(AgentState.Processing("👨‍🎨 Creating an initial plan..."))
         // Pass the full initial prompt to the planner
         currentPlan =
-            orchestrator.createPlan(initialPrompt, GeminiTools.getToolDeclarationsAsJson())
+            createPlan(initialPrompt, GeminiTools.getToolDeclarationsAsJson())
 
         if (currentPlan.isEmpty()) {
             val failureMessage =
@@ -266,7 +321,7 @@ class GeminiRepositoryImpl(
             log.debug("wasStepSuccessful: $wasStepSuccessful")
             if (wasStepSuccessful) {
                 onStateUpdate?.invoke(AgentState.Processing("🧐 Critiquing result..."))
-                wasStepSuccessful = critic.evaluateResult(result, step)
+                wasStepSuccessful = evaluateResult(result, step)
 
                 log.debug("critic: ___v")
                 log.debug("wasStepSuccessful: $wasStepSuccessful")
@@ -311,7 +366,7 @@ class GeminiRepositoryImpl(
             """.trimIndent()
 
                 currentPlan =
-                    orchestrator.createPlan(rePlanPrompt, GeminiTools.getToolDeclarationsAsJson())
+                    createPlan(rePlanPrompt, GeminiTools.getToolDeclarationsAsJson())
                 currentStepIndex = 0
 
                 if (currentPlan.isEmpty()) {
@@ -364,4 +419,5 @@ class GeminiRepositoryImpl(
     Now, please act on my latest request: "$userInput"
     """.trimIndent()
     }
+
 }

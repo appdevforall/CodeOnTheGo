@@ -23,6 +23,13 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
 
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
 plugins {
   id("com.android.application")
   id("kotlin-android")
@@ -68,6 +75,12 @@ android {
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
 		testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+
+        buildConfigField(
+            "String",
+            "GEMINI_API_KEY",
+            "\"${localProperties.getProperty("GEMINI_API_KEY")}\""
+        )
 	}
 
 	buildTypes {
@@ -267,6 +280,10 @@ dependencies {
 
 	// brotli4j
 	implementation(libs.brotli4j)
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // For JSON parsing, if not already present from your diff
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
 
 tasks.register("downloadDocDb") {

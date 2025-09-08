@@ -1,8 +1,8 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
-import com.google.firebase.ai.type.FunctionCallPart
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.app.LlmInferenceEngine
@@ -30,7 +30,7 @@ class LocalLlmRepositoryImpl(
     private val toolCodeRegex = Regex("<tool_code>(.*?)</tool_code>", RegexOption.DOT_MATCHES_ALL)
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
-    override var onToolCall: ((FunctionCallPart) -> Unit)? = null
+    override var onToolCall: ((ToolCall) -> Unit)? = null
     override var onToolMessage: ((String) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
 
@@ -141,7 +141,7 @@ class LocalLlmRepositoryImpl(
                 val toolCallRequest = json.decodeFromString<ToolCallRequest>(jsonContent)
 
                 // For UI Callbacks (reusing Firebase type for simplicity)
-                val functionCallPart = FunctionCallPart(
+                val functionCallPart = ToolCall(
                     name = toolCallRequest.tool_name,
                     args = toolCallRequest.parameters.mapValues { it.value } // Simplified conversion
                 )
