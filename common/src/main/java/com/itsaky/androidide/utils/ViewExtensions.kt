@@ -1,5 +1,3 @@
-
-
 package com.itsaky.androidide.utils
 
 import android.view.View
