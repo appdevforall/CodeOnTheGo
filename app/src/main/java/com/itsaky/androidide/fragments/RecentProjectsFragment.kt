@@ -16,6 +16,11 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -68,19 +73,24 @@ class RecentProjectsFragment : BaseFragment() {
                 adapter = RecentProjectsAdapter(
                     projects,
                     onProjectClick = { openProject(it) },
-                    onOpenFileFromFolderClick = {
-                        pickDirectory {
-                            if (isValidProjectDirectory(it)) {
-                                handleDirectoryPick(it)
-                            } else {
-                                flashError(
-                                    msg = requireContext().getString(
-                                        R.string.project_directory_invalid,
-                                        it.name
+                    onOpenFileFromFolderClick = { isLongClick ->
+                        if (!isLongClick) {
+                            pickDirectory {
+                                if (isValidProjectDirectory(it)) {
+                                    handleDirectoryPick(it)
+                                } else {
+                                    flashError(
+                                        msg = requireContext().getString(
+                                            R.string.project_directory_invalid,
+                                            it.name
+                                        )
                                     )
-                                )
+                                }
                             }
+                        } else {
+                            showToolTip(PROJECT_OPEN_FOLDER)
                         }
+
                     },
                     onRemoveProjectClick = { project ->
                         viewModel.deleteProject(project.name)
@@ -150,6 +160,19 @@ class RecentProjectsFragment : BaseFragment() {
         binding.exitButton.setOnClickListener {
             mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
         }
+        binding.exitButton.setOnLongClickListener {
+            showToolTip(EXIT_TO_MAIN)
+            true
+        }
+        binding.newProjectButton.setOnLongClickListener {
+            showToolTip(PROJECT_NEW)
+            true
+        }
+
+        binding.recentProjectsTxt.setOnLongClickListener {
+            showToolTip(PROJECT_RECENT_TOP)
+            true
+        }
     }
 
     private fun openProject(root: File) {
@@ -170,4 +193,13 @@ class RecentProjectsFragment : BaseFragment() {
         super.onResume()
         viewModel.loadProjects()
     }
+
+    private fun showToolTip(tag: String) {
+        TooltipManager.showTooltip(
+            requireContext(), binding.root,
+            tag
+        )
+    }
+
 }
+

@@ -2,6 +2,7 @@ package com.itsaky.androidide.idetooltips
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.graphics.drawable.ColorDrawable
 import android.util.Log
@@ -16,9 +17,14 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 
 
@@ -26,7 +32,7 @@ object TooltipManager {
     private const val TAG = "TooltipManager"
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
-                                               "/Download/documentation.db")
+            "/Download/documentation.db")
 
     private const val QUERY_TOOLTIP = """
         SELECT T.rowid, T.id, T.summary, T.detail
@@ -81,13 +87,13 @@ object TooltipManager {
                 Log.d(TAG, "last change is '${lastChange}'.")
 
                 cursor = db.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category))
-                
+
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
                     1 -> { /* Expected case, continue processing */ }
                     else -> throw DatabaseCorruptionException(
                         "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
-                        "Each category/tag combination should be unique."
+                                "Each category/tag combination should be unique."
                     )
                 }
 
@@ -143,6 +149,39 @@ object TooltipManager {
         )
     }
 
+    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
+    fun showTooltip(
+        context: Context,
+        anchorView: View,
+        tag: String,
+        category: String = TooltipCategory.CATEGORY_IDE
+    ) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                category,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+            }
+        }
+    }
     /**
      * Internal helper function to create, configure, and show the tooltip PopupWindow.
      * Contains the logic common to both showIDETooltip and showEditorTooltip.
@@ -173,7 +212,7 @@ object TooltipManager {
             "Color attribute not found in theme"
         )
 
-// TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
+        // TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
         fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
