@@ -35,12 +35,6 @@ public class ShizukuApiConstants {
 	public static final String BIND_APPLICATION_SERVER_PATCH_VERSION = "shizuku:attach-reply-patch-version";
 	public static final String BIND_APPLICATION_SERVER_UID = "shizuku:attach-reply-uid";
 	public static final String BIND_APPLICATION_SERVER_SECONTEXT = "shizuku:attach-reply-secontext";
-	public static final String BIND_APPLICATION_PERMISSION_GRANTED = "shizuku:attach-reply-permission-granted";
-	public static final String BIND_APPLICATION_SHOULD_SHOW_REQUEST_PERMISSION_RATIONALE = "shizuku:attach-reply-should-show-request-permission-rationale";
-
-	// request permission
-	public static final String REQUEST_PERMISSION_REPLY_ALLOWED = "shizuku:request-permission-reply-allowed";
-	public static final String REQUEST_PERMISSION_REPLY_IS_ONETIME = "shizuku:request-permission-reply-is-onetime";
 
 	// attach application
 	public static final String ATTACH_APPLICATION_PACKAGE_NAME = "shizuku:attach-package-name";

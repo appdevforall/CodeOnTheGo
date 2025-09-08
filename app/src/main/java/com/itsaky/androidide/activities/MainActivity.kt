@@ -51,10 +51,13 @@ import org.appdevforall.localwebserver.ServerConfig
 import com.itsaky.androidide.utils.Environment
 import org.slf4j.LoggerFactory
 
+import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
 
 import android.hardware.display.DisplayManager
 import android.view.Display
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -103,7 +106,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         // Start WebServer after installation is complete
         startWebServer()
-        
+
         openLastProject()
         setupSecondaryDisplay()
 
@@ -184,11 +187,25 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         )) {
             fragment.isVisible = fragment == currentFragment
         }
+
+        binding.codeOnTheGoLabel.setOnLongClickListener {
+            when (screen) {
+                SCREEN_SAVED_PROJECTS -> showToolTip(PROJECT_RECENT_TOP)
+            }
+            true
+        }
     }
 
     override fun bindLayout(): View {
         _binding = ActivityMainBinding.inflate(layoutInflater)
         return binding.root
+    }
+
+    private fun showToolTip(tag: String) {
+        TooltipManager.showTooltip(
+            this, binding.root,
+            tag
+        )
     }
 
     private fun openLastProject() {
@@ -249,37 +266,28 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     internal fun deleteProject(root: File) {
         ProjectManagerImpl.getInstance().projectPath = root.absolutePath
         try {
-            val directory = File(ProjectManagerImpl.getInstance().projectPath)
-            val parentDir = directory.parent
-            deleteRecursive(directory)
+            FileDeleteUtils.deleteRecursive(root)
         } catch (e: Exception) {
             flashInfo(string.msg_delete_existing_project_failed)
         }
     }
 
-    fun deleteRecursive(fileOrDirectory: File) {
-        if (fileOrDirectory.isDirectory) {
-            fileOrDirectory.listFiles()?.forEach { child -> 
-                deleteRecursive(child)
-            }
-        }
-
-        fileOrDirectory.delete()
-    }
-
     private fun startWebServer() {
         try {
             val dbFile = Environment.DOC_DB
-            
+
             if (!dbFile.exists()) {
-                log.warn("Database file not found at: {} - WebServer will not start", dbFile.absolutePath)
+                log.warn(
+                    "Database file not found at: {} - WebServer will not start",
+                    dbFile.absolutePath
+                )
                 return
             }
-            
+
             log.info("Starting WebServer - database file exists at: {}", dbFile.absolutePath)
             val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
             Thread { webServer.start() }.start()
-            
+
         } catch (e: Exception) {
             log.error("Failed to start WebServer", e)
         }

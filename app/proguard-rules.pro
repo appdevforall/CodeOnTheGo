@@ -132,3 +132,11 @@
 -keepattributes SourceFile,LineNumberTable
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**
+
+## Prevent R8 from moving what it thinks as unused classes
+-dontshrink
+
+## Initial rules to enable when R8 is shrinking to address exceptions
+#-keep class com.sun.tools.jdi.** { *; }
+#-keep class com.sun.jdi.** { *; }
+
