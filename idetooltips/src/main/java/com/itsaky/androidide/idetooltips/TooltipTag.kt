@@ -40,18 +40,31 @@ object TooltipTag {
 	const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
 	const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
 
-	// Delete project
-	const val DELETE_PROJECT = "project.delete"
-	const val DELETE_PROJECT_SELECT = "project.delete.select"
-	const val DELETE_PROJECT_BUTTON = "project.delete.button"
-	const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
-	const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
+    const val EDITOR_PROJECT_OVERVIEW = "project.overview"
+    const val EDITOR_TOOLTIP_NAV_ICON = "project.menu"
+    const val EDITOR_TOOLBAR_QUICK_RUN = "project.run"
+    const val EDITOR_TOOLBAR_DEBUG = "project.debug"
+    const val EDITOR_TOOLBAR_RUN_TASKS = "project.gradle.tasks"
+    const val EDITOR_TOOLBAR_FIND = "project.find.top"
+    const val EDITOR_TOOLBAR_FIND_IN_PROJECT = "project.find.in.project"
+    const val EDITOR_TOOLBAR_SYNC = "project.sync"
+    const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
+    const val EDITOR_BUILD_STATUS = "project.status"
+
+    // Delete project
+    const val DELETE_PROJECT = "project.delete"
+    const val DELETE_PROJECT_SELECT = "project.delete.select"
+    const val DELETE_PROJECT_BUTTON = "project.delete.button"
+    const val DELETE_PROJECT_CONFIRM = "project.delete.confirm"
+    const val DELETE_PROJECT_DIALOG = "project.delete.dialog"
 	const val PROJECT_NEW = "project.new"
 	const val EXIT_TO_MAIN = "exit.to.main"
+
     // Debugger
     const val PROJECT_DEBUGGER_OUTPUT = "project.debugger.output"
     const val DEBUG_THREAD_SELECTOR = "debug.thread.selector"
     const val DEBUG_OUTPUT_VARIABLES = "debug.output.variables"
     const val DEBUG_OUTPUT_CALLSTACK = "debug.output.callstack"
 
+    const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 }

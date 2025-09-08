@@ -45,7 +45,7 @@ import java.util.Date
  * For example, if the base version code of the IDE is 270 (for v2.7.0), then for arm64-v8a
  * flavor, the version code will be `100 * 270 + 1` i.e. `27001`
  */
-internal val flavorsAbis = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
+internal val flavorsAbis = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2)
 private val disableCoreLibDesugaringForModules =
 	arrayOf(
 		":logsender",
@@ -242,8 +242,6 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		}
 
 		buildTypes.getByName("release") {
-			// TODO: disable minify until issues with minified release build is resolved -- jm 2025-06-06
-			isAppModule = false
 
 			isMinifyEnabled = isAppModule
 			isShrinkResources = isAppModule

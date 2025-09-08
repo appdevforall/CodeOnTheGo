@@ -65,9 +65,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 				// Add tooling-api-aal.jar
 				registerToolingApiJarCopierTask(variant, variantNameCapitalized)
 
-				// Add libjdwp-remote.aar
-				registerLibjdwpRemoteAarCopierTask(variant, variantNameCapitalized)
-
 				// Add cogo-plugin.jar
 				registerCoGoPluginApiJarCopierTask(variant, variantNameCapitalized)
 
@@ -122,21 +119,6 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 				projectTask = projectTask,
 				onGetInputFile = inputFile,
 			)
-		}
-	}
-
-	private fun Project.registerLibjdwpRemoteAarCopierTask(
-		variant: Variant,
-		variantName: String,
-	) {
-		val flavorName = variant.flavorName!!
-		addProjectArtifactToAssets<AddFileToAssetsTask>(
-			variant = variant,
-			taskName = "copy${variantName}LibJdwpRemoteAar",
-			projectPath = ":subprojects:libjdwp-remote",
-			projectTask = "assemble${flavorName.capitalized()}Release",
-		) { project ->
-			project.layout.buildDirectory.file("outputs/aar/libjdwp-remote-$flavorName-release.aar")
 		}
 	}
 
