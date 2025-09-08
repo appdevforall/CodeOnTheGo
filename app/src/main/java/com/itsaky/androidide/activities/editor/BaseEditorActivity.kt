@@ -536,7 +536,6 @@ abstract class BaseEditorActivity :
 
         setupMemUsageChart()
         watchMemory()
-        observeFileOperations()
     }
 
     private fun setupToolbar() {
