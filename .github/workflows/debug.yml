@@ -86,7 +86,9 @@ jobs:
 
       - name: Assemble Universal APK
         run: |
+          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
       - name: Find APK file
         id: find_apk
@@ -172,6 +174,19 @@ jobs:
             exit 1
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Write CI Performance Data
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          GRADLE_START: ${{ env.gradle_time_start }}
+          GRADLE_END: ${{ env.gradle_time_end }}
+          DB_PASSWORD: ${{ secrets.PG_PERFORMANCE_PASSWORD }}
+        run: |
+          apk_size_bytes=$( /usr/bin/stat -c '%s' $APK_PATH )
+          uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $( basename $APK_PATH ) $GRADLE_START $GRADLE_END $apk_size_bytes
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
