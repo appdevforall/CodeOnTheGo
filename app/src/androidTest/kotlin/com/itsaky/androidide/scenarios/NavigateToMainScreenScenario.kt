@@ -23,101 +23,87 @@ class NavigateToMainScreenScenario : Scenario() {
         val permissionsScreen = device.uiDevice.findObject(UiSelector().text("Permissions"))
 
         if (permissionsScreen.exists()) {
-            step("Grant storage and install packages permissions") {
-                flakySafely(120000) {
+            step("Grant Storage Permissions") {
+                flakySafely(30000) {
                     PermissionScreen {
-                        device.uiDevice.waitForIdle(5000)
-                        Thread.sleep(3000)
-
-                        // Grant Storage permission
                         rvPermissions {
-                            childWith<PermissionScreen.PermissionItem> {
-                                withDescendant { withText("Storage") }
-                            } perform {
-                                flakySafely(10000) {
-                                    try {
-                                        println("Granting Storage permission")
-                                        grantButton.click()
-                                        Thread.sleep(2000)
-                                        grantStoragePermissions(device.uiDevice)
-                                        Thread.sleep(3000)
-                                        device.uiDevice.pressBack()
-                                        Thread.sleep(3000)
-                                    } catch (e: Exception) {
-                                        println("Storage permission may already be granted: ${e.message}")
-                                    }
-                                }
+                            childAt<PermissionScreen.PermissionItem>(0) {
+                                grantButton.click()
                             }
                         }
 
-                        // Grant Install packages permission
-                        rvPermissions {
-                            childWith<PermissionScreen.PermissionItem> {
-                                withDescendant { withText("Install packages") }
-                            } perform {
-                                flakySafely(10000) {
-                                    try {
-                                        println("Granting Install packages permission")
-                                        grantButton.click()
-                                        Thread.sleep(2000)
-                                        flakySafely(20000) {
-                                            SystemPermissionsScreen {
-                                                try {
-                                                    installPackagesPermission {
-                                                        click()
-                                                    }
-                                                } catch (e: Exception) {
-                                                    println("Trying alternative text for install packages permission")
-                                                    try {
-                                                        installPackagesPermissionAlt1 {
-                                                            click()
-                                                        }
-                                                    } catch (e1: Exception) {
-                                                        println("Trying second alternative text for install packages permission")
-                                                        installPackagesPermissionAlt2 {
-                                                            click()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Thread.sleep(3000)
-                                        device.uiDevice.pressBack()
-                                        Thread.sleep(3000)
-                                    } catch (e: Exception) {
-                                        println("Install packages permission may already be granted: ${e.message}")
-                                    }
-                                }
-                            }
-                        }
+                        grantStoragePermissions(device.uiDevice)
+                        device.uiDevice.waitForIdle(2000)
 
-                        // Grant Overlay window permission
-                        rvPermissions {
-                            childWith<PermissionScreen.PermissionItem> {
-                                withDescendant { withText("Overlay window") }
-                            } perform {
-                                flakySafely(10000) {
-                                    try {
-                                        println("Granting Overlay window permission")
-                                        grantButton.click()
-                                        Thread.sleep(2000)
-                                        grantOverlayPermission(device.uiDevice)
-                                        Thread.sleep(3000)
-                                        device.uiDevice.pressBack()
-                                        Thread.sleep(3000)
-                                    } catch (e: Exception) {
-                                        println("Overlay window permission may already be granted: ${e.message}")
-                                    }
-                                }
-                            }
-                        }
+                        device.uiDevice.pressBack()
+                        device.uiDevice.waitForIdle(2000)
                     }
-                    flakySafely(20000) {
-                        OnboardingScreen.nextButton {
-                            isVisible()
-                            isClickable()
-                            click()
+                }
+            }
+
+            step("Grant Install Packages Permissions") {
+                flakySafely(30000) {
+                    PermissionScreen {
+                        rvPermissions {
+                            childAt<PermissionScreen.PermissionItem>(1) {
+                                grantButton.click()
+                            }
                         }
+
+                        device.uiDevice.waitForIdle(3000)
+
+                        SystemPermissionsScreen {
+                            try {
+                                installPackagesPermission {
+                                    isDisplayed()
+                                    click()
+                                }
+                            } catch (e: Exception) {
+                                println("Trying alternative text for install packages permission: ${e.message}")
+                                try {
+                                    installPackagesPermissionAlt1 {
+                                        isDisplayed()
+                                        click()
+                                    }
+                                } catch (e: Exception) {
+                                    installPackagesPermissionAlt2 {
+                                        isDisplayed()
+                                        click()
+                                    }
+                                }
+                            }
+                        }
+
+                        device.uiDevice.waitForIdle(2000)
+                        device.uiDevice.pressBack()
+                        device.uiDevice.waitForIdle(2000)
+                    }
+                }
+            }
+
+            step("Grant Overlay Window permission") {
+                flakySafely(30000) {
+                    PermissionScreen {
+                        rvPermissions {
+                            childAt<PermissionScreen.PermissionItem>(2) {
+                                grantButton.click()
+                            }
+                        }
+
+                        grantOverlayPermission(device.uiDevice)
+
+                        device.uiDevice.waitForIdle(2000)
+                        device.uiDevice.pressBack()
+                    }
+                }
+            }
+
+            step("Navigate away from permissions screen") {
+                flakySafely(20000) {
+                    OnboardingScreen.nextButton {
+                        isVisible()
+                        isClickable()
+                        click()
                     }
                 }
             }
