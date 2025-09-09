@@ -88,6 +88,22 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
+      - name: Validate branch name length
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          BRANCH_LENGTH=${#BRANCH_NAME}
+          echo "Branch name: $BRANCH_NAME"
+          echo "Branch name length: $BRANCH_LENGTH characters"
+          
+          if [ $BRANCH_LENGTH -gt 80 ]; then
+            echo "ERROR: Branch name exceeds the 80 character limit ($BRANCH_LENGTH characters)"
+            echo "This causes Google Cloud authentication to fail due to subject mapping limits."
+            echo "Please rename your branch to 80 characters or fewer and try again."
+            exit 1
+          fi
+          
+          echo "Branch name length is valid ($BRANCH_LENGTH ≤ 80 characters)"
+
       - name: Install Git LFS
         run: |
           sudo apt-get update
@@ -112,7 +128,9 @@ jobs:
 
       - name: Assemble Universal APK
         run: |
+          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
       - name: Find APK file
         id: find_apk
@@ -198,6 +216,19 @@ jobs:
             exit 1
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Write CI Performance Data
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          GRADLE_START: ${{ env.gradle_time_start }}
+          GRADLE_END: ${{ env.gradle_time_end }}
+          DB_PASSWORD: ${{ secrets.PG_PERFORMANCE_PASSWORD }}
+        run: |
+          apk_size_bytes=$( /usr/bin/stat -c '%s' $APK_PATH )
+          uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $( basename $APK_PATH ) $GRADLE_START $GRADLE_END $apk_size_bytes
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
