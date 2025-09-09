@@ -23,30 +23,58 @@ class NavigateToMainScreenScenario : Scenario() {
         val permissionsScreen = device.uiDevice.findObject(UiSelector().text("Permissions"))
 
         if (permissionsScreen.exists()) {
-            step("Grant Storage Permissions") {
+            step("Debug and Grant Storage Permissions") {
                 flakySafely(30000) {
                     PermissionScreen {
+                        device.uiDevice.waitForIdle(5000)
+                        println("=== PERMISSION DEBUG: Starting Storage Permission (Index 0) ===")
+                        
                         rvPermissions {
+                            println("DEBUG: Total permissions in RecyclerView: ${getSize()}")
+                            
                             childAt<PermissionScreen.PermissionItem>(0) {
-                                grantButton.click()
+                                title {
+                                    println("DEBUG: Permission at index 0 - checking title")
+                                }
+                                description {
+                                    println("DEBUG: Permission at index 0 - checking description")
+                                }
+                                grantButton {
+                                    println("DEBUG: Clicking grant button for permission at index 0")
+                                    click()
+                                }
                             }
                         }
 
+                        println("DEBUG: Calling grantStoragePermissions helper")
                         grantStoragePermissions(device.uiDevice)
                         device.uiDevice.waitForIdle(2000)
 
+                        println("DEBUG: Pressing back after storage permission")
                         device.uiDevice.pressBack()
                         device.uiDevice.waitForIdle(2000)
+                        println("=== PERMISSION DEBUG: Storage Permission Complete ===")
                     }
                 }
             }
 
-            step("Grant Install Packages Permissions") {
+            step("Debug and Grant Install Packages Permissions") {
                 flakySafely(30000) {
                     PermissionScreen {
+                        println("=== PERMISSION DEBUG: Starting Install Packages Permission (Index 1) ===")
+                        
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(1) {
-                                grantButton.click()
+                                title {
+                                    println("DEBUG: Permission at index 1 - checking title")
+                                }
+                                description {
+                                    println("DEBUG: Permission at index 1 - checking description")
+                                }
+                                grantButton {
+                                    println("DEBUG: Clicking grant button for permission at index 1")
+                                    click()
+                                }
                             }
                         }
 
@@ -54,18 +82,22 @@ class NavigateToMainScreenScenario : Scenario() {
 
                         SystemPermissionsScreen {
                             try {
+                                println("DEBUG: Trying main install packages permission")
                                 installPackagesPermission {
                                     isDisplayed()
                                     click()
                                 }
                             } catch (e: Exception) {
-                                println("Trying alternative text for install packages permission: ${e.message}")
+                                println("DEBUG: Main install packages permission failed: ${e.message}")
+                                println("DEBUG: Trying alternative text for install packages permission")
                                 try {
                                     installPackagesPermissionAlt1 {
                                         isDisplayed()
                                         click()
                                     }
                                 } catch (e: Exception) {
+                                    println("DEBUG: Alt1 install packages permission failed: ${e.message}")
+                                    println("DEBUG: Trying second alternative text for install packages permission")
                                     installPackagesPermissionAlt2 {
                                         isDisplayed()
                                         click()
@@ -75,25 +107,41 @@ class NavigateToMainScreenScenario : Scenario() {
                         }
 
                         device.uiDevice.waitForIdle(2000)
+                        println("DEBUG: Pressing back after install packages permission")
                         device.uiDevice.pressBack()
                         device.uiDevice.waitForIdle(2000)
+                        println("=== PERMISSION DEBUG: Install Packages Permission Complete ===")
                     }
                 }
             }
 
-            step("Grant Overlay Window permission") {
+            step("Debug and Grant Overlay Window permission") {
                 flakySafely(30000) {
                     PermissionScreen {
+                        println("=== PERMISSION DEBUG: Starting Overlay Permission (Index 2) ===")
+                        
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(2) {
-                                grantButton.click()
+                                title {
+                                    println("DEBUG: Permission at index 2 - checking title")
+                                }
+                                description {
+                                    println("DEBUG: Permission at index 2 - checking description")
+                                }
+                                grantButton {
+                                    println("DEBUG: Clicking grant button for permission at index 2")
+                                    click()
+                                }
                             }
                         }
 
+                        println("DEBUG: Calling grantOverlayPermission helper")
                         grantOverlayPermission(device.uiDevice)
 
                         device.uiDevice.waitForIdle(2000)
+                        println("DEBUG: Pressing back after overlay permission")
                         device.uiDevice.pressBack()
+                        println("=== PERMISSION DEBUG: Overlay Permission Complete ===")
                     }
                 }
             }
