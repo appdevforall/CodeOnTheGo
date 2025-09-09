@@ -40,6 +40,23 @@ object TooltipTag {
     const val TEMPLATE_NO_ACTIVITY = "template.no.activity"
     const val TEMPLATE_NAV_DRAWER_ACTIVITY = "template.navdrawer.activity"
 
+    // Code Actions menu
+    const val EDITOR_CODE_ACTIONS_COMMENT = "editor.codeactions.comment"
+    const val EDITOR_CODE_ACTIONS_UNCOMMENT = "editor.codeactions.uncomment"
+    const val EDITOR_CODE_ACTIONS_GOTO_DEF = "editor.codeactions.gotodef"
+    const val EDITOR_CODE_ACTIONS_FIND_REFS = "editor.codeactions.findrefs"
+    const val EDITOR_CODE_ACTIONS_FIX_IMPORTS = "editor.codeactions.fiximports"
+    const val EDITOR_CODE_ACTIONS_SETTER_GETTER = "editor.codeactions.settergetter"
+    const val EDITOR_CODE_ACTIONS_SETTER_GETTER_DIALOG = "editor.codeactions.settergetter.dialog"
+    const val EDITOR_CODE_ACTIONS_OVERRIDE_SUPER = "editor.codeactions.overridesuper"
+    const val EDITOR_CODE_ACTIONS_OVERRIDE_SUPER_DIALOG = "editor.codeactions.overridesuper.dialog"
+    const val EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR = "editor.codeactions.genconstructor"
+    const val EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR_DIALOG = "editor.codeactions.genconstructor.dialog"
+    const val EDITOR_CODE_ACTIONS_GEN_TO_STRING = "editor.codeactions.gentostring"
+    const val EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG = "editor.codeactions.gentostring.dialog"
+    const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
+    const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
+
     // Delete project
     const val DELETE_PROJECT = "project.delete"
     const val DELETE_PROJECT_SELECT = "project.delete.select"
