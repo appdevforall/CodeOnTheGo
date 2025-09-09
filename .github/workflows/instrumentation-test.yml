@@ -30,10 +30,13 @@ env:
   SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
 
 jobs:
-  build_test:
-    name: Build and Firebase Test
+  build:
+    name: Build APKs
     runs-on: [self-hosted, devops]
-    timeout-minutes: 120
+    timeout-minutes: 30
+    outputs:
+      app-apk-name: ${{ steps.apk-info.outputs.app-apk-name }}
+      test-apk-name: ${{ steps.apk-info.outputs.test-apk-name }}
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
@@ -87,19 +90,9 @@ jobs:
           ./gradlew :app:assembleV8InstrumentationAndroidTest --no-daemon
           ./gradlew :app:assembleV8Instrumentation --no-daemon
 
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Authenticate to Google Cloud via Workload Identity
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.IDENTITY_EMAIL }}
-
-      - name: Run Firebase Test Lab and Wait for Results
+      - name: Get APK info and upload artifacts
+        id: apk-info
         run: |
-          mkdir -p test-results/kotlin test-results/groovy
-
           # Find the most recent APK files
           APP_APK=$(find app/build/outputs/apk/v8/instrumentation -name "*.apk" -type f | sort | tail -1)
           TEST_APK=$(find app/build/outputs/apk/androidTest/v8/instrumentation -name "*.apk" -type f | sort | tail -1)
@@ -117,8 +110,65 @@ jobs:
           echo "Using App APK: $APP_APK"
           echo "Using Test APK: $TEST_APK"
 
-          # Run Kotlin DSL tests
-          echo "Running Kotlin DSL tests..."
+          # Set outputs for parallel test jobs
+          echo "app-apk-name=$(basename "$APP_APK")" >> $GITHUB_OUTPUT
+          echo "test-apk-name=$(basename "$TEST_APK")" >> $GITHUB_OUTPUT
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-apks
+          path: |
+            app/build/outputs/apk/v8/instrumentation/*.apk
+            app/build/outputs/apk/androidTest/v8/instrumentation/*.apk
+          retention-days: 1
+
+  test:
+    name: Firebase Test Lab
+    runs-on: [self-hosted, devops]
+    needs: build
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: [kotlin, groovy]
+        include:
+          - test-type: kotlin
+            target-class: "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle"
+            display-name: "Kotlin DSL"
+          - test-type: groovy
+            target-class: "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle"
+            display-name: "Groovy DSL"
+    outputs:
+      test-url-kotlin: ${{ steps.set-output-kotlin.outputs.test-url }}
+      video-url-kotlin: ${{ steps.set-output-kotlin.outputs.video-url }}
+      test-url-groovy: ${{ steps.set-output-groovy.outputs.test-url }}
+      video-url-groovy: ${{ steps.set-output-groovy.outputs.video-url }}
+      result-kotlin: ${{ steps.set-output-kotlin.outputs.result }}
+      result-groovy: ${{ steps.set-output-groovy.outputs.result }}
+    steps:
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: test-apks
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Authenticate to Google Cloud via Workload Identity
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
+
+      - name: Run Firebase Test Lab
+        run: |
+          mkdir -p test-results/${{ matrix.test-type }}
+
+          APP_APK="${{ needs.build.outputs.app-apk-name }}"
+          TEST_APK="${{ needs.build.outputs.test-apk-name }}"
+
+          echo "Running ${{ matrix.display-name }} tests..."
           echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
           echo "Device: model=caiman,version=35,locale=en,orientation=portrait"
           echo "Timeout: 45m, Flaky test attempts: 2"
@@ -132,167 +182,113 @@ jobs:
             --use-orchestrator \
             --timeout 45m \
             --num-flaky-test-attempts=2 \
-            --results-dir=test-results/kotlin \
+            --results-dir=test-results/${{ matrix.test-type }} \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" 2>&1 | tee test-results/kotlin/test_output.txt
+            --test-targets "${{ matrix.target-class }}" 2>&1 | tee test-results/${{ matrix.test-type }}/test_output.txt
 
-          KOTLIN_EXIT_CODE=${PIPESTATUS[0]}
-          echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "${{ matrix.display-name }} tests exit code: $EXIT_CODE"
 
-          if [ $KOTLIN_EXIT_CODE -ne 0 ]; then
-            echo "❌ Kotlin DSL tests failed with exit code $KOTLIN_EXIT_CODE"
-            echo "=== KOTLIN TEST OUTPUT ==="
-            cat test-results/kotlin/test_output.txt
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ ${{ matrix.display-name }} tests failed with exit code $EXIT_CODE"
+            echo "=== ${{ matrix.test-type }} TEST OUTPUT ==="
+            cat test-results/${{ matrix.test-type }}/test_output.txt
             echo "=========================="
           else
-            echo "✅ Kotlin DSL tests completed successfully"
+            echo "✅ ${{ matrix.display-name }} tests completed successfully"
           fi
 
-          # Extract Firebase Test Lab URL for Kotlin tests
-          KOTLIN_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/kotlin/test_output.txt | head -1 || echo "")
-          echo "KOTLIN_TEST_URL=$KOTLIN_TEST_URL" >> $GITHUB_ENV
+          # Extract Firebase Test Lab URL
+          TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/${{ matrix.test-type }}/test_output.txt | head -1 || echo "")
+          echo "TEST_URL=$TEST_URL" >> $GITHUB_ENV
 
-          # Extract video URL for Kotlin tests - try multiple patterns
-          KOTLIN_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
-                            grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | head -1 || \
-                            grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/kotlin/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
-          echo "KOTLIN_VIDEO_URL=$KOTLIN_VIDEO_URL" >> $GITHUB_ENV
+          # Extract video URL - try multiple patterns
+          VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/${{ matrix.test-type }}/test_output.txt | head -1 || \
+                     grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/${{ matrix.test-type }}/test_output.txt | head -1 || \
+                     grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/${{ matrix.test-type }}/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
+          echo "VIDEO_URL=$VIDEO_URL" >> $GITHUB_ENV
 
-          # Run Groovy DSL tests
-          echo "Running Groovy DSL tests..."
-          echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
-          echo "Device: model=caiman,version=35,locale=en,orientation=portrait"
-          echo "Timeout: 45m, Flaky test attempts: 2"
-
-          gcloud firebase test android run \
-            --type instrumentation \
-            --app "$APP_APK" \
-            --test "$TEST_APK" \
-            --device model=caiman,version=35,locale=en,orientation=portrait \
-            --environment-variables clearPackageData=true \
-            --use-orchestrator \
-            --timeout 45m \
-            --num-flaky-test-attempts=2 \
-            --results-dir=test-results/groovy \
-            --results-bucket=gs://firebase-test-results-${RANDOM} \
-            --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" 2>&1 | tee test-results/groovy/test_output.txt
-
-          GROOVY_EXIT_CODE=${PIPESTATUS[0]}
-          echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
-
-          if [ $GROOVY_EXIT_CODE -ne 0 ]; then
-            echo "❌ Groovy DSL tests failed with exit code $GROOVY_EXIT_CODE"
-            echo "=== GROOVY TEST OUTPUT ==="
-            cat test-results/groovy/test_output.txt
-            echo "=========================="
+          # Set result for notification job
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "RESULT=✅ ${{ matrix.display-name }} tests completed successfully" >> $GITHUB_ENV
           else
-            echo "✅ Groovy DSL tests completed successfully"
-          fi
-
-          # Extract Firebase Test Lab URL for Groovy tests
-          GROOVY_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/groovy/test_output.txt | head -1 || echo "")
-          echo "GROOVY_TEST_URL=$GROOVY_TEST_URL" >> $GITHUB_ENV
-
-          # Extract video URL for Groovy tests - try multiple patterns
-          GROOVY_VIDEO_URL=$(grep -o 'https://storage\.cloud\.google\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
-                            grep -o 'https://storage\.googleapis\.com/[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | head -1 || \
-                            grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
-          echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
-
-
-          # Set overall exit code for the step
-          if [ $KOTLIN_EXIT_CODE -ne 0 ] || [ $GROOVY_EXIT_CODE -ne 0 ]; then
-            echo "Some tests failed"
+            echo "RESULT=❌ ${{ matrix.display-name }} tests failed" >> $GITHUB_ENV
             exit 1
           fi
 
-      - name: Notify Slack with parsed test results
-        if: always()  # Run even if tests fail
+      - name: Set outputs for kotlin
+        if: matrix.test-type == 'kotlin'
+        id: set-output-kotlin
         run: |
-          parse_results() {
-            local file="$1"
-            local test_name="$2"
-          
-            if [[ ! -f "$file" ]]; then
-              echo "$test_name: No results file found"
-              return
-            fi
-          
-            # Check if file is empty
-            if [[ ! -s "$file" ]]; then
-              echo "$test_name: Results file is empty"
-              return
-            fi
-          
-            # Parse Firebase Test Lab results - look for common patterns
-            local pass=$(grep -i "passed\|success" "$file" | wc -l || echo "0")
-            local fail=$(grep -i "failed\|error" "$file" | wc -l || echo "0")
-            local total=$((pass + fail))
-          
-            # If no specific test results found, check exit status or general output
-            if [[ $total -eq 0 ]]; then
-              if grep -q "Test run completed" "$file"; then
-                echo "$test_name: Test completed (check Firebase console for details)"
-              else
-                echo "$test_name: Test may have failed or results unclear"
-              fi
-            else
-              echo "$test_name: Tests run: $total, Passed: $pass, Failed: $fail"
-            fi
-          }
+          echo "test-url=$TEST_URL" >> $GITHUB_OUTPUT
+          echo "video-url=$VIDEO_URL" >> $GITHUB_OUTPUT
+          echo "result=$RESULT" >> $GITHUB_OUTPUT
 
-          echo "Parsing test results..."
-          KOTLIN_RESULTS=$(parse_results test-results/kotlin/test_output.txt "Kotlin DSL")
-          GROOVY_RESULTS=$(parse_results test-results/groovy/test_output.txt "Groovy DSL")
-          
-          # Also capture the actual output for debugging
-          echo "Kotlin output file contents:"
-          if [[ -f test-results/kotlin/test_output.txt ]]; then
-            head -20 test-results/kotlin/test_output.txt
-          else
-            echo "File does not exist"
-          fi
-          
-          echo "Groovy output file contents:"
-          if [[ -f test-results/groovy/test_output.txt ]]; then
-            head -20 test-results/groovy/test_output.txt
-          else
-            echo "File does not exist"
-          fi
+      - name: Set outputs for groovy
+        if: matrix.test-type == 'groovy'
+        id: set-output-groovy
+        run: |
+          echo "test-url=$TEST_URL" >> $GITHUB_OUTPUT
+          echo "video-url=$VIDEO_URL" >> $GITHUB_OUTPUT
+          echo "result=$RESULT" >> $GITHUB_OUTPUT
 
-          # Send to Slack with better formatting
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-type }}
+          path: test-results/${{ matrix.test-type }}/
+          retention-days: 7
+
+  notify:
+    name: Notify Results
+    runs-on: [self-hosted, devops]
+    needs: [build, test]
+    if: always()
+    steps:
+      - name: Download all test results
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+
+      - name: Notify Slack with results
+        if: always()
+        run: |
+          # Build Slack message
           SLACK_MESSAGE="*🔥 Firebase Test Lab Results*\\n\\n"
-          SLACK_MESSAGE="$SLACK_MESSAGE*${KOTLIN_RESULTS}*\\n"
-          SLACK_MESSAGE="$SLACK_MESSAGE*${GROOVY_RESULTS}*\\n"
+          
+          # Add results from job outputs
+          if [[ -n "${{ needs.test.outputs.result-kotlin }}" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE*${{ needs.test.outputs.result-kotlin }}*\\n"
+          fi
+          
+          if [[ -n "${{ needs.test.outputs.result-groovy }}" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE*${{ needs.test.outputs.result-groovy }}*\\n"
+          fi
           
           # Add Kotlin URLs
-          if [[ -n "$KOTLIN_TEST_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\\n🔗 Kotlin Test Results: $KOTLIN_TEST_URL"
+          if [[ -n "${{ needs.test.outputs.test-url-kotlin }}" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🔗 Kotlin Test Results: ${{ needs.test.outputs.test-url-kotlin }}"
           fi
           
-          if [[ -n "$KOTLIN_VIDEO_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Kotlin Test Video: $KOTLIN_VIDEO_URL"
+          if [[ -n "${{ needs.test.outputs.video-url-kotlin }}" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Kotlin Test Video: ${{ needs.test.outputs.video-url-kotlin }}"
           fi
           
           # Add Groovy URLs  
-          if [[ -n "$GROOVY_TEST_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n🔗 Groovy Test Results: $GROOVY_TEST_URL"
+          if [[ -n "${{ needs.test.outputs.test-url-groovy }}" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n🔗 Groovy Test Results: ${{ needs.test.outputs.test-url-groovy }}"
           fi
           
-          if [[ -n "$GROOVY_VIDEO_URL" ]]; then
-            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Groovy Test Video: $GROOVY_VIDEO_URL"
+          if [[ -n "${{ needs.test.outputs.video-url-groovy }}" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Groovy Test Video: ${{ needs.test.outputs.video-url-groovy }}"
           fi
-          
-          # Add debugging info to see what URLs were found
-          echo "Debug - Kotlin Video URL: '$KOTLIN_VIDEO_URL'"
-          echo "Debug - Groovy Video URL: '$GROOVY_VIDEO_URL'"
-          echo "Debug - Kotlin Test URL: '$KOTLIN_TEST_URL'"
-          echo "Debug - Groovy Test URL: '$GROOVY_TEST_URL'"
           
           # Fallback to general Firebase console if no specific URLs found
-          if [[ -z "$KOTLIN_TEST_URL" && -z "$GROOVY_TEST_URL" ]]; then
+          if [[ -z "${{ needs.test.outputs.test-url-kotlin }}" && -z "${{ needs.test.outputs.test-url-groovy }}" ]]; then
             SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n📱 Check Firebase console: ${{ env.FIREBASE_CONSOLE_URL }}"
           fi
 
