@@ -127,7 +127,7 @@ jobs:
     name: Firebase Test Lab
     runs-on: [self-hosted, devops]
     needs: build
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
