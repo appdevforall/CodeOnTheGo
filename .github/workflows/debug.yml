@@ -28,10 +28,52 @@ env:
   SENTRY_DSN_DEBUG: ${{ secrets.SENTRY_DSN_DEBUG }}
 
 jobs:
+  check_changes:
+    name: Check for meaningful changes
+    runs-on: self-hosted
+    outputs:
+      must_build: ${{ steps.check.outputs.must_build }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Check if new branch with no meaningful commits
+        id: check
+        run: |
+          # Get the current branch name
+          BRANCH_NAME=$(git branch --show-current)
+          echo "Current branch: $BRANCH_NAME"
+
+          # Check commit count for logging
+          BRANCH_ONLY_COMMITS=$(git log --oneline origin/stage..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+          echo "Commits ahead of stage: $BRANCH_ONLY_COMMITS"
+
+          # For non-stage branches, check if they are identical to stage
+          if [[ "$BRANCH_NAME" != "stage" ]]; then
+            DIFF_COUNT=$(git diff --name-only origin/stage..HEAD | wc -l | tr -d ' ' || echo "0")
+            echo "Files changed from stage: $DIFF_COUNT"
+            
+            if [[ "$DIFF_COUNT" -eq 0 ]]; then
+              echo "::notice::Skipping build for branch identical to stage"
+              echo "must_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "Branch has changes, proceeding with build"
+              echo "must_build=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Stage branch detected, proceeding with build"
+            echo "must_build=true" >> $GITHUB_OUTPUT
+          fi
+
   build_apk:
     name: Build Universal APK
     runs-on: self-hosted
     timeout-minutes: 60
+    needs: check_changes
+    if: needs.check_changes.outputs.must_build == 'true'
 
     steps:
 
