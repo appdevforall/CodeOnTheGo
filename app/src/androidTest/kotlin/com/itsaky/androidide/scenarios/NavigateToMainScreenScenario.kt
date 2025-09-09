@@ -20,75 +20,51 @@ class NavigateToMainScreenScenario : Scenario() {
                 click()
             }
         }
+        
         val permissionsScreen = device.uiDevice.findObject(UiSelector().text("Permissions"))
+        println("DEBUG: Checking if permissions screen exists: ${permissionsScreen.exists()}")
 
         if (permissionsScreen.exists()) {
-            step("Debug and Grant Storage Permissions") {
-                flakySafely(30000) {
+            println("DEBUG: Permissions screen found, granting 3 permissions in order")
+            
+            step("Grant Storage Permissions") {
+                flakySafely(15000) {
+                    println("DEBUG: Granting Storage permission (index 0)")
                     PermissionScreen {
-                        device.uiDevice.waitForIdle(5000)
-                        println("=== PERMISSION DEBUG: Starting Storage Permission (Index 0) ===")
-                        
                         rvPermissions {
-                            println("DEBUG: Total permissions in RecyclerView: ${getSize()}")
-                            
                             childAt<PermissionScreen.PermissionItem>(0) {
-                                title {
-                                    println("DEBUG: Permission at index 0 - checking title")
-                                }
-                                description {
-                                    println("DEBUG: Permission at index 0 - checking description")
-                                }
-                                grantButton {
-                                    println("DEBUG: Clicking grant button for permission at index 0")
-                                    click()
-                                }
+                                grantButton.click()
                             }
                         }
 
-                        println("DEBUG: Calling grantStoragePermissions helper")
                         grantStoragePermissions(device.uiDevice)
-                        device.uiDevice.waitForIdle(2000)
-
-                        println("DEBUG: Pressing back after storage permission")
+                        device.uiDevice.waitForIdle(1000)
                         device.uiDevice.pressBack()
-                        device.uiDevice.waitForIdle(2000)
-                        println("=== PERMISSION DEBUG: Storage Permission Complete ===")
+                        device.uiDevice.waitForIdle(1000)
                     }
+                    println("DEBUG: Storage permission granted")
                 }
             }
 
-            step("Debug and Grant Install Packages Permissions") {
-                flakySafely(30000) {
+            step("Grant Install Packages Permissions") {
+                flakySafely(15000) {
+                    println("DEBUG: Granting Install packages permission (index 1)")
                     PermissionScreen {
-                        println("=== PERMISSION DEBUG: Starting Install Packages Permission (Index 1) ===")
-                        
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(1) {
-                                title {
-                                    println("DEBUG: Permission at index 1 - checking title")
-                                }
-                                description {
-                                    println("DEBUG: Permission at index 1 - checking description")
-                                }
-                                grantButton {
-                                    println("DEBUG: Clicking grant button for permission at index 1")
-                                    click()
-                                }
+                                grantButton.click()
                             }
                         }
 
-                        device.uiDevice.waitForIdle(3000)
+                        device.uiDevice.waitForIdle(2000)
 
                         SystemPermissionsScreen {
                             try {
-                                println("DEBUG: Trying main install packages permission")
                                 installPackagesPermission {
                                     isDisplayed()
                                     click()
                                 }
                             } catch (e: Exception) {
-                                println("DEBUG: Main install packages permission failed: ${e.message}")
                                 println("DEBUG: Trying alternative text for install packages permission")
                                 try {
                                     installPackagesPermissionAlt1 {
@@ -96,8 +72,6 @@ class NavigateToMainScreenScenario : Scenario() {
                                         click()
                                     }
                                 } catch (e: Exception) {
-                                    println("DEBUG: Alt1 install packages permission failed: ${e.message}")
-                                    println("DEBUG: Trying second alternative text for install packages permission")
                                     installPackagesPermissionAlt2 {
                                         isDisplayed()
                                         click()
@@ -106,102 +80,108 @@ class NavigateToMainScreenScenario : Scenario() {
                             }
                         }
 
-                        device.uiDevice.waitForIdle(2000)
-                        println("DEBUG: Pressing back after install packages permission")
+                        device.uiDevice.waitForIdle(1000)
                         device.uiDevice.pressBack()
-                        device.uiDevice.waitForIdle(2000)
-                        println("=== PERMISSION DEBUG: Install Packages Permission Complete ===")
+                        device.uiDevice.waitForIdle(1000)
                     }
+                    println("DEBUG: Install packages permission granted")
                 }
             }
 
-            step("Debug and Grant Overlay Window permission") {
-                flakySafely(30000) {
+            step("Grant Overlay Window permission") {
+                flakySafely(15000) {
+                    println("DEBUG: Granting Overlay permission (index 2)")
                     PermissionScreen {
-                        println("=== PERMISSION DEBUG: Starting Overlay Permission (Index 2) ===")
-                        
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(2) {
-                                title {
-                                    println("DEBUG: Permission at index 2 - checking title")
-                                }
-                                description {
-                                    println("DEBUG: Permission at index 2 - checking description")
-                                }
-                                grantButton {
-                                    println("DEBUG: Clicking grant button for permission at index 2")
-                                    click()
-                                }
+                                grantButton.click()
                             }
                         }
 
-                        println("DEBUG: Calling grantOverlayPermission helper")
                         grantOverlayPermission(device.uiDevice)
-
-                        device.uiDevice.waitForIdle(2000)
-                        println("DEBUG: Pressing back after overlay permission")
+                        device.uiDevice.waitForIdle(1000)
                         device.uiDevice.pressBack()
-                        println("=== PERMISSION DEBUG: Overlay Permission Complete ===")
                     }
+                    println("DEBUG: Overlay permission granted")
                 }
             }
 
-            step("Navigate away from permissions screen") {
-                flakySafely(20000) {
+            step("Navigate to Install Tools Screen") {
+                flakySafely(timeoutMs = 15000) {
+                    println("DEBUG: All 3 permissions granted, clicking next button to navigate")
+                    
                     OnboardingScreen.nextButton {
                         isVisible()
                         isClickable()
                         click()
                     }
+                    
+                    device.uiDevice.waitForIdle(3000)
+                    
+                    try {
+                        InstallToolsScreen.doneButton {
+                            println("DEBUG: Successfully navigated to InstallToolsScreen")
+                            isDisplayed()
+                        }
+                    } catch (e: Exception) {
+                        println("DEBUG: Navigation failed, still on permissions screen. Retrying...")
+                        
+                        OnboardingScreen.nextButton {
+                            click()
+                        }
+                        
+                        device.uiDevice.waitForIdle(3000)
+                        
+                        InstallToolsScreen.doneButton {
+                            println("DEBUG: Navigation successful on retry")
+                            isDisplayed()
+                        }
+                    }
                 }
             }
         } else {
-            println("skip permissions")
+            println("DEBUG: Permissions screen not found, skipping permissions")
         }
 
         step("Click continue button on the Install Tools Screen") {
-            flakySafely(600000) {
-                device.uiDevice.waitForIdle(30000)
-                // Wait for tools installation to complete and reach last slide
-                Thread.sleep(10000)
-                println("Waiting for tools installation to complete...")
+            flakySafely(300000) {
+                device.uiDevice.waitForIdle(10000)
+                println("DEBUG: Waiting for tools installation to complete...")
                 InstallToolsScreen.doneButton {
-                    flakySafely(500000) {
-                        println("Waiting for DONE button to become visible and clickable...")
+                    flakySafely(250000) {
+                        println("DEBUG: Waiting for DONE button to become visible and clickable...")
                         isVisible()
+                        isEnabled()
                         isClickable()
                         click()
-                        println("DONE button clicked successfully")
+                        println("DEBUG: DONE button clicked successfully")
                     }
                 }
-                // Wait for navigation to complete after clicking DONE
-                device.uiDevice.waitForIdle(15000)
-                println("Waiting for navigation to complete after DONE click...")
+                device.uiDevice.waitForIdle(5000)
             }
         }
 
         step("Handle notifications permissions if they appear") {
-            flakySafely(60000) {
+            flakySafely(15000) {
                 try {
                     if (device.permissions.isDialogVisible()) {
-                        println("Notification permission dialog found, denying...")
+                        println("DEBUG: Notification permission dialog found, denying...")
                         device.permissions.denyViaDialog()
                     } else {
-                        println("No notification permission dialog found")
+                        println("DEBUG: No notification permission dialog found")
                     }
                 } catch (e: Exception) {
-                    println("No notification permission dialog found, continuing...")
+                    println("DEBUG: No notification permission dialog found, continuing...")
                 }
             }
         }
 
         step("Wait for main screen to fully load") {
-            flakySafely(60000) {
-                device.uiDevice.waitForIdle(20000)
-                println("Waiting for main screen to fully load...")
-                // Give additional time for main screen to fully initialize
-                Thread.sleep(10000)
-                println("Main screen should now be loaded")
+            flakySafely(30000) {
+                device.uiDevice.waitForIdle(10000)
+                println("DEBUG: Waiting for main screen to fully load...")
+                Thread.sleep(5000)
+                println("DEBUG: Main screen should now be loaded")
             }
         }
     }
