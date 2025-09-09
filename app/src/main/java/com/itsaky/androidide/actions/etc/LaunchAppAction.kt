@@ -25,6 +25,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.openApplicationModuleChooser
+import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
@@ -36,68 +37,63 @@ import org.slf4j.LoggerFactory
  *
  * @author Akash Yadav
  */
-class LaunchAppAction(
-	context: Context,
-	override val order: Int,
-) : EditorActivityAction() {
-	override val id: String = "ide.editor.launchInstalledApp"
-	override var requiresUIThread: Boolean = true
+class LaunchAppAction(context: Context, override val order: Int) : EditorActivityAction() {
 
-	init {
-		label = context.getString(R.string.title_launch_app)
-		icon = ContextCompat.getDrawable(context, R.drawable.ic_open_external)
-	}
+    override val id: String = "ide.editor.launchInstalledApp"
+    override var requiresUIThread: Boolean = true
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = EDITOR_TOOLBAR_LAUNCH_APP
 
-	companion object {
-		private val log = LoggerFactory.getLogger(LaunchAppAction::class.java)
-	}
+    init {
+        label = context.getString(R.string.title_launch_app)
+        icon = ContextCompat.getDrawable(context, R.drawable.ic_open_external)
+    }
 
-	override fun prepare(data: ActionData) {
-		super.prepare(data)
-		data.getActivity() ?: run {
-			markInvisible()
-			return
-		}
+    companion object {
+        private val log = LoggerFactory.getLogger(LaunchAppAction::class.java)
+    }
 
-		visible = true
+    override fun prepare(data: ActionData) {
+        super.prepare(data)
+        data.getActivity() ?: run {
+            markInvisible()
+            return
+        }
 
-		val projectManager = IProjectManager.getInstance()
-		enabled = projectManager.getAndroidAppModules().isNotEmpty()
-	}
+        visible = true
 
-	override suspend fun execAction(data: ActionData) {
-		openApplicationModuleChooser(data) { app ->
-			val variant = app.getSelectedVariant()
+        val projectManager = IProjectManager.getInstance()
+        enabled = projectManager.getAndroidAppModules().isNotEmpty()
+    }
 
-			log.debug("Selected variant: {}", variant?.name)
+    override suspend fun execAction(data: ActionData) {
+        openApplicationModuleChooser(data) { app ->
+            val variant = app.getSelectedVariant()
 
-			if (variant == null) {
-				flashError(R.string.err_selected_variant_not_found)
-				return@openApplicationModuleChooser
-			}
+            log.debug("Selected variant: {}", variant?.name)
 
-			val applicationId = variant.mainArtifact.applicationId
-			if (applicationId == null) {
-				log.error("Unable to launch application. variant.mainArtifact.applicationId is null")
-				flashError(R.string.err_cannot_determine_package)
-				return@openApplicationModuleChooser
-			}
+            if (variant == null) {
+                flashError(R.string.err_selected_variant_not_found)
+                return@openApplicationModuleChooser
+            }
 
-			log.info("Launching application: {}", applicationId)
+            val applicationId = variant.mainArtifact.applicationId
+            if (applicationId == null) {
+                log.error("Unable to launch application. variant.mainArtifact.applicationId is null")
+                flashError(R.string.err_cannot_determine_package)
+                return@openApplicationModuleChooser
+            }
 
-			val activity = data.requireActivity()
-			activity.activityScope.launch {
-				IntentUtils.launchApp(
-					context = activity,
-					packageName = applicationId,
-					logError = false,
-				)
-			}
-		}
-	}
+            log.info("Launching application: {}", applicationId)
 
-	override fun getShowAsActionFlags(data: ActionData): Int {
-		// prefer showing this in the overflow menu
-		return MenuItem.SHOW_AS_ACTION_IF_ROOM
-	}
+            val activity = data.requireActivity()
+            activity.activityScope.launch {
+                IntentUtils.launchApp(activity, applicationId, logError = false)
+            }
+        }
+    }
+
+    override fun getShowAsActionFlags(data: ActionData): Int {
+        // prefer showing this in the overflow menu
+        return MenuItem.SHOW_AS_ACTION_IF_ROOM
+    }
 }
