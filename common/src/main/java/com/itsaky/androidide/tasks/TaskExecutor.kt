@@ -105,7 +105,7 @@ fun <R : Any?> executeAsyncProvideError(
 ): CompletableFuture<R?> = TaskExecutor.executeAsyncProvideError(callable, callback)
 
 fun runOnUiThread(action: () -> Unit) {
-	if (Looper.myLooper() == Looper.getMainLooper()) {
+	if (Looper.getMainLooper().isCurrentThread) {
 		action()
 	} else {
 		ThreadUtils.runOnUiThread(action)
