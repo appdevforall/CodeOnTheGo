@@ -165,8 +165,25 @@ jobs:
         run: |
           mkdir -p test-results/${{ matrix.test-type }}
 
-          APP_APK="${{ needs.build.outputs.app-apk-name }}"
-          TEST_APK="${{ needs.build.outputs.test-apk-name }}"
+          # Find downloaded APK files
+          APP_APK=$(find . -name "${{ needs.build.outputs.app-apk-name }}" -type f | head -1)
+          TEST_APK=$(find . -name "${{ needs.build.outputs.test-apk-name }}" -type f | head -1)
+
+          if [[ -z "$APP_APK" ]]; then
+            echo "ERROR: App APK not found!"
+            echo "Expected: ${{ needs.build.outputs.app-apk-name }}"
+            echo "Available files:"
+            find . -name "*.apk" -type f
+            exit 1
+          fi
+
+          if [[ -z "$TEST_APK" ]]; then
+            echo "ERROR: Test APK not found!"
+            echo "Expected: ${{ needs.build.outputs.test-apk-name }}"
+            echo "Available files:"
+            find . -name "*.apk" -type f
+            exit 1
+          fi
 
           echo "Running ${{ matrix.display-name }} tests..."
           echo "Command: gcloud firebase test android run --type instrumentation --project=codeonthego-64a92"
