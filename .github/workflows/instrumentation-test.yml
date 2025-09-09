@@ -87,6 +87,9 @@ jobs:
           ./gradlew :app:assembleV8InstrumentationAndroidTest --no-daemon
           ./gradlew :app:assembleV8Instrumentation --no-daemon
 
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
       - name: Authenticate to Google Cloud via Workload Identity
         uses: google-github-actions/auth@v2
         with:
