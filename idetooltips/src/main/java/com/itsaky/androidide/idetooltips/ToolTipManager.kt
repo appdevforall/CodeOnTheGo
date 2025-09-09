@@ -21,8 +21,6 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
@@ -136,35 +134,6 @@ object TooltipManager {
             }
 
             IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
-        }
-    }
-
-    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
-    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = getTooltip(
-                context = context,
-                category = category,
-                tag = tag,
-            )
-            if (tooltipItem != null) {
-                showIDETooltip(
-                    context = context,
-                    anchorView = anchorView,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
-            }
         }
     }
 
