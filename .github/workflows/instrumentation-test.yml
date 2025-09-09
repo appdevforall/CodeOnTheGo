@@ -135,7 +135,7 @@ jobs:
             --results-dir=test-results/kotlin \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle#test_projectBuild_navigationDrawerProject_kotlin" 2>&1 | tee test-results/kotlin/test_output.txt
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" 2>&1 | tee test-results/kotlin/test_output.txt
 
           KOTLIN_EXIT_CODE=${PIPESTATUS[0]}
           echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
@@ -296,7 +296,7 @@ jobs:
             SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n📱 Check Firebase console: ${{ env.FIREBASE_CONSOLE_URL }}"
           fi
 
-#          curl -X POST \
-#            -H 'Content-type: application/json' \
-#            --data "$(printf '{"text":"%s"}' "$SLACK_MESSAGE")" \
-#            "${{ env.SLACK_WEBHOOK }}"
+          curl -X POST \
+            -H 'Content-type: application/json' \
+            --data "$(printf '{"text":"%s"}' "$SLACK_MESSAGE")" \
+            "${{ env.SLACK_WEBHOOK }}"
