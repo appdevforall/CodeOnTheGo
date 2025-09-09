@@ -48,7 +48,7 @@ jobs:
       - name: Install and Configure Git LFS
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-lfs make
+          sudo apt-get install -y git-lfs make unzip
           git lfs install
           git lfs pull
 
