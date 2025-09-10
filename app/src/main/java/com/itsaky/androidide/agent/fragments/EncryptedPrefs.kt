@@ -1,31 +1,35 @@
 package com.itsaky.androidide.agent.fragments
 
 import android.content.Context
+import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
+import androidx.security.crypto.MasterKey
 
 object EncryptedPrefs {
 
     private const val PREF_FILE_NAME = "secure_api_prefs"
     private const val KEY_GEMINI_API = "gemini_api_key"
 
-    private fun getEncryptedSharedPreferences(context: Context): EncryptedSharedPreferences {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+    @Suppress("DEPRECATION")
+    private fun getEncryptedSharedPreferences(context: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
 
         return EncryptedSharedPreferences.create(
-            PREF_FILE_NAME,
-            masterKeyAlias,
             context,
+            PREF_FILE_NAME,
+            masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        ) as EncryptedSharedPreferences
+        )
     }
 
     fun saveGeminiApiKey(context: Context, apiKey: String) {
         val prefs = getEncryptedSharedPreferences(context)
-        with(prefs.edit()) {
+        prefs.edit {
             putString(KEY_GEMINI_API, apiKey)
-            apply()
         }
     }
 
