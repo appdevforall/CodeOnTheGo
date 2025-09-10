@@ -76,7 +76,6 @@ import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
-import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
@@ -109,7 +108,7 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
-import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
+import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.ApkInstallationSessionCallback
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
@@ -719,7 +718,10 @@ abstract class BaseEditorActivity :
     override fun onTabUnselected(tab: Tab) {}
 
     override fun onTabReselected(tab: Tab) {
-        createMenu(this, tab.view, EDITOR_FILE_TABS, true).show()
+        showPopupWindow(
+            context = this,
+            anchorView = tab.view
+        )
     }
 
     override fun onGroupClick(group: DiagnosticGroup?) {

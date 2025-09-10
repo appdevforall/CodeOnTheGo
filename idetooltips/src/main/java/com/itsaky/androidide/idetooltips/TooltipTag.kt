@@ -104,4 +104,5 @@ object TooltipTag {
     const val DIALOG_FIND_IN_FILE_OPTIONS = "file.find.options"
     const val DIALOG_REPLACE_IN_FILE = "file.find.replace.dialog"
     const val PROJECT_FILENAME = "project.filename"
+    const val EDITOR_FILE_CLOSE_OPTIONS = "editor.file.close.options"
 }
