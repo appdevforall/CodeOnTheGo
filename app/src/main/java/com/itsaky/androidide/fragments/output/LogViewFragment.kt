@@ -34,6 +34,7 @@ import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.MAX_CHUN
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.MAX_LINE_COUNT
 import com.itsaky.androidide.fragments.output.LogViewFragment.Companion.TRIM_ON_LINE_COUNT
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
 import io.github.rosemoe.sora.widget.style.CursorAnimator
@@ -264,7 +265,8 @@ abstract class LogViewFragment :
     super.onDestroyView()
   }
   override fun getContent(): String {
-    return this._binding?.editor?.text?.toString() ?: ""
+    val editorText = this._binding?.editor?.text?.toString() ?: ""
+	return "${BuildInfoUtils.BASIC_INFO}${System.lineSeparator()}${editorText}"
   }
 
   override fun clearOutput() {

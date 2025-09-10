@@ -34,6 +34,8 @@ import com.termux.shared.termux.TermuxUtils
  */
 object BuildInfoUtils {
 
+	const val BASIC_INFO = BasicBuildInfo.BASIC_INFO
+
   private val BUILD_INFO_HEADER by lazy {
     val map = mapOf(
       "Version" to "v${BuildInfo.VERSION_NAME_SIMPLE} (${AppUtils.getAppVersionCode()})",

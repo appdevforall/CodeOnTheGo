@@ -7,7 +7,7 @@ import com.itsaky.androidide.buildinfo.BuildInfo
  *
  * @author Akash Yadav
  */
-object BuildInfoUtils {
+object BasicBuildInfo {
 
 	/**
 	 * Basic info, includes internal app name and version name.

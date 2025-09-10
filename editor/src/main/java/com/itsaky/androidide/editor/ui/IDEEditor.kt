@@ -28,7 +28,6 @@ import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import com.blankj.utilcode.util.FileUtils
 import com.blankj.utilcode.util.SizeUtils
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.editor.R
 import com.itsaky.androidide.editor.R.string
 import com.itsaky.androidide.editor.adapters.CompletionListAdapter
@@ -46,7 +45,6 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
 import com.itsaky.androidide.editor.snippets.FileVariableResolver
 import com.itsaky.androidide.editor.snippets.WorkspaceVariableResolver
-import com.itsaky.androidide.editor.utils.append
 import com.itsaky.androidide.eventbus.events.editor.ChangeType
 import com.itsaky.androidide.eventbus.events.editor.ColorSchemeInvalidatedEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
@@ -76,7 +74,7 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.JobCancelChecker
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.launchAsyncWithProgress
-import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
@@ -84,7 +82,6 @@ import io.github.rosemoe.sora.event.LongPressEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
-import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorSearcher
 import io.github.rosemoe.sora.widget.IDEEditorSearcher
@@ -488,7 +485,7 @@ open class IDEEditor @JvmOverloads constructor(
 	override fun copyTextToClipboard(text: CharSequence, start: Int, end: Int) {
 		var targetText = text
 		if (includeDebugInfoOnCopy) {
-			targetText = BuildInfoUtils.BASIC_INFO + System.lineSeparator() + text
+			targetText = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + text
 		}
 
 		doCopy(targetText, start, end)
