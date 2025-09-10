@@ -47,7 +47,6 @@ import com.itsaky.androidide.handlers.LspHandler.connectClient
 import com.itsaky.androidide.handlers.LspHandler.connectDebugClient
 import com.itsaky.androidide.handlers.LspHandler.destroyLanguageServers
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
@@ -76,6 +75,7 @@ import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashbarBuilder
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
@@ -730,7 +730,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 
         val dialog = builder.create()
-        dialog.showTooltip(binding.root.context,binding.root, TooltipTag.DIALOG_FIND_IN_PROJECT)
+        dialog.onLongPress {
+            TooltipManager.showTooltip(
+                context = this,
+                anchorView = binding.root,
+                tag = TooltipTag.DIALOG_FIND_IN_PROJECT
+            )
+            true
+        }
 
         mFindInProjectDialog = dialog
         return mFindInProjectDialog

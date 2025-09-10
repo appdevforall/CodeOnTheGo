@@ -19,10 +19,11 @@ package com.itsaky.androidide.editor.ui
 
 import android.view.LayoutInflater
 import com.itsaky.androidide.editor.databinding.LayoutEditorFindReplaceBinding
-import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.onLongPress
 import org.slf4j.LoggerFactory
 
 /**
@@ -64,11 +65,14 @@ object ReplaceAction {
         }
 
         val dialog = builder.create()
-        dialog.showTooltip(
-            context = binding.root.context,
-            anchorView = binding.root,
-            tooltipTag = TooltipTag.DIALOG_REPLACE_IN_FILE
-        )
+        dialog.onLongPress {
+            TooltipManager.showTooltip(
+                context = binding.root.context,
+                anchorView = binding.root,
+                tag = TooltipTag.DIALOG_REPLACE_IN_FILE
+            )
+            true
+        }
         dialog.show()
 
     }
