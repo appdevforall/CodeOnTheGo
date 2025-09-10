@@ -38,6 +38,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.resources.databinding.SearchOptionsPopupMenuBinding
 import com.itsaky.androidide.utils.SingleTextWatcher
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
 import java.util.regex.Pattern
 
@@ -62,14 +63,14 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
     findInFileBinding.next.setOnClickListener(::onSearchActionClick)
     findInFileBinding.replace.setOnClickListener(::onSearchActionClick)
     findInFileBinding.close.setOnClickListener(::onSearchActionClick)
-    findInFileBinding.root.setOnLongClickListener {
-      TooltipManager.showTooltip(
-        context = this.context,
-        anchorView = this,
-        tag = TooltipTag.DIALOG_FIND_IN_FILE
-      )
-      true
-    }
+      findInFileBinding.root.applyLongPressRecursively {
+          TooltipManager.showTooltip(
+              context = this.context,
+              anchorView = this,
+              tag = TooltipTag.DIALOG_FIND_IN_FILE
+          )
+          true
+      }
 
     optionsMenu = PopupMenu(context, findInFileBinding.moreOptions, Gravity.TOP)
     optionsMenu.menu.add(0, 0, 0, R.string.msg_ignore_case).apply {
