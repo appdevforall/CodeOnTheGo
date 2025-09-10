@@ -1,12 +1,14 @@
 package com.itsaky.androidide.agent.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.app.BaseApplication
 
-class AiSettingsViewModel : ViewModel() {
+class AiSettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAvailableBackends(): List<AiBackend> {
         return AiBackend.entries
@@ -31,5 +33,14 @@ class AiSettingsViewModel : ViewModel() {
     fun getLocalModelPath(): String? {
         val prefs = BaseApplication.getBaseInstance().prefManager
         return prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+    }
+
+
+    fun saveGeminiApiKey(apiKey: String) {
+        EncryptedPrefs.saveGeminiApiKey(getApplication(), apiKey)
+    }
+
+    fun getGeminiApiKey(): String? {
+        return EncryptedPrefs.getGeminiApiKey(getApplication())
     }
 }

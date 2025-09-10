@@ -1,6 +1,6 @@
 package com.itsaky.androidide.agent.repository
 
-import com.itsaky.androidide.BuildConfig
+import android.content.Context
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.Content
 import com.itsaky.androidide.agent.data.GeminiRequest
@@ -8,6 +8,7 @@ import com.itsaky.androidide.agent.data.GeminiResponse
 import com.itsaky.androidide.agent.data.Part
 import com.itsaky.androidide.agent.data.SimplerToolCall
 import com.itsaky.androidide.agent.data.ToolCall
+import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.viewmodel.ExecutorAgent
 import com.itsaky.androidide.api.IDEApiFacade
@@ -33,10 +34,10 @@ import org.slf4j.LoggerFactory
 // The class no longer needs FirebaseAI. It now handles its own HTTP calls.
 class GeminiRepositoryImpl(
     private val ideApi: IDEApiFacade,
+    private val context: Context
 ) : GeminiRepository {
 
     // --- HTTP Client and API Configuration ---
-    private val apiKey = BuildConfig.GEMINI_API_KEY
     private val client = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -70,6 +71,19 @@ class GeminiRepositoryImpl(
         // Optional: for multi-turn conversations
         history: List<Content> = emptyList()
     ): Result<String> {
+        // --- START: MODIFIED SECTION ---
+
+        // 1. Fetch the API key from secure storage using the context.
+        val apiKey = EncryptedPrefs.getGeminiApiKey(context)
+
+        // 2. Check if the API key is available. If not, fail gracefully.
+        if (apiKey.isNullOrBlank()) {
+            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
+            log.error(errorMessage)
+            return Result.failure(Exception(errorMessage))
+        }
+
+        // --- END: MODIFIED SECTION ---
         return withContext(Dispatchers.IO) {
             try {
                 val contents = mutableListOf<Content>()

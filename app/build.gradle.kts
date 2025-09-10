@@ -74,12 +74,6 @@ android {
 		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 		testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
 		testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
-
-        buildConfigField(
-            "String",
-            "GEMINI_API_KEY",
-            "\"${localProperties.getProperty("GEMINI_API_KEY")}\""
-        )
 	}
 
 	buildTypes {
@@ -263,10 +257,7 @@ dependencies {
   // brotli4j
   implementation(libs.brotli4j)
 
-  // Koin for Dependency Injection
-  implementation("io.insert-koin:koin-android:3.5.3")
 
-  implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
   implementation(libs.common.markwon.core)
   implementation(libs.common.markwon.linkify)
   implementation(libs.commons.text.v1140)
@@ -277,6 +268,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // For JSON parsing, if not already present from your diff
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    // Koin for Dependency Injection
+    implementation("io.insert-koin:koin-android:3.5.3")
+    implementation(libs.androidx.security.crypto)
 }
 
 tasks.register("downloadDocDb") {
