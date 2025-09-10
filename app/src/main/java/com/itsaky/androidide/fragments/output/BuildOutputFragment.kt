@@ -29,6 +29,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
   private val unsavedLines: MutableList<String?> = ArrayList()
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
+	editor?.includeDebugInfoOnCopy = true
     emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_buildoutput)
     if (unsavedLines.isNotEmpty()) {
       for (line in unsavedLines) {

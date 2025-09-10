@@ -19,6 +19,7 @@ package com.itsaky.androidide.editor.ui
 
 import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.ui.IDEEditor.Companion.log
+import com.itsaky.androidide.editor.utils.append
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import io.github.rosemoe.sora.widget.SelectionMovement
@@ -122,18 +123,7 @@ class EditorFeatures(
     } ?: false
 
   override fun append(text: CharSequence?): Int = withEditor {
-    val content = getText()
-    if (lineCount <= 0) {
-      return@withEditor 0
-    }
-
-    val line = lineCount - 1
-    var col = content.getColumnCount(line)
-    if (col < 0) {
-      col = 0
-    }
-    content.insert(line, col, text)
-    return@withEditor line
+    this.text.append(text)
   } ?: -1
 
   override fun replaceContent(newContent: CharSequence?) {

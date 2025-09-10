@@ -17,13 +17,35 @@
 
 package com.itsaky.androidide.editor.utils
 
-import androidx.core.text.trimmedLength
+import android.util.Log
 import com.itsaky.androidide.treesitter.TSNode
 import com.itsaky.androidide.treesitter.TSTree
 import com.itsaky.androidide.treesitter.getNodeAt
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextUtils
 import io.github.rosemoe.sora.util.IntPair
+
+/**
+ * Insert the given [text] at the end of this [Content] object.
+ *
+ * @param text The text to append.
+ * @return The last line index after appending the given text.
+ */
+fun Content.append(text: CharSequence?): Int {
+	if (lineCount <= 0) {
+		return 0
+	}
+
+	val line = lineCount - 1
+	var col = getColumnCount(line)
+	if (col < 0) {
+		col = 0
+	}
+
+	Log.i("ContextExtsKt", "append: line=$line col=$col text=$text")
+	insert(line, col, text)
+	return line
+}
 
 /**
  * Returns true if the given line is blank.

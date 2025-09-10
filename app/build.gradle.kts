@@ -62,10 +62,6 @@ android {
 	defaultConfig {
 		applicationId = BuildConfig.PACKAGE_NAME
 		vectorDrawables.useSupportLibrary = true
-
-		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-		testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
-		testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
 	}
 
 	buildTypes {
@@ -236,15 +232,14 @@ dependencies {
 	// So we always copy the latest JAR file to assets
 	compileOnly(projects.subprojects.toolingApiImpl)
 
-	androidTestImplementation(libs.tests.kaspresso)
-	androidTestImplementation(libs.tests.junit.kts)
-	androidTestUtil(libs.tests.orchestrator)
-
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.core.tests.anroidx.arch)
+	androidTestImplementation(projects.common)
 	androidTestImplementation(projects.testing.android)
-
+	androidTestImplementation(libs.tests.kaspresso)
+	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
+	androidTestUtil(libs.tests.orchestrator)
 
 	// brotli4j
 	implementation(libs.brotli4j)

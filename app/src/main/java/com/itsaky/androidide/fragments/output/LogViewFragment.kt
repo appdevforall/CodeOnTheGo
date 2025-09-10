@@ -217,6 +217,7 @@ abstract class LogViewFragment :
     editor.setTextSize(12f)
     editor.typefaceText = jetbrainsMono()
     editor.isEnsurePosAnimEnabled = false
+	editor.includeDebugInfoOnCopy = true
     editor.cursorAnimator = object : CursorAnimator {
       override fun markStartPos() {}
       override fun markEndPos() {}

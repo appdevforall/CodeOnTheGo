@@ -28,7 +28,7 @@ import com.itsaky.androidide.logging.JvmStdErrAppender
 @ConfiguratorRank(ConfiguratorRank.CUSTOM_HIGH_PRIORITY)
 @AutoService(Configurator::class)
 @Suppress("UNUSED")
-class ToolingLoggingConfigurator : ContextAwareBase(), Configurator {
+open class TestingLoggingConfigurator : ContextAwareBase(), Configurator {
 
   override fun configure(context: LoggerContext): Configurator.ExecutionStatus {
     addInfo("Setting up logging configuration for test runtime")
