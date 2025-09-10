@@ -24,9 +24,11 @@ import android.text.TextWatcher
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.PopupMenu
+import android.widget.PopupWindow
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.itsaky.androidide.editor.databinding.LayoutFindInFileBinding
@@ -34,6 +36,7 @@ import com.itsaky.androidide.editor.ui.ReplaceAction.doReplace
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.resources.databinding.SearchOptionsPopupMenuBinding
 import com.itsaky.androidide.utils.SingleTextWatcher
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
 import java.util.regex.Pattern
@@ -99,7 +102,9 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
 
     findInFileBinding.root.visibility = GONE
     findInFileBinding.moreOptions.apply {
-      setOnClickListener { optionsMenu.show() }
+      setOnClickListener {
+          showPopupMenu(findInFileBinding.moreOptions)
+      }
       setOnLongClickListener {
         TooltipManager.showTooltip(
           context = this@EditorSearchLayout.context,
@@ -115,6 +120,86 @@ class EditorSearchLayout(context: Context, val editor: IDEEditor) : FrameLayout(
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
     )
   }
+
+    private fun showPopupMenu(anchorView: View) {
+        val binding =
+            SearchOptionsPopupMenuBinding.inflate(LayoutInflater.from(context), null, false)
+
+        val popupWindow = PopupWindow(
+            binding.root,
+            LayoutParams.WRAP_CONTENT,
+            LayoutParams.WRAP_CONTENT,
+        ).apply {
+            elevation = 2f
+            isOutsideTouchable = true
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+        }
+
+        val tooltipListener = OnLongClickListener { view ->
+            TooltipManager.showTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS
+            )
+            popupWindow.dismiss()
+            true
+        }
+
+        binding.layoutSearchOptions.setOnLongClickListener(tooltipListener)
+
+        val caseInsensitive = searchOptions.caseInsensitive
+        val regex = searchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION
+
+        fun onIgnoreCaseToggled() {
+            binding.checkboxIgnoreCase.isChecked = !binding.checkboxIgnoreCase.isChecked
+            searchOptions = SearchOptions(binding.checkboxIgnoreCase.isChecked, regex)
+            editor.searcher.updateSearchOptions(searchOptions)
+            popupWindow.dismiss()
+        }
+
+        fun handleIgnoreCaseCheckedChange(isChecked: Boolean) {
+            searchOptions = SearchOptions(isChecked, regex)
+            editor.searcher.updateSearchOptions(searchOptions)
+            popupWindow.dismiss()
+        }
+
+        binding.layoutIgnoreCase.apply {
+            setOnClickListener { onIgnoreCaseToggled() }
+            setOnLongClickListener(tooltipListener)
+        }
+
+        binding.checkboxIgnoreCase.apply {
+            isChecked = caseInsensitive
+            setOnCheckedChangeListener { _, isChecked -> handleIgnoreCaseCheckedChange(isChecked) }
+            setOnLongClickListener(tooltipListener)
+        }
+
+        fun onUseRegexToggled() {
+            binding.checkboxUseRegex.isChecked = !binding.checkboxUseRegex.isChecked
+            searchOptions = SearchOptions(caseInsensitive, binding.checkboxUseRegex.isChecked)
+            editor.searcher.updateSearchOptions(searchOptions)
+            popupWindow.dismiss()
+        }
+
+        fun handleRegexCheckedChange(isChecked: Boolean) {
+            searchOptions = SearchOptions(caseInsensitive, isChecked)
+            editor.searcher.updateSearchOptions(searchOptions)
+            popupWindow.dismiss()
+        }
+
+        binding.layoutUseRegex.apply {
+            setOnClickListener { onUseRegexToggled() }
+            setOnLongClickListener(tooltipListener)
+        }
+
+        binding.checkboxUseRegex.apply {
+            isChecked = regex
+            setOnCheckedChangeListener { _, isChecked -> handleRegexCheckedChange(isChecked) }
+            setOnLongClickListener(tooltipListener)
+        }
+
+        popupWindow.showAsDropDown(anchorView, 0, -anchorView.height)
+    }
 
   fun beginSearchMode() {
     searchInputTextWatcher = SearchInputTextChangeListener(editor)
