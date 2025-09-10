@@ -125,7 +125,7 @@
     <string name="msg_layout_file_exists">Layout file already exists!</string>
     <string name="msg_invalid_name">Invalid Name!</string>
     <string name="text_create">Create</string>
-    <string name="msg_can_contain_slashes">If the path contains File separator (\'/\'), then the required (parent) directories will be created if they don\'t exist.</string>
+    <string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created automatically.</string>
     <string name="folder_name">Folder Name</string>
     <string name="file_name">File Name</string>
     <string name="new_name">New name</string>
@@ -709,6 +709,8 @@
 	<string name="msg_recent_projects">Recent Projects</string>
 	<string name="msg_create_new_from_recent">Click the New project button to create a new project or\nopen from a folder</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
+	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
+	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
 	<string name="open_from_folder">Open from folder</string>

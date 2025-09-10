@@ -33,6 +33,7 @@ import com.itsaky.androidide.adapters.TemplateListAdapter
 import com.itsaky.androidide.databinding.FragmentTemplateListBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.utils.FlexboxUtils
@@ -90,6 +91,11 @@ class TemplateListFragment :
 		binding.exitButton.setOnClickListener {
 			viewModel.setScreen(MainViewModel.SCREEN_MAIN)
 		}
+
+        binding.exitButton.setOnLongClickListener {
+            showTooltipForView(binding.root, EXIT_TO_MAIN)
+            true
+        }
 
 		viewModel.currentScreen.observe(viewLifecycleOwner) { current ->
 			if (current == MainViewModel.SCREEN_TEMPLATE_DETAILS) {
