@@ -885,7 +885,6 @@
     <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/android_asset/CoGoTooltips/html/help_top.html</string>
-    <string name="contributor_guide_url">https://github.com/AndroidIDEOfficial/AndroidIDE/blob/dev/CONTRIBUTING.md</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 </resources>

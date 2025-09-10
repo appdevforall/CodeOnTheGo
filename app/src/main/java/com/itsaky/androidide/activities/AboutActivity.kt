@@ -64,7 +64,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     private val ACTION_EMAIL = id++
     private val ACTION_TG_CHANNEL = id++
     private val ACTION_TG_GROUP = id++
-    private val ACTION_CONTRIBUTE = id++
     private val ACTION_CONTRIBUTORS = id++
   }
 
@@ -118,7 +117,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       ACTION_EMAIL -> app.emailUs()
       ACTION_TG_GROUP -> app.openTelegramGroup()
       ACTION_TG_CHANNEL -> app.openTelegramChannel()
-      ACTION_CONTRIBUTE -> app.openUrl(getString(R.string.contributor_guide_url))
       ACTION_CONTRIBUTORS -> startActivity(Intent(this, ContributorsActivity::class.java))
     }
   }
@@ -166,15 +164,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 
   private fun createMiscItems(): List<IconTitleDescriptionItem> {
     return mutableListOf<IconTitleDescriptionItem>().apply {
-      add(
-        SimpleIconTitleDescriptionItem.create(
-          this@AboutActivity,
-          ACTION_CONTRIBUTE,
-          R.drawable.ic_code,
-          R.string.title_contribute,
-          R.string.summary_contribute
-        )
-      )
       add(
         SimpleIconTitleDescriptionItem.create(
           this@AboutActivity,
