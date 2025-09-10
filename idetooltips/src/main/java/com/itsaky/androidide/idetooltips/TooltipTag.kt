@@ -82,10 +82,16 @@ object TooltipTag {
     const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
     const val EDITOR_BUILD_STATUS = "project.status"
 
-	const val PROJECT_NEW = "project.new"
+
+    const val PROJECT_NEW = "project.new"
     const val PROJECT_RECENT_TOP = "project.recent.top"
 	const val PROJECT_RECENT_RENAME = "project.recent.rename"
 	const val PROJECT_RENAME_DIALOG = "project.rename.dialog"
-	const val PROJECT_OPEN_FOLDER = "project.open.folder"
+    const val PROJECT_OPEN_FOLDER = "project.open.folder"
+
+    // Template Details
+    const val SETUP_PREVIOUS = "setup.previous"
+    const val SETUP_OVERVIEW = "setup.overview"
+    const val SETUP_CREATE_PROJECT = "setup.create.project"
     const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 }

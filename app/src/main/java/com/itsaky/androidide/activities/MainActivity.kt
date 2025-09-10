@@ -58,6 +58,7 @@ import android.hardware.display.DisplayManager
 import android.view.Display
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -191,6 +192,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         binding.codeOnTheGoLabel.setOnLongClickListener {
             when (screen) {
                 SCREEN_SAVED_PROJECTS -> showToolTip(PROJECT_RECENT_TOP)
+                SCREEN_TEMPLATE_DETAILS -> showToolTip(SETUP_OVERVIEW)
             }
             true
         }
