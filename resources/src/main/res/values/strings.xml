@@ -125,7 +125,7 @@
     <string name="msg_layout_file_exists">Layout file already exists!</string>
     <string name="msg_invalid_name">Invalid Name!</string>
     <string name="text_create">Create</string>
-    <string name="msg_can_contain_slashes">If the path contains File separator (\'/\'), then the required (parent) directories will be created if they don\'t exist.</string>
+    <string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created automatically.</string>
     <string name="folder_name">Folder Name</string>
     <string name="file_name">File Name</string>
     <string name="new_name">New name</string>
