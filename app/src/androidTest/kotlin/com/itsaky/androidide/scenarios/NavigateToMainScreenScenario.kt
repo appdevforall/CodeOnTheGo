@@ -47,13 +47,22 @@ class NavigateToMainScreenScenario : Scenario() {
                 }
             }
 
+            // Wait for UI to update after notification permission
+            device.uiDevice.waitForIdle(2000)
+
             step("Grant Storage Permissions") {
                 flakySafely(15000) {
                     println("DEBUG: Granting Storage permission (index 1)")
                     PermissionScreen {
                         rvPermissions {
+                            scrollTo(1)
+                            device.uiDevice.waitForIdle(500)
                             childAt<PermissionScreen.PermissionItem>(1) {
-                                grantButton.click()
+                                grantButton {
+                                    isDisplayed()
+                                    isEnabled()
+                                    click()
+                                }
                             }
                         }
 
@@ -71,8 +80,14 @@ class NavigateToMainScreenScenario : Scenario() {
                     println("DEBUG: Granting Install packages permission (index 2)")
                     PermissionScreen {
                         rvPermissions {
+                            scrollTo(2)
+                            device.uiDevice.waitForIdle(500)
                             childAt<PermissionScreen.PermissionItem>(2) {
-                                grantButton.click()
+                                grantButton {
+                                    isDisplayed()
+                                    isEnabled()
+                                    click()
+                                }
                             }
                         }
 
@@ -113,8 +128,14 @@ class NavigateToMainScreenScenario : Scenario() {
                     println("DEBUG: Granting Overlay permission (index 3)")
                     PermissionScreen {
                         rvPermissions {
+                            scrollTo(3)
+                            device.uiDevice.waitForIdle(500)
                             childAt<PermissionScreen.PermissionItem>(3) {
-                                grantButton.click()
+                                grantButton {
+                                    isDisplayed()
+                                    isEnabled()
+                                    click()
+                                }
                             }
                         }
 
