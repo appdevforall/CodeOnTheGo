@@ -226,11 +226,22 @@ jobs:
                      grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/${{ matrix.test-type }}/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
           echo "VIDEO_URL=$VIDEO_URL" >> $GITHUB_ENV
 
-          # Set result for notification job
+          # Parse test results for counts
+          PASSED=0
+          FAILED=0
+          
+          # Look for outcome table in the output
+          if grep -q "OUTCOME" test-results/${{ matrix.test-type }}/test_output.txt; then
+            # Parse the outcome table for passed/failed counts
+            PASSED=$(grep -oE "[0-9]+ passed" test-results/${{ matrix.test-type }}/test_output.txt | grep -oE "[0-9]+" || echo "0")
+            FAILED=$(grep -oE "[0-9]+ failed" test-results/${{ matrix.test-type }}/test_output.txt | grep -oE "[0-9]+" || echo "0")
+          fi
+          
+          # Set result for notification job with test counts
           if [ $EXIT_CODE -eq 0 ]; then
-            echo "RESULT=✅ ${{ matrix.display-name }} tests completed successfully" >> $GITHUB_ENV
+            echo "RESULT=✅ ${{ matrix.display-name }}: ${PASSED} passed" >> $GITHUB_ENV
           else
-            echo "RESULT=❌ ${{ matrix.display-name }} tests failed" >> $GITHUB_ENV
+            echo "RESULT=❌ ${{ matrix.display-name }}: ${PASSED} passed, ${FAILED} failed" >> $GITHUB_ENV
             exit 1
           fi
 
