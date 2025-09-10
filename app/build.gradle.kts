@@ -23,13 +23,6 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
 
-
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localProperties.load(FileInputStream(localPropertiesFile))
-}
-
 plugins {
   id("com.android.application")
   id("kotlin-android")
@@ -76,9 +69,19 @@ android {
 		testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
 	}
 
-	buildTypes {
+    signingConfigs {
+        getByName("debug") {
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
+
+
+    buildTypes {
 		debug {
-			manifestPlaceholders["sentryDsn"] =
+            signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
 		}
 		release {
@@ -254,16 +257,13 @@ dependencies {
 
 	androidTestImplementation(libs.tests.androidx.test.runner)
 
-  // brotli4j
-  implementation(libs.brotli4j)
-
-
-  implementation(libs.common.markwon.core)
-  implementation(libs.common.markwon.linkify)
-  implementation(libs.commons.text.v1140)
-
 	// brotli4j
 	implementation(libs.brotli4j)
+
+
+    implementation(libs.common.markwon.core)
+    implementation(libs.common.markwon.linkify)
+    implementation(libs.commons.text.v1140)
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // For JSON parsing, if not already present from your diff
@@ -505,6 +505,10 @@ fun signApk(apkFile: File) {
 			"failonerror" to "true",
 		) {
 			"arg"("value" to "sign")
+            "arg"("value" to "--v3-signing-enabled")
+            "arg"("value" to "true")
+            "arg"("value" to "--v2-signing-enabled")
+            "arg"("value" to "true")
 			"arg"("value" to "--ks")
 			"arg"("value" to keystorePath)
 			"arg"("value" to "--ks-key-alias")
