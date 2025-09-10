@@ -47,6 +47,6 @@ open class IDEBuildConfigProviderImpl : IDEBuildConfigProvider {
     get() = CpuArch.forAbi(Build.SUPPORTED_ABIS[0])!!
 
   override val supportedAbis: Array<String> by lazy {
-    arrayOf(BuildConfig.ABI_ARM64_V8A, BuildConfig.ABI_ARMEABI_V7A, BuildConfig.ABI_X86_64)
+    arrayOf(BuildConfig.ABI_ARM64_V8A, BuildConfig.ABI_ARMEABI_V7A)
   }
 }
