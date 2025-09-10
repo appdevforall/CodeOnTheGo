@@ -6,6 +6,7 @@ import com.itsaky.androidide.agent.data.Content
 import com.itsaky.androidide.agent.data.GeminiRequest
 import com.itsaky.androidide.agent.data.GeminiResponse
 import com.itsaky.androidide.agent.data.Part
+import com.itsaky.androidide.agent.data.SimplerToolCall
 import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.agent.viewmodel.ExecutorAgent
@@ -17,8 +18,11 @@ import com.itsaky.androidide.models.StepResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -97,8 +101,13 @@ class GeminiRepositoryImpl(
                 val responseText =
                     geminiResponse.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
                         ?: ""
-
-                Result.success(responseText)
+                val cleanedJson = responseText
+                    .trim()
+                    .removePrefix("```json")
+                    .removePrefix("```")
+                    .removeSuffix("```")
+                    .trim()
+                Result.success(cleanedJson)
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -107,49 +116,41 @@ class GeminiRepositoryImpl(
 
     suspend fun executeTool(functionCall: ToolCall): ToolResult {
         return when (functionCall.name) {
-//            "google_search" -> {
-//                return try {
-//                    val query = (functionCall.args["query"] as? JsonPrimitive)?.content ?: ""
-//                    if (query.isEmpty()) {
-//                        return ToolResult.failure("Search query cannot be empty.")
-//                    }
-//                    val response = searchModel.generateContent(query)
-//                    val searchResult = response.text ?: "No search results found."
-//                    ToolResult.success(searchResult)
-//                } catch (e: Exception) {
-//                    ToolResult.failure("An error occurred during the search: ${e.message}")
-//                }
-//            }
-
             "create_file" -> {
-                val path = (functionCall.args["path"] as? JsonPrimitive)?.content?.trim()
+                val path = (functionCall.args?.get("path") as? JsonPrimitive)?.content?.trim()
                     ?.replace("\"", "") ?: ""
-                val content = (functionCall.args["content"] as? JsonPrimitive)?.content ?: ""
+                val content = (functionCall.args?.get("content") as? JsonPrimitive)?.content ?: ""
                 ideApi.createFile(path = path, content = content)
             }
 
             "update_file" -> {
-                val path = (functionCall.args["path"] as? JsonPrimitive)?.content?.trim()
+                val path = (functionCall.args?.get("path") as? JsonPrimitive)?.content?.trim()
                     ?.replace("\"", "") ?: ""
-                val content = (functionCall.args["content"] as? JsonPrimitive)?.content ?: ""
+                val content = (functionCall.args?.get("content") as? JsonPrimitive)?.content ?: ""
                 ideApi.updateFile(path, content)
             }
 
-            "read_file" -> ideApi.readFile(
-                path = functionCall.args["path"].toString().trim().replace("\"", "")
-            )
+            "read_file" -> {
+                ideApi.readFile(
+                    path = functionCall.args?.get("path").toString().trim().replace("\"", "")
+                )
+            }
 
-            "list_files" -> ideApi.listFiles(
-                path = functionCall.args["path"].toString().trim().replace("\"", ""),
-                recursive = functionCall.args["recursive"]?.toString().toBoolean()
-            )
+            "list_files" -> {
+                ideApi.listFiles(
+                    path = functionCall.args?.get("path").toString().trim().replace("\"", ""),
+                    recursive = functionCall.args?.get("recursive")?.toString().toBoolean()
+                )
+            }
 
-            "run_app" -> ideApi.runApp()
+            "run_app" -> {
+                ideApi.runApp()
+            }
             "add_dependency" -> {
                 val dependencyString =
-                    (functionCall.args["dependency_string"] as? JsonPrimitive)?.content ?: ""
+                    (functionCall.args?.get("dependency_string") as? JsonPrimitive)?.content ?: ""
                 val buildFilePath =
-                    (functionCall.args["build_file_path"] as? JsonPrimitive)?.content?.trim()
+                    (functionCall.args?.get("build_file_path") as? JsonPrimitive)?.content?.trim()
                         ?.replace("\"", "") ?: ""
                 if (dependencyString.isEmpty()) {
                     ToolResult.failure("The 'dependency_string' parameter is required.")
@@ -161,11 +162,13 @@ class GeminiRepositoryImpl(
                 }
             }
 
-            "get_build_output" -> ideApi.getBuildOutput()
+            "get_build_output" -> {
+                ideApi.getBuildOutput()
+            }
 
             "add_string_resource" -> {
-                val name = (functionCall.args["name"] as? JsonPrimitive)?.content ?: ""
-                val value = (functionCall.args["value"] as? JsonPrimitive)?.content ?: ""
+                val name = (functionCall.args?.get("name") as? JsonPrimitive)?.content ?: ""
+                val value = (functionCall.args?.get("value") as? JsonPrimitive)?.content ?: ""
                 if (name.isEmpty() || value.isEmpty()) {
                     ToolResult.failure("Both 'name' and 'value' parameters are required for add_string_resource.")
                 } else {
@@ -174,9 +177,11 @@ class GeminiRepositoryImpl(
             }
 
             "ask_user" -> {
-                val question = (functionCall.args["question"] as? JsonPrimitive)?.content ?: "..."
+                val question = functionCall.args
+                    ?.let { (it?.get("question") as? JsonPrimitive)?.content }
+                    ?: "..."
 
-                val optionsJson = functionCall.args["options"]
+                val optionsJson = functionCall.args?.get("options")
                 val options = optionsJson?.let {
                     Json.decodeFromJsonElement(ListSerializer(String.serializer()), it)
                 } ?: listOf()
@@ -190,7 +195,9 @@ class GeminiRepositoryImpl(
             }
 
 
-            else -> ToolResult.failure("Unknown tool: ${functionCall.name}")
+            else -> {
+                ToolResult.failure("Unknown tool: ${functionCall.name}")
+            }
         }
     }
 
@@ -198,22 +205,61 @@ class GeminiRepositoryImpl(
 
     private suspend fun createPlan(userInput: String, toolDeclarations: String): List<PlanStep> {
         val systemInstruction = """
-            You are a meticulous software architect... 
-            Your sole output is the JSON plan.
-            Here is the list of available tools you can use in your plan:
-            $toolDeclarations
-            """.trimIndent()
+        You are a meticulous software architect...
+        Your sole output is a JSON array of the tools to be called.
+        Here is the list of available tools you can use in your plan:
+        $toolDeclarations
+        """.trimIndent()
 
-        val prompt = "User Request: \"$userInput\"\nTool Declarations: $toolDeclarations"
-
+        val prompt = "User Request: \"$userInput\"\n"
         val result = callGeminiApi(plannerModel, prompt, systemInstruction)
 
+//        val jsonString = """
+//            [
+//              {
+//                "name": "run_app",
+//                "parameters": []
+//              }
+//            ]
+//        """.trimIndent()
         return result.fold(
             onSuccess = { jsonString ->
                 try {
-                    json.decodeFromString(ListSerializer(PlanStep.serializer()), jsonString)
+                    // Step 1: Parse into the new, simpler ToolCall class
+                    val toolCalls = json.decodeFromString(
+                        ListSerializer(SimplerToolCall.serializer()),
+                        jsonString
+                    )
+
+                    // Step 2: Convert the simple ToolCalls into the complex PlanSteps your app uses
+                    toolCalls.mapIndexed { index, toolCall ->
+                        // --- START: CORRECTED LOGIC ---
+                        val paramsMap: Map<String, JsonElement> =
+                            if (toolCall.parameters is JsonObject) {
+                                // If the element is a JSON object, decode it into a Map
+                                json.decodeFromJsonElement(
+                                    MapSerializer(String.serializer(), JsonElement.serializer()),
+                                    toolCall.parameters
+                                )
+                            } else {
+                                // Otherwise (e.g., it's a JsonArray []), default to an empty map
+                                emptyMap()
+                            }
+                        // --- END: CORRECTED LOGIC ---
+
+                        PlanStep(
+                            stepId = index + 1,
+                            objective = "Execute tool: ${toolCall.name}",
+                            toolToUse = toolCall.name,
+                            parameters = paramsMap, // Use the safely created map
+                            expectedOutputFormat = "Default"
+                        )
+                    }
                 } catch (e: Exception) {
-                    log.error("Error parsing plan JSON: ${e.message}")
+                    log.error(
+                        "Error parsing or converting plan JSON: ${e.message}\nContent: $jsonString",
+                        e
+                    )
                     emptyList()
                 }
             },

@@ -114,9 +114,9 @@ class ChatViewModel(
     }
 
     private fun formatToolCallForDisplay(functionCall: ToolCall): String {
-        val args = functionCall.args.map { (key, value) ->
+        val args = functionCall.args?.map { (key, value) ->
             "  - **$key**: `${value.toString().removeSurrounding("\"")}`"
-        }.joinToString("\n")
+        }?.joinToString("\n")
         return "\nCalling tool: **`${functionCall.name}`** with arguments:\n$args"
     }
 
