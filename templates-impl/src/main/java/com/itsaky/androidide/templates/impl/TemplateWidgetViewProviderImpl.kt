@@ -19,12 +19,15 @@ package com.itsaky.androidide.templates.impl
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.drawable.ColorDrawable
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.PopupWindow
 import android.widget.ListView
+import android.widget.TextView
 import android.view.ViewGroup
 import android.view.HapticFeedbackConstants
 import androidx.core.content.ContextCompat
@@ -48,6 +51,7 @@ import com.itsaky.androidide.templates.impl.databinding.LayoutCheckboxBinding
 import com.itsaky.androidide.templates.impl.databinding.LayoutTextfieldBinding
 import com.itsaky.androidide.utils.ServiceLoader
 import com.itsaky.androidide.utils.SingleTextWatcher
+import androidx.core.graphics.drawable.toDrawable
 
 
 /**
@@ -205,7 +209,19 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
       fun showSelectionDialog() {
         val listView = ListView(context)
-        val adapter = ArrayAdapter(context, android.R.layout.simple_list_item_1, array)
+        
+        val typedValue = TypedValue()
+        context.theme.resolveAttribute(android.R.attr.textColorPrimary, typedValue, true)
+        val textColor = ContextCompat.getColor(context, typedValue.resourceId)
+        
+        val adapter = object : ArrayAdapter<String>(context, android.R.layout.simple_list_item_1, array) {
+          override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = super.getView(position, convertView, parent)
+            val textView = view.findViewById<TextView>(android.R.id.text1)
+            textView.setTextColor(textColor)
+            return view
+          }
+        }
         listView.adapter = adapter
         listView.divider = null
         listView.dividerHeight = 0
@@ -218,7 +234,10 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
           true
         )
         
-        popupWindow.setBackgroundDrawable(ContextCompat.getDrawable(context, android.R.color.white))
+        val bgTypedValue = TypedValue()
+        context.theme.resolveAttribute(android.R.attr.colorBackground, bgTypedValue, true)
+        val backgroundColor = ContextCompat.getColor(context, bgTypedValue.resourceId)
+        popupWindow.setBackgroundDrawable(backgroundColor.toDrawable())
         popupWindow.elevation = 4f
         
         listView.setPadding(16, 8, 16, 8)
@@ -241,6 +260,13 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         popupWindow.showAsDropDown(spinnerText, 0, 0)
       }
 
+        
+      root.setEndIconOnClickListener {
+        if (root.isEnabled) {
+          showSelectionDialog()
+        }
+      }
+      
       spinnerText.setOnTouchListener { _, ev ->
         if (!root.isEnabled) return@setOnTouchListener false
         if (ev.action == MotionEvent.ACTION_UP) {
