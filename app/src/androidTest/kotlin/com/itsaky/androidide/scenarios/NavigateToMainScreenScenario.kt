@@ -34,7 +34,11 @@ class NavigateToMainScreenScenario : Scenario() {
                     PermissionScreen {
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(0) {
-                                grantButton.click()
+                                grantButton {
+                                    isDisplayed()
+                                    isEnabled()
+                                    click()
+                                }
                             }
                         }
 
