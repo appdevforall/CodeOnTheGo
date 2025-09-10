@@ -20,7 +20,7 @@ package com.itsaky.androidide.actions.editor
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
-
+import com.itsaky.androidide.idetooltips.TooltipTag
 /** @author Akash Yadav */
 class SelectAllAction(context: Context, override val order: Int) : BaseEditorAction() {
 
@@ -41,4 +41,12 @@ class SelectAllAction(context: Context, override val order: Int) : BaseEditorAct
   }
 
   override fun dismissOnAction() = false
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
+    return if (isReadOnlyContext) {
+      TooltipTag.EDITOR_TOOLBAR_OUTPUT_SELECT_ALL
+    } else {
+      TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
+    }
+  }
 }

@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.helper.grantAccessibilityPermission
+import com.itsaky.androidide.helper.grantNotifications
 import com.itsaky.androidide.helper.grantOverlayPermission
 import com.itsaky.androidide.helper.grantStoragePermissions
 import com.itsaky.androidide.screens.InstallToolsScreen
@@ -75,12 +76,30 @@ class PermissionsScreenTest : TestCase() {
 
                 // Make the size check flaky-safe with increased timeout
                 flakySafely(timeoutMs = 15000) {
-                    assertEquals(4, rvPermissions.getSize())
+                    assertEquals(5, rvPermissions.getSize())
                 }
 
                 rvPermissions {
                     flakySafely(timeoutMs = 10000) {
                         childAt<PermissionScreen.PermissionItem>(0) {
+                            title {
+                                isVisible()
+                                hasText(R.string.permission_title_notifications)
+                            }
+                            description {
+                                isVisible()
+                                hasText(R.string.permission_desc_notifications)
+                            }
+                            grantButton {
+                                isVisible()
+                                isClickable()
+                                hasText(R.string.title_grant)
+                            }
+                        }
+                    }
+
+                    flakySafely(timeoutMs = 10000) {
+                        childAt<PermissionScreen.PermissionItem>(1) {
                             title {
                                 isVisible()
                                 hasText(R.string.permission_title_storage)
@@ -98,7 +117,7 @@ class PermissionsScreenTest : TestCase() {
                     }
 
                     flakySafely(timeoutMs = 10000) {
-                        childAt<PermissionScreen.PermissionItem>(1) {
+                        childAt<PermissionScreen.PermissionItem>(2) {
                             title {
                                 isVisible()
                                 hasText(R.string.permission_title_install_packages)
@@ -116,7 +135,7 @@ class PermissionsScreenTest : TestCase() {
                     }
 
                     flakySafely(timeoutMs = 10000) {
-                        childAt<PermissionScreen.PermissionItem>(2) {
+                        childAt<PermissionScreen.PermissionItem>(3) {
                             title {
                                 isVisible()
                                 hasText(R.string.permission_title_overlay_window)
@@ -134,7 +153,7 @@ class PermissionsScreenTest : TestCase() {
                     }
 
                     flakySafely(timeoutMs = 10000) {
-                        childAt<PermissionScreen.PermissionItem>(3) {
+                        childAt<PermissionScreen.PermissionItem>(4) {
                             title {
                                 isVisible()
                                 hasText(R.string.permission_title_accessibility)
@@ -154,11 +173,29 @@ class PermissionsScreenTest : TestCase() {
             }
         }
 
-        step("Grant Storage Permissions") {
+        step("Grant Notifications Permissions") {
             flakySafely(timeoutMs = 30000) {
                 PermissionScreen {
                     rvPermissions {
                         childAt<PermissionScreen.PermissionItem>(0) {
+                            grantButton.click()
+                        }
+                    }
+
+                    grantNotifications(device.uiDevice)
+                    device.uiDevice.waitForIdle(2000)
+
+                    device.uiDevice.pressBack()
+                    device.uiDevice.waitForIdle(2000)
+                }
+            }
+        }
+
+        step("Grant Storage Permissions") {
+            flakySafely(timeoutMs = 30000) {
+                PermissionScreen {
+                    rvPermissions {
+                        childAt<PermissionScreen.PermissionItem>(1) {
                             grantButton.click()
                         }
                     }
@@ -176,7 +213,7 @@ class PermissionsScreenTest : TestCase() {
             flakySafely(timeoutMs = 30000) {
                 PermissionScreen {
                     rvPermissions {
-                        childAt<PermissionScreen.PermissionItem>(1) {
+                        childAt<PermissionScreen.PermissionItem>(2) {
                             grantButton.click()
                         }
                     }
@@ -219,7 +256,7 @@ class PermissionsScreenTest : TestCase() {
             flakySafely(timeoutMs = 30000) {
                 PermissionScreen {
                     rvPermissions {
-                        childAt<PermissionScreen.PermissionItem>(2) {
+                        childAt<PermissionScreen.PermissionItem>(3) {
                             grantButton.click()
                         }
                     }
@@ -236,7 +273,7 @@ class PermissionsScreenTest : TestCase() {
             flakySafely(timeoutMs = 30000) {
                 PermissionScreen {
                     rvPermissions {
-                        childAt<PermissionScreen.PermissionItem>(3) {
+                        childAt<PermissionScreen.PermissionItem>(4) {
                             grantButton.click()
                         }
                     }
@@ -272,6 +309,12 @@ class PermissionsScreenTest : TestCase() {
                         }
 
                         childAt<PermissionScreen.PermissionItem>(3) {
+                            grantButton {
+                                isNotEnabled()
+                            }
+                        }
+
+                        childAt<PermissionScreen.PermissionItem>(4) {
                             grantButton {
                                 isNotEnabled()
                             }

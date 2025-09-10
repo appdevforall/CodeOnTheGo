@@ -39,3 +39,8 @@ fun grantStoragePermissions(device: UiDevice) {
     device.executeShellCommand(
         "appops set ${BuildConfig.APPLICATION_ID} MANAGE_EXTERNAL_STORAGE allow");
 }
+
+fun grantNotifications(device: UiDevice) {
+    device.executeShellCommand(
+        "pm grant ${BuildConfig.APPLICATION_ID} android.permission.POST_NOTIFICATIONS")
+}

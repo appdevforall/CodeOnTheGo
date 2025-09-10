@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.emptyActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.android.defaultAppModule
@@ -29,31 +30,32 @@ import com.itsaky.androidide.templates.impl.base.writeMainActivity
 import com.itsaky.androidide.templates.impl.baseProjectImpl
 
 fun emptyActivityProject(): ProjectTemplate = baseProjectImpl {
-  templateName = R.string.template_empty
-  thumb = R.drawable.template_empty_activity
-  defaultAppModule {
-    recipe = createRecipe {
-      sources {
-        writeEmptyActivity(this)
-      }
+templateName = R.string.template_empty
+thumb = R.drawable.template_empty_activity
+tooltipTag = TooltipTag.TEMPLATE_EMPTY_ACTIVITY
+defaultAppModule {
+	recipe = createRecipe {
+	sources {
+		writeEmptyActivity(this)
+	}
 
-      res {
-        writeEmptyActivity()
-      }
-    }
-  }
+	res {
+		writeEmptyActivity()
+	}
+	}
+}
 }
 
 internal fun AndroidModuleTemplateBuilder.writeEmptyActivity() {
-  res.apply {
-    // layout/activity_main.xml
-    writeXmlResource("activity_main", LAYOUT, source = ::emptyLayoutSrc)
-    emptyThemesAndColors()
-  }
+res.apply {
+	// layout/activity_main.xml
+	writeXmlResource("activity_main", LAYOUT, source = ::emptyLayoutSrc)
+	emptyThemesAndColors()
+}
 }
 
 internal fun AndroidModuleTemplateBuilder.writeEmptyActivity(
-  writer: SourceWriter
+writer: SourceWriter
 ) {
-  writeMainActivity(writer, ::emptyActivitySrcKt, ::emptyActivitySrcJava)
+writeMainActivity(writer, ::emptyActivitySrcKt, ::emptyActivitySrcJava)
 }

@@ -179,9 +179,8 @@
   <string name="title_generating_xml">Hasilkan kode XML</string>
   <string name="msg_swipe_up">Geser ke atas untuk hasil build, log dan lainnya.</string>
   <string name="msg_ide_crashed">Code on the Go crash</string>
-  <string name="msg_report_crash">Mohon buka isu di github dengan menyertakan stacktrace :</string>
-  <string name="msg_crash_report_hint">Klik tombol dibawah untuk menyalin log dan membuka halaman isu.</string>
-  <string name="msg_copy_report_action">Salin dan laporkan</string>
+  <string name="msg_crash_info">Mohon buka isu di github dengan menyertakan stacktrace :</string>
+  <string name="msg_close_crash_page">Klik tombol dibawah untuk menyalin log dan membuka halaman isu.</string>
   <string name="title_translations">Terjemahan</string>
   <string name="action_expand_selection">Perluas seleksi</string>
   <string name="idepref_java_matchLower_title">Samakan penyelesaian dalam huruf kecil</string>
@@ -390,11 +389,6 @@
   <string name="msg_invalid_project_details">Detail proyek tidak valid</string>
   <string name="msg_use_kts">Gunakan Skrip Kotlin (.kts) untuk file Build Gradle</string>
   <string name="title_privacy">Privasi</string>
-  <string name="title_androidide_statistics">Statistik Code on the Go</string>
-  <string name="msg_androidide_statistics">Bantu kami menyempurnakan Code on the Go dengan menyediakan statistik anonim. Kami mengumpulkan informasi dasar tentang perangkat Anda hanya untuk statistik basis pengguna. Data pasti yang dibagikan dapat dilihat di preferensi. Data Anda aman dan tidak dibagikan dengan layanan pihak ketiga. Anda dapat menyisih kapan saja di preferensi.</string>
-  <string name="summary_anonymous_usage_stats">Statistik penggunaan anonim</string>
-  <string name="idepref_stats_optIn_title">Koleksi statistik</string>
-  <string name="idepref_stats_optIn_summary">Izinkan metrik penginstalan dan statistik perangkat dikumpulkan (sepenuhnya anonim).</string>
   <string name="title_unique_id">ID Unik</string>
   <string name="title_device">Perangkat</string>
   <string name="title_app_version">Versi Aplikasi</string>

@@ -1,8 +1,8 @@
 package org.appdevforall.localwebserver
 
 import android.database.sqlite.SQLiteDatabase
-import android.util.Log
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -19,17 +19,20 @@ data class ServerConfig(
     val databasePath: String,
     val bindName: String = "localhost",
     val debugDatabasePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
-            "/Download/documentation.db"
+            "/Download/documentation.db",
+    val debugEnablePath: String = android.os.Environment.getExternalStorageDirectory().toString() +
+            "/Download/CodeOnTheGo.webserver.debug"
 )
 
 class WebServer(private val config: ServerConfig) {
     private lateinit var serverSocket: ServerSocket
     private lateinit var database: SQLiteDatabase
-    private var databaseTimestamp: Long = -1
-    private var brotliSupported = false
-    private val TAG = "WebServer"
-    private val encodingHeader : String = "Accept-Encoding"
-    private val brotliCompression : String = "br"
+    private          var databaseTimestamp: Long = -1
+    private          val log = LoggerFactory.getLogger(WebServer::class.java)
+    private          var debugEnabled: Boolean = File(config.debugEnablePath).exists()
+    private          val encodingHeader : String = "Accept-Encoding"
+    private          var brotliSupported = false
+    private          val brotliCompression : String = "br"
 
 
     //function to obtain the last modified date of a documentation.db database
@@ -44,50 +47,71 @@ class WebServer(private val config: ServerConfig) {
             if (!silent) {
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
-                Log.d(
-                    TAG,
-                    "${pathname} was last modified at ${dateFormat.format(Date(timestamp))}.")
+                if (debugEnabled) log.debug("{} was last modified at {}.", pathname, dateFormat.format(Date(timestamp)))
             }
         }
 
         return timestamp
     }
 
+    // NEW FEATURE: Log database last change information
+    fun logDatabaseLastChanged() {
+        try {
+            val query = """
+SELECT now, who
+FROM   LastChange
+"""
+            val cursor = database.rawQuery(query, arrayOf())
+            if (cursor.count > 0) {
+                cursor.moveToFirst()
+                log.debug("Database last change: {} {}.", cursor.getString(0), cursor.getString(1))
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            log.debug("Could not retrieve database last change info: {}", e.message)
+        }
+    }
+
     fun start() {
         lateinit var clientSocket: Socket
         try {
-            Log.d(TAG, "Starting WebServer on ${config.bindName}, port ${config.port}")
+            log.debug("Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', debugDatabasePath='{}'.", 
+                     config.bindName, config.port, debugEnabled, config.debugEnablePath, config.debugDatabasePath)
 
             databaseTimestamp = getDatabaseTimestamp(config.databasePath)
 
             try {
                 database = SQLiteDatabase.openDatabase(config.databasePath, null, SQLiteDatabase.OPEN_READONLY)
             } catch (e: Exception) {
-                Log.e(TAG, "Cannot open database: ${e.message}")
+                log.error("Cannot open database: {}", e.message)
                 return
             }
 
+            // NEW FEATURE: Log database metadata when debug is enabled
+            if (debugEnabled) logDatabaseLastChanged()
+
             serverSocket = ServerSocket(config.port, 0, java.net.InetAddress.getByName(config.bindName))
-            Log.i(TAG, "WebServer started successfully.")
+            log.info("WebServer started successfully.")
 
             while (true) {
                 try {
                     clientSocket = serverSocket.accept()
+                    if (debugEnabled) log.debug("Returned from socket accept().")
                     handleClient(clientSocket)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error handling client: ${e.message}")
+                    log.error("Error handling client: {}", e.message)
                     try {
                         val writer = PrintWriter(clientSocket.getOutputStream(), true)
-                        sendError(writer, 500, "Internal Server Error")
+                        sendError(writer, 500, "Internal Server Error 1")
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error sending error response: ${e.message}")
+                        log.error("Error sending error response: {}", e.message)
                     }
                 } finally {
                     clientSocket.close() // TODO: What if the client socket isn't open? How to check? --DS, 22-Jul-2025
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error: ${e.message}")
+            log.error("Error: {}", e.message)
         } finally {
             if (::serverSocket.isInitialized) {
                 serverSocket.close()
@@ -103,6 +127,7 @@ class WebServer(private val config: ServerConfig) {
 
         // Read the request method line, it is always the first line of the request
         var requestLine = reader.readLine() ?: return
+        if (debugEnabled) log.debug("Request is {}", requestLine)
 
         // Parse the request
         // Request line should look like "GET /a/b/c.html HTTP/1.1"
@@ -125,6 +150,9 @@ class WebServer(private val config: ServerConfig) {
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
         while(requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
+
+           if (debugEnabled) log.debug("Header: {}", requestLine)
+
             if(requestLine.startsWith(encodingHeader)) {
                 val parts = requestLine.replace(" ", "").split(":")[1].split(",")
                 if(parts.size == 0) {
@@ -143,20 +171,20 @@ class WebServer(private val config: ServerConfig) {
             database = SQLiteDatabase.openDatabase(config.debugDatabasePath, null, SQLiteDatabase.OPEN_READONLY)
             databaseTimestamp = debugDatabaseTimestamp
         }
-        // TODO: Get rid of the extra test in the SQL WHERE clause below by fixing all the paths. --DS, 22-Jul-2025
+
         val query = """
-            SELECT c.content, ct.value, ct.compression
-            FROM Content c
-            JOIN ContentTypes ct ON c.contentTypeID = ct.id
-            WHERE c.path = ? OR c.path = ?
+SELECT C.content, CT.value, CT.compression
+FROM   Content C, ContentTypes CT
+WHERE  C.contentTypeID = CT.id
+  AND  C.path = ?
         """
-        val cursor = database.rawQuery(query, arrayOf(path, path.substring(1)))
+        val cursor = database.rawQuery(query, arrayOf(path,))
         val rowCount = cursor.getCount()
 
         if (rowCount != 1) {
             return when (rowCount) {
                 0 -> sendError(writer, 404, "Not Found", "Path requested: " + path)
-                else -> sendError(writer, 500, "Internal Server Error", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
+                else -> sendError(writer, 500, "Internal Server Error 2", "Corrupt database - multiple records found when unique record expected, Path requested: " + path)
             }
         }
 
@@ -164,6 +192,31 @@ class WebServer(private val config: ServerConfig) {
         var dbContent   = cursor.getBlob(0)
         val dbMimeType  = cursor.getString(1)
         var compression = cursor.getString(2)
+
+        if (debugEnabled) log.debug("len(content)={}, MIME type={}, compression={}.", dbContent.size, dbMimeType, compression)
+
+        if (dbContent.size == 1024 * 1024) { // Could use fragmentation to satisfy range requests.
+            val query2 = """
+SELECT content
+FROM   Content
+WHERE  path = ?
+  AND  languageId = 1
+        """
+            var fragmentNumber = 1
+            var dbContent2 = dbContent
+
+            while (dbContent2.size == 1024 * 1024) {
+                val path2 = "${path}-${fragmentNumber}"
+                if (debugEnabled) log.debug("DB item > 1 MB. fragment#{} path2='{}'.", fragmentNumber, path2)
+
+                val cursor2 = database.rawQuery(query2, arrayOf(path2))
+                cursor2.moveToFirst()
+                dbContent2 = cursor2.getBlob(0)
+                dbContent += dbContent2 // TODO: Is there a faster way to do this? Is data being copied multiple times? --D.S., 22-Jul-2025
+                fragmentNumber += 1
+                if (debugEnabled) log.debug("Fragment size={}, dbContent.length={}.", dbContent2.size, dbContent.size)
+            }
+        }
 
         // If the Accept-Encoding header contains "br", the client can handle
         // Brotli. Send Brotli data as-is, without decompressing it here.
@@ -175,11 +228,12 @@ class WebServer(private val config: ServerConfig) {
                 compression = "br"
             } else {
                 try {
+                    if (debugEnabled) log.debug("Brotli content but client doesn't support Brotli. Decoding locally.")
                     dbContent =
                         BrotliInputStream(ByteArrayInputStream(dbContent)).use { it.readBytes() }
                     compression = "none"
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error decompressing Brotli content: ${e.message}")
+                    log.error("Error decompressing Brotli content: {}", e.message)
                     return sendError(writer, 500, "Internal Server Error")
                 }
             }

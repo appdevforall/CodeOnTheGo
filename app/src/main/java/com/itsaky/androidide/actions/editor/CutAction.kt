@@ -20,7 +20,7 @@ package com.itsaky.androidide.actions.editor
 import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
-
+import com.itsaky.androidide.idetooltips.TooltipTag
 /** @author Akash Yadav */
 class CutAction(context: Context, override val order: Int) : BaseEditorAction() {
 
@@ -49,4 +49,5 @@ class CutAction(context: Context, override val order: Int) : BaseEditorAction() 
     editor.cutText()
     return true
   }
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT
 }

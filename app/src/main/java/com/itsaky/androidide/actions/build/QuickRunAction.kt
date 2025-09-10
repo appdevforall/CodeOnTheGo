@@ -24,6 +24,7 @@ import android.graphics.PorterDuffColorFilter
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.getContext
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
@@ -46,7 +47,11 @@ class QuickRunAction(context: Context, override val order: Int) :
         iconRes = R.drawable.ic_run_outline
     ) {
 
-    override val id: String = "ide.editor.build.quickRun"
+    override val id: String = ID
+    companion object {
+        const val ID = "ide.editor.build.quickRun"
+    }
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_RUN
 
     override fun onCreateTaskExecMessage(
         data: ActionData,

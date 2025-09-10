@@ -179,9 +179,8 @@
   <string name="title_generating_xml">Generando código XML</string>
   <string name="msg_swipe_up">Desliza hacia arriba para construir salida, registros y más.</string>
   <string name="msg_ide_crashed">Code on the Go falló</string>
-  <string name="msg_report_crash">Por favor, abra un problema en github con el siguiente seguimiento:</string>
-  <string name="msg_crash_report_hint">Haga clic en el botón de abajo para copiar registro y abrir la página de incidencias.</string>
-  <string name="msg_copy_report_action">Copiar y reportar</string>
+  <string name="msg_crash_info">Por favor, abra un problema en github con el siguiente seguimiento:</string>
+  <string name="msg_close_crash_page">Haga clic en el botón de abajo para copiar registro y abrir la página de incidencias.</string>
   <string name="title_translations">Traducciones</string>
   <string name="action_expand_selection">Expandir selección</string>
   <string name="idepref_java_matchLower_title">Finalizaciones en minúsculas</string>
@@ -390,11 +389,6 @@
   <string name="msg_invalid_project_details">Invalid project details</string>
   <string name="msg_use_kts">Use Kotlin Script (.kts) for Gradle build files</string>
   <string name="title_privacy">Privacy</string>
-  <string name="title_androidide_statistics">Code on the Go Statistics</string>
-  <string name="msg_androidide_statistics">Help us improve Code on the Go by providing anonymous statistics. We collect basic information about your device for user base statistics only. The exact data that is shared can be viewed in preferences. Your data is secure and not shared with third-party services. You can opt-out anytime in preferences.</string>
-  <string name="summary_anonymous_usage_stats">Anonymous usage stats</string>
-  <string name="idepref_stats_optIn_title">Stats collection</string>
-  <string name="idepref_stats_optIn_summary">Allow installation metrics and device statistics to be collected (fully anonymous).</string>
   <string name="title_unique_id">Unique ID</string>
   <string name="title_device">Device</string>
   <string name="title_app_version">App version</string>

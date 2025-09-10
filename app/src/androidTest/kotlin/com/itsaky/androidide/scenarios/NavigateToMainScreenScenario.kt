@@ -1,6 +1,7 @@
 package com.itsaky.androidide.scenarios
 
 import androidx.test.uiautomator.UiSelector
+import com.itsaky.androidide.helper.grantNotifications
 import com.itsaky.androidide.helper.grantOverlayPermission
 import com.itsaky.androidide.helper.grantStoragePermissions
 import com.itsaky.androidide.screens.InstallToolsScreen
@@ -26,13 +27,32 @@ class NavigateToMainScreenScenario : Scenario() {
 
         if (permissionsScreen.exists()) {
             println("DEBUG: Permissions screen found, granting 3 permissions in order")
-            
-            step("Grant Storage Permissions") {
+
+            step("Grant Notification Permissions") {
                 flakySafely(15000) {
-                    println("DEBUG: Granting Storage permission (index 0)")
+                    println("DEBUG: Granting Notification permission (index 0)")
                     PermissionScreen {
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(0) {
+                                grantButton.click()
+                            }
+                        }
+
+                        grantNotifications(device.uiDevice)
+                        device.uiDevice.waitForIdle(1000)
+                        device.uiDevice.pressBack()
+                        device.uiDevice.waitForIdle(1000)
+                    }
+                    println("DEBUG: Storage permission granted")
+                }
+            }
+
+            step("Grant Storage Permissions") {
+                flakySafely(15000) {
+                    println("DEBUG: Granting Storage permission (index 1)")
+                    PermissionScreen {
+                        rvPermissions {
+                            childAt<PermissionScreen.PermissionItem>(1) {
                                 grantButton.click()
                             }
                         }
@@ -48,10 +68,10 @@ class NavigateToMainScreenScenario : Scenario() {
 
             step("Grant Install Packages Permissions") {
                 flakySafely(15000) {
-                    println("DEBUG: Granting Install packages permission (index 1)")
+                    println("DEBUG: Granting Install packages permission (index 2)")
                     PermissionScreen {
                         rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(1) {
+                            childAt<PermissionScreen.PermissionItem>(2) {
                                 grantButton.click()
                             }
                         }
@@ -90,10 +110,10 @@ class NavigateToMainScreenScenario : Scenario() {
 
             step("Grant Overlay Window permission") {
                 flakySafely(15000) {
-                    println("DEBUG: Granting Overlay permission (index 2)")
+                    println("DEBUG: Granting Overlay permission (index 3)")
                     PermissionScreen {
                         rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(2) {
+                            childAt<PermissionScreen.PermissionItem>(3) {
                                 grantButton.click()
                             }
                         }

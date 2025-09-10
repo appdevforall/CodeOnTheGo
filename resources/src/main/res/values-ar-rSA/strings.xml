@@ -179,9 +179,8 @@
   <string name="title_generating_xml">إنشاء كود XML</string>
   <string name="msg_swipe_up">مرر لأعلى للإخراج والسجلات والمزيد.</string>
   <string name="msg_ide_crashed">تحطم Code on the Go</string>
-  <string name="msg_report_crash">الرجاء فتح مشكلة على github مع المكونات التالية:</string>
-  <string name="msg_crash_report_hint">انقر على الزر أدناه لنسخ السجل وفتح صفحة المشكلات.</string>
-  <string name="msg_copy_report_action">نسخ وتقرير</string>
+  <string name="msg_crash_info">الرجاء فتح مشكلة على github مع المكونات التالية:</string>
+  <string name="msg_close_crash_page">انقر على الزر أدناه لنسخ السجل وفتح صفحة المشكلات.</string>
   <string name="title_translations">الترجمات</string>
   <string name="action_expand_selection">توسيع التحديد</string>
   <string name="idepref_java_matchLower_title">مطابقة المكملات في حالة الأحرف الصغيرة</string>
@@ -390,11 +389,6 @@
   <string name="msg_invalid_project_details">تفاصيل المشروع غير صالحة</string>
   <string name="msg_use_kts">استخدام سكريبت كوتلن (.kts) لإنشاء ملفات بناء غرادل</string>
   <string name="title_privacy">الخصوصية</string>
-  <string name="title_androidide_statistics">إحصائيات التطبيق</string>
-  <string name="msg_androidide_statistics">ساعدنا في تحسين التطبيق مِن خلال توفير إحصائيات مجهولة المصدر. سوف نجمع المعلومات الأساسية حول جهازك لإحصاءات قاعدة المستخدمين فقط. يمكن عرض البيانات الدقيقة التي تتم مشاركتها في التفضيلات. بياناتك آمنة ولا تتم مشاركتها مع خَدَمَات الجهات الخارجية. يمكنك إلغاء الاشتراك في أي وقت في تفضيلاتك.</string>
-  <string name="summary_anonymous_usage_stats">إحصائيات الإستخدام المجهول</string>
-  <string name="idepref_stats_optIn_title">مجموعة الإحصائيات</string>
-  <string name="idepref_stats_optIn_summary">السماح بجمع مقاييس التثبيت وإحصائيات الجهاز (مجهول تماما).</string>
   <string name="title_unique_id">ايدي ‏مميز</string>
   <string name="title_device">الجهاز</string>
   <string name="title_app_version">إصدار التطبيق</string>

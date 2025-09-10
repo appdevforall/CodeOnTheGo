@@ -25,6 +25,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.activities.TerminalActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.projects.IProjectManager
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import java.util.Objects
@@ -70,4 +71,6 @@ class TerminalSidebarAction(context: Context, override val order: Int) : Abstrac
     startTerminalActivity(data, false)
     return true
   }
+
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.TERMINAL_SIDEBAR
 }
