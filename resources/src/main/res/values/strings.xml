@@ -886,7 +886,7 @@
     <string name="telegram_group_url">https://t.me/androidide_discussions</string>
     <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
     <string name="sponsor_url">https://m.androidide.com/donate</string>
-    <string name="docs_url">http://localhost:6174/android_asset/CoGoTooltips/html/help_top.html</string>
+    <string name="docs_url">http://localhost:6174/i/cogo_top.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 </resources>
