@@ -209,11 +209,11 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
       fun showSelectionDialog() {
         val listView = ListView(context)
-        
+
         val typedValue = TypedValue()
         context.theme.resolveAttribute(android.R.attr.textColorPrimary, typedValue, true)
         val textColor = ContextCompat.getColor(context, typedValue.resourceId)
-        
+
         val adapter = object : ArrayAdapter<String>(context, android.R.layout.simple_list_item_1, array) {
           override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val view = super.getView(position, convertView, parent)
@@ -225,7 +225,7 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         listView.adapter = adapter
         listView.divider = null
         listView.dividerHeight = 0
-        
+
         val width = spinnerText.width.coerceAtLeast(200)
         val popupWindow = PopupWindow(
           listView,
@@ -233,43 +233,51 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
           ViewGroup.LayoutParams.WRAP_CONTENT,
           true
         )
-        
+
         val bgTypedValue = TypedValue()
         context.theme.resolveAttribute(android.R.attr.colorBackground, bgTypedValue, true)
         val backgroundColor = ContextCompat.getColor(context, bgTypedValue.resourceId)
         popupWindow.setBackgroundDrawable(backgroundColor.toDrawable())
         popupWindow.elevation = 4f
-        
+
         listView.setPadding(16, 8, 16, 8)
-        
+
         listView.setOnItemClickListener { _, _, position, _ ->
           val selectedName = array[position]
           val selectedEnum = nameToEnum[selectedName] ?: param.default
           param.setValue(selectedEnum)
           param.resetStartAndEndIcons(root.context, root)
           popupWindow.dismiss()
+          spinnerText.clearFocus()
         }
-        
+
         listView.setOnItemLongClickListener { _, view, position, _ ->
           view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
           popupWindow.dismiss()
+          spinnerText.clearFocus()
           showTooltipForView(widget.parameter.tooltipTag ?: "")
           true
         }
-        
+
+        popupWindow.setOnDismissListener {
+          spinnerText.clearFocus()
+        }
+
         popupWindow.showAsDropDown(spinnerText, 0, 0)
       }
 
-        
+
       root.setEndIconOnClickListener {
         if (root.isEnabled) {
+          spinnerText.requestFocus()
           showSelectionDialog()
         }
       }
-      
+
       spinnerText.setOnTouchListener { _, ev ->
         if (!root.isEnabled) return@setOnTouchListener false
         if (ev.action == MotionEvent.ACTION_UP) {
+            spinnerText.requestFocus()
           spinnerText.performClick()
           showSelectionDialog()
           true
