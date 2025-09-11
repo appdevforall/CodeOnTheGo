@@ -39,9 +39,8 @@ dependencies {
 	api(projects.subprojects.flashbar)
 	implementation(libs.monitor)
 
-	testImplementation(libs.tests.junit)
-	testImplementation(libs.tests.google.truth)
-	testImplementation(libs.tests.robolectric)
+	testImplementation(projects.testing.common)
+	androidTestImplementation(projects.testing.android)
 
 	// brotli4j
 	implementation(libs.brotli4j)
