@@ -30,7 +30,6 @@ import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
 import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
 import com.itsaky.androidide.events.ExpandTreeNodeRequestEvent
 import com.itsaky.androidide.events.FileContextMenuItemClickEvent
-import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
 import com.itsaky.androidide.models.SheetOption
 import com.itsaky.androidide.utils.ApkInstaller
@@ -150,10 +149,6 @@ class FileTreeActionHandler : BaseEventHandler() {
     }
 
     registry.executeAction(action, data)
-  }
-
-  private fun requestFileListing() {
-    EventBus.getDefault().post(ListProjectFilesRequestEvent())
   }
 
   private fun requestExpandHeldNode() {

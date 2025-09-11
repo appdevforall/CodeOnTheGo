@@ -25,8 +25,10 @@ import android.os.IBinder;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
+
 import com.itsaky.androidide.logsender.utils.LogReader;
 import com.itsaky.androidide.logsender.utils.Logger;
+
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -132,14 +134,14 @@ public final class LogSender extends ILogSender.Stub implements ServiceConnectio
 
   @Override
   public void onDisconnect() {
-    tryDisconnect(false);
-    tryUnbind(this.context);
-    try {
-      this.context.stopService(new Intent(this.context, LogSenderService.class));
-    } catch (Exception err) {
-      Logger.error("Failed to stop LogSenderService", err);
-    }
-    this.context = null;
+//    tryDisconnect(false);
+//    tryUnbind(this.context);
+//    try {
+//      this.context.stopService(new Intent(this.context, LogSenderService.class));
+//    } catch (Exception err) {
+//      Logger.error("Failed to stop LogSenderService", err);
+//    }
+//    this.context = null;
   }
 
   /**

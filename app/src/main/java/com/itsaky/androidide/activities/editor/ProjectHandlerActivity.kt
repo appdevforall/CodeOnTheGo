@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
 import androidx.activity.viewModels
@@ -67,6 +68,7 @@ import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashbarBuilder
@@ -192,8 +194,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			notifySyncNeeded()
 		}
 
-		startServices()
-	}
+        startServices()
+
+        binding.endNav.visibility = if (isExperimentsEnabled()) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
+    }
 
 	override fun onSaveInstanceState(outState: Bundle) {
 		super.onSaveInstanceState(outState)
