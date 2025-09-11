@@ -37,14 +37,6 @@ import java.io.File;
 public class BaseApplication extends Application {
 
   public static final String NOTIFICATION_GRADLE_BUILD_SERVICE = "17571";
-  public static final String TELEGRAM_GROUP_URL = "https://t.me/androidide_discussions";
-  public static final String TELEGRAM_CHANNEL_URL = "https://t.me/AndroidIDEOfficial";
-  public static final String SPONSOR_URL = BuildInfo.PROJECT_SITE + "/donate";
-  //Do NOT use HTTPS:// for localhost, it is not supported ATM
-  public static final String DOCS_URL = "http://localhost:6174/android_asset/CoGoTooltips/html/help_top.html";
-  public static final String CONTRIBUTOR_GUIDE_URL =
-      BuildInfo.REPO_URL + "/blob/dev/CONTRIBUTING.md";
-  public static final String EMAIL = "info@appdevforall.org";
   private static BaseApplication instance;
   private PreferenceManager mPrefsManager;
 
@@ -80,11 +72,11 @@ public class BaseApplication extends Application {
   }
 
   public void openTelegramGroup() {
-    openTelegram(BaseApplication.TELEGRAM_GROUP_URL);
+    openTelegram(getString(R.string.telegram_group_url));
   }
 
   public void openTelegramChannel() {
-    openTelegram(BaseApplication.TELEGRAM_CHANNEL_URL);
+    openTelegram(getString(R.string.telegram_channel_url));
   }
 
   public void openGitHub() {
@@ -96,15 +88,15 @@ public class BaseApplication extends Application {
   }
 
   public void openDonationsPage() {
-    openUrl(SPONSOR_URL);
+    openUrl(getString(R.string.sponsor_url));
   }
 
   public void openDocs() {
-    openUrl(DOCS_URL);
+    openUrl(getString(R.string.docs_url));
   }
 
   public void emailUs() {
-    openUrl("mailto:" + EMAIL);
+    openUrl(getString(R.string.mail_to_adfa));
   }
 
   public void openUrl(String url) {
