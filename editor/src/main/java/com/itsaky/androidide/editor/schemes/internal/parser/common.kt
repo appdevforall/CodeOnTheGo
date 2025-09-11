@@ -60,7 +60,7 @@ fun IDEColorScheme.parseColorValue(value: String?, colorId: Boolean = true): Int
       } catch (err: Throwable) {
         throw ParseException("Invalid hex color code: '$value'", err)
       }
-    return if (colorId) putColor(color) else color
+    return if (colorId) try {putColor(color)}catch (err: Throwable) {color} else color
   }
 
   throw ParseException("Unsupported color value '$value'")
