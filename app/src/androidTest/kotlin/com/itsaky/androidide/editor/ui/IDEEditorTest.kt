@@ -22,7 +22,6 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class IDEEditorTest {
-
 	private fun assertEditorCopiesDebugInfo(
 		expected: String,
 		initialText: String = "some text",
@@ -54,9 +53,9 @@ class IDEEditorTest {
 	fun test_includeDebugInfoFlagOnCopy_ifEnabled() {
 		val initial = "some text"
 		assertEditorCopiesDebugInfo(
-			expected = "CodeOnTheGo (unspecified)${System.lineSeparator()}${initial}",
+			expected = "CodeOnTheGo (unspecified)${System.lineSeparator()}$initial",
 			includeDebugInfo = true,
-			initialText = initial
+			initialText = initial,
 		)
 	}
 
@@ -66,7 +65,7 @@ class IDEEditorTest {
 		assertEditorCopiesDebugInfo(
 			expected = initial,
 			includeDebugInfo = false,
-			initialText = initial
+			initialText = initial,
 		)
 	}
 }

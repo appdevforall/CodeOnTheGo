@@ -10,7 +10,6 @@ import androidx.test.runner.AndroidJUnitRunner
  */
 @Suppress("UNUSED")
 class TestInstrumentationRunner : AndroidJUnitRunner() {
-
 	override fun onCreate(arguments: Bundle?) {
 		super.onCreate(arguments)
 	}

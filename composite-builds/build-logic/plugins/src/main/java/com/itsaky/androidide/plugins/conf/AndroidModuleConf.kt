@@ -33,7 +33,6 @@ import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.artifacts.MinimalExternalModuleDependency
 import org.gradle.api.provider.Provider
-import org.gradle.kotlin.dsl.exclude
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -150,12 +149,12 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 
 		// we need to migrate :subprojects:aaptcompiler to use protobuf-lite
 		// to be able to remove dependency on protobuf-java
-//		configurations.all {
-//			// protobuf-java and protobuf-lite have conflicts
-//			// since protobuf-lite is optimized for Android, we
-//			// drop protobuf-java in favor of protobuf-lite
-//			exclude(group = "com.google.protobuf", module = "protobuf-java")
-//		}
+// 		configurations.all {
+// 			// protobuf-java and protobuf-lite have conflicts
+// 			// since protobuf-lite is optimized for Android, we
+// 			// drop protobuf-java in favor of protobuf-lite
+// 			exclude(group = "com.google.protobuf", module = "protobuf-java")
+// 		}
 
 		if (":app" == project.path) {
 			packagingOptions {

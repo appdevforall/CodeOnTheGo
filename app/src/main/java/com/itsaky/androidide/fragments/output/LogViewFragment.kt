@@ -51,231 +51,237 @@ import kotlin.math.min
  * @author Akash Yadav
  */
 abstract class LogViewFragment :
-  EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
-  ShareableOutputFragment {
+	EmptyStateFragment<FragmentLogBinding>(R.layout.fragment_log, FragmentLogBinding::bind),
+	ShareableOutputFragment {
+	companion object {
+		private val log = LoggerFactory.getLogger(LogViewFragment::class.java)
 
-  companion object {
+		/** The maximum number of characters to append to the editor in case of huge log texts. */
+		const val MAX_CHUNK_SIZE = 10000
 
-    private val log = LoggerFactory.getLogger(LogViewFragment::class.java)
+		/**
+		 * The time duration, in milliseconds which is used to determine whether logs are too frequent
+		 * or not. If the logs are produced within this time duration, they are considered as too
+		 * frequent. In this case, the logs are cached and appended in chunks of [MAX_CHUNK_SIZE]
+		 * characters in size.
+		 */
+		const val LOG_FREQUENCY = 50L
 
-    /** The maximum number of characters to append to the editor in case of huge log texts. */
-    const val MAX_CHUNK_SIZE = 10000
+		/**
+		 * The time duration, in milliseconds we wait before appending the logs. This must be greater
+		 * than [LOG_FREQUENCY].
+		 */
+		const val LOG_DELAY = 100L
 
-    /**
-     * The time duration, in milliseconds which is used to determine whether logs are too frequent
-     * or not. If the logs are produced within this time duration, they are considered as too
-     * frequent. In this case, the logs are cached and appended in chunks of [MAX_CHUNK_SIZE]
-     * characters in size.
-     */
-    const val LOG_FREQUENCY = 50L
+		/**
+		 * Trim the logs when the number of lines reaches this value. Only [MAX_LINE_COUNT]
+		 * number of lines are kept in the logs.
+		 */
+		const val TRIM_ON_LINE_COUNT = 5000
 
-    /**
-     * The time duration, in milliseconds we wait before appending the logs. This must be greater
-     * than [LOG_FREQUENCY].
-     */
-    const val LOG_DELAY = 100L
+		/**
+		 * The maximum number of lines that are shown in the log view. This value must be less than
+		 * [TRIM_ON_LINE_COUNT] by a difference of [LOG_FREQUENCY] or preferably, more.
+		 */
+		const val MAX_LINE_COUNT = TRIM_ON_LINE_COUNT - 300
+	}
 
-    /**
-     * Trim the logs when the number of lines reaches this value. Only [MAX_LINE_COUNT]
-     * number of lines are kept in the logs.
-     */
-    const val TRIM_ON_LINE_COUNT = 5000
+	private var lastLog = -1L
 
-    /**
-     * The maximum number of lines that are shown in the log view. This value must be less than
-     * [TRIM_ON_LINE_COUNT] by a difference of [LOG_FREQUENCY] or preferably, more.
-     */
-    const val MAX_LINE_COUNT = TRIM_ON_LINE_COUNT - 300
-  }
+	private val cacheLock = ReentrantLock()
+	private val cache = StringBuilder()
+	private var cacheLineTrack = ArrayBlockingQueue<Int>(MAX_LINE_COUNT, true)
 
-  private var lastLog = -1L
+	private val isTrimming = AtomicBoolean(false)
 
-  private val cacheLock = ReentrantLock()
-  private val cache = StringBuilder()
-  private var cacheLineTrack = ArrayBlockingQueue<Int>(MAX_LINE_COUNT, true)
+	private val logHandler = Handler(Looper.getMainLooper())
+	private val logRunnable =
+		object : Runnable {
+			override fun run() {
+				cacheLock.withLock {
+					if (cacheLineTrack.size == MAX_LINE_COUNT) {
+						cache.delete(0, cacheLineTrack.poll()!!)
+					}
 
-  private val isTrimming = AtomicBoolean(false)
+					cacheLineTrack.clear()
 
-  private val logHandler = Handler(Looper.getMainLooper())
-  private val logRunnable = object : Runnable {
-    override fun run() {
-      cacheLock.withLock {
-        if (cacheLineTrack.size == MAX_LINE_COUNT) {
-          cache.delete(0, cacheLineTrack.poll()!!)
-        }
+					if (cache.length < MAX_CHUNK_SIZE) {
+						append(cache)
+						cache.clear()
+					} else {
+						// Append the lines in chunks to avoid UI lags
+						val length = min(cache.length, MAX_CHUNK_SIZE)
+						append(cache.subSequence(0, length))
+						cache.delete(0, length)
+					}
 
-        cacheLineTrack.clear()
+					if (cache.isNotEmpty()) {
+						// if we still have data left to append, resechedule this
+						logHandler.removeCallbacks(this)
+						logHandler.postDelayed(this, LOG_DELAY)
+					} else {
+						trimLinesAtStart()
+					}
+				}
+			}
+		}
 
-        if (cache.length < MAX_CHUNK_SIZE) {
-          append(cache)
-          cache.clear()
-        } else {
-          // Append the lines in chunks to avoid UI lags
-          val length = min(cache.length, MAX_CHUNK_SIZE)
-          append(cache.subSequence(0, length))
-          cache.delete(0, length)
-        }
+	fun appendLog(line: LogLine) {
+		val lineString =
+			if (isSimpleFormattingEnabled()) {
+				line.toSimpleString()
+			} else {
+				line.toString()
+			}
 
-        if (cache.isNotEmpty()) {
-          // if we still have data left to append, resechedule this
-          logHandler.removeCallbacks(this)
-          logHandler.postDelayed(this, LOG_DELAY)
-        } else {
-          trimLinesAtStart()
-        }
-      }
-    }
-  }
+		line.recycle()
 
-  fun appendLog(line: LogLine) {
+		appendLine(lineString)
+	}
 
-    val lineString = if (isSimpleFormattingEnabled()) {
-      line.toSimpleString()
-    } else {
-      line.toString()
-    }
+	protected fun appendLine(line: String) {
+		var lineStr = line
+		if (!lineStr.endsWith("\n")) {
+			lineStr += "\n"
+		}
 
-    line.recycle()
+		if (isTrimming.get() || cache.isNotEmpty() || System.currentTimeMillis() - lastLog <= LOG_FREQUENCY) {
+			cacheLock.withLock {
+				logHandler.removeCallbacks(logRunnable)
 
-    appendLine(lineString)
-  }
+				// If the log lines are too frequent, cache the lines to log them later at once
+				cache.append(lineStr)
+				logHandler.postDelayed(logRunnable, LOG_DELAY)
 
-  protected fun appendLine(line: String) {
-    var lineStr = line
-    if (!lineStr.endsWith("\n")) {
-      lineStr += "\n"
-    }
+				lastLog = System.currentTimeMillis()
 
-    if (isTrimming.get() || cache.isNotEmpty() || System.currentTimeMillis() - lastLog <= LOG_FREQUENCY) {
-      cacheLock.withLock {
-        logHandler.removeCallbacks(logRunnable)
+				val length = cache.length + 1
+				if (!cacheLineTrack.offer(length)) {
+					cacheLineTrack.poll()
+					cacheLineTrack.offer(length)
+				}
+			}
+			return
+		}
 
-        // If the log lines are too frequent, cache the lines to log them later at once
-        cache.append(lineStr)
-        logHandler.postDelayed(logRunnable, LOG_DELAY)
+		lastLog = System.currentTimeMillis()
 
-        lastLog = System.currentTimeMillis()
+		append(lineStr)
+		trimLinesAtStart()
+	}
 
-        val length = cache.length + 1
-        if (!cacheLineTrack.offer(length)) {
-          cacheLineTrack.poll()
-          cacheLineTrack.offer(length)
-        }
-      }
-      return
-    }
+	private fun append(chars: CharSequence?) {
+		chars?.let {
+			ThreadUtils.runOnUiThread {
+				_binding?.editor?.append(chars)?.also {
+					emptyStateViewModel.isEmpty.value = false
+				}
+			}
+		}
+	}
 
-    lastLog = System.currentTimeMillis()
+	private fun trimLinesAtStart() {
+		if (isTrimming.get()) {
+			// trimming is already in progress
+			return
+		}
 
-    append(lineStr)
-    trimLinesAtStart()
-  }
+		ThreadUtils.runOnUiThread {
+			_binding?.editor?.text?.apply {
+				if (lineCount <= TRIM_ON_LINE_COUNT) {
+					isTrimming.set(false)
+					return@apply
+				}
 
-  private fun append(chars: CharSequence?) {
-    chars?.let {
-      ThreadUtils.runOnUiThread {
-        _binding?.editor?.append(chars)?.also {
-          emptyStateViewModel.isEmpty.value = false
-        }
-      }
-    }
-  }
+				isTrimming.set(true)
+				val lastLine = lineCount - MAX_LINE_COUNT
+				log.debug("Deleting log text till line {}", lastLine)
+				delete(0, 0, lastLine, getColumnCount(lastLine))
+				isTrimming.set(false)
+			}
+		}
+	}
 
-  private fun trimLinesAtStart() {
-    if (isTrimming.get()) {
-      // trimming is already in progress
-      return
-    }
+	abstract fun isSimpleFormattingEnabled(): Boolean
 
-    ThreadUtils.runOnUiThread {
-      _binding?.editor?.text?.apply {
-        if (lineCount <= TRIM_ON_LINE_COUNT) {
-          isTrimming.set(false)
-          return@apply
-        }
+	open val tooltipTag = ""
 
-        isTrimming.set(true)
-        val lastLine = lineCount - MAX_LINE_COUNT
-        log.debug("Deleting log text till line {}", lastLine)
-        delete(0, 0, lastLine, getColumnCount(lastLine))
-        isTrimming.set(false)
-      }
-    }
-  }
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		val editor = this.binding.editor
+		editor.props.autoIndent = false
+		editor.isEditable = false
+		editor.dividerWidth = 0f
+		editor.isWordwrap = false
+		editor.isUndoEnabled = false
+		editor.typefaceLineNumber = jetbrainsMono()
+		editor.setTextSize(12f)
+		editor.typefaceText = jetbrainsMono()
+		editor.isEnsurePosAnimEnabled = false
+		editor.includeDebugInfoOnCopy = true
+		editor.cursorAnimator =
+			object : CursorAnimator {
+				override fun markStartPos() {}
 
-  abstract fun isSimpleFormattingEnabled(): Boolean
-  open val tooltipTag = ""
+				override fun markEndPos() {}
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    val editor = this.binding.editor
-    editor.props.autoIndent = false
-    editor.isEditable = false
-    editor.dividerWidth = 0f
-    editor.isWordwrap = false
-    editor.isUndoEnabled = false
-    editor.typefaceLineNumber = jetbrainsMono()
-    editor.setTextSize(12f)
-    editor.typefaceText = jetbrainsMono()
-    editor.isEnsurePosAnimEnabled = false
-	editor.includeDebugInfoOnCopy = true
-    editor.cursorAnimator = object : CursorAnimator {
-      override fun markStartPos() {}
-      override fun markEndPos() {}
-      override fun start() {}
-      override fun cancel() {}
-      override fun isRunning(): Boolean {
-        return false
-      }
+				override fun start() {}
 
-      override fun animatedX(): Float {
-        return 0f
-      }
+				override fun cancel() {}
 
-      override fun animatedY(): Float {
-        return 0f
-      }
+				override fun isRunning(): Boolean = false
 
-      override fun animatedLineHeight(): Float {
-        return 0f
-      }
+				override fun animatedX(): Float = 0f
 
-      override fun animatedLineBottom(): Float {
-        return 0f
-      }
-    }
-    // Skip tree-sitter language setup during tests to avoid native library issues
-    if (!isTestMode()) {
-      IDEColorSchemeProvider.readSchemeAsync(context = requireContext(),
-        coroutineScope = editor.editorScope, type = LogLanguage.TS_TYPE) { scheme ->
-        val language = TreeSitterLanguageProvider.forType(LogLanguage.TS_TYPE, requireContext())
-        if (language != null) {
-          if (scheme is IDEColorScheme) {
-            language.setupWith(scheme)
-          }
-          editor.applyTreeSitterLang(language, LogLanguage.TS_TYPE, scheme)
-        }
-      }
-    }
-  }
+				override fun animatedY(): Float = 0f
 
-  override fun onDestroyView() {
-    _binding?.editor?.release()
-    logHandler.removeCallbacks(logRunnable)
-    super.onDestroyView()
-  }
-  override fun getShareableContent(): String {
-    val editorText = this._binding?.editor?.text?.toString() ?: ""
-	return "${BuildInfoUtils.BASIC_INFO}${System.lineSeparator()}${editorText}"
-  }
+				override fun animatedLineHeight(): Float = 0f
 
-  override fun clearOutput() {
-    _binding?.editor?.setText("")?.also {
-      emptyStateViewModel.isEmpty.value = true
-    }
-  }
+				override fun animatedLineBottom(): Float = 0f
+			}
+		// Skip tree-sitter language setup during tests to avoid native library issues
+		if (!isTestMode()) {
+			IDEColorSchemeProvider.readSchemeAsync(
+				context = requireContext(),
+				coroutineScope = editor.editorScope,
+				type = LogLanguage.TS_TYPE,
+			) { scheme ->
+				val language = TreeSitterLanguageProvider.forType(LogLanguage.TS_TYPE, requireContext())
+				if (language != null) {
+					if (scheme is IDEColorScheme) {
+						language.setupWith(scheme)
+					}
+					editor.applyTreeSitterLang(language, LogLanguage.TS_TYPE, scheme)
+				}
+			}
+		}
+	}
 
-  override fun onFragmentLongPressed() {
-    showTooltipDialog(tooltipTag)
-  }
+	override fun onDestroyView() {
+		_binding?.editor?.release()
+		logHandler.removeCallbacks(logRunnable)
+		super.onDestroyView()
+	}
+
+	override fun getShareableContent(): String {
+		val editorText =
+			this._binding
+				?.editor
+				?.text
+				?.toString() ?: ""
+		return "${BuildInfoUtils.BASIC_INFO}${System.lineSeparator()}$editorText"
+	}
+
+	override fun clearOutput() {
+		_binding?.editor?.setText("")?.also {
+			emptyStateViewModel.isEmpty.value = true
+		}
+	}
+
+	override fun onFragmentLongPressed() {
+		showTooltipDialog(tooltipTag)
+	}
 }

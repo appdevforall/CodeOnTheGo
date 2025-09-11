@@ -28,18 +28,19 @@ import com.itsaky.androidide.logging.JvmStdErrAppender
 @ConfiguratorRank(ConfiguratorRank.CUSTOM_HIGH_PRIORITY)
 @AutoService(Configurator::class)
 @Suppress("UNUSED")
-open class TestingLoggingConfigurator : ContextAwareBase(), Configurator {
+open class TestingLoggingConfigurator :
+	ContextAwareBase(),
+	Configurator {
+	override fun configure(context: LoggerContext): Configurator.ExecutionStatus {
+		addInfo("Setting up logging configuration for test runtime")
 
-  override fun configure(context: LoggerContext): Configurator.ExecutionStatus {
-    addInfo("Setting up logging configuration for test runtime")
+		val stdErrAppender = JvmStdErrAppender()
+		stdErrAppender.context = context
+		stdErrAppender.start()
 
-    val stdErrAppender = JvmStdErrAppender()
-    stdErrAppender.context = context
-    stdErrAppender.start()
+		val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)
+		rootLogger.addAppender(stdErrAppender)
 
-    val rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME)
-    rootLogger.addAppender(stdErrAppender)
-
-    return Configurator.ExecutionStatus.DO_NOT_INVOKE_NEXT_IF_ANY
-  }
+		return Configurator.ExecutionStatus.DO_NOT_INVOKE_NEXT_IF_ANY
+	}
 }

@@ -23,41 +23,47 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
 
 class BuildOutputFragment : NonEditableEditorFragment() {
-  override fun onFragmentLongPressed() {
-    showTooltipDialog(TooltipTag.PROJECT_BUILD_OUTPUT)
-  }
-  private val unsavedLines: MutableList<String?> = ArrayList()
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-	editor?.includeDebugInfoOnCopy = true
-    emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_buildoutput)
-    if (unsavedLines.isNotEmpty()) {
-      for (line in unsavedLines) {
-        editor?.append("${line!!.trim()}\n")
-      }
-      unsavedLines.clear()
-    }
-  }
-  
-  override fun onDestroyView() {
-    editor?.release()
-    super.onDestroyView()
-  }
-  
-  fun appendOutput(output: String?) {
-    if (editor == null) {
-      unsavedLines.add(output)
-      return
-    }
-    ThreadUtils.runOnUiThread {
-      val message = if (output == null || output.endsWith("\n")) {
-        output
-      } else {
-        "${output}\n"
-      }
-      editor!!.append(message).also {
-        emptyStateViewModel.isEmpty.value = false
-      }
-    }
-  }
+	override fun onFragmentLongPressed() {
+		showTooltipDialog(TooltipTag.PROJECT_BUILD_OUTPUT)
+	}
+
+	private val unsavedLines: MutableList<String?> = ArrayList()
+
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		editor?.includeDebugInfoOnCopy = true
+		emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_buildoutput)
+		if (unsavedLines.isNotEmpty()) {
+			for (line in unsavedLines) {
+				editor?.append("${line!!.trim()}\n")
+			}
+			unsavedLines.clear()
+		}
+	}
+
+	override fun onDestroyView() {
+		editor?.release()
+		super.onDestroyView()
+	}
+
+	fun appendOutput(output: String?) {
+		if (editor == null) {
+			unsavedLines.add(output)
+			return
+		}
+		ThreadUtils.runOnUiThread {
+			val message =
+				if (output == null || output.endsWith("\n")) {
+					output
+				} else {
+					"${output}\n"
+				}
+			editor!!.append(message).also {
+				emptyStateViewModel.isEmpty.value = false
+			}
+		}
+	}
 }
