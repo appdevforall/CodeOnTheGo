@@ -38,7 +38,7 @@ import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
-import com.itsaky.androidide.tasks.launchAsyncWithProgress
+import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
@@ -54,6 +54,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
@@ -163,8 +164,10 @@ class OnboardingActivity : AppIntro2() {
 
 	override fun onResume() {
 		super.onResume()
-		reloadJdkDistInfo {
-			tryNavigateToMainIfSetupIsCompleted()
+		activityScope.launch {
+			reloadJdkDistInfo {
+				tryNavigateToMainIfSetupIsCompleted()
+			}
 		}
 	}
 
@@ -180,23 +183,25 @@ class OnboardingActivity : AppIntro2() {
 		}
 
 		if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
-			activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
-				runOnUiThread {
-					flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
-				}
-
-				val result =
-					withStopWatch("Assets installation") {
-						AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
-							logger.debug("Assets installation progress: {}", progress.message)
-						}
+			activityScope.launch {
+				doAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
+					runOnUiThread {
+						flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
 					}
 
-				logger.info("Assets installation result: {}", result)
+					val result =
+						withStopWatch("Assets installation") {
+							AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
+								logger.debug("Assets installation progress: {}", progress.message)
+							}
+						}
 
-				withContext(Dispatchers.Main) {
-					reloadJdkDistInfo {
-						tryNavigateToMainIfSetupIsCompleted()
+					logger.info("Assets installation result: {}", result)
+
+					withContext(Dispatchers.Main) {
+						reloadJdkDistInfo {
+							tryNavigateToMainIfSetupIsCompleted()
+						}
 					}
 				}
 			}
@@ -224,27 +229,26 @@ class OnboardingActivity : AppIntro2() {
 		return false
 	}
 
-	private inline fun reloadJdkDistInfo(crossinline distConsumer: (List<JdkDistribution>) -> Unit) {
+	private suspend fun reloadJdkDistInfo(distConsumer: (List<JdkDistribution>) -> Unit) {
 		listJdkInstallationsJob?.cancel("Reloading JDK distributions")
 
 		listJdkInstallationsJob =
-			activityScope
-				.launchAsyncWithProgress(
-					Dispatchers.Default,
-					configureFlashbar = { builder, _ ->
-						builder.message(string.please_wait)
-					},
-				) { _, _ ->
-					val distributionProvider = IJdkDistributionProvider.getInstance()
-					distributionProvider.loadDistributions()
-					withContext(Dispatchers.Main) {
-						distConsumer(distributionProvider.installedDistributions)
-					}
-				}.also {
-					it?.invokeOnCompletion {
-						listJdkInstallationsJob = null
-					}
+			doAsyncWithProgress(
+				Dispatchers.Default,
+				configureFlashbar = { builder, _ ->
+					builder.message(string.please_wait)
+				},
+			) { _, _ ->
+				val distributionProvider = IJdkDistributionProvider.getInstance()
+				distributionProvider.loadDistributions()
+				withContext(Dispatchers.Main) {
+					distConsumer(distributionProvider.installedDistributions)
 				}
+			}.also {
+				it?.invokeOnCompletion {
+					listJdkInstallationsJob = null
+				}
+			}
 	}
 
 	private fun isInstalledOnSdCard(): Boolean {
