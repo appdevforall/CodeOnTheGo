@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
 import androidx.activity.viewModels
@@ -43,6 +44,8 @@ import com.itsaky.androidide.handlers.EditorBuildEventListener
 import com.itsaky.androidide.handlers.LspHandler.connectClient
 import com.itsaky.androidide.handlers.LspHandler.connectDebugClient
 import com.itsaky.androidide.handlers.LspHandler.destroyLanguageServers
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
@@ -67,9 +70,11 @@ import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashbarBuilder
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.utils.withIcon
@@ -192,8 +197,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			notifySyncNeeded()
 		}
 
-		startServices()
-	}
+        startServices()
+
+        binding.endNav.visibility = if (isExperimentsEnabled()) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
+    }
 
 	override fun onSaveInstanceState(outState: Bundle) {
 		super.onSaveInstanceState(outState)
@@ -736,7 +747,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 
 		builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
-		mFindInProjectDialog = builder.create()
+        val dialog = builder.create()
+        dialog.onLongPress {
+            TooltipManager.showTooltip(
+                context = this,
+                anchorView = binding.root,
+                tag = TooltipTag.DIALOG_FIND_IN_PROJECT
+            )
+            true
+        }
+
+        mFindInProjectDialog = dialog
 		return mFindInProjectDialog
 	}
 
