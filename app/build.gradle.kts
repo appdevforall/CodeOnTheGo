@@ -24,13 +24,14 @@ import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
 
 plugins {
-	id("com.android.application")
-	id("kotlin-android")
-	id("kotlin-kapt")
-	id("kotlin-parcelize")
-	id("androidx.navigation.safeargs.kotlin")
-	id("com.itsaky.androidide.desugaring")
-	alias(libs.plugins.sentry)
+  id("com.android.application")
+  id("kotlin-android")
+  id("kotlin-kapt")
+  id("kotlin-parcelize")
+  id("androidx.navigation.safeargs.kotlin")
+  id("com.itsaky.androidide.desugaring")
+  alias(libs.plugins.sentry)
+  kotlin("plugin.serialization")
 }
 
 fun propOrEnv(name: String): String =
@@ -68,9 +69,19 @@ android {
 		testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
 	}
 
-	buildTypes {
+    signingConfigs {
+        getByName("debug") {
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
+
+
+    buildTypes {
 		debug {
-			manifestPlaceholders["sentryDsn"] =
+            signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
 		}
 		release {
@@ -248,6 +259,18 @@ dependencies {
 
 	// brotli4j
 	implementation(libs.brotli4j)
+
+
+    implementation(libs.common.markwon.core)
+    implementation(libs.common.markwon.linkify)
+    implementation(libs.commons.text.v1140)
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // For JSON parsing, if not already present from your diff
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    // Koin for Dependency Injection
+    implementation("io.insert-koin:koin-android:3.5.3")
+    implementation(libs.androidx.security.crypto)
 }
 
 tasks.register("downloadDocDb") {
@@ -482,6 +505,10 @@ fun signApk(apkFile: File) {
 			"failonerror" to "true",
 		) {
 			"arg"("value" to "sign")
+            "arg"("value" to "--v3-signing-enabled")
+            "arg"("value" to "true")
+            "arg"("value" to "--v2-signing-enabled")
+            "arg"("value" to "true")
 			"arg"("value" to "--ks")
 			"arg"("value" to keystorePath)
 			"arg"("value" to "--ks-key-alias")

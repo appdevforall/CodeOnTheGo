@@ -6,6 +6,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.requireEditor
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.resources.R.string
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -16,6 +17,7 @@ class RemoveUnusedImportsAction : BaseJavaCodeAction() {
   override val id: String = "ide.editor.lsp.java.removeUnusedImports"
   override var label: String = ""
   override val titleTextRes: Int = string.action_remove_unused_imports
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_UNUSED_IMPORTS
 
   companion object {
 
