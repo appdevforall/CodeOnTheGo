@@ -1,7 +1,7 @@
 package com.itsaky.androidide.helper
 
+import NavigateToMainScreenScenario
 import com.itsaky.androidide.scenarios.InitializationProjectAndCancelingBuildScenario
-import com.itsaky.androidide.scenarios.NavigateToMainScreenScenario
 import com.itsaky.androidide.screens.TemplateScreen.selectTemplate
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 

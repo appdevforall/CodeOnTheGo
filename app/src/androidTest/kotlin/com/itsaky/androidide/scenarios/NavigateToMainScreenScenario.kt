@@ -1,5 +1,3 @@
-package com.itsaky.androidide.scenarios
-
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.helper.grantNotifications
 import com.itsaky.androidide.helper.grantOverlayPermission
@@ -14,6 +12,7 @@ import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 class NavigateToMainScreenScenario : Scenario() {
 
     override val steps: TestContext<Unit>.() -> Unit = {
+
         step("Click continue button on the Welcome Screen") {
             OnboardingScreen.nextButton {
                 isVisible()
@@ -21,12 +20,12 @@ class NavigateToMainScreenScenario : Scenario() {
                 click()
             }
         }
-        
+
         val permissionsScreen = device.uiDevice.findObject(UiSelector().text("Permissions"))
         println("DEBUG: Checking if permissions screen exists: ${permissionsScreen.exists()}")
 
         if (permissionsScreen.exists()) {
-            println("DEBUG: Permissions screen found, granting 3 permissions in order")
+            println("DEBUG: Permissions screen found, granting 4 permissions in order: Notification -> Storage -> Install Packages -> Overlay")
 
             step("Grant Notification Permissions") {
                 flakySafely(15000) {
@@ -34,39 +33,27 @@ class NavigateToMainScreenScenario : Scenario() {
                     PermissionScreen {
                         rvPermissions {
                             childAt<PermissionScreen.PermissionItem>(0) {
-                                grantButton {
-                                    isDisplayed()
-                                    isEnabled()
-                                    click()
-                                }
+                                grantButton.click()
                             }
                         }
 
+                        device.uiDevice.waitForIdle(2000)
                         grantNotifications(device.uiDevice)
                         device.uiDevice.waitForIdle(1000)
                         device.uiDevice.pressBack()
                         device.uiDevice.waitForIdle(1000)
                     }
-                    println("DEBUG: Storage permission granted")
+                    println("DEBUG: Notification permission granted")
                 }
             }
-
-            // Wait for UI to update after notification permission
-            device.uiDevice.waitForIdle(2000)
 
             step("Grant Storage Permissions") {
                 flakySafely(15000) {
                     println("DEBUG: Granting Storage permission (index 1)")
                     PermissionScreen {
                         rvPermissions {
-                            scrollTo(1)
-                            device.uiDevice.waitForIdle(500)
                             childAt<PermissionScreen.PermissionItem>(1) {
-                                grantButton {
-                                    isDisplayed()
-                                    isEnabled()
-                                    click()
-                                }
+                                grantButton.click()
                             }
                         }
 
@@ -84,14 +71,8 @@ class NavigateToMainScreenScenario : Scenario() {
                     println("DEBUG: Granting Install packages permission (index 2)")
                     PermissionScreen {
                         rvPermissions {
-                            scrollTo(2)
-                            device.uiDevice.waitForIdle(500)
                             childAt<PermissionScreen.PermissionItem>(2) {
-                                grantButton {
-                                    isDisplayed()
-                                    isEnabled()
-                                    click()
-                                }
+                                grantButton.click()
                             }
                         }
 
@@ -132,14 +113,8 @@ class NavigateToMainScreenScenario : Scenario() {
                     println("DEBUG: Granting Overlay permission (index 3)")
                     PermissionScreen {
                         rvPermissions {
-                            scrollTo(3)
-                            device.uiDevice.waitForIdle(500)
                             childAt<PermissionScreen.PermissionItem>(3) {
-                                grantButton {
-                                    isDisplayed()
-                                    isEnabled()
-                                    click()
-                                }
+                                grantButton.click()
                             }
                         }
 
@@ -153,16 +128,16 @@ class NavigateToMainScreenScenario : Scenario() {
 
             step("Navigate to Install Tools Screen") {
                 flakySafely(timeoutMs = 15000) {
-                    println("DEBUG: All 3 permissions granted, clicking next button to navigate")
-                    
+                    println("DEBUG: All 4 permissions granted, clicking next button to navigate")
+
                     OnboardingScreen.nextButton {
                         isVisible()
                         isClickable()
                         click()
                     }
-                    
+
                     device.uiDevice.waitForIdle(3000)
-                    
+
                     try {
                         InstallToolsScreen.doneButton {
                             println("DEBUG: Successfully navigated to InstallToolsScreen")
@@ -170,13 +145,13 @@ class NavigateToMainScreenScenario : Scenario() {
                         }
                     } catch (e: Exception) {
                         println("DEBUG: Navigation failed, still on permissions screen. Retrying...")
-                        
+
                         OnboardingScreen.nextButton {
                             click()
                         }
-                        
+
                         device.uiDevice.waitForIdle(3000)
-                        
+
                         InstallToolsScreen.doneButton {
                             println("DEBUG: Navigation successful on retry")
                             isDisplayed()
@@ -203,21 +178,6 @@ class NavigateToMainScreenScenario : Scenario() {
                     }
                 }
                 device.uiDevice.waitForIdle(5000)
-            }
-        }
-
-        step("Handle notifications permissions if they appear") {
-            flakySafely(15000) {
-                try {
-                    if (device.permissions.isDialogVisible()) {
-                        println("DEBUG: Notification permission dialog found, denying...")
-                        device.permissions.denyViaDialog()
-                    } else {
-                        println("DEBUG: No notification permission dialog found")
-                    }
-                } catch (e: Exception) {
-                    println("DEBUG: No notification permission dialog found, continuing...")
-                }
             }
         }
 
