@@ -84,7 +84,7 @@ class AppLogFragment : LogViewFragment() {
   }
 
   override fun isSimpleFormattingEnabled() = false
-  override fun getFilename() = "app_logs"
+  override fun getShareableFilename() = "app_logs"
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)

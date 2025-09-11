@@ -60,7 +60,7 @@ public abstract class NonEditableEditorFragment extends
 
   @NonNull
   @Override
-  public String getContent() {
+  public String getShareableContent() {
     final var editor = getEditor();
     if (editor == null) {
       return "";
@@ -81,7 +81,7 @@ public abstract class NonEditableEditorFragment extends
 
   @NonNull
   @Override
-  public String getFilename() {
+  public String getShareableFilename() {
     return "build_output";
   }
 

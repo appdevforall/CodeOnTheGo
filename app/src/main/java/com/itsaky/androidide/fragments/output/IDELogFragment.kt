@@ -37,7 +37,7 @@ class IDELogFragment : LogViewFragment() {
   private val lifecycleAwareAppender = LifecycleAwareAppender(Lifecycle.State.CREATED)
 
   override fun isSimpleFormattingEnabled() = true
-  override fun getFilename() = "ide_logs"
+  override fun getShareableFilename() = "ide_logs"
   override val tooltipTag = TooltipTag.PROJECT_IDE_LOGS
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

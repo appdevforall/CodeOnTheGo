@@ -264,7 +264,7 @@ abstract class LogViewFragment :
     logHandler.removeCallbacks(logRunnable)
     super.onDestroyView()
   }
-  override fun getContent(): String {
+  override fun getShareableContent(): String {
     val editorText = this._binding?.editor?.text?.toString() ?: ""
 	return "${BuildInfoUtils.BASIC_INFO}${System.lineSeparator()}${editorText}"
   }

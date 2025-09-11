@@ -493,7 +493,10 @@ open class IDEEditor @JvmOverloads constructor(
 
 	@VisibleForTesting
 	fun doCopy(text: CharSequence, start: Int, end: Int) {
-		log.info("doCopy(text={}, start={}, end={})", text, start, end)
+		// This method MUST not contain any other statements
+		// It is only used for testing purposes
+		// We mock this method in instrumentation tests so that we could capture
+		// whatever is being copied to the clipboard, which can then be verified
 		super.copyTextToClipboard(text, start, end)
 	}
 

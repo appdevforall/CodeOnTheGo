@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.editor.utils
 
-import android.util.Log
 import com.itsaky.androidide.treesitter.TSNode
 import com.itsaky.androidide.treesitter.TSTree
 import com.itsaky.androidide.treesitter.getNodeAt
@@ -42,7 +41,6 @@ fun Content.append(text: CharSequence?): Int {
 		col = 0
 	}
 
-	Log.i("ContextExtsKt", "append: line=$line col=$col text=$text")
 	insert(line, col, text)
 	return line
 }
