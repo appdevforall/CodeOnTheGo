@@ -64,9 +64,19 @@ android {
 		vectorDrawables.useSupportLibrary = true
 	}
 
-	buildTypes {
+    signingConfigs {
+        getByName("debug") {
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
+
+
+    buildTypes {
 		debug {
-			manifestPlaceholders["sentryDsn"] =
+            signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnDebug") ?: propOrEnv("SENTRY_DSN_DEBUG")
 		}
 		release {
@@ -477,6 +487,10 @@ fun signApk(apkFile: File) {
 			"failonerror" to "true",
 		) {
 			"arg"("value" to "sign")
+            "arg"("value" to "--v3-signing-enabled")
+            "arg"("value" to "true")
+            "arg"("value" to "--v2-signing-enabled")
+            "arg"("value" to "true")
 			"arg"("value" to "--ks")
 			"arg"("value" to keystorePath)
 			"arg"("value" to "--ks-key-alias")
