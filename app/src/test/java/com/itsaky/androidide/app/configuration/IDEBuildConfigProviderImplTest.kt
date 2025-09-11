@@ -27,94 +27,94 @@ import org.junit.Test
  */
 class IDEBuildConfigProviderImplTest {
 
-  class TestBuildConfigProvider(
-    override val cpuAbiName: String,
-    val deviceArchs: Array<String>,
-  ) : IDEBuildConfigProviderImpl() {
+    class TestBuildConfigProvider(
+        override val cpuAbiName: String,
+        val deviceArchs: Array<String>,
+    ) : IDEBuildConfigProviderImpl() {
 
-    override val deviceArch: CpuArch
-      get() = CpuArch.forAbi(deviceArchs[0])!!
+        override val deviceArch: CpuArch
+            get() = CpuArch.forAbi(deviceArchs[0])!!
 
-    override fun supportsCpuAbi(): Boolean = deviceArchs.contains(cpuAbiName)
-  }
-
-  @Test
-  fun `test aarch64 build on aarch64-only device`() {
-    TestBuildConfigProvider(ABI_ARM64_V8A, arrayOf(ABI_ARM64_V8A)).apply {
-      assertThat(cpuAbiName).isEqualTo(ABI_ARM64_V8A)
-      assertThat(cpuArch).isEqualTo(CpuArch.AARCH64)
-      assertThat(deviceArch).isEqualTo(CpuArch.AARCH64)
-
-      assertThat(isArm64v8aBuild()).isTrue()
-      assertThat(isX86_64Build()).isFalse()
-      assertThat(isArmeabiv7aBuild()).isFalse()
-
-      assertThat(isArm64v8aDevice()).isTrue()
-      assertThat(isX86_64Device()).isFalse()
-      assertThat(isArmeabiv7aDevice()).isFalse()
-
-      assertThat(supportsCpuAbi()).isTrue()
-      assertThat(cpuArch).isEqualTo(deviceArch)
+        override fun supportsCpuAbi(): Boolean = deviceArchs.contains(cpuAbiName)
     }
-  }
 
-  @Test
-  fun `test arm build on arm-only device`() {
-    TestBuildConfigProvider(ABI_ARMEABI_V7A, arrayOf(ABI_ARMEABI_V7A)).apply {
-      assertThat(cpuAbiName).isEqualTo(ABI_ARMEABI_V7A)
-      assertThat(cpuArch).isEqualTo(CpuArch.ARM)
-      assertThat(deviceArch).isEqualTo(CpuArch.ARM)
+    @Test
+    fun `test aarch64 build on aarch64-only device`() {
+        TestBuildConfigProvider(ABI_ARM64_V8A, arrayOf(ABI_ARM64_V8A)).apply {
+            assertThat(cpuAbiName).isEqualTo(ABI_ARM64_V8A)
+            assertThat(cpuArch).isEqualTo(CpuArch.AARCH64)
+            assertThat(deviceArch).isEqualTo(CpuArch.AARCH64)
 
-      assertThat(isArm64v8aBuild()).isFalse()
-      assertThat(isX86_64Build()).isFalse()
-      assertThat(isArmeabiv7aBuild()).isTrue()
+            assertThat(isArm64v8aBuild()).isTrue()
+            assertThat(isX86_64Build()).isFalse()
+            assertThat(isArmeabiv7aBuild()).isFalse()
 
-      assertThat(isArm64v8aDevice()).isFalse()
-      assertThat(isX86_64Device()).isFalse()
-      assertThat(isArmeabiv7aDevice()).isTrue()
+            assertThat(isArm64v8aDevice()).isTrue()
+            assertThat(isX86_64Device()).isFalse()
+            assertThat(isArmeabiv7aDevice()).isFalse()
 
-      assertThat(supportsCpuAbi()).isTrue()
-      assertThat(cpuArch).isEqualTo(deviceArch)
+            assertThat(supportsCpuAbi()).isTrue()
+            assertThat(cpuArch).isEqualTo(deviceArch)
+        }
     }
-  }
 
-  @Test
-  fun `test arm build on (aarch64,arm) device`() {
-    TestBuildConfigProvider(ABI_ARMEABI_V7A, arrayOf(ABI_ARM64_V8A, ABI_ARMEABI_V7A)).apply {
-      assertThat(cpuAbiName).isEqualTo(ABI_ARMEABI_V7A)
-      assertThat(cpuArch).isEqualTo(CpuArch.ARM)
-      assertThat(deviceArch).isEqualTo(CpuArch.AARCH64)
+    @Test
+    fun `test arm build on arm-only device`() {
+        TestBuildConfigProvider(ABI_ARMEABI_V7A, arrayOf(ABI_ARMEABI_V7A)).apply {
+            assertThat(cpuAbiName).isEqualTo(ABI_ARMEABI_V7A)
+            assertThat(cpuArch).isEqualTo(CpuArch.ARM)
+            assertThat(deviceArch).isEqualTo(CpuArch.ARM)
 
-      assertThat(isArm64v8aBuild()).isFalse()
-      assertThat(isX86_64Build()).isFalse()
-      assertThat(isArmeabiv7aBuild()).isTrue()
+            assertThat(isArm64v8aBuild()).isFalse()
+            assertThat(isX86_64Build()).isFalse()
+            assertThat(isArmeabiv7aBuild()).isTrue()
 
-      assertThat(isArm64v8aDevice()).isTrue()
-      assertThat(isX86_64Device()).isFalse()
-      assertThat(isArmeabiv7aDevice()).isFalse()
+            assertThat(isArm64v8aDevice()).isFalse()
+            assertThat(isX86_64Device()).isFalse()
+            assertThat(isArmeabiv7aDevice()).isTrue()
 
-      assertThat(supportsCpuAbi()).isTrue()
-      assertThat(cpuArch).isNotEqualTo(deviceArch)
+            assertThat(supportsCpuAbi()).isTrue()
+            assertThat(cpuArch).isEqualTo(deviceArch)
+        }
     }
-  }
 
-  @Test
-  fun `test aarch64 build on arm-only device`() {
-    TestBuildConfigProvider(ABI_ARM64_V8A, arrayOf(ABI_ARMEABI_V7A)).apply {
-      assertThat(cpuAbiName).isEqualTo(ABI_ARM64_V8A)
-      assertThat(cpuArch).isEqualTo(CpuArch.AARCH64)
-      assertThat(deviceArch).isEqualTo(CpuArch.ARM)
+    @Test
+    fun `test arm build on (aarch64,arm) device`() {
+        TestBuildConfigProvider(ABI_ARMEABI_V7A, arrayOf(ABI_ARM64_V8A, ABI_ARMEABI_V7A)).apply {
+            assertThat(cpuAbiName).isEqualTo(ABI_ARMEABI_V7A)
+            assertThat(cpuArch).isEqualTo(CpuArch.ARM)
+            assertThat(deviceArch).isEqualTo(CpuArch.AARCH64)
 
-      assertThat(isArm64v8aBuild()).isTrue()
-      assertThat(isX86_64Build()).isFalse()
-      assertThat(isArmeabiv7aBuild()).isFalse()
+            assertThat(isArm64v8aBuild()).isFalse()
+            assertThat(isX86_64Build()).isFalse()
+            assertThat(isArmeabiv7aBuild()).isTrue()
 
-      assertThat(isArm64v8aDevice()).isFalse()
-      assertThat(isX86_64Device()).isFalse()
-      assertThat(isArmeabiv7aDevice()).isTrue()
+            assertThat(isArm64v8aDevice()).isTrue()
+            assertThat(isX86_64Device()).isFalse()
+            assertThat(isArmeabiv7aDevice()).isFalse()
 
-      assertThat(supportsCpuAbi()).isFalse()
-      assertThat(cpuArch).isNotEqualTo(deviceArch)
+            assertThat(supportsCpuAbi()).isTrue()
+            assertThat(cpuArch).isNotEqualTo(deviceArch)
+        }
     }
-  }
 
+    @Test
+    fun `test aarch64 build on arm-only device`() {
+        TestBuildConfigProvider(ABI_ARM64_V8A, arrayOf(ABI_ARMEABI_V7A)).apply {
+            assertThat(cpuAbiName).isEqualTo(ABI_ARM64_V8A)
+            assertThat(cpuArch).isEqualTo(CpuArch.AARCH64)
+            assertThat(deviceArch).isEqualTo(CpuArch.ARM)
+
+            assertThat(isArm64v8aBuild()).isTrue()
+            assertThat(isX86_64Build()).isFalse()
+            assertThat(isArmeabiv7aBuild()).isFalse()
+
+            assertThat(isArm64v8aDevice()).isFalse()
+            assertThat(isX86_64Device()).isFalse()
+            assertThat(isArmeabiv7aDevice()).isTrue()
+
+            assertThat(supportsCpuAbi()).isFalse()
+            assertThat(cpuArch).isNotEqualTo(deviceArch)
+        }
+    }
+}
