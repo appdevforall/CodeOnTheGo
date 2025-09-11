@@ -6,6 +6,7 @@ appcompat = "1.6.1"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
 commonsText = "1.11.0"
+commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
 gradle-tooling = "8.6"
@@ -19,6 +20,7 @@ paletteKtx = "1.0.0"
 playServicesOssLicenses = "17.1.0"
 preferenceKtxVersion = "1.2.1"
 recyclerview = "1.3.2"
+securityCrypto = "1.1.0"
 tree-sitter = "4.3.1"
 editor = "0.23.6"
 glide = "4.16.0"
@@ -62,10 +64,12 @@ androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-view
 androidx-palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "paletteKtx" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtxVersion" }
 androidx-recyclerview-v132 = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
+commons-text-v1140 = { module = "org.apache.commons:commons-text", version.ref = "commonsTextVersion" }
 composite-appintro = { module = "com.itsaky.androidide.build:appintro" }
 composite-constants = { module = "com.itsaky.androidide.build:constants" }
 composite-desugaringCore = { module = "com.itsaky.androidide.build:desugaring-core" }
@@ -79,7 +83,6 @@ composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" 
 composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
-gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
@@ -235,6 +238,7 @@ tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.12" }
 # Classpaths
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
 nav-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-safe-args-gradle-plugin", version.ref = "androidx-navigation" }
 maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish-plugin" }
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }

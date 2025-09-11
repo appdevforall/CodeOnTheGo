@@ -37,8 +37,10 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
+import android.view.GestureDetector
 import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -64,6 +66,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.blankj.utilcode.util.FileUtils
+import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
@@ -79,6 +82,7 @@ import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
+import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
@@ -111,15 +115,19 @@ import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.ApkInstallationSessionCallback
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
+import com.itsaky.androidide.viewmodel.FileManagerViewModel
+import com.itsaky.androidide.viewmodel.FileOpResult
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
@@ -136,6 +144,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -156,8 +165,10 @@ abstract class BaseEditorActivity :
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
-	var isDestroying = false
-		protected set
+	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
+
+    var isDestroying = false
+        protected set
 
 	/**
 	 * Editor activity's [CoroutineScope] for executing tasks in the background.
@@ -324,8 +335,13 @@ abstract class BaseEditorActivity :
 
 	protected var optionsMenuInvalidator: Runnable? = null
 
-	companion object {
-		const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
+	private lateinit var gestureDetector: GestureDetector
+    private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
+    private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
+
+    companion object {
+
+        const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
 		@JvmStatic
 		protected val PROC_IDE = "IDE"
@@ -350,7 +366,7 @@ abstract class BaseEditorActivity :
 
 	protected abstract fun provideEditorAt(index: Int): CodeEditorView?
 
-	protected abstract fun doOpenFile(
+	internal abstract fun doOpenFile(
 		file: File,
 		selection: Range?,
 	)
@@ -364,7 +380,8 @@ abstract class BaseEditorActivity :
 	internal abstract fun doOpenHelp()
 
 	protected open fun preDestroy() {
-		_binding = null
+		BuildOutputProvider.clearBottomSheet()
+        _binding = null
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
@@ -529,6 +546,9 @@ abstract class BaseEditorActivity :
 
         setupMemUsageChart()
         watchMemory()
+        observeFileOperations()
+
+        setupGestureDetector()
     }
 
     private fun setupToolbar() {
@@ -1042,6 +1062,7 @@ abstract class BaseEditorActivity :
 
     private fun setupBottomSheet() {
         editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
+        BuildOutputProvider.setBottomSheet(content.bottomSheet)
         editorBottomSheet?.addBottomSheetCallback(object : BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
                 if (newState == BottomSheetBehavior.STATE_EXPANDED) {
@@ -1111,6 +1132,65 @@ abstract class BaseEditorActivity :
 
     open fun installationSessionCallback(): SessionCallback {
         return ApkInstallationSessionCallback(this).also { installationCallback = it }
+    }
+
+    private fun observeFileOperations() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                fileManagerViewModel.operationResult.collect { result ->
+                    when (result) {
+                        is FileOpResult.Success -> flashMessage(
+                            result.messageRes,
+                            FlashType.SUCCESS
+                        )
+
+                        is FileOpResult.Error -> flashMessage(result.messageRes, FlashType.ERROR)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setupGestureDetector() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                // Check if no files are open by looking at the displayedChild of the view flipper
+                val noFilesOpen = content.viewContainer.displayedChild == 1
+                if (!noFilesOpen) {
+                    return false // If files are open, do nothing
+                }
+
+                val diffX = e2.x - (e1?.x ?: 0f)
+
+                // Check for a right swipe (to open left drawer)
+                if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    binding.editorDrawerLayout.openDrawer(GravityCompat.START)
+                    return true
+                }
+
+                // Check for a left swipe (to open right drawer)
+                if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    binding.editorDrawerLayout.openDrawer(GravityCompat.END)
+                    return true
+                }
+
+                return false
+            }
+        })
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        // Pass the event to our gesture detector first
+        if (ev != null) {
+            gestureDetector.onTouchEvent(ev)
+        }
+        // Then, let the default dispatching happen
+        return super.dispatchTouchEvent(ev)
     }
 
     private fun showTooltip(tag: String) {
