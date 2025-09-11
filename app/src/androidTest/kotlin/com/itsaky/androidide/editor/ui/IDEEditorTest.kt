@@ -3,6 +3,7 @@ package com.itsaky.androidide.editor.ui
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.buildinfo.BuildInfo
 import io.mockk.every
 import io.mockk.slot
 import io.mockk.spyk
@@ -53,7 +54,7 @@ class IDEEditorTest {
 	fun test_includeDebugInfoFlagOnCopy_ifEnabled() {
 		val initial = "some text"
 		assertEditorCopiesDebugInfo(
-			expected = "CodeOnTheGo (unspecified)${System.lineSeparator()}$initial",
+			expected = "CodeOnTheGo (${BuildInfo.VERSION_NAME_SIMPLE})${System.lineSeparator()}$initial",
 			includeDebugInfo = true,
 			initialText = initial,
 		)

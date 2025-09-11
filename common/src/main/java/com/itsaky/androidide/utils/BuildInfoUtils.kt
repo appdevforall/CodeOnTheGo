@@ -12,5 +12,5 @@ object BasicBuildInfo {
 	/**
 	 * Basic info, includes internal app name and version name.
 	 */
-	const val BASIC_INFO = "${BuildInfo.INTERNAL_NAME} (${BuildInfo.VERSION_NAME})"
+	const val BASIC_INFO = "${BuildInfo.INTERNAL_NAME} (${BuildInfo.VERSION_NAME_SIMPLE})"
 }
