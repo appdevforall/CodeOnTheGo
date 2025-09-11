@@ -47,6 +47,7 @@ import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
@@ -788,6 +789,14 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                     val tab = content.tabs.getTabAt(index) ?: return@forEach
                     tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
                     tab.text = name
+                    tab.view.setOnLongClickListener {
+                        TooltipManager.showTooltip(
+                            context = this@EditorHandlerActivity,
+                            anchorView = tab.view,
+                            tag = TooltipTag.PROJECT_FILENAME,
+                        )
+                        true
+                    }
                 }
             }
         }
