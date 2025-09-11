@@ -43,8 +43,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
-import com.itsaky.androidide.utils.FeedbackManager
-import org.adfa.constants.HELP_PAGE_URL
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -163,26 +161,6 @@ class EditorActivity : BaseActivity() {
             )
         )
 
-    }
-
-    private fun setupHelpAndFeedbackButtons() {
-        val helpButton = binding.helpButton
-        val feedbackButton = binding.feedbackButton
-        
-
-        helpButton.setOnClickListener {
-            val intent = Intent(this, HelpActivity::class.java).apply {
-                putExtra(CONTENT_TITLE_KEY, getString(string.help))
-                putExtra(CONTENT_KEY, HELP_PAGE_URL)
-            }
-            startActivity(intent)
-        }
-        
-        feedbackButton.setOnClickListener {
-            FeedbackManager.showFeedbackDialog(
-                context = this,
-            )
-        }
     }
 
     private fun defineXmlPicker() {
@@ -334,9 +312,11 @@ class EditorActivity : BaseActivity() {
     private fun setupDrawerNavigationRail() {
         val paletteFab =
             binding.paletteNavigation.headerView?.findViewById<FloatingActionButton>(R.id.paletteFab)
-        
-        // Set up help and feedback buttons using view binding
-        setupHelpAndFeedbackButtons()
+        val helpFab =
+            binding.paletteNavigation.headerView?.findViewById<FloatingActionButton>(R.id.help_fab)
+
+        // Set tooltip text for help FAB
+        TooltipCompat.setTooltipText(helpFab as View, getString(string.help))
 
         val paletteMenu = binding.paletteNavigation.menu
         paletteMenu.add(Menu.NONE, 0, Menu.NONE, Constants.TAB_TITLE_COMMON)
@@ -417,6 +397,10 @@ class EditorActivity : BaseActivity() {
             }
         }
 
+        helpFab.setOnClickListener {
+            Toast.makeText(this, "Go to Help", Toast.LENGTH_SHORT).show()
+            // TODO - Load help page in [HelpActivity]
+        }
         clear()
     }
 

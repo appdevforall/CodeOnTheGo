@@ -1,11 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.adapters
 
-import android.annotation.SuppressLint
-import android.os.Handler
-import android.os.Looper
-import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.View.DragShadowBuilder
 import android.view.ViewGroup
@@ -15,6 +10,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
+import com.itsaky.androidide.utils.setupGestureHandling
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutPaletteItemBinding
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.getMipmapId
@@ -39,7 +35,14 @@ class PaletteListAdapter(private val drawerLayout: DrawerLayout) :
     binding.name.text = widgetItem["name"].toString()
     binding.className.text = getSuperClassName(widgetItem["className"].toString())
 
-    setupGestureHandling(binding, widgetItem)
+    binding.root.setupGestureHandling(
+      onLongPress = { view -> showTooltipForWidget(view, widgetItem) },
+      onDrag = { view -> 
+        if (ViewCompat.startDragAndDrop(view, null, DragShadowBuilder(view), widgetItem, 0)) {
+          drawerLayout.closeDrawers()
+        }
+      }
+    )
 
     binding
       .root.animation = AnimationUtils.loadAnimation(
@@ -47,51 +50,6 @@ class PaletteListAdapter(private val drawerLayout: DrawerLayout) :
     )
   }
 
-  @SuppressLint("ClickableViewAccessibility")
-  private fun setupGestureHandling(binding: LayoutPaletteItemBinding, widgetItem: HashMap<String, Any>) {
-    val handler = Handler(Looper.getMainLooper())
-    var isTooltipStarted = false
-    var startTime = 0L
-
-    binding.root.setOnTouchListener { view, event ->
-      when (event.action) {
-        MotionEvent.ACTION_DOWN -> {
-          isTooltipStarted = false
-          startTime = System.currentTimeMillis()
-          
-          // Show tooltip after 800ms (long hold for help)
-          handler.postDelayed({
-            if (!isTooltipStarted) {
-              isTooltipStarted = true
-              view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-              showTooltipForWidget(view, widgetItem)
-            }
-          }, 800)
-        }
-        
-        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-          handler.removeCallbacksAndMessages(null)
-          val holdDuration = System.currentTimeMillis() - startTime
-          
-          when {
-            isTooltipStarted -> {
-              // Tooltip already shown, do nothing
-            }
-            holdDuration >= 600 -> {
-              // Medium hold for drag (600-800ms - drag intent)
-              if (ViewCompat.startDragAndDrop(view, null, DragShadowBuilder(view), widgetItem, 0)) {
-                drawerLayout.closeDrawers()
-              }
-            }
-            else -> {
-              view.performClick()
-            }
-          }
-        }
-      }
-      true
-    }
-  }
 
   private fun showTooltipForWidget(anchorView: View, widgetItem: HashMap<String, Any>) {
     val context = anchorView.context
