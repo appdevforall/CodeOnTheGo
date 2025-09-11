@@ -54,6 +54,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.models.GradleTask
 import com.itsaky.androidide.utils.SingleTextWatcher
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.doOnApplyWindowInsets
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
@@ -154,6 +155,15 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
         }
       }
     )
+
+      binding.root.applyLongPressRecursively {
+          TooltipManager.showTooltip(
+              context = requireContext(),
+              anchorView = it,
+              tag = TooltipTag.PROJECT_GRADLE_TASKS
+          )
+          true
+      }
 
     binding.exec.apply {
         setOnClickListener {
