@@ -18,6 +18,7 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.shell.TermuxShellUtils;
 
 import java.nio.charset.Charset;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 
 /**
@@ -70,8 +71,14 @@ public class TermuxShellEnvironment extends AndroidShellEnvironment {
         HashMap<String, String> environment = super.getEnvironment(currentPackageContext, isFailSafe);
 
         HashMap<String, String> termuxAppEnvironment = TermuxAppShellEnvironment.getEnvironment(currentPackageContext);
-        if (termuxAppEnvironment != null)
+        if (termuxAppEnvironment != null) {
+            try{
+
             environment.putAll(termuxAppEnvironment);
+            } catch (ConcurrentModificationException e) {
+
+            }
+        };
 
         environment.put(ENV_HOME, TermuxConstants.TERMUX_HOME_DIR_PATH);
         environment.put(ENV_PREFIX, TermuxConstants.TERMUX_PREFIX_DIR_PATH);
