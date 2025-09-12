@@ -20,6 +20,7 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -58,6 +59,17 @@ open class SwipeRevealLayout @JvmOverloads constructor(
      * Called when the drag progress changes.
      */
     fun onDragProgress(swipeRevealLayout: SwipeRevealLayout, progress: Float)
+  }
+
+  private val leftDragHelper: ViewDragHelper
+  private val rightDragHelper: ViewDragHelper
+
+  private var leftDragProgress = 0f
+  private var rightDragProgress = 0f
+
+  init {
+    leftDragHelper = ViewDragHelper.create(this, 1f, LeftDragCallback())
+    rightDragHelper = ViewDragHelper.create(this, 1f, RightDragCallback())
   }
 
   private val dragHelperCallback = object : ViewDragHelper.Callback() {
@@ -118,29 +130,18 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
   }
 
-  private var dragHandleView: View? = null
-    get() {
-      if (field == null) {
-        field = findViewById(dragHandleViewId)
-      }
-      return field
-    }
-
   private val hiddenContent: View
     get() = getChildAt(HIDDEN_CONTENT_INDEX)!!
 
   private val overlappingContent: View
     get() = getChildAt(OVERLAPPING_CONTENT_INDEX)!!
 
-  private var initialDragX = 0f
-  private var initialDragY = 0f
   private var draggingState = -1
   private var draggingViewTop = 0
   private val dragHeightMax
     get() = hiddenContent.height
 
   private lateinit var dragHelper: ViewDragHelper
-  private var hasReceivedDownEvent = false
 
   /**
    * Whether the view is currently in 'dragging' state.
@@ -228,62 +229,26 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-    when (ev.actionMasked) {
-      MotionEvent.ACTION_DOWN -> {
-        val isInDragHandle = isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
-        hasReceivedDownEvent = isInDragHandle
-        return isInDragHandle && dragHelper.shouldInterceptTouchEvent(ev)
-      }
-
-      MotionEvent.ACTION_MOVE,
-      MotionEvent.ACTION_UP,
-      MotionEvent.ACTION_CANCEL -> {
-        if (!hasReceivedDownEvent) {
-          return false
-        }
-
-        val shouldIntercept = dragHelper.shouldInterceptTouchEvent(ev)
-        if (ev.actionMasked == MotionEvent.ACTION_UP ||
-          ev.actionMasked == MotionEvent.ACTION_CANCEL) {
-          hasReceivedDownEvent = false
-        }
-        return shouldIntercept && isViewHit(dragHandleView!!, ev.x.toInt(), ev.y.toInt())
-      }
-      else -> return false
+    val action = ev.actionMasked
+    if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
+      leftDragHelper.cancel()
+      rightDragHelper.cancel()
+      return false
     }
+    val isLeft = leftDragHelper.shouldInterceptTouchEvent(ev)
+    val isRight = rightDragHelper.shouldInterceptTouchEvent(ev)
+    return isLeft || isRight
   }
 
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    val x = event.x
-    val xInt = x.toInt()
-    val y = event.y
-    val yInt = y.toInt()
-
-    dragHelper.processTouchEvent(event)
-    val isInHandle = dragHelper.isViewUnder(dragHandleView, xInt, yInt)
-
-    when (event.actionMasked) {
-      MotionEvent.ACTION_DOWN -> {
-        initialDragX = x
-        initialDragY = y
-      }
-
-      MotionEvent.ACTION_UP -> {
-        val dx = x - initialDragX
-        val dy = y - initialDragY
-        val slop = dragHelper.touchSlop
-        if (dx * dx + dy * dy < slop * slop && isInHandle) {
-          smoothSlideTo(if (dragProgress == 0f) 1f else 0f)
-        }
-      }
-    }
-
-    return isInHandle && isViewHit(hiddenContent, xInt, yInt) || isViewHit(overlappingContent, xInt, yInt)
+    leftDragHelper.processTouchEvent(event)
+    rightDragHelper.processTouchEvent(event)
+    return true
   }
 
   override fun computeScroll() {
-    if (dragHelper.continueSettling(true)) {
+    if (leftDragHelper.continueSettling(true) or rightDragHelper.continueSettling(true)) {
       postInvalidateOnAnimation()
     }
   }
@@ -362,17 +327,35 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
   }
 
-  /**
-   * Whether the given motion event lies within the target view.
-   */
-  private fun isViewHit(view: View, x: Int, y: Int): Boolean {
-    val viewLoc = IntArray(2)
-    view.getLocationOnScreen(viewLoc)
-    val parentLoc = IntArray(2)
-    getLocationOnScreen(parentLoc)
+  private inner class LeftDragCallback : ViewDragHelper.Callback() {
+    override fun tryCaptureView(child: View, pointerId: Int): Boolean {
+      return child.id == R.id.drawer_sidebar // Your left drawer ID
+    }
 
-    val scrX = parentLoc[0] + x
-    val scrY = parentLoc[1] + y
-    return scrX >= viewLoc[0] && scrX < viewLoc[0] + view.width && scrY >= viewLoc[1] && scrY < viewLoc[1] + view.height
+    override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {
+      leftDragProgress = left.toFloat() / changedView.width
+      dragListener?.onDragProgress(this@SwipeRevealLayout, leftDragProgress)
+      invalidate()
+    }
+
+    override fun clampViewPositionHorizontal(child: View, left: Int, dx: Int): Int {
+      return max(0, min(left, width - child.width))
+    }
+  }
+
+  private inner class RightDragCallback : ViewDragHelper.Callback() {
+    override fun tryCaptureView(child: View, pointerId: Int): Boolean {
+      return child.id == R.id.right_drawer_sidebar
+    }
+
+    override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {
+      rightDragProgress = (width - left).toFloat() / changedView.width
+      dragListener?.onDragProgress(this@SwipeRevealLayout, rightDragProgress)
+      invalidate()
+    }
+
+    override fun clampViewPositionHorizontal(child: View, left: Int, dx: Int): Int {
+      return max(width - child.width, min(left, width))
+    }
   }
 }

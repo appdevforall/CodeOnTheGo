@@ -40,6 +40,8 @@ import com.itsaky.androidide.editor.language.cpp.CppLanguage
 import com.itsaky.androidide.editor.language.groovy.GroovyLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguageProvider
+import com.itsaky.androidide.editor.processing.ProcessContext
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.snippets.AbstractSnippetVariableResolver
@@ -73,7 +75,7 @@ import com.itsaky.androidide.syntax.colorschemes.DynamicColorScheme
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.JobCancelChecker
 import com.itsaky.androidide.tasks.cancelIfActive
-import com.itsaky.androidide.tasks.launchAsyncWithProgress
+import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
@@ -142,11 +144,11 @@ open class IDEEditor
 				)
 			}
 
-/**
-* The [CoroutineScope] for the editor.
-*
-* All the jobs in this scope are cancelled when the editor is released.
-*/
+		/**
+		 * The [CoroutineScope] for the editor.
+		 *
+		 * All the jobs in this scope are cancelled when the editor is released.
+		 */
 		val editorScope = CoroutineScope(Dispatchers.Default + CoroutineName("IDEEditor"))
 
 		var isReadOnlyContext = false
@@ -168,33 +170,34 @@ open class IDEEditor
 		var languageClient: ILanguageClient? = null
 			private set
 
-/**
-* Whether the cursor position change animation is enabled for the editor.
-*/
+		/**
+		 * Whether the cursor position change animation is enabled for the editor.
+		 */
 		var isEnsurePosAnimEnabled = true
 
-/**
-* The text searcher for the editor.
-*/
+		/**
+		 * The text searcher for the editor.
+		 */
 		lateinit var searcher: IDEEditorSearcher
 
-/**
-* The signature help window for the editor.
-*/
+		/**
+		 * The signature help window for the editor.
+		 */
 		val signatureHelpWindow: SignatureHelpWindow
 			get() {
 				return _signatureHelpWindow ?: SignatureHelpWindow(this).also { _signatureHelpWindow = it }
 			}
 
-/**
-* The diagnostic window for the editor.
-*/
+		/**
+		 * The diagnostic window for the editor.
+		 */
 		val diagnosticWindow: DiagnosticWindow
 			get() {
 				return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
 			}
 
 		companion object {
+			private const val TAG = "TrackpadScrollDebug"
 			private const val SELECTION_CHANGE_DELAY = 500L
 
 			internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
@@ -236,9 +239,9 @@ open class IDEEditor
 			}
 		}
 
-/**
-* Set the file for this editor.
-*/
+		/**
+		 * Set the file for this editor.
+		 */
 		fun setFile(file: File?) {
 			if (isReleased) {
 				return
@@ -404,7 +407,7 @@ open class IDEEditor
 			}
 		}
 
-// not overridable!
+		// not overridable!
 		final override fun <T : EditorBuiltinComponent?> replaceComponent(
 			clazz: Class<T>,
 			replacement: T & Any,
@@ -412,7 +415,7 @@ open class IDEEditor
 			super.replaceComponent(clazz, replacement)
 		}
 
-// not overridable
+		// not overridable
 		final override fun <T : EditorBuiltinComponent?> getComponent(clazz: Class<T>): T & Any = super.getComponent(clazz)
 
 		override fun release() {
@@ -523,9 +526,9 @@ open class IDEEditor
 			super.copyTextToClipboard(text, start, end)
 		}
 
-/**
-* Analyze the opened file and publish the diagnostics result.
-*/
+		/**
+		 * Analyze the opened file and publish the diagnostics result.
+		 */
 		open fun analyze() {
 			if (isReleased) {
 				return
@@ -544,23 +547,23 @@ open class IDEEditor
 				}.logError("LSP file analysis")
 		}
 
-/**
-* Mark this editor as NOT modified.
-*/
+		/**
+		 * Mark this editor as NOT modified.
+		 */
 		open fun markUnmodified() {
 			this.isModified = false
 		}
 
-/**
-* Mark this editor as modified.
-*/
+		/**
+		 * Mark this editor as modified.
+		 */
 		open fun markModified() {
 			this.isModified = true
 		}
 
-/**
-* Notify the language server that the file in this editor is about to be closed.
-*/
+		/**
+		 * Notify the language server that the file in this editor is about to be closed.
+		 */
 		open fun notifyClose() {
 			if (isReleased) {
 				return
@@ -582,9 +585,9 @@ open class IDEEditor
 			ensureWindowsDismissed()
 		}
 
-/**
-* Called when this editor is selected and visible to the user.
-*/
+		/**
+		 * Called when this editor is selected and visible to the user.
+		 */
 		open fun onEditorSelected() {
 			if (isReleased) {
 				return
@@ -594,9 +597,9 @@ open class IDEEditor
 			dispatchDocumentSelectedEvent()
 		}
 
-/**
-* Dispatches the [DocumentSaveEvent] for this editor.
-*/
+		/**
+		 * Dispatches the [DocumentSaveEvent] for this editor.
+		 */
 		open fun dispatchDocumentSaveEvent() {
 			markUnmodified()
 			if (isReleased) {
@@ -608,10 +611,10 @@ open class IDEEditor
 			eventDispatcher.dispatch(DocumentSaveEvent(file!!.toPath()))
 		}
 
-/**
-* Called when the color scheme has been invalidated. This usually happens when the user reloads
-* the color schemes.
-*/
+		/**
+		 * Called when the color scheme has been invalidated. This usually happens when the user reloads
+		 * the color schemes.
+		 */
 		@Suppress("unused")
 		@Subscribe(threadMode = ThreadMode.MAIN_ORDERED)
 		open fun onColorSchemeInvalidated(event: ColorSchemeInvalidatedEvent?) {
@@ -619,11 +622,11 @@ open class IDEEditor
 			setupLanguage(file)
 		}
 
-/**
-* Setup the editor language for the given [file].
-*
-* This applies a proper [Language] and the color scheme to the editor.
-*/
+		/**
+		 * Setup the editor language for the given [file].
+		 *
+		 * This applies a proper [Language] and the color scheme to the editor.
+		 */
 		open fun setupLanguage(file: File?) {
 			if (isReleased) {
 				return
@@ -648,9 +651,9 @@ open class IDEEditor
 			}
 		}
 
-/**
-* Applies the given [TreeSitterLanguage] and the [color scheme][scheme] for the given [file type][type].
-*/
+		/**
+		 * Applies the given [TreeSitterLanguage] and the [color scheme][scheme] for the given [file type][type].
+		 */
 		open fun applyTreeSitterLang(
 			language: TreeSitterLanguage,
 			type: String,
@@ -742,9 +745,11 @@ open class IDEEditor
 			dispatchEvent(LanguageUpdateEvent(lang, this))
 		}
 
-/**
-* Initialize the editor.
-*/
+		private val textProcessorEngine = TextProcessorEngine()
+
+		/**
+		 * Initialize the editor.
+		 */
 		protected open fun initEditor() {
 			lineNumberMarginLeft = SizeUtils.dp2px(2f).toFloat()
 
@@ -801,6 +806,76 @@ open class IDEEditor
 					event.intercept()
 				}
 			}
+			subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
+				if (isReleased) {
+					return@subscribeEvent
+				}
+
+				markModified()
+				file ?: return@subscribeEvent
+
+				editorScope.launch {
+					dispatchDocumentChangeEvent(event)
+					checkForSignatureHelp(event)
+					handleCustomTextReplacement(event)
+				}
+			}
+		}
+
+		private fun handleCustomTextReplacement(event: ContentChangeEvent) {
+			val isEnterPress =
+				event.action == ContentChangeEvent.ACTION_INSERT &&
+					event.changedText.toString().contains("\n")
+
+			if (!isEnterPress) {
+				return
+			}
+
+			val currentFile = this.file ?: return
+
+			editorScope.launch {
+				dispatchDocumentSaveEvent()
+
+				val lineToProcess = event.changeStart.line
+
+				val context =
+					ProcessContext(
+						content = text,
+						file = currentFile,
+						cursor =
+							text.cursor.apply {
+//                    set(lineToProcess, text.getLine(lineToProcess).length)
+							},
+					)
+
+				val result = textProcessorEngine.process(context, isEnterPress)
+
+				if (result != null) {
+					withContext(Dispatchers.Main) {
+						post {
+							val start = result.range.start
+							val end = result.range.end
+
+							text.replace(
+								start.line,
+								start.column,
+								end.line,
+								end.column,
+								result.replacement,
+							)
+
+							val newCursorLine = start.line + result.replacement.lines().size - 1
+							val newCursorColumn =
+								result.replacement
+									.lines()
+									.last()
+									.length
+
+							setSelection(newCursorLine, newCursorColumn)
+						}
+					}
+				}
+			}
 		}
 
 		private inline fun launchCancellableAsyncWithProgress(
@@ -811,9 +886,14 @@ open class IDEEditor
 				return null
 			}
 
-			return editorScope.launchAsyncWithProgress(configureFlashbar = { builder, cancelChecker ->
-				configureFlashbar(builder, message, cancelChecker)
-			}, action = action)
+			return editorScope.launch {
+				doAsyncWithProgress(
+					action = action,
+					configureFlashbar = { builder, cancelChecker ->
+						configureFlashbar(builder, message, cancelChecker)
+					},
+				)
+			}
 		}
 
 		protected open suspend fun onFindDefinitionResult(result: DefinitionResult?) =
@@ -961,17 +1041,17 @@ open class IDEEditor
 			eventDispatcher.dispatch(DocumentCloseEvent(file.toPath(), cursorLSPRange))
 		}
 
-/**
-* Checks if the content change event should trigger signature help. Signature help trigger
-* characters are :
-*
-*
-*  * `'('` (parentheses)
-*  * `','` (comma)
-*
-*
-* @param event The content change event.
-*/
+		/**
+		 * Checks if the content change event should trigger signature help. Signature help trigger
+		 * characters are :
+		 *
+		 *
+		 *  * `'('` (parentheses)
+		 *  * `','` (comma)
+		 *
+		 *
+		 * @param event The content change event.
+		 */
 		private fun checkForSignatureHelp(event: ContentChangeEvent) {
 			if (isReleased) {
 				return

@@ -45,5 +45,6 @@ dependencies {
 
 	api(projects.buildInfo)
 	api(projects.common)
+	api(projects.resources)
 	api(projects.shared)
 }

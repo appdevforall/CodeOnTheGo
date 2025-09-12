@@ -1,0 +1,19 @@
+package com.itsaky.androidide.models
+
+import java.util.UUID
+
+enum class MessageStatus {
+    SENT, LOADING, ERROR
+}
+
+data class ChatMessage(
+    val id: String = UUID.randomUUID().toString(),
+    val text: String,
+    val sender: Sender,
+    var status: MessageStatus = MessageStatus.SENT,
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    enum class Sender {
+        USER, AGENT, SYSTEM, TOOL
+    }
+}

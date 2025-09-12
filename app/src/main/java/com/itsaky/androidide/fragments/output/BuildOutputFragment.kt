@@ -61,7 +61,7 @@ class BuildOutputFragment : NonEditableEditorFragment() {
 				} else {
 					"${output}\n"
 				}
-			editor!!.append(message).also {
+			editor?.append(message).also {
 				emptyStateViewModel.isEmpty.value = false
 			}
 		}
