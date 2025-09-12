@@ -5,9 +5,9 @@ import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.check.KCheckBox
-import io.github.kakaocup.kakao.spinner.KSpinner
-import io.github.kakaocup.kakao.spinner.KSpinnerItem
 import io.github.kakaocup.kakao.text.KButton
+import io.github.kakaocup.kakao.text.KTextView
+import com.google.android.material.textfield.TextInputLayout
 
 object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
 
@@ -20,10 +20,9 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
         withId(R.id.finish)
     }
 
-    val spinner = KSpinner(
-        builder = { withHint("Project Language") },
-        itemTypeBuilder = { itemType(::KSpinnerItem) }
-    )
+    val languageSpinnerField = KTextView {
+        withHint("Project Language")
+    }
 
     val kotlinScriptText = KCheckBox {
         withText(R.string.msg_use_kts)
@@ -32,72 +31,34 @@ object ProjectSettingsScreen : KScreen<ProjectSettingsScreen>() {
     fun TestContext<Unit>.selectJavaLanguage() {
         step("Select the java language") {
             ProjectSettingsScreen {
-                spinner {
+                languageSpinnerField {
                     isVisible()
-                    open()
-
-                    childAt<KSpinnerItem>(0) {
-                        isVisible()
-                        hasText("Java")
-                        click()
-                    }
+                    click()
                 }
+                
+                device.uiDevice.waitForIdle(1000)
+                
+                // Use UiAutomator to find and click Java in the popup
+                device.uiDevice.findObject(UiSelector().text("Java")).click()
+                device.uiDevice.waitForIdle(500)
             }
         }
     }
 
     fun TestContext<Unit>.selectKotlinLanguage() {
         step("Select the kotlin language") {
-            flakySafely(30000) {  // Increased timeout
-                try {
-                    ProjectSettingsScreen {
-                        spinner {
-                            isVisible()
-                            open()
-                            
-                            // Wait for spinner to fully open
-                            Thread.sleep(1000)
-
-                            // Retry mechanism for selecting Kotlin
-                            var attempts = 0
-                            var success = false
-                            while (attempts < 3 && !success) {
-                                try {
-                                    childAt<KSpinnerItem>(1) {
-                                        isVisible()
-                                        hasText("Kotlin")
-                                        click()
-                                    }
-                                    success = true
-                                } catch (e: Exception) {
-                                    attempts++
-                                    println("Failed to select Kotlin on attempt $attempts: ${e.message}")
-                                    if (attempts < 3) {
-                                        // Close and reopen spinner
-                                        device.uiDevice.pressBack()
-                                        Thread.sleep(1000)
-                                        open()
-                                        Thread.sleep(1000)
-                                    }
-                                }
-                            }
-                        }
+            flakySafely(15000) {
+                ProjectSettingsScreen {
+                    languageSpinnerField {
+                        isVisible()
+                        click()
                     }
-                } catch (e: Exception) {
-                    println("Error in selectKotlinLanguage: ${e.message}")
-                    // One more attempt with a different approach
-                    ProjectSettingsScreen {
-                        spinner {
-                            isVisible()
-                            open()
-                            
-                            // Wait for spinner to fully open
-                            Thread.sleep(1000)
-                            
-                            // Try to select by text instead of position
-                            device.uiDevice.findObject(UiSelector().text("Kotlin")).click()
-                        }
-                    }
+                    
+                    device.uiDevice.waitForIdle(1000)
+                    
+                    // Use UiAutomator to find and click Kotlin in the popup
+                    device.uiDevice.findObject(UiSelector().text("Kotlin")).click()
+                    device.uiDevice.waitForIdle(500)
                 }
             }
         }

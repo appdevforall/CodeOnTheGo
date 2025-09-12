@@ -30,7 +30,18 @@ class NavigateToMainScreenScenario : Scenario() {
             step("Grant Notification Permissions") {
                 flakySafely(15000) {
                     println("DEBUG: Granting Notification permission (index 0)")
-                    grantNotifications(device.uiDevice)
+                    PermissionScreen {
+                        rvPermissions {
+                            childAt<PermissionScreen.PermissionItem>(0) {
+                                grantButton.click()
+                            }
+                        }
+
+                        grantNotifications(device.uiDevice)
+                        device.uiDevice.waitForIdle(1000)
+                        device.uiDevice.pressBack()
+                        device.uiDevice.waitForIdle(1000)
+                    }
                     println("DEBUG: Notification permission granted")
                 }
             }
