@@ -213,7 +213,7 @@ class EditorBottomSheet
 					return@setOnClickListener
 				}
 
-				val filename = fragment.getFilename()
+				val filename = fragment.getShareableFilename()
 
 				@Suppress("DEPRECATION")
 				val progress =
@@ -222,7 +222,7 @@ class EditorBottomSheet
 						null,
 						context.getString(string.please_wait),
 					)
-				executeAsync(fragment::getContent) {
+				executeAsync(fragment::getShareableContent) {
 					progress.dismiss()
 					shareText(it, filename)
 				}
