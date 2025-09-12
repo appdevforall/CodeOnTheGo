@@ -16,6 +16,7 @@ dependencies {
     implementation(projects.vectormaster)
     implementation(projects.common)
     implementation(projects.uidesigner)
+    implementation(projects.idetooltips)
 
     implementation (libs.androidx.lifecycle.viewmodel.ktx)
     implementation (libs.androidx.activity.ktx)

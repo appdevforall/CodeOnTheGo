@@ -166,6 +166,35 @@ object TooltipManager {
         }
     }
 
+    // Displays a tooltip in a particular context with a specific category
+    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                category,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+            }
+        }
+    }
+
     /**
      * Shows a tooltip anchored to a generic view.
      */
