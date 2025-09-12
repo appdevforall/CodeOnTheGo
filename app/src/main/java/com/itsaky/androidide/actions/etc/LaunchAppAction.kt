@@ -29,6 +29,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
+import com.termux.shared.android.PackageUtils
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 
@@ -54,7 +55,7 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
 
     override fun prepare(data: ActionData) {
         super.prepare(data)
-        data.getActivity() ?: run {
+        val activity = data.getActivity() ?: run {
             markInvisible()
             return
         }
@@ -62,7 +63,18 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
         visible = true
 
         val projectManager = IProjectManager.getInstance()
-        enabled = projectManager.getAndroidAppModules().isNotEmpty()
+        val appModules = projectManager.getAndroidAppModules()
+        
+        if (appModules.isEmpty()) {
+            enabled = false
+            return
+        }
+        
+        enabled = appModules.any { appModule ->
+            val variant = appModule.getSelectedVariant()
+            val applicationId = variant?.mainArtifact?.applicationId
+            applicationId != null && PackageUtils.getApplicationInfoForPackage(activity, applicationId) != null
+        }
     }
 
     override suspend fun execAction(data: ActionData) {
