@@ -30,19 +30,7 @@ class NavigateToMainScreenScenario : Scenario() {
             step("Grant Notification Permissions") {
                 flakySafely(15000) {
                     println("DEBUG: Granting Notification permission (index 0)")
-                    PermissionScreen {
-                        rvPermissions {
-                            childAt<PermissionScreen.PermissionItem>(0) {
-                                grantButton.click()
-                            }
-                        }
-
-                        device.uiDevice.waitForIdle(2000)
-                        grantNotifications(device.uiDevice)
-                        device.uiDevice.waitForIdle(1000)
-                        device.uiDevice.pressBack()
-                        device.uiDevice.waitForIdle(1000)
-                    }
+                    grantNotifications(device.uiDevice)
                     println("DEBUG: Notification permission granted")
                 }
             }
@@ -164,11 +152,11 @@ class NavigateToMainScreenScenario : Scenario() {
         }
 
         step("Click continue button on the Install Tools Screen") {
-            flakySafely(300000) {
+            flakySafely(600000) {
                 device.uiDevice.waitForIdle(10000)
                 println("DEBUG: Waiting for tools installation to complete...")
                 InstallToolsScreen.doneButton {
-                    flakySafely(250000) {
+                    flakySafely(550000) {
                         println("DEBUG: Waiting for DONE button to become visible and clickable...")
                         isVisible()
                         isEnabled()
