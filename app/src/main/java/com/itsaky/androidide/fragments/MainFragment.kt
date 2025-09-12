@@ -130,7 +130,14 @@ class MainFragment : BaseFragment() {
 
                         ACTION_PREFERENCES -> gotoPreferences()
 
-                        ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
+                        ACTION_DOCS -> {
+                            val intent =
+                                Intent(context, HelpActivity::class.java).apply {
+                                    putExtra(CONTENT_KEY, getString(R.string.docs_url))
+                                    putExtra(CONTENT_TITLE_KEY, "CoGo Documentation")
+                                }
+                            context?.startActivity(intent)
+                        }
                     }
                 }
                 val onLongClick = { action: MainScreenAction, _: View ->
