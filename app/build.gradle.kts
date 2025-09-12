@@ -31,7 +31,7 @@ plugins {
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
-  kotlin("plugin.serialization")
+	kotlin("plugin.serialization")
 }
 
 fun propOrEnv(name: String): String =
@@ -253,17 +253,16 @@ dependencies {
 	// brotli4j
 	implementation(libs.brotli4j)
 
+	implementation(libs.common.markwon.core)
+	implementation(libs.common.markwon.linkify)
+	implementation(libs.commons.text.v1140)
 
-    implementation(libs.common.markwon.core)
-    implementation(libs.common.markwon.linkify)
-    implementation(libs.commons.text.v1140)
-
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    // For JSON parsing, if not already present from your diff
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-    // Koin for Dependency Injection
-    implementation("io.insert-koin:koin-android:3.5.3")
-    implementation(libs.androidx.security.crypto)
+	implementation("com.squareup.okhttp3:okhttp:4.12.0")
+	// For JSON parsing, if not already present from your diff
+	implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+	// Koin for Dependency Injection
+	implementation("io.insert-koin:koin-android:3.5.3")
+	implementation(libs.androidx.security.crypto)
 }
 
 tasks.register("downloadDocDb") {

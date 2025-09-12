@@ -57,7 +57,8 @@ val Project.simpleVersionName: String
 					it.contains(
 						"debug",
 						true,
-					) || it.contains("dev", true)
+					) ||
+						it.contains("dev", true)
 				}
 			) {
 				"debug"

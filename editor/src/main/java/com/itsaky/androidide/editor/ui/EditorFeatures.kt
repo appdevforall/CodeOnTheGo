@@ -114,7 +114,8 @@ class EditorFeatures(
 			val end = range.end
 			return@withEditor isValidPosition(start, allowColumnEqual) &&
 				// make sure start position is before end position
-				isValidPosition(end, allowColumnEqual) && start < end
+				isValidPosition(end, allowColumnEqual) &&
+				start < end
 		} ?: false
 
 	override fun isValidPosition(
