@@ -8,19 +8,19 @@ import java.lang.ref.WeakReference
  * This acts as a service locator to avoid memory leaks.
  */
 object BuildOutputProvider {
-    private var bottomSheetRef: WeakReference<EditorBottomSheet>? = null
+	private var bottomSheetRef: WeakReference<EditorBottomSheet>? = null
 
-    fun setBottomSheet(sheet: EditorBottomSheet) {
-        this.bottomSheetRef = WeakReference(sheet)
-    }
+	fun setBottomSheet(sheet: EditorBottomSheet) {
+		this.bottomSheetRef = WeakReference(sheet)
+	}
 
-    fun clearBottomSheet() {
-        this.bottomSheetRef?.clear()
-        this.bottomSheetRef = null
-    }
+	fun clearBottomSheet() {
+		this.bottomSheetRef?.clear()
+		this.bottomSheetRef = null
+	}
 
-    fun getBuildOutputContent(): String? {
-        val bottomSheet = bottomSheetRef?.get() ?: return null
-        return bottomSheet.pagerAdapter.buildOutputFragment?.getContent()
-    }
+	fun getBuildOutputContent(): String? {
+		val bottomSheet = bottomSheetRef?.get() ?: return null
+		return bottomSheet.pagerAdapter.buildOutputFragment?.getShareableContent()
+	}
 }

@@ -59,7 +59,6 @@ dependencies {
 
 	implementation(projects.idetooltips)
 
-	testImplementation(libs.tests.junit)
-	testImplementation(libs.tests.google.truth)
-	testImplementation(libs.tests.robolectric)
+	testImplementation(projects.testing.unit)
+	androidTestImplementation(projects.testing.android)
 }
