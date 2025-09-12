@@ -91,10 +91,6 @@ public class BaseApplication extends Application {
     openUrl(getString(R.string.sponsor_url));
   }
 
-  public void openDocs() {
-    openUrl(getString(R.string.docs_url));
-  }
-
   public void emailUs() {
     openUrl(getString(R.string.mail_to_adfa));
   }
