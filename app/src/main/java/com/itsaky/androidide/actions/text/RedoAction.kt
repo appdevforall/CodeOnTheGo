@@ -25,17 +25,23 @@ import com.blankj.utilcode.util.KeyboardUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.actions.markInvisible
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
 class RedoAction(context: Context, override val order: Int) : EditorRelatedAction() {
 
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_REDO
+  override val id: String = ID
+
+  companion object {
+    const val ID = "ide.editor.code.text.redo"
+  }
+
   init {
     label = context.getString(R.string.redo)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_redo)
   }
-
-  override val id: String = "ide.editor.code.text.redo"
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

@@ -31,6 +31,7 @@ import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.IBinder;
 import android.widget.Toast;
+
 import com.itsaky.androidide.logsender.utils.Logger;
 
 /**
@@ -54,7 +55,7 @@ public class LogSenderService extends Service {
     Logger.debug("[LogSenderService] onCreate()");
     super.onCreate();
     setupNotificationChannel();
-    startForeground(NOTIFICATION_ID, buildNotification());
+//    startForeground(NOTIFICATION_ID, buildNotification());
   }
 
   @Override
