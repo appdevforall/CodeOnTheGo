@@ -17,13 +17,23 @@
 
 package com.itsaky.androidide.templates.impl
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.drawable.ColorDrawable
+import android.util.TypedValue
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.PopupWindow
+import android.widget.ListView
+import android.widget.TextView
+import android.view.ViewGroup
+import android.view.HapticFeedbackConstants
 import androidx.core.content.ContextCompat
 import com.google.android.material.textfield.TextInputLayout
 import com.google.auto.service.AutoService
+import com.itsaky.androidide.resources.ITooltipView
 import com.itsaky.androidide.resources.databinding.LayoutSpinnerBinding
 import com.itsaky.androidide.templates.BooleanParameter
 import com.itsaky.androidide.templates.CheckBoxWidget
@@ -41,6 +51,7 @@ import com.itsaky.androidide.templates.impl.databinding.LayoutCheckboxBinding
 import com.itsaky.androidide.templates.impl.databinding.LayoutTextfieldBinding
 import com.itsaky.androidide.utils.ServiceLoader
 import com.itsaky.androidide.utils.SingleTextWatcher
+import androidx.core.graphics.drawable.toDrawable
 
 
 /**
@@ -67,6 +78,14 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
     }
   }
 
+  var callTooltip: ((String) -> Unit)? = null
+  private fun showTooltipForView(tooltipTag: String) {
+    callTooltip?.invoke(tooltipTag)
+  }
+
+  override fun applyCallTooltip(callTooltip: (String) -> Unit) {
+    this.callTooltip = callTooltip
+  }
   override fun <T> createView(context: Context, widget: Widget<T>): View {
     if (widget is ParameterWidget<T>) {
       widget.parameter.apply {
@@ -80,9 +99,14 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
       is CheckBoxWidget -> createCheckBox(context, widget)
       is SpinnerWidget -> createSpinner(context, widget)
       else -> throw IllegalArgumentException("Unknown widget type : $widget")
-    }.also {
+    }.also { createdView ->
       if (widget is ParameterWidget<T>) {
-        widget.parameter.afterCreateView()
+        widget.parameter.tooltipTag?.let { tag ->
+          (createdView as? ITooltipView)?.setTooltipLongPressListener {
+            createdView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            showTooltipForView(tag)
+          }
+        }
       }
     }
   }
@@ -144,6 +168,7 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
     }.root
   }
 
+  @SuppressLint("ClickableViewAccessibility")
   private fun createSpinner(context: Context, widget: SpinnerWidget<*>): View {
     return LayoutSpinnerBinding.inflate(LayoutInflater.from(context)).apply {
       val param = widget.parameter as EnumParameter<Enum<*>>
@@ -167,14 +192,9 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
 
       val array = nameToEnum.keys.toTypedArray()
 
-      spinnerText.setAdapter(ArrayAdapter(context,
-        androidx.appcompat.R.layout.support_simple_spinner_dropdown_item,
-        array))
-
       val defaultName = enumToName[param.default] ?: param.default.name
 
       root.isEnabled = nameToEnum.size > 1
-      spinnerText.listSelection = array.indexOf(defaultName)
       spinnerText.setText(defaultName, false)
 
       val observer = object : DefaultObserver<Enum<*>>() {
@@ -187,24 +207,102 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
         }
       }
 
-      if (param.default != nameToEnum[defaultName]) {
-        // the default value may have been filtered
-        // reset the value to the first item
-        val first = checkNotNull(
-          nameToEnum.values.firstOrNull()) { "No entries available for enum parameter (all entries filtered out?)." }
-        param.setValue(first)
+      fun showSelectionDialog() {
+        val listView = ListView(context)
+
+        val typedValue = TypedValue()
+        context.theme.resolveAttribute(android.R.attr.textColorPrimary, typedValue, true)
+        val textColor = ContextCompat.getColor(context, typedValue.resourceId)
+
+        val adapter = object : ArrayAdapter<String>(context, android.R.layout.simple_list_item_1, array) {
+          override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = super.getView(position, convertView, parent)
+            val textView = view.findViewById<TextView>(android.R.id.text1)
+            textView.setTextColor(textColor)
+            return view
+          }
+        }
+        listView.adapter = adapter
+        listView.divider = null
+        listView.dividerHeight = 0
+
+        val width = spinnerText.width.coerceAtLeast(200)
+        val popupWindow = PopupWindow(
+          listView,
+          width,
+          ViewGroup.LayoutParams.WRAP_CONTENT,
+          true
+        )
+
+        val bgTypedValue = TypedValue()
+        context.theme.resolveAttribute(android.R.attr.colorBackground, bgTypedValue, true)
+        val backgroundColor = ContextCompat.getColor(context, bgTypedValue.resourceId)
+        popupWindow.setBackgroundDrawable(backgroundColor.toDrawable())
+        popupWindow.elevation = 4f
+
+        listView.setPadding(16, 8, 16, 8)
+
+        listView.setOnItemClickListener { _, _, position, _ ->
+          val selectedName = array[position]
+          val selectedEnum = nameToEnum[selectedName] ?: param.default
+          param.setValue(selectedEnum)
+          param.resetStartAndEndIcons(root.context, root)
+          popupWindow.dismiss()
+          spinnerText.clearFocus()
+        }
+
+        listView.setOnItemLongClickListener { _, view, position, _ ->
+          view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+          popupWindow.dismiss()
+          spinnerText.clearFocus()
+          showTooltipForView(widget.parameter.tooltipTag ?: "")
+          true
+        }
+
+        popupWindow.setOnDismissListener {
+          spinnerText.clearFocus()
+        }
+
+        popupWindow.showAsDropDown(spinnerText, 0, 0)
       }
 
-      param.configureTextField(context, root) {
-        observer.disableAndRun {
-          param.setValue(nameToEnum[it] ?: param.default)
-          param.resetStartAndEndIcons(root.context, root)
+
+      root.setEndIconOnClickListener {
+        if (root.isEnabled) {
+          spinnerText.requestFocus()
+          showSelectionDialog()
+        }
+      }
+
+      spinnerText.setOnTouchListener { _, ev ->
+        if (!root.isEnabled) return@setOnTouchListener false
+        if (ev.action == MotionEvent.ACTION_UP) {
+            spinnerText.requestFocus()
+          spinnerText.performClick()
+          showSelectionDialog()
+          true
+        } else {
+          false
         }
       }
 
       param.observe(observer)
+
+      param.configureTextField(context, root) {
+        param.setValue(nameToEnum[it] ?: param.default)
+        param.resetStartAndEndIcons(root.context, root)
+      }
+
+      // If default was filtered out, set to first entry
+      if (param.default != nameToEnum[defaultName]) {
+        val first = checkNotNull(
+          nameToEnum.values.firstOrNull()
+        ) { "No entries available for enum parameter (all entries filtered out?)." }
+        param.setValue(first)
+      }
     }.root
   }
+
   private inline fun TextFieldParameter<*>.configureTextField(
     context: Context,
     root: TextInputLayout,
@@ -239,7 +337,7 @@ class TemplateWidgetViewProviderImpl : ITemplateWidgetViewProvider {
   }
 
   private fun <T> TextFieldParameter<T>.resetStartAndEndIcons(context: Context,
-                                                          root: TextInputLayout
+                                                        root: TextInputLayout
   ) {
     startIcon?.let {
       root.startIconDrawable = ContextCompat.getDrawable(context, it(this))

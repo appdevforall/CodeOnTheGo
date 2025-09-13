@@ -24,6 +24,8 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.TooltipUtils
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
@@ -41,10 +43,10 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
         val activity = data.getActivity()
-        val category = when(editor.file!!.extension.toString()) {
-            "java" -> "java"
-            "kt" -> "kotlin"
-            else -> "ide"
+        val category = when (editor.file?.extension) {
+            "java" -> TooltipCategory.CATEGORY_JAVA
+            "kt" -> TooltipCategory.CATEGORY_KOTLIN
+            else -> TooltipCategory.CATEGORY_IDE
         }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
@@ -54,16 +56,21 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
                     editor,
                     0,
                     IDETooltipItem(
-                        tooltipCategory = category,
-                        tooltipTag = tooltipData.tooltipTag,
+                        rowId = tooltipData.rowId,
+                        id = tooltipData.id,
+                        category = category,
+                        tag = tooltipData.tag,
                         detail = tooltipData.detail,
                         summary = tooltipData.summary,
                         buttons = tooltipData.buttons,
+                        lastChange = tooltipData.lastChange,
                     ),
                 )
             }
         }
         return true
     }
+
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
 
 }

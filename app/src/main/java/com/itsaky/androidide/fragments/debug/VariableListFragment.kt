@@ -6,10 +6,13 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * @author Akash Yadav
@@ -45,11 +48,17 @@ class VariableListFragment : Fragment() {
             bindCoroutineScope(viewLifecycleOwner.lifecycleScope)
         }
 
-        viewModel.observeLatestVariablesTree(
-            notifyOn = Dispatchers.Main
-        ) { tree ->
-            treeView.tree = tree
-            treeView.refresh()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.observeLatestVariablesTree(
+                    scope = this,
+                    notifyOn = Dispatchers.Main
+                ) { tree ->
+                    treeView.tree = tree
+                    treeView.refresh()
+                }
+            }
         }
+
     }
 }

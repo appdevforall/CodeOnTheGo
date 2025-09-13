@@ -20,20 +20,20 @@ import com.itsaky.androidide.build.config.BuildConfig
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-  id("com.github.johnrengelman.shadow") version "8.1.1"
-  id("java-library")
-  id("kotlin-kapt")
-  id("org.jetbrains.kotlin.jvm")
+	id("com.github.johnrengelman.shadow") version "8.1.1"
+	id("java-library")
+	id("kotlin-kapt")
+	id("org.jetbrains.kotlin.jvm")
 }
 
 tasks.withType<Jar> {
-  manifest { attributes("Main-Class" to "${BuildConfig.packageName}.tooling.impl.Main") }
+	manifest { attributes("Main-Class" to "${BuildConfig.PACKAGE_NAME}.tooling.impl.Main") }
 }
 
 tasks.register("deleteExistingJarFiles") {
-  delete {
-    delete(project.layout.buildDirectory.dir("libs"))
-  }
+	delete {
+		delete(project.layout.buildDirectory.dir("libs"))
+	}
 }
 
 /**
@@ -53,45 +53,44 @@ tasks.register("deleteExistingJarFiles") {
  * 4) copyJar
  */
 tasks.register("copyJar") {
-  doLast {
-    val libsDir = project.layout.buildDirectory.dir("libs")
+	doLast {
+		val libsDir = project.layout.buildDirectory.dir("libs")
 
-    copy {
-      from(libsDir)
-      into(libsDir)
-      include("*-all.jar")
-      rename { "tooling-api-all.jar" }
-    }
-  }
+		copy {
+			from(libsDir)
+			into(libsDir)
+			include("*-all.jar")
+			rename { "tooling-api-all.jar" }
+		}
+	}
 }
 
 project.tasks.getByName<Jar>("jar") {
-  dependsOn("deleteExistingJarFiles")
-  finalizedBy("shadowJar")
-  entryCompression = ZipEntryCompression.STORED
+	dependsOn("deleteExistingJarFiles")
+	finalizedBy("shadowJar")
+	entryCompression = ZipEntryCompression.STORED
 }
 
 project.tasks.getByName<ShadowJar>("shadowJar") {
-  finalizedBy("copyJar")
-  entryCompression = ZipEntryCompression.STORED
+	finalizedBy("copyJar")
+	entryCompression = ZipEntryCompression.STORED
 }
 
-
 dependencies {
-  kapt(libs.google.auto.service)
+	kapt(libs.google.auto.service)
 
-  api(projects.subprojects.toolingApi)
+	api(projects.subprojects.toolingApi)
 
-  implementation(projects.buildInfo)
-  implementation(projects.shared)
+	implementation(projects.buildInfo)
+	implementation(projects.shared)
 
-  implementation(libs.common.jkotlin)
-  implementation(libs.google.auto.service.annotations)
-  implementation(libs.xml.xercesImpl)
-  implementation(libs.xml.apis)
-  implementation(libs.tooling.gradleApi)
+	implementation(libs.common.jkotlin)
+	implementation(libs.google.auto.service.annotations)
+	implementation(libs.xml.xercesImpl)
+	implementation(libs.xml.apis)
+	implementation(libs.tooling.gradleApi)
 
-  testImplementation(projects.testing.tooling)
+	testImplementation(projects.testing.tooling)
 
-  runtimeOnly(libs.tooling.slf4j)
+	runtimeOnly(libs.tooling.slf4j)
 }

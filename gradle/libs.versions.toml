@@ -6,6 +6,7 @@ appcompat = "1.6.1"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
 commonsText = "1.11.0"
+commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
 fragment = "1.8.8"
@@ -20,6 +21,7 @@ paletteKtx = "1.0.0"
 playServicesOssLicenses = "17.1.0"
 preferenceKtxVersion = "1.2.1"
 recyclerview = "1.3.2"
+securityCrypto = "1.1.0"
 tree-sitter = "4.3.1"
 editor = "0.23.6"
 glide = "4.16.0"
@@ -39,11 +41,19 @@ viewpager2 = "1.1.0-beta02"
 zoomage = "1.3.1"
 monitor = "1.6.1"
 monitorVersion = "1.7.2"
+sentry = "5.8.0"
+mockk = "1.14.5"
+
+rikka-hidden-api = "4.4.0"
+rikka-refine = "4.4.0"
+rikkax-parcelablelist = "2.0.1"
+libsu-core = "6.0.0"
 
 ## IMPORTANT!
 ## When updating this value, please manually compile libbrotli.so from Brotli4j for Android and
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
+spotless = "7.2.1"
 fragmentKtx = "1.8.8"
 
 [libraries]
@@ -58,10 +68,12 @@ androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-view
 androidx-palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "paletteKtx" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtxVersion" }
 androidx-recyclerview-v132 = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
+commons-text-v1140 = { module = "org.apache.commons:commons-text", version.ref = "commonsTextVersion" }
 composite-appintro = { module = "com.itsaky.androidide.build:appintro" }
 composite-constants = { module = "com.itsaky.androidide.build:constants" }
 composite-desugaringCore = { module = "com.itsaky.androidide.build:desugaring-core" }
@@ -93,10 +105,11 @@ androidide-ts-xml = { module = "com.itsaky.androidide.treesitter:tree-sitter-xml
 #Layout Editor
 utilcodex = { module = "com.blankj:utilcodex", version.ref = "utilcodex" }
 zoomage = { module = "com.jsibbold:zoomage", version.ref = "zoomage" }
-
+sora-bom = { module = "io.github.Rosemoe.sora-editor:bom", version.ref = "editor" }
+sora-language-textmate = { module = "io.github.Rosemoe.sora-editor:language-textmate" }
 
 # Common
-common-editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "editor" }
+common-editor = { module = "io.github.Rosemoe.sora-editor:editor" }
 common-utilcode = { module = "com.blankj:utilcodex", version = "1.31.1" }
 common-glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
 common-glide_ap = { module = "com.github.bumptech.glide:compiler", version.ref = "glide" }
@@ -128,6 +141,17 @@ brotli4j-windows-x64 = { module = "com.aayushatharva.brotli4j:native-windows-x86
 brotli4j-windows-aarch64 = { module = "com.aayushatharva.brotli4j:native-windows-aarch64", version.ref = "brotli4j" }
 brotli4j-osx-x64 = { module = "com.aayushatharva.brotli4j:native-osx-x86_64", version.ref = "brotli4j" }
 brotli4j-osx-aarch64 = { module = "com.aayushatharva.brotli4j:native-osx-aarch64", version.ref = "brotli4j" }
+
+rikka-hidden-compat = { module = "dev.rikka.hidden:compat", version.ref = "rikka-hidden-api" }
+rikka-hidden-stub = { module = "dev.rikka.hidden:stub", version.ref = "rikka-hidden-api" }
+rikka-refine-runtime = { module = "dev.rikka.tools.refine:runtime", version.ref = "rikka-refine" }
+rikka-refine-annotation = { module = "dev.rikka.tools.refine:annotation", version.ref = "rikka-refine" }
+rikka-refine-annotation-processor = { module = "dev.rikka.tools.refine:annotation-processor", version.ref = "rikka-refine" }
+rikkax-parcelablelist = { module = "dev.rikka.rikkax.parcelablelist:parcelablelist", version.ref = "rikkax-parcelablelist" }
+rikkax-htmlktx = { module = "dev.rikka.rikkax.html:html-ktx", version = "1.1.2" }
+libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu-core" }
+boringssl = { module = "io.github.vvb2060.ndk:boringssl", version = "20250114" }
+bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version = "1.80" }
 
 # AndroidX
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.9.1" }
@@ -206,7 +230,8 @@ tests-androidx-espresso-core = { module = "androidx.test.espresso:espresso-core"
 tests-androidx-espresso-contrib = { module = "androidx.test.espresso:espresso-contrib", version.ref = "androidx-espresso" }
 tests-androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version = "2.3.0" }
 tests-mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version = "5.2.1" }
-tests-mockk = { module = "io.mockk:mockk", version = "1.13.10" }
+tests-mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+tests-mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
 tests-barista = { module = "com.adevinta.android:barista", version = "4.3.0" }
 tests-kaspresso = { module = "com.kaspersky.android-components:kaspresso", version = "1.6.0" }
 tests-orchestrator = { module = "androidx.test:orchestrator", version = "1.5.1" }
@@ -220,6 +245,7 @@ tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.12" }
 # Classpaths
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-serialization-plugin = { module = "org.jetbrains.kotlin:kotlin-serialization", version.ref = "kotlin" }
 nav-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-safe-args-gradle-plugin", version.ref = "androidx-navigation" }
 maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish-plugin" }
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
@@ -234,3 +260,8 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish.base", version.ref = "maven-publish-plugin" }
 gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+sentry = { id = "io.sentry.android.gradle", version.ref = "sentry" }
+rikka-autoresconfig = { id = "dev.rikka.tools.autoresconfig", version = "1.2.2" }
+rikka-materialthemebuilder = { id = "dev.rikka.tools.materialthemebuilder", version = "1.5.1" }
+rikka-refine = { id = "dev.rikka.tools.refine", version.ref = "rikka-refine" }

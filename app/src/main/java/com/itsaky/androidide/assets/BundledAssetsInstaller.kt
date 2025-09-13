@@ -22,7 +22,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.outputStream
 
-data object BundledAssetsInstaller : AssetsInstaller {
+data object BundledAssetsInstaller : BaseAssetsInstaller() {
 
     private val logger = LoggerFactory.getLogger(BundledAssetsInstaller::class.java)
 
@@ -84,7 +84,7 @@ data object BundledAssetsInstaller : AssetsInstaller {
             }
 
             DOCUMENTATION_DB -> {
-                assets.open(ToolsManager.getDatabaseAsset(DOCUMENTATION_DB)).use { input ->
+                BrotliInputStream(assets.open(ToolsManager.getDatabaseAsset("${DOCUMENTATION_DB}.br"))).use { input ->
                     Environment.DOC_DB.outputStream().use { output ->
                         input.copyTo(output)
                     }
@@ -101,9 +101,5 @@ data object BundledAssetsInstaller : AssetsInstaller {
         LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> Environment.LOCAL_MAVEN_DIR
         GRADLE_API_NAME_JAR_ZIP -> Environment.GRADLE_GEN_JARS
         else -> throw IllegalStateException("Entry '$entryName' is not expected to be an archive")
-    }
-
-    override suspend fun postInstall(context: Context, stagingDir: Path) {
-        // no-op
     }
 }

@@ -22,6 +22,7 @@ env:
   FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
   FIREBASE_DISTRIBUTION_URL: ${{ secrets.FIREBASE_DISTRIBUTION_URL }}
   FIREBASE_DOWNLOAD_URL: ${{ secrets.FIREBASE_DOWNLOAD_URL }}
+  SENTRY_DSN_RELEASE: ${{ secrets.SENTRY_DSN_RELEASE }}
 
 jobs:
   build_apk:
@@ -102,21 +103,40 @@ jobs:
             echo "PR_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           fi
 
-      - name: Extract Jira Ticket
+      - name: Extract Jira Ticket and Fetch Title
         id: extract_jira
         run: |
           # Use regex to extract JIRA ticket in format ADFA-XXX
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
+          COMMIT_MSG="${{ steps.pr_info.outputs.COMMIT_MSG }}"
 
           # If JIRA ticket was found, set the URL, otherwise set as N/A
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
+            
+            # Fetch Jira ticket title if credentials are available
+            if [ -n "${{ secrets.JIRA_EMAIL }}" ] && [ -n "${{ secrets.JIRA_API_TOKEN }}" ]; then
+              JIRA_TITLE=$(curl -s \
+                -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+                -H "Accept: application/json" \
+                "https://appdevforall.atlassian.net/rest/api/3/issue/${JIRA_TICKET}?fields=summary" \
+                | jq -r '.fields.summary // ""' 2>/dev/null || echo "")
+              
+              # If unable to fetch title, default to commit message
+              if [ -z "$JIRA_TITLE" ]; then
+                JIRA_TITLE="$COMMIT_MSG"
+              fi
+            else
+              JIRA_TITLE="$COMMIT_MSG"
+            fi
           else
             JIRA_TICKET="N/A"
+            JIRA_TITLE="$COMMIT_MSG"
             JIRA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }} (Ref: ${{ github.ref }})"
           fi
 
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
+          echo "JIRA_TITLE=$JIRA_TITLE" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
           echo "BUILD_TYPE=[Release]" >> $GITHUB_OUTPUT
 
@@ -128,13 +148,16 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.COGO_BUILD_SERVICE_ACCOUNT }}
           groups: testers
           file: ${{ steps.find_apk.outputs.APK_PATH }}
-          releaseNotes: ${{ steps.extract_jira.outputs.BUILD_TYPE }} ${{ steps.extract_jira.outputs.JIRA_URL }}"
+          releaseNotes: ${{ steps.extract_jira.outputs.BUILD_TYPE }}
+          PR: ${{ steps.pr_info.outputs.COMMIT_MSG }}
+          Ticket: ${{ steps.extract_jira.outputs.JIRA_URL }}"
 
       - name: Send Rich Slack Notification
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           JIRA_TICKET="${{ steps.extract_jira.outputs.JIRA_TICKET }}"
+          JIRA_TITLE="${{ steps.extract_jira.outputs.JIRA_TITLE }}"
           JIRA_URL="${{ steps.extract_jira.outputs.JIRA_URL }}"
           FIREBASE_CONSOLE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
           FIREBASE_DISTRIBUTION_URL="${{ env.FIREBASE_DISTRIBUTION_URL }}"
@@ -165,7 +188,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*Jira Ticket:* '"$JIRA_URL"'"
+                  "text": "*Jira Ticket:* '"$JIRA_TITLE"'"
                 }
               },
               {

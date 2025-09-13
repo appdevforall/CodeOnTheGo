@@ -12,7 +12,7 @@
     android:id="@+id/swipe_reveal"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    app:dragHandle="@id/editor_toolbar">
+    app:dragHandle="@id/custom_toolbar">
 
     <include
       android:id="@+id/mem_usage_view"
@@ -49,5 +49,20 @@
       android:layout_height="match_parent" />
 
   </com.google.android.material.navigation.NavigationView>
+
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/endNav"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        app:elevation="8dp">
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/right_drawer_sidebar"
+            android:name="com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </com.google.android.material.navigation.NavigationView>
 
 </com.itsaky.androidide.ui.ContentTranslatingDrawerLayout>

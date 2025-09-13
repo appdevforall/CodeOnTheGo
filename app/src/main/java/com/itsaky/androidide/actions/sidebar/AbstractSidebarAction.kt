@@ -33,7 +33,7 @@ abstract class AbstractSidebarAction : SidebarActionItem {
   override var enabled = true
 
   // should never change
-  final override var location = ActionItem.Location.EDITOR_SIDEBAR
+  override var location = ActionItem.Location.EDITOR_SIDEBAR
 
   // Subclasses should accept a Context in their constructor and initialize these values
   // when the object instance is initialized

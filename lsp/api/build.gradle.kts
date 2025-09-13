@@ -18,42 +18,43 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
-    id("kotlin-kapt")
+	id("com.android.library")
+	id("kotlin-android")
+	id("kotlin-kapt")
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.lsp.api"
+	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.api"
 }
 
 kapt {
-    arguments {
-        arg ("eventBusIndex", "${BuildConfig.packageName}.events.LspApiEventsIndex")
-    }
+	arguments {
+		arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.LspApiEventsIndex")
+	}
 }
 
 dependencies {
-    
-    kapt(projects.annotationProcessors)
 
-    implementation(libs.composite.fuzzysearch)
+	kapt(projects.annotationProcessors)
 
-    implementation(libs.common.editor)
-    implementation(projects.eventbusEvents)
-    
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.common.kotlin)
-    implementation(libs.common.utilcode)
-    implementation(libs.google.material)
-    
-    api(projects.subprojects.projects)
-    api(projects.subprojects.xmlUtils)
-    api(projects.lookup)
-    api(projects.lsp.models)
-    api(projects.preferences)
-    
-    compileOnly(projects.actions)
-    compileOnly(projects.common)
+	implementation(libs.composite.fuzzysearch)
+
+	implementation(platform(libs.sora.bom))
+	implementation(libs.common.editor)
+	implementation(projects.eventbusEvents)
+
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.core.ktx)
+	implementation(libs.common.kotlin)
+	implementation(libs.common.utilcode)
+	implementation(libs.google.material)
+
+	api(projects.subprojects.projects)
+	api(projects.subprojects.xmlUtils)
+	api(projects.lookup)
+	api(projects.lsp.models)
+	api(projects.preferences)
+
+	compileOnly(projects.actions)
+	compileOnly(projects.common)
 }

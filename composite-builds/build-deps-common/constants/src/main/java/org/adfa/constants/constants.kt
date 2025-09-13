@@ -17,8 +17,6 @@
 
 package org.adfa.constants
 
-import java.io.File
-
 const val ANDROID_GRADLE_PLUGIN_VERSION = "8.11.0"
 const val GRADLE_DISTRIBUTION_VERSION = "8.14.3"
 const val KOTLIN_VERSION = "1.9.22"
@@ -56,8 +54,11 @@ const val ARM_KEY = "armeabi"
 
 //Local maven repo
 const val LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME = "localMvnRepository.zip"
-val LOCAL_MAVEN_CACHES_DEST = HOME_PATH + File.separator + "maven"
+const val LOCAL_MAVEN_CACHES_DEST = "$HOME_PATH/maven"
 const val LOCAL_MAVEN_REPO_FOLDER_DEST = "localMvnRepository"
+
+@Suppress("SdCardPath")
+const val MAVEN_LOCAL_REPOSITORY = "/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"
 
 // Tooltips
 const val CONTENT_KEY = "CONTENT_KEY"
@@ -68,12 +69,11 @@ const val TOML_FILE_NAME = "libs.versions.toml"
 
 // Help
 const val HELP_PAGE_URL =
-    "file:///android_asset/CoGoTooltips/html/cogohelp/index.html"
+	"file:///android_asset/CoGoTooltips/html/cogohelp/index.html"
 
 // Documentation
 const val DOCUMENTATION_DB = "documentation.db"
 
-const val JDWP_AAR_NAME = "libjdwp-remote.aar"
 const val LOGSENDER_AAR_NAME = "logsender.aar"
 
 // Generated Gradle Api Jar

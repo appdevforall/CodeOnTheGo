@@ -108,3 +108,9 @@ tests/test-home
 /tests/**/.androidide/init/model.jar
 
 /composite-builds/build-deps-common/constants/build/
+/composite-builds/build-deps/build/
+
+/app/google-services.json
+
+# Kotlin build files
+.kotlin/

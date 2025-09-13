@@ -1,17 +1,22 @@
 package com.itsaky.androidide.fragments
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.UiThread
 import androidx.appcompat.app.AlertDialog
-import androidx.core.text.HtmlCompat
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.activityViewModels
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
@@ -25,17 +30,33 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.FEEDBACK
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_HELP
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_PROJECT_DELETE
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN
 import com.itsaky.androidide.models.MainScreenAction
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_CLONE_REPO
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_CREATE_PROJECT
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_DELETE_PROJECT
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_DOCS
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_OPEN_PROJECT
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_OPEN_TERMINAL
+import com.itsaky.androidide.models.MainScreenAction.Companion.ACTION_PREFERENCES
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.preferences.internal.GITHUB_PAT
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeedbackManager
 import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import kotlinx.coroutines.CoroutineScope
@@ -53,189 +74,264 @@ import java.io.File
 import java.util.concurrent.CancellationException
 
 class MainFragment : BaseFragment() {
-
-    private val viewModel by viewModels<MainViewModel>(
-        ownerProducer = { requireActivity() })
+    private val viewModel by activityViewModels<MainViewModel>()
     private var binding: FragmentMainBinding? = null
 
-    private data class CloneRequest(val url: String, val targetDir: File)
+    private data class CloneRequest(
+        val url: String,
+        val targetDir: File,
+    )
 
     private var currentCloneRequest: CloneRequest? = null
 
     companion object {
-
         private val log = LoggerFactory.getLogger(MainFragment::class.java)
         const val KEY_TOOLTIP_URL = "tooltip_url"
+
+        private const val FAB_PREFS = "FabPrefs"
+        private const val KEY_FAB_X = "fab_x"
+        private const val KEY_FAB_Y = "fab_y"
     }
 
-    private val shareActivityResultLauncher = registerForActivityResult<Intent, ActivityResult>(
-        ActivityResultContracts.StartActivityForResult()
-    ) { //ACTION_SEND always returns RESULT_CANCELLED, ignore it
-        // There are no request codes
-    }
+    private val shareActivityResultLauncher =
+        registerForActivityResult<Intent, ActivityResult>(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            // ACTION_SEND always returns RESULT_CANCELLED, ignore it
+            // There are no request codes
+        }
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
     ): View {
         binding = FragmentMainBinding.inflate(inflater, container, false)
         return binding!!.root
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
-        val actions = MainScreenAction.mainScreen().also { actions ->
-            val onClick = { action: MainScreenAction, _: View ->
-                when (action.id) {
-                    MainScreenAction.ACTION_CREATE_PROJECT -> showCreateProject()
-                    MainScreenAction.ACTION_OPEN_PROJECT -> showViewSavedProjects()
-                    MainScreenAction.ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
-                    MainScreenAction.ACTION_CLONE_REPO -> cloneGitRepo()
-                    MainScreenAction.ACTION_OPEN_TERMINAL -> startActivity(
-                        Intent(requireActivity(), TerminalActivity::class.java)
-                    )
+        val actions =
+            MainScreenAction.mainScreen().also { actions ->
+                val onClick = { action: MainScreenAction, _: View ->
+                    when (action.id) {
+                        ACTION_CREATE_PROJECT -> showCreateProject()
+                        ACTION_OPEN_PROJECT -> showViewSavedProjects()
+                        ACTION_DELETE_PROJECT -> pickDirectoryForDeletion()
+                        ACTION_CLONE_REPO -> cloneGitRepo()
+                        ACTION_OPEN_TERMINAL ->
+                            startActivity(
+                                Intent(requireActivity(), TerminalActivity::class.java),
+                            )
 
-                    MainScreenAction.ACTION_PREFERENCES -> gotoPreferences()
+                        ACTION_PREFERENCES -> gotoPreferences()
 
-                    MainScreenAction.ACTION_DOCS -> BaseApplication.getBaseInstance().openDocs()
-                }
-            }
-            val onLongClick = { action: MainScreenAction, _: View ->
-                performOptionsMenuClick(action)
-                true
-            }
-
-            actions.forEach { action ->
-                action.onClick = onClick
-                action.onLongClick = onLongClick
-
-                if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
-                    action.onLongClick = { _: MainScreenAction, _: View ->
-                        val intent = Intent(requireActivity(), TerminalActivity::class.java).apply {
-                            putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
+                        ACTION_DOCS -> {
+                            val intent =
+                                Intent(context, HelpActivity::class.java).apply {
+                                    putExtra(CONTENT_KEY, getString(R.string.docs_url))
+                                    putExtra(CONTENT_TITLE_KEY, "CoGo Documentation")
+                                }
+                            context?.startActivity(intent)
                         }
-                        startActivity(intent)
-                        true
+                    }
+                }
+                val onLongClick = { action: MainScreenAction, _: View ->
+                    performOptionsMenuClick(action)
+                    true
+                }
+
+                actions.forEach { action ->
+                    action.onClick = onClick
+                    action.onLongClick = onLongClick
+
+                    if (action.id == MainScreenAction.ACTION_OPEN_TERMINAL) {
+                        action.onLongClick = { _: MainScreenAction, _: View ->
+                            val intent =
+                                Intent(requireActivity(), TerminalActivity::class.java).apply {
+                                    putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, true)
+                                }
+                            startActivity(intent)
+                            true
+                        }
                     }
                 }
             }
-        }
 
         binding!!.actions.adapter = MainActionsListAdapter(actions)
         binding!!.greetingText.setOnClickListener {
             TooltipUtils.showWebPage(
                 requireContext(),
-                "file:///android_asset/idetooltips/getstarted_top.html"
+                "http://localhost:6174/i/getstarted_top.html",
             )
         }
 
-        binding!!.floatingActionButton?.setOnClickListener {
+        binding!!.headerContainer?.setOnLongClickListener {
+            TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
+            true
+        }
+
+        binding!!.greetingText.setOnLongClickListener {
+            TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
+            true
+        }
+
+        setupDraggableFab()
+    }
+
+    private fun setupDraggableFab() {
+        val fab = binding?.floatingActionButton ?: return
+
+        loadFabPosition(fab)
+
+        var initialX = 0f
+        var initialY = 0f
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var isDragging = false
+        var isLongPressed = false
+
+        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                if (!isDragging) {
+                    isLongPressed = true
+                    TooltipManager.showTooltip(requireContext(), fab, FEEDBACK)
+                }
+            }
+        })
+
+        @SuppressLint("ClickableViewAccessibility")
+        fab.setOnTouchListener { v, event ->
+            val parentView = v.parent as? ViewGroup ?: return@setOnTouchListener false
+            
+            gestureDetector.onTouchEvent(event)
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = v.x
+                    initialY = v.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isDragging = false
+                    isLongPressed = false
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dX = event.rawX - initialTouchX
+                    val dY = event.rawY - initialTouchY
+
+                    if (!isDragging &&
+                        kotlin.math.sqrt((dX * dX + dY * dY).toDouble()) >
+                        ViewConfiguration
+                            .get(
+                                v.context,
+                            ).scaledTouchSlop
+                    ) {
+                        isDragging = true
+                    }
+
+                    if (isDragging) {
+                        v.x = (initialX + dX).coerceIn(0f, (parentView.width - v.width).toFloat())
+                        v.y = (initialY + dY).coerceIn(0f, (parentView.height - v.height).toFloat())
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    if (isDragging) {
+                        // This is the new snap-to-edge logic
+                        val middle = parentView.width / 2
+                        val targetX =
+                            if ((v.x + v.width / 2) < middle) {
+                                0f // Snap to left edge
+                            } else {
+                                (parentView.width - v.width).toFloat() // Snap to right edge
+                            }
+
+                        // Animate to the target edge after a short delay
+                        v.postDelayed({
+                            v
+                                .animate()
+                                .x(targetX)
+                                .setDuration(200)
+                                .withEndAction {
+                                    // Save the final position AFTER the animation completes
+                                    saveFabPosition(targetX, v.y)
+                                }.start()
+                        }, 500) // 500ms delay before snapping
+                    } else if (!isLongPressed) {
+                        v.performClick()
+                    }
+                    true
+                }
+
+                else -> false
+            }
+        }
+
+        fab.setOnClickListener {
             performFeedbackAction()
         }
     }
 
-    // this method will handle the onclick options click
-    private fun performOptionsMenuClick(action: MainScreenAction) {
-        val view = action.view
-        val tag = action.id.toString()
-        CoroutineScope(Dispatchers.IO).launch {
-            val item =
-                TooltipManager.getTooltip(context = requireContext(), category = "ide", tag = tag)
-            withContext((Dispatchers.Main)) {
-                (context?.let {
-                    TooltipManager.showIDETooltip(
-                        it,
-                        view!!,
-                        0,
-                        IDETooltipItem(
-                            tooltipCategory = "ide",
-                            tooltipTag = item?.tooltipTag ?: "",
-                            detail = item?.detail ?: "",
-                            summary = item?.summary ?: "",
-                            buttons = item?.buttons ?: arrayListOf(),
-                        ),
-                        { context, url, title ->
-                            val intent = Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                            }
-                            context.startActivity(intent)
+    private fun saveFabPosition(
+        x: Float,
+        y: Float,
+    ) {
+        activity?.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
+            putFloat(KEY_FAB_X, x)
+            putFloat(KEY_FAB_Y, y)
+            apply()
+        }
+    }
 
-                        }
-                    )
-                })
+    private fun loadFabPosition(fab: FloatingActionButton) {
+        val prefs = activity?.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
+
+        val x = prefs.getFloat(KEY_FAB_X, -1f)
+        val y = prefs.getFloat(KEY_FAB_Y, -1f)
+
+        if (x != -1f && y != -1f) {
+            fab.post {
+                fab.x = x
+                fab.y = y
             }
         }
     }
 
+    private fun performOptionsMenuClick(action: MainScreenAction) {
+        val view = action.view
+        val tag = getToolTipTagForAction(action.id)
+        if (tag.isNotEmpty()) {
+            view.let {
+                TooltipManager.showTooltip(requireContext(), it!!, tag)
+            }
+        }
+    }
+
+    private fun getToolTipTagForAction(id: Int): String {
+        return when (id) {
+            ACTION_CREATE_PROJECT -> PROJECT_NEW
+            ACTION_OPEN_PROJECT -> PROJECT_OPEN
+            ACTION_DELETE_PROJECT -> MAIN_PROJECT_DELETE
+            ACTION_DOCS -> MAIN_HELP
+            else -> ""
+        }
+    }
+
     private fun performFeedbackAction() {
-        val builder = context?.let { DialogUtils.newMaterialDialogBuilder(it) }
-        builder?.let { builder ->
-            builder.setTitle("Alert!")
-                .setMessage(
-                    HtmlCompat.fromHtml(
-                        getString(R.string.email_feedback_warning_prompt),
-                        HtmlCompat.FROM_HTML_MODE_COMPACT
-                    )
-                )
-                .setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
-                .setPositiveButton(android.R.string.ok) { dialog, _ ->
-                    run {
-                        val stackTrace =
-                            Exception().stackTrace.asList().toString().replace(",", "\n")
-                        val feedbackMessage = getString(
-                            R.string.feedback_message,
-                            BuildConfig.VERSION_NAME,
-                            stackTrace
-                        )
-
-                        val feedbackEmail = getString(R.string.feedback_email)
-                        val currentScreen = getCurrentScreenName()
-
-                        try {
-                            val feedbackIntent = Intent(Intent.ACTION_SENDTO).apply {
-                                data = Uri.parse("mailto:")
-                                putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
-
-                                val subject = String.format(
-                                    resources.getString(R.string.feedback_subject),
-                                    currentScreen
-                                )
-                                putExtra(Intent.EXTRA_SUBJECT, subject)
-                                putExtra(Intent.EXTRA_TEXT, feedbackMessage)
-                            }
-
-                            shareActivityResultLauncher.launch(
-                                Intent.createChooser(feedbackIntent, "Send Feedback")
-                            )
-                        } catch (e: Exception) {
-                            try {
-                                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "message/rfc822"
-                                    putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
-
-                                    val subject = String.format(
-                                        resources.getString(R.string.feedback_subject),
-                                        currentScreen
-                                    )
-                                    putExtra(Intent.EXTRA_SUBJECT, subject)
-                                    putExtra(Intent.EXTRA_TEXT, feedbackMessage)
-                                }
-                                shareActivityResultLauncher.launch(
-                                    Intent.createChooser(
-                                        fallbackIntent,
-                                        getString(R.string.send_feedback)
-                                    )
-                                )
-                            } catch (e2: Exception) {
-                                requireActivity().flashError(R.string.no_email_apps)
-                            }
-                        }
-                        dialog.dismiss()
-                    }
-                }
-                .create()
-                .show()
+        context?.let { ctx ->
+            FeedbackManager.showFeedbackDialog(
+                context = ctx,
+                currentScreen = getCurrentScreenName(),
+                shareActivityResultLauncher = shareActivityResultLauncher,
+                appVersion = BuildConfig.VERSION_NAME,
+            )
         }
     }
 
@@ -279,7 +375,10 @@ class MainFragment : BaseFragment() {
         builder.setCancelable(true)
         builder.setPositiveButton(string.git_clone) { dialog, _ ->
             dialog.dismiss()
-            val url = binding.name.editText?.text?.toString()
+            val url =
+                binding.name.editText
+                    ?.text
+                    ?.toString()
             doClone(url)
         }
         builder.setNegativeButton(android.R.string.cancel, null)
@@ -322,47 +421,48 @@ class MainFragment : BaseFragment() {
 
         var getDialog: Function0<AlertDialog?>? = null
 
-        val cloneJob = coroutineScope.launch(Dispatchers.IO) {
+        val cloneJob =
+            coroutineScope.launch(Dispatchers.IO) {
+                val git =
+                    try {
+                        val cmd: CloneCommand = Git.cloneRepository()
+                        cmd
+                            .setURI(url)
+                            .setDirectory(targetDir)
+                            .setProgressMonitor(progress)
+                        val token = prefs.getString(GITHUB_PAT, "")
+                        if (!token.isNullOrBlank()) {
+                            cmd.setCredentialsProvider(
+                                UsernamePasswordCredentialsProvider(
+                                    "<token>",
+                                    token,
+                                ),
+                            )
+                        }
+                        cmd.call()
+                    } catch (err: Throwable) {
+                        if (!progress.isCancelled) {
+                            err.printStackTrace()
+                            withContext(Dispatchers.Main) {
+                                getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
+                                showCloneError(err)
+                            }
+                        }
+                        null
+                    }
 
-            val git = try {
-                val cmd: CloneCommand = Git.cloneRepository()
-                cmd
-                    .setURI(url)
-                    .setDirectory(targetDir)
-                    .setProgressMonitor(progress)
-                val token = prefs.getString(GITHUB_PAT, "")
-                if (!token.isNullOrBlank()) {
-                    cmd.setCredentialsProvider(
-                        UsernamePasswordCredentialsProvider(
-                            "<token>",
-                            token
-                        )
-                    )
-                }
-                cmd.call()
-            } catch (err: Throwable) {
-                if (!progress.isCancelled) {
-                    err.printStackTrace()
+                try {
+                    git?.close()
+                } finally {
+                    val success = git != null
                     withContext(Dispatchers.Main) {
-                        getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
-                        showCloneError(err)
-                    }
-                }
-                null
-            }
-
-            try {
-                git?.close()
-            } finally {
-                val success = git != null
-                withContext(Dispatchers.Main) {
-                    getDialog?.invoke()?.also { dialog ->
-                        if (dialog.isShowing) dialog.dismiss()
-                        if (success) flashSuccess(string.git_clone_success)
+                        getDialog?.invoke()?.also { dialog ->
+                            if (dialog.isShowing) dialog.dismiss()
+                            if (success) flashSuccess(string.git_clone_success)
+                        }
                     }
                 }
             }
-        }
 
         builder.setPositiveButton(android.R.string.cancel) { iface, _ ->
             iface.dismiss()
@@ -380,8 +480,8 @@ class MainFragment : BaseFragment() {
         builder?.setMessage(
             getString(
                 R.string.git_clone_dir_exists_detailed,
-                targetDir.absolutePath
-            )
+                targetDir.absolutePath,
+            ),
         )
         builder?.setPositiveButton(R.string.delete_and_clone) { _, _ ->
             val progressBuilder = DialogUtils.newMaterialDialogBuilder(requireContext())
@@ -413,8 +513,8 @@ class MainFragment : BaseFragment() {
                         errorBuilder.setMessage(
                             getString(
                                 R.string.error_deleting_directory,
-                                e.localizedMessage
-                            )
+                                e.localizedMessage,
+                            ),
                         )
                         errorBuilder.setPositiveButton(android.R.string.ok, null)
                         errorBuilder.show()
@@ -452,46 +552,48 @@ class MainFragment : BaseFragment() {
 
         var getDialog: Function0<AlertDialog?>? = null
 
-        val cloneJob = coroutineScope.launch(Dispatchers.IO) {
-            val git = try {
-                val cmd: CloneCommand = Git.cloneRepository()
-                cmd
-                    .setURI(url)
-                    .setDirectory(targetDir)
-                    .setProgressMonitor(progress)
-                val token = prefs.getString(GITHUB_PAT, "")
-                if (!token.isNullOrBlank()) {
-                    cmd.setCredentialsProvider(
-                        UsernamePasswordCredentialsProvider(
-                            "<token>",
-                            token
-                        )
-                    )
-                }
-                cmd.call()
-            } catch (err: Throwable) {
-                if (!progress.isCancelled) {
-                    err.printStackTrace()
-                    withContext(Dispatchers.Main) {
-                        getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
-                        showCloneError(err)
+        val cloneJob =
+            coroutineScope.launch(Dispatchers.IO) {
+                val git =
+                    try {
+                        val cmd: CloneCommand = Git.cloneRepository()
+                        cmd
+                            .setURI(url)
+                            .setDirectory(targetDir)
+                            .setProgressMonitor(progress)
+                        val token = prefs.getString(GITHUB_PAT, "")
+                        if (!token.isNullOrBlank()) {
+                            cmd.setCredentialsProvider(
+                                UsernamePasswordCredentialsProvider(
+                                    "<token>",
+                                    token,
+                                ),
+                            )
+                        }
+                        cmd.call()
+                    } catch (err: Throwable) {
+                        if (!progress.isCancelled) {
+                            err.printStackTrace()
+                            withContext(Dispatchers.Main) {
+                                getDialog?.invoke()?.also { if (it.isShowing) it.dismiss() }
+                                showCloneError(err)
+                            }
+                        }
+                        null
                     }
-                }
-                null
-            }
 
-            try {
-                git?.close()
-            } finally {
-                val success = git != null
-                withContext(Dispatchers.Main) {
-                    getDialog?.invoke()?.also { dialog ->
-                        if (dialog.isShowing) dialog.dismiss()
-                        if (success) flashSuccess(string.git_clone_success)
+                try {
+                    git?.close()
+                } finally {
+                    val success = git != null
+                    withContext(Dispatchers.Main) {
+                        getDialog?.invoke()?.also { dialog ->
+                            if (dialog.isShowing) dialog.dismiss()
+                            if (success) flashSuccess(string.git_clone_success)
+                        }
                     }
                 }
             }
-        }
 
         builder.setPositiveButton(android.R.string.cancel) { iface, _ ->
             iface.dismiss()
@@ -517,7 +619,10 @@ class MainFragment : BaseFragment() {
         builder.setCancelable(true)
         builder.setPositiveButton(string.git_clone) { dialog, _ ->
             dialog.dismiss()
-            val newDirName = binding.name.editText?.text?.toString()
+            val newDirName =
+                binding.name.editText
+                    ?.text
+                    ?.toString()
             if (!newDirName.isNullOrBlank()) {
                 val newTargetDir = File(originalDir.parentFile, newDirName)
 
@@ -549,9 +654,8 @@ class MainFragment : BaseFragment() {
     // TODO(itsaky) : Improve this implementation
     class GitCloneProgressMonitor(
         val progress: LinearProgressIndicator,
-        val message: TextView
+        val message: TextView,
     ) : ProgressMonitor {
-
         private var cancelled = false
 
         fun cancel() {
@@ -562,7 +666,10 @@ class MainFragment : BaseFragment() {
             runOnUiThread { progress.max = totalTasks }
         }
 
-        override fun beginTask(title: String?, totalWork: Int) {
+        override fun beginTask(
+            title: String?,
+            totalWork: Int,
+        ) {
             runOnUiThread { message.text = title }
         }
 
@@ -576,8 +683,6 @@ class MainFragment : BaseFragment() {
 
         override fun endTask() {}
 
-        override fun isCancelled(): Boolean {
-            return cancelled || Thread.currentThread().isInterrupted
-        }
+        override fun isCancelled(): Boolean = cancelled || Thread.currentThread().isInterrupted
     }
 }
