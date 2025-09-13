@@ -114,3 +114,8 @@ tests/test-home
 
 # Kotlin build files
 .kotlin/
+
+# Plugin build directories
+/plugin-api/build/
+/plugin-manager/build/
+/sample-plugin/build/

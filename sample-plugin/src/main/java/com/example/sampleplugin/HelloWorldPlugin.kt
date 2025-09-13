@@ -1,12 +1,8 @@
 package com.example.sampleplugin
 
 import android.app.AlertDialog
-import android.view.View
+import android.view.LayoutInflater
 import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
-import android.widget.TextView
 import android.widget.Toast
 import com.example.sampleplugin.fragments.BuildStatusFragment
 import com.example.sampleplugin.fragments.GoBotFragment
@@ -165,100 +161,20 @@ class HelloWorldPlugin : IPlugin, UIExtension {
     }
 
     private fun showInputDialog(activity: android.app.Activity) {
-        val dialogLayout = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 24, 24, 24)
-        }
+        val dialogView = LayoutInflater.from(activity).inflate(R.layout.dialog_json_to_kotlin, null)
 
-        // JSON Input
-        val jsonInput = EditText(activity).apply {
-            hint = "{\\n  \\\"example\\\": \\\"value\\\",\\n  \\\"number\\\": 123\\n}"
-            minLines = 8
-            maxLines = 15
-        }
-
-        // Class Name Input
-        val classNameInput = EditText(activity).apply {
-            hint = "e.g., User"
-            setText("User")
-            setSingleLine(true)
-        }
-
-        // Package Name Input
-        val packageNameInput = EditText(activity).apply {
-            hint = "e.g., com.example.model"
-            setText("com.example.model")
-            setSingleLine(true)
-        }
-
-        // Language Selection Radio Group
-        val languageRadioGroup = RadioGroup(activity).apply {
-            orientation = RadioGroup.HORIZONTAL
-            setPadding(0, 16, 0, 16)
-        }
-
-        val kotlinRadioButton = RadioButton(activity).apply {
-            text = "Kotlin"
-            id = View.generateViewId()
-            isChecked = true // Default to Kotlin
-        }
-
-        val javaRadioButton = RadioButton(activity).apply {
-            text = "Java"
-            id = View.generateViewId()
-        }
-
-        languageRadioGroup.apply {
-            addView(kotlinRadioButton)
-            addView(javaRadioButton)
-        }
-
-        // Build the dialog layout
-        dialogLayout.apply {
-            addView(TextView(activity).apply {
-                text = "Paste your JSON here"
-                textSize = 16f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-            })
-            addView(jsonInput)
-
-            addView(TextView(activity).apply {
-                text = "Class Name:"
-                textSize = 16f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                setPadding(0, 16, 0, 8)
-            })
-            addView(classNameInput)
-
-            addView(TextView(activity).apply {
-                text = "Package Name:"
-                textSize = 16f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                setPadding(0, 16, 0, 8)
-            })
-            addView(packageNameInput)
-
-            addView(TextView(activity).apply {
-                text = "Language:"
-                textSize = 16f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                setPadding(0, 16, 0, 8)
-            })
-            addView(languageRadioGroup)
-        }
+        // Get references to views from XML
+        val jsonInput = dialogView.findViewById<EditText>(R.id.et_json_input)
+        val classNameInput = dialogView.findViewById<EditText>(R.id.et_class_name)
+        val packageNameInput = dialogView.findViewById<EditText>(R.id.et_package_name)
 
         AlertDialog.Builder(activity)
-            .setTitle("JSON to Data Class/POJO Converter")
-            .setView(dialogLayout)
+            .setTitle("JSON to Data Class Converter")
+            .setView(dialogView)
             .setPositiveButton("Convert") { _, _ ->
                 val jsonText = jsonInput.text.toString().trim()
                 val className = classNameInput.text.toString().trim()
                 val packageName = packageNameInput.text.toString().trim()
-                val selectedLanguage = when (languageRadioGroup.checkedRadioButtonId) {
-                    kotlinRadioButton.id -> Language.KOTLIN
-                    javaRadioButton.id -> Language.JAVA
-                    else -> Language.KOTLIN // Default fallback
-                }
 
                 when {
                     jsonText.isEmpty() -> showToast("Please enter JSON data")
@@ -266,9 +182,9 @@ class HelloWorldPlugin : IPlugin, UIExtension {
                     packageName.isEmpty() -> showToast("Please enter a package name")
                     else -> {
                         try {
-                            val generatedCode = JsonToKotlinConverter.convertToDataClass(jsonText, className, packageName, selectedLanguage)
-                            val filePath = JsonToKotlinConverter.getSuggestedFilePath(className, packageName, selectedLanguage)
-                            saveFileToProject(generatedCode, filePath, className, selectedLanguage)
+                            val generatedCode = JsonToKotlinConverter.convertToKotlinDataClass(jsonText, className, packageName)
+                            val filePath = JsonToKotlinConverter.getSuggestedFilePath(className, packageName, JsonToKotlinConverter.Language.KOTLIN)
+                            saveFileToProject(generatedCode, filePath, className, JsonToKotlinConverter.Language.KOTLIN)
                         } catch (e: Exception) {
                             showToast("Conversion failed: ${e.message}")
                             context.logger.error("JSON conversion error", e)
@@ -312,6 +228,7 @@ class HelloWorldPlugin : IPlugin, UIExtension {
             "age": 30,
             "isActive": true
         }
+        
         """.trimIndent()
         
         showToast("Converting sample JSON...")

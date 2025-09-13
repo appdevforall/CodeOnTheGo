@@ -4,7 +4,7 @@
     <string name="hello_plugin_description">This is a custom tab contributed by the Hello World plugin.\n\nThis demonstrates the plugin system\'s ability to extend the editor bottom sheet with custom fragments using XML layouts.</string>
     <string name="hello_plugin_capabilities">Plugin capabilities:\n• Add custom menu items\n• Contribute to context menus\n• Add custom tabs to the editor bottom sheet\n• Access IDE services (project, editor, UI)\n• Use XML layouts for UI</string>
     <string name="test_plugin_action">Test Plugin Action</string>
-    
+
     <!-- JSON to Kotlin converter strings -->
     <string name="json_to_kotlin_title">JSON to Kotlin Data Class</string>
     <string name="json_input_hint">Paste your JSON here</string>
@@ -18,7 +18,7 @@
     <string name="convert_button">Convert</string>
     <string name="cancel_button">Cancel</string>
     <string name="use_sample_button">Use Sample</string>
-    
+
     <!-- Toast messages -->
     <string name="opening_json_converter">Opening JSON to Kotlin converter...</string>
     <string name="ui_not_available">UI not available, using sample conversion...</string>

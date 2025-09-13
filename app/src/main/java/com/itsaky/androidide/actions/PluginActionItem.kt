@@ -4,6 +4,7 @@ package com.itsaky.androidide.actions
 
 import android.content.Context
 import android.graphics.drawable.Drawable
+import androidx.core.content.ContextCompat
 import com.itsaky.androidide.plugins.extensions.MenuItem
 
 
@@ -17,8 +18,7 @@ class PluginActionItem(
 
     init {
         label = menuItem.title
-        icon = null
-        // Plugin menu items appear in the toolbar
+        icon = ContextCompat.getDrawable(context, R.drawable.ic_package)
         location = ActionItem.Location.EDITOR_TOOLBAR
         requiresUIThread = true
     }

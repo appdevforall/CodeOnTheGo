@@ -1,0 +1,29 @@
+# Gradle
+build/
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Android
+local.properties
+*.apk
+*.aab
+*.aar
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java/Kotlin
+*.class
+*.jar
+!gradle-wrapper.jar
+
+# Logs
+*.log

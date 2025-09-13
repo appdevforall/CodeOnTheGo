@@ -7,24 +7,23 @@ plugins {
 android {
     namespace = "com.example.sampleplugin"
     compileSdk = 34
-    
+
     defaultConfig {
         minSdk = 26
         consumerProguardFiles("consumer-rules.pro")
     }
-    
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-    
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -32,7 +31,7 @@ android {
 
 dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.8")
-    compileOnly("com.itsaky.androidide:plugin-api") {
+    compileOnly(project(":plugin-api")) {
         attributes {
             attribute(Attribute.of("abi", String::class.java), "v8")
         }
@@ -123,13 +122,17 @@ abstract class PluginJarTask : DefaultTask() {
         }
 
         return try {
-            project.exec {
-                commandLine(
-                    d8Tool.absolutePath,
-                    "--output", dexDir.absolutePath,
-                    "--min-api", minApiLevel.get().toString(),
-                    classesJar.absolutePath
-                )
+            val process = ProcessBuilder(
+                d8Tool.absolutePath,
+                "--output", dexDir.absolutePath,
+                "--min-api", minApiLevel.get().toString(),
+                classesJar.absolutePath
+            ).start()
+
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                logger.warn("D8 process failed with exit code: $exitCode")
+                return false
             }
 
             // Move classes.dex to temp directory root
@@ -163,7 +166,7 @@ tasks.register<PluginJarTask>("pluginJar") {
     dependsOn("assembleRelease")
 
     aarFile.set(layout.buildDirectory.file("outputs/aar/sample-plugin-release.aar"))
-    pluginManifest.set(layout.projectDirectory.file("src/main/resources/plugin.json"))
+    pluginManifest.set(layout.projectDirectory.file("src/main/assets/plugin.json"))
     outputJar.set(layout.buildDirectory.file("outputs/hello-world-plugin.jar"))
     androidSdkDirectory.set(layout.dir(provider { android.sdkDirectory }))
     buildToolsVersion.set(android.buildToolsVersion)
