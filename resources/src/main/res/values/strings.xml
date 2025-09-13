@@ -905,8 +905,7 @@
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
-  <!--  Message shown when the bootstrap installer is in the linking phase  -->
-  <string name="bootstrap_installer_linking">Resolving symlinks…</string>
+
 
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>

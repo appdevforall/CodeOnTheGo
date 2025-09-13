@@ -17,6 +17,7 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
+import android.util.Log
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
@@ -100,9 +101,9 @@ class EditorActivityActions {
             registry.registerAction(DisconnectLogSendersAction(context, order++))
 
             // Plugin contributions
-      order = registerPluginActions(context, registry, order)
+            order = registerPluginActions(context, registry, order)
 
-      // editor text actions
+            // editor text actions
             registry.registerAction(ExpandSelectionAction(context, order++))
             registry.registerAction(SelectAllAction(context, order++))
             registry.registerAction(LongSelectAction(context, order++))
@@ -161,34 +162,27 @@ class EditorActivityActions {
      */
     @JvmStatic
     private fun registerPluginActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
-      var order = startOrder
-      try {
-        val pluginManager = PluginManager.getInstance()
-        if (pluginManager == null) {
-          return order
-        }
+        var order = startOrder
 
-        val loadedPlugins = pluginManager.getAllPluginInstances()
+        val pluginManager = PluginManager.getInstance() ?: return order
 
-        for (plugin in loadedPlugins) {
-          try {
-            if (plugin is UIExtension) {
-              // Register main menu contributions
-              val menuItems = plugin.contributeToMainMenu()
-
-              for (menuItem in menuItems) {
-                val action = PluginActionItem(context, menuItem, order++)
-                registry.registerAction(action)
-              }
+        pluginManager.getAllPluginInstances()
+            .filterIsInstance<UIExtension>()
+            .forEach { plugin ->
+                try {
+                    Log.d("plugin_debug", "Registering menu items for plugin: ${plugin.javaClass.simpleName}")
+                    plugin.contributeToMainMenu().forEach { menuItem ->
+                        val action = PluginActionItem(context, menuItem, order++)
+                        registry.registerAction(action)
+                    }
+                } catch (e: Exception) {
+                    // Continue with other plugins if one fails
+                    System.err.println("")
+                    Log.d("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName} - ${e.message}")
+                }
             }
-          } catch (e: Exception) {
-            // Log error but continue with other plugins
-          }
-        }
-      } catch (e: Exception) {
-        // Log error but don't break the menu system
-      }
-      return order
+
+        return order
     }
   }
 }

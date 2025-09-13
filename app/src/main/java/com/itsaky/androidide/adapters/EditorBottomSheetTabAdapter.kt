@@ -20,6 +20,7 @@ import androidx.collection.LongSparseArray
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.itsaky.androidide.app.IDEApplication.Companion.getPluginManager
 import com.itsaky.androidide.fragments.DiagnosticsListFragment
 import com.itsaky.androidide.fragments.SearchResultFragment
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
@@ -27,9 +28,12 @@ import com.itsaky.androidide.fragments.output.AppLogFragment
 import com.itsaky.androidide.fragments.output.BuildOutputFragment
 import com.itsaky.androidide.fragments.output.IDELogFragment
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.plugins.extensions.TabItem
+import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.resources.R
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
+
 
 class EditorBottomSheetTabAdapter(
 	fragmentActivity: FragmentActivity,
@@ -83,7 +87,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.view_diags),
 					fragmentClass = DiagnosticsListFragment::class.java,
 					itemId = TAB_DIAGNOSTICS,
-					tooltipTag = TooltipTag.PROJECT_SEARCH_RESULTS,
+					tooltipTag = TooltipTag.PROJECT_DIAGNOSTICS,
 				),
 			)
 
@@ -92,7 +96,7 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.view_search_results),
 					fragmentClass = SearchResultFragment::class.java,
 					itemId = TAB_SEARCH_RESULTS,
-					tooltipTag = TooltipTag.PROJECT_DIAGNOSTICS,
+					tooltipTag = TooltipTag.PROJECT_SEARCH_RESULTS,
 				),
 			)
 
@@ -106,6 +110,11 @@ class EditorBottomSheetTabAdapter(
 		}
 
 	private val tabs = MutableList(allTabs.size) { allTabs[it] }
+	private val pluginFragmentFactories = mutableMapOf<Long, () -> Fragment>()
+
+	init {
+		addPluginTabs()
+	}
 
 	fun removeFragment(klass: Class<out Fragment>) {
 		val index = findIndexOfFragmentByClass(klass)
@@ -199,6 +208,14 @@ class EditorBottomSheetTabAdapter(
 	override fun createFragment(position: Int): Fragment {
 		try {
 			val tab = tabs[position]
+
+			// Check if this is a plugin fragment
+			val pluginFactory = pluginFragmentFactories[tab.itemId]
+			if (pluginFactory != null) {
+				return pluginFactory.invoke()
+			}
+
+			// Regular fragment creation
 			val klass = tab.fragmentClass
 			val constructor: Constructor<out Fragment> = klass.getDeclaredConstructor()
 			constructor.isAccessible = true
@@ -264,4 +281,74 @@ class EditorBottomSheetTabAdapter(
 	}
 
 	fun getTooltipTag(position: Int): String? = allTabs[position].tooltipTag
+
+	private fun addPluginTabs() {
+		try {
+			val pluginManager = getPluginManager()
+			if (pluginManager == null) {
+				logger.debug("PluginManager not initialized, skipping plugin tab registration")
+				return
+			}
+
+			val loadedPlugins = pluginManager.getAllPluginInstances()
+			logger.debug("Found {} loaded plugins for tab registration", loadedPlugins.size)
+
+			val pluginTabs = mutableListOf<TabItem>()
+
+			for (plugin in loadedPlugins) {
+				try {
+					if (plugin is UIExtension) {
+						logger.debug("Processing UIExtension plugin: {}", plugin.javaClass.simpleName)
+
+						val tabItems = plugin.contributeToEditorBottomSheet()
+						logger.debug(
+							"Plugin {} contributed {} tab items",
+							plugin.javaClass.simpleName,
+							tabItems.size
+						)
+
+						for (tabItem in tabItems) {
+							if (tabItem.isEnabled && tabItem.isVisible) {
+								pluginTabs.add(tabItem)
+								logger.debug("Added plugin tab: {} - {}", tabItem.id, tabItem.title)
+							}
+						}
+					}
+				} catch (e: Exception) {
+					logger.error(
+						"Error registering plugin tabs for {}: {}",
+						plugin.javaClass.simpleName,
+						e.message,
+						e
+					)
+				}
+			}
+
+			// Sort tabs by order
+			pluginTabs.sortBy { it.order }
+
+			// Add plugin tabs to the adapter at the end
+			val startIndex = allTabs.size
+			for ((index, tabItem) in pluginTabs.withIndex()) {
+				val tab = Tab(
+					title = tabItem.title,
+					fragmentClass = Fragment::class.java, // Placeholder, actual fragment from factory
+					itemId = startIndex + index + 1000L, // Offset to avoid conflicts
+					tooltipTag = null
+				)
+
+				// Store the fragment factory for later use
+				pluginFragmentFactories[tab.itemId] = tabItem.fragmentFactory
+
+				allTabs.add(tab)
+				tabs.add(tab)
+
+				logger.debug("Registered plugin tab at index {}: {}", startIndex + index, tabItem.title)
+			}
+
+		} catch (e: Exception) {
+			logger.error("Error in plugin tab integration: {}", e.message, e)
+		}
+	}
+
 }
