@@ -1,15 +1,11 @@
 package com.itsaky.androidide.utils
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.DialogInterface
 import android.util.Log
-import android.view.GestureDetector
-import android.view.MotionEvent
 import android.view.View
 import android.widget.AdapterView
-import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -21,16 +17,15 @@ import kotlinx.coroutines.launch
 fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
     context: Context,
     tooltipTag: String,
-    anchorView: View? = null
+    vararg customViews: View
 ): AlertDialog {
     val dialog = this.create()
-    dialog.show()
 
-    val workingAnchorView = anchorView ?: (context as? Activity)?.window?.decorView ?: return dialog
     val lifecycleOwner = context as? LifecycleOwner
         ?: run {
-            Log.w("DialogExtensions", "Context is not a LifecycleOwner, cannot show tooltip.")
-            return dialog // Return the dialog without the gesture
+            Log.w("DialogExtensions", "Context is not a LifecycleOwner; cannot show tooltip.")
+            dialog.show()
+            return dialog
         }
 
     fun longPressAction() {
@@ -42,12 +37,13 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
                     TooltipCategory.CATEGORY_IDE,
                     tooltipTag
                 )
+                val anchor = (context as? Activity)?.window?.decorView ?: return@launch
                 tooltipData?.let {
                     TooltipUtils.showIDETooltip(
                         context = context,
                         level = 0,
                         tooltipItem = it,
-                        anchorView = workingAnchorView
+                        anchorView = anchor
                     )
                 }
             } catch (e: Exception) {
@@ -56,33 +52,26 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
         }
     }
 
-    val gestureDetector =
-        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onLongPress(e: MotionEvent) {
-                longPressAction()
-            }
-        })
-
-    val universalTouchListener = View.OnTouchListener { view, event ->
-        val wasGestureHandled = gestureDetector.onTouchEvent(event)
-        if (event.action == MotionEvent.ACTION_UP && !wasGestureHandled) {
-            view.performClick()
-        }
+    val longClickListener = View.OnLongClickListener {
+        longPressAction()
         true
     }
 
-    dialog.window?.decorView?.setOnTouchListener(universalTouchListener)
-    @SuppressLint("ClickableViewAccessibility")
-    dialog.findViewById<TextView>(android.R.id.message)?.setOnTouchListener(universalTouchListener)
-    @SuppressLint("ClickableViewAccessibility")
-    dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.setOnTouchListener(universalTouchListener)
-    @SuppressLint("ClickableViewAccessibility")
-    dialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.setOnTouchListener(universalTouchListener)
+    customViews.forEach { view ->
+        view.setOnLongClickListener(longClickListener)
+    }
+
+    dialog.show()
+
+    dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.setOnLongClickListener(longClickListener)
+    dialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.setOnLongClickListener(longClickListener)
+    dialog.getButton(DialogInterface.BUTTON_NEUTRAL)?.setOnLongClickListener(longClickListener)
 
     dialog.listView?.onItemLongClickListener =
-        AdapterView.OnItemLongClickListener { _, itemView, position, _ ->
+        AdapterView.OnItemLongClickListener { _, _, _, _ ->
             longPressAction()
-            true // Consume the long-press event
+            true
         }
+
     return dialog
 }
