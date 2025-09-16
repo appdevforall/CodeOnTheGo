@@ -176,9 +176,16 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 				onVariants { variant ->
 					variant.outputs.forEach { output ->
 						// version code increment
-						val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
-						val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 10000
-						output.versionCode.set(100 * projectVersionCode + verCodeIncrement)
+                        // NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
+                        // val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
+						// val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 1
+                        val verCodeIncrement = when {
+                            variant.name.contains("v8", ignoreCase = true) -> flavorsAbis["arm64-v8a"]
+                            variant.name.contains("v7", ignoreCase = true) -> flavorsAbis["armeabi-v7a"]
+                            else -> 1
+                        } ?: 1
+
+						output.versionCode.set(10 * projectVersionCode + verCodeIncrement)
 					}
 
 					if (hasBundledAssets(variant)) {
