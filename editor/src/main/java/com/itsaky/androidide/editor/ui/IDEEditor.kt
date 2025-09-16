@@ -25,6 +25,7 @@ import android.os.Looper
 import android.util.AttributeSet
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.StringRes
+import androidx.annotation.VisibleForTesting
 import com.blankj.utilcode.util.FileUtils
 import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.editor.R
@@ -75,6 +76,7 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.JobCancelChecker
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.doAsyncWithProgress
+import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
@@ -155,6 +157,13 @@ open class IDEEditor
 		private var setupTsLanguageJob: Job? = null
 		private var sigHelpCancelChecker: ICancelChecker? = null
 
+		private var _includeDebugInfoOnCopy = false
+		var includeDebugInfoOnCopy: Boolean
+			get() = _includeDebugInfoOnCopy
+			set(value) {
+				_includeDebugInfoOnCopy = value
+			}
+
 		var languageServer: ILanguageServer? = null
 			private set
 
@@ -176,9 +185,7 @@ open class IDEEditor
 		 */
 		val signatureHelpWindow: SignatureHelpWindow
 			get() {
-				return _signatureHelpWindow ?: SignatureHelpWindow(this).also {
-					_signatureHelpWindow = it
-				}
+				return _signatureHelpWindow ?: SignatureHelpWindow(this).also { _signatureHelpWindow = it }
 			}
 
 		/**
@@ -188,11 +195,10 @@ open class IDEEditor
 			get() {
 				return _diagnosticWindow ?: DiagnosticWindow(this).also { _diagnosticWindow = it }
 			}
-  private var lastTrackpadY = 0f
 
-  companion object {
-    private const val TAG = "TrackpadScrollDebug"
-    private const val SELECTION_CHANGE_DELAY = 500L
+		companion object {
+			private const val TAG = "TrackpadScrollDebug"
+			private const val SELECTION_CHANGE_DELAY = 500L
 
 			internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
 
@@ -200,8 +206,7 @@ open class IDEEditor
 			 * Create input type flags for the editor.
 			 */
 			fun createInputTypeFlags(): Int {
-				var flags =
-					EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+				var flags = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
 				if (EditorPreferences.visiblePasswordFlag) {
 					flags = flags or EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
 				}
@@ -495,6 +500,32 @@ open class IDEEditor
 			}
 		}
 
+		override fun copyTextToClipboard(
+			text: CharSequence,
+			start: Int,
+			end: Int,
+		) {
+			var targetText = text
+			if (includeDebugInfoOnCopy) {
+				targetText = BasicBuildInfo.BASIC_INFO + System.lineSeparator() + text
+			}
+
+			doCopy(targetText, start, end)
+		}
+
+		@VisibleForTesting
+		fun doCopy(
+			text: CharSequence,
+			start: Int,
+			end: Int,
+		) {
+			// This method MUST not contain any other statements
+			// It is only used for testing purposes
+			// We mock this method in instrumentation tests so that we could capture
+			// whatever is being copied to the clipboard, which can then be verified
+			super.copyTextToClipboard(text, start, end)
+		}
+
 		/**
 		 * Analyze the opened file and publish the diagnostics result.
 		 */
@@ -716,12 +747,11 @@ open class IDEEditor
 
 		private val textProcessorEngine = TextProcessorEngine()
 
-  /**
-   * Initialize the editor.
-   */
-  protected open fun initEditor() {
-
-    lineNumberMarginLeft = SizeUtils.dp2px(2f).toFloat()
+		/**
+		 * Initialize the editor.
+		 */
+		protected open fun initEditor() {
+			lineNumberMarginLeft = SizeUtils.dp2px(2f).toFloat()
 
 			actionsMenu =
 				EditorActionsMenu(this).also {
@@ -769,77 +799,84 @@ open class IDEEditor
 				}
 			}
 
-    EventBus.getDefault().register(this)
-      if (isReadOnlyContext) {
-          subscribeEvent(LongPressEvent::class.java) { event, _ ->
-              EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
-              event.intercept()
-          }
-      }
-    subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
-      if (isReleased) {
-        return@subscribeEvent
-      }
+			EventBus.getDefault().register(this)
+			if (isReadOnlyContext) {
+				subscribeEvent(LongPressEvent::class.java) { event, _ ->
+					EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
+					event.intercept()
+				}
+			}
+			subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
+				if (isReleased) {
+					return@subscribeEvent
+				}
 
-      markModified()
-      file ?: return@subscribeEvent
+				markModified()
+				file ?: return@subscribeEvent
 
-      editorScope.launch {
-        dispatchDocumentChangeEvent(event)
-        checkForSignatureHelp(event)
-        handleCustomTextReplacement(event)
-      }
-    }
-  }
+				editorScope.launch {
+					dispatchDocumentChangeEvent(event)
+					checkForSignatureHelp(event)
+					handleCustomTextReplacement(event)
+				}
+			}
+		}
 
-  private fun handleCustomTextReplacement(event: ContentChangeEvent) {
-    val isEnterPress = event.action == ContentChangeEvent.ACTION_INSERT &&
-            event.changedText.toString().contains("\n")
+		private fun handleCustomTextReplacement(event: ContentChangeEvent) {
+			val isEnterPress =
+				event.action == ContentChangeEvent.ACTION_INSERT &&
+					event.changedText.toString().contains("\n")
 
-    if (!isEnterPress) {
-      return
-    }
+			if (!isEnterPress) {
+				return
+			}
 
-    val currentFile = this.file ?: return
+			val currentFile = this.file ?: return
 
-    editorScope.launch {
-      dispatchDocumentSaveEvent()
+			editorScope.launch {
+				dispatchDocumentSaveEvent()
 
-      val lineToProcess = event.changeStart.line
+				val lineToProcess = event.changeStart.line
 
-      val context = ProcessContext(
-        content = text,
-        file = currentFile,
-        cursor = text.cursor.apply {
+				val context =
+					ProcessContext(
+						content = text,
+						file = currentFile,
+						cursor =
+							text.cursor.apply {
 //                    set(lineToProcess, text.getLine(lineToProcess).length)
-        }
-      )
+							},
+					)
 
-      val result = textProcessorEngine.process(context, isEnterPress)
+				val result = textProcessorEngine.process(context, isEnterPress)
 
-      if (result != null) {
-        withContext(Dispatchers.Main) {
-          post {
-            val start = result.range.start
-            val end = result.range.end
+				if (result != null) {
+					withContext(Dispatchers.Main) {
+						post {
+							val start = result.range.start
+							val end = result.range.end
 
-            text.replace(
-              start.line,
-              start.column,
-              end.line,
-              end.column,
-              result.replacement
-            )
+							text.replace(
+								start.line,
+								start.column,
+								end.line,
+								end.column,
+								result.replacement,
+							)
 
-            val newCursorLine = start.line + result.replacement.lines().size - 1
-            val newCursorColumn = result.replacement.lines().last().length
+							val newCursorLine = start.line + result.replacement.lines().size - 1
+							val newCursorColumn =
+								result.replacement
+									.lines()
+									.last()
+									.length
 
-            setSelection(newCursorLine, newCursorColumn)
-          }
-        }
-      }
-    }
-  }
+							setSelection(newCursorLine, newCursorColumn)
+						}
+					}
+				}
+			}
+		}
 
 		private inline fun launchCancellableAsyncWithProgress(
 			@StringRes message: Int,

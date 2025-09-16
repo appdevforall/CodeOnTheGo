@@ -79,7 +79,6 @@ import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
-import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
@@ -113,7 +112,7 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
-import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
+import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.ApkInstallationSessionCallback
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FlashType
@@ -467,7 +466,6 @@ abstract class BaseEditorActivity :
 		}
 
 		startDebuggerAndDo {
-			debuggerViewModel.debugeePackage = packageName
 			withContext(Dispatchers.Main.immediate) {
 				doLaunchApp(
 					packageName = packageName,
@@ -484,6 +482,7 @@ abstract class BaseEditorActivity :
 		val context = this
 		val performLaunch = {
 			activityScope.launch {
+				debuggerViewModel.debugeePackage = packageName
 				IntentUtils.launchApp(
 					context = context,
 					packageName = packageName,
@@ -575,7 +574,7 @@ abstract class BaseEditorActivity :
             toggle.syncState()
             setOnNavIconLongClickListener {
                 showTooltip(
-                    tag = TooltipTag.EDITOR_TOOLTIP_NAV_ICON
+                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
                 )
             }
         }
@@ -739,7 +738,10 @@ abstract class BaseEditorActivity :
     override fun onTabUnselected(tab: Tab) {}
 
     override fun onTabReselected(tab: Tab) {
-        createMenu(this, tab.view, EDITOR_FILE_TABS, true).show()
+        showPopupWindow(
+            context = this,
+            anchorView = tab.view
+        )
     }
 
     override fun onGroupClick(group: DiagnosticGroup?) {
@@ -918,18 +920,28 @@ abstract class BaseEditorActivity :
 
     private fun setupViews() {
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                debuggerViewModel.connectionState.collectLatest { state ->
-                    if (state == DebuggerConnectionState.ATTACHED) {
-                        ensureDebuggerServiceBound()
-                    }
-                    postStopDebuggerServiceIfNotConnected()
-                }
+			// debugger state updates which does no affect the UI must be
+			// observed in the CREATED state in order to ensure that we get
+			// notified about the updates even when the IDE is in the background
+			//
+			// if you need to observe state for UI updates, please add a new
+			// repeatOnLifecycle call with Lifecycle.State.STARTED
+			repeatOnLifecycle(Lifecycle.State.CREATED) {
+				launch {
+					debuggerViewModel.connectionState.collectLatest { state ->
+						if (state == DebuggerConnectionState.ATTACHED) {
+							ensureDebuggerServiceBound()
+						}
+						postStopDebuggerServiceIfNotConnected()
+					}
+				}
 
-                debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
-                    debuggerService?.targetPackage = newPackage
-                }
-            }
+				launch {
+					debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
+						debuggerService?.targetPackage = newPackage
+					}
+				}
+			}
         }
 
         editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }

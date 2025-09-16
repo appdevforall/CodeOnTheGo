@@ -27,6 +27,8 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.adapters.AppliedAttributesAdapter
 import org.appdevforall.codeonthego.layouteditor.databinding.ShowAttributesDialogBinding
@@ -595,6 +597,14 @@ class DesignEditor : LinearLayout {
         binding.attributesList.adapter = appliedAttributesAdapter
         binding.attributesList.layoutManager =
             LinearLayoutManager(context, RecyclerView.VERTICAL, false)
+        binding.viewLayout.apply {
+            displayTooltipOnLongPress(
+                context = this.context,
+                anchorView = this,
+                tooltipCategory = TooltipCategory.CATEGORY_XML,
+                tooltipTag = target.javaClass.superclass.simpleName
+            )
+        }
         binding.viewName.text = target.javaClass.superclass.simpleName
         binding.viewFullName.text = target.javaClass.superclass.name
         binding.btnAdd.setOnClickListener {
