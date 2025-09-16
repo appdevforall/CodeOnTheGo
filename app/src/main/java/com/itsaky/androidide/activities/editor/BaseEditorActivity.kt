@@ -907,16 +907,17 @@ abstract class BaseEditorActivity :
 						onDebuggerConnectionStateChanged(state)
 					}
 				}
-			}
-		}
 
-		lifecycleScope.launch {
-			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
 					debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
 						debuggerService?.targetPackage = newPackage
 					}
 				}
+			}
+		}
+
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
 					bottomSheetViewModel.sheetState.collectLatest { state ->
 						updateBottomSheetState(state = state)
