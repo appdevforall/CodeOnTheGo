@@ -6,6 +6,7 @@ import android.content.DialogInterface
 import android.util.Log
 import android.view.View
 import android.widget.AdapterView
+import android.widget.TextView // Import TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -72,6 +73,12 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
             longPressAction()
             true
         }
+
+    val titleView: TextView? = dialog.findViewById(androidx.appcompat.R.id.alertTitle)
+    val messageView: TextView? = dialog.findViewById(android.R.id.message)
+
+    titleView?.setOnLongClickListener(longClickListener)
+    messageView?.setOnLongClickListener(longClickListener)
 
     return dialog
 }
