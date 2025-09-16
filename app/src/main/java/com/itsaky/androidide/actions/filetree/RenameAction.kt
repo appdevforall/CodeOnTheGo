@@ -19,10 +19,7 @@ package com.itsaky.androidide.actions.filetree
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Rect
 import android.view.LayoutInflater
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
 import com.blankj.utilcode.util.FileUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
@@ -119,38 +116,10 @@ class RenameAction(
             }
         }
 
-        // Create and show the dialog
-        val dialog = builder.showWithLongPressTooltip(
+        builder.showWithLongPressTooltip(
             context = context,
             tooltipTag = TooltipTag.PROJECT_RENAME_DIALOG
         )
-
-        // Show keyboard when the dialog appears
-        dialog.setOnShowListener {
-            editText.requestFocus()
-            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
-        }
-
-        // Add touch listener to the dialog's window to detect outside clicks
-        dialog.window?.decorView?.setOnTouchListener { view, event ->
-            // Use ACTION_DOWN to act at the beginning of the gesture
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                val outRect = Rect()
-                editText.getGlobalVisibleRect(outRect)
-
-                // Check if the touch event is outside the bounds of the EditText
-                if (!outRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
-                    editText.clearFocus()
-                    // Hide the keyboard
-                    val imm =
-                        view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.hideSoftInputFromWindow(view.windowToken, 0)
-                }
-            }
-            // Return false to allow the event to be handled by other views
-            false
-        }
     }
 
     private fun notifyFileRenamed(
