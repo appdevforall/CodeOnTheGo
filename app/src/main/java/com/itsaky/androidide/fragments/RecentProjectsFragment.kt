@@ -106,9 +106,7 @@ class RecentProjectsFragment : BaseFragment() {
             binding.noProjectsView.visibility = if (isEmpty) View.VISIBLE else View.GONE
 
             binding.tvCreateNewProject.setText(R.string.msg_create_new_from_recent)
-
-            // Also set a click listener on the TextView itself.
-            binding.tvCreateNewProject.setOnClickListener {
+            binding.btnOpenFromFolder.setOnClickListener {
                 pickProjectDirectory(isLongClick = false)
             }
         }
