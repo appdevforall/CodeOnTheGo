@@ -28,26 +28,25 @@ import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
 object CodeActionsMenu : ActionMenu {
-  
-  const val ID = "ide.editor.code.actions"
 
-  override val children: MutableSet<ActionItem> = mutableSetOf()
-  override val id: String = ID
+    const val ID = "ide.editor.code.actions"
 
-  override var label: String = "Code actions"
-  override var visible = true
-  override var enabled: Boolean = true
-  override var icon: Drawable? = null
+    override val children: MutableSet<ActionItem> = mutableSetOf()
+    override val id: String = ID
 
-  override var requiresUIThread: Boolean = false
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
+    override var label: String = "Code actions"
+    override var visible = true
+    override var enabled: Boolean = true
+    override var icon: Drawable? = null
+    override fun retrieveTooltipTag(isAlternateContext: Boolean) =
+        TooltipTag.EDITOR_TOOLBAR_CODE_ACTIONS
+    override var requiresUIThread: Boolean = false
+    override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (icon == null) {
-      icon = ContextCompat.getDrawable(data[Context::class.java]!!, R.drawable.ic_code)
+    override fun prepare(data: ActionData) {
+        super.prepare(data)
+        if (icon == null) {
+            icon = ContextCompat.getDrawable(data[Context::class.java]!!, R.drawable.ic_code)
+        }
     }
-  }
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) =
-    TooltipTag.EDITOR_TOOLBAR_CODE_ACTIONS
 }

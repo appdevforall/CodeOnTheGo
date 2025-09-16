@@ -125,7 +125,7 @@
     <string name="msg_layout_file_exists">Layout file already exists!</string>
     <string name="msg_invalid_name">Invalid Name!</string>
     <string name="text_create">Create</string>
-    <string name="msg_can_contain_slashes">If the path contains File separator (\'/\'), then the required (parent) directories will be created if they don\'t exist.</string>
+    <string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created automatically.</string>
     <string name="folder_name">Folder Name</string>
     <string name="file_name">File Name</string>
     <string name="new_name">New name</string>
@@ -544,11 +544,6 @@
     <string name="msg_invalid_project_details">Invalid project details</string>
     <string name="msg_use_kts">Use Kotlin Script (.kts) for Gradle build files</string>
     <string name="title_privacy">Privacy</string>
-    <string name="title_androidide_statistics">Code on the Go Statistics</string>
-    <string name="msg_androidide_statistics">Help us improve Code on the Go by providing anonymous statistics. We collect basic information about your device for user base statistics only. The exact data that is shared can be viewed in preferences. Your data is secure and not shared with third-party services. You can opt-out anytime in preferences.</string>
-    <string name="summary_anonymous_usage_stats">Anonymous usage stats</string>
-    <string name="idepref_stats_optIn_title">Stats collection</string>
-    <string name="idepref_stats_optIn_summary">Allow installation metrics and device statistics to be collected (fully anonymous).</string>
     <string name="title_unique_id">Unique ID</string>
     <string name="title_device">Device</string>
     <string name="title_app_version">App version</string>
@@ -571,6 +566,8 @@
     <string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
     <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
     <string name="title_build_variants">Build variants</string>
+    <string name="title_git">Git</string>
+    <string name="title_agent">Agent</string>
     <string name="build_variants_apply">Apply</string>
     <string name="build_variants_cancel">Cancel</string>
     <string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
@@ -709,6 +706,8 @@
 	<string name="msg_recent_projects">Recent Projects</string>
 	<string name="msg_create_new_from_recent">Click the New project button to create a new project or\nopen from a folder</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
+	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
+	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
 	<string name="open_from_folder">Open from folder</string>
@@ -745,36 +744,31 @@
 	<!-- Message shown when the bootstrap installer is in the linking phase -->
 	<string name="bootstrap_installer_linking">Resolving symlinks…</string>
 
-	<!-- Tooltip HTML Template -->
-	<string name="tooltip_html_template"><![CDATA[
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<style>
-					body {
-						margin: 0;
-						padding: 10px;
-						word-wrap: break-word;
-						color: %1$s;
-					}
-					a{
-						color: #233490;
-						text-decoration: underline;
-					}
-				</style>
-			</head>
-			<body>
-				%2$s
-			</body>
+    <!-- Tooltip HTML Template -->
+    <string name="tooltip_html_template"><![CDATA[
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                     body {
+                        margin: 0;
+                        padding: 10px;
+                        word-wrap: break-word;
+                        color: %1$s;
+                     }
+                     a{
+                        color: #233490;
+                        text-decoration: underline;
+                       }
+                </style>
+            </head>
+            <body>
+                %2$s
+            </body>
 
 		</html>
 		]]></string>
-
-	<!-- Tooltip Links HTML Template -->
-	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
-	<string name="title_alert">Alert!</string>
-	<string name="info_icon_content_description">Info icon</string>
 
 	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
@@ -879,4 +873,17 @@
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_debugger_requires_a11">The debugger features require Android 11 to work.</string>
+    <!-- Tooltip Links HTML Template -->
+    <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
+    <string name="title_alert">Alert!</string>
+
+    <string name="info_icon_content_description">Info icon</string>
+
+    <!-- Strings from BaseApplication.java-->
+    <string name="telegram_group_url">https://t.me/androidide_discussions</string>
+    <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
+    <string name="sponsor_url">https://m.androidide.com/donate</string>
+    <string name="docs_url">http://localhost:6174/i/index.html</string>
+    <string name="adfa_email">info@appdevforall.org</string>
+    <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 </resources>

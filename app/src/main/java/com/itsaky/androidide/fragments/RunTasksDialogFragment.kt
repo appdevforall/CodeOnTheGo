@@ -19,7 +19,6 @@ package com.itsaky.androidide.fragments
 
 import android.app.Dialog
 import android.content.Intent
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
@@ -28,7 +27,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat.Type.navigationBars
 import androidx.core.view.WindowInsetsCompat.Type.statusBars
 import androidx.core.view.updateLayoutParams
@@ -45,6 +43,8 @@ import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.RunTasksListAdapter
 import com.itsaky.androidide.databinding.LayoutRunTaskBinding
 import com.itsaky.androidide.databinding.LayoutRunTaskDialogBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.projects.IProjectManager
@@ -54,10 +54,10 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.models.GradleTask
 import com.itsaky.androidide.utils.SingleTextWatcher
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.doOnApplyWindowInsets
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
-import com.itsaky.androidide.utils.updateSystemBarColors
 import com.itsaky.androidide.viewmodel.RunTasksViewModel
 import org.slf4j.LoggerFactory
 
@@ -156,36 +156,55 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
       }
     )
 
-    binding.exec.setOnClickListener {
-      if (viewModel.selected.isEmpty()) {
-        requireActivity().flashInfo(getString(string.msg_err_select_tasks))
-        return@setOnClickListener
+      binding.root.applyLongPressRecursively {
+          TooltipManager.showTooltip(
+              context = requireContext(),
+              anchorView = it,
+              tag = TooltipTag.PROJECT_GRADLE_TASKS
+          )
+          true
       }
 
-      if (viewModel.displayedChild == CHILD_TASKS) {
-        binding.confirm.msg.text =
-          getString(R.string.msg_tasks_to_run, viewModel.getSelectedTaskPaths())
-        viewModel.displayedChild = CHILD_CONFIRMATION
-        return@setOnClickListener
-      }
-
-      if (viewModel.displayedChild == CHILD_CONFIRMATION) {
-        val buildService =
-          Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-            ?: run {
-              log.error("Cannot find build service")
-              return@setOnClickListener
+    binding.exec.apply {
+        setOnClickListener {
+            if (viewModel.selected.isEmpty()) {
+                requireActivity().flashInfo(getString(string.msg_err_select_tasks))
+                return@setOnClickListener
             }
 
-        if (!buildService.isToolingServerStarted()) {
-          flashError(R.string.msg_tooling_server_unavailable)
-          return@setOnClickListener
-        }
+            if (viewModel.displayedChild == CHILD_TASKS) {
+                binding.confirm.msg.text =
+                    getString(R.string.msg_tasks_to_run, viewModel.getSelectedTaskPaths())
+                viewModel.displayedChild = CHILD_CONFIRMATION
+                return@setOnClickListener
+            }
 
-        val toRun = viewModel.selected.toTypedArray()
-        buildService.executeTasks(*toRun)
-        dismiss()
-      }
+            if (viewModel.displayedChild == CHILD_CONFIRMATION) {
+                val buildService =
+                    Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+                        ?: run {
+                            log.error("Cannot find build service")
+                            return@setOnClickListener
+                        }
+
+                if (!buildService.isToolingServerStarted()) {
+                    flashError(R.string.msg_tooling_server_unavailable)
+                    return@setOnClickListener
+                }
+
+                val toRun = viewModel.selected.toTypedArray()
+                buildService.executeTasks(*toRun)
+                dismiss()
+            }
+        }
+        setOnLongClickListener {
+            TooltipManager.showTooltip(
+                context = requireContext(),
+                anchorView = this,
+                tag = TooltipTag.PROJECT_RUN_GRADLE_TASKS
+            )
+            true
+        }
     }
 
     binding.confirm.cancel.setOnClickListener { viewModel.displayedChild = CHILD_TASKS }

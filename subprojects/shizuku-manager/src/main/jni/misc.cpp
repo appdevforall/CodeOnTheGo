@@ -107,9 +107,8 @@ uintptr_t memsearch(const uintptr_t start, const uintptr_t end, const void *valu
 int switch_mnt_ns(int pid) {
     char mnt[32];
     snprintf(mnt, sizeof(mnt), "/proc/%d/ns/mnt", pid);
-    if (access(mnt, R_OK) == -1) return -1;
 
-    int fd = open(mnt, O_RDONLY);
+    int fd = open(mnt, O_RDONLY | O_CLOEXEC);
     if (fd < 0) return -1;
 
     int res = setns(fd, 0);

@@ -206,10 +206,6 @@ class FileTreeActionHandler : BaseEventHandler() {
     }
   }
 
-  private fun requestFileListing() {
-    EventBus.getDefault().post(ListProjectFilesRequestEvent())
-  }
-
   private fun requestExpandHeldNode() {
     requestExpandNode(lastHeld!!)
   }
