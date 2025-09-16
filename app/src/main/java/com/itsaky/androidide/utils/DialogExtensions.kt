@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.DialogInterface
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.AdapterView
-import android.widget.TextView // Import TextView
+import android.widget.EditText
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -79,6 +81,24 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
 
     titleView?.setOnLongClickListener(longClickListener)
     messageView?.setOnLongClickListener(longClickListener)
+
+    val customPanel: ViewGroup? = dialog.findViewById(androidx.appcompat.R.id.customPanel)
+
+    fun applyListenerToEditTexts(view: View) {
+        if (view is EditText) {
+            view.setOnLongClickListener(longClickListener)
+        }
+
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                applyListenerToEditTexts(view.getChildAt(i))
+            }
+        }
+    }
+
+    customPanel?.let {
+        applyListenerToEditTexts(it)
+    }
 
     return dialog
 }
