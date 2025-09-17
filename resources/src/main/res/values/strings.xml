@@ -187,7 +187,7 @@
     <string name="title_open_projects">Open last project</string>
     <string name="msg_open_projects">If checked, the IDE will remember the last opened project and it will be reopened on next startup.</string>
     <string name="title_confirm_project_open">Confirm project opening</string>
-    <string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation that you want to open the last project.</string>
+    <string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
     <string name="title_default_shell">Use system shell in terminal</string>
     <string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
     <string name="title_general">General</string>
