@@ -470,8 +470,8 @@
     <string name="action_show_hierarchy">Show layout hierarchy</string>
     <string name="idepref_editor_colorScheme">Color Scheme</string>
     <string name="idepref_editor_colorScheme_summary">Choose color scheme to use in editor</string>
-    <string name="idepref_general_uiMode">UI Mode</string>
-    <string name="idepref_general_uiMode_summary">Choose UI mode for the IDE</string>
+    <string name="idepref_general_uiMode">UI mode</string>
+    <string name="idepref_general_uiMode_summary">Choose whether to use light mode, dark mode, or the current system settings.</string>
     <string name="uiMode_light">Light</string>
     <string name="uiMode_dark">Dark</string>
     <string name="uiMode_system">Follow system</string>
@@ -591,7 +591,7 @@
     <string name="theme_sunny_glow">Sunny Glow</string>
     <string name="theme_material_you">Material You</string>
     <string name="idepref_general_localeSelector_title">Language</string>
-    <string name="idepref_general_localeSelector_summary">Select a language for Code on the Go.</string>
+    <string name="idepref_general_localeSelector_summary">Choose the language for Code on the Go.</string>
     <string name="locale_system_default">System Default</string>
     <string name="msg_project_dir_inaccessible">Project directory is not accessible</string>
     <string name="msg_file_is_not_dir">Selected file is not a directory</string>
@@ -703,7 +703,7 @@
 	<string name="send_feedback">Send Feedback</string>
 	<string name="alert_message">Alert!</string>
 	<string name="fab_more">More</string>
-	<string name="msg_recent_projects">Recent Projects</string>
+	<string name="msg_recent_projects">Recent projects</string>
 	<string name="msg_create_new_from_recent">Click the New project button to create a new project or open from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
