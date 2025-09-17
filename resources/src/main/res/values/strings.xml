@@ -185,7 +185,7 @@
     <string name="idepref_editor_title">Editor</string>
     <string name="idepref_build_title">Build &amp; Run</string>
     <string name="title_open_projects">Open last project</string>
-    <string name="msg_open_projects">If checked, the IDE will remember the last opened project and it will be reopened on next startup.</string>
+    <string name="msg_open_projects">When enabled, restarting Code on the Go will automatically open the last project that was open.</string>
     <string name="title_confirm_project_open">Confirm project opening</string>
     <string name="msg_confirm_project_open">Ask before opening last opened project.</string>
     <string name="title_default_shell">Use system shell in terminal</string>
