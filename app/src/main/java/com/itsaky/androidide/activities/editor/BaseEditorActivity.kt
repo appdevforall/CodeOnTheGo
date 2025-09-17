@@ -461,7 +461,6 @@ abstract class BaseEditorActivity :
 		}
 
 		startDebuggerAndDo {
-			debuggerViewModel.debugeePackage = packageName
 			withContext(Dispatchers.Main.immediate) {
 				doLaunchApp(
 					packageName = packageName,
@@ -478,6 +477,7 @@ abstract class BaseEditorActivity :
 		val context = this
 		val performLaunch = {
 			activityScope.launch {
+				debuggerViewModel.debugeePackage = packageName
 				IntentUtils.launchApp(
 					context = context,
 					packageName = packageName,
