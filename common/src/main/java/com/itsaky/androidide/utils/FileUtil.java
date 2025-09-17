@@ -359,7 +359,8 @@ public class FileUtil {
         path = getDataColumn(context, contentUri, selection, selectionArgs);
       }
     } else if (ContentResolver.SCHEME_CONTENT.equalsIgnoreCase(uri.getScheme())) {
-      path = getDataColumn(context, uri, null, null);
+      ///JMT path = getDataColumn(context, uri, null, null);
+
     } else if (ContentResolver.SCHEME_FILE.equalsIgnoreCase(uri.getScheme())) {
       path = uri.getPath();
     }
@@ -373,6 +374,8 @@ public class FileUtil {
     }
     return null;
   }
+
+
 
   private static String getDataColumn(
       Context context, Uri uri, String selection, String[] selectionArgs) {
