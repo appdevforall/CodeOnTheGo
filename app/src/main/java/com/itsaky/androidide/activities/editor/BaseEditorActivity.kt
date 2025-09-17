@@ -467,7 +467,6 @@ abstract class BaseEditorActivity :
 		}
 
 		startDebuggerAndDo {
-			debuggerViewModel.debugeePackage = packageName
 			withContext(Dispatchers.Main.immediate) {
 				doLaunchApp(
 					packageName = packageName,
@@ -484,6 +483,7 @@ abstract class BaseEditorActivity :
 		val context = this
 		val performLaunch = {
 			activityScope.launch {
+				debuggerViewModel.debugeePackage = packageName
 				IntentUtils.launchApp(
 					context = context,
 					packageName = packageName,
@@ -929,18 +929,28 @@ abstract class BaseEditorActivity :
 
     private fun setupViews() {
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                debuggerViewModel.connectionState.collectLatest { state ->
-                    if (state == DebuggerConnectionState.ATTACHED) {
-                        ensureDebuggerServiceBound()
-                    }
-                    postStopDebuggerServiceIfNotConnected()
-                }
+			// debugger state updates which does no affect the UI must be
+			// observed in the CREATED state in order to ensure that we get
+			// notified about the updates even when the IDE is in the background
+			//
+			// if you need to observe state for UI updates, please add a new
+			// repeatOnLifecycle call with Lifecycle.State.STARTED
+			repeatOnLifecycle(Lifecycle.State.CREATED) {
+				launch {
+					debuggerViewModel.connectionState.collectLatest { state ->
+						if (state == DebuggerConnectionState.ATTACHED) {
+							ensureDebuggerServiceBound()
+						}
+						postStopDebuggerServiceIfNotConnected()
+					}
+				}
 
-                debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
-                    debuggerService?.targetPackage = newPackage
-                }
-            }
+				launch {
+					debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
+						debuggerService?.targetPackage = newPackage
+					}
+				}
+			}
         }
 
         editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }

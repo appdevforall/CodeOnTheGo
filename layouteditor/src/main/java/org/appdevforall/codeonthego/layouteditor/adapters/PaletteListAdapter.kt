@@ -8,6 +8,9 @@ import android.view.animation.AnimationUtils
 import androidx.core.view.ViewCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
+import com.itsaky.androidide.utils.setupGestureHandling
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.LayoutPaletteItemBinding
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil.getMipmapId
@@ -32,23 +35,36 @@ class PaletteListAdapter(private val drawerLayout: DrawerLayout) :
     binding.name.text = widgetItem["name"].toString()
     binding.className.text = getSuperClassName(widgetItem["className"].toString())
 
-    binding
-      .root
-      .setOnLongClickListener {
-        if (ViewCompat.startDragAndDrop(
-            it, null, DragShadowBuilder(it), widgetItem, 0
-          )
-        ) {
+    binding.root.setupGestureHandling(
+      onLongPress = { view -> showTooltipForWidget(view, widgetItem) },
+      onDrag = { view -> 
+        if (ViewCompat.startDragAndDrop(view, null, DragShadowBuilder(view), widgetItem, 0)) {
           drawerLayout.closeDrawers()
         }
-        true
       }
+    )
 
     binding
       .root.animation = AnimationUtils.loadAnimation(
       holder.itemView.context, R.anim.project_list_animation
     )
   }
+
+
+  private fun showTooltipForWidget(anchorView: View, widgetItem: HashMap<String, Any>) {
+    val context = anchorView.context
+    val className =  getSuperClassName(widgetItem["className"].toString())
+
+      className?.let {
+          showTooltip(
+              context = context,
+              anchorView = anchorView,
+              tag = className,
+              category = TooltipCategory.CATEGORY_JAVA
+          )
+      }
+  }
+
 
   override fun getItemCount(): Int {
     return tab.size
