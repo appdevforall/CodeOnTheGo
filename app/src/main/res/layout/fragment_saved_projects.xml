@@ -60,14 +60,14 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_open_from_folder"
+            style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="start|bottom"
             android:layout_margin="16dp"
-            app:icon="@drawable/ic_open_external"
             android:layout_below="@id/tvCreateNewProject"
             android:layout_centerHorizontal="true"
-            android:text="@string/open_from_folder" />
+            android:text="@string/find_saved_project" />
 
     </RelativeLayout>
 
