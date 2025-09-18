@@ -27,6 +27,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutSymbolItemBinding
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.Symbol
 import com.itsaky.androidide.utils.resolveAttr
 import io.github.rosemoe.sora.widget.SelectionMovement
@@ -94,8 +95,8 @@ class SymbolInputAdapter @JvmOverloads constructor(
         holder.binding.symbol.setOnLongClickListener { view: View? ->
             TooltipManager.showTooltip(
                 context = editor.context,
-                anchorView = editor,
-                tag = holder.binding.symbol,
+                anchorView = holder.binding.symbol,
+                tag = TooltipTag.EDITOR_CHARACTER_TOOLBAR,
             )
             true
         }
