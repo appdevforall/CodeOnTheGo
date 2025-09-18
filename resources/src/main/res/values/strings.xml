@@ -486,9 +486,8 @@
     <string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
     <string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
     <string name="idepref_deleteEmptyLines_summary">Whether the editor should delete empty lines on a single backspace key event.</string>
-    <string name="idepref_deleteTabs_title">Delete tab on backspace</string>
-    <string name="idepref_deleteTabs_summary">When enabled, the editor will delete spaces equal to the tab width when the backspace key is pressed.</string>
-
+    <string name="idepref_deleteTabs_title">Smart backspace indent</string>
+    <string name="idepref_deleteTabs_summary">Remove a full indent level instead of just one character when you press backspace.</string>
     <!--  GitHub-->
     <string name="title_warning">Warning</string>
     <string name="git_clone_dir_exists">The target directory already exists. This will cause clone to fail. Do you wish to delete it and its contents and try again</string>
