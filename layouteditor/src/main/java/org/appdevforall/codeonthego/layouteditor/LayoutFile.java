@@ -6,7 +6,6 @@ import android.os.Parcelable;
 import androidx.annotation.NonNull;
 
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil;
-
 import org.jetbrains.annotations.Contract;
 
 import java.io.File;
@@ -15,9 +14,12 @@ public class LayoutFile implements Parcelable {
 
   private String path;
   public String name;
+  private String designPath;
+
 
   public LayoutFile(String path, String designPath) {
     this.path = path;
+    this.designPath = designPath;
     this.name = FileUtil.getLastSegmentFromPath(designPath);
   }
 
@@ -47,6 +49,12 @@ public class LayoutFile implements Parcelable {
     return name;
   }
 
+  // ... add this new method
+// saves the internal design-time XML
+  public void saveDesignFile(String content) {
+    FileUtil.writeFile(designPath, content);
+  }
+
   public String readDesignFile() {
     return FileUtil.readFile(path);
   }
@@ -59,6 +67,7 @@ public class LayoutFile implements Parcelable {
   @Override
   public void writeToParcel(@NonNull Parcel parcel, int flags) {
     parcel.writeString(path);
+    parcel.writeString(designPath);
     parcel.writeString(name);
   }
 
@@ -79,6 +88,7 @@ public class LayoutFile implements Parcelable {
 
   private LayoutFile(@NonNull Parcel parcel) {
     path = parcel.readString();
+    designPath = parcel.readString();
     name = parcel.readString();
   }
 }

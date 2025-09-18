@@ -894,13 +894,21 @@ class EditorActivity : BaseActivity() {
     private fun saveXml() {
         if (binding.editorLayout.isEmpty()) {
             project.currentLayout.saveLayout("")
+            project.currentLayout.saveDesignFile("")
             ToastUtils.showShort(getString(string.layout_saved))
             binding.editorLayout.markAsSaved()
             return
         }
 
-        val result = XmlLayoutGenerator().generate(binding.editorLayout, false)
-        project.currentLayout.saveLayout(result)
+        // Generate and save the clean, PRODUCTION XML to the main layout file
+        val productionXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
+        project.currentLayout.saveLayout(productionXml)
+
+        // Generate and save the DESIGN-TIME XML for the editor's internal use
+        // This requires the new saveDesignFile method in LayoutFile.java
+        val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
+        (project.currentLayout as LayoutFile).saveDesignFile(designXml)
+
         binding.editorLayout.markAsSaved()
         ToastUtils.showShort(getString(string.layout_saved))
     }

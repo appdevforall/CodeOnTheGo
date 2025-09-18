@@ -101,15 +101,18 @@ class ProjectFile : Parcelable {
       return file.listFiles()
     }
 
-  val allLayouts: MutableList<LayoutFile>
-    get() {
-      val list: MutableList<LayoutFile> = mutableListOf()
-      val localTempList: MutableList<LayoutFile> = mutableListOf()
-      layoutDesigns?.forEachIndexed { index, designFile ->
-        localTempList.add(LayoutFile(layouts?.get(index)?.absolutePath ?: "", designFile.absolutePath))
-      }
-      return list
-    }
+    val allLayouts: MutableList<LayoutFile>
+        get() {
+            val list: MutableList<LayoutFile> = mutableListOf()
+            val localTempList: MutableList<LayoutFile> = mutableListOf()
+            layoutDesigns?.forEachIndexed { index, designFile ->
+                // The two paths should be different, pointing to the layout and design directories
+                val layoutFilePath = layouts?.get(index)?.absolutePath ?: ""
+                val designFilePath = designFile.absolutePath
+                localTempList.add(LayoutFile(layoutFilePath, designFilePath))
+            }
+            return localTempList // You were returning the empty 'list' here
+        }
 
   val mainLayout: LayoutFile
     get() = LayoutFile("$layoutPath$mainLayoutName.xml", "$layoutDesignPath$mainLayoutName.xml")
