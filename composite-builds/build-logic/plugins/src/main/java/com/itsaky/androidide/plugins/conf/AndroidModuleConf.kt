@@ -135,7 +135,9 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 			// required
 			multiDexEnabled = true
 
-			testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+			testInstrumentationRunner = "com.itsaky.androidide.testing.android.TestInstrumentationRunner"
+			testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+			testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
 		}
 
 		compileOptions {
@@ -144,6 +146,15 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		}
 
 		configureCoreLibDesugaring(this, coreLibDesugDep)
+
+		// we need to migrate :subprojects:aaptcompiler to use protobuf-lite
+		// to be able to remove dependency on protobuf-java
+// 		configurations.all {
+// 			// protobuf-java and protobuf-lite have conflicts
+// 			// since protobuf-lite is optimized for Android, we
+// 			// drop protobuf-java in favor of protobuf-lite
+// 			exclude(group = "com.google.protobuf", module = "protobuf-java")
+// 		}
 
 		if (":app" == project.path) {
 			packagingOptions {
@@ -165,9 +176,16 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 				onVariants { variant ->
 					variant.outputs.forEach { output ->
 						// version code increment
-						val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
-						val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 10000
-						output.versionCode.set(100 * projectVersionCode + verCodeIncrement)
+                        // NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
+                        // val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
+						// val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 1
+                        val verCodeIncrement = when {
+                            variant.name.contains("v8", ignoreCase = true) -> flavorsAbis["arm64-v8a"]
+                            variant.name.contains("v7", ignoreCase = true) -> flavorsAbis["armeabi-v7a"]
+                            else -> 1
+                        } ?: 1
+
+						output.versionCode.set(10 * projectVersionCode + verCodeIncrement)
 					}
 
 					if (hasBundledAssets(variant)) {

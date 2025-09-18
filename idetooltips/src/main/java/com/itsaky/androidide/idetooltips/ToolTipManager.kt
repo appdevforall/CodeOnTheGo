@@ -137,39 +137,37 @@ object TooltipManager {
         }
     }
 
-    /**
-     * Shows a tooltip anchored to a generic view.
-     */
-    fun showIDETooltip(
-        context: Context,
-        anchorView: View,
-        level: Int,
-        tooltipItem: IDETooltipItem,
-        onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
-    ) {
-        setupAndShowTooltipPopup(
-            context = context,
-            anchorView = anchorView,
-            level = level,
-            tooltipItem = tooltipItem,
-            onActionButtonClick = { popupWindow, urlContent ->
-                popupWindow.dismiss()
-                onHelpLinkClicked(context, urlContent.first, urlContent.second)
-            },
-            onSeeMoreClicked = { popupWindow, nextLevel, item ->
-                popupWindow.dismiss()
-                showIDETooltip(context, anchorView, nextLevel, item, onHelpLinkClicked)
+    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
+    fun showTooltip(context: Context, anchorView: View, tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                TooltipCategory.CATEGORY_IDE,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
             }
-        )
+        }
     }
 
-    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
-    fun showTooltip(
-        context: Context,
-        anchorView: View,
-        tag: String,
-        category: String = TooltipCategory.CATEGORY_IDE
-    ) {
+    // Displays a tooltip in a particular context with a specific category
+    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
         CoroutineScope(Dispatchers.Main).launch {
             val tooltipItem = getTooltip(
                 context,
@@ -195,6 +193,32 @@ object TooltipManager {
                 Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
             }
         }
+    }
+
+    /**
+     * Shows a tooltip anchored to a generic view.
+     */
+    fun showIDETooltip(
+        context: Context,
+        anchorView: View,
+        level: Int,
+        tooltipItem: IDETooltipItem,
+        onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
+    ) {
+        setupAndShowTooltipPopup(
+            context = context,
+            anchorView = anchorView,
+            level = level,
+            tooltipItem = tooltipItem,
+            onActionButtonClick = { popupWindow, urlContent ->
+                popupWindow.dismiss()
+                onHelpLinkClicked(context, urlContent.first, urlContent.second)
+            },
+            onSeeMoreClicked = { popupWindow, nextLevel, item ->
+                popupWindow.dismiss()
+                showIDETooltip(context, anchorView, nextLevel, item, onHelpLinkClicked)
+            }
+        )
     }
 
     /**
@@ -344,4 +368,5 @@ object TooltipManager {
             .setCancelable(true) // Allow dismissing by tapping outside
             .show()
     }
+
 }

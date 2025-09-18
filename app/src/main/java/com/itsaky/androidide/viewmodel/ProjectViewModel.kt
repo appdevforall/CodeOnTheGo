@@ -84,13 +84,16 @@ class ProjectViewModel : ViewModel() {
 
             } catch (e: Exception) {
                 if (e is CancellationException) {
-                    throw e
+                    // This is an expected cancellation, not an error.
+                    log.info("Project initialization was cancelled.")
+                    // Reset the state to Idle, as the process is finished.
+                    _initState.value = TaskState.Idle
+                } else {
+                    // This is a real, unexpected error.
+                    log.error("Failed to initialize project", e)
+                    val failure = (e as? InitializeException)?.result?.failure
+                    _initState.value = TaskState.Error(failure, e)
                 }
-
-                log.error("An error occurred initializing the project.", e)
-                val failure = (e as? InitializeException)?.result?.failure
-                _initState.value = TaskState.Error(failure, e)
-
             } finally {
                 buildService?.setServerListener(null)
             }

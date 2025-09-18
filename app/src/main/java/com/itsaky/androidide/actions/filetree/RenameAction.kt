@@ -23,11 +23,19 @@ import androidx.activity.viewModels
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.FileManager
+import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.FlashType
+import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
+import com.unnamed.b.atv.model.TreeNode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -36,45 +44,50 @@ import java.io.File
  *
  * @author Akash Yadav
  */
-class RenameAction(context: Context, override val order: Int) :
-  BaseFileTreeAction(
-    context,
-    labelRes = R.string.rename_file,
-    iconRes = R.drawable.ic_file_rename
-  ) {
+class RenameAction(
+	context: Context,
+	override val order: Int,
+) : BaseFileTreeAction(
+		context,
+		labelRes = R.string.rename_file,
+		iconRes = R.drawable.ic_file_rename,
+	) {
+	override val id: String = "ide.editor.fileTree.rename"
 
-  override val id: String = "ide.editor.fileTree.rename"
+	override suspend fun execAction(data: ActionData) {
+		val context = data.requireActivity()
+		val file = data.requireFile()
+		val lastHeld = data.getTreeNode()
+		val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
+		val builder = DialogUtils.newMaterialDialogBuilder(context)
+		binding.name.editText!!.hint =
+			context.getString(com.itsaky.androidide.resources.R.string.new_name)
+		binding.name.editText!!.setText(file.name)
+		builder.setTitle(com.itsaky.androidide.resources.R.string.rename_file)
+		builder.setMessage(com.itsaky.androidide.resources.R.string.msg_rename_file)
+		builder.setView(binding.root)
+		builder.setNegativeButton(android.R.string.cancel, null)
+		builder.setPositiveButton(com.itsaky.androidide.resources.R.string.rename_file) {
+			dialogInterface,
+			_ ->
+			dialogInterface.dismiss()
+            val fileManagerViewModel: FileManagerViewModel by context.viewModels()
+            val name: String = binding.name.editText?.text.toString().trim()
+            fileManagerViewModel.renameFile(file, name)
+		}
+		builder.create().show()
+	}
 
-  override suspend fun execAction(data: ActionData) {
-    val context = data.requireActivity()
-    val file = data.requireFile()
-    val lastHeld = data.getTreeNode()
-    val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
-    val builder = DialogUtils.newMaterialDialogBuilder(context)
-    binding.name.editText!!.hint =
-      context.getString(com.itsaky.androidide.resources.R.string.new_name)
-    binding.name.editText!!.setText(file.name)
-    builder.setTitle(com.itsaky.androidide.resources.R.string.rename_file)
-    builder.setMessage(com.itsaky.androidide.resources.R.string.msg_rename_file)
-    builder.setView(binding.root)
-    builder.setNegativeButton(android.R.string.cancel, null)
-    builder.setPositiveButton(com.itsaky.androidide.resources.R.string.rename_file) {
-      dialogInterface,
-      _ ->
-      dialogInterface.dismiss()
-      val fileManagerViewModel: FileManagerViewModel by context.viewModels()
-      val name: String = binding.name.editText?.text.toString().trim()
-      fileManagerViewModel.renameFile(file, name)
-    }
-    builder.create().show()
-  }
+	private fun notifyFileRenamed(
+		file: File,
+		name: String,
+		context: Context,
+	) {
+		val renameEvent = FileRenameEvent(file, File(file.parent, name))
 
-  private fun notifyFileRenamed(file: File, name: String, context: Context) {
-    val renameEvent = FileRenameEvent(file, File(file.parent, name))
+		// Notify FileManager first
+		FileManager.onFileRenamed(renameEvent)
 
-    // Notify FileManager first
-    FileManager.onFileRenamed(renameEvent)
-
-    EventBus.getDefault().post(renameEvent.apply { putData(context) })
-  }
+		EventBus.getDefault().post(renameEvent.apply { putData(context) })
+	}
 }

@@ -26,11 +26,14 @@ import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import com.blankj.utilcode.util.ImageUtils
+import com.google.gson.Gson
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
+import com.itsaky.androidide.api.ActionContextProvider
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -44,6 +47,7 @@ import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
@@ -51,6 +55,7 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
@@ -66,7 +71,10 @@ import org.adfa.constants.CONTENT_TITLE_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.function.Consumer
+
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -74,6 +82,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @author Akash Yadav
  */
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
+
+    private val singleBuildListeners = CopyOnWriteArrayList<Consumer<BuildResult>>()
+
+    companion object {
+        const val PREF_KEY_OPEN_FILES_CACHE = "open_files_cache_v1"
+    }
 
     protected val isOpenedFilesSaved = AtomicBoolean(false)
 
@@ -151,15 +165,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     override fun onPause() {
         super.onPause()
-
         // Record timestamps for all currently open files before saving the cache
         editorViewModel.getOpenedFiles().forEach { file ->
             // Note: Using the file's absolutePath as the key
             fileTimestamps[file.absolutePath] = file.lastModified()
         }
-
-        // if the user manually closes the project, this will be true
-        // in this case, don't overwrite the already saved cache
+        ActionContextProvider.clearActivity()
         if (!isOpenedFilesSaved.get()) {
             saveOpenedFiles()
         }
@@ -167,6 +178,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     override fun onResume() {
         super.onResume()
+        ActionContextProvider.setActivity(this)
         isOpenedFilesSaved.set(false)
         checkForExternalFileChanges()
         // Invalidate the options menu to reflect any changes
@@ -201,10 +213,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     private fun writeOpenedFilesCache(openedFiles: List<OpenedFile>, selectedFile: File?) {
+        val prefs = (application as BaseApplication).prefManager
+
         if (selectedFile == null || openedFiles.isEmpty()) {
-            editorViewModel.writeOpenedFiles(null)
-            editorViewModel.openedFilesCache = null
-            log.debug("[onPause] No opened files. Opened files cache reset to null.")
+            // If there are no files, clear the saved preference
+            prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
+            log.debug("[onPause] No opened files. Session cache cleared.")
             isOpenedFilesSaved.set(true)
             return
         }
@@ -212,9 +226,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         val cache =
             OpenedFilesCache(selectedFile = selectedFile.absolutePath, allFiles = openedFiles)
 
-        editorViewModel.writeOpenedFiles(cache)
-        editorViewModel.openedFilesCache = if (!isDestroying) cache else null
-        log.debug("[onPause] Opened files cache reset to {}", editorViewModel.openedFilesCache)
+        val jsonCache = Gson().toJson(cache)
+        prefs.putString(PREF_KEY_OPEN_FILES_CACHE, jsonCache)
+
+        log.debug("[onPause] Editor session saved to SharedPreferences.")
         isOpenedFilesSaved.set(true)
     }
 
@@ -222,8 +237,15 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         super.onStart()
 
         try {
-            editorViewModel.getOrReadOpenedFilesCache(this::onReadOpenedFilesCache)
-            editorViewModel.openedFilesCache = null
+            val prefs = (application as BaseApplication).prefManager
+            val jsonCache = prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
+            if (jsonCache != null) {
+                val cache = Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
+                onReadOpenedFilesCache(cache)
+
+                // Clear the preference so it's only loaded once on startup
+                prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
+            }
         } catch (err: Throwable) {
             log.error("Failed to reopen recently opened files", err)
         }
@@ -231,10 +253,19 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     private fun onReadOpenedFilesCache(cache: OpenedFilesCache?) {
         cache ?: return
-        cache.allFiles.forEach { file ->
+
+        val existingFiles = cache.allFiles.filter { File(it.filePath).exists() }
+        val selectedFileExists = File(cache.selectedFile).exists()
+
+        if (existingFiles.isEmpty()) return
+
+        existingFiles.forEach { file ->
             openFile(File(file.filePath), file.selection)
         }
-        openFile(File(cache.selectedFile))
+
+        if (selectedFileExists) {
+            openFile(File(cache.selectedFile))
+        }
     }
 
     fun prepareOptionsMenu() {
@@ -663,10 +694,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         }
     }
 
-    private fun notifyFilesUnsaved(
-        unsavedEditors: List<CodeEditorView?>,
-        invokeAfter: Runnable
-    ) {
+    private fun notifyFilesUnsaved(unsavedEditors: List<CodeEditorView?>, invokeAfter: Runnable) {
         if (isDestroying) {
             // Do not show unsaved files dialog if the activity is being destroyed
             // TODO Use a service to save files and to avoid file content loss
@@ -762,8 +790,36 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                     val tab = content.tabs.getTabAt(index) ?: return@forEach
                     tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
                     tab.text = name
+                    tab.view.setOnLongClickListener {
+                        TooltipManager.showTooltip(
+                            context = this@EditorHandlerActivity,
+                            anchorView = tab.view,
+                            tag = TooltipTag.PROJECT_FILENAME,
+                        )
+                        true
+                    }
                 }
             }
+        }
+    }
+
+
+    /**
+     * Adds a one-time listener that will be invoked when the current build process finishes.
+     * The listener will be automatically removed after being called.
+     */
+    fun addOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
+        singleBuildListeners.add(listener)
+    }
+
+    /**
+     * Called by [EditorBuildEventListener] to notify all registered listeners of the build result.
+     */
+    fun notifyBuildResult(result: BuildResult) {
+        // Ensure this runs on the main thread if UI updates are needed from listeners
+        runOnUiThread {
+            singleBuildListeners.forEach { it.accept(result) }
+            singleBuildListeners.clear()
         }
     }
 }
