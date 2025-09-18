@@ -20,7 +20,6 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
-import android.util.Log
 import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
@@ -44,8 +43,6 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
@@ -62,12 +59,10 @@ import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
@@ -289,31 +284,11 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                 hint = action.label,
                 onClick = { if (action.enabled) registry.executeAction(action, data) },
                 onLongClick = {
-                    CoroutineScope(Dispatchers.Main).launch {
-                        val tooltipItem = TooltipManager.getTooltip(
-                            this@EditorHandlerActivity,
-                            TooltipCategory.CATEGORY_IDE,
-                            action.retrieveTooltipTag(false),
-                        )
-                        if (tooltipItem != null) {
-                            TooltipManager.showIDETooltip(
-                                context = this@EditorHandlerActivity,
-                                anchorView = content.customToolbar,
-                                level = 0,
-                                tooltipItem = tooltipItem,
-                                onHelpLinkClicked = { context, url, title ->
-                                    val intent =
-                                        Intent(context, HelpActivity::class.java).apply {
-                                            putExtra(CONTENT_KEY, url)
-                                            putExtra(CONTENT_TITLE_KEY, title)
-                                        }
-                                    context.startActivity(intent)
-                                }
-                            )
-                        } else {
-                            Log.e("EditorHandlerActivity", "Tooltip item $tooltipItem is null")
-                        }
-                    }
+                    TooltipManager.showTooltip(
+                        context = this,
+                        anchorView = content.customToolbar,
+                        tag = action.retrieveTooltipTag(false),
+                    )
                 },
                 shouldAddMargin = !isLast
             )
@@ -642,12 +617,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         val intent = Intent(this, FAQActivity::class.java)
         intent.putExtra(CONTENT_KEY, htmlData)
         startActivity(intent)
-    }
-
-    override suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
-        return withContext(Dispatchers.IO) {
-            TooltipManager.getTooltip(this@EditorHandlerActivity, category, tag)
-        }
     }
 
     override fun closeAll(runAfter: () -> Unit) {

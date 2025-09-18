@@ -18,7 +18,6 @@
 package com.itsaky.androidide.adapters
 
 import android.annotation.SuppressLint
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -27,16 +26,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutSymbolItemBinding
 import com.itsaky.androidide.editor.ui.IDEEditor
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.Symbol
-import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.resolveAttr
 import io.github.rosemoe.sora.widget.SelectionMovement
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Objects
 
 class SymbolInputAdapter @JvmOverloads constructor(
@@ -99,31 +92,11 @@ class SymbolInputAdapter @JvmOverloads constructor(
         }
 
         holder.binding.symbol.setOnLongClickListener { view: View? ->
-            val tooltipTag = TooltipTag.EDITOR_CHARACTER_TOOLBAR
-            editor.editorScope.launch {
-                try {
-                    val tooltipData = withContext(Dispatchers.IO) {
-                        TooltipManager.getTooltip(
-                            editor.context,
-                            TooltipCategory.CATEGORY_IDE,
-                            tooltipTag
-                        )
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        tooltipData?.let {
-                            TooltipUtils.showIDETooltip(
-                                context = editor.context,
-                                level = 0,
-                                tooltipItem = it,
-                                anchorView = holder.binding.symbol,
-                            )
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-                }
-            }
+            TooltipManager.showTooltip(
+                context = editor.context,
+                anchorView = editor,
+                tag = holder.binding.symbol,
+            )
             true
         }
     }

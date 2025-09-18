@@ -10,7 +10,6 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
@@ -35,14 +34,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.itsaky.androidide.idetooltips.TooltipCategory
-import com.itsaky.androidide.idetooltips.TooltipManager.getTooltip
-import com.itsaky.androidide.idetooltips.TooltipManager.showIDETooltip
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
+import com.itsaky.androidide.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -281,31 +273,11 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun showTooltip(context: Context, anchorView: View, tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = getTooltip(
-                context,
-                TooltipCategory.CATEGORY_JAVA,
-                tag,
-            )
-            if (tooltipItem != null) {
-                showIDETooltip(
-                    context = context,
-                    anchorView = anchorView,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
-            }
-        }
+        TooltipManager.showTooltip(
+            context = context,
+            anchorView = anchorView,
+            tag = tag,
+        )
     }
 
     @SuppressLint("SetTextI18n")

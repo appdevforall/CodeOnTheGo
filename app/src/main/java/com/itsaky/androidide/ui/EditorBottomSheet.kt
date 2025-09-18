@@ -21,7 +21,6 @@ import android.app.Activity
 import android.content.Context
 import android.text.TextUtils
 import android.util.AttributeSet
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -37,8 +36,6 @@ import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import com.blankj.utilcode.util.KeyboardUtils
 import com.blankj.utilcode.util.SizeUtils
@@ -54,8 +51,6 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogLine
@@ -65,12 +60,8 @@ import com.itsaky.androidide.tasks.TaskExecutor.executeAsync
 import com.itsaky.androidide.tasks.TaskExecutor.executeAsyncProvideError
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
-import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -148,31 +139,11 @@ class EditorBottomSheet
 					tab.view.setOnLongClickListener { view ->
 						val tooltipTag =
 							pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
-						val lifecycleOwner =
-							context as? LifecycleOwner ?: return@setOnLongClickListener true
-						lifecycleOwner.lifecycleScope.launch {
-							try {
-								val tooltipData =
-									withContext(Dispatchers.IO) {
-										TooltipManager.getTooltip(
-											context,
-											TooltipCategory.CATEGORY_IDE,
-											tooltipTag,
-										)
-									}
-								tooltipData?.let {
-									TooltipUtils.showIDETooltip(
-										context = context,
-										level = 0,
-										tooltipItem = tooltipData,
-										anchorView = view,
-									)
-								}
-							} catch (e: Exception) {
-								Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-							}
-						}
-
+                        TooltipManager.showTooltip(
+                            context = context,
+                            anchorView = view,
+                            tag = tooltipTag,
+                        )
 						true
 					}
 				}
@@ -254,49 +225,15 @@ class EditorBottomSheet
 
 		private fun generateTooltipListener(tooltipTag: String): OnLongClickListener =
 			OnLongClickListener { view: View ->
-				val lifecycleOwner = this.context as? LifecycleOwner
-
-				lifecycleOwner?.lifecycleScope?.launch {
-					try {
-						val tooltipData = getTooltipData(TooltipCategory.CATEGORY_IDE, tooltipTag)
-						tooltipData?.let {
-							TooltipUtils.showIDETooltip(
-								context,
-								view,
-								0,
-								it,
-							)
-						}
-					} catch (e: Exception) {
-						Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-					}
-				}
+                TooltipManager.showTooltip(
+                    context = context,
+                    anchorView = view,
+                    tag = tooltipTag,
+                )
 
 				// A long-click listener must return true to indicate it has consumed the event.
 				true
 			}
-
-		suspend fun getTooltipData(
-			category: String,
-			tag: String,
-		): IDETooltipItem? =
-			withContext(Dispatchers.IO) {
-				TooltipManager.getTooltip(context, category, tag)
-			}
-
-		fun setCurrentTab(
-			@BottomSheetViewModel.TabDef tabIndex: Int,
-		) {
-			if (binding.tabs.selectedTabPosition == tabIndex) {
-				return
-			}
-
-			if (tabIndex < 0 || tabIndex > binding.tabs.tabCount) {
-				return
-			}
-
-			binding.tabs.getTabAt(tabIndex)?.select()
-		}
 
 		/**
 		 * Set whether the input method is visible.
