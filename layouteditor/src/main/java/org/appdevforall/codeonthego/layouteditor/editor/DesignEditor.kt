@@ -1,15 +1,11 @@
 package org.appdevforall.codeonthego.layouteditor.editor
 
 import android.animation.LayoutTransition
-import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.DragEvent
-import android.view.GestureDetector
-import android.view.GestureDetector.SimpleOnGestureListener
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -28,7 +24,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.displayTooltipOnLongPress
+import com.itsaky.androidide.utils.handleLongClicksAndDrag
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.adapters.AppliedAttributesAdapter
 import org.appdevforall.codeonthego.layouteditor.databinding.ShowAttributesDialogBinding
@@ -59,7 +57,6 @@ import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import org.appdevforall.codeonthego.layouteditor.utils.InvokeUtil
 import org.appdevforall.codeonthego.layouteditor.utils.Utils
 import org.appdevforall.codeonthego.layouteditor.views.StructureView
-import kotlin.math.abs
 
 class DesignEditor : LinearLayout {
     var viewType: ViewType? = null
@@ -465,49 +462,23 @@ class DesignEditor : LinearLayout {
     fun isLayoutModified(): Boolean = isModified
 
     private fun rearrangeListeners(view: View) {
-        val gestureDetector =
-            GestureDetector(
-                context,
-                object : SimpleOnGestureListener() {
-                    override fun onLongPress(event: MotionEvent) {
-                        view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
-                    }
-                })
+        view.setOnClickListener {
+            showDefinedAttributes(view)
+        }
 
-        view.setOnTouchListener(
-            object : OnTouchListener {
-                var bClick: Boolean = true
-                var startX: Float = 0f
-                var startY: Float = 0f
-                var endX: Float = 0f
-                var endY: Float = 0f
-                var diffX: Float = 0f
-                var diffY: Float = 0f
-
-                @SuppressLint("ClickableViewAccessibility")
-                override fun onTouch(v: View, event: MotionEvent): Boolean {
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            startX = event.x
-                            startY = event.y
-                            bClick = true
-                        }
-
-                        MotionEvent.ACTION_UP -> {
-                            endX = event.x
-                            endY = event.y
-                            diffX = abs((startX - endX).toDouble()).toFloat()
-                            diffY = abs((startY - endY).toDouble()).toFloat()
-
-                            if ((diffX <= 5) && (diffY <= 5) && bClick) showDefinedAttributes(v)
-
-                            bClick = false
-                        }
-                    }
-                    gestureDetector.onTouchEvent(event)
-                    return true
-                }
-            })
+        view.handleLongClicksAndDrag(
+            onLongPress = { view ->
+                TooltipManager.showTooltip(
+                    context = view.context,
+                    anchorView = view,
+                    category = TooltipCategory.CATEGORY_JAVA,
+                    tag = view.javaClass.superclass.name
+                )
+            },
+            onDrag = {
+                view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
+            }
+        )
     }
 
     private fun addWidget(view: View, newParent: ViewGroup, event: DragEvent) {
