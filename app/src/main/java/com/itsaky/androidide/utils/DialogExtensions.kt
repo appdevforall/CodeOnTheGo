@@ -5,7 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.DialogInterface
 import android.graphics.Rect
-import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -14,12 +13,8 @@ import android.widget.AdapterView
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import kotlinx.coroutines.launch
 
 fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
     context: Context,
@@ -28,35 +23,14 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
 ): AlertDialog {
     val dialog = this.create()
 
-    val lifecycleOwner = context as? LifecycleOwner
-        ?: run {
-            Log.w("DialogExtensions", "Context is not a LifecycleOwner; cannot show tooltip.")
-            dialog.show()
-            return dialog
-        }
-
     fun longPressAction() {
         dialog.dismiss()
-        lifecycleOwner.lifecycleScope.launch {
-            try {
-                val tooltipData = TooltipManager.getTooltip(
-                    context,
-                    TooltipCategory.CATEGORY_IDE,
-                    tooltipTag
-                )
-                val anchor = (context as? Activity)?.window?.decorView ?: return@launch
-                tooltipData?.let {
-                    TooltipUtils.showIDETooltip(
-                        context = context,
-                        level = 0,
-                        tooltipItem = it,
-                        anchorView = anchor
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-            }
-        }
+        val anchor = (context as? Activity)?.window?.decorView ?: return
+        TooltipManager.showTooltip(
+            context = context,
+            anchorView = anchor,
+            tag = tooltipTag,
+        )
     }
 
     val longClickListener = View.OnLongClickListener {

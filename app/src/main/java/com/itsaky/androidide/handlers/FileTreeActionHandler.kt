@@ -18,7 +18,6 @@
 package com.itsaky.androidide.handlers
 
 import android.content.Context
-import android.content.Intent
 import androidx.core.view.GravityCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
@@ -26,27 +25,19 @@ import com.itsaky.androidide.actions.ActionMenu
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
-import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.eventbus.events.filetree.FileClickEvent
 import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
 import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
 import com.itsaky.androidide.events.ExpandTreeNodeRequestEvent
 import com.itsaky.androidide.events.FileContextMenuItemClickEvent
 import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent
-import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.SheetOption
 import com.itsaky.androidide.utils.ApkInstaller
 import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.flashError
 import com.unnamed.b.atv.model.TreeNode
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
@@ -180,29 +171,11 @@ class FileTreeActionHandler : BaseEventHandler() {
     tag.isNotEmpty() || return
     val activity = event[Context::class.java] as? EditorHandlerActivity
     activity?.let { act ->
-      CoroutineScope(Dispatchers.Main).launch {
-        val item = TooltipManager.getTooltip(
-          context = act,
-          category = TooltipCategory.CATEGORY_IDE,
-          tag = tag
+        TooltipManager.showTooltip(
+            context = act,
+            anchorView = act.window.decorView,
+            tag = tag,
         )
-
-        item?.let { tooltipData ->
-          TooltipManager.showIDETooltip(
-            act,
-            act.window.decorView,
-            0,
-            tooltipData,
-            { context, url, title ->
-              val intent = Intent(context, HelpActivity::class.java).apply {
-                putExtra(CONTENT_KEY, url)
-                putExtra(CONTENT_TITLE_KEY, title)
-              }
-              context.startActivity(intent)
-            }
-          )
-        }
-      }
     }
   }
 
