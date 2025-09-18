@@ -178,8 +178,8 @@
     <string name="idepref_editor_fontsize_summary">Font size of the editor</string>
     <string name="idepref_editor_paintingflags_title">Non-printable painting flags</string>
     <string name="idepref_editor_paintingflags_summary">Choose what non-printable characters should be drawn by the editor</string>
-    <string name="idepref_editor_word_wrap_title">Word Wrap</string>
-    <string name="idepref_editor_word_wrap_summary">Use wordwrap of the editor</string>
+    <string name="idepref_editor_word_wrap_title">Word wrap</string>
+    <string name="idepref_editor_word_wrap_summary">Break long lines of text or code into multiple lines so they fit in the visible window.</string>
     <string name="idepref_editor_use_magnifier_title">Enable Magnifier</string>
     <string name="idepref_editor_use_magnifier_summary">Magnify text at cursor position while selecting text in editor</string>
     <string name="idepref_editor_title">Editor</string>
