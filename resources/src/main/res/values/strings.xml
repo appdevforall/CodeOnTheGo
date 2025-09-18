@@ -300,7 +300,7 @@
     To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
   </string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
-    <string name="idepref_editor_useSoftTabs_summary">Choose whether to use spaces instead of tab character (\\t).</string>
+    <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
     <string name="btn_docs">Documentation</string>
     <string name="btn_close">Close</string>
