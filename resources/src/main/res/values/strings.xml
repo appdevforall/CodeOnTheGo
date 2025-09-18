@@ -247,8 +247,8 @@
     <string name="faq_activity_title">More information</string>
     <string name="idepref_java_useGoogleStyle_title">Use Google Java Style code formatting</string>
     <string name="idepref_java_useGoogleStyle_summary">Use Google Java Style code formatting configuration for formatting Java source code.</string>
-    <string name="idepref_visiblePassword_title">Visible password flag</string>
-    <string name="idepref_visiblePassword_summary">Use for visible password input type flag in editor. This makes sure that no suggestions are proposed by soft keyboard.</string>
+    <string name="idepref_visiblePassword_title">Hide keyboard suggestions</string>
+    <string name="idepref_visiblePassword_summary">Disable text predictions and auto-correction for the on-screen keyboard.</string>
     <string name="previous">Previous</string>
     <string name="title_gradle_service_notification_ticker">Gradle build service started</string>
     <string name="title_gradle_service_notification">Gradle build service</string>
