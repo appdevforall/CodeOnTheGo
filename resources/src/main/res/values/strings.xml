@@ -175,7 +175,7 @@
     <string name="idepref_build_customgradlecommands_title">Additional Gradle flags</string>
     <string name="idepref_build_customgradlecommands_summary">Choose additional Gradle flags to execute with every task.</string>
     <string name="idepref_editor_fontsize_title">Font size</string>
-    <string name="idepref_editor_fontsize_summary">Font size of the editor</string>
+    <string name="idepref_editor_fontsize_summary">Set the default font size (measured in sp).</string>
     <string name="idepref_editor_paintingflags_title">Non-printable painting flags</string>
     <string name="idepref_editor_paintingflags_summary">Choose what non-printable characters should be drawn by the editor</string>
     <string name="idepref_editor_word_wrap_title">Word Wrap</string>
