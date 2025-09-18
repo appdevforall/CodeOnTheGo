@@ -17,6 +17,7 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
@@ -50,10 +51,6 @@ import com.itsaky.androidide.actions.filetree.NewFileAction
 import com.itsaky.androidide.actions.filetree.NewFolderAction
 import com.itsaky.androidide.actions.filetree.OpenWithAction
 import com.itsaky.androidide.actions.filetree.RenameAction
-import com.itsaky.androidide.actions.github.GitHubCommitAction
-import com.itsaky.androidide.actions.github.GitHubFetchAction
-import com.itsaky.androidide.actions.github.GitHubPullAction
-import com.itsaky.androidide.actions.github.GitHubPushAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 
@@ -66,22 +63,19 @@ class EditorActivityActions {
 
     companion object {
 
-    private const val ORDER_COPY_PATH = 100
-    private const val ORDER_DELETE = 200
-    private const val ORDER_NEW_FILE = 300
-    private const val ORDER_NEW_FOLDER = 400
-    private const val ORDER_OPEN_WITH = 500
-    private const val ORDER_RENAME = 600
-    private const val ORDER_HELP = 1000
-    private var areActionsRegistered = false
+        private const val ORDER_COPY_PATH = 100
+        private const val ORDER_DELETE = 200
+        private const val ORDER_NEW_FILE = 300
+        private const val ORDER_NEW_FOLDER = 400
+        private const val ORDER_OPEN_WITH = 500
+        private const val ORDER_RENAME = 600
+        private const val ORDER_HELP = 1000
 
-    @JvmStatic
-    fun register(context: Context) {
-      if (areActionsRegistered) {
-        return
-      }
-      val registry = ActionsRegistry.getInstance()
-      var order = 0
+        @JvmStatic
+        fun register(context: Context) {
+            clear()
+            val registry = ActionsRegistry.getInstance()
+            var order = 0
 
             // Toolbar actions
             registry.registerAction(QuickRunAction(context, order++))
@@ -113,17 +107,15 @@ class EditorActivityActions {
             registry.registerAction(CloseOtherFilesAction(context, order++))
             registry.registerAction(CloseAllFilesAction(context, order++))
 
-      // file tree actions
-      registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
-      registry.registerAction(DeleteAction(context, ORDER_DELETE))
-      registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
-      registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
-      registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
-      registry.registerAction(RenameAction(context, ORDER_RENAME))
-      registry.registerAction(HelpAction(context, ORDER_HELP))
-
-      areActionsRegistered = true
-    }
+            // file tree actions
+            registry.registerAction(CopyPathAction(context, ORDER_COPY_PATH))
+            registry.registerAction(DeleteAction(context, ORDER_DELETE))
+            registry.registerAction(NewFileAction(context, ORDER_NEW_FILE))
+            registry.registerAction(NewFolderAction(context, ORDER_NEW_FOLDER))
+            registry.registerAction(OpenWithAction(context, ORDER_OPEN_WITH))
+            registry.registerAction(RenameAction(context, ORDER_RENAME))
+            registry.registerAction(HelpAction(context, ORDER_HELP))
+        }
 
         @JvmStatic
         fun clear() {
@@ -137,7 +129,12 @@ class EditorActivityActions {
         @JvmStatic
         fun clearActions() {
             // Clear actions but preserve build actions to prevent cancellation during onPause
-            val locations = arrayOf(EDITOR_FILE_TABS, EDITOR_FILE_TREE)
+            val locations = arrayOf(
+                EDITOR_TOOLBAR,
+                EDITOR_FILE_TABS,
+                EDITOR_FILE_TREE,
+                ActionItem.Location.EDITOR_FIND_ACTION_MENU
+            )
             val registry = ActionsRegistry.getInstance()
             locations.forEach(registry::clearActions)
 

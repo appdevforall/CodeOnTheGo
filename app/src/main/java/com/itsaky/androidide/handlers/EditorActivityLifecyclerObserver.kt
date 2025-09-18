@@ -46,7 +46,6 @@ class EditorActivityLifecyclerObserver : DefaultLifecycleObserver {
   private val fileActionsHandler = FileTreeActionHandler()
 
   override fun onCreate(owner: LifecycleOwner) {
-    EditorActivityActions.register(owner as Context)
     EditorSidebarActions.registerActions(owner as Context)
     dispatchEvent(OnCreateEvent())
   }
@@ -59,6 +58,7 @@ class EditorActivityLifecyclerObserver : DefaultLifecycleObserver {
   }
 
   override fun onResume(owner: LifecycleOwner) {
+      EditorActivityActions.register(owner as Context)
     dispatchEvent(OnResumeEvent())
   }
 
