@@ -26,6 +26,7 @@ import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DeviceUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.isAtLeastS
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.utils.viewLifecycleScopeOrNull
@@ -56,7 +57,8 @@ import javax.net.ssl.SSLProtocolException
  * Fragment to request wireless ADB permissions.
  */
 @RequiresApi(Build.VERSION_CODES.R)
-class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>(FragmentWabPermissionBinding::inflate) {
+class WADBPermissionFragment :
+	FragmentWithBinding<FragmentWabPermissionBinding>(FragmentWabPermissionBinding::inflate) {
 	companion object {
 		const val VIEW_PAIRING = 0
 		const val VIEW_CONNECTING = 1
@@ -83,7 +85,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 				when (intent?.action) {
 					AdbPairingService.ACTION_PAIR_SUCCEEDED,
 					AdbPairingService.ACTION_PAIR_FAILED,
-					-> onPairResult(intent)
+						-> onPairResult(intent)
 				}
 			}
 		}
@@ -331,7 +333,10 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 						onUpdateConnectionState(state)
 					}
 				}.onFailure { error ->
-					if (error is SSLProtocolException && error.message?.contains("SSLV3_ALERT_CERTIFICATE_UNKNOWN") == true) {
+					val isCertificateError = error.message?.let { message ->
+						message.contains("error:10000416") || message.contains("SSLV3_ALERT_CERTIFICATE_UNKNOWN")
+					} ?: false
+					if (error is SSLProtocolException && isCertificateError) {
 						// Suppress error caused because of the OS not recognizing our certificate,
 						// which happens when all of the following conditions are met :
 						// 1. Wireless Debugging is turned on in Developer Options
@@ -365,7 +370,7 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 		val nm = context.getSystemService(NotificationManager::class.java)
 		val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
 		return nm.areNotificationsEnabled() &&
-			(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
+				(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
 	}
 
 	private fun onReloadNotificationSettings() {
