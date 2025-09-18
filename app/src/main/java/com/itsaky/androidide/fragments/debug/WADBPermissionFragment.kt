@@ -331,6 +331,15 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWabPermissionBinding>
 						onUpdateConnectionState(state)
 					}
 				}.onFailure { error ->
+					if (error is SSLProtocolException && error.message?.contains("SSLV3_ALERT_CERTIFICATE_UNKNOWN") == true) {
+						// Suppress error caused because of the OS not recognizing our certificate,
+						// which happens when all of the following conditions are met :
+						// 1. Wireless Debugging is turned on in Developer Options
+						// 2. Shizuku is not already running
+						// 3. User has not completed the WADB pairing process (which registers our public key certificate to the OS)
+						return@onFailure
+					}
+
 					logger.error("Failed to connect to ADB server", error)
 					viewLifecycleScopeOrNull?.launch {
 						wadbViewModel.setConnectionStatus(
