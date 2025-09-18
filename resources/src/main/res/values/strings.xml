@@ -180,8 +180,8 @@
     <string name="idepref_editor_paintingflags_summary">Choose what non-printable characters should be drawn by the editor</string>
     <string name="idepref_editor_word_wrap_title">Word Wrap</string>
     <string name="idepref_editor_word_wrap_summary">Use wordwrap of the editor</string>
-    <string name="idepref_editor_use_magnifier_title">Enable Magnifier</string>
-    <string name="idepref_editor_use_magnifier_summary">Magnify text at cursor position while selecting text in editor</string>
+    <string name="idepref_editor_use_magnifier_title">Enable magnifier</string>
+    <string name="idepref_editor_use_magnifier_summary">Long-press and hold to zoom in on the area around the cursor.</string>
     <string name="idepref_editor_title">Editor</string>
     <string name="idepref_build_title">Build &amp; Run</string>
     <string name="title_open_projects">Open last project</string>
@@ -233,7 +233,7 @@
     <string name="msg_files_unsaved">Some files are not saved. Would you like to save them before closing? Unsaved files are: \n%s</string>
     <string name="idepref_editor_autoSave_title">Save before closing files</string>
     <string name="idepref_editor_autoSave_summary">Save files before closing them. This is an EXPERIMENTAL feature. You are expected to save the files yourself.</string>
-    <string name="idepref_java_matchLower_summary">If enabled, then typing a lower case or upper case letters will suggest class names as well as scope members.</string>
+    <string name="idepref_java_matchLower_summary">When enabled, code completion matches class names and members even when typed in lowercase (case-insensitive matching).</string>
     <string name="idepref_editor_ligatures_title">Font ligatures</string>
     <string name="idepref_editor_ligatures_summary">Enable/disable font ligatures</string>
     <string name="yes">Yes</string>
@@ -246,7 +246,7 @@
     <string name="show_tooltip_show_more">Show more</string>
     <string name="faq_activity_title">More information</string>
     <string name="idepref_java_useGoogleStyle_title">Use Google Java Style code formatting</string>
-    <string name="idepref_java_useGoogleStyle_summary">Use Google Java Style code formatting configuration for formatting Java source code.</string>
+    <string name="idepref_java_useGoogleStyle_summary">Format Java code using Google’s conventions.</string>
     <string name="idepref_visiblePassword_title">Visible password flag</string>
     <string name="idepref_visiblePassword_summary">Use for visible password input type flag in editor. This makes sure that no suggestions are proposed by soft keyboard.</string>
     <string name="previous">Previous</string>
@@ -277,8 +277,8 @@
     <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
     <string name="msg_select_from_primary_storage">Select a directory from primary storage</string>
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
-    <string name="idepref_useIcu_title">Use ICU library</string>
-    <string name="idepref_useIcu_summary">Use ICU library to use retrive word edges for double-tap and long-press word selection.</string>
+    <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
+    <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
     <string name="msg_drawer_for_files">
   • <b>To view the file tree, build tools, and preferences:</b>\n
      - Tap the menu icon at the upper left\n
@@ -485,7 +485,7 @@
     <string name="msg_dir_picker_failed">Failed to start directory picker : %1$s</string>
     <string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
     <string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
-    <string name="idepref_deleteEmptyLines_summary">Whether the editor should delete empty lines on a single backspace key event.</string>
+    <string name="idepref_deleteEmptyLines_summary">If a line contains no visible text characters, pressing backspace removes the entire line.</string>
     <string name="idepref_deleteTabs_title">Delete tab on backspace</string>
     <string name="idepref_deleteTabs_summary">When enabled, the editor will delete spaces equal to the tab width when the backspace key is pressed.</string>
 
