@@ -86,7 +86,7 @@ internal class ViewAttrListAdapter(
   }
 
   private fun confirmDeleteAttr(context: Context, attribute: UiAttribute, position: Int) {
-    DialogUtils.newYesNoDialog(
+      DialogUtils.showConfirmationDialog(
       context = context,
       title = context.getString(R.string.title_confirm_delete),
       message = context.getString(R.string.msg_confirm_delete, attribute.qualifiedName),

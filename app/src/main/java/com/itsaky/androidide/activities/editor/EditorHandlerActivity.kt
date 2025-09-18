@@ -58,7 +58,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
-import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
+import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
@@ -706,7 +706,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
         val mapped = unsavedEditors.mapNotNull { it?.file?.absolutePath }
         val builder =
-            newYesNoDialog(
+            showConfirmationDialog(
                 context = this,
                 title = getString(string.title_files_unsaved),
                 message = getString(string.msg_files_unsaved, TextUtils.join("\n", mapped)),
