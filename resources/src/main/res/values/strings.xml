@@ -586,7 +586,7 @@
     <string name="title_experiment_flavor">Experimental</string>
     <string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
     <string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
-    <string name="idepref_editor_pinLineNumbers_summary">Whether the editor should pin line number panel when scrolled horizontally.</string>
+    <string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
     <string name="theme_blue_wave">Blue Wave</string>
     <string name="theme_sunny_glow">Sunny Glow</string>
     <string name="theme_material_you">Material You</string>
