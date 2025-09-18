@@ -770,10 +770,6 @@
 		</html>
 		]]></string>
 
-    <!-- Tooltip Links HTML Template -->
-    <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
-    <string name="title_alert">Alert!</string>
-
     <string name="info_icon_content_description">Info icon</string>
     <string name="unknown_error">"An unknown error occurred."</string>
     <string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
@@ -887,8 +883,6 @@
     <!-- Tooltip Links HTML Template -->
     <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
     <string name="title_alert">Alert!</string>
-
-    <string name="info_icon_content_description">Info icon</string>
 
     <!-- Strings from BaseApplication.java-->
     <string name="telegram_group_url">https://t.me/androidide_discussions</string>
