@@ -104,18 +104,16 @@ class ProjectFile : Parcelable {
     val allLayouts: MutableList<LayoutFile>
         get() {
             val list: MutableList<LayoutFile> = mutableListOf()
-            val localTempList: MutableList<LayoutFile> = mutableListOf()
-            layoutDesigns?.forEachIndexed { index, designFile ->
-                // The two paths should be different, pointing to the layout and design directories
-                val layoutFilePath = layouts?.get(index)?.absolutePath ?: ""
-                val designFilePath = designFile.absolutePath
-                localTempList.add(LayoutFile(layoutFilePath, designFilePath))
+            layouts?.forEach { file ->
+                val designFile = File(layoutDesignPath, file.name)
+                list.add(LayoutFile(file.absolutePath, designFile.absolutePath))
             }
-            return localTempList // You were returning the empty 'list' here
+            return list
         }
 
-  val mainLayout: LayoutFile
-    get() = LayoutFile("$layoutPath$mainLayoutName.xml", "$layoutDesignPath$mainLayoutName.xml")
+
+    val mainLayout: LayoutFile
+        get() = LayoutFile("$layoutPath$mainLayoutName.xml", "$layoutDesignPath$mainLayoutName.xml")
 
   val mainLayoutDesign: LayoutFile
     get() {
@@ -125,16 +123,21 @@ class ProjectFile : Parcelable {
       return LayoutFile("$layoutPath$mainLayoutName.xml", "$layoutDesignPath$mainLayoutName.xml")
     }
 
-  var currentLayout: LayoutFile
-    get() {
-      val currentLayout = preferencesManager.prefs.getString(
-        Constants.CURRENT_LAYOUT, "")
-      val currentLayoutPath = preferencesManager.prefs.getString(Constants.CURRENT_LAYOUT, "")
-      return LayoutFile(currentLayoutPath, currentLayout)
-    }
-    set(value) {
-      preferencesManager.prefs.edit().putString(Constants.CURRENT_LAYOUT, value.path).apply()
-    }
+    var currentLayout: LayoutFile
+        get() {
+            val currentLayoutPath =
+                preferencesManager.prefs.getString(Constants.CURRENT_LAYOUT, "") ?: ""
+            val currentLayoutDesignPath =
+                preferencesManager.prefs.getString(Constants.CURRENT_LAYOUT_DESIGN, "") ?: ""
+            return LayoutFile(currentLayoutPath, currentLayoutDesignPath)
+        }
+        set(value) {
+            preferencesManager.prefs.edit().apply {
+                putString(Constants.CURRENT_LAYOUT, value.path)
+                putString(Constants.CURRENT_LAYOUT_DESIGN, value.designPath)
+                apply()
+            }
+        }
 
   fun createDefaultLayout() {
     FileUtil.writeFile(layoutPath + "layout_main.xml", "")
