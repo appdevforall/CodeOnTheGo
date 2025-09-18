@@ -486,8 +486,8 @@
     <string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
     <string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
     <string name="idepref_deleteEmptyLines_summary">If a line contains no visible text characters, pressing backspace removes the entire line.</string>
-    <string name="idepref_deleteTabs_title">Delete tab on backspace</string>
-    <string name="idepref_deleteTabs_summary">When enabled, the editor will delete spaces equal to the tab width when the backspace key is pressed.</string>
+    <string name="idepref_deleteTabs_title">Smart backspace indent</string>
+    <string name="idepref_deleteTabs_summary">Remove a full indent level instead of just one character when you press backspace.</string>
 
     <!--  GitHub-->
     <string name="title_warning">Warning</string>
