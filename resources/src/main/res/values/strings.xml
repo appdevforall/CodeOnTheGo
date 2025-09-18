@@ -176,12 +176,12 @@
     <string name="idepref_build_customgradlecommands_summary">Choose additional Gradle flags to execute with every task.</string>
     <string name="idepref_editor_fontsize_title">Font size</string>
     <string name="idepref_editor_fontsize_summary">Font size of the editor</string>
-    <string name="idepref_editor_paintingflags_title">Non-printable painting flags</string>
-    <string name="idepref_editor_paintingflags_summary">Choose what non-printable characters should be drawn by the editor</string>
+    <string name="idepref_editor_paintingflags_title">Show non-printing characters</string>
+    <string name="idepref_editor_paintingflags_summary">Choose which non-printing characters (like tabs, spaces, and line breaks) are displayed.</string>
     <string name="idepref_editor_word_wrap_title">Word Wrap</string>
     <string name="idepref_editor_word_wrap_summary">Use wordwrap of the editor</string>
-    <string name="idepref_editor_use_magnifier_title">Enable Magnifier</string>
-    <string name="idepref_editor_use_magnifier_summary">Magnify text at cursor position while selecting text in editor</string>
+    <string name="idepref_editor_use_magnifier_title">Enable magnifier</string>
+    <string name="idepref_editor_use_magnifier_summary">Long-press and hold to zoom in on the area around the cursor.</string>
     <string name="idepref_editor_title">Editor</string>
     <string name="idepref_build_title">Build &amp; Run</string>
     <string name="title_open_projects">Open last project</string>
@@ -192,7 +192,7 @@
     <string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
     <string name="title_general">General</string>
     <string name="title_tab_size">Tab size</string>
-    <string name="msg_tab_size">Specify number of spaces for TAB</string>
+    <string name="msg_tab_size">Set the number of spaces that the tab character indents.</string>
     <string name="msg_preferences">Preferences</string>
     <string name="pref_changelog">Changelog</string>
     <string name="msg_editor_font_size">Please choose default font size of editor :</string>
@@ -233,7 +233,7 @@
     <string name="msg_files_unsaved">Some files are not saved. Would you like to save them before closing? Unsaved files are: \n%s</string>
     <string name="idepref_editor_autoSave_title">Save before closing files</string>
     <string name="idepref_editor_autoSave_summary">Save files before closing them. This is an EXPERIMENTAL feature. You are expected to save the files yourself.</string>
-    <string name="idepref_java_matchLower_summary">If enabled, then typing a lower case or upper case letters will suggest class names as well as scope members.</string>
+    <string name="idepref_java_matchLower_summary">When enabled, code completion matches class names and members even when typed in lowercase (case-insensitive matching).</string>
     <string name="idepref_editor_ligatures_title">Font ligatures</string>
     <string name="idepref_editor_ligatures_summary">Enable/disable font ligatures</string>
     <string name="yes">Yes</string>
@@ -277,8 +277,8 @@
     <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
     <string name="msg_select_from_primary_storage">Select a directory from primary storage</string>
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
-    <string name="idepref_useIcu_title">Use ICU library</string>
-    <string name="idepref_useIcu_summary">Use ICU library to use retrive word edges for double-tap and long-press word selection.</string>
+    <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
+    <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
     <string name="msg_drawer_for_files">
   • <b>To view the file tree, build tools, and preferences:</b>\n
      - Tap the menu icon at the upper left\n
@@ -300,7 +300,7 @@
     To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
   </string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
-    <string name="idepref_editor_useSoftTabs_summary">Choose whether to use spaces instead of tab character (\\t).</string>
+    <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
     <string name="btn_docs">Documentation</string>
     <string name="btn_close">Close</string>
@@ -485,9 +485,9 @@
     <string name="msg_dir_picker_failed">Failed to start directory picker : %1$s</string>
     <string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
     <string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
-    <string name="idepref_deleteEmptyLines_summary">Whether the editor should delete empty lines on a single backspace key event.</string>
     <string name="idepref_deleteTabs_title">Smart backspace indent</string>
     <string name="idepref_deleteTabs_summary">Remove a full indent level instead of just one character when you press backspace.</string>
+
     <!--  GitHub-->
     <string name="title_warning">Warning</string>
     <string name="git_clone_dir_exists">The target directory already exists. This will cause clone to fail. Do you wish to delete it and its contents and try again</string>
