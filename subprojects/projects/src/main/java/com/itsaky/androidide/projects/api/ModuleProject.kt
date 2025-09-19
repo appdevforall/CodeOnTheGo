@@ -109,6 +109,15 @@ abstract class ModuleProject(
    */
   abstract fun getCompileModuleProjects(): List<ModuleProject>
 
+	/**
+	 * Check if the given module is a dependency of this module.
+	 *
+	 * @param group The group of the module.
+	 * @param name The name of the module.
+	 * @return `true` if the module is a dependency of this module, `false` otherwise.
+	 */
+	abstract fun hasExternalDependency(group: String, name: String): Boolean
+
   /**
    * Find the source root of the given [file].
    *

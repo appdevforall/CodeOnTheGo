@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.utils
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.itsaky.androidide.preferences.utils.indentationString
@@ -69,7 +70,11 @@ object ClassBuilder {
   }
 
   @JvmStatic
-  fun createActivity(packageName: String, className: String): String {
+  fun createActivity(
+	  packageName: String,
+	  className: String,
+	  appCompatActivity: Boolean = true,
+  ): String {
     val onCreate =
       MethodSpec.methodBuilder("onCreate")
         .addAnnotation(Override::class.java)
@@ -80,7 +85,7 @@ object ClassBuilder {
     val activity =
       newClassSpec(className)
         .toBuilder()
-        .superclass(AppCompatActivity::class.java)
+        .superclass(if (appCompatActivity) AppCompatActivity::class.java else Activity::class.java)
         .addMethod(onCreate)
     return toJavaFile(packageName, activity.build()) { skipJavaLangImports(true) }.toString()
   }
