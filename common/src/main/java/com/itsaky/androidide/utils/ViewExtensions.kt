@@ -6,9 +6,12 @@ import android.os.Looper
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
+import kotlin.math.abs
+
 
 fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
     if (this is ListView) return
@@ -81,3 +84,97 @@ fun AlertDialog.onLongPress(listener: (View) -> Boolean) {
         this.window?.decorView?.applyLongPressRecursively(listener)
     }
 }
+
+
+@SuppressLint("ClickableViewAccessibility")
+fun View.handleLongClicksAndDrag(
+    onLongPress: (View) -> Unit,
+    onDrag: (View) -> Unit
+) {
+    var viewInitialX = 0f
+    var viewInitialY = 0f
+    var touchInitialRawX = 0f
+    var touchInitialRawY = 0f
+
+    var isDragging = false
+    var longPressFired = false 
+
+    val handler = Handler(Looper.getMainLooper())
+    val longPressTimeout = 800L 
+
+    val longPressRunnable = Runnable {
+        if (!isDragging) { 
+            longPressFired = true
+            this.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            onLongPress(this) 
+        }
+    }
+
+    val touchSlop = ViewConfiguration.get(this.context).scaledTouchSlop
+
+    this.setOnTouchListener { view, event -> 
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                isDragging = false
+                longPressFired = false
+
+                touchInitialRawX = event.rawX
+                touchInitialRawY = event.rawY
+                viewInitialX = view.x 
+                viewInitialY = view.y
+                
+                handler.postDelayed(longPressRunnable, longPressTimeout)
+                true 
+            }
+            
+            MotionEvent.ACTION_MOVE -> {
+                val deltaX = abs(event.rawX - touchInitialRawX)
+                val deltaY = abs(event.rawY - touchInitialRawY)
+
+                if (isDragging || deltaX > touchSlop || deltaY > touchSlop) {
+                    if (!isDragging && !longPressFired) {
+                        handler.removeCallbacks(longPressRunnable)
+                    }
+                    isDragging = true 
+                    
+                    val newX = viewInitialX + (event.rawX - touchInitialRawX)
+                    val newY = viewInitialY + (event.rawY - touchInitialRawY)
+                    view.x = newX
+                    view.y = newY
+                }
+                true 
+            }
+            
+            MotionEvent.ACTION_UP -> {
+                handler.removeCallbacks(longPressRunnable) 
+
+                val wasDraggingDuringGesture = isDragging
+                val wasLongPressFiredDuringGesture = longPressFired
+                
+                isDragging = false
+                longPressFired = false 
+
+                if (wasDraggingDuringGesture) {
+                    onDrag(view) 
+                    return@setOnTouchListener true
+                }
+                
+                if (wasLongPressFiredDuringGesture) {
+                    return@setOnTouchListener true
+                }
+                
+                view.performClick()
+                return@setOnTouchListener true
+            }
+            
+            MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacks(longPressRunnable)
+                isDragging = false
+                longPressFired = false
+                return@setOnTouchListener true
+            }
+            else -> false
+        }
+    }
+}
+
