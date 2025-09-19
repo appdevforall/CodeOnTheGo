@@ -38,6 +38,7 @@ import com.sun.jdi.event.StepEvent
 import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.StepRequest
+import com.sun.tools.jdi.GenericListeningConnectorAccessor
 import com.sun.tools.jdi.SocketListeningConnector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -581,7 +582,10 @@ internal class JDWPListenerThread(
 	}
 
 	override fun run() {
-		listenerState.startListening()
+		if (!listenerState.isListening) {
+			listenerState.startListening()
+		}
+
 		while (isAlive && !isInterrupted) {
 			try {
 				logger.debug("Waiting for VM connection")
