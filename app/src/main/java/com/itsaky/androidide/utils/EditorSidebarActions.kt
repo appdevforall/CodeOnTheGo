@@ -48,6 +48,9 @@ import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.plugins.manager.PluginManager
+import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.actions.PluginSidebarActionItem
 import java.lang.ref.WeakReference
 
 /**
@@ -74,6 +77,9 @@ internal object EditorSidebarActions {
         registry.registerAction(PreferencesSidebarAction(context, ++order))
         registry.registerAction(CloseProjectSidebarAction(context, ++order))
         registry.registerAction(HelpSideBarAction(context, ++order))
+
+        // Register plugin sidebar items
+        registerPluginSidebarActions(context, registry, ++order)
     }
 
     @JvmStatic
@@ -213,5 +219,33 @@ internal object EditorSidebarActions {
             setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
             build()
         }
+    }
+
+    /**
+     * Register plugin UI contributions to the sidebar.
+     *
+     * @param context The application context
+     * @param registry The actions registry
+     * @param startOrder The starting order for plugin actions
+     */
+    @JvmStatic
+    private fun registerPluginSidebarActions(context: Context, registry: ActionsRegistry, startOrder: Int) {
+        var order = startOrder
+
+        val pluginManager = PluginManager.getInstance() ?: return
+
+        pluginManager.getAllPluginInstances()
+            .filterIsInstance<UIExtension>()
+            .forEach { plugin ->
+                try {
+                    android.util.Log.d("claudePluginManager", "Registering sidebar items for plugin: ${plugin.javaClass.simpleName}")
+                    plugin.getSideMenuItems().forEach { navItem ->
+                        val action = PluginSidebarActionItem(context, navItem, order++)
+                        registry.registerAction(action)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("claudePluginManager", "Failed to register sidebar items for plugin: ${plugin.javaClass.simpleName}", e)
+                }
+            }
     }
 }

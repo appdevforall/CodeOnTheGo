@@ -40,17 +40,15 @@ class PluginSecurityManager {
             if (!verifyFileIntegrity(pluginFile)) {
                 return false
             }
-            
             // Validate manifest
             if (!validateManifest(manifest)) {
                 return false
             }
-            
+
             // Check permissions are valid
             if (!validatePermissions(manifest.permissions)) {
                 return false
             }
-            
             true
         } catch (e: Exception) {
             false
@@ -91,13 +89,12 @@ class PluginSecurityManager {
     }
     
     private fun validatePermissions(permissions: List<String>): Boolean {
+
         return permissions.all { permission ->
-            try {
-                PluginPermission.valueOf(permission.uppercase().replace(".", "_"))
-                true
-            } catch (e: IllegalArgumentException) {
-                false
-            }
+            // Check if the permission key matches any of the enum values
+            val isValid = PluginPermission.entries.any { it.key == permission }
+
+            isValid
         }
     }
     

@@ -23,6 +23,7 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.os.StrictMode
+import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.net.toUri
@@ -36,6 +37,7 @@ import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.appModule
+import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
@@ -160,9 +162,12 @@ class IDEApplication : TermuxApplication() {
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
         super.onCreate()
+
+        initializePluginSystem()
+
         startKoin {
             androidContext(this@IDEApplication)
-            modules(appModule)
+            modules(appModule, pluginModule)
         }
 
         val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
@@ -209,9 +214,6 @@ class IDEApplication : TermuxApplication() {
         GlobalScope.launch {
             IDEColorSchemeProvider.init()
         }
-
-        // Initialize plugin system
-        initializePluginSystem()
     }
 
     private fun initializePluginSystem() {
@@ -258,6 +260,7 @@ class IDEApplication : TermuxApplication() {
         thread: Thread,
         th: Throwable,
     ) {
+        Log.d("CrashHandlerAstytooo", th.toString())
         writeException(th)
 
         Sentry.captureException(th)

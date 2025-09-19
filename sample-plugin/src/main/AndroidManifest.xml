@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="Sample Plugin"
+        android:allowBackup="false">
+
+        <!-- Plugin metadata -->
+        <meta-data android:name="plugin.id" android:value="com.example.sampleplugin" />
+        <meta-data android:name="plugin.name" android:value="Sample Plugin" />
+        <meta-data android:name="plugin.description" android:value="A sample plugin demonstrating XML layouts and Android resources" />
+        <meta-data android:name="plugin.author" android:value="ADFA Team" />
+        <meta-data android:name="plugin.main_class" android:value="com.example.sampleplugin.HelloWorldPlugin" />
+        <meta-data android:name="plugin.min_ide_version" android:value="1.0.0" />
+        <meta-data android:name="plugin.permissions" android:value="filesystem.read,filesystem.write,network.access" />
+
+    </application>
+
+</manifest>

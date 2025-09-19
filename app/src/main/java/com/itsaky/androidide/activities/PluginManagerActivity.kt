@@ -7,24 +7,23 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import androidx.core.graphics.Insets
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.PluginListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
-import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.plugins.PluginInfo
-import com.itsaky.androidide.plugins.manager.PluginManager
+import com.itsaky.androidide.ui.models.PluginManagerUiEffect
+import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
@@ -37,7 +36,9 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         get() = checkNotNull(_binding) { "Activity has been destroyed" }
 
     private lateinit var adapter: PluginListAdapter
-    private val pluginManager get() = IDEApplication.getPluginManager()
+
+    // ViewModel injected via Koin
+    private val viewModel: PluginManagerViewModel by viewModel()
 
     override fun bindLayout(): View {
         _binding = ActivityPluginManagerBinding.inflate(layoutInflater)
@@ -54,13 +55,13 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
                 setDisplayHomeAsUpEnabled(true)
             }
 
-            binding.toolbar.setNavigationOnClickListener { 
-                onBackPressedDispatcher.onBackPressed() 
+            binding.toolbar.setNavigationOnClickListener {
+                onBackPressedDispatcher.onBackPressed()
             }
 
             setupRecyclerView()
             setupFab()
-            loadPlugins()
+            observeViewModel()
         } catch (e: Exception) {
             // Log the error and finish the activity if something goes wrong
             e.printStackTrace()
@@ -86,10 +87,10 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
     private fun setupRecyclerView() {
         adapter = PluginListAdapter { plugin, action ->
             when (action) {
-                PluginListAdapter.Action.ENABLE -> enablePlugin(plugin)
-                PluginListAdapter.Action.DISABLE -> disablePlugin(plugin)
-                PluginListAdapter.Action.UNINSTALL -> uninstallPlugin(plugin)
-                PluginListAdapter.Action.DETAILS -> showPluginDetails(plugin)
+                PluginListAdapter.Action.ENABLE -> viewModel.onEvent(PluginManagerUiEvent.EnablePlugin(plugin.metadata.id))
+                PluginListAdapter.Action.DISABLE -> viewModel.onEvent(PluginManagerUiEvent.DisablePlugin(plugin.metadata.id))
+                PluginListAdapter.Action.UNINSTALL -> viewModel.onEvent(PluginManagerUiEvent.UninstallPlugin(plugin.metadata.id))
+                PluginListAdapter.Action.DETAILS -> viewModel.onEvent(PluginManagerUiEvent.ShowPluginDetails(plugin))
             }
         }
 
@@ -101,57 +102,79 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
     private fun setupFab() {
         binding.fabInstallPlugin.setOnClickListener {
-            openFilePicker()
+            viewModel.onEvent(PluginManagerUiEvent.OpenFilePicker)
         }
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
-    private fun loadPlugins() {
-        // Add a safety check for plugin manager
-        val manager = pluginManager
-        if (manager == null) {
-            // Plugin manager not initialized yet, show empty state
-            updateEmptyState(true)
-            return
-        }
-        
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val plugins = manager.getAllPlugins()
-                
-                withContext(Dispatchers.Main) {
-                    adapter.submitList(plugins)
-                    updateEmptyState(plugins.isEmpty())
+    private fun observeViewModel() {
+        // Observe UI state
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state ->
+                    updateUI(state)
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    flashError("Failed to load plugins: ${e.message}")
-                    updateEmptyState(true)
+            }
+        }
+
+        // Observe UI effects
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiEffect.collect { effect ->
+                    handleUiEffect(effect)
                 }
             }
         }
     }
 
-    private fun updateEmptyState(isEmpty: Boolean) {
-        if (isEmpty) {
+    private fun updateUI(state: com.itsaky.androidide.ui.models.PluginManagerUiState) {
+        // Update plugin list
+        adapter.submitList(state.plugins)
+
+        // Update empty state
+        if (state.showEmptyState) {
             binding.recyclerView.visibility = View.GONE
             binding.emptyState.visibility = View.VISIBLE
         } else {
             binding.recyclerView.visibility = View.VISIBLE
             binding.emptyState.visibility = View.GONE
         }
+
+        // Update install button state
+        binding.fabInstallPlugin.isEnabled = !state.isInstalling
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
+    private fun handleUiEffect(effect: PluginManagerUiEffect) {
+        when (effect) {
+            is PluginManagerUiEffect.ShowError -> {
+                flashError(effect.message)
+            }
+            is PluginManagerUiEffect.ShowSuccess -> {
+                flashSuccess(effect.message)
+            }
+            is PluginManagerUiEffect.ShowPluginDetails -> {
+                showPluginDetails(effect.plugin)
+            }
+            is PluginManagerUiEffect.OpenFilePicker -> {
+                openFilePicker()
+            }
+            is PluginManagerUiEffect.ShowUninstallConfirmation -> {
+                showUninstallConfirmation(effect.plugin)
+            }
+            is PluginManagerUiEffect.ShowRestartPrompt -> {
+                showRestartPrompt()
+            }
+        }
+    }
+
     private fun openFilePicker() {
         val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            type = "*/*"
+            type = "*/*"  // Accept all files to allow .cgp
             addCategory(Intent.CATEGORY_OPENABLE)
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/java-archive", "application/zip"))
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("*/*"))
         }
-        
+
         try {
-             startActivityForResult(
+            startActivityForResult(
                 Intent.createChooser(intent, "Select Plugin File"),
                 REQUEST_CODE_PICK_PLUGIN
             )
@@ -162,134 +185,20 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        
+
         if (requestCode == REQUEST_CODE_PICK_PLUGIN && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
-                installPlugin(uri)
+                viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri))
             }
         }
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
-    private fun installPlugin(uri: Uri) {
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                val inputStream = contentResolver.openInputStream(uri)
-                    ?: throw Exception("Cannot open file")
-
-                val fileName = getFileName(uri) ?: "plugin_${System.currentTimeMillis()}.jar"
-                val pluginFile = File(filesDir, "plugins/$fileName")
-                
-                pluginFile.parentFile?.mkdirs()
-
-                FileOutputStream(pluginFile).use { output ->
-                    inputStream.use { input ->
-                        input.copyTo(output)
-                    }
-                }
-
-                val manager = pluginManager
-                if (manager == null) {
-                    withContext(Dispatchers.Main) {
-                        flashError("Plugin system not available")
-                    }
-                    return@launch
-                }
-                
-                val result = manager.loadPlugin(pluginFile)
-                
-                withContext(Dispatchers.Main) {
-                    if (result.isSuccess == true) {
-                        flashSuccess("Plugin installed successfully")
-                        loadPlugins()
-                    } else {
-                        flashError("Failed to install plugin: ${result.exceptionOrNull()?.message}")
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    flashError("Failed to install plugin: ${e.message}")
-                }
-            }
-        }
-    }
-
-    private fun getFileName(uri: Uri): String? {
-        return contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            cursor.moveToFirst()
-            cursor.getString(nameIndex)
-        }
-    }
-
-    @OptIn(DelicateCoroutinesApi::class)
-    private fun enablePlugin(plugin: PluginInfo) {
-        val manager = pluginManager
-        if (manager == null) {
-            flashError("Plugin system not available")
-            return
-        }
-        
-        GlobalScope.launch(Dispatchers.IO) {
-            val success = manager.enablePlugin(plugin.metadata.id)
-            
-            withContext(Dispatchers.Main) {
-                if (success) {
-                    flashSuccess("Plugin enabled")
-                    loadPlugins()
-                } else {
-                    flashError("Failed to enable plugin")
-                }
-            }
-        }
-    }
-
-    @OptIn(DelicateCoroutinesApi::class)
-    private fun disablePlugin(plugin: PluginInfo) {
-        val manager = pluginManager
-        if (manager == null) {
-            flashError("Plugin system not available")
-            return
-        }
-        
-        GlobalScope.launch(Dispatchers.IO) {
-            val success = manager.disablePlugin(plugin.metadata.id)
-            
-            withContext(Dispatchers.Main) {
-                if (success) {
-                    flashSuccess("Plugin disabled")
-                    loadPlugins()
-                } else {
-                    flashError("Failed to disable plugin")
-                }
-            }
-        }
-    }
-
-    @OptIn(DelicateCoroutinesApi::class)
-    private fun uninstallPlugin(plugin: PluginInfo) {
+    private fun showUninstallConfirmation(plugin: PluginInfo) {
         MaterialAlertDialogBuilder(this)
             .setTitle("Uninstall Plugin")
             .setMessage("Are you sure you want to uninstall '${plugin.metadata.name}'?")
             .setPositiveButton("Uninstall") { _, _ ->
-                val manager = pluginManager
-                if (manager == null) {
-                    flashError("Plugin system not available")
-                    return@setPositiveButton
-                }
-                
-                GlobalScope.launch(Dispatchers.IO) {
-                    val success = manager.unloadPlugin(plugin.metadata.id)
-                    
-                    withContext(Dispatchers.Main) {
-                        if (success) {
-                            flashSuccess("Plugin uninstalled")
-                            loadPlugins()
-                        } else {
-                            flashError("Failed to uninstall plugin")
-                        }
-                    }
-                }
+                viewModel.confirmUninstallPlugin(plugin.metadata.id)
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -304,7 +213,6 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             append("Description: ${plugin.metadata.description}\n")
             append("Min IDE Version: ${plugin.metadata.minIdeVersion}\n")
             append("Permissions: ${plugin.metadata.permissions.joinToString(", ")}\n")
-            append("Dependencies: ${plugin.metadata.dependencies.joinToString(", ")}")
         }
 
         MaterialAlertDialogBuilder(this)
@@ -312,5 +220,25 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             .setMessage(details)
             .setPositiveButton("OK", null)
             .show()
+    }
+
+    private fun showRestartPrompt() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Restart Required")
+            .setMessage("Plugin changes will take effect after restarting the app. Do you want to restart now?")
+            .setPositiveButton("Restart Now") { _, _ ->
+                restartApp()
+            }
+            .setNegativeButton("Later", null)
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun restartApp() {
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        startActivity(intent)
+        finishAffinity()
     }
 }

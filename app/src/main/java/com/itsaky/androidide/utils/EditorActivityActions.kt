@@ -171,7 +171,7 @@ class EditorActivityActions {
             .forEach { plugin ->
                 try {
                     Log.d("plugin_debug", "Registering menu items for plugin: ${plugin.javaClass.simpleName}")
-                    plugin.contributeToMainMenu().forEach { menuItem ->
+                    plugin.getMainMenuItems().forEach { menuItem ->
                         val action = PluginActionItem(context, menuItem, order++)
                         registry.registerAction(action)
                     }

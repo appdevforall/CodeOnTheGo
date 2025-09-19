@@ -34,6 +34,7 @@ import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -62,6 +63,8 @@ import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.plugins.manager.PluginEditorTabManager
+import com.itsaky.androidide.plugins.manager.PluginManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -92,6 +95,9 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     protected val isOpenedFilesSaved = AtomicBoolean(false)
 
     private val fileTimestamps = mutableMapOf<String, Long>()
+
+    private val pluginTabIndices = mutableMapOf<String, Int>()
+    private val tabIndexToPluginId = mutableMapOf<Int, String>()
 
     override fun doOpenFile(file: File, selection: Range?) {
         openFileAndSelect(file, selection)
@@ -161,6 +167,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             prepareOptionsMenu()
         }
 
+        loadPluginTabs()
     }
 
     override fun onPause() {
@@ -340,7 +347,13 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     override fun getEditorAtIndex(index: Int): CodeEditorView? {
-        return _binding?.content?.editorContainer?.getChildAt(index) as CodeEditorView?
+        val child = _binding?.content?.editorContainer?.getChildAt(index) ?: return null
+        return if (child is CodeEditorView) {
+            child
+        } else {
+            // This might be a plugin container, not an editor view
+            null
+        }
     }
 
     override fun openFileAndSelect(file: File, selection: Range?) {
@@ -412,9 +425,11 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     override fun getEditorForFile(file: File): CodeEditorView? {
-        for (i in 0 until editorViewModel.getOpenedFileCount()) {
-            val editor = content.editorContainer.getChildAt(i) as? CodeEditorView
-            if (file == editor?.file) return editor
+        for (i in 0 until content.editorContainer.childCount) {
+            val child = content.editorContainer.getChildAt(i)
+            if (child is CodeEditorView && file == child.file) {
+                return child
+            }
         }
         return null
     }
@@ -820,5 +835,151 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             singleBuildListeners.forEach { it.accept(result) }
             singleBuildListeners.clear()
         }
+    }
+
+    fun selectPluginTabById(tabId: String): Boolean {
+        Log.d("EditorHandlerActivity", "selectPluginTabById called with tabId: $tabId")
+        Log.d("EditorHandlerActivity", "Available plugin tab indices: $pluginTabIndices")
+        Log.d("EditorHandlerActivity", "Available plugin tab keys: ${pluginTabIndices.keys.toList()}")
+        Log.d("EditorHandlerActivity", "Total plugin tabs loaded: ${pluginTabIndices.size}")
+
+        // Check if the tab already exists
+        val existingTabIndex = pluginTabIndices[tabId]
+        if (existingTabIndex != null) {
+            Log.d("EditorHandlerActivity", "Plugin tab $tabId already exists at index $existingTabIndex")
+            val tab = content.tabs.getTabAt(existingTabIndex)
+            if (tab != null && !tab.isSelected) {
+                tab.select()
+            }
+            return true
+        }
+
+        // If tab doesn't exist, create it now
+        Log.d("EditorHandlerActivity", "Plugin tab $tabId not found, creating it now...")
+        return createPluginTab(tabId)
+    }
+
+    private fun createPluginTab(tabId: String): Boolean {
+        try {
+            val pluginManager = IDEApplication.getPluginManager() ?: run {
+                Log.w("EditorHandlerActivity", "Plugin manager not available")
+                return false
+            }
+
+            val tabManager = PluginEditorTabManager.getInstance()
+            tabManager.loadPluginTabs(pluginManager)
+
+            val pluginTabs = tabManager.getAllPluginTabs()
+            val pluginTab = pluginTabs.find { it.id == tabId } ?: run {
+                Log.w("EditorHandlerActivity", "Plugin tab $tabId not found in available tabs")
+                return false
+            }
+
+            Log.d("EditorHandlerActivity", "Creating UI tab for plugin: ${pluginTab.id} (${pluginTab.title})")
+
+            runOnUiThread {
+                val tab = content.tabs.newTab()
+                tab.text = pluginTab.title
+
+                val iconRes = pluginTab.icon
+                if (iconRes != null) {
+                    tab.icon = ResourcesCompat.getDrawable(resources, iconRes, theme)
+                }
+
+                content.tabs.addTab(tab)
+                val tabIndex = content.tabs.tabCount - 1
+
+                pluginTabIndices[pluginTab.id] = tabIndex
+                tabIndexToPluginId[tabIndex] = pluginTab.id
+
+                Log.d("EditorHandlerActivity", "Plugin tab ${pluginTab.id} created at index $tabIndex")
+
+                // Create a container view for the plugin content
+                val containerView = android.widget.FrameLayout(this@EditorHandlerActivity).apply {
+                    id = android.view.View.generateViewId()
+                    layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+                }
+                // Add the container at the specific tab position to maintain alignment
+                content.editorContainer.addView(containerView, tabIndex)
+
+                // Load the plugin fragment into the container
+                val fragment = tabManager.getOrCreateTabFragment(pluginTab.id)
+                if (fragment != null) {
+                    val fragmentManager = supportFragmentManager
+                    val transaction = fragmentManager.beginTransaction()
+                    transaction.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
+                    transaction.commitAllowingStateLoss()
+                    Log.d("EditorHandlerActivity", "Plugin fragment added to container for tab: ${pluginTab.id}")
+                } else {
+                    Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
+                }
+
+                // Select the newly created tab
+                tab.select()
+
+                Log.d("EditorHandlerActivity", "Successfully created and selected plugin tab: ${pluginTab.id}")
+            }
+
+            return true
+        } catch (e: Exception) {
+            Log.e("EditorHandlerActivity", "Failed to create plugin tab $tabId", e)
+            return false
+        }
+    }
+
+    fun loadPluginTabs() {
+        Log.d("EditorHandlerActivity", "loadPluginTabs() called")
+        try {
+            val pluginManager = IDEApplication.getPluginManager() ?: run {
+                Log.w("EditorHandlerActivity", "Plugin manager not available, skipping plugin tab loading")
+                return
+            }
+
+            Log.d("EditorHandlerActivity", "Loading plugin tabs...")
+            val tabManager = PluginEditorTabManager.getInstance()
+            tabManager.loadPluginTabs(pluginManager)
+
+            val pluginTabs = tabManager.getAllPluginTabs()
+            Log.i("EditorHandlerActivity", "Found ${pluginTabs.size} plugin tabs to load")
+
+            if (pluginTabs.isEmpty()) {
+                Log.d("EditorHandlerActivity", "No plugin tabs to load")
+                return
+            }
+
+            // Just register the plugin tabs for later use, don't add them to UI yet
+            Log.d("EditorHandlerActivity", "Plugin tabs registered and ready for on-demand creation")
+        } catch (e: Exception) {
+            Log.e("EditorHandlerActivity", "Failed to load plugin tabs", e)
+        }
+    }
+
+    fun isPluginTab(position: Int): Boolean {
+        return tabIndexToPluginId.containsKey(position)
+    }
+
+    fun getPluginTabId(position: Int): String? {
+        return tabIndexToPluginId[position]
+    }
+
+    /**
+     * Converts tab position to actual file index, accounting for plugin tabs.
+     * Plugin tabs don't have corresponding file indices.
+     */
+    fun getFileIndexForTabPosition(tabPosition: Int): Int {
+        if (isPluginTab(tabPosition)) {
+            return -1 // Plugin tabs don't have file indices
+        }
+
+        // Count how many plugin tabs come before this position
+        var pluginTabsBefore = 0
+        for (i in 0 until tabPosition) {
+            if (isPluginTab(i)) {
+                pluginTabsBefore++
+            }
+        }
+
+        // The file index is the tab position minus the plugin tabs before it
+        return tabPosition - pluginTabsBefore
     }
 }

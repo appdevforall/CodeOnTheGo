@@ -1,65 +1,76 @@
 package com.example.sampleplugin.fragments
 
-import android.graphics.Typeface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import com.itsaky.androidide.plugins.services.IdeTooltipService
+import com.example.sampleplugin.R
 
 class HelloPluginFragment : Fragment() {
+
+    companion object {
+        private const val PLUGIN_ID = "com.example.sampleplugin"
+    }
+
+    private var tooltipService: IdeTooltipService? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Get the tooltip service from the plugin's service registry
+        try {
+            val serviceRegistry = PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
+            tooltipService = serviceRegistry?.get(IdeTooltipService::class.java)
+        } catch (e: Exception) {
+            // Service might not be available yet
+        }
+    }
+
+    override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
+        val inflater = super.onGetLayoutInflater(savedInstanceState)
+        return PluginFragmentHelper.getPluginInflater(PLUGIN_ID, inflater)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View {
-        val context = requireContext()
+    ): View? {
+        return inflater.inflate(R.layout.fragment_hello_plugin, container, false)
+    }
 
-        val layout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Find and set up the test button
+        val testButton = view.findViewById<Button>(R.id.btn_test_action)
+        testButton?.setOnClickListener {
+            Toast.makeText(
+                requireContext(),
+                "Plugin action executed from XML layout!",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
-        val titleView = TextView(context).apply {
-            text = "Hello World Plugin Tab"
-            textSize = 18f
-            setTypeface(null, Typeface.BOLD)
-            setPadding(0, 0, 0, 16)
-        }
-
-        val descriptionView = TextView(context).apply {
-            text = "This is a custom tab contributed by the Hello World plugin.\n\nThis demonstrates the plugin system's ability to extend the editor bottom sheet with custom fragments."
-            textSize = 14f
-            setPadding(0, 0, 0, 16)
-        }
-
-        val capabilitiesView = TextView(context).apply {
-            text = "Plugin capabilities:\n• Add custom menu items\n• Contribute to context menus\n• Add custom tabs to the editor bottom sheet\n• Access IDE services (project, editor, UI)\n• Create programmatic UIs"
-            textSize = 12f
-            setPadding(0, 0, 0, 16)
-        }
-
-        val testButton = Button(context).apply {
-            text = "Test Plugin Action"
-            setOnClickListener {
+        // Add long press to show tooltip documentation
+        testButton?.setOnLongClickListener { button ->
+            tooltipService?.showTooltip(
+                anchorView = button,
+                category = "plugin_sampleplugin",
+                tag = "sampleplugin.editor_tab"
+            ) ?: run {
                 Toast.makeText(
-                    context,
-                    "Plugin action executed from programmatic UI!",
-                    Toast.LENGTH_SHORT
+                    requireContext(),
+                    "Tooltip service not available. Long press detected!",
+                    Toast.LENGTH_LONG
                 ).show()
             }
+            true // Consume the long click
         }
-
-        layout.addView(titleView)
-        layout.addView(descriptionView)
-        layout.addView(capabilitiesView)
-        layout.addView(testButton)
-
-        return layout
     }
 }

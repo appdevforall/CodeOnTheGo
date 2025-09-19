@@ -300,7 +300,7 @@ class EditorBottomSheetTabAdapter(
 					if (plugin is UIExtension) {
 						logger.debug("Processing UIExtension plugin: {}", plugin.javaClass.simpleName)
 
-						val tabItems = plugin.contributeToEditorBottomSheet()
+						val tabItems = plugin.getEditorTabs()
 						logger.debug(
 							"Plugin {} contributed {} tab items",
 							plugin.javaClass.simpleName,

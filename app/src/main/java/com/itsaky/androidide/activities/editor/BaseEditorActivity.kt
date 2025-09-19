@@ -99,6 +99,7 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.plugins.manager.PluginEditorTabManager
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
@@ -734,12 +735,44 @@ abstract class BaseEditorActivity :
 
     override fun onTabSelected(tab: Tab) {
         val position = tab.position
-        editorViewModel.displayedFileIndex = position
 
-        val editorView = provideEditorAt(position)!!
+        // Always set the container to display the content at the tab position
+        content.editorContainer.displayedChild = position
+
+        if (this is EditorHandlerActivity && isPluginTab(position)) {
+            val pluginTabId = getPluginTabId(position)
+            if (pluginTabId != null) {
+                // For plugin tabs, handle plugin-specific logic without file operations
+                val tabManager = PluginEditorTabManager.getInstance()
+                tabManager.onTabSelected(pluginTabId)
+                invalidateOptionsMenu()
+                return
+            }
+        }
+
+        // For file tabs, we need to find the actual file index
+        val fileIndex = if (this is EditorHandlerActivity) {
+            getFileIndexForTabPosition(position)
+        } else {
+            position
+        }
+
+        if (fileIndex == -1) {
+            invalidateOptionsMenu()
+            return
+        }
+
+        editorViewModel.displayedFileIndex = fileIndex
+
+        val editorView = provideEditorAt(position)
+        if (editorView == null) {
+            // This might be a plugin tab or invalid position, skip editor operations
+            invalidateOptionsMenu()
+            return
+        }
+
         editorView.onEditorSelected()
-
-        editorViewModel.setCurrentFile(position, editorView.file)
+        editorViewModel.setCurrentFile(fileIndex, editorView.file)
         refreshSymbolInput(editorView)
         invalidateOptionsMenu()
     }

@@ -5,8 +5,6 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 interface IPlugin {
-    val metadata: PluginMetadata
-    
     fun initialize(context: PluginContext): Boolean
     fun activate(): Boolean
     fun deactivate(): Boolean
