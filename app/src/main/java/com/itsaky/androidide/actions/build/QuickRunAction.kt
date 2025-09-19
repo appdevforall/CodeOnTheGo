@@ -41,40 +41,30 @@ import com.itsaky.androidide.utils.resolveAttr
  * @author Akash Yadav
  */
 class QuickRunAction(context: Context, override val order: Int) :
-    AbstractRunAction(
-        context = context,
-        labelRes = R.string.quick_run_debug,
-        iconRes = R.drawable.ic_run_outline
-    ) {
+	AbstractRunAction(
+		context = context,
+		labelRes = R.string.quick_run_debug,
+		iconRes = R.drawable.ic_run_outline
+	) {
 
-    override val id: String = ID
-    companion object {
-        const val ID = "ide.editor.build.quickRun"
-    }
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_QUICK_RUN
+	override val id: String = ID
 
-    override fun onCreateTaskExecMessage(
-        data: ActionData,
-        module: AndroidModule,
-        variant: BasicAndroidVariantMetadata,
-        buildService: BuildService,
-        activity: EditorHandlerActivity
-    ): TaskExecutionMessage {
-        val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
-        log.info("Running task '{}' to assemble variant '{}' of project '{}'", taskName, variant.name, module.path)
+	companion object {
+		const val ID = "ide.editor.build.quickRun"
+	}
 
-        return TaskExecutionMessage(tasks = listOf(taskName))
-    }
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+		TooltipTag.EDITOR_TOOLBAR_QUICK_RUN
 
-    override fun createColorFilter(data: ActionData): ColorFilter? {
-        return data.getContext()?.let {
-            PorterDuffColorFilter(
-                it.resolveAttr(
-                    if (data.getActivity().isBuildInProgress())
-                        R.attr.colorError
-                    else R.attr.colorSuccess
-                ), PorterDuff.Mode.SRC_ATOP
-            )
-        }
-    }
+	override fun createColorFilter(data: ActionData): ColorFilter? {
+		return data.getContext()?.let {
+			PorterDuffColorFilter(
+				it.resolveAttr(
+					if (data.getActivity().isBuildInProgress())
+						R.attr.colorError
+					else R.attr.colorSuccess
+				), PorterDuff.Mode.SRC_ATOP
+			)
+		}
+	}
 }

@@ -54,7 +54,6 @@ class EditorBottomSheetTabAdapter(
 
 	private val allTabs =
 		mutableListOf<Tab>().apply {
-			@Suppress("KotlinConstantConditions")
 			add(
 				Tab(
 					title = fragmentActivity.getString(R.string.build_output),
