@@ -248,6 +248,14 @@ open class AndroidModule( // Class must be open because BaseXMLTest mocks this..
     return result
   }
 
+	override fun hasExternalDependency(group: String, name: String): Boolean {
+		return this.libraryMap.values.any { library ->
+			library.libraryInfo?.let { libraryInfo ->
+				libraryInfo.group == group && libraryInfo.name == name
+			} ?: false
+		}
+	}
+
   /**
    * Reads the resource files are creates the [com.android.aaptcompiler.ResourceTable] instances for
    * the corresponding resource directories.
