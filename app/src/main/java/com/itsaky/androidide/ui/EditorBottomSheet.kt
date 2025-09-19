@@ -241,9 +241,7 @@ class EditorBottomSheet
 			binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
 
 			binding.headerContainer.setOnClickListener {
-				if (behavior.state != BottomSheetBehavior.STATE_EXPANDED) {
-					behavior.state = BottomSheetBehavior.STATE_EXPANDED
-				}
+				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 			}
 
 			ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
@@ -347,7 +345,7 @@ class EditorBottomSheet
 
 			val padding = insetBottom * paddingScale
 			binding.headerContainer.apply {
-				updateLayoutParams<ViewGroup.LayoutParams> {
+				updateLayoutParams<LayoutParams> {
 					height = ((collapsedHeight + padding) * heightScale).roundToInt()
 				}
 				updatePaddingRelative(
