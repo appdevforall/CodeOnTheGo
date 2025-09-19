@@ -347,7 +347,7 @@
     <string name="idepref_emptyElements_title">Empty elements behaviour</string>
     <string name="idepref_emptyElements_summary">Choose the formatting behavior for empty elements.</string>
     <string name="xml_formatting_options">XML formatting options</string>
-    <string name="xml_formatting_options_summary">Configure the XML formatter</string>
+    <string name="xml_formatting_options_summary">Choose how XML is formatted in files.</string>
     <string name="idepref_customFont_title">Use custom font</string>
     <string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
     <string name="msg_installing_apk">Installing APK...</string>
