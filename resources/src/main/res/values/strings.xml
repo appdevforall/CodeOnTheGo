@@ -178,8 +178,8 @@
     <string name="idepref_editor_fontsize_summary">Set the default font size (measured in sp).</string>
     <string name="idepref_editor_paintingflags_title">Show non-printing characters</string>
     <string name="idepref_editor_paintingflags_summary">Choose which non-printing characters (like tabs, spaces, and line breaks) are displayed.</string>
-    <string name="idepref_editor_word_wrap_title">Word Wrap</string>
-    <string name="idepref_editor_word_wrap_summary">Use wordwrap of the editor</string>
+    <string name="idepref_editor_word_wrap_title">Word wrap</string>
+    <string name="idepref_editor_word_wrap_summary">Break long lines of text or code into multiple lines so they fit in the visible window.</string>
     <string name="idepref_editor_use_magnifier_title">Enable magnifier</string>
     <string name="idepref_editor_use_magnifier_summary">Long-press and hold to zoom in on the area around the cursor.</string>
     <string name="idepref_editor_title">Editor</string>
