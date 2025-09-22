@@ -31,7 +31,7 @@
     <string name="empty_commit">Commit message can not be empty</string>
     <string name="set_user_and_password">Please set Username and Email in settings</string>
     <string name="git_commit_heading">Please enter the commit message for your changes. An empty message aborts the commit.</string>
-    <string name="git_commit_changes">Changes to be committed, uncheck files to be excluded from this commit</string>
+    <string name="git_commit_changes">Changes to be committed. Uncheck files to be excluded from this commit</string>
 
 
     <!-- LSP, Diagnostics & Completions -->
@@ -50,7 +50,7 @@
     <string name="view_diags">Diagnostics</string>
     <string name="title_installation_failed">Installation failed</string>
     <string name="msg_picked_isnt_dir">Picked file is not a directory!</string>
-    <string name="please_wait">Please wait for a moment …</string>
+    <string name="please_wait">Please wait for a moment…</string>
 
     <!-- Project Builder -->
     <string name="title_unsupported_device">Device Not Supported</string>
