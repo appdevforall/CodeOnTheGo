@@ -6,6 +6,7 @@ import com.google.genai.types.Part
 import com.google.genai.types.Tool
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.ToolCall
+import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import kotlinx.serialization.builtins.ListSerializer
@@ -27,34 +28,35 @@ import java.io.File
 import java.time.LocalDateTime
 import kotlin.jvm.optionals.getOrNull
 
-val apiKey = ""
 
-/**
- * Orchestrates the Planner, Executor, and Critic to fulfill a user request.
- */
 class AgenticRunner(
-    private val context: Context,
+    private val context: Context, // Keep the context
     private val maxSteps: Int = 20
 ) : GeminiRepository {
 
+    // Use lazy initialization for the clients
     private val plannerClient: GeminiClient by lazy {
-//        val apiKey = EncryptedPrefs.getGeminiApiKey(context)
-//        if (apiKey.isNullOrBlank()) {
-//            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
-//            log.error(errorMessage)
-//            throw Exception(errorMessage)
-//        }
-        GeminiClient(apiKey, "gemini-2.5-flash")
+        // Fetch the key when the client is first needed
+        val apiKey = EncryptedPrefs.getGeminiApiKey(context)
+        if (apiKey.isNullOrBlank()) {
+            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
+            log.error(errorMessage)
+            // Throw an exception that we can catch in the ViewModel
+            throw IllegalStateException(errorMessage)
+        }
+        GeminiClient(apiKey, "gemini-1.5-pro-latest") // Use a stable model version
     }
+
     private val criticClient: GeminiClient by lazy {
-//        val apiKey = EncryptedPrefs.getGeminiApiKey(context)
-//        if (apiKey.isNullOrBlank()) {
-//            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
-//            log.error(errorMessage)
-//            throw Exception(errorMessage)
-//        }
-        GeminiClient(apiKey, "gemini-2.5-flash")
+        val apiKey = EncryptedPrefs.getGeminiApiKey(context)
+        if (apiKey.isNullOrBlank()) {
+            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
+            log.error(errorMessage)
+            throw IllegalStateException(errorMessage)
+        }
+        GeminiClient(apiKey, "gemini-1.5-flash-latest")
     }
+
     private var executor: Executor = Executor()
 
 

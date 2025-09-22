@@ -271,7 +271,6 @@ dependencies {
 	implementation("io.insert-koin:koin-android:3.5.3")
 	implementation(libs.androidx.security.crypto)
     implementation(libs.google.genai)
-    implementation(project(":llama"))
 }
 
 tasks.register("downloadDocDb") {

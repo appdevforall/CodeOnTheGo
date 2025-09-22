@@ -33,10 +33,9 @@ import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
-import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.di.appModule
-import com.itsaky.androidide.editor.processing.TextProcessorEngine
+import com.itsaky.androidide.di.agentModule
+import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -69,7 +68,6 @@ import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -120,11 +118,8 @@ class IDEApplication : TermuxApplication() {
 		super.onCreate()
         startKoin {
             androidContext(this@IDEApplication)
-            modules(appModule)
+            modules(coreModule, agentModule)
         }
-
-        val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
-        TextProcessorEngine.additionalProcessors.add(geminiMacro)
 
 		SentryAndroid.init(this)
 		ShizukuSettings.initialize(this)

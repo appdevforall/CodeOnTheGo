@@ -12,18 +12,28 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
-val appModule = module {
+// MODULE 1: Dependencies that are SAFE to create at startup
+val coreModule = module {
     single { LocalLlmRepositoryImpl(context = androidContext(), ideApi = IDEApiFacade) }
-    single<GeminiRepository> {
+    single { FileActionManager() }
+
+    // Safely create the MacroProcessor with a null repository if the key is missing
+    single { GeminiMacroProcessor(getOrNull()) }
+}
+
+// MODULE 2: Dependencies that require runtime configuration (like an API key)
+val agentModule = module {
+    // This factory will only be used by components that are created later (like the ChatFragment).
+    // It will throw an error if the key is missing, which is what we want.
+    factory<GeminiRepository> {
         SwitchableGeminiRepository(
             geminiRepository = AgenticRunner(context = androidContext()),
             localLlmRepository = get()
         )
     }
-    single { FileActionManager() }
-    single { GeminiMacroProcessor(get()) }
 
+    // The ViewModel is tied to the agent, so it belongs in this module.
     viewModel {
-        ChatViewModel(agentRepository = get())
+        ChatViewModel()
     }
 }

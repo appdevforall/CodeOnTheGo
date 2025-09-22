@@ -9,8 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.data.ToolCall
-import com.itsaky.androidide.agent.repository.AgentResponse
 import com.itsaky.androidide.agent.repository.GeminiRepository
+import com.itsaky.androidide.di.ServiceLocator
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
@@ -22,15 +22,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.core.component.KoinComponent
 import java.io.File
-import android.llama.cpp.LLamaAndroid
 
-class ChatViewModel(
-    private val agentRepository: GeminiRepository
-) : ViewModel() {
+class ChatViewModel : ViewModel(), KoinComponent {
     private val _sessions = MutableLiveData<MutableList<ChatSession>>(mutableListOf())
     val sessions: LiveData<MutableList<ChatSession>> = _sessions
 
@@ -47,8 +44,10 @@ class ChatViewModel(
     private var timerJob: Job? = null
     private var operationStartTime: Long = 0
     private var stepStartTime: Long = 0
+    private var isAgentInitialized = false
 
-
+    // A placeholder for the repository.
+    private var agentRepository: GeminiRepository? = null
     private var agentJob: Job? = null
     private var saveJob: Job? = null
     private val chatStorageManager: ChatStorageManager
@@ -60,62 +59,101 @@ class ChatViewModel(
         private const val SAVE_DEBOUNCE_MS = 500L
     }
 
+    private fun ensureAgentInitialized() {
+        if (isAgentInitialized) return
+
+        try {
+            // This is the moment of truth. We ask the ServiceLocator for the
+            // repository. If the API key is missing, this line will throw the
+            // IllegalStateException.
+            agentRepository = ServiceLocator.geminiRepository
+
+            // If we get here, the agent is ready.
+            isAgentInitialized = true
+        } catch (e: Exception) {
+            // If it fails, we keep the repository as null and set the flag.
+            // We'll handle showing the error message in startAgent().
+            isAgentInitialized = true // Mark as initialized to prevent retries
+            agentRepository = null
+            Log.e("ChatViewModel", "Failed to initialize agent", e)
+        }
+    }
+
+    private fun startAgent(prompt: String, messageIdToUpdate: String) {
+        agentJob = viewModelScope.launch {
+            try {
+                // *** CRITICAL CHANGE ***
+                // Ensure the agent is initialized before proceeding.
+                ensureAgentInitialized()
+
+                // Check if the repository is available. If not, throw the error
+                // to be caught and displayed in the UI.
+                val repository = agentRepository
+                    ?: throw IllegalStateException("Gemini API Key not found or invalid. Please configure it in AI Settings.")
+
+                val agentResponse = withContext(Dispatchers.IO) {
+                    val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
+                    repository.generateASimpleResponse(prompt, history)
+                }
+
+                updateMessageInCurrentSession(
+                    messageId = messageIdToUpdate,
+                    newText = agentResponse.text,
+                    newStatus = MessageStatus.COMPLETED
+                )
+
+            } catch (e: IllegalStateException) {
+                // This will now correctly catch the missing key error.
+                updateMessageInCurrentSession(
+                    messageId = messageIdToUpdate,
+                    newText = e.message ?: "An unexpected error occurred.",
+                    newStatus = MessageStatus.ERROR
+                )
+                if (agentResponse.report.isNotBlank()) {
+                    addMessageToCurrentSession(
+                        ChatMessage(
+                            text = agentResponse.report,
+                            sender = ChatMessage.Sender.SYSTEM,
+                            status = MessageStatus.SENT
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) {
+                    updateMessageInCurrentSession(
+                        messageId = messageIdToUpdate,
+                        newText = "Operation cancelled by user.",
+                        newStatus = MessageStatus.ERROR
+                    )
+
+                    // You might want to wrap this in withContext too if it's slow
+                    val partialReport = agentRepository.getPartialReport()
+                    if (partialReport.isNotBlank()) {
+                        addMessageToCurrentSession(
+                            ChatMessage(
+                                text = partialReport,
+                                sender = ChatMessage.Sender.SYSTEM,
+                                status = MessageStatus.SENT
+                            )
+                        )
+                    }
+                } else {
+                    updateMessageInCurrentSession(
+                        messageId = messageIdToUpdate,
+                        newText = "An error occurred. Please try again.",
+                        newStatus = MessageStatus.ERROR,
+                        originalPrompt = originalUserPrompt
+                    )
+                }
+            } finally {
+                _agentState.value = AgentState.Idle
+            }
+        }
+    }
     init {
         val baseDir = IProjectManager.getInstance().projectDir
         val agentDir = File(baseDir, "agent")
         chatStorageManager = ChatStorageManager(agentDir)
-        agentRepository.onToolCall = { functionCall ->
-            val toolMessage = formatToolCallForDisplay(functionCall)
-            addMessageToCurrentSession(
-                ChatMessage(
-                    text = toolMessage,
-                    sender = ChatMessage.Sender.SYSTEM,
-                    status = MessageStatus.SENT
-                )
-            )
-        }
-        agentRepository.onToolMessage = { message ->
-            addMessageToCurrentSession(
-                ChatMessage(
-                    text = "Message from tool: `${message}`",
-                    sender = ChatMessage.Sender.SYSTEM,
-                    status = MessageStatus.SENT
-                )
-            )
-        }
-        agentRepository.onStateUpdate = { newState ->
-            _agentState.value = newState
-
-            // Start, reset, or stop timers based on the new state
-            if (newState is AgentState.Processing) {
-                if (timerJob?.isActive != true) {
-                    // This is the start of a new operation
-                    startTimers()
-                } else {
-                    // This is a new step within the same operation
-                    resetStepTimer()
-                }
-            } else if (newState is AgentState.Idle) {
-                stopTimers()
-            }
-        }
-        agentRepository.onAskUser = { question, options ->
-            val formattedMessage = buildString {
-                append(question)
-                if (options.isNotEmpty()) {
-                    append("\n\n**Options:**\n")
-                    options.forEach { append("- `$it`\n") }
-                }
-            }
-
-            addMessageToCurrentSession(
-                ChatMessage(
-                    text = formattedMessage,
-                    sender = ChatMessage.Sender.AGENT,
-                    status = MessageStatus.SENT
-                )
-            )
-        }
     }
 
     private fun formatToolCallForDisplay(functionCall: ToolCall): String {
@@ -191,21 +229,21 @@ class ChatViewModel(
                 // Wrap the repository call in withContext(Dispatchers.IO)
                 val agentResponse = withContext(Dispatchers.IO) {
                     val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
-                    agentRepository.generateASimpleResponse(prompt, history)
+                    agentRepository?.generateASimpleResponse(prompt, history)
                 }
 
                 // The rest of your code can stay the same, as it updates the UI
                 // and will run on the main thread after the withContext block finishes.
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
-                    newText = agentResponse.text,
+                    newText = agentResponse?.text,
                     newStatus = MessageStatus.SENT
                 )
 
-                if (agentResponse.report.isNotBlank()) {
+                if (agentResponse?.report.isNotBlank()) {
                     addMessageToCurrentSession(
                         ChatMessage(
-                            text = agentResponse.report,
+                            text = agentResponse?.report,
                             sender = ChatMessage.Sender.SYSTEM,
                             status = MessageStatus.SENT
                         )
@@ -220,7 +258,7 @@ class ChatViewModel(
                     )
 
                     // You might want to wrap this in withContext too if it's slow
-                    val partialReport = agentRepository.getPartialReport()
+                    val partialReport = agentRepository?.getPartialReport()
                     if (partialReport.isNotBlank()) {
                         addMessageToCurrentSession(
                             ChatMessage(
@@ -369,43 +407,6 @@ class ChatViewModel(
             delay(SAVE_DEBOUNCE_MS)
             _currentSession.value?.let {
                 chatStorageManager.saveSession(it)
-            }
-        }
-    }
-
-    var messages = mutableListOf("Initializing...")
-    var message = ""
-    private val llamaAndroid: LLamaAndroid = LLamaAndroid.instance()
-
-    fun sendMessageTest() {
-
-        val text = "Count to 10"
-        message = ""
-
-        // Add to messages console.
-        messages += text
-        messages += ""
-
-        viewModelScope.launch {
-            llamaAndroid.send(text)
-                .catch {
-                    Log.e("tag", "send() failed", it)
-                    messages += it.message!!
-                }
-                .collect {
-                    messages += it
-                }
-        }
-    }
-
-    fun loadModel(pathToModel: String) {
-        viewModelScope.launch {
-            try {
-                llamaAndroid.load(pathToModel)
-                messages += "Loaded $pathToModel"
-            } catch (exc: IllegalStateException) {
-                Log.e("tag", "load() failed", exc)
-                messages += exc.message!!
             }
         }
     }

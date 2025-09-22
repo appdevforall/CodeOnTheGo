@@ -171,8 +171,7 @@ include(
 	":testing:common",
 	":testing:lsp",
 	":testing:tooling",
-	":testing:unit",
-    ":llama"
+    ":testing:unit"
 )
 
 object FDroidConfig {
