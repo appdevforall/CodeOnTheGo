@@ -4,6 +4,9 @@ import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.requireContext
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.UrlManager
 
 class HelpAction(context: Context, override val order: Int) :
@@ -16,13 +19,13 @@ class HelpAction(context: Context, override val order: Int) :
 
     override suspend fun execAction(data: ActionData) {
         val context = data.requireContext()
-        UrlManager.openUrl(
-            url = HELP_URL,
-            context = context
+
+        TooltipManager.showTooltip(
+            context = context,
+            anchorView = data.requireTreeNode().viewHolder.view,
+            category = TooltipCategory.CATEGORY_IDE,
+            tag = TooltipTag.PROJECT_FILE_HELP,
         )
     }
 
-    companion object {
-        private const val HELP_URL = "https://code-on-the-go.com/help"
-    }
 }
