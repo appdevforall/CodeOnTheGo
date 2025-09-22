@@ -331,9 +331,9 @@
     <string name="idepref_xml_spaceBeforeEmptyClose_title">Space before empty close tag</string>
     <string name="idepref_xml_spaceBeforeEmptyClose_summary">Add a single space before every closing tag.</string>
     <string name="idepref_xml_preserveEmptyContent_title">Preserve empty content</string>
-    <string name="idepref_xml_preserveEmptyContent_summary">Preserve tags that appear on otherwise empty lines instead of collapsing them.</string>
+    <string name="idepref_xml_preserveEmptyContent_summary">Preserve tags that appear on otherwise-empty lines instead of collapsing them.</string>
     <string name="idepref_xml_preserveAttrLineBreaks_title">Preserve attribute line breaks</string>
-    <string name="idepref_xml_preserveAttrLineBreaks_summary">Keep attributes on separate lines.</string>
+    <string name="idepref_xml_preserveAttrLineBreaks_summary">Keep attributes on separate lines instead of collapsing them.</string>
     <string name="idepref_xml_closingBrackNewLine_title">Closing bracket on new line</string>
     <string name="idepref_xml_closingBrackNewLine_summary">Place closing brackets and self-closing tags on a new line after the last attribute.</string>
     <string name="idepref_xml_trimTrailingWs_title">Trim trailing whitespace</string>
@@ -346,7 +346,7 @@
     <string name="idepref_emptyElements_title">Empty elements behavior</string>
     <string name="idepref_emptyElements_summary">Choose how empty XML elements are formatted.</string>
     <string name="xml_formatting_options">XML formatting options</string>
-    <string name="xml_formatting_options_summary">Configure the XML formatter</string>
+    <string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
     <string name="idepref_customFont_title">Use custom font</string>
     <string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
     <string name="msg_installing_apk">Installing APK...</string>
