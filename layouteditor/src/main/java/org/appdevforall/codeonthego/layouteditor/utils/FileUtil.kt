@@ -56,12 +56,12 @@ object FileUtil {
   }
 
   @JvmStatic
-  fun copyFile(uri: Uri, destinationPath: String): Boolean {
+  fun copyFile(uri: Uri, destinationPath: String, context: Context): Boolean {
     var inputStream: InputStream? = null
     var outputStream: OutputStream? = null
 
     try {
-      inputStream = instance!!.context.contentResolver.openInputStream(uri)
+      inputStream = context.contentResolver.openInputStream(uri)
       outputStream = FileOutputStream(File(destinationPath))
 
       val buffer = ByteArray(1024)
@@ -72,7 +72,7 @@ object FileUtil {
       }
 
       return true
-    } catch (e: IOException) {
+    } catch (e: Exception) {
       e.printStackTrace()
       ToastUtils.showLong(e.toString())
       return false
@@ -80,7 +80,7 @@ object FileUtil {
       try {
         inputStream?.close()
         outputStream?.close()
-      } catch (e: IOException) {
+      } catch (e: Exception) {
         e.printStackTrace()
         ToastUtils.showLong(e.toString())
       }

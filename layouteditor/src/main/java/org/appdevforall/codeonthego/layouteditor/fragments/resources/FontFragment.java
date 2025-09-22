@@ -101,7 +101,7 @@ public class FontFragment extends Fragment {
           String fontPath = project.getFontPath();
 
           String toPath = fontPath + editTextName.getText().toString() + extension;
-          FileUtil.copyFile(uri, toPath);
+          FileUtil.copyFile(uri, toPath, getContext());
 
           String name = editTextName.getText().toString();
           var fontItem = new FontItem(name + extension, toPath);

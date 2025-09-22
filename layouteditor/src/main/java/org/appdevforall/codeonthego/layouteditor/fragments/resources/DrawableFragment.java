@@ -190,7 +190,7 @@ public class DrawableFragment extends Fragment {
             }
           }
           String toPath = drawablePath + editText.getText().toString() + extension;
-          FileUtil.copyFile(uri, toPath);
+          FileUtil.copyFile(uri, toPath, getContext());
 
           Drawable drawable =
               lastSegment.endsWith(".xml")
