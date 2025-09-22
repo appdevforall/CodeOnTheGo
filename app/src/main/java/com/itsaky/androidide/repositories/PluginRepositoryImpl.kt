@@ -27,8 +27,6 @@ class PluginRepositoryImpl(
         runCatching {
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
-
-            Log.d(TAG, "Getting all plugins")
             manager.getAllPlugins()
         }.onFailure { exception ->
             Log.e(TAG, "Failed to get all plugins", exception)
@@ -39,10 +37,7 @@ class PluginRepositoryImpl(
         runCatching {
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
-
-            Log.d(TAG, "Enabling plugin: $pluginId")
             val result = manager.enablePlugin(pluginId)
-            Log.d(TAG, "Plugin enable result for $pluginId: $result")
             result
         }.onFailure { exception ->
             Log.e(TAG, "Failed to enable plugin: $pluginId", exception)
@@ -53,10 +48,7 @@ class PluginRepositoryImpl(
         runCatching {
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
-
-            Log.d(TAG, "Disabling plugin: $pluginId")
             val result = manager.disablePlugin(pluginId)
-            Log.d(TAG, "Plugin disable result for $pluginId: $result")
             result
         }.onFailure { exception ->
             Log.e(TAG, "Failed to disable plugin: $pluginId", exception)
@@ -70,7 +62,6 @@ class PluginRepositoryImpl(
 
             Log.d(TAG, "Uninstalling plugin: $pluginId")
             val result = manager.uninstallPlugin(pluginId)
-            Log.d(TAG, "Plugin uninstall result for $pluginId: $result")
             result
         }.onFailure { exception ->
             Log.e(TAG, "Failed to uninstall plugin: $pluginId", exception)
@@ -81,8 +72,6 @@ class PluginRepositoryImpl(
         runCatching {
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
-
-            Log.d(TAG, "Installing plugin from file: ${pluginFile.absolutePath}")
 
             // Load plugin with metadata to validate and get plugin info
             val loadResult = manager.loadPluginWithMetadata(pluginFile)
@@ -118,7 +107,6 @@ class PluginRepositoryImpl(
 
                         // Delete the temporary file
                         pluginFile.delete()
-                        Log.d(TAG, "Temporary plugin file deleted")
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to copy plugin file to plugins directory", e)
                         throw e
@@ -127,13 +115,9 @@ class PluginRepositoryImpl(
 
                 // Reload plugins to pick up the new installation
                 manager.loadPlugins()
-                Log.d(TAG, "Plugin installation completed successfully")
-                Unit // Explicitly return Unit
             } else {
-                // Clean up failed installation
                 if (pluginFile.exists()) {
                     pluginFile.delete()
-                    Log.d(TAG, "Cleaned up failed plugin installation file")
                 }
                 throw Exception("Failed to load plugin: ${loadResult.exceptionOrNull()?.message}")
             }
@@ -147,10 +131,7 @@ class PluginRepositoryImpl(
             val manager = pluginManager
                 ?: throw IllegalStateException("Plugin system not available")
 
-            Log.d(TAG, "Reloading all plugins")
             manager.loadPlugins()
-            Log.d(TAG, "Plugin reload completed")
-            Unit // Explicitly return Unit
         }.onFailure { exception ->
             Log.e(TAG, "Failed to reload plugins", exception)
         }
@@ -158,7 +139,6 @@ class PluginRepositoryImpl(
 
     override fun isPluginManagerAvailable(): Boolean {
         val available = pluginManager != null
-        Log.d(TAG, "Plugin manager availability: $available")
         return available
     }
 }
