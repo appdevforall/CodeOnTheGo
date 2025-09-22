@@ -4,10 +4,9 @@ import android.content.Context
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
-import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 class HelpAction(context: Context, override val order: Int) :
     BaseFileTreeAction(
@@ -17,7 +16,7 @@ class HelpAction(context: Context, override val order: Int) :
     ) {
     override val id: String = "ide.editor.fileTree.help"
     override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
-        return if (isAlternateContext) {
+        return if (isReadOnlyContext) {
             TooltipTag.PROJECT_FOLDER_HELP
         } else {
             TooltipTag.PROJECT_FILE_HELP

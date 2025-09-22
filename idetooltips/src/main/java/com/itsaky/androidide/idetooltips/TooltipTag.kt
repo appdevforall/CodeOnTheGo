@@ -111,7 +111,6 @@ object TooltipTag {
     const val PROJECT_NEW_FOLDER_DIALOG = "project.newfolder.dialog"
     const val PROJECT_FOLDER_HELP = "project.folder.help"
     const val PROJECT_FILE_OPENWITH = "project.file.openwith"
-    const val PROJECT_FILE_HELP = "project.file.help"
 
     // Template Details
     const val SETUP_PREVIOUS = "setup.previous"

@@ -777,7 +777,7 @@ abstract class BaseEditorActivity :
 
 	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
 		log.debug("updateSheetState: {}", state)
-		content.bottomSheet.setCurrentTab(state.currentTab)
+//		content.bottomSheet.setCurrentTab(state.currentTab)
 		if (editorBottomSheet?.state != state.sheetState) {
 			editorBottomSheet?.state = state.sheetState
 		}
