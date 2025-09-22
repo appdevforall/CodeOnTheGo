@@ -339,6 +339,7 @@
     <string name="idepref_xml_trimTrailingWs_title">Trim trailing whitespace</string>
     <string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespace at the end of lines.</string>
     <string name="idepref_maxLineWidth_title">Set the maximum number of characters on a single line before the editor automatically wraps or breaks the line.</string>
+    <string name="idepref_maxLineWidth_summary">The maximum number of characters a line should have.</string>
     <string name="idepref_splitAttrIndentSize_title">Split attributes indent size</string>
     <string name="idepref_splitAttrIndentSize_summary">Set the number of spaces to automatically indent attributes that are split on separate lines.</string>
     <string name="idepref_preservedNewLines_title">Preserve new lines</string>
