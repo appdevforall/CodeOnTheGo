@@ -51,6 +51,7 @@ import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.LogLine
@@ -62,6 +63,8 @@ import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -78,59 +81,59 @@ import kotlin.math.roundToInt
  * @author Akash Yadav
  */
 class EditorBottomSheet
-	@JvmOverloads
-	constructor(
-		context: Context,
-		attrs: AttributeSet? = null,
-		defStyleAttr: Int = 0,
-		defStyleRes: Int = 0,
-	) : RelativeLayout(context, attrs, defStyleAttr, defStyleRes) {
-		private val collapsedHeight: Float by lazy {
-			val localContext = getContext() ?: return@lazy 0f
-			localContext.resources.getDimension(R.dimen.editor_sheet_collapsed_height)
-		}
-		private val behavior: BottomSheetBehavior<EditorBottomSheet> by lazy {
-			BottomSheetBehavior.from(this).apply {
-				isFitToContents = false
-				skipCollapsed = true
-			}
-		}
+@JvmOverloads
+constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0,
+    defStyleRes: Int = 0,
+) : RelativeLayout(context, attrs, defStyleAttr, defStyleRes) {
+    private val collapsedHeight: Float by lazy {
+        val localContext = getContext() ?: return@lazy 0f
+        localContext.resources.getDimension(R.dimen.editor_sheet_collapsed_height)
+    }
+    private val behavior: BottomSheetBehavior<EditorBottomSheet> by lazy {
+        BottomSheetBehavior.from(this).apply {
+            isFitToContents = false
+            skipCollapsed = true
+        }
+    }
 
-		@JvmField
-		var binding: LayoutEditorBottomSheetBinding
-		val pagerAdapter: EditorBottomSheetTabAdapter
+    @JvmField
+    var binding: LayoutEditorBottomSheetBinding
+    val pagerAdapter: EditorBottomSheetTabAdapter
 
-		private var anchorOffset = 0
-		private var isImeVisible = false
-		private var windowInsets: Insets? = null
+    private var anchorOffset = 0
+    private var isImeVisible = false
+    private var windowInsets: Insets? = null
 
-		private val insetBottom: Int
-			get() = if (isImeVisible) 0 else windowInsets?.bottom ?: 0
+    private val insetBottom: Int
+        get() = if (isImeVisible) 0 else windowInsets?.bottom ?: 0
 
-		private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
+    private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 
-		companion object {
-			private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
-			private const val COLLAPSE_HEADER_AT_OFFSET = 0.5f
+    companion object {
+        private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
+        private const val COLLAPSE_HEADER_AT_OFFSET = 0.5f
 
-			const val CHILD_HEADER = 0
-			const val CHILD_SYMBOL_INPUT = 1
-			const val CHILD_ACTION = 2
-		}
+        const val CHILD_HEADER = 0
+        const val CHILD_SYMBOL_INPUT = 1
+        const val CHILD_ACTION = 2
+    }
 
-		init {
-			require(context is FragmentActivity)
+    init {
+        require(context is FragmentActivity)
 
-			val inflater = LayoutInflater.from(context)
-			binding = LayoutEditorBottomSheetBinding.inflate(inflater)
-			pagerAdapter = EditorBottomSheetTabAdapter(context)
-			binding.pager.adapter = pagerAdapter
+        val inflater = LayoutInflater.from(context)
+        binding = LayoutEditorBottomSheetBinding.inflate(inflater)
+        pagerAdapter = EditorBottomSheetTabAdapter(context)
+        binding.pager.adapter = pagerAdapter
 
-			removeAllViews()
-			addView(binding.root)
+        removeAllViews()
+        addView(binding.root)
 
-			initialize(context)
-		}
+        initialize(context)
+    }
 
 		private fun initialize(context: FragmentActivity) {
 			val mediator =
@@ -148,78 +151,79 @@ class EditorBottomSheet
 					}
 				}
 
-			mediator.attach()
-			binding.pager.isUserInputEnabled = false
-			binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1
+            mediator.attach()
+            binding.pager.isUserInputEnabled = false
+            binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1
 
-			binding.tabs.addOnTabSelectedListener(
-				object : OnTabSelectedListener {
-					override fun onTabSelected(tab: Tab) {
-						// update view model in case the tab was selected
-						// by user input
-						viewModel.setSheetState(currentTab = tab.position)
+            binding.tabs.addOnTabSelectedListener(
+                object : OnTabSelectedListener {
+                    override fun onTabSelected(tab: Tab) {
+                        // update view model in case the tab was selected
+                        // by user input
+                        viewModel.setSheetState(currentTab = tab.position)
 
-						val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tab.position)
-						if (fragment is ShareableOutputFragment) {
-							binding.clearFab.show()
-							binding.shareOutputFab.show()
-						} else {
-							binding.clearFab.hide()
-							binding.shareOutputFab.hide()
-						}
-					}
+                        val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(tab.position)
+                        if (fragment is ShareableOutputFragment) {
+                            binding.clearFab.show()
+                            binding.shareOutputFab.show()
+                        } else {
+                            binding.clearFab.hide()
+                            binding.shareOutputFab.hide()
+                        }
+                    }
 
-					override fun onTabUnselected(tab: Tab) {}
+                    override fun onTabUnselected(tab: Tab) {}
 
-					override fun onTabReselected(tab: Tab) {}
-				},
-			)
+                    override fun onTabReselected(tab: Tab) {}
+                },
+            )
 
-			binding.shareOutputFab.setOnClickListener {
-				val fragment =
-					pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+            binding.shareOutputFab.setOnClickListener {
+                val fragment =
+                    pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
 
-				if (fragment !is ShareableOutputFragment) {
-					log.error("Unknown fragment: {}", fragment)
-					return@setOnClickListener
-				}
+                if (fragment !is ShareableOutputFragment) {
+                    log.error("Unknown fragment: {}", fragment)
+                    return@setOnClickListener
+                }
 
-				val filename = fragment.getShareableFilename()
+                val filename = fragment.getShareableFilename()
 
-				@Suppress("DEPRECATION")
-				val progress =
-					android.app.ProgressDialog.show(
-						context,
-						null,
-						context.getString(string.please_wait),
-					)
-				executeAsync(fragment::getShareableContent) {
-					progress.dismiss()
-					shareText(it, filename)
-				}
-			}
-			binding.shareOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
+                @Suppress("DEPRECATION")
+                val progress =
+                    android.app.ProgressDialog.show(
+                        context,
+                        null,
+                        context.getString(string.please_wait),
+                    )
+                executeAsync(fragment::getShareableContent) {
+                    progress.dismiss()
+                    shareText(it, filename)
+                }
+            }
+            binding.shareOutputFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
 
-			binding.clearFab.setOnClickListener {
-				val fragment =
-					pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
-				if (fragment !is ShareableOutputFragment) {
-					log.error("Unknown fragment: {}", fragment)
-					return@setOnClickListener
-				}
-				(fragment as ShareableOutputFragment).clearOutput()
-			}
-			binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
+            binding.clearFab.setOnClickListener {
+                val fragment =
+                    pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
+                if (fragment !is ShareableOutputFragment) {
+                    log.error("Unknown fragment: {}", fragment)
+                    return@setOnClickListener
+                }
+                (fragment as ShareableOutputFragment).clearOutput()
+            }
+            binding.clearFab.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
 
-			binding.headerContainer.setOnClickListener {
-				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
-			}
+            binding.headerContainer.setOnClickListener {
+                viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
+            }
 
-			ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-				this.windowInsets = insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
-				insets
-			}
-		}
+            ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
+                this.windowInsets =
+                    insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
+                insets
+            }
+        }
 
 		private fun generateTooltipListener(tooltipTag: String): OnLongClickListener =
 			OnLongClickListener { view: View ->
@@ -229,209 +233,232 @@ class EditorBottomSheet
                     tag = tooltipTag,
                 )
 
-				// A long-click listener must return true to indicate it has consumed the event.
-				true
-			}
+                // A long-click listener must return true to indicate it has consumed the event.
+                true
+            }
 
-		/**
-		 * Set whether the input method is visible.
-		 */
-		fun setImeVisible(isVisible: Boolean) {
-			isImeVisible = isVisible
-			behavior.isGestureInsetBottomIgnored = isVisible
-		}
+    suspend fun getTooltipData(
+        category: String,
+        tag: String,
+    ): IDETooltipItem? =
+        withContext(Dispatchers.IO) {
+            TooltipManager.getTooltip(context, category, tag)
+        }
 
-		fun setOffsetAnchor(view: View) {
-			val listener =
-				object : ViewTreeObserver.OnGlobalLayoutListener {
-					override fun onGlobalLayout() {
-						view.viewTreeObserver.removeOnGlobalLayoutListener(this)
-						anchorOffset = view.height + SizeUtils.dp2px(1f)
+    fun setCurrentTab(
+        @BottomSheetViewModel.TabDef tabIndex: Int,
+    ) {
+        if (binding.tabs.selectedTabPosition == tabIndex) {
+            return
+        }
 
-						behavior.peekHeight = collapsedHeight.roundToInt()
-						behavior.expandedOffset = anchorOffset
-						behavior.isGestureInsetBottomIgnored = isImeVisible
+        if (tabIndex < 0 || tabIndex > binding.tabs.tabCount) {
+            return
+        }
 
-						binding.root.updatePadding(bottom = anchorOffset + insetBottom)
-						binding.headerContainer.apply {
-							updatePaddingRelative(bottom = paddingBottom + insetBottom)
-							updateLayoutParams<ViewGroup.LayoutParams> {
-								height = (collapsedHeight + insetBottom).roundToInt()
-							}
-						}
-					}
-				}
+        binding.tabs.getTabAt(tabIndex)?.select()
+    }
 
-			view.viewTreeObserver.addOnGlobalLayoutListener(listener)
-		}
+    /**
+     * Set whether the input method is visible.
+     */
+    fun setImeVisible(isVisible: Boolean) {
+        isImeVisible = isVisible
+        behavior.isGestureInsetBottomIgnored = isVisible
+    }
 
-		fun onSlide(sheetOffset: Float) {
-			val heightScale =
-				if (sheetOffset >= COLLAPSE_HEADER_AT_OFFSET) {
-					((COLLAPSE_HEADER_AT_OFFSET - sheetOffset) + COLLAPSE_HEADER_AT_OFFSET) * 2f
-				} else {
-					1f
-				}
+    fun setOffsetAnchor(view: View) {
+        val listener =
+            object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    view.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    anchorOffset = view.height + SizeUtils.dp2px(1f)
 
-			val paddingScale =
-				if (!isImeVisible && sheetOffset <= COLLAPSE_HEADER_AT_OFFSET) {
-					((1f - sheetOffset) * 2f) - 1f
-				} else {
-					0f
-				}
+                    behavior.peekHeight = collapsedHeight.roundToInt()
+                    behavior.expandedOffset = anchorOffset
+                    behavior.isGestureInsetBottomIgnored = isImeVisible
 
-			val padding = insetBottom * paddingScale
-			binding.headerContainer.apply {
-				updateLayoutParams<LayoutParams> {
-					height = ((collapsedHeight + padding) * heightScale).roundToInt()
-				}
-				updatePaddingRelative(
-					bottom = padding.roundToInt(),
-				)
-			}
-		}
+                    binding.root.updatePadding(bottom = anchorOffset + insetBottom)
+                    binding.headerContainer.apply {
+                        updatePaddingRelative(bottom = paddingBottom + insetBottom)
+                        updateLayoutParams<ViewGroup.LayoutParams> {
+                            height = (collapsedHeight + insetBottom).roundToInt()
+                        }
+                    }
+                }
+            }
 
-		fun showChild(index: Int) {
-			binding.headerContainer.displayedChild = index
-		}
+        view.viewTreeObserver.addOnGlobalLayoutListener(listener)
+    }
 
-		fun setActionText(text: CharSequence) {
-			binding.bottomAction.actionText.text = text
-		}
+    fun onSlide(sheetOffset: Float) {
+        val heightScale =
+            if (sheetOffset >= COLLAPSE_HEADER_AT_OFFSET) {
+                ((COLLAPSE_HEADER_AT_OFFSET - sheetOffset) + COLLAPSE_HEADER_AT_OFFSET) * 2f
+            } else {
+                1f
+            }
 
-		fun setActionProgress(progress: Int) {
-			binding.bottomAction.progress.setProgressCompat(progress, true)
-		}
+        val paddingScale =
+            if (!isImeVisible && sheetOffset <= COLLAPSE_HEADER_AT_OFFSET) {
+                ((1f - sheetOffset) * 2f) - 1f
+            } else {
+                0f
+            }
 
-		fun appendApkLog(line: LogLine) {
-			pagerAdapter.logFragment?.appendLog(line)
-		}
+        val padding = insetBottom * paddingScale
+        binding.headerContainer.apply {
+            updateLayoutParams<LayoutParams> {
+                height = ((collapsedHeight + padding) * heightScale).roundToInt()
+            }
+            updatePaddingRelative(
+                bottom = padding.roundToInt(),
+            )
+        }
+    }
 
-		fun appendBuildOut(str: String?) {
-			if (str != null && shouldFilter(str)) return
-			pagerAdapter.buildOutputFragment?.appendOutput(str)
-		}
+    fun showChild(index: Int) {
+        binding.headerContainer.displayedChild = index
+    }
 
-		private val suppressedGradleWarnings =
-			listOf(
-				"The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/.androidide/aapt2' is experimental",
-				"The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
-				"The org.gradle.api.plugins.Convention type has been deprecated.",
-				"The BasePluginExtension.archivesBaseName property has been deprecated.",
-				"The Provider.forUseAtConfigurationTime method has been deprecated.",
-				"The BuildIdentifier.getName() method has been deprecated.",
-				"Deprecated Gradle features were used in this build",
-				"The StartParameter.isConfigurationCacheRequested property has been deprecated.",
-				"Retrieving attribute with a null key. This behavior has been deprecated.",
-			)
+    fun setActionText(text: CharSequence) {
+        binding.bottomAction.actionText.text = text
+    }
 
-		private fun shouldFilter(msg: String): Boolean = suppressedGradleWarnings.any { msg.contains(it) }
+    fun setActionProgress(progress: Int) {
+        binding.bottomAction.progress.setProgressCompat(progress, true)
+    }
 
-		fun clearBuildOutput() {
-			pagerAdapter.buildOutputFragment?.clearOutput()
-		}
+    fun appendApkLog(line: LogLine) {
+        pagerAdapter.logFragment?.appendLog(line)
+    }
 
-		fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
-			runOnUiThread { pagerAdapter.diagnosticsFragment?.isEmpty = errorVisible }
-		}
+    fun appendBuildOut(str: String?) {
+        if (str != null && shouldFilter(str)) return
+        pagerAdapter.buildOutputFragment?.appendOutput(str)
+    }
 
-		fun handleSearchResultVisibility(errorVisible: Boolean) {
-			runOnUiThread { pagerAdapter.searchResultFragment?.isEmpty = errorVisible }
-		}
+    private val suppressedGradleWarnings =
+        listOf(
+            "The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/.androidide/aapt2' is experimental",
+            "The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
+            "The org.gradle.api.plugins.Convention type has been deprecated.",
+            "The BasePluginExtension.archivesBaseName property has been deprecated.",
+            "The Provider.forUseAtConfigurationTime method has been deprecated.",
+            "The BuildIdentifier.getName() method has been deprecated.",
+            "Deprecated Gradle features were used in this build",
+            "The StartParameter.isConfigurationCacheRequested property has been deprecated.",
+            "Retrieving attribute with a null key. This behavior has been deprecated.",
+        )
 
-		fun setDiagnosticsAdapter(adapter: DiagnosticsAdapter) {
-			runOnUiThread { pagerAdapter.diagnosticsFragment?.setAdapter(adapter) }
-		}
+    private fun shouldFilter(msg: String): Boolean =
+        suppressedGradleWarnings.any { msg.contains(it) }
 
-		fun setSearchResultAdapter(adapter: SearchListAdapter) {
-			runOnUiThread { pagerAdapter.searchResultFragment?.setAdapter(adapter) }
-		}
+    fun clearBuildOutput() {
+        pagerAdapter.buildOutputFragment?.clearOutput()
+    }
 
-		fun refreshSymbolInput(editor: CodeEditorView) {
-			binding.symbolInput.refresh(editor.editor, forFile(editor.file))
-		}
+    fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
+        runOnUiThread { pagerAdapter.diagnosticsFragment?.isEmpty = errorVisible }
+    }
 
-		fun onSoftInputChanged() {
-			if (context !is Activity) {
-				log.error("Bottom sheet is not attached to an activity!")
-				return
-			}
+    fun handleSearchResultVisibility(errorVisible: Boolean) {
+        runOnUiThread { pagerAdapter.searchResultFragment?.isEmpty = errorVisible }
+    }
 
-			binding.symbolInput.itemAnimator?.endAnimations()
+    fun setDiagnosticsAdapter(adapter: DiagnosticsAdapter) {
+        runOnUiThread { pagerAdapter.diagnosticsFragment?.setAdapter(adapter) }
+    }
 
-			TransitionManager.beginDelayedTransition(
-				binding.root,
-				MaterialSharedAxis(MaterialSharedAxis.Y, false),
-			)
+    fun setSearchResultAdapter(adapter: SearchListAdapter) {
+        runOnUiThread { pagerAdapter.searchResultFragment?.setAdapter(adapter) }
+    }
 
-			val activity = context as Activity
-			if (KeyboardUtils.isSoftInputVisible(activity)) {
-				binding.headerContainer.displayedChild = CHILD_SYMBOL_INPUT
-			} else {
-				binding.headerContainer.displayedChild = CHILD_HEADER
-			}
-		}
+    fun refreshSymbolInput(editor: CodeEditorView) {
+        binding.symbolInput.refresh(editor.editor, forFile(editor.file))
+    }
 
-		fun setStatus(
-			text: CharSequence,
-			@GravityInt gravity: Int,
-		) {
-			runOnUiThread {
-				binding.buildStatus.let {
-					it.statusText.gravity = gravity
-					it.statusText.text = text
-				}
-			}
-		}
+    fun onSoftInputChanged() {
+        if (context !is Activity) {
+            log.error("Bottom sheet is not attached to an activity!")
+            return
+        }
 
-		private fun shareFile(file: File) {
-			shareFile(context, file, "text/plain")
-		}
+        binding.symbolInput.itemAnimator?.endAnimations()
 
-		@Suppress("DEPRECATION")
-		private fun shareText(
-			text: String?,
-			type: String,
-		) {
-			if (text == null || TextUtils.isEmpty(text)) {
-				flashError(context.getString(string.msg_output_text_extraction_failed))
-				return
-			}
-			val pd =
-				android.app.ProgressDialog.show(
-					context,
-					null,
-					context.getString(string.please_wait),
-					true,
-					false,
-				)
-			executeAsyncProvideError(
-				Callable { writeTempFile(text, type) },
-				CallbackWithError<File> { result: File?, error: Throwable? ->
-					pd.dismiss()
-					if (result == null || error != null) {
-						log.warn("Unable to share output", error)
-						return@CallbackWithError
-					}
-					shareFile(result)
-				},
-			)
-		}
+        TransitionManager.beginDelayedTransition(
+            binding.root,
+            MaterialSharedAxis(MaterialSharedAxis.Y, false),
+        )
 
-		private fun writeTempFile(
-			text: String,
-			type: String,
-		): File {
-			// use a common name to avoid multiple files
-			val file: Path = context.filesDir.toPath().resolve("$type.txt")
-			try {
-				if (Files.exists(file)) {
-					Files.delete(file)
-				}
-				Files.write(file, text.toByteArray(StandardCharsets.UTF_8), CREATE_NEW, WRITE)
-			} catch (e: IOException) {
-				log.error("Unable to write output to file", e)
-			}
-			return file.toFile()
-		}
-	}
+        val activity = context as Activity
+        if (KeyboardUtils.isSoftInputVisible(activity)) {
+            binding.headerContainer.displayedChild = CHILD_SYMBOL_INPUT
+        } else {
+            binding.headerContainer.displayedChild = CHILD_HEADER
+        }
+    }
+
+    fun setStatus(
+        text: CharSequence,
+        @GravityInt gravity: Int,
+    ) {
+        runOnUiThread {
+            binding.buildStatus.let {
+                it.statusText.gravity = gravity
+                it.statusText.text = text
+            }
+        }
+    }
+
+    private fun shareFile(file: File) {
+        shareFile(context, file, "text/plain")
+    }
+
+    @Suppress("DEPRECATION")
+    private fun shareText(
+        text: String?,
+        type: String,
+    ) {
+        if (text == null || TextUtils.isEmpty(text)) {
+            flashError(context.getString(string.msg_output_text_extraction_failed))
+            return
+        }
+        val pd =
+            android.app.ProgressDialog.show(
+                context,
+                null,
+                context.getString(string.please_wait),
+                true,
+                false,
+            )
+        executeAsyncProvideError(
+            Callable { writeTempFile(text, type) },
+            CallbackWithError<File> { result: File?, error: Throwable? ->
+                pd.dismiss()
+                if (result == null || error != null) {
+                    log.warn("Unable to share output", error)
+                    return@CallbackWithError
+                }
+                shareFile(result)
+            },
+        )
+    }
+
+    private fun writeTempFile(
+        text: String,
+        type: String,
+    ): File {
+        // use a common name to avoid multiple files
+        val file: Path = context.filesDir.toPath().resolve("$type.txt")
+        try {
+            if (Files.exists(file)) {
+                Files.delete(file)
+            }
+            Files.write(file, text.toByteArray(StandardCharsets.UTF_8), CREATE_NEW, WRITE)
+        } catch (e: IOException) {
+            log.error("Unable to write output to file", e)
+        }
+        return file.toFile()
+    }
+}
