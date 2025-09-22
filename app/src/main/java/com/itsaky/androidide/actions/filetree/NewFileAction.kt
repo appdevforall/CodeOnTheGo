@@ -31,7 +31,9 @@ import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.templates.base.models.Dependency
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ProjectWriter
@@ -244,13 +246,22 @@ class NewFileAction(val context: Context, override val order: Int) :
             ProjectWriter.createJavaEnum(pkgName, className)
           )
 
-        binding.typeActivity.id ->
-          createFile(
-            node,
-            javaFileDirectory,
-            javaName,
-            ProjectWriter.createActivity(pkgName, className)
-          )
+		  binding.typeActivity.id -> {
+			  val appCompat = Dependency.AndroidX.AppCompat
+			  val projectManager = ProjectManagerImpl.getInstance()
+			  val hasAppCompatDependency = projectManager.findModuleForFile(file)
+				  ?.hasExternalDependency(appCompat.group, appCompat.artifact)
+			  createFile(
+				  node,
+				  javaFileDirectory,
+				  javaName,
+				  ProjectWriter.createActivity(
+					  pkgName,
+					  className,
+					  hasAppCompatDependency ?: false
+				  )
+			  )
+		  }
 
         else -> createFile(node, javaFileDirectory, name, "")
       }

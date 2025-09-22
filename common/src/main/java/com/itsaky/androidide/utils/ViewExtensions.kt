@@ -1,12 +1,19 @@
 package com.itsaky.androidide.utils
 
+import android.annotation.SuppressLint
+import android.os.Handler
+import android.os.Looper
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
+import kotlin.math.abs
+
 
 fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
-
     if (this is ListView) return
 
     setOnLongClickListener { listener(it) }
@@ -18,6 +25,49 @@ fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
     }
 }
 
+@SuppressLint("ClickableViewAccessibility")
+fun View.setupGestureHandling(
+    onLongPress: (View) -> Unit,
+    onDrag: (View) -> Unit
+) {
+    val handler = Handler(Looper.getMainLooper())
+    var isTooltipStarted = false
+    var startTime = 0L
+
+    setOnTouchListener { view, event ->
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                isTooltipStarted = false
+                startTime = System.currentTimeMillis()
+
+                // Trigger long press after 800ms
+                handler.postDelayed({
+                    if (!isTooltipStarted) {
+                        isTooltipStarted = true
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        onLongPress(view)
+                    }
+                }, 800)
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacksAndMessages(null)
+                val holdDuration = System.currentTimeMillis() - startTime
+
+                if (!isTooltipStarted) {
+                    if (holdDuration >= 600) {
+                        // Medium hold for drag (600-800ms)
+                        onDrag(view)
+                    } else {
+                        view.performClick()
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
 /**
  * Sets up a long-press listener on an AlertDialog's decor view to show a tooltip.
  *
@@ -25,12 +75,106 @@ fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
  * is long-pressed. It works by recursively attaching a long-press listener to the
  * dialog's decor view and all its children.
  *
- *  * @param listener A lambda function that will be invoked when a long-press event occurs.
- *  *                 The lambda receives the [View] that was long-pressed as its argument
- *  *                 and should return `true` if the listener has consumed the event, `false` otherwise.
+ * @param listener A lambda function that will be invoked when a long-press event occurs.
+ *                 The lambda receives the [View] that was long-pressed as its argument
+ *                 and should return `true` if the listener has consumed the event, `false` otherwise.
  */
 fun AlertDialog.onLongPress(listener: (View) -> Boolean) {
     this.setOnShowListener {
         this.window?.decorView?.applyLongPressRecursively(listener)
     }
 }
+
+
+@SuppressLint("ClickableViewAccessibility")
+fun View.handleLongClicksAndDrag(
+    onLongPress: (View) -> Unit,
+    onDrag: (View) -> Unit
+) {
+    var viewInitialX = 0f
+    var viewInitialY = 0f
+    var touchInitialRawX = 0f
+    var touchInitialRawY = 0f
+
+    var isDragging = false
+    var longPressFired = false 
+
+    val handler = Handler(Looper.getMainLooper())
+    val longPressTimeout = 800L 
+
+    val longPressRunnable = Runnable {
+        if (!isDragging) { 
+            longPressFired = true
+            this.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            onLongPress(this) 
+        }
+    }
+
+    val touchSlop = ViewConfiguration.get(this.context).scaledTouchSlop
+
+    this.setOnTouchListener { view, event -> 
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                isDragging = false
+                longPressFired = false
+
+                touchInitialRawX = event.rawX
+                touchInitialRawY = event.rawY
+                viewInitialX = view.x 
+                viewInitialY = view.y
+                
+                handler.postDelayed(longPressRunnable, longPressTimeout)
+                true 
+            }
+            
+            MotionEvent.ACTION_MOVE -> {
+                val deltaX = abs(event.rawX - touchInitialRawX)
+                val deltaY = abs(event.rawY - touchInitialRawY)
+
+                if (isDragging || deltaX > touchSlop || deltaY > touchSlop) {
+                    if (!isDragging && !longPressFired) {
+                        handler.removeCallbacks(longPressRunnable)
+                    }
+                    isDragging = true 
+                    
+                    val newX = viewInitialX + (event.rawX - touchInitialRawX)
+                    val newY = viewInitialY + (event.rawY - touchInitialRawY)
+                    view.x = newX
+                    view.y = newY
+                }
+                true 
+            }
+            
+            MotionEvent.ACTION_UP -> {
+                handler.removeCallbacks(longPressRunnable) 
+
+                val wasDraggingDuringGesture = isDragging
+                val wasLongPressFiredDuringGesture = longPressFired
+                
+                isDragging = false
+                longPressFired = false 
+
+                if (wasDraggingDuringGesture) {
+                    onDrag(view) 
+                    return@setOnTouchListener true
+                }
+                
+                if (wasLongPressFiredDuringGesture) {
+                    return@setOnTouchListener true
+                }
+                
+                view.performClick()
+                return@setOnTouchListener true
+            }
+            
+            MotionEvent.ACTION_CANCEL -> {
+                handler.removeCallbacks(longPressRunnable)
+                isDragging = false
+                longPressFired = false
+                return@setOnTouchListener true
+            }
+            else -> false
+        }
+    }
+}
+

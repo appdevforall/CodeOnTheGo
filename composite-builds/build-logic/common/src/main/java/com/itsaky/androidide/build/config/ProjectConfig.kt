@@ -87,7 +87,7 @@ val Project.simpleVersionName: String
 
 private var shouldPrintVersionCode = true
 val Project.projectVersionCode: Int
-	get() {
+    get() {
 		val calendar = java.util.Calendar.getInstance()
 		val year = calendar.get(java.util.Calendar.YEAR) % 100 // Just last two digits of year
 		val month = calendar.get(java.util.Calendar.MONTH) + 1
@@ -95,8 +95,8 @@ val Project.projectVersionCode: Int
 		val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
 		val minute = calendar.get(java.util.Calendar.MINUTE)
 
-		// Format: YYMMDDHHMI (Year + Month + Day + Hour + Minute) - keeps increasing over time
-		val versionCode = year * 10000000 + month * 100000 + day * 1000 + hour * 100 + minute
+		// Format: YYMMDDHH (Year + Month + Day + Hour) - keeps increasing over time
+		val versionCode = year * 1000000 + month * 10000 + day * 100 + hour
 
 		if (shouldPrintVersionCode) {
 			logger.warn("Version code is '$versionCode' (generated from current date/time).")
