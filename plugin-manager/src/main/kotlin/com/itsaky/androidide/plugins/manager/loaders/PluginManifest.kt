@@ -1,6 +1,4 @@
-
-
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.loaders
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName

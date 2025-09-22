@@ -1,4 +1,4 @@
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.loaders
 
 import android.content.Context
 import android.content.pm.PackageInfo
@@ -6,6 +6,9 @@ import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Resources
 import android.util.Log
+import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
+import com.itsaky.androidide.plugins.manager.loaders.PluginManifestParser
+import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
 import dalvik.system.DexClassLoader
 import java.io.File
 
@@ -17,7 +20,7 @@ class PluginLoader(
     private val pluginApk: File
 ) {
     companion object {
-        private const val TAG = "APKPluginLoader"
+        private const val TAG = "PluginLoader"
     }
 
     private var pluginResources: Resources? = null

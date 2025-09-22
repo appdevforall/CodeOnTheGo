@@ -1,4 +1,4 @@
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.documentation
 
 import android.content.ContentValues
 import android.content.Context
@@ -19,6 +19,8 @@ class PluginDocumentationManager(private val context: Context) {
 
     companion object {
         private const val TAG = "PluginDocManager"
+
+        private const val THIRD_PARTY_DISCLAIMER = "<br><br><em style='color: #888; font-size: 0.9em;'>⚠️ This documentation is provided by a third-party plugin and is not part of the official COGO IDE documentation.</em>"
 
         private const val CREATE_PLUGIN_TRACKING_TABLE = """
             CREATE TABLE IF NOT EXISTS PluginTooltipTracking (
@@ -244,10 +246,10 @@ class PluginDocumentationManager(private val context: Context) {
             val existingId = existingCursor.getLong(0)
             existingCursor.close()
 
-            // Update existing tooltip
+            // Update existing tooltip with disclaimer
             val updateValues = ContentValues().apply {
-                put("summary", entry.summary)
-                put("detail", entry.detail)
+                put("summary", entry.summary + THIRD_PARTY_DISCLAIMER)
+                put("detail", if (entry.detail.isNotBlank()) entry.detail + THIRD_PARTY_DISCLAIMER else "")
             }
             db.update("Tooltips", updateValues, "id = ?", arrayOf(existingId.toString()))
 
@@ -258,12 +260,12 @@ class PluginDocumentationManager(private val context: Context) {
         }
         existingCursor.close()
 
-        // Insert new tooltip into main Tooltips table
+        // Insert new tooltip into main Tooltips table with disclaimer
         val values = ContentValues().apply {
             put("categoryId", categoryId)
             put("tag", entry.tag)
-            put("summary", entry.summary)
-            put("detail", entry.detail)
+            put("summary", entry.summary + THIRD_PARTY_DISCLAIMER)
+            put("detail", if (entry.detail.isNotBlank()) entry.detail + THIRD_PARTY_DISCLAIMER else "")
         }
         return db.insert("Tooltips", null, values)
     }
@@ -364,5 +366,93 @@ class PluginDocumentationManager(private val context: Context) {
             Log.e(TAG, "Database exists but cannot be opened", e)
             false
         }
+    }
+
+    /**
+     * Check if documentation for a specific plugin exists in the database.
+     */
+    suspend fun isPluginDocumentationInstalled(pluginId: String): Boolean = withContext(Dispatchers.IO) {
+        val db = getDocumentationDatabase() ?: return@withContext false
+
+        try {
+            val cursor = db.query(
+                "PluginTooltipTracking",
+                arrayOf("COUNT(*) as count"),
+                "pluginId = ?",
+                arrayOf(pluginId),
+                null, null, null
+            )
+
+            val hasDocumentation = if (cursor.moveToFirst()) {
+                cursor.getInt(0) > 0
+            } else {
+                false
+            }
+            cursor.close()
+            hasDocumentation
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to check plugin documentation for $pluginId", e)
+            false
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * Verify and recreate plugin documentation if missing.
+     * This should be called when a plugin is loaded to ensure its documentation is available.
+     */
+    suspend fun verifyAndRecreateDocumentation(
+        pluginId: String,
+        plugin: DocumentationExtension
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!isDatabaseAvailable()) {
+            Log.w(TAG, "Documentation database not available, skipping verification for $pluginId")
+            return@withContext false
+        }
+
+        val isInstalled = isPluginDocumentationInstalled(pluginId)
+
+        if (!isInstalled) {
+            Log.d(TAG, "Plugin documentation missing for $pluginId, recreating...")
+            return@withContext installPluginDocumentation(pluginId, plugin)
+        }
+
+        Log.d(TAG, "Plugin documentation already exists for $pluginId")
+        true
+    }
+
+    /**
+     * Verify and recreate documentation for all plugins that support it.
+     * This can be called after database updates or on app startup.
+     */
+    suspend fun verifyAllPluginDocumentation(
+        plugins: Map<String, DocumentationExtension>
+    ): Int = withContext(Dispatchers.IO) {
+        if (!isDatabaseAvailable()) {
+            Log.w(TAG, "Documentation database not available, skipping verification")
+            return@withContext 0
+        }
+
+        var recreatedCount = 0
+
+        for ((pluginId, plugin) in plugins) {
+            try {
+                if (!isPluginDocumentationInstalled(pluginId)) {
+                    Log.d(TAG, "Recreating missing documentation for plugin: $pluginId")
+                    if (installPluginDocumentation(pluginId, plugin)) {
+                        recreatedCount++
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to verify/recreate documentation for $pluginId", e)
+            }
+        }
+
+        if (recreatedCount > 0) {
+            Log.i(TAG, "Recreated documentation for $recreatedCount plugins")
+        }
+
+        recreatedCount
     }
 }

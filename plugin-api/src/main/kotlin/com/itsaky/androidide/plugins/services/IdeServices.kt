@@ -114,6 +114,54 @@ interface IdeBuildService {
 }
 
 /**
+ * Service interface that provides file editing capabilities for plugins.
+ * This service should be registered by COGO and made available to plugins
+ * that have the FILESYSTEM_WRITE permission.
+ */
+interface IdeFileService {
+    /**
+     * Reads the entire content of a file.
+     * @param file The file to read
+     * @return The file content as a string, or null if the file cannot be read
+     */
+    fun readFile(file: File): String?
+
+    /**
+     * Writes content to a file, replacing any existing content.
+     * @param file The file to write to
+     * @param content The content to write
+     * @return true if the write operation was successful, false otherwise
+     */
+    fun writeFile(file: File, content: String): Boolean
+
+    /**
+     * Appends content to the end of a file.
+     * @param file The file to append to
+     * @param content The content to append
+     * @return true if the append operation was successful, false otherwise
+     */
+    fun appendToFile(file: File, content: String): Boolean
+
+    /**
+     * Inserts content after the first occurrence of a pattern in a file.
+     * @param file The file to modify
+     * @param pattern The pattern to search for
+     * @param content The content to insert after the pattern
+     * @return true if the insertion was successful, false otherwise
+     */
+    fun insertAfterPattern(file: File, pattern: String, content: String): Boolean
+
+    /**
+     * Replaces all occurrences of old text with new text in a file.
+     * @param file The file to modify
+     * @param oldText The text to replace
+     * @param newText The replacement text
+     * @return true if the replacement was successful, false otherwise
+     */
+    fun replaceInFile(file: File, oldText: String, newText: String): Boolean
+}
+
+/**
  * Callback interface for build status changes.
  */
 interface BuildStatusListener {
@@ -121,12 +169,12 @@ interface BuildStatusListener {
      * Called when a build starts.
      */
     fun onBuildStarted()
-    
+
     /**
      * Called when a build finishes successfully.
      */
     fun onBuildFinished()
-    
+
     /**
      * Called when a build fails or is cancelled.
      * @param error The error message, or null if cancelled

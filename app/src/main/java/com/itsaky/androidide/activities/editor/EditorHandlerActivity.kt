@@ -21,11 +21,13 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
+import android.view.View
 import android.view.ViewGroup.LayoutParams
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import com.blankj.utilcode.util.ImageUtils
+import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
@@ -63,8 +65,9 @@ import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.plugins.manager.PluginEditorTabManager
-import com.itsaky.androidide.plugins.manager.PluginManager
+import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
+import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
+import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -99,6 +102,20 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     private val pluginTabIndices = mutableMapOf<String, Int>()
     private val tabIndexToPluginId = mutableMapOf<Int, String>()
 
+    private fun getTabPositionForFileIndex(fileIndex: Int): Int {
+        if (fileIndex < 0) return -1
+        var tabPos = 0
+        var fileCount = 0
+        while (tabPos < content.tabs.tabCount) {
+            if (!isPluginTab(tabPos)) {
+                if (fileCount == fileIndex) return tabPos
+                fileCount++
+            }
+            tabPos++
+        }
+        return -1
+    }
+
     override fun doOpenFile(file: File, selection: Range?) {
         openFileAndSelect(file, selection)
     }
@@ -127,7 +144,12 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
         editorViewModel._displayedFile.observe(
             this
-        ) { this.content.editorContainer.displayedChild = it }
+        ) { fileIndex ->
+            val tabPosition = getTabPositionForFileIndex(fileIndex)
+            if (tabPosition >= 0) {
+                this.content.editorContainer.displayedChild = tabPosition
+            }
+        }
         editorViewModel._startDrawerOpened.observe(this) { opened ->
             this.binding.editorDrawerLayout.apply {
                 if (opened) openDrawer(GravityCompat.START) else closeDrawer(GravityCompat.START)
@@ -347,13 +369,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     override fun getEditorAtIndex(index: Int): CodeEditorView? {
-        val child = _binding?.content?.editorContainer?.getChildAt(index) ?: return null
-        return if (child is CodeEditorView) {
-            child
-        } else {
-            // This might be a plugin container, not an editor view
-            null
-        }
+        val tabPosition = getTabPositionForFileIndex(index)
+        if (tabPosition < 0) return null
+        val child = _binding?.content?.editorContainer?.getChildAt(tabPosition) ?: return null
+        return if (child is CodeEditorView) child else null
     }
 
     override fun openFileAndSelect(file: File, selection: Range?) {
@@ -379,19 +398,22 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             return null
         }
 
-        val index = openFileAndGetIndex(file, range)
-        val tab = content.tabs.getTabAt(index)
-        if (tab != null && index >= 0 && !tab.isSelected) {
+        val fileIndex = openFileAndGetIndex(file, range)
+        if (fileIndex < 0) return null
+
+        editorViewModel.startDrawerOpened = false
+        editorViewModel.displayedFileIndex = fileIndex
+
+        val tabPosition = getTabPositionForFileIndex(fileIndex)
+        val tab = content.tabs.getTabAt(tabPosition)
+        if (tab != null && !tab.isSelected) {
             tab.select()
         }
 
-        editorViewModel.startDrawerOpened = false
-        editorViewModel.displayedFileIndex = index
-
         return try {
-            getEditorAtIndex(index)
+            getEditorAtIndex(fileIndex)
         } catch (th: Throwable) {
-            log.error("Unable to get editor fragment at opened file index {}", index, th)
+            log.error("Unable to get editor at file index {}", fileIndex, th)
             null
         }
     }
@@ -406,23 +428,61 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             return -1
         }
 
-        val position = editorViewModel.getOpenedFileCount()
+        val fileIndex = editorViewModel.getOpenedFileCount()
+        val tabPosition = getNextFileTabPosition()
 
-        log.info("Opening file at index {} file:{}", position, file)
+        log.info("Opening file at file index {} tab position {} file:{}", fileIndex, tabPosition, file)
 
         val editor = CodeEditorView(this, file, selection!!)
         editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
 
-        content.editorContainer.addView(editor)
-        content.tabs.addTab(content.tabs.newTab())
+        if (tabPosition >= content.tabs.tabCount) {
+            content.tabs.addTab(content.tabs.newTab())
+            content.editorContainer.addView(editor)
+        } else {
+            content.tabs.addTab(content.tabs.newTab(), tabPosition)
+            content.editorContainer.addView(editor, tabPosition)
+            shiftPluginIndices(tabPosition, 1)
+        }
 
         editorViewModel.addFile(file)
-        editorViewModel.setCurrentFile(position, file)
+        editorViewModel.setCurrentFile(fileIndex, file)
 
         updateTabs()
 
-        return position
+        return fileIndex
     }
+
+    private fun getNextFileTabPosition(): Int {
+        var lastFileTabPos = -1
+        for (i in 0 until content.tabs.tabCount) {
+            if (!isPluginTab(i)) {
+                lastFileTabPos = i
+            }
+        }
+        return lastFileTabPos + 1
+    }
+
+    private fun shiftPluginIndices(fromPosition: Int, delta: Int) {
+        val shifted = mutableMapOf<String, Int>()
+        pluginTabIndices.forEach { (id, index) ->
+            val newIndex = if (index >= fromPosition) index + delta else index
+            if (newIndex >= 0) {
+                shifted[id] = newIndex
+            }
+        }
+
+        pluginTabIndices.clear()
+        pluginTabIndices.putAll(shifted)
+
+        tabIndexToPluginId.clear()
+        shifted.forEach { (id, index) ->
+            tabIndexToPluginId[index] = id
+        }
+
+        Log.d("EditorHandlerActivity", "Updated plugin indices after shift: $pluginTabIndices")
+    }
+
 
     override fun getEditorForFile(file: File): CodeEditorView? {
         for (i in 0 until content.editorContainer.childCount) {
@@ -604,17 +664,20 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             log.error("Cannot save file before close. Editor instance is null")
         }
 
+        val tabPosition = getTabPositionForFileIndex(index)
         editorViewModel.removeFile(index)
-        content.apply {
-            tabs.removeTabAt(index)
-            editorContainer.removeViewAt(index)
+
+        if (tabPosition >= 0) {
+            content.tabs.removeTabAt(tabPosition)
+            content.editorContainer.removeViewAt(tabPosition)
+            shiftPluginIndices(tabPosition + 1, -1)
         }
 
         editorViewModel.areFilesModified = hasUnsavedFiles()
-
         updateTabs()
         runAfter()
     }
+
 
     override fun closeOthers() {
         if (editorViewModel.getOpenedFileCount() == 0) {
@@ -677,10 +740,28 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             return
         }
 
-        // Files were already saved, close all files one by one
+        // Close all files
         for (i in 0 until count) {
             getEditorAtIndex(i)?.close() ?: run {
                 log.error("Unable to close file at index {}", i)
+            }
+        }
+
+        // Close all plugin tabs
+        val pluginTabIds = pluginTabIndices.keys.toList()
+        for (pluginId in pluginTabIds) {
+            val tabIndex = pluginTabIndices[pluginId]
+            if (tabIndex != null) {
+                try {
+                    val fragment = supportFragmentManager.findFragmentByTag("plugin_tab_$pluginId")
+                    if (fragment != null) {
+                        supportFragmentManager.beginTransaction()
+                            .remove(fragment)
+                            .commitAllowingStateLoss()
+                    }
+                } catch (e: Exception) {
+                    log.error("Error removing plugin fragment for $pluginId", e)
+                }
             }
         }
 
@@ -690,6 +771,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
             tabs.requestLayout()
             editorContainer.removeAllViews()
         }
+
+        pluginTabIndices.clear()
+        tabIndexToPluginId.clear()
+        updateTabVisibility()
 
         runAfter()
     }
@@ -701,11 +786,49 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         }
 
     fun closeCurrentFile() {
-        content.tabs.selectedTabPosition.let { index ->
-            closeFile(index) {
+        val tabPosition = content.tabs.selectedTabPosition
+
+        if (isPluginTab(tabPosition)) {
+            closePluginTab(tabPosition)
+            return
+        }
+
+        val fileIndex = getFileIndexForTabPosition(tabPosition)
+        if (fileIndex >= 0) {
+            closeFile(fileIndex) {
                 invalidateOptionsMenu()
             }
         }
+    }
+
+    private fun closePluginTab(tabPosition: Int) {
+        val pluginId = tabIndexToPluginId[tabPosition] ?: return
+
+        try {
+            val fragment = supportFragmentManager.findFragmentByTag("plugin_tab_$pluginId")
+            if (fragment != null) {
+                supportFragmentManager.beginTransaction()
+                    .remove(fragment)
+                    .commitAllowingStateLoss()
+            }
+
+            val tabManager = PluginEditorTabManager.getInstance()
+            tabManager.closeTab(pluginId)
+        } catch (e: Exception) {
+            Log.e("EditorHandlerActivity", "Error cleaning up plugin tab $pluginId", e)
+        }
+
+        content.tabs.removeTabAt(tabPosition)
+        content.editorContainer.removeViewAt(tabPosition)
+
+        pluginTabIndices.remove(pluginId)
+        tabIndexToPluginId.remove(tabPosition)
+
+        shiftPluginIndices(tabPosition + 1, -1)
+        updateTabVisibility()
+
+        invalidateOptionsMenu()
+        Log.d("EditorHandlerActivity", "Successfully closed plugin tab: $pluginId")
     }
 
     private fun notifyFilesUnsaved(unsavedEditors: List<CodeEditorView?>, invokeAfter: Runnable) {
@@ -756,20 +879,17 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onDocumentChange(event: DocumentChangeEvent) {
-        // update content modification status
         editorViewModel.areFilesModified = true
 
-        val index = findIndexOfEditorByFile(event.file.toFile())
-        if (index == -1) {
-            return
-        }
+        val fileIndex = findIndexOfEditorByFile(event.file.toFile())
+        if (fileIndex == -1) return
 
-        val tab = content.tabs.getTabAt(index)!!
-        if (tab.text?.startsWith('*') == true) {
-            return
-        }
+        val tabPosition = getTabPositionForFileIndex(fileIndex)
+        if (tabPosition < 0) return
 
-        // mark as modified
+        val tab = content.tabs.getTabAt(tabPosition) ?: return
+        if (tab.text?.startsWith('*') == true) return
+
         tab.text = "*${tab.text}"
     }
 
@@ -886,21 +1006,19 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                     tab.icon = ResourcesCompat.getDrawable(resources, iconRes, theme)
                 }
 
+                val tabIndex = content.tabs.tabCount
                 content.tabs.addTab(tab)
-                val tabIndex = content.tabs.tabCount - 1
+
+                val containerView = android.widget.FrameLayout(this@EditorHandlerActivity).apply {
+                    id = android.view.View.generateViewId()
+                    layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+                }
+                content.editorContainer.addView(containerView)
 
                 pluginTabIndices[pluginTab.id] = tabIndex
                 tabIndexToPluginId[tabIndex] = pluginTab.id
 
                 Log.d("EditorHandlerActivity", "Plugin tab ${pluginTab.id} created at index $tabIndex")
-
-                // Create a container view for the plugin content
-                val containerView = android.widget.FrameLayout(this@EditorHandlerActivity).apply {
-                    id = android.view.View.generateViewId()
-                    layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-                }
-                // Add the container at the specific tab position to maintain alignment
-                content.editorContainer.addView(containerView, tabIndex)
 
                 // Load the plugin fragment into the container
                 val fragment = tabManager.getOrCreateTabFragment(pluginTab.id)
@@ -914,8 +1032,9 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
                     Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
                 }
 
-                // Select the newly created tab
                 tab.select()
+                editorViewModel.displayedFileIndex = -1
+                updateTabVisibility()
 
                 Log.d("EditorHandlerActivity", "Successfully created and selected plugin tab: ${pluginTab.id}")
             }
@@ -928,38 +1047,57 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     fun loadPluginTabs() {
-        Log.d("EditorHandlerActivity", "loadPluginTabs() called")
         try {
             val pluginManager = IDEApplication.getPluginManager() ?: run {
                 Log.w("EditorHandlerActivity", "Plugin manager not available, skipping plugin tab loading")
                 return
             }
 
-            Log.d("EditorHandlerActivity", "Loading plugin tabs...")
             val tabManager = PluginEditorTabManager.getInstance()
             tabManager.loadPluginTabs(pluginManager)
 
             val pluginTabs = tabManager.getAllPluginTabs()
-            Log.i("EditorHandlerActivity", "Found ${pluginTabs.size} plugin tabs to load")
 
             if (pluginTabs.isEmpty()) {
                 Log.d("EditorHandlerActivity", "No plugin tabs to load")
                 return
             }
-
-            // Just register the plugin tabs for later use, don't add them to UI yet
-            Log.d("EditorHandlerActivity", "Plugin tabs registered and ready for on-demand creation")
         } catch (e: Exception) {
             Log.e("EditorHandlerActivity", "Failed to load plugin tabs", e)
         }
     }
 
     fun isPluginTab(position: Int): Boolean {
-        return tabIndexToPluginId.containsKey(position)
+        if (position < 0 || position >= content.tabs.tabCount) {
+            return false
+        }
+        val result = tabIndexToPluginId.containsKey(position)
+        return result
     }
 
     fun getPluginTabId(position: Int): String? {
         return tabIndexToPluginId[position]
+    }
+
+    private fun canClosePluginTab(position: Int): Boolean {
+        val pluginId = tabIndexToPluginId[position] ?: return false
+        val tabManager = PluginEditorTabManager.getInstance()
+        return tabManager.canCloseTab(pluginId)
+    }
+
+    fun updateTabVisibility() {
+        val hasFiles = editorViewModel.getOpenedFileCount() > 0
+        val hasPluginTabs = pluginTabIndices.isNotEmpty()
+
+        content.apply {
+            if (!hasFiles && !hasPluginTabs) {
+                tabs.visibility = View.GONE
+                viewContainer.displayedChild = 1
+            } else {
+                tabs.visibility = View.VISIBLE
+                viewContainer.displayedChild = 0
+            }
+        }
     }
 
     /**
@@ -981,5 +1119,54 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
         // The file index is the tab position minus the plugin tabs before it
         return tabPosition - pluginTabsBefore
+    }
+
+    fun showPluginTabPopup(tab: TabLayout.Tab) {
+        val anchorView = tab.view ?: return
+
+        // Don't show popup if this is the only tab open
+        val totalTabs = content.tabs.tabCount
+        if (totalTabs <= 1) {
+            return
+        }
+
+        // Check if this plugin tab can actually be closed
+        val position = tab.position
+        if (!canClosePluginTab(position)) {
+            return
+        }
+
+        val binding = FileActionPopupWindowBinding.inflate(
+            android.view.LayoutInflater.from(this), null, false
+        )
+
+        val popupWindow = android.widget.PopupWindow(
+            binding.root,
+            LayoutParams.WRAP_CONTENT,
+            LayoutParams.WRAP_CONTENT,
+        ).apply {
+            elevation = 2f
+            isOutsideTouchable = true
+        }
+
+        val closeItem = FileActionPopupWindowItemBinding.inflate(
+            android.view.LayoutInflater.from(this),
+            null,
+            false
+        ).root
+
+        closeItem.apply {
+            text = "Close Tab"
+            setOnClickListener {
+                val position = tab.position
+                if (isPluginTab(position)) {
+                    closePluginTab(position)
+                }
+                popupWindow.dismiss()
+            }
+        }
+
+        binding.root.addView(closeItem)
+        popupWindow.showAsDropDown(anchorView, 0, 0)
     }
 }

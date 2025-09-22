@@ -46,7 +46,7 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.plugins.manager.PluginManager
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 
 
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
@@ -216,6 +216,7 @@ class IDEApplication : TermuxApplication() {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun initializePluginSystem() {
         try {
             log.info("Initializing plugin system...")

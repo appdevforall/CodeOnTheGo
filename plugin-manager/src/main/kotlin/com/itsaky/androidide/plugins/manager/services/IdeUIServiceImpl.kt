@@ -3,8 +3,8 @@
 package com.itsaky.androidide.plugins.manager.services
 
 import android.app.Activity
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.services.IdeUIService
-import com.itsaky.androidide.plugins.manager.PluginManager
 
 /**
  * Implementation of IdeUIService that provides access to COGO's UI context

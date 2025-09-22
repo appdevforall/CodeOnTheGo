@@ -38,8 +38,6 @@ interface ResourceManager {
     fun getPluginDirectory(): File
     fun getPluginFile(path: String): File
     fun getPluginResource(name: String): ByteArray?
-    fun hasPermission(permission: PluginPermission): Boolean
-    fun requestPermission(permission: PluginPermission): Boolean
 }
 
 interface PluginLogger {

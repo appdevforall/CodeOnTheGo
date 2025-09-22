@@ -2,7 +2,7 @@ package com.itsaky.androidide.repositories
 
 import android.util.Log
 import com.itsaky.androidide.plugins.PluginInfo
-import com.itsaky.androidide.plugins.manager.PluginManager
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

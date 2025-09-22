@@ -99,12 +99,12 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
 import com.itsaky.androidide.lookup.Lookup
-import com.itsaky.androidide.plugins.manager.PluginEditorTabManager
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -736,13 +736,11 @@ abstract class BaseEditorActivity :
     override fun onTabSelected(tab: Tab) {
         val position = tab.position
 
-        // Always set the container to display the content at the tab position
         content.editorContainer.displayedChild = position
 
         if (this is EditorHandlerActivity && isPluginTab(position)) {
             val pluginTabId = getPluginTabId(position)
             if (pluginTabId != null) {
-                // For plugin tabs, handle plugin-specific logic without file operations
                 val tabManager = PluginEditorTabManager.getInstance()
                 tabManager.onTabSelected(pluginTabId)
                 invalidateOptionsMenu()
@@ -750,7 +748,6 @@ abstract class BaseEditorActivity :
             }
         }
 
-        // For file tabs, we need to find the actual file index
         val fileIndex = if (this is EditorHandlerActivity) {
             getFileIndexForTabPosition(position)
         } else {
@@ -764,9 +761,13 @@ abstract class BaseEditorActivity :
 
         editorViewModel.displayedFileIndex = fileIndex
 
-        val editorView = provideEditorAt(position)
+        val editorView = if (this is EditorHandlerActivity) {
+            provideEditorAt(fileIndex)
+        } else {
+            provideEditorAt(position)
+        }
+
         if (editorView == null) {
-            // This might be a plugin tab or invalid position, skip editor operations
             invalidateOptionsMenu()
             return
         }
@@ -780,6 +781,11 @@ abstract class BaseEditorActivity :
     override fun onTabUnselected(tab: Tab) {}
 
     override fun onTabReselected(tab: Tab) {
+        val position = tab.position
+        if (this is EditorHandlerActivity && isPluginTab(position)) {
+            (this as EditorHandlerActivity).showPluginTabPopup(tab)
+            return
+        }
         showPopupWindow(
             context = this,
             anchorView = tab.view
@@ -996,13 +1002,17 @@ abstract class BaseEditorActivity :
         }
 
         editorViewModel.observeFiles(this) { files ->
-            content.apply {
-                if (files.isNullOrEmpty()) {
-                    tabs.visibility = View.GONE
-                    viewContainer.displayedChild = 1
-                } else {
-                    tabs.visibility = View.VISIBLE
-                    viewContainer.displayedChild = 0
+            if (this is EditorHandlerActivity) {
+                (this as EditorHandlerActivity).updateTabVisibility()
+            } else {
+                content.apply {
+                    if (files.isNullOrEmpty()) {
+                        tabs.visibility = View.GONE
+                        viewContainer.displayedChild = 1
+                    } else {
+                        tabs.visibility = View.VISIBLE
+                        viewContainer.displayedChild = 0
+                    }
                 }
             }
 

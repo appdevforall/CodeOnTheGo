@@ -1,27 +1,35 @@
 
 
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.core
 
 import android.app.Activity
 import android.content.Context
 import com.itsaky.androidide.plugins.*
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.services.IdeProjectService
-import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
-import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
-import com.itsaky.androidide.plugins.manager.services.AndroidIdeEditorProvider
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
+import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
+import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
+import com.itsaky.androidide.plugins.manager.context.PluginContextImpl
+import com.itsaky.androidide.plugins.manager.context.PluginLoggerImpl
+import com.itsaky.androidide.plugins.manager.context.PluginRegistry
+import com.itsaky.androidide.plugins.manager.context.ResourceManagerImpl
+import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
+import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationManager
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
+import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -57,7 +65,6 @@ class PluginManager private constructor(
     
     // Configurable permissions for different services
     private var projectServicePermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_READ)
-    private var editorServicePermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_READ)
     
     companion object {
         @Volatile
@@ -114,7 +121,6 @@ class PluginManager private constructor(
 
     // IDE service providers
     private val projectProvider = CogoProjectProvider()
-    private val editorProvider = AndroidIdeEditorProvider()
     
     init {
         if (!pluginsDir.exists()) {
@@ -130,6 +136,9 @@ class PluginManager private constructor(
 
         // Load plugin states first
         loadPluginStates()
+
+        // After loading all plugins, verify documentation for already loaded plugins
+        verifyDocumentationForLoadedPlugins()
 
         val pluginFiles = pluginsDir.listFiles { file ->
             file.isFile && (file.name.endsWith(".") || file.name.endsWith(".cgp"))
@@ -153,6 +162,35 @@ class PluginManager private constructor(
         loadJobs.awaitAll()
 
         logger.info("Successfully loaded ${loadedPlugins.size} plugins")
+
+        // Verify documentation after all plugins are loaded
+        verifyDocumentationForLoadedPlugins()
+    }
+
+    /**
+     * Verify and recreate documentation for all loaded plugins that support it.
+     * This ensures documentation is present even after database updates.
+     */
+    private suspend fun verifyDocumentationForLoadedPlugins() = withContext(Dispatchers.IO) {
+        val pluginsWithDocs = loadedPlugins.values
+            .filter { it.plugin is DocumentationExtension }
+            .associate { it.manifest.id to it.plugin as DocumentationExtension }
+
+        if (pluginsWithDocs.isNotEmpty()) {
+            logger.info("Verifying documentation for ${pluginsWithDocs.size} plugins")
+            val recreatedCount = documentationManager.verifyAllPluginDocumentation(pluginsWithDocs)
+            if (recreatedCount > 0) {
+                logger.info("Recreated missing documentation for $recreatedCount plugins")
+            }
+        }
+    }
+
+    /**
+     * Public method to manually trigger documentation verification.
+     * Can be called when database changes are detected.
+     */
+    suspend fun verifyAllPluginDocumentation() = withContext(Dispatchers.IO) {
+        verifyDocumentationForLoadedPlugins()
     }
     
 
@@ -288,18 +326,18 @@ class PluginManager private constructor(
                         plugin.activate()
                         logger.info("Successfully loaded and activated  plugin: ${manifest.name} (${manifest.id})")
 
-                        // Install documentation if plugin implements DocumentationExtension
+                        // Verify and install/recreate documentation if plugin implements DocumentationExtension
                         if (plugin is DocumentationExtension) {
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
-                                    val docResult = documentationManager.installPluginDocumentation(manifest.id, plugin)
+                                    val docResult = documentationManager.verifyAndRecreateDocumentation(manifest.id, plugin)
                                     if (docResult) {
-                                        logger.info("Installed documentation for plugin: ${manifest.id}")
+                                        logger.info("Documentation verified/installed for plugin: ${manifest.id}")
                                     } else {
-                                        logger.warn("Failed to install documentation for plugin: ${manifest.id}")
+                                        logger.warn("Failed to verify/install documentation for plugin: ${manifest.id}")
                                     }
                                 } catch (e: Exception) {
-                                    logger.error("Error installing documentation for plugin: ${manifest.id}", e)
+                                    logger.error("Error verifying/installing documentation for plugin: ${manifest.id}", e)
                                 }
                             }
                         }
@@ -409,18 +447,13 @@ class PluginManager private constructor(
 
         // Remove plugin state and cleanup contributions
         if (deleted) {
-            android.util.Log.d("claudePluginManager", "Step 3: Removing plugin state and cleaning up cache files")
             removePluginState(pluginId)
             cleanupPluginCacheFiles(pluginId)
-            android.util.Log.d("claudePluginManager", "Plugin uninstall completed successfully: $pluginId")
             logger.info("Plugin uninstall completed successfully: $pluginId")
         } else {
-            android.util.Log.d("claudePluginManager", "Failed to uninstall plugin: $pluginId - file not found or could not be deleted")
             logger.error("Failed to uninstall plugin: $pluginId - file not found or could not be deleted")
         }
-
-        android.util.Log.d("claudePluginManager", "=== Uninstall process ended for plugin: $pluginId (success: $deleted) ===")
-        logger.info("=== Uninstall process ended for plugin: $pluginId (success: $deleted) ===")
+        logger.info("Uninstall process ended for plugin: $pluginId (success: $deleted) ===")
         return deleted
     }
     
@@ -601,12 +634,6 @@ class PluginManager private constructor(
         this.projectServicePermissions = permissions
     }
     
-    /**
-     * Configure required permissions for editor service access
-     */
-    fun setEditorServicePermissions(permissions: Set<PluginPermission>) {
-        this.editorServicePermissions = permissions
-    }
     
     /**
      * Create plugin context with  resources
@@ -643,25 +670,6 @@ class PluginManager private constructor(
             )
         }
 
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeEditorService::class.java,
-            pluginId,
-            "editor"
-        ) {
-            IdeEditorServiceImpl(
-                pluginId = pluginId,
-                permissions = permissions,
-                editorProvider = editorProvider,
-                requiredPermissions = editorServicePermissions,
-                pathValidator = pathValidator?.let { validator ->
-                    object : IdeEditorServiceImpl.PathValidator {
-                        override fun isPathAllowed(file: File): Boolean = validator.isPathAllowed(file)
-                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-                    }
-                }
-            )
-        }
 
         registerServiceWithErrorHandling(
             pluginServiceRegistry,
@@ -700,6 +708,25 @@ class PluginManager private constructor(
             "editor_tab"
         ) {
             IdeEditorTabServiceImpl(activityProvider)
+        }
+
+        // File service for editing project files
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFileService::class.java,
+            pluginId,
+            "file"
+        ) {
+            IdeFileServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeFileServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
         }
 
         // Create PluginContext with resource context
@@ -746,25 +773,6 @@ class PluginManager private constructor(
             )
         }
 
-        registerServiceWithErrorHandling(
-            pluginServiceRegistry,
-            IdeEditorService::class.java,
-            pluginId,
-            "editor"
-        ) {
-            IdeEditorServiceImpl(
-                pluginId = pluginId,
-                permissions = permissions,
-                editorProvider = editorProvider,
-                requiredPermissions = editorServicePermissions,
-                pathValidator = pathValidator?.let { validator ->
-                    object : IdeEditorServiceImpl.PathValidator {
-                        override fun isPathAllowed(file: File): Boolean = validator.isPathAllowed(file)
-                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-                    }
-                }
-            )
-        }
 
         // UI service is always created, even if activityProvider is null
         registerServiceWithErrorHandling(
@@ -806,6 +814,24 @@ class PluginManager private constructor(
             IdeEditorTabServiceImpl(activityProvider)
         }
 
+        // File service for editing project files
+        registerServiceWithErrorHandling(
+            pluginServiceRegistry,
+            IdeFileService::class.java,
+            pluginId,
+            "file"
+        ) {
+            IdeFileServiceImpl(
+                pluginId = pluginId,
+                permissions = permissions,
+                pathValidator = pathValidator?.let { validator ->
+                    object : IdeFileServiceImpl.PathValidator {
+                        override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
+                        override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
+                    }
+                }
+            )
+        }
 
         // Copy other services from global registry
         // TODO: Add mechanism to copy global services to plugin-specific registry

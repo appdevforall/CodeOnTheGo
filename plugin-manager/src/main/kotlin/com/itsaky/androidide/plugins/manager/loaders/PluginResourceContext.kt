@@ -1,4 +1,4 @@
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.loaders
 
 import android.content.Context
 import android.content.ContextWrapper

@@ -28,11 +28,11 @@ interface IModule {
 }
 
 enum class ProjectType {
-    ANDROID_APP, ANDROID_LIBRARY, JAVA_LIBRARY, KOTLIN_LIBRARY, GRADLE_PLUGIN
+    ANDROID_APP, GRADLE_PLUGIN
 }
 
 enum class ModuleType {
-    ANDROID_APP, ANDROID_LIBRARY, JAVA_LIBRARY, KOTLIN_LIBRARY
+    ANDROID_APP
 }
 
 data class SourceSet(

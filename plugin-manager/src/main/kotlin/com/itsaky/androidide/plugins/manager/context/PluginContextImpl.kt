@@ -1,9 +1,10 @@
 
 
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.context
 
 import android.content.Context
 import com.itsaky.androidide.plugins.*
+import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -75,18 +76,7 @@ class ResourceManagerImpl(
             null
         }
     }
-    
-    override fun hasPermission(permission: PluginPermission): Boolean {
-        // For now, return true - in a real implementation,
-        // this would check the plugin's granted permissions
-        return true
-    }
-    
-    override fun requestPermission(permission: PluginPermission): Boolean {
-        // For now, return true - in a real implementation,
-        // this would prompt the user for permission
-        return true
-    }
+
 }
 
 class PluginLoggerImpl(

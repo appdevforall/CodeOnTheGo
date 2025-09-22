@@ -31,5 +31,4 @@ interface IdeTooltipService {
      * @param tag The tooltip tag
      * @return True if the tooltip exists
      */
-    fun hasTooltip(category: String, tag: String): Boolean
 }

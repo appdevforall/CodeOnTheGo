@@ -58,9 +58,9 @@ import com.itsaky.androidide.actions.github.GitHubPushAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
-import com.itsaky.androidide.plugins.manager.PluginManager
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.

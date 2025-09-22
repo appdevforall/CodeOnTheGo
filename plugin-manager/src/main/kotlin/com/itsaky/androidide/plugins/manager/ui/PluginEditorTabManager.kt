@@ -1,9 +1,10 @@
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.ui
 
 import android.util.Log
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.plugins.extensions.EditorTabExtension
 import com.itsaky.androidide.plugins.extensions.EditorTabItem
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import org.slf4j.LoggerFactory
 
 /**

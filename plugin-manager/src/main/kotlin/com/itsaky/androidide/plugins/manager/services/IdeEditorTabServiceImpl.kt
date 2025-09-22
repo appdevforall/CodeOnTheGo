@@ -1,9 +1,9 @@
 package com.itsaky.androidide.plugins.manager.services
 
 import android.util.Log
+import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
-import com.itsaky.androidide.plugins.manager.PluginEditorTabManager
-import com.itsaky.androidide.plugins.manager.PluginManager
 
 /**
  * Implementation of IdeEditorTabService that provides plugin access to the editor tab system.

@@ -20,6 +20,9 @@ import com.appdevforall.keygen.plugin.R
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
+import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.plugins.services.BuildStatusListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,7 +32,7 @@ import java.io.File
 /**
  * Reusable fragment for keystore generation that can be used in editor tabs, bottom sheet, etc.
  */
-class KeystoreGeneratorFragment : Fragment() {
+class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
 
     companion object {
         private const val PLUGIN_ID = "com.appdevforall.keygen.plugin"
@@ -37,9 +40,16 @@ class KeystoreGeneratorFragment : Fragment() {
 
     private var projectService: IdeProjectService? = null
     private var tooltipService: IdeTooltipService? = null
+    private var fileService: IdeFileService? = null
+    private var buildService: IdeBuildService? = null
+
+    // Build status tracking
+    private var isBuildRunning = false
+    private var lastBuildFailed = false
 
     // UI Components
     private lateinit var statusContainer: LinearLayout
+    private lateinit var headerContainer: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var keystoreNameInput: EditText
@@ -63,6 +73,8 @@ class KeystoreGeneratorFragment : Fragment() {
             val serviceRegistry = PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
             projectService = serviceRegistry?.get(IdeProjectService::class.java)
             tooltipService = serviceRegistry?.get(IdeTooltipService::class.java)
+            fileService = serviceRegistry?.get(IdeFileService::class.java)
+            buildService = serviceRegistry?.get(IdeBuildService::class.java)
         } catch (e: Exception) {
             // Services might not be available yet, we'll handle this gracefully
         }
@@ -86,10 +98,24 @@ class KeystoreGeneratorFragment : Fragment() {
 
         initializeViews(view)
         setupClickListeners()
+        updateButtonStates()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Register for build status updates
+        buildService?.addBuildStatusListener(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Unregister from build status updates
+        buildService?.removeBuildStatusListener(this)
     }
 
     private fun initializeViews(view: View) {
         statusContainer = view.findViewById(R.id.status_container)
+        headerContainer = view.findViewById(R.id.header_container)
         statusText = view.findViewById(R.id.tv_status)
         progressBar = view.findViewById(R.id.progress_bar)
 
@@ -146,7 +172,18 @@ class KeystoreGeneratorFragment : Fragment() {
             ) ?: run {
                 showToast("Long press detected! Documentation not available.")
             }
-            true // Consume the long click
+            true
+        }
+
+        headerContainer.setOnLongClickListener { view ->
+            tooltipService?.showTooltip(
+                anchorView = view,
+                category = "plugin_keystore_generator",
+                tag = "keystore_generator.editor_tab"
+            ) ?: run {
+                showToast("Long press detected! Documentation not available.")
+            }
+            true
         }
     }
 
@@ -186,6 +223,11 @@ class KeystoreGeneratorFragment : Fragment() {
     }
 
     private fun generateKeystore() {
+        // Check if action should be disabled
+        if (!isKeystoreGenerationEnabled()) {
+            showActionDisabledMessage()
+            return
+        }
         val config = KeystoreConfig(
             keystoreName = keystoreNameInput.text.toString().trim(),
             keystorePassword = keystorePasswordInput.text.toString().toCharArray(),
@@ -214,8 +256,13 @@ class KeystoreGeneratorFragment : Fragment() {
 
                     when (result) {
                         is KeystoreGenerationResult.Success -> {
-                            showSuccess("✅ Keystore generated successfully!\nLocation: ${result.keystoreFile.absolutePath}")
-                            showToast("Keystore created: ${result.keystoreFile.name}")
+                            // Update build file on main thread
+                            val currentProject = projectService?.getCurrentProject()
+                            if (currentProject != null) {
+                                addSigningConfigToBuildFile(currentProject.rootDir, config, result.keystoreFile)
+                            }
+
+                            showSuccess("✅ Keystore generated successfully!\nLocation: ${result.keystoreFile.absolutePath}\n📝 Build file updated with signing configuration")
                         }
                         is KeystoreGenerationResult.Error -> {
                             showError("❌ Generation failed: ${result.message}")
@@ -245,6 +292,7 @@ class KeystoreGeneratorFragment : Fragment() {
             try {
                 val serviceRegistry = PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
                 projectService = serviceRegistry?.get(IdeProjectService::class.java)
+                fileService = serviceRegistry?.get(IdeFileService::class.java)
             } catch (e: Exception) {
                 return KeystoreGenerationResult.Error("IDE project service not available")
             }
@@ -263,7 +311,9 @@ class KeystoreGeneratorFragment : Fragment() {
             }
 
             // Generate the keystore
-            KeystoreGenerator.generateKeystore(config, appDirectory)
+            val result = KeystoreGenerator.generateKeystore(config, appDirectory)
+
+            result
 
         } catch (e: SecurityException) {
             KeystoreGenerationResult.Error("Permission denied: ${e.message}", e)
@@ -303,15 +353,15 @@ class KeystoreGeneratorFragment : Fragment() {
     private fun showSuccess(message: String) {
         statusContainer.visibility = View.VISIBLE
         statusText.text = message
-        statusText.setTextColor(Color.parseColor("#4CAF50")) // Green
-        statusContainer.setBackgroundColor(Color.parseColor("#E8F5E8")) // Light green background
+        statusText.setTextColor(Color.parseColor("#4CAF50"))
+        statusContainer.setBackgroundColor(Color.parseColor("#E8F5E8"))
     }
 
     private fun showError(message: String) {
         statusContainer.visibility = View.VISIBLE
         statusText.text = message
-        statusText.setTextColor(Color.parseColor("#F44336")) // Red
-        statusContainer.setBackgroundColor(Color.parseColor("#FFF3F3")) // Light red background
+        statusText.setTextColor(Color.parseColor("#F44336"))
+        statusContainer.setBackgroundColor(Color.parseColor("#FFF3F3"))
     }
 
     private fun hideStatus() {
@@ -319,6 +369,127 @@ class KeystoreGeneratorFragment : Fragment() {
     }
 
     private fun showToast(message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        activity?.runOnUiThread {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun addSigningConfigToBuildFile(projectDir: File, config: KeystoreConfig, keystoreFile: File) {
+        if (fileService == null) {
+            // Try to get it again in case it's available now
+            try {
+                val serviceRegistry = PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
+                fileService = serviceRegistry?.get(IdeFileService::class.java)
+            } catch (e: Exception) {
+                showToast("ERROR: IdeFileService not available")
+                return
+            }
+        }
+
+        val buildFiles = listOf(
+            File(projectDir, "app/build.gradle"),
+            File(projectDir, "app/build.gradle.kts")
+        )
+
+        val buildFile = buildFiles.find { it.exists() } ?: run {
+            showToast("ERROR: No build.gradle found in app directory")
+            return
+        }
+
+        try {
+            val isKotlinDsl = buildFile.name.endsWith(".kts")
+            val keystoreRelativePath = "${keystoreFile.name}"
+
+            val signingConfig = if (isKotlinDsl) {
+                generateKotlinSigningConfig(config, keystoreRelativePath)
+            } else {
+                generateGroovySigningConfig(config, keystoreRelativePath)
+            }
+
+            val androidPattern = "android {"
+            val success = fileService?.insertAfterPattern(buildFile, androidPattern, signingConfig) ?: false
+
+            if (success) {
+                showToast("Build file updated with signing config")
+            } else {
+                showToast("Could not find android block in ${buildFile.name}")
+            }
+
+        } catch (e: Exception) {
+            showToast("Error modifying build file: ${e.message}")
+        }
+    }
+
+    private fun generateKotlinSigningConfig(config: KeystoreConfig, keystoreRelativePath: String): String {
+        return """
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("$keystoreRelativePath")
+            storePassword = "${String(config.keystorePassword)}"
+            keyAlias = "${config.keyAlias}"
+            keyPassword = "${String(config.keyPassword)}"
+        }
+    }
+"""
+    }
+
+    private fun generateGroovySigningConfig(config: KeystoreConfig, keystoreRelativePath: String): String {
+        return """
+
+    signingConfigs {
+        release {
+            storeFile file('$keystoreRelativePath')
+            storePassword '${String(config.keystorePassword)}'
+            keyAlias '${config.keyAlias}'
+            keyPassword '${String(config.keyPassword)}'
+        }
+    }
+"""
+    }
+
+    // Build status checking methods
+    private fun isKeystoreGenerationEnabled(): Boolean {
+        return !isBuildRunning && !lastBuildFailed
+    }
+
+    private fun showActionDisabledMessage() {
+        val message = when {
+            isBuildRunning -> "Cannot generate keystore while project is building or syncing"
+            lastBuildFailed -> "Cannot generate keystore - please fix build errors first"
+            else -> "Keystore generation is currently unavailable"
+        }
+        showToast(message)
+    }
+
+    private fun updateButtonStates() {
+        val isEnabled = isKeystoreGenerationEnabled()
+        btnGenerate.isEnabled = isEnabled
+        btnGenerate.alpha = if (isEnabled) 1.0f else 0.6f
+    }
+
+    // BuildStatusListener implementation
+    override fun onBuildStarted() {
+        isBuildRunning = true
+        lastBuildFailed = false
+        activity?.runOnUiThread {
+            updateButtonStates()
+        }
+    }
+
+    override fun onBuildFinished() {
+        isBuildRunning = false
+        lastBuildFailed = false
+        activity?.runOnUiThread {
+            updateButtonStates()
+        }
+    }
+
+    override fun onBuildFailed(error: String?) {
+        isBuildRunning = false
+        lastBuildFailed = true
+        activity?.runOnUiThread {
+            updateButtonStates()
+        }
     }
 }

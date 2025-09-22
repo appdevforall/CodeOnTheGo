@@ -2,6 +2,7 @@ package com.appdevforall.keygen.plugin
 
 import android.app.AlertDialog
 import android.view.LayoutInflater
+import android.util.Log
 import com.appdevforall.keygen.plugin.R
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
@@ -18,15 +19,18 @@ import com.itsaky.androidide.plugins.extensions.PluginTooltipButton
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeUIService
 import com.itsaky.androidide.plugins.services.IdeEditorTabService
+import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.plugins.services.BuildStatusListener
 import com.appdevforall.keygen.plugin.fragments.KeystoreGeneratorFragment
 import androidx.fragment.app.Fragment
 import android.widget.EditText
 import java.io.File
 
 /**
- * AndroidIDE plugin for generating Android keystores for release builds
+ * COGO plugin for generating Android keystores for release builds
  */
-class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExtension {
+class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, DocumentationExtension, BuildStatusListener {
 
     private lateinit var context: PluginContext
 
@@ -43,6 +47,11 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
 
     override fun activate(): Boolean {
         context.logger.info("KeystoreGeneratorPlugin: Activating plugin")
+
+        // Register for build status updates
+        val buildService = context.services.get(IdeBuildService::class.java)
+        buildService?.addBuildStatusListener(this)
+
         return true
     }
 
@@ -55,147 +64,6 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
         context.logger.info("KeystoreGeneratorPlugin: Disposing plugin")
     }
 
-    private fun showKeystoreGenerationDialog() {
-        context.logger.info("Showing keystore generation dialog")
-
-        val uiService = context.services.get(IdeUIService::class.java) ?: run {
-            context.logger.error("UI service not available")
-            return
-        }
-
-        if (!uiService.isUIAvailable()) {
-            context.logger.error("UI not available")
-            return
-        }
-
-        val activity = uiService.getCurrentActivity() ?: run {
-            context.logger.error("No current activity")
-            return
-        }
-
-        // Check if activity is valid and not finishing
-        if (activity.isFinishing || activity.isDestroyed) {
-            context.logger.error("Activity is finishing or destroyed")
-            return
-        }
-
-        activity.runOnUiThread {
-            try {
-                // Double-check activity state inside UI thread
-                if (activity.isFinishing || activity.isDestroyed) {
-                    context.logger.error("Activity became invalid before showing dialog")
-                    return@runOnUiThread
-                }
-
-                createKeystoreDialog(activity)
-            } catch (e: Exception) {
-                context.logger.error("Error in UI thread", e)
-            }
-        }
-    }
-
-    private fun createKeystoreDialog(activity: android.app.Activity) {
-        try {
-            // Use the plugin's resource context for proper layout inflation
-            val pluginContext = PluginFragmentHelper.getPluginContext(context.pluginId)
-                ?: context.androidContext
-
-            val inflater = PluginFragmentHelper.getPluginInflater(
-                context.pluginId,
-                LayoutInflater.from(pluginContext)
-            )
-
-            val dialogView = inflater.inflate(R.layout.dialog_keystore_generation_simple, null)
-
-            // Get references to input fields
-            val keystoreNameInput = dialogView.findViewById<EditText>(R.id.et_keystore_name)
-            val keystorePasswordInput = dialogView.findViewById<E87ditText>(R.id.et_keystore_password)
-            val keyAliasInput = dialogView.findViewById<EditText>(R.id.et_key_alias)
-            val keyPasswordInput = dialogView.findViewById<EditText>(R.id.et_key_password)
-            val certificateNameInput = dialogView.findViewById<EditText>(R.id.et_certificate_name)
-            val organizationalUnitInput = dialogView.findViewById<EditText>(R.id.et_organizational_unit)
-            val organizationInput = dialogView.findViewById<EditText>(R.id.et_organization)
-            val cityInput = dialogView.findViewById<EditText>(R.id.et_city)
-            val stateInput = dialogView.findViewById<EditText>(R.id.et_state)
-            val countryInput = dialogView.findViewById<EditText>(R.id.et_country)
-
-            AlertDialog.Builder(activity)
-                .setTitle("Generate Keystore")
-                .setView(dialogView)
-                .setPositiveButton("Create") { _, _ ->
-                    val config = KeystoreConfig(
-                        keystoreName = keystoreNameInput.text.toString().trim(),
-                        keystorePassword = keystorePasswordInput.text.toString().toCharArray(),
-                        keyAlias = keyAliasInput.text.toString().trim(),
-                        keyPassword = keyPasswordInput.text.toString().toCharArray(),
-                        certificateName = certificateNameInput.text.toString().trim(),
-                        organizationalUnit = organizationalUnitInput.text.toString().trim().takeIf { it.isNotEmpty() },
-                        organization = organizationInput.text.toString().trim().takeIf { it.isNotEmpty() },
-                        city = cityInput.text.toString().trim().takeIf { it.isNotEmpty() },
-                        state = stateInput.text.toString().trim().takeIf { it.isNotEmpty() },
-                        country = countryInput.text.toString().trim()
-                    )
-
-                    generateKeystore(config)
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-
-        } catch (e: Exception) {
-            context.logger.error("Error creating keystore dialog", e)
-        }
-    }
-
-    private fun generateKeystore(config: KeystoreConfig) {
-        context.logger.info("Starting keystore generation")
-
-        // Validate configuration
-        val validationErrors = KeystoreGenerator.validateConfig(config)
-        if (validationErrors.isNotEmpty()) {
-            context.logger.error("Validation errors: ${validationErrors.joinToString(", ")}")
-            return
-        }
-
-        // Get project directory
-        val projectService = context.services.get(IdeProjectService::class.java)
-        if (projectService == null) {
-            context.logger.error("IdeProjectService not available")
-            return
-        }
-
-        val currentProject = projectService.getCurrentProject()
-        if (currentProject == null) {
-            context.logger.warn("No current project available")
-            return
-        }
-
-        try {
-            // Create keystore in the project's app directory
-            val appDirectory = File(currentProject.rootDir, "app")
-            if (!appDirectory.exists()) {
-                appDirectory.mkdirs()
-            }
-
-            // Generate the keystore
-            when (val result = KeystoreGenerator.generateKeystore(config, appDirectory)) {
-                is KeystoreGenerationResult.Success -> {
-                    context.logger.info("Keystore generated successfully: ${result.keystoreFile.absolutePath}")
-                }
-                is KeystoreGenerationResult.Error -> {
-                    if (result.exception != null) {
-                        context.logger.error("Keystore generation failed: ${result.message}", result.exception)
-                    } else {
-                        context.logger.error("Keystore generation failed: ${result.message}")
-                    }
-                }
-            }
-
-        } catch (e: SecurityException) {
-            context.logger.error("Permission denied accessing project: ${e.message}")
-        } catch (e: Exception) {
-            context.logger.error("Error during keystore generation", e)
-        }
-    }
 
     // EditorTabExtension interface methods - for main editor tabs
     override fun getMainEditorTabs(): List<EditorTabItem> {
@@ -217,8 +85,7 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
             tooltip = "Generate Android keystore for release builds"
         )
 
-        context.logger.debug("Returning tab item: id={}, title={}, enabled={}, visible={}",
-            tabItem.id, tabItem.title, tabItem.isEnabled, tabItem.isVisible)
+        context.logger.debug("Returning tab item: id=${tabItem.id}, title=${tabItem.title}, enabled=${tabItem.isEnabled}, visible=${tabItem.isVisible}")
 
         return listOf(tabItem)
     }
@@ -238,14 +105,7 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
     }
 
     override fun getMainMenuItems(): List<MenuItem> {
-        return listOf(
-            MenuItem(
-                id = "keystore_generator_menu",
-                title = "Generate Keystore",
-                isEnabled = true,
-                action = { showKeystoreGenerationDialog() }
-            )
-        )
+        return emptyList()
     }
 
     // Override sidebar action to open main editor tab instead of dialog
@@ -254,43 +114,36 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
 
         val editorTabService = context.services.get(IdeEditorTabService::class.java) ?: run {
             context.logger.error("Editor tab service not available")
-            showKeystoreGenerationDialog()
             return
         }
 
-        context.logger.debug("Editor tab service available: {}", editorTabService.javaClass.name)
+        context.logger.debug("Editor tab service available: ${editorTabService.javaClass.name}")
 
         if (!editorTabService.isTabSystemAvailable()) {
             context.logger.error("Editor tab system not available")
-            showKeystoreGenerationDialog()
             return
         }
 
         val tabId = "keystore_generator_main"
-        context.logger.debug("Attempting to select plugin tab with ID: {}", tabId)
+        context.logger.debug("Attempting to select plugin tab with ID: $tabId")
 
         // Check if this is actually a plugin tab
         val isPluginTab = editorTabService.isPluginTab(tabId)
-        context.logger.debug("Is '{}' registered as plugin tab: {}", tabId, isPluginTab)
+        context.logger.debug("Is '$tabId' registered as plugin tab: $isPluginTab")
 
         // Get all available plugin tab IDs
         val allPluginTabIds = editorTabService.getAllPluginTabIds()
-        context.logger.debug("All registered plugin tab IDs: {}", allPluginTabIds)
+        context.logger.debug("All registered plugin tab IDs: $allPluginTabIds")
 
         try {
             if (editorTabService.selectPluginTab(tabId)) {
                 context.logger.info("Successfully opened keystore generator tab")
-            } else {
-                context.logger.warn("Keystore generator tab not found or could not be selected - falling back to dialog")
-                showKeystoreGenerationDialog()
             }
         } catch (e: Exception) {
             context.logger.error("Error opening keystore generator tab", e)
-            showKeystoreGenerationDialog()
         }
     }
 
-    // Update the sidebar items to use the new tab-opening behavior
     override fun getSideMenuItems(): List<NavigationItem> {
         return listOf(
             NavigationItem(
@@ -301,9 +154,24 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
                 isVisible = true,
                 group = "build",
                 order = 0,
-                action = { openKeystoreGeneratorTab() }
+                action = {
+                    openKeystoreGeneratorTab()
+                }
             )
         )
+    }
+
+    // BuildStatusListener implementation
+    override fun onBuildStarted() {
+        context.logger.debug("Build started - disabling keystore generator actions")
+    }
+
+    override fun onBuildFinished() {
+        context.logger.debug("Build finished successfully - enabling keystore generator actions")
+    }
+
+    override fun onBuildFailed(error: String?) {
+        context.logger.debug("Build failed - keeping keystore generator actions disabled")
     }
 
     // DocumentationExtension interface methods
@@ -339,13 +207,7 @@ class KeystoreGeneratorPlugin : IPlugin, UIExtension, EditorTabExtension, Docume
 
                     <p><b>💡 Tip:</b> Keep your keystore and passwords secure - you'll need them to update your app!</p>
                 """.trimIndent(),
-                buttons = listOf(
-                    PluginTooltipButton(
-                        description = "Android Signing Guide",
-                        uri = "https://developer.android.com/studio/publish/app-signing",
-                        order = 0
-                    )
-                )
+                buttons = emptyList()
             ),
 
             // Plugin overview

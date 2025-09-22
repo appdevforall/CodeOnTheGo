@@ -1,8 +1,9 @@
 
 
-package com.itsaky.androidide.plugins.manager
+package com.itsaky.androidide.plugins.manager.security
 
 import com.itsaky.androidide.plugins.PluginPermission
+import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import java.io.File
 import java.security.MessageDigest
 

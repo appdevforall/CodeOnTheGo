@@ -28,7 +28,6 @@ class IdeTooltipServiceImpl(
                     com.google.android.material.R.style.Theme_Material3_DayNight
                 )
             } catch (e: Exception) {
-                // Last fallback - use original context
                 context
             }
         }
@@ -67,9 +66,4 @@ class IdeTooltipServiceImpl(
         }
     }
 
-    override fun hasTooltip(category: String, tag: String): Boolean {
-        // TooltipManager doesn't expose a hasTooltip method
-        // For now, we'll return true and let the showTooltip handle missing tooltips
-        return true
-    }
 }

@@ -156,6 +156,9 @@ object TooltipManager {
                             Intent(context, HelpActivity::class.java).apply {
                                 putExtra(CONTENT_KEY, url)
                                 putExtra(CONTENT_TITLE_KEY, title)
+                                if (context !is android.app.Activity) {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                             }
                         context.startActivity(intent)
                     }
@@ -185,6 +188,9 @@ object TooltipManager {
                             Intent(context, HelpActivity::class.java).apply {
                                 putExtra(CONTENT_KEY, url)
                                 putExtra(CONTENT_TITLE_KEY, title)
+                                if (context !is android.app.Activity) {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                             }
                         context.startActivity(intent)
                     }

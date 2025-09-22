@@ -48,9 +48,9 @@ import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipCategory
-import com.itsaky.androidide.plugins.manager.PluginManager
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.actions.PluginSidebarActionItem
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import java.lang.ref.WeakReference
 
 /**
@@ -238,13 +238,12 @@ internal object EditorSidebarActions {
             .filterIsInstance<UIExtension>()
             .forEach { plugin ->
                 try {
-                    android.util.Log.d("claudePluginManager", "Registering sidebar items for plugin: ${plugin.javaClass.simpleName}")
                     plugin.getSideMenuItems().forEach { navItem ->
                         val action = PluginSidebarActionItem(context, navItem, order++)
                         registry.registerAction(action)
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("claudePluginManager", "Failed to register sidebar items for plugin: ${plugin.javaClass.simpleName}", e)
+
                 }
             }
     }
