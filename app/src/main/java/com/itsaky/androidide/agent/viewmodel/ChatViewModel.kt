@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.data.ToolCall
+import com.itsaky.androidide.agent.repository.AgentResponse
 import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
@@ -16,12 +17,16 @@ import com.itsaky.androidide.models.ChatSession
 import com.itsaky.androidide.models.MessageStatus
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import android.llama.cpp.LLamaAndroid
 
 class ChatViewModel(
     private val agentRepository: GeminiRepository
@@ -182,9 +187,15 @@ class ChatViewModel(
     ) {
         agentJob = viewModelScope.launch {
             try {
-                val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
-                val agentResponse = agentRepository.generateASimpleResponse(prompt, history)
+                // This is the only part that needs to change.
+                // Wrap the repository call in withContext(Dispatchers.IO)
+                val agentResponse = withContext(Dispatchers.IO) {
+                    val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
+                    agentRepository.generateASimpleResponse(prompt, history)
+                }
 
+                // The rest of your code can stay the same, as it updates the UI
+                // and will run on the main thread after the withContext block finishes.
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = agentResponse.text,
@@ -208,7 +219,7 @@ class ChatViewModel(
                         newStatus = MessageStatus.ERROR
                     )
 
-                    // Get the partial report and add it as a new message
+                    // You might want to wrap this in withContext too if it's slow
                     val partialReport = agentRepository.getPartialReport()
                     if (partialReport.isNotBlank()) {
                         addMessageToCurrentSession(
@@ -358,6 +369,43 @@ class ChatViewModel(
             delay(SAVE_DEBOUNCE_MS)
             _currentSession.value?.let {
                 chatStorageManager.saveSession(it)
+            }
+        }
+    }
+
+    var messages = mutableListOf("Initializing...")
+    var message = ""
+    private val llamaAndroid: LLamaAndroid = LLamaAndroid.instance()
+
+    fun sendMessageTest() {
+
+        val text = "Count to 10"
+        message = ""
+
+        // Add to messages console.
+        messages += text
+        messages += ""
+
+        viewModelScope.launch {
+            llamaAndroid.send(text)
+                .catch {
+                    Log.e("tag", "send() failed", it)
+                    messages += it.message!!
+                }
+                .collect {
+                    messages += it
+                }
+        }
+    }
+
+    fun loadModel(pathToModel: String) {
+        viewModelScope.launch {
+            try {
+                llamaAndroid.load(pathToModel)
+                messages += "Loaded $pathToModel"
+            } catch (exc: IllegalStateException) {
+                Log.e("tag", "load() failed", exc)
+                messages += exc.message!!
             }
         }
     }

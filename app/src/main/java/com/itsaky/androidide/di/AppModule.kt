@@ -2,8 +2,8 @@ package com.itsaky.androidide.di
 
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.agent.GeminiMacroProcessor
+import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.GeminiRepository
-import com.itsaky.androidide.agent.repository.GeminiRepositoryImpl
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.SwitchableGeminiRepository
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
@@ -13,11 +13,10 @@ import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
-    single { GeminiRepositoryImpl(ideApi = IDEApiFacade, context = androidContext()) }
     single { LocalLlmRepositoryImpl(context = androidContext(), ideApi = IDEApiFacade) }
     single<GeminiRepository> {
         SwitchableGeminiRepository(
-            geminiRepository = get(),
+            geminiRepository = AgenticRunner(context = androidContext()),
             localLlmRepository = get()
         )
     }

@@ -2,6 +2,7 @@ package com.itsaky.androidide.agent.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -223,6 +224,13 @@ class ChatFragment :
         binding.btnSendPrompt.setOnClickListener {
             handleSendMessage()
         }
+        binding.btnLoadTest.setOnClickListener {
+            filePickerLauncher.launch(arrayOf("*/*"))
+//            chatViewModel.loadModel()
+        }
+        binding.btnSendPromptTest.setOnClickListener {
+            chatViewModel.sendMessageTest()
+        }
         binding.btnStopGeneration.setOnClickListener {
             chatViewModel.stopAgentResponse()
         }
@@ -255,10 +263,12 @@ class ChatFragment :
                     findNavController().navigate(R.id.action_chatFragment_to_chatHistoryFragment)
                     true
                 }
+
                 R.id.menu_ai_settings -> {
                     findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
                     true
                 }
+
                 else -> false
             }
         }
@@ -287,6 +297,7 @@ class ChatFragment :
                         binding.btnSendPrompt.visibility = View.VISIBLE
                         binding.btnStopGeneration.visibility = View.GONE
                     }
+
                     is AgentState.Processing -> {
                         val timeString = "(${formatTime(stepTime)} of ${formatTime(totalTime)})"
                         binding.agentStatusMessage.text = state.message
@@ -302,6 +313,17 @@ class ChatFragment :
         }
     }
 
+    private val filePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                requireContext().contentResolver.takePersistableUriPermission(it, takeFlags)
+
+                val uriString = it.toString()
+
+                chatViewModel.loadModel(uriString)
+            }
+        }
     /**
      * Formats milliseconds into a string like "1m 2.3s" or "5.4s".
      */
