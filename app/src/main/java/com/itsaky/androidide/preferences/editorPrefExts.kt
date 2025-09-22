@@ -25,7 +25,6 @@ import com.itsaky.androidide.databinding.LayoutTextSizeSliderBinding
 import com.itsaky.androidide.editor.schemes.IDEColorScheme
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.preferences.internal.EditorPreferences
-import com.itsaky.androidide.preferences.internal.EditorPreferences.AUTO_SAVE
 import com.itsaky.androidide.preferences.internal.EditorPreferences.COLOR_SCHEME
 import com.itsaky.androidide.preferences.internal.EditorPreferences.COMPLETIONS_MATCH_LOWER
 import com.itsaky.androidide.preferences.internal.EditorPreferences.DEFAULT_COLOR_SCHEME
@@ -79,7 +78,6 @@ private class CommonConfigurations(
     addPreference(WordWrap())
     addPreference(UseMagnifier())
     addPreference(UseICU())
-    addPreference(AutoSave())
     addPreference(DeleteEmptyLines())
     addPreference(DeleteTabs())
     addPreference(StickyScrollEnabled())
@@ -205,14 +203,6 @@ private class UseMagnifier(
 ) : SwitchPreference(setValue = EditorPreferences::useMagnifier::set,
   getValue = EditorPreferences::useMagnifier::get)
 
-@Parcelize
-private class AutoSave(
-  override val key: String = AUTO_SAVE,
-  override val title: Int = string.idepref_editor_autoSave_title,
-  override val summary: Int? = string.idepref_editor_autoSave_summary,
-  override val icon: Int? = drawable.ic_save,
-) : SwitchPreference(setValue = EditorPreferences::autoSave::set,
-  getValue = EditorPreferences::autoSave::get)
 
 @Parcelize
 private class CompletionsMatchLower(
