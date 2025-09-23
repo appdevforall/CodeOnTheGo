@@ -1,9 +1,6 @@
 package com.itsaky.androidide.fragments
 
-import android.app.AlertDialog
-import android.content.Intent
 import android.os.Bundle
-
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,30 +10,21 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.MainActivity
-import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.adapters.DeleteProjectListAdapter
 import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
-import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_SELECT
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_BUTTON
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_CONFIRM
 import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_SELECT
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
-
 import java.io.File
 
 class DeleteProjectFragment : BaseFragment() {
@@ -151,31 +139,12 @@ class DeleteProjectFragment : BaseFragment() {
         tag: String,
         anchorView: View? = null
     ) {
-
-        val category = TooltipCategory.CATEGORY_IDE
-        CoroutineScope(Dispatchers.Main).launch {
-            val item = TooltipManager.getTooltip(
-                context = requireContext(),
-                category = category,
-                tag = tag
-            )
-
-            item?.let { tooltipData ->
-                TooltipManager.showIDETooltip(
-                    requireContext(),
-                    anchorView ?: binding.root,
-                    0,
-                    item,
-                    { context, url, title ->
-                        val intent = Intent(context, HelpActivity::class.java).apply {
-                            putExtra(CONTENT_KEY, url)
-                            putExtra(CONTENT_TITLE_KEY, title)
-                        }
-                        context.startActivity(intent)
-                    }
-                )
-            }
-        }
+        anchorView ?: return
+        TooltipManager.showTooltip(
+            context = requireContext(),
+            anchorView = anchorView,
+            tag = tag,
+        )
     }
 
     private fun showDeleteDialog() {

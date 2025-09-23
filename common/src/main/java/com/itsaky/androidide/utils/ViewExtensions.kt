@@ -12,6 +12,18 @@ import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
 import kotlin.math.abs
 
+/**
+ * Traverses a view hierarchy and applies a given action to each view.
+ * @param action The lambda to execute for each view in the hierarchy.
+ */
+fun View.forEachViewRecursively(action: (View) -> Unit) {
+    action(this)
+    if (this is ViewGroup) {
+        for (i in 0 until childCount) {
+            getChildAt(i).forEachViewRecursively(action)
+        }
+    }
+}
 
 fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
     if (this is ListView) return

@@ -18,12 +18,9 @@
 package com.itsaky.androidide.editor.ui
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -38,18 +35,14 @@ import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
 import com.blankj.utilcode.util.SizeUtils
-import com.google.gson.Gson
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.EditorActionItem
 import com.itsaky.androidide.actions.FillMenuParams
-import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
@@ -64,11 +57,6 @@ import io.github.rosemoe.sora.event.SubscriptionReceipt
 import io.github.rosemoe.sora.text.Cursor
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorTouchEventHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -423,28 +411,11 @@ open class EditorActionsMenu(val editor: IDEEditor) :
                 val tag = item.contentDescription?.toString() ?: ""
 
                 if (tag.isNotEmpty()) {
-                    CoroutineScope(Dispatchers.Main).launch {
-                        val tooltipItem = TooltipManager.getTooltip(
-                            context = editor.context,
-                            category = TooltipCategory.CATEGORY_IDE,
-                            tag = tag
-                        )
-
-                        tooltipItem?.let { tooltipData ->
-                            TooltipManager.showIDETooltip(
-                                editor.context,
-                                editor,
-                                0,
-                                tooltipItem
-                            ) { context, url, title ->
-                                val intent = Intent(context, HelpActivity::class.java).apply {
-                                    putExtra(CONTENT_KEY, url)
-                                    putExtra(CONTENT_TITLE_KEY, title)
-                                }
-                                context.startActivity(intent)
-                            }
-                        }
-                    }
+                    TooltipManager.showTooltip(
+                        context = editor.context,
+                        anchorView = editor,
+                        tag = tag,
+                    )
                 }
                 true
             }

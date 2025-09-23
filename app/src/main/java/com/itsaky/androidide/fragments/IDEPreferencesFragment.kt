@@ -17,21 +17,16 @@
 
 package com.itsaky.androidide.fragments
 
-import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceViewHolder
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILD_RUN
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR
@@ -40,9 +35,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
 
@@ -152,41 +144,11 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
   }
 
   private fun showTooltip(anchorView: View, tooltipTag: String) {
-    lifecycleScope.launch {
-      try {
-        val tooltipData = TooltipManager.getTooltip(
+      TooltipManager.showTooltip(
           context = requireContext(),
-          category = TooltipCategory.CATEGORY_IDE,
-          tag = tooltipTag
-        )
-
-        tooltipData?.let { data ->
-          TooltipManager.showIDETooltip(
-            context = requireContext(),
-            anchorView = anchorView,
-            level = 0,
-            tooltipItem = IDETooltipItem(
-              rowId = data.rowId,
-              id = data.id,
-              category = TooltipCategory.CATEGORY_IDE,
-              tag = data.tag,
-              summary = data.summary,
-              detail = data.detail,
-              buttons = data.buttons,
-              lastChange = data.lastChange
-            )
-          ) { context, url, title ->
-            val intent = Intent(context, HelpActivity::class.java).apply {
-              putExtra(CONTENT_KEY, url)
-              putExtra(CONTENT_TITLE_KEY, title)
-            }
-            context.startActivity(intent)
-          }
-        }
-      } catch (e: Exception) {
-        Log.e("IDEPreferencesFragment", "Error showing tooltip for tag: $tooltipTag", e)
-      }
-    }
+          anchorView = anchorView,
+          tag = tooltipTag,
+      )
   }
 
   companion object {

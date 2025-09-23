@@ -48,5 +48,5 @@ class HelpSideBarAction(context: Context, override val order: Int) :
         context.doOpenHelp()
         return true
     }
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.HELP_SIDEBAR
+    override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.HELP_SIDEBAR
 }

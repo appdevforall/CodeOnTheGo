@@ -19,21 +19,14 @@ package com.itsaky.androidide.fragments
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.LayoutManager
 import com.itsaky.androidide.databinding.FragmentRecyclerviewBinding
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.utils.TooltipUtils
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * A fragment which shows a [RecyclerView].
@@ -129,23 +122,11 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
     val workingContext = context ?: return
     val anchorView = this@RecyclerViewFragment.view ?: return
     val tooltipTag = fragmentTooltipTag ?: return
-    viewLifecycleOwner.lifecycleScope.launch {
-      try {
-        val tooltipData = withContext(Dispatchers.IO) {
-          TooltipManager.getTooltip(workingContext, TooltipCategory.CATEGORY_IDE, tooltipTag)
-        }
-        tooltipData?.let {
-          TooltipUtils.showIDETooltip(
-            context = workingContext,
-            level = 0,
-            tooltipItem = tooltipData,
-            anchorView = anchorView,
-          )
-        }
-      } catch (e: Exception) {
-        Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-      }
-    }
+      TooltipManager.showTooltip(
+          context = workingContext,
+          anchorView = anchorView,
+          tag = tooltipTag,
+      )
   }
 
   private fun checkIsEmpty() {
