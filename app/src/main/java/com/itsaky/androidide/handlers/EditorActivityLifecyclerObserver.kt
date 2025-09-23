@@ -44,56 +44,56 @@ import java.util.concurrent.CompletableFuture
  * @author Akash Yadav
  */
 class EditorActivityLifecyclerObserver : DefaultLifecycleObserver {
+	private val fileActionsHandler = FileTreeActionHandler()
 
-  private val fileActionsHandler = FileTreeActionHandler()
+	override fun onCreate(owner: LifecycleOwner) {
+		EditorActivityActions.register(owner as Context)
+		EditorSidebarActions.registerActions(owner as Context)
+		if (isExperimentsEnabled()) {
+			RightEditorSidebarActions.registerActions(owner as Context)
+		}
+		dispatchEvent(OnCreateEvent())
+	}
 
-  override fun onCreate(owner: LifecycleOwner) {
-    EditorSidebarActions.registerActions(owner as Context)
-    if (isExperimentsEnabled()) {
-      RightEditorSidebarActions.registerActions(owner as Context)
-    }
-    dispatchEvent(OnCreateEvent())
-  }
+	override fun onStart(owner: LifecycleOwner) {
+		CompletableFuture.runAsync(this::initBootclasspathProvider)
+		register(fileActionsHandler, ProjectManagerImpl.getInstance())
 
-  override fun onStart(owner: LifecycleOwner) {
-    CompletableFuture.runAsync(this::initBootclasspathProvider)
-    register(fileActionsHandler, ProjectManagerImpl.getInstance())
+		dispatchEvent(OnStartEvent())
+	}
 
-    dispatchEvent(OnStartEvent())
-  }
+	override fun onResume(owner: LifecycleOwner) {
+		EditorActivityActions.register(owner as Context)
+		dispatchEvent(OnResumeEvent())
+	}
 
-  override fun onResume(owner: LifecycleOwner) {
-    EditorActivityActions.register(owner as Context)
-    dispatchEvent(OnResumeEvent())
-  }
+	override fun onPause(owner: LifecycleOwner) {
+		EditorActivityActions.clearActions()
+		dispatchEvent(OnPauseEvent())
+	}
 
-  override fun onPause(owner: LifecycleOwner) {
-    EditorActivityActions.clearActions()
-    dispatchEvent(OnPauseEvent())
-  }
+	override fun onStop(owner: LifecycleOwner) {
+		unregister(fileActionsHandler, ProjectManagerImpl.getInstance())
+		dispatchEvent(OnStopEvent())
+	}
 
-  override fun onStop(owner: LifecycleOwner) {
-    unregister(fileActionsHandler, ProjectManagerImpl.getInstance())
-    dispatchEvent(OnStopEvent())
-  }
+	override fun onDestroy(owner: LifecycleOwner) {
+		dispatchEvent(OnDestroyEvent())
+	}
 
-  override fun onDestroy(owner: LifecycleOwner) {
-    dispatchEvent(OnDestroyEvent())
-  }
+	private fun register(vararg receivers: EventReceiver) {
+		receivers.forEach { it.register() }
+	}
 
-  private fun register(vararg receivers: EventReceiver) {
-    receivers.forEach { it.register() }
-  }
+	private fun unregister(vararg receivers: EventReceiver) {
+		receivers.forEach { it.unregister() }
+	}
 
-  private fun unregister(vararg receivers: EventReceiver) {
-    receivers.forEach { it.unregister() }
-  }
+	private fun dispatchEvent(event: Event) {
+		EventBus.getDefault().post(event)
+	}
 
-  private fun dispatchEvent(event: Event) {
-    EventBus.getDefault().post(event)
-  }
-
-  private fun initBootclasspathProvider() {
-    BootClasspathProvider.update(listOf(Environment.ANDROID_JAR.absolutePath))
-  }
+	private fun initBootclasspathProvider() {
+		BootClasspathProvider.update(listOf(Environment.ANDROID_JAR.absolutePath))
+	}
 }

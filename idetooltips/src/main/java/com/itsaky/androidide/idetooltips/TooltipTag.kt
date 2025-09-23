@@ -94,10 +94,23 @@ object TooltipTag {
 
 
     const val PROJECT_NEW = "project.new"
-    const val PROJECT_RECENT_TOP = "project.recent.top"
+	const val PROJECT_RECENT_TOP = "project.recent.top"
 	const val PROJECT_RECENT_RENAME = "project.recent.rename"
-	const val PROJECT_RENAME_DIALOG = "project.rename.dialog"
-    const val PROJECT_OPEN_FOLDER = "project.open.folder"
+	const val PROJECT_OPEN_FOLDER = "project.open.folder"
+
+    const val PROJECT_ITEM_COPYPATH = "project.item.copypath"
+    const val PROJECT_ITEM_DELETE = "project.item.delete"
+    const val PROJECT_CONFIRM_DELETE = "project.confirm.delete"
+    const val PROJECT_FOLDER_NEWFILE = "project.folder.newfile"
+    const val PROJECT_FOLDER_NEW_FOLDER = "project.folder.newfolder"
+    const val PROJECT_NEWFILE_DIALOG = "project.newfile.dialog"
+    const val PROJECT_FOLDER_NEWTYPE = "project.folder.newtype"
+    const val PROJECT_FOLDER_NEWXML = "project.folder.newxml"
+    const val PROJECT_ITEM_RENAME = "project.item.rename"
+    const val PROJECT_RENAME_DIALOG = "project.rename.dialog"
+    const val PROJECT_NEW_FOLDER_DIALOG = "project.newfolder.dialog"
+    const val PROJECT_FOLDER_HELP = "project.folder.help"
+    const val PROJECT_FILE_OPENWITH = "project.file.openwith"
 
     // Template Details
     const val SETUP_PREVIOUS = "setup.previous"
@@ -111,4 +124,5 @@ object TooltipTag {
     const val DIALOG_REPLACE_IN_FILE = "file.find.replace.dialog"
     const val PROJECT_FILENAME = "project.filename"
     const val EDITOR_FILE_CLOSE_OPTIONS = "editor.file.close.options"
+    const val PROJECT_FILE_HELP = "project.file.help"
 }
