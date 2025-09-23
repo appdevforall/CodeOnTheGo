@@ -31,7 +31,7 @@
     },
   {
         "name": "HorizontalScrollView (unable to scroll in the editor)",
-        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.containers.ScrollViewDesign",
+    "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.containers.HorizontalScrollViewDesign",
         "iconName": "ic_palette_scroll_view",
         "defaultAttributes": {
             "android:layout_height": "match_parent",
