@@ -95,7 +95,7 @@ object ShizukuState {
 						" seContext=" + seContext, e
 			)
 
-			// we don't be able to use Shizuku anyways, so it's better to notify listeners
+			// we won't be able to use Shizuku anyways, so it's better to notify listeners
 			// that cotg_server is not running than returning an invalid status
 			return ServiceStatus.EMPTY
 		}
