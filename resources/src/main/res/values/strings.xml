@@ -31,7 +31,7 @@
     <string name="empty_commit">Commit message can not be empty</string>
     <string name="set_user_and_password">Please set Username and Email in settings</string>
     <string name="git_commit_heading">Please enter the commit message for your changes. An empty message aborts the commit.</string>
-    <string name="git_commit_changes">Changes to be committed, uncheck files to be excluded from this commit</string>
+    <string name="git_commit_changes">Changes to be committed. Uncheck files to be excluded from this commit</string>
 
 
     <!-- LSP, Diagnostics & Completions -->
@@ -50,7 +50,7 @@
     <string name="view_diags">Diagnostics</string>
     <string name="title_installation_failed">Installation failed</string>
     <string name="msg_picked_isnt_dir">Picked file is not a directory!</string>
-    <string name="please_wait">Please wait for a moment …</string>
+    <string name="please_wait">Please wait for a moment…</string>
 
     <!-- Project Builder -->
     <string name="title_unsupported_device">Device Not Supported</string>
@@ -231,8 +231,6 @@
     <string name="idepref_editor_category_java" translatable="false">Java</string>
     <string name="title_files_unsaved">Unsaved files</string>
     <string name="msg_files_unsaved">Some files are not saved. Would you like to save them before closing? Unsaved files are: \n%s</string>
-    <string name="idepref_editor_autoSave_title">Save before closing files</string>
-    <string name="idepref_editor_autoSave_summary">Save files before closing them. This is an EXPERIMENTAL feature. You are expected to save the files yourself.</string>
     <string name="idepref_java_matchLower_summary">When enabled, code completion matches class names and members even when typed in lowercase (case-insensitive matching).</string>
     <string name="idepref_editor_ligatures_title">Font ligatures</string>
     <string name="idepref_editor_ligatures_summary">Enable/disable font ligatures</string>
@@ -318,36 +316,36 @@
     <string name="xml" translatable="false">XML</string>
     <string name="idepref_xml_trimFinalNewLine_title">Trim final new line</string>
     <string name="idepref_xml_insertFinalNewLine_title">Insert final new line</string>
-    <string name="idepref_xml_trimFinalNewLine_summary">Remove extra empty line at the end of file</string>
-    <string name="idepref_xml_insertFinalNewLine_summary">Inserts an empty new line at the end of file.</string>
+    <string name="idepref_xml_trimFinalNewLine_summary">Remove empty new line characters at the end of a file.</string>
+    <string name="idepref_xml_insertFinalNewLine_summary">Insert a single new line character at the end of a file.</string>
     <string name="idepref_xml_splitAttributes_title">Split attributes</string>
-    <string name="idepref_xml_splitAttributes_summary">Format attributes on new line</string>
+    <string name="idepref_xml_splitAttributes_summary">Place each attribute on a new line.</string>
     <string name="idepref_xml_joinCDataLines_title">Join CDATA lines</string>
-    <string name="idepref_xml_joinCDataLines_summary">Normalize content inside CDATA.</string>
+    <string name="idepref_xml_joinCDataLines_summary">Combine multiple CDATA blocks into a single block.</string>
     <string name="idepref_xml_joinComment_title">Join comment lines</string>
-    <string name="idepref_xml_joinComment_summary">Normalize content inside comments.</string>
+    <string name="idepref_xml_joinComment_summary">Combine multiple single-line XML comments into a single line.</string>
     <string name="idepref_xml_joinContent_title">Join content lines</string>
-    <string name="idepref_xml_joinContent_summary">Normalize content inside elements.</string>
+    <string name="idepref_xml_joinContent_summary">Combine multiple lines of text in a single XML element into a single line.</string>
     <string name="idepref_xml_spaceBeforeEmptyClose_title">Space before empty close tag</string>
-    <string name="idepref_xml_spaceBeforeEmptyClose_summary">Insert whitespace before self closing tag end bracket.</string>
+    <string name="idepref_xml_spaceBeforeEmptyClose_summary">Add a single space before every closing tag.</string>
     <string name="idepref_xml_preserveEmptyContent_title">Preserve empty content</string>
-    <string name="idepref_xml_preserveEmptyContent_summary">Preserve empty content inside elements (whitespaces, new lines, tabs, etc).</string>
+    <string name="idepref_xml_preserveEmptyContent_summary">Preserve tags that appear on otherwise-empty lines instead of collapsing them.</string>
     <string name="idepref_xml_preserveAttrLineBreaks_title">Preserve attribute line breaks</string>
-    <string name="idepref_xml_preserveAttrLineBreaks_summary">Preserve line breaks between attributes.</string>
+    <string name="idepref_xml_preserveAttrLineBreaks_summary">Keep attributes on separate lines instead of collapsing them.</string>
     <string name="idepref_xml_closingBrackNewLine_title">Closing bracket on new line</string>
-    <string name="idepref_xml_closingBrackNewLine_summary">Place closing bracket on a new line.</string>
+    <string name="idepref_xml_closingBrackNewLine_summary">Place closing brackets and self-closing tags on a new line after the last attribute.</string>
     <string name="idepref_xml_trimTrailingWs_title">Trim trailing whitespace</string>
-    <string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespaces at the end of lines.</string>
-    <string name="idepref_maxLineWidth_title">Max line width</string>
-    <string name="idepref_maxLineWidth_summary">The maximum number of characters a line should have.</string>
+    <string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespace at the end of lines.</string>
+    <string name="idepref_maxLineWidth_title">Maximum line width</string>
+    <string name="idepref_maxLineWidth_summary">Set the maximum number of characters on a single line before the editor automatically wraps or breaks the line.</string>
     <string name="idepref_splitAttrIndentSize_title">Split attributes indent size</string>
-    <string name="idepref_splitAttrIndentSize_summary">The number of spaces to index for splitted attributes.</string>
-    <string name="idepref_preservedNewLines_title">Preserved new lines</string>
-    <string name="idepref_preservedNewLines_summary">The maximum number of continuous line breaks that should be preserved.</string>
-    <string name="idepref_emptyElements_title">Empty elements behaviour</string>
-    <string name="idepref_emptyElements_summary">Choose the formatting behavior for empty elements.</string>
+    <string name="idepref_splitAttrIndentSize_summary">Set the number of spaces to automatically indent attributes that are split on separate lines.</string>
+    <string name="idepref_preservedNewLines_title">Preserve new lines</string>
+    <string name="idepref_preservedNewLines_summary">Set the maximum number of blank new lines that are kept when the file is reformatted or saved.</string>
+    <string name="idepref_emptyElements_title">Empty elements behavior</string>
+    <string name="idepref_emptyElements_summary">Choose how empty XML elements are formatted.</string>
     <string name="xml_formatting_options">XML formatting options</string>
-    <string name="xml_formatting_options_summary">Configure the XML formatter</string>
+    <string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
     <string name="idepref_customFont_title">Use custom font</string>
     <string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
     <string name="msg_installing_apk">Installing APK...</string>
