@@ -1,8 +1,7 @@
 package moe.shizuku.manager
 
 import android.content.pm.PackageManager
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,12 +13,20 @@ import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import kotlin.coroutines.cancellation.CancellationException
 
-class ShizukuViewModel : ViewModel() {
-	companion object {
-		private val logger = LoggerFactory.getLogger(ShizukuViewModel::class.java)
-	}
+/**
+ * Helper to monitor state of the Shizuku service.
+ *
+ * This is a singleton and not a [ViewModel][androidx.lifecycle.ViewModel], because Shizuku is
+ * independent of the activity/fragment lifecycle. Such Android components should still be
+ * able to observe the state of the Shizuku service outside of their usual lifecycle.
+ * See `WADBPermissionFragment` for an example.
+ */
+object ShizukuState {
+	private val logger = LoggerFactory.getLogger(ShizukuState::class.java)
 
 	private val _serviceStatus = MutableStateFlow(ServiceStatus.EMPTY)
+
+	private val scope = CoroutineScope(Dispatchers.IO)
 
 	/**
 	 * The current status of the Shizuku service.
@@ -34,7 +41,7 @@ class ShizukuViewModel : ViewModel() {
 	 * Reload the current status of the Shizuku service.
 	 */
 	fun reload() =
-		viewModelScope.async(Dispatchers.IO) {
+		scope.async(Dispatchers.IO) {
 			try {
 				val status = loadServiceStatus()
 				_serviceStatus.update { status }
