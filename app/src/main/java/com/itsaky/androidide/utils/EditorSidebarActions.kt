@@ -47,7 +47,6 @@ import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import java.lang.ref.WeakReference
 
 /**
@@ -136,7 +135,7 @@ internal object EditorSidebarActions {
 
             if (view != null && action != null) {
                 val tag = action.retrieveTooltipTag(false)
-                sidebarFragment.setupTooltip(view, TooltipCategory.CATEGORY_IDE, tag)
+                sidebarFragment.setupTooltip(view, tag)
             }
         }
 

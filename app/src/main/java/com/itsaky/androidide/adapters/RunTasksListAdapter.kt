@@ -22,16 +22,11 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.RunTasksListAdapter.VH
 import com.itsaky.androidide.databinding.LayoutRunTaskItemBinding
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_GRADLE_TASKS
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.Checkable
 import com.itsaky.androidide.tooling.api.models.GradleTask
 import com.itsaky.androidide.viewmodel.RunTasksViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 /**
  * Adapter for showing tasks list in [RunTaskDialogFragment]
@@ -75,25 +70,11 @@ constructor(
         }
 
         binding.root.setOnLongClickListener {
-            CoroutineScope(Dispatchers.Main).launch {
-                val category = TooltipCategory.CATEGORY_IDE
-                val item = TooltipManager.getTooltip(
-                    context = binding.root.context,
-                    category = category,
-                    tag = PROJECT_GRADLE_TASKS
-                )
-                item?.let { tooltipData ->
-                    TooltipManager.showIDETooltip(
-                        binding.root.context,
-                        binding.root,
-                        0,
-                        item,
-                        { _, url, title ->
-                            viewModel?.navigateToHelp(url, title)
-                        }
-                    )
-                }
-            }
+            TooltipManager.showTooltip(
+                context = binding.root.context,
+                anchorView = binding.root,
+                tag = TooltipTag.PROJECT_GRADLE_TASKS,
+            )
             true
         }
     }
