@@ -180,10 +180,16 @@ class EditorActivity : BaseActivity() {
             val xmlConverted = ConvertImportedXml(xml).getXmlConverted(this@EditorActivity)
 
             if (xmlConverted != null) {
-                createAndOpenNewLayout(
-                    FileUtil.getLastSegmentFromPath(path),
-                    xmlConverted
-                )
+                val fileName = FileUtil.getLastSegmentFromPath(path)
+
+                val productionPath = project.layoutPath + fileName
+                val designPath = project.layoutDesignPath + fileName
+
+                FileUtil.writeFile(productionPath, xml)
+                FileUtil.writeFile(designPath, xmlConverted)
+
+                openLayout(LayoutFile(productionPath, designPath))
+
                 make(binding.root, getString(string.success_imported)).setFadeAnimation()
                     .showAsSuccess()
             } else {
@@ -199,6 +205,7 @@ class EditorActivity : BaseActivity() {
             ).show()
         }
     }
+
 
     private fun defineFileCreator() {
         fileCreator =
@@ -645,18 +652,26 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun openLayout(layoutFile: LayoutFile) {
-        binding.editorLayout.loadLayoutFromParser(layoutFile.readDesignFile())
+        var contentToParse = layoutFile.readDesignFile()
+
+        if (contentToParse.isNullOrBlank()) {
+            val productionContent = layoutFile.readLayoutFile()
+            if (!productionContent.isNullOrBlank()) {
+                contentToParse = ConvertImportedXml(productionContent).getXmlConverted(this)
+                contentToParse?.let { layoutFile.saveDesignFile(it) }
+            }
+        }
+
+        binding.editorLayout.loadLayoutFromParser(contentToParse)
         project.currentLayout = layoutFile
         supportActionBar!!.subtitle = layoutFile.name
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
         }
 
-        // Force redraw layout to ensure constraints are applied
         binding.editorLayout.post {
             binding.editorLayout.requestLayout()
             binding.editorLayout.invalidate()
-            // Mark as saved since we just loaded it
             binding.editorLayout.markAsSaved()
         }
 
@@ -864,15 +879,23 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveXml() {
+        val currentLayoutFile = project.currentLayout as? LayoutFile ?: return
+
         if (binding.editorLayout.isEmpty()) {
-            project.currentLayout.saveLayout("")
-            ToastUtils.showShort(getString(string.layout_saved))
+            currentLayoutFile.saveLayout("")
+            currentLayoutFile.saveDesignFile("")
             binding.editorLayout.markAsSaved()
+            ToastUtils.showShort(getString(string.layout_saved))
             return
         }
 
-        val result = XmlLayoutGenerator().generate(binding.editorLayout, false)
-        project.currentLayout.saveLayout(result)
+        val productionXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
+        currentLayoutFile.saveLayout(productionXml)
+
+        // Generate and save the DESIGN-TIME XML for the editor's internal use
+        val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
+        currentLayoutFile.saveDesignFile(designXml)
+
         binding.editorLayout.markAsSaved()
         ToastUtils.showShort(getString(string.layout_saved))
     }
