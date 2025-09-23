@@ -175,8 +175,9 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         super.onResume()
         ActionContextProvider.setActivity(this)
         isOpenedFilesSaved.set(false)
-        prepareOptionsMenu()
         checkForExternalFileChanges()
+        // Invalidate the options menu to reflect any changes
+        invalidateOptionsMenu()
     }
 
     private fun checkForExternalFileChanges() {
