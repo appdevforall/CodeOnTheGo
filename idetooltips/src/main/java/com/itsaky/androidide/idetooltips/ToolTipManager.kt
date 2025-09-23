@@ -4,7 +4,9 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
+import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.text.Html
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -15,6 +17,7 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
@@ -137,39 +140,37 @@ object TooltipManager {
         }
     }
 
-    /**
-     * Shows a tooltip anchored to a generic view.
-     */
-    fun showIDETooltip(
-        context: Context,
-        anchorView: View,
-        level: Int,
-        tooltipItem: IDETooltipItem,
-        onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
-    ) {
-        setupAndShowTooltipPopup(
-            context = context,
-            anchorView = anchorView,
-            level = level,
-            tooltipItem = tooltipItem,
-            onActionButtonClick = { popupWindow, urlContent ->
-                popupWindow.dismiss()
-                onHelpLinkClicked(context, urlContent.first, urlContent.second)
-            },
-            onSeeMoreClicked = { popupWindow, nextLevel, item ->
-                popupWindow.dismiss()
-                showIDETooltip(context, anchorView, nextLevel, item, onHelpLinkClicked)
+    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
+    fun showTooltip(context: Context, anchorView: View, tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                TooltipCategory.CATEGORY_IDE,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
             }
-        )
+        }
     }
 
-    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
-    fun showTooltip(
-        context: Context,
-        anchorView: View,
-        tag: String,
-        category: String = TooltipCategory.CATEGORY_IDE
-    ) {
+    // Displays a tooltip in a particular context with a specific category
+    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
         CoroutineScope(Dispatchers.Main).launch {
             val tooltipItem = getTooltip(
                 context,
@@ -195,6 +196,32 @@ object TooltipManager {
                 Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
             }
         }
+    }
+
+    /**
+     * Shows a tooltip anchored to a generic view.
+     */
+    fun showIDETooltip(
+        context: Context,
+        anchorView: View,
+        level: Int,
+        tooltipItem: IDETooltipItem,
+        onHelpLinkClicked: (context: Context, url: String, title: String) -> Unit
+    ) {
+        setupAndShowTooltipPopup(
+            context = context,
+            anchorView = anchorView,
+            level = level,
+            tooltipItem = tooltipItem,
+            onActionButtonClick = { popupWindow, urlContent ->
+                popupWindow.dismiss()
+                onHelpLinkClicked(context, urlContent.first, urlContent.second)
+            },
+            onSeeMoreClicked = { popupWindow, nextLevel, item ->
+                popupWindow.dismiss()
+                showIDETooltip(context, anchorView, nextLevel, item, onHelpLinkClicked)
+            }
+        )
     }
 
     /**
@@ -271,7 +298,7 @@ object TooltipManager {
         }
 
         webView.settings.javaScriptEnabled = true
-        webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        webView.setBackgroundColor(Color.TRANSPARENT)
         webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
 
         seeMore.setOnClickListener {
@@ -325,17 +352,17 @@ object TooltipManager {
         <b>ID:</b> ${tooltip.id}<br/>
         <b>Category:</b> '${tooltip.category}'<br/>
         <b>Tag:</b> '${tooltip.tag}'<br/>
-        <b>Raw Summary:</b> '${android.text.Html.escapeHtml(tooltip.summary)}'<br/>
-        <b>Raw Detail:</b> '${android.text.Html.escapeHtml(tooltip.detail)}'<br/>
+        <b>Raw Summary:</b> '${Html.escapeHtml(tooltip.summary)}'<br/>
+        <b>Raw Detail:</b> '${Html.escapeHtml(tooltip.detail)}'<br/>
         <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
         """.trimIndent()
 
-        androidx.appcompat.app.AlertDialog.Builder(context)
+        AlertDialog.Builder(context)
             .setTitle("Tooltip Debug Info")
             .setMessage(
-                android.text.Html.fromHtml(
+                Html.fromHtml(
                     metadata,
-                    android.text.Html.FROM_HTML_MODE_LEGACY
+                    Html.FROM_HTML_MODE_LEGACY
                 )
             )
             .setPositiveButton(android.R.string.ok) { dialog, _ ->
@@ -344,4 +371,5 @@ object TooltipManager {
             .setCancelable(true) // Allow dismissing by tapping outside
             .show()
     }
+
 }

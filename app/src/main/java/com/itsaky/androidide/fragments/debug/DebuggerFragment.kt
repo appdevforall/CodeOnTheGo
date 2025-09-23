@@ -33,7 +33,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import moe.shizuku.manager.ShizukuViewModel
+import moe.shizuku.manager.ShizukuState
 import moe.shizuku.manager.model.ServiceStatus
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
@@ -44,7 +44,6 @@ import rikka.shizuku.Shizuku
 class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate)  {
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
-	private val shizukuViewModel by activityViewModels<ShizukuViewModel>()
 
 	var currentView: Int
 		get() = viewModel.currentView
@@ -102,7 +101,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
         }
 
         viewLifecycleScope.launch(Dispatchers.Main) {
-			shizukuViewModel.reload().await()
+			ShizukuState.reload().await()
 		}
 
 		viewLifecycleScope.launch {
@@ -210,7 +209,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 					}
 				}
 
-				shizukuViewModel.serviceStatus.collectLatest { currentStatus ->
+				ShizukuState.serviceStatus.collectLatest { currentStatus ->
 					withContext(Dispatchers.IO) {
 						onShizukuServiceStatusChange(currentStatus)
 					}
