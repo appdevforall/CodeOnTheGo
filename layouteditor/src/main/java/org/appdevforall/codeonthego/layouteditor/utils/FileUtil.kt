@@ -56,12 +56,12 @@ object FileUtil {
   }
 
   @JvmStatic
-  fun copyFile(uri: Uri, destinationPath: String): Boolean {
+  fun copyFile(uri: Uri, destinationPath: String, context: Context): Boolean {
     var inputStream: InputStream? = null
     var outputStream: OutputStream? = null
 
     try {
-      inputStream = instance!!.context.contentResolver.openInputStream(uri)
+      inputStream = context.contentResolver.openInputStream(uri)
       outputStream = FileOutputStream(File(destinationPath))
 
       val buffer = ByteArray(1024)
@@ -482,11 +482,11 @@ object FileUtil {
         val selectionArgs = arrayOf(split[1])
 
         // Get Data Column from content Uri
-        path = getDataColumn(contentUri, selection, selectionArgs).toString()
+        path = getDataColumn(contentUri, selection, selectionArgs, context).toString()
       }
     } else if (ContentResolver.SCHEME_CONTENT.equals(uri.scheme, ignoreCase = true)) {
       // Get Data Column from content Uri
-      path = getDataColumn(uri, null, null).toString()
+      path = getDataColumn(uri, null, null, context).toString()
     } else if (ContentResolver.SCHEME_FILE.equals(uri.scheme, ignoreCase = true)) {
       // Get File Path from Uri
       path = uri.path.toString()
@@ -510,14 +510,14 @@ object FileUtil {
    * @return The data column retrieved from the specified URI.
    */
   @SuppressLint("Recycle")
-  private fun getDataColumn(uri: Uri?, selection: String?, selectionArgs: Array<String>?): String? {
+  private fun getDataColumn(uri: Uri?, selection: String?, selectionArgs: Array<String>?, context: Context): String? {
     val column =
       MediaStore.Images.Media.DATA // Column name of the data column to be retrieved
     val projection = arrayOf(column) // Projection of the data column to be retrieved
 
     try {
       val cursor =
-        instance!!.context // Get the application context
+        context // Get the application context
           .contentResolver // Get the content resolver
           .query(uri!!, projection, selection, selectionArgs, null) // Query the content resolver
       if (cursor != null && cursor.moveToFirst()) {
