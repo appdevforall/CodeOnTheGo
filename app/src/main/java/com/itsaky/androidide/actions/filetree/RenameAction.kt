@@ -17,29 +17,19 @@
 
 package com.itsaky.androidide.actions.filetree
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.view.LayoutInflater
 import androidx.activity.viewModels
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
-import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.FileManager
-import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.DialogUtils
-import com.itsaky.androidide.utils.FlashType
-import com.itsaky.androidide.utils.flashMessage
-import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.utils.showWithLongPressTooltip
-import com.unnamed.b.atv.model.TreeNode
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
