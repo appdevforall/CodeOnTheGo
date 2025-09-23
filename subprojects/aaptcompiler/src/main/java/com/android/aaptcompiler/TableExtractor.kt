@@ -217,19 +217,16 @@ class TableExtractor(
         if (event.isStartElement) {
             val element = event.asStartElement()
             val elementName = element.name
-            val elementsToSkip = setOf(
+            when (elementName.localPart) {
                 "staging-public-group-final",
                 "staging-public-group",
                 "java-symbol",
-                "public"
-            )
-
-            if (elementsToSkip.contains(elementName.localPart)) {
-                walkToEndOfElement(element, eventReader)
-                comment = ""
-                continue
+                "public" -> {
+                    walkToEndOfElement(element, eventReader)
+                    comment = ""
+                    continue
+                }
             }
-
         }
 
       if (event.eventType == XMLStreamConstants.COMMENT) {
