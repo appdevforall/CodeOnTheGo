@@ -129,25 +129,6 @@
                         android:layout_height="wrap_content"
                         app:singleLine="true" />
                 </HorizontalScrollView>
-
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_load_test"
-                    style="@style/Widget.Material3.Button.Icon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Load" />
-
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_send_prompt_test"
-                    style="@style/Widget.Material3.Button.Icon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:contentDescription="Send Message"
-                    app:icon="@drawable/ic_send" />
             </LinearLayout>
 
             <com.google.android.material.textfield.TextInputLayout

@@ -79,77 +79,6 @@ class ChatViewModel : ViewModel(), KoinComponent {
         }
     }
 
-    private fun startAgent(prompt: String, messageIdToUpdate: String) {
-        agentJob = viewModelScope.launch {
-            try {
-                // *** CRITICAL CHANGE ***
-                // Ensure the agent is initialized before proceeding.
-                ensureAgentInitialized()
-
-                // Check if the repository is available. If not, throw the error
-                // to be caught and displayed in the UI.
-                val repository = agentRepository
-                    ?: throw IllegalStateException("Gemini API Key not found or invalid. Please configure it in AI Settings.")
-
-                val agentResponse = withContext(Dispatchers.IO) {
-                    val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
-                    repository.generateASimpleResponse(prompt, history)
-                }
-
-                updateMessageInCurrentSession(
-                    messageId = messageIdToUpdate,
-                    newText = agentResponse.text,
-                    newStatus = MessageStatus.COMPLETED
-                )
-
-            } catch (e: IllegalStateException) {
-                // This will now correctly catch the missing key error.
-                updateMessageInCurrentSession(
-                    messageId = messageIdToUpdate,
-                    newText = e.message ?: "An unexpected error occurred.",
-                    newStatus = MessageStatus.ERROR
-                )
-                if (agentResponse.report.isNotBlank()) {
-                    addMessageToCurrentSession(
-                        ChatMessage(
-                            text = agentResponse.report,
-                            sender = ChatMessage.Sender.SYSTEM,
-                            status = MessageStatus.SENT
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) {
-                    updateMessageInCurrentSession(
-                        messageId = messageIdToUpdate,
-                        newText = "Operation cancelled by user.",
-                        newStatus = MessageStatus.ERROR
-                    )
-
-                    // You might want to wrap this in withContext too if it's slow
-                    val partialReport = agentRepository.getPartialReport()
-                    if (partialReport.isNotBlank()) {
-                        addMessageToCurrentSession(
-                            ChatMessage(
-                                text = partialReport,
-                                sender = ChatMessage.Sender.SYSTEM,
-                                status = MessageStatus.SENT
-                            )
-                        )
-                    }
-                } else {
-                    updateMessageInCurrentSession(
-                        messageId = messageIdToUpdate,
-                        newText = "An error occurred. Please try again.",
-                        newStatus = MessageStatus.ERROR,
-                        originalPrompt = originalUserPrompt
-                    )
-                }
-            } finally {
-                _agentState.value = AgentState.Idle
-            }
-        }
-    }
     init {
         val baseDir = IProjectManager.getInstance().projectDir
         val agentDir = File(baseDir, "agent")
@@ -201,13 +130,16 @@ class ChatViewModel : ViewModel(), KoinComponent {
     }
 
     fun sendMessage(fullPrompt: String, originalUserText: String) {
+        // 1. Check if the agent is already running.
         if (_agentState.value is AgentState.Processing) {
             return
         }
 
+        // 2. Add the user's message to the UI immediately.
         val userMessage = ChatMessage(text = originalUserText, sender = ChatMessage.Sender.USER)
         addMessageToCurrentSession(userMessage)
 
+        // 3. Add a "loading" message to the UI.
         val loadingMessage = ChatMessage(
             text = "...",
             sender = ChatMessage.Sender.AGENT,
@@ -215,6 +147,7 @@ class ChatViewModel : ViewModel(), KoinComponent {
         )
         addMessageToCurrentSession(loadingMessage)
 
+        // 4. Call the single, correct function to get the agent's response.
         retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText)
     }
 
@@ -225,53 +158,65 @@ class ChatViewModel : ViewModel(), KoinComponent {
     ) {
         agentJob = viewModelScope.launch {
             try {
-                // This is the only part that needs to change.
-                // Wrap the repository call in withContext(Dispatchers.IO)
-                val agentResponse = withContext(Dispatchers.IO) {
-                    val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
-                    agentRepository?.generateASimpleResponse(prompt, history)
+                // Step 1: Initialize the agent if it hasn't been already.
+                ensureAgentInitialized()
+
+                // Step 2 (Guard Clause): Check if initialization was successful.
+                // If agentRepository is still null, it means initialization failed.
+                // We use 'val' to create a non-nullable reference for the rest of the function.
+                val repository = agentRepository ?: run {
+                    // Update the UI with the specific error and exit the function.
+                    updateMessageInCurrentSession(
+                        messageId = messageIdToUpdate,
+                        newText = "Gemini API Key not found or invalid. Please configure it in AI Settings.",
+                        newStatus = MessageStatus.ERROR
+                    )
+                    return@launch
                 }
 
-                // The rest of your code can stay the same, as it updates the UI
-                // and will run on the main thread after the withContext block finishes.
+                _agentState.value = AgentState.Processing("Thinking...") // Set state to processing
+
+                // Step 3: Run the agent on a background thread.
+                val agentResponse = withContext(Dispatchers.IO) {
+                    val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
+                    repository.generateASimpleResponse(prompt, history)
+                }
+
+                // Step 4: Update the UI with the final response.
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
-                    newText = agentResponse?.text,
-                    newStatus = MessageStatus.SENT
+                    newText = agentResponse.text,
+                    newStatus = MessageStatus.SENT // Use SENT for a successful, final message
                 )
 
-                if (agentResponse?.report.isNotBlank()) {
+                // Step 5 (Optional): Add the execution report if it exists.
+                if (agentResponse.report.isNotBlank()) {
                     addMessageToCurrentSession(
                         ChatMessage(
-                            text = agentResponse?.report,
+                            text = agentResponse.report,
                             sender = ChatMessage.Sender.SYSTEM,
                             status = MessageStatus.SENT
                         )
                     )
                 }
             } catch (e: Exception) {
+                // This now handles all other errors, like network issues or cancellations.
                 if (e is CancellationException) {
                     updateMessageInCurrentSession(
                         messageId = messageIdToUpdate,
                         newText = "Operation cancelled by user.",
                         newStatus = MessageStatus.ERROR
                     )
-
-                    // You might want to wrap this in withContext too if it's slow
                     val partialReport = agentRepository?.getPartialReport()
-                    if (partialReport.isNotBlank()) {
+                    if (partialReport?.isNotBlank() == true) {
                         addMessageToCurrentSession(
-                            ChatMessage(
-                                text = partialReport,
-                                sender = ChatMessage.Sender.SYSTEM,
-                                status = MessageStatus.SENT
-                            )
+                            ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM)
                         )
                     }
                 } else {
                     updateMessageInCurrentSession(
                         messageId = messageIdToUpdate,
-                        newText = "An error occurred. Please try again.",
+                        newText = "An error occurred: ${e.message}",
                         newStatus = MessageStatus.ERROR,
                         originalPrompt = originalUserPrompt
                     )

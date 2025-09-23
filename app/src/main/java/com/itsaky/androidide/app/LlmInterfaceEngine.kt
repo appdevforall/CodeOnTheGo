@@ -1,9 +1,8 @@
 package com.itsaky.androidide.app
 
 
-import kotlinx.coroutines.flow.fold
+//import android.llama.cpp.LLamaAndroid
 import android.content.Context
-import android.llama.cpp.LLamaAndroid
 import android.util.Log
 import androidx.core.net.toUri
 import java.io.File
@@ -14,12 +13,12 @@ import java.io.FileOutputStream
  * llama.cpp inference engine.
  */
 object LlmInferenceEngine {
-    val llamaAndroid: LLamaAndroid = LLamaAndroid.instance()
+    //    val llamaAndroid: LLamaAndroid = LLamaAndroid.instance()
     private const val TAG = "LlmInferenceEngine"
 
     suspend fun releaseModel() {
         try {
-            llamaAndroid.unload()
+//            llamaAndroid.unload()
             Log.d(TAG, "Local model unloaded.")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to unload model", e)
@@ -47,7 +46,7 @@ object LlmInferenceEngine {
             Log.d(TAG, "Model copied to cache: ${destFile.absolutePath}")
 
             // Now load the model from the stable file path
-            llamaAndroid.load(destFile.absolutePath)
+//            llamaAndroid.load(destFile.absolutePath)
             Log.d(TAG, "Local model loaded successfully from path.")
             true
         } catch (e: Exception) {
@@ -62,10 +61,10 @@ object LlmInferenceEngine {
     suspend fun runInference(fullPrompt: String): String {
         try {
             // This will now compile correctly because of the import
-            val fullResponse = llamaAndroid.send(fullPrompt).fold("") { accumulator, newText ->
-                accumulator + newText
-            }
-            return fullResponse
+//            val fullResponse = llamaAndroid.send(fullPrompt).fold("") { accumulator, newText ->
+//                accumulator + newText
+//            }
+            return ""//fullResponse
         } catch (e: Exception) {
             Log.e(TAG, "runInference() failed", e)
             return "Error during inference: ${e.message}"
