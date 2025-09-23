@@ -45,6 +45,8 @@ public class BinderSender {
 		sShizukuService.sendBinderToManager();
 	}
 
+	private static void onUidGone(int uid) {
+		sShizukuService.onUidGone(uid);
 	}
 
 	private static class ProcessObserver extends ProcessObserverAdapter {
@@ -129,6 +131,7 @@ public class BinderSender {
 				if (index != -1) {
 					UID_LIST.remove(index);
 					LOGGER.v("Uid %d dead", uid);
+					BinderSender.onUidGone(uid);
 				}
 			}
 		}

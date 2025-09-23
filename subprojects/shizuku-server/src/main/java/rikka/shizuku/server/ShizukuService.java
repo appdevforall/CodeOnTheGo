@@ -19,10 +19,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+
 import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.util.List;
+
 import moe.shizuku.api.BinderContainer;
 import moe.shizuku.common.util.OsUtils;
 import moe.shizuku.common.util.UserUtils;
@@ -281,5 +285,19 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 
 	void sendBinderToManager() {
 		sendBinderToManager(this);
+	}
+
+	public void onUidGone(int uid) {
+		if (!isManager(uid)) {
+			return;
+		}
+
+		// manager was either killed or uninstalled
+		// if it was uninstalled, we need to exit
+		final var managerInfo = getManagerApplicationInfo();
+		if (managerInfo == null) {
+			LOGGER.w("manager app is uninstalled in user 0, exiting...");
+			System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
+		}
 	}
 }
