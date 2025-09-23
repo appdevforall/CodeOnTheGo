@@ -36,7 +36,6 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.LeadingMarginSpan
 import android.view.GestureDetector
-import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -88,7 +87,6 @@ import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
@@ -131,8 +129,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -781,7 +777,7 @@ abstract class BaseEditorActivity :
 
 	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
 		log.debug("updateSheetState: {}", state)
-		content.bottomSheet.setCurrentTab(state.currentTab)
+        content.bottomSheet.setCurrentTab(state.currentTab)
 		if (editorBottomSheet?.state != state.sheetState) {
 			editorBottomSheet?.state = state.sheetState
 		}
@@ -1186,31 +1182,11 @@ abstract class BaseEditorActivity :
     }
 
     private fun showTooltip(tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = TooltipManager.getTooltip(
-                this@BaseEditorActivity,
-                TooltipCategory.CATEGORY_IDE,
-                tag,
-            )
-            if (tooltipItem != null) {
-                TooltipManager.showIDETooltip(
-                    context = this@BaseEditorActivity,
-                    anchorView = content.customToolbar,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("EditorHandlerActivity", "Tooltip item $tooltipItem is null")
-            }
-        }
+        TooltipManager.showTooltip(
+            context = this@BaseEditorActivity,
+            anchorView = content.customToolbar,
+            tag = tag,
+        )
     }
 }
 

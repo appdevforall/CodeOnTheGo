@@ -60,7 +60,7 @@ internal class ViewAttrListAdapter(
   override fun onBindViewHolder(holder: VH, position: Int) {
     val binding = holder.binding
     val attr = this.attributes[position] as UiAttribute
-  
+
     val ns = attr.namespace?.prefix?.let { "${it}:" } ?: ""
     binding.attrName.text = "${ns}${attr.name}"
     binding.attrValue.text = attr.value
@@ -86,18 +86,18 @@ internal class ViewAttrListAdapter(
   }
 
   private fun confirmDeleteAttr(context: Context, attribute: UiAttribute, position: Int) {
-    DialogUtils.newYesNoDialog(
-        context = context,
-        title = context.getString(R.string.title_confirm_delete),
-        message = context.getString(R.string.msg_confirm_delete, attribute.qualifiedName),
-        positiveClickListener = { dialog, _ ->
-          dialog.dismiss()
-          if (onDeleteAttr(attribute)) {
-            this.attributes.removeAt(position)
-            notifyItemRemoved(position)
-          }
+      DialogUtils.showConfirmationDialog(
+      context = context,
+      title = context.getString(R.string.title_confirm_delete),
+      message = context.getString(R.string.msg_confirm_delete, attribute.qualifiedName),
+      positiveClickListener = { dialog, _ ->
+        dialog.dismiss()
+        if (onDeleteAttr(attribute)) {
+          this.attributes.removeAt(position)
+          notifyItemRemoved(position)
         }
-      )
+      }
+    )
       .show()
   }
 }

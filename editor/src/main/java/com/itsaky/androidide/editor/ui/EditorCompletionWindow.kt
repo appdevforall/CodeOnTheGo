@@ -17,11 +17,8 @@
 
 package com.itsaky.androidide.editor.ui
 
-import android.content.Intent
 import android.util.Log
 import android.widget.ListView
-import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.lsp.util.DocumentationReferenceProvider
@@ -30,11 +27,6 @@ import com.itsaky.androidide.utils.KeyboardUtils
 import io.github.rosemoe.sora.lang.completion.CompletionItem
 import io.github.rosemoe.sora.widget.component.CompletionLayout
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.slf4j.LoggerFactory
 import java.lang.ref.WeakReference
 import kotlin.math.min
@@ -93,39 +85,11 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                 hide()
 
                 Log.d("EditorCompletionWindow", "Showing tooltip for tag: $tag category: $category")
-
-                CoroutineScope(Dispatchers.Main).launch {
-                    val item = TooltipManager.getTooltip(
-                        context = editor.context,
-                        category = category,
-                        tag = tag ?: ""
-                    )
-
-                    item?.let { tooltipData ->
-                        TooltipManager.showIDETooltip(
-                            editor.context,
-                            editor,
-                            0,
-                            IDETooltipItem(
-                                rowId = tooltipData.rowId,
-                                id = tooltipData.id,
-                                category = category,
-                                tag = tooltipData.tag,
-                                detail = tooltipData.detail,
-                                summary = tooltipData.summary,
-                                buttons = tooltipData.buttons,
-                                lastChange = tooltipData.lastChange,
-                            ),
-                            { context, url, title ->
-                                val intent = Intent(context, HelpActivity::class.java).apply {
-                                    putExtra(CONTENT_KEY, url)
-                                    putExtra(CONTENT_TITLE_KEY, title)
-                                }
-                                context.startActivity(intent)
-                            }
-                        )
-                    }
-                }
+                TooltipManager.showTooltip(
+                    context = editor.context,
+                    anchorView = editor,
+                    tag = tag ?: "",
+                )
                 true
             }
         }
