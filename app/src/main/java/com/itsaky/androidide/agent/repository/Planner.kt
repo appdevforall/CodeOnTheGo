@@ -51,7 +51,7 @@ class Planner(
         plannerHistory.addAll(history)
 
         // Pass the new, augmented history to the client.
-        val response = client.generateContent(plannerHistory, tools)
+        val response = client.generateContent(plannerHistory, tools, forceToolUse = true)
 
         val candidate = response.candidates().getOrNull()?.firstOrNull()
             ?: throw IllegalStateException("API response did not contain any candidates.")

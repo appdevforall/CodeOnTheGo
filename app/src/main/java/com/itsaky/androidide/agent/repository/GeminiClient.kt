@@ -1,13 +1,16 @@
 package com.itsaky.androidide.agent.repository
 
 import com.google.genai.Client
-import com.google.genai.errors.ServerException // NEW: Import ServerException
+import com.google.genai.errors.ServerException
 import com.google.genai.types.Content
 import com.google.genai.types.CountTokensConfig
+import com.google.genai.types.FunctionCallingConfig
+import com.google.genai.types.FunctionCallingConfigMode
 import com.google.genai.types.GenerateContentConfig
 import com.google.genai.types.GenerateContentResponse
 import com.google.genai.types.GetModelConfig
 import com.google.genai.types.Tool
+import com.google.genai.types.ToolConfig
 import org.slf4j.LoggerFactory
 import kotlin.jvm.optionals.getOrNull
 import kotlin.system.measureTimeMillis
@@ -59,22 +62,41 @@ class GeminiClient(
      */
     fun generateContent(
         history: List<Content>,
-        tools: List<Tool>
+        tools: List<Tool>,
+        forceToolUse: Boolean = false
     ): GenerateContentResponse {
         checkTokenLimit(history)
 
-        // NEW: Retry Logic
         var attempts = 0
-        val maxAttempts = 3 // Try a total of 3 times
+        val maxAttempts = 3
         history.map { log.info("History: $it") }
 
         while (attempts < maxAttempts) {
             try {
                 var response: GenerateContentResponse? = null
-                var config = GenerateContentConfig.builder().tools(tools).build()
-                if (tools.isEmpty()) {
-                    config = GenerateContentConfig.builder().build()
+
+                // MODIFIED: Build the config based on the new 'forceToolUse' flag
+                val config = if (forceToolUse && tools.isNotEmpty()) {
+                    log.info("Tool use is being forced for this API call.")
+                    val toolConfig = ToolConfig.builder()
+                        .functionCallingConfig(
+                            FunctionCallingConfig.builder()
+                                .mode(FunctionCallingConfigMode.Known.ANY)
+                                .build()
+                        ).build()
+
+                    GenerateContentConfig.builder()
+                        .tools(tools)
+                        .toolConfig(toolConfig)
+                        .build()
+                } else {
+                    // This is your original logic, which remains the default
+                    GenerateContentConfig.builder()
+                        .tools(tools)
+                        .build()
                 }
+
+
                 log.info("config: $config")
                 val apiCallDuration = measureTimeMillis {
                     log.debug("Gemini API call (Attempt ${attempts + 1}) will be called...")
@@ -92,7 +114,6 @@ class GeminiClient(
                     val finishReason = response?.promptFeedback()?.get()?.blockReason()?.getOrNull()
                     throw Exception("API Error: No candidates returned. Prompt feedback reason: ${finishReason ?: "Unknown"}")
                 }
-
                 log.info("Candidate: {}", candidates.toString())
                 val candidate = candidates[0]
                 log.info("Candidate: {}", candidate.toJson())
