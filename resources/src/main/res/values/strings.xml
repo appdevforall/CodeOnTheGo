@@ -4,7 +4,7 @@
     <!-- Code on the Go -->
     <string name="copy" tools:override="true">Copy</string>
     <string name="terminal_more">More…</string>
-    <string name="text_to_search">Text to search</string>
+    <string name="text_to_search">Text to find</string>
     <string name="app_name" translatable="false">Code on the Go</string>
     <string name="about_option_email">Email</string>
     <string name="about_option_website">Website</string>
@@ -31,7 +31,7 @@
     <string name="empty_commit">Commit message can not be empty</string>
     <string name="set_user_and_password">Please set Username and Email in settings</string>
     <string name="git_commit_heading">Please enter the commit message for your changes. An empty message aborts the commit.</string>
-    <string name="git_commit_changes">Changes to be committed, uncheck files to be excluded from this commit</string>
+    <string name="git_commit_changes">Changes to be committed. Uncheck files to be excluded from this commit</string>
 
 
     <!-- LSP, Diagnostics & Completions -->
@@ -50,7 +50,7 @@
     <string name="view_diags">Diagnostics</string>
     <string name="title_installation_failed">Installation failed</string>
     <string name="msg_picked_isnt_dir">Picked file is not a directory!</string>
-    <string name="please_wait">Please wait for a moment …</string>
+    <string name="please_wait">Please wait for a moment…</string>
 
     <!-- Project Builder -->
     <string name="title_unsupported_device">Device Not Supported</string>
@@ -125,7 +125,7 @@
     <string name="msg_layout_file_exists">Layout file already exists!</string>
     <string name="msg_invalid_name">Invalid Name!</string>
     <string name="text_create">Create</string>
-    <string name="msg_can_contain_slashes">If the path contains File separator (\'/\'), then the required (parent) directories will be created if they don\'t exist.</string>
+    <string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created automatically.</string>
     <string name="folder_name">Folder Name</string>
     <string name="file_name">File Name</string>
     <string name="new_name">New name</string>
@@ -175,24 +175,24 @@
     <string name="idepref_build_customgradlecommands_title">Additional Gradle flags</string>
     <string name="idepref_build_customgradlecommands_summary">Choose additional Gradle flags to execute with every task.</string>
     <string name="idepref_editor_fontsize_title">Font size</string>
-    <string name="idepref_editor_fontsize_summary">Font size of the editor</string>
-    <string name="idepref_editor_paintingflags_title">Non-printable painting flags</string>
-    <string name="idepref_editor_paintingflags_summary">Choose what non-printable characters should be drawn by the editor</string>
-    <string name="idepref_editor_word_wrap_title">Word Wrap</string>
-    <string name="idepref_editor_word_wrap_summary">Use wordwrap of the editor</string>
-    <string name="idepref_editor_use_magnifier_title">Enable Magnifier</string>
-    <string name="idepref_editor_use_magnifier_summary">Magnify text at cursor position while selecting text in editor</string>
+    <string name="idepref_editor_fontsize_summary">Set the default font size (measured in sp).</string>
+    <string name="idepref_editor_paintingflags_title">Show non-printing characters</string>
+    <string name="idepref_editor_paintingflags_summary">Choose which non-printing characters (like tabs, spaces, and line breaks) are displayed.</string>
+    <string name="idepref_editor_word_wrap_title">Word wrap</string>
+    <string name="idepref_editor_word_wrap_summary">Break long lines of text or code into multiple lines so they fit in the visible window.</string>
+    <string name="idepref_editor_use_magnifier_title">Enable magnifier</string>
+    <string name="idepref_editor_use_magnifier_summary">Long-press and hold to zoom in on the area around the cursor.</string>
     <string name="idepref_editor_title">Editor</string>
     <string name="idepref_build_title">Build &amp; Run</string>
     <string name="title_open_projects">Open last project</string>
-    <string name="msg_open_projects">If checked, the IDE will remember the last opened project and it will be reopened on next startup.</string>
+    <string name="msg_open_projects">When enabled, restarting Code on the Go will automatically open the last project that was open.</string>
     <string name="title_confirm_project_open">Confirm project opening</string>
     <string name="msg_confirm_project_open">Ask before opening last opened project.</string>
     <string name="title_default_shell">Use system shell in terminal</string>
     <string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
     <string name="title_general">General</string>
     <string name="title_tab_size">Tab size</string>
-    <string name="msg_tab_size">Specify number of spaces for TAB</string>
+    <string name="msg_tab_size">Set the number of spaces that the tab character indents.</string>
     <string name="msg_preferences">Preferences</string>
     <string name="pref_changelog">Changelog</string>
     <string name="msg_editor_font_size">Please choose default font size of editor :</string>
@@ -209,10 +209,20 @@
     <string name="msg_generate_xml_failed">Failed to generate XML code</string>
     <string name="title_generating_xml">Generating XML code</string>
     <string name="msg_swipe_up">Swipe up or click for build output, logs and more.</string>
+
+    <!-- Crash Screen -->
     <string name="msg_ide_crashed">Code on the Go crashed</string>
-    <string name="msg_report_crash">Please open an issue on github with the following stacktrace :</string>
-    <string name="msg_crash_report_hint">Click on the button below to copy log and open issues page.</string>
-    <string name="msg_copy_report_action">Copy and report</string>
+    <string name="msg_crash_info">An internal error has occurred.\n\nDetails that will
+      help us fix the problem have been saved and will be sent securely the next time your
+      device is online.\n\nWhen you press OK, the app will close. Any unsaved changes may
+      be lost. Please restart the app to continue.\n\nIf this happens again, try restarting
+      your device. If the problem persists, please %1$s</string>
+    <string name="contact_support_team">contact our support team.</string>
+    <string name="crash_email_subject">App Crash Report</string>
+    <string name="crash_email_body">Build Number - %1$s\n\nPlease describe what you were doing when the app crashed:\n\n</string>
+    <string name="msg_close_crash_page">Click on the button below to close this page.</string>
+    <string name="msg_ok">OK</string>
+
     <string name="title_translations">Translations</string>
     <string name="action_expand_selection">Expand selection</string>
     <string name="idepref_java_matchLower_title">Match completions in lower case</string>
@@ -221,9 +231,7 @@
     <string name="idepref_editor_category_java" translatable="false">Java</string>
     <string name="title_files_unsaved">Unsaved files</string>
     <string name="msg_files_unsaved">Some files are not saved. Would you like to save them before closing? Unsaved files are: \n%s</string>
-    <string name="idepref_editor_autoSave_title">Save before closing files</string>
-    <string name="idepref_editor_autoSave_summary">Save files before closing them. This is an EXPERIMENTAL feature. You are expected to save the files yourself.</string>
-    <string name="idepref_java_matchLower_summary">If enabled, then typing a lower case or upper case letters will suggest class names as well as scope members.</string>
+    <string name="idepref_java_matchLower_summary">When enabled, code completion matches class names and members even when typed in lowercase (case-insensitive matching).</string>
     <string name="idepref_editor_ligatures_title">Font ligatures</string>
     <string name="idepref_editor_ligatures_summary">Enable/disable font ligatures</string>
     <string name="yes">Yes</string>
@@ -236,9 +244,9 @@
     <string name="show_tooltip_show_more">Show more</string>
     <string name="faq_activity_title">More information</string>
     <string name="idepref_java_useGoogleStyle_title">Use Google Java Style code formatting</string>
-    <string name="idepref_java_useGoogleStyle_summary">Use Google Java Style code formatting configuration for formatting Java source code.</string>
-    <string name="idepref_visiblePassword_title">Visible password flag</string>
-    <string name="idepref_visiblePassword_summary">Use for visible password input type flag in editor. This makes sure that no suggestions are proposed by soft keyboard.</string>
+    <string name="idepref_java_useGoogleStyle_summary">Format Java code using Google’s conventions.</string>
+    <string name="idepref_visiblePassword_title">Hide keyboard suggestions</string>
+    <string name="idepref_visiblePassword_summary">Disable text predictions and auto-correction for the on-screen keyboard.</string>
     <string name="previous">Previous</string>
     <string name="title_gradle_service_notification_ticker">Gradle build service started</string>
     <string name="title_gradle_service_notification">Gradle build service</string>
@@ -267,8 +275,8 @@
     <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
     <string name="msg_select_from_primary_storage">Select a directory from primary storage</string>
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
-    <string name="idepref_useIcu_title">Use ICU library</string>
-    <string name="idepref_useIcu_summary">Use ICU library to use retrive word edges for double-tap and long-press word selection.</string>
+    <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
+    <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
     <string name="msg_drawer_for_files">
   • <b>To view the file tree, build tools, and preferences:</b>\n
      - Tap the menu icon at the upper left\n
@@ -290,7 +298,7 @@
     To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
   </string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
-    <string name="idepref_editor_useSoftTabs_summary">Choose whether to use spaces instead of tab character (\\t).</string>
+    <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
     <string name="btn_docs">Documentation</string>
     <string name="btn_close">Close</string>
@@ -308,36 +316,36 @@
     <string name="xml" translatable="false">XML</string>
     <string name="idepref_xml_trimFinalNewLine_title">Trim final new line</string>
     <string name="idepref_xml_insertFinalNewLine_title">Insert final new line</string>
-    <string name="idepref_xml_trimFinalNewLine_summary">Remove extra empty line at the end of file</string>
-    <string name="idepref_xml_insertFinalNewLine_summary">Inserts an empty new line at the end of file.</string>
+    <string name="idepref_xml_trimFinalNewLine_summary">Remove empty new line characters at the end of a file.</string>
+    <string name="idepref_xml_insertFinalNewLine_summary">Insert a single new line character at the end of a file.</string>
     <string name="idepref_xml_splitAttributes_title">Split attributes</string>
-    <string name="idepref_xml_splitAttributes_summary">Format attributes on new line</string>
+    <string name="idepref_xml_splitAttributes_summary">Place each attribute on a new line.</string>
     <string name="idepref_xml_joinCDataLines_title">Join CDATA lines</string>
-    <string name="idepref_xml_joinCDataLines_summary">Normalize content inside CDATA.</string>
+    <string name="idepref_xml_joinCDataLines_summary">Combine multiple CDATA blocks into a single block.</string>
     <string name="idepref_xml_joinComment_title">Join comment lines</string>
-    <string name="idepref_xml_joinComment_summary">Normalize content inside comments.</string>
+    <string name="idepref_xml_joinComment_summary">Combine multiple single-line XML comments into a single line.</string>
     <string name="idepref_xml_joinContent_title">Join content lines</string>
-    <string name="idepref_xml_joinContent_summary">Normalize content inside elements.</string>
+    <string name="idepref_xml_joinContent_summary">Combine multiple lines of text in a single XML element into a single line.</string>
     <string name="idepref_xml_spaceBeforeEmptyClose_title">Space before empty close tag</string>
-    <string name="idepref_xml_spaceBeforeEmptyClose_summary">Insert whitespace before self closing tag end bracket.</string>
+    <string name="idepref_xml_spaceBeforeEmptyClose_summary">Add a single space before every closing tag.</string>
     <string name="idepref_xml_preserveEmptyContent_title">Preserve empty content</string>
-    <string name="idepref_xml_preserveEmptyContent_summary">Preserve empty content inside elements (whitespaces, new lines, tabs, etc).</string>
+    <string name="idepref_xml_preserveEmptyContent_summary">Preserve tags that appear on otherwise-empty lines instead of collapsing them.</string>
     <string name="idepref_xml_preserveAttrLineBreaks_title">Preserve attribute line breaks</string>
-    <string name="idepref_xml_preserveAttrLineBreaks_summary">Preserve line breaks between attributes.</string>
+    <string name="idepref_xml_preserveAttrLineBreaks_summary">Keep attributes on separate lines instead of collapsing them.</string>
     <string name="idepref_xml_closingBrackNewLine_title">Closing bracket on new line</string>
-    <string name="idepref_xml_closingBrackNewLine_summary">Place closing bracket on a new line.</string>
+    <string name="idepref_xml_closingBrackNewLine_summary">Place closing brackets and self-closing tags on a new line after the last attribute.</string>
     <string name="idepref_xml_trimTrailingWs_title">Trim trailing whitespace</string>
-    <string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespaces at the end of lines.</string>
-    <string name="idepref_maxLineWidth_title">Max line width</string>
-    <string name="idepref_maxLineWidth_summary">The maximum number of characters a line should have.</string>
+    <string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespace at the end of lines.</string>
+    <string name="idepref_maxLineWidth_title">Maximum line width</string>
+    <string name="idepref_maxLineWidth_summary">Set the maximum number of characters on a single line before the editor automatically wraps or breaks the line.</string>
     <string name="idepref_splitAttrIndentSize_title">Split attributes indent size</string>
-    <string name="idepref_splitAttrIndentSize_summary">The number of spaces to index for splitted attributes.</string>
-    <string name="idepref_preservedNewLines_title">Preserved new lines</string>
-    <string name="idepref_preservedNewLines_summary">The maximum number of continuous line breaks that should be preserved.</string>
-    <string name="idepref_emptyElements_title">Empty elements behaviour</string>
-    <string name="idepref_emptyElements_summary">Choose the formatting behavior for empty elements.</string>
+    <string name="idepref_splitAttrIndentSize_summary">Set the number of spaces to automatically indent attributes that are split on separate lines.</string>
+    <string name="idepref_preservedNewLines_title">Preserve new lines</string>
+    <string name="idepref_preservedNewLines_summary">Set the maximum number of blank new lines that are kept when the file is reformatted or saved.</string>
+    <string name="idepref_emptyElements_title">Empty elements behavior</string>
+    <string name="idepref_emptyElements_summary">Choose how empty XML elements are formatted.</string>
     <string name="xml_formatting_options">XML formatting options</string>
-    <string name="xml_formatting_options_summary">Configure the XML formatter</string>
+    <string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
     <string name="idepref_customFont_title">Use custom font</string>
     <string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
     <string name="msg_installing_apk">Installing APK...</string>
@@ -460,8 +468,8 @@
     <string name="action_show_hierarchy">Show layout hierarchy</string>
     <string name="idepref_editor_colorScheme">Color Scheme</string>
     <string name="idepref_editor_colorScheme_summary">Choose color scheme to use in editor</string>
-    <string name="idepref_general_uiMode">UI Mode</string>
-    <string name="idepref_general_uiMode_summary">Choose UI mode for the IDE</string>
+    <string name="idepref_general_uiMode">UI mode</string>
+    <string name="idepref_general_uiMode_summary">Choose whether to use light mode, dark mode, or the current system settings.</string>
     <string name="uiMode_light">Light</string>
     <string name="uiMode_dark">Dark</string>
     <string name="uiMode_system">Follow system</string>
@@ -475,9 +483,9 @@
     <string name="msg_dir_picker_failed">Failed to start directory picker : %1$s</string>
     <string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
     <string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
-    <string name="idepref_deleteEmptyLines_summary">Whether the editor should delete empty lines on a single backspace key event.</string>
-    <string name="idepref_deleteTabs_title">Delete tab on backspace</string>
-    <string name="idepref_deleteTabs_summary">When enabled, the editor will delete spaces equal to the tab width when the backspace key is pressed.</string>
+    <string name="idepref_deleteEmptyLines_summary">If a line contains no visible text characters, pressing backspace removes the entire line.</string>
+    <string name="idepref_deleteTabs_title">Smart backspace indent</string>
+    <string name="idepref_deleteTabs_summary">Remove a full indent level instead of just one character when you press backspace.</string>
 
     <!--  GitHub-->
     <string name="title_warning">Warning</string>
@@ -534,11 +542,6 @@
     <string name="msg_invalid_project_details">Invalid project details</string>
     <string name="msg_use_kts">Use Kotlin Script (.kts) for Gradle build files</string>
     <string name="title_privacy">Privacy</string>
-    <string name="title_androidide_statistics">Code on the Go Statistics</string>
-    <string name="msg_androidide_statistics">Help us improve Code on the Go by providing anonymous statistics. We collect basic information about your device for user base statistics only. The exact data that is shared can be viewed in preferences. Your data is secure and not shared with third-party services. You can opt-out anytime in preferences.</string>
-    <string name="summary_anonymous_usage_stats">Anonymous usage stats</string>
-    <string name="idepref_stats_optIn_title">Stats collection</string>
-    <string name="idepref_stats_optIn_summary">Allow installation metrics and device statistics to be collected (fully anonymous).</string>
     <string name="title_unique_id">Unique ID</string>
     <string name="title_device">Device</string>
     <string name="title_app_version">App version</string>
@@ -561,15 +564,17 @@
     <string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
     <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
     <string name="title_build_variants">Build variants</string>
-    <string name="title_apply">Apply</string>
-    <string name="title_discard">Discard</string>
+    <string name="title_git">Git</string>
+    <string name="title_agent">Agent</string>
+    <string name="build_variants_apply">Apply</string>
+    <string name="build_variants_cancel">Cancel</string>
     <string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
     <string name="title_choose_application">Choose application</string>
     <string name="err_selected_variant_not_found">Selected build variant not found</string>
     <string name="title_disconnect_log_senders">Disconnect log senders</string>
     <string name="title_begin_long_select">Begin long select</string>
     <string name="idepref_editor_stickScroll_title">Sticky scroll</string>
-    <string name="idepref_editor_stickyScroll_summary">Show the current scope at the top while scrolling the editor.</string>
+    <string name="idepref_editor_stickyScroll_summary">Keep the current scope header pinned at the top of the editor while you scroll.</string>
     <string name="idepref_launchAppAfterInstall_title">Launch app after installation</string>
     <string name="idepref_launchAppAfterInstall_summary">If enabled, the IDE will (without confirmation) launch the application right after it is installed.</string>
     <string name="title_run_options">Run options</string>
@@ -584,7 +589,7 @@
     <string name="theme_sunny_glow">Sunny Glow</string>
     <string name="theme_material_you">Material You</string>
     <string name="idepref_general_localeSelector_title">Language</string>
-    <string name="idepref_general_localeSelector_summary">Select a language for Code on the Go.</string>
+    <string name="idepref_general_localeSelector_summary">Choose the language for Code on the Go.</string>
     <string name="locale_system_default">System Default</string>
     <string name="msg_project_dir_inaccessible">Project directory is not accessible</string>
     <string name="msg_file_is_not_dir">Selected file is not a directory</string>
@@ -604,123 +609,141 @@
     <string name="permission_title_accessibility">Accessibility</string>
     <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
-    <string name="onboarding_title_permissions">Permissions</string>
-    <string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
-    <string name="msg_grant_permissions">Please grant the permissions to continue.</string>
-    <string name="msg_no_internet">It seems you\'re offline. Check your internet connection.</string>
-    <string name="msg_connected_to_cellular">Heads up! You\'re using cellular data.</string>
-    <string name="msg_connected_to_metered_connection">Heads up! You\'re on a metered network.</string>
-    <string name="msg_disable_background_data_restriction">Disable background data restriction to avoid installation failures.</string>
-    <string name="msg_cannot_create_terminal_session">Unable to create terminal session</string>
-    <string name="action_auto_install">Automatic installation</string>
-    <string name="action_manual_install">Manual installation</string>
-    <string name="hint_android_sdk_version">Android SDK version</string>
-    <string name="hin_jdk_version">JDK version</string>
-    <string name="action_install_git">Install Git</string>
-    <string name="action_install_openssh">Install OpenSSH</string>
-    <string name="msg_terminal_new_sessions_disabled">Cannot create session. New sessions are disabled!</string>
-    <string name="title_install_location_error">Install location error</string>
-    <string name="title_unsupported_user">Unsupported user</string>
-    <string name="title_socials">Socials</string>
-    <string name="title_contributors">Contributors</string>
-    <string name="summary_contributors">Top community contributors.</string>
-    <string name="title_github_contributors">GitHub Contributors</string>
-    <string name="title_crowdin_translators">Crowdin Translators</string>
-    <string name="title_misc">Misc</string>
-    <string name="title_contribute">Contribute</string>
-    <string name="summary_contribute">It\'s not just an IDE, it\'s a community. Contribute code, ideas, and passion to Code On The Go.</string>
-    <string name="msg_app_unavailable_for_intent">No application available to handle intent.</string>
-    <string name="title_open_source_licenses">Open source licenses</string>
-    <string name="summary_open_source_licenses">View open source licenses.</string>
-    <string name="idepref_jdkVersion_title">JDK version</string>
-    <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
-    <string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
+    <string name="permission_title_notifications">Notifications</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to post notifications</string>
+	<string name="onboarding_title_permissions">Permissions</string>
+	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
+	<string name="msg_grant_permissions">Please grant the permissions to continue.</string>
+	<string name="msg_no_internet">It seems you\'re offline. Check your internet connection.</string>
+	<string name="msg_connected_to_cellular">Heads up! You\'re using cellular data.</string>
+	<string name="msg_connected_to_metered_connection">Heads up! You\'re on a metered network.</string>
+	<string name="msg_disable_background_data_restriction">Disable background data restriction to avoid installation failures.</string>
+	<string name="msg_cannot_create_terminal_session">Unable to create terminal session</string>
+	<string name="action_auto_install">Automatic installation</string>
+	<string name="action_manual_install">Manual installation</string>
+	<string name="hint_android_sdk_version">Android SDK version</string>
+	<string name="hin_jdk_version">JDK version</string>
+	<string name="action_install_git">Install Git</string>
+	<string name="action_install_openssh">Install OpenSSH</string>
+	<string name="msg_terminal_new_sessions_disabled">Cannot create session. New sessions are disabled!</string>
+	<string name="title_install_location_error">Install location error</string>
+	<string name="title_unsupported_user">Unsupported user</string>
+	<string name="title_socials">Socials</string>
+	<string name="title_contributors">Contributors</string>
+	<string name="summary_contributors">Top community contributors.</string>
+	<string name="title_github_contributors">GitHub Contributors</string>
+	<string name="title_crowdin_translators">Crowdin Translators</string>
+	<string name="title_misc">Misc</string>
+	<string name="title_contribute">Contribute</string>
+	<string name="summary_contribute">It\'s not just an IDE, it\'s a community. Contribute code, ideas, and passion to Code On The Go.</string>
+	<string name="msg_app_unavailable_for_intent">No application available to handle intent.</string>
+	<string name="title_open_source_licenses">Open source licenses</string>
+	<string name="summary_open_source_licenses">View open source licenses.</string>
+	<string name="idepref_jdkVersion_title">JDK version</string>
+	<string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
+	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
 
-    <string name="debugger_title">Debugger</string>
-    <string name="debugger_foreground_detection_service_description">Code on the Go uses accessibility services to detect foreground applications for automatically show/hide the debugger overlay window.</string>
-    <string name="debugger_starting">Starting debugger…</string>
-    <string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
-    <string name="debugger_started">Debugger started</string>
-    <string name="debugger_variables">Variables</string>
-    <string name="debugger_call_stack">Call stack</string>
-    <string name="debugger_thread">Thread</string>
-    <string name="debugger_step_into">Step into</string>
-    <string name="debugger_step_out">Step out</string>
-    <string name="debugger_step_over">Step over</string>
-    <string name="debugger_kill">Kill</string>
-    <string name="debugger_suspend">Suspend</string>
-    <string name="debugger_resume">Resume</string>
-    <string name="debugger_restart">Restart</string>
-    <string name="debugger_status_resolving">Resolving…</string>
-    <string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
+	<string name="debugger_title">Debugger</string>
+	<string name="debugger_foreground_detection_service_description">Code on the Go uses accessibility services to detect foreground applications for automatically
+		show/hide the debugger overlay window.</string>
+	<string name="debugger_starting">Starting debugger…</string>
+	<string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
+	<string name="debugger_started">Debugger started</string>
+	<string name="debugger_variables">Variables</string>
+	<string name="debugger_call_stack">Call stack</string>
+	<string name="debugger_thread">Thread</string>
+	<string name="debugger_step_into">Step into</string>
+	<string name="debugger_step_out">Step out</string>
+	<string name="debugger_step_over">Step over</string>
+	<string name="debugger_kill">Kill</string>
+	<string name="debugger_suspend">Suspend</string>
+	<string name="debugger_resume">Resume</string>
+	<string name="debugger_restart">Restart</string>
+	<string name="debugger_status_resolving">Resolving…</string>
+	<string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
 
-    <!-- Connected to <VM-name> (<VM-version>) -->
-    <string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
-    <string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
+	<!-- Connected to <VM-name> (<VM-version>) -->
+	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
+	<string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
 
-    <string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
-    <string name="debugger_value_error">&lt;error&gt;</string>
-    <string name="debugger_variable_value_hint">Variable value</string>
-    <string name="debugger_variable_dialog_title">%1$s: %2$s</string>
-    <string name="debugger_value_null">null</string>
-    <string name="debugger_dialog_hint_enter_value">Enter value</string>
-    <string name="debugger_dialog_button_set">Set</string>
-    <string name="debugger_variable_value_invalid">Invalid value for this variable</string>
-    <string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
+	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
+	<string name="debugger_value_error">&lt;error&gt;</string>
+	<string name="debugger_variable_value_hint">Variable value</string>
+	<string name="debugger_variable_dialog_title">%1$s: %2$s</string>
+	<string name="debugger_value_null">null</string>
+	<string name="debugger_dialog_hint_enter_value">Enter value</string>
+	<string name="debugger_dialog_button_set">Set</string>
+	<string name="debugger_variable_value_invalid">Invalid value for this variable</string>
+	<string name="debugger_error_immutable_variable">The value of variable \'%1$s\' cannot be updated.</string>
 
-    <string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
+	<string name="err_no_activity_to_handle_action">No activity to handle action %1$s</string>
 
-    <string name="file">File</string>
-    <string name="actions">Actions</string>
-    <string name="help">Help</string>
-    <string name="code"></string>
+	<string name="file">File</string>
+	<string name="actions">Actions</string>
+	<string name="help">Help</string>
+	<string name="code"></string>
 
-    <string name="email_feedback_warning_prompt">Sending feedback will create and send a private email to feedback@appdevforall.org, if you feel that this would be an unsafe action, then click <b><i>Cancel</i></b>, otherwise click <b><i>OK</i></b> to proceed</string>
-    <string name="feedback_subject">Feedback for %1$s Screen</string>
-    <string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were taking and in what screen.\n\nThank You.\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
-    <string name="send_feedback">Send Feedback</string>
-    <string name="alert_message">Alert!</string>
-    <string name="fab_more">More</string>
-    <string name="msg_recent_projects">Recent Projects</string>
-    <string name="msg_create_new_from_recent">Click the New project button to create a new project or\nopen from a folder</string>
-    <string name="msg_no_recent_projects">You don\'t have any recent projects</string>
-    <string name="date">Date</string>
-    <string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
-    <string name="open_from_folder">Open from folder</string>
-    <string name="msg_delete_selected_project">Are you sure want to delete the selected project? This action cannot be undone.</string>
-    <string name="feedback_email">feedback@appdevforall.org</string>
-    <string name="no_email_apps">No email apps found</string>
-    <string name="msg_internet_access_required">Internet access is required.</string>
-    <string name="msg_contact_app_dev_title">Contact App Dev for All</string>
-    <string name="msg_contact_app_dev_description">To report issues, make suggestions, and ask questions, email us at feedback@appdevforall.org. Internet access is required.</string>
-    <string name="code_on_the_go">Code on the Go</string>
-    <string name="feedback_email_subject">Feedback for Code on the Go</string>
-    <string name="msg_no_internet_no_problem">No computer? No Internet?\nNo problem.</string>
-    <string name="offline_message">Offline</string>
-    <string name="more_label">More</string>
-    <string name="send_email">Send Email</string>
-    <string name="close">Close</string>
-    <string name="tooltip_see_more_text">+ See more</string>
-    <string name="more_information_about">More information about %1$s</string>
-    <string name="learn_more">Learn more</string>
-    <string name="alert">Alert!</string>
-    <string name="commit_canceled_files_to_commit">There are files to commit, commit canceled</string>
-    <string name="commit_canceled_no_files_to_commit">No files to commit, commit canceled</string>
-    <string name="committed_all_changes_to_repository_in">Committed all changes to repository in %1$s</string>
-    <string name="halt">Halt</string>
-    <string name="breakpoint">Breakpoint</string>
-    <string name="project_name">Project name</string>
-    <string name="project_options">Project Options</string>
+	<string name="email_feedback_warning_prompt">
+		Sending feedback will create and send a private email to feedback@appdevforall.org, if you feel that this would
+		be an unsafe action, then click
+		<b>
+			<i>Cancel</i>
+		</b>
+		, otherwise click
+		<b>
+			<i>OK</i>
+		</b>
+		to proceed
+	</string>
+	<string name="feedback_subject">Feedback for %1$s Screen</string>
+	<string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were
+		taking and in what screen.\n\nThank You.\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
+	<string name="send_feedback">Send Feedback</string>
+	<string name="alert_message">Alert!</string>
+	<string name="fab_more">More</string>
+	<string name="msg_recent_projects">Recent projects</string>
+	<string name="msg_create_new_from_recent">Click the New project button to create a new project or open from a folder.</string>
+	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
+	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
+	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
+	<string name="date">Date</string>
+	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
+	<string name="find_saved_project">Find a saved project</string>
+	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
+	<string name="feedback_email">feedback@appdevforall.org</string>
+	<string name="no_email_apps">No email apps found</string>
+	<string name="msg_internet_access_required">Internet access is required.</string>
+	<string name="msg_contact_app_dev_title">Contact App Dev for All</string>
+	<string name="msg_contact_app_dev_description">To report issues, make suggestions, and ask questions, email us at feedback@appdevforall.org.
+		Internet access is required.</string>
+	<string name="code_on_the_go">Code on the Go</string>
+	<string name="feedback_email_subject">Feedback for Code on the Go</string>
+	<string name="msg_no_internet_no_problem">No computer? No Internet?\nNo problem.</string>
+	<string name="offline_message">Offline</string>
+	<string name="more_label">More</string>
+	<string name="send_email">Send Email</string>
+	<string name="close">Close</string>
+	<string name="tooltip_see_more_text">+ See more</string>
+	<string name="more_information_about">More information about %1$s</string>
+	<string name="learn_more">Learn more</string>
+	<string name="alert">Alert!</string>
+	<string name="commit_canceled_files_to_commit">There are files to commit, commit canceled</string>
+	<string name="commit_canceled_no_files_to_commit">No files to commit, commit canceled</string>
+	<string name="committed_all_changes_to_repository_in">Committed all changes to repository in %1$s</string>
+	<string name="halt">Halt</string>
+	<string name="breakpoint">Breakpoint</string>
+	<string name="project_name">Project name</string>
+	<string name="project_options">Project Options</string>
 
-    <!-- Message shown when the bootstrap installer is extract a file from the zip -->
-    <!--  The first parameter is the name of the zip entry  -->
-    <string name="bootstrap_installer_unzipping">Unzipping %1$s</string>
+	<!-- Message shown when the bootstrap installer is extract a file from the zip -->
+	<!-- The first parameter is the name of the zip entry -->
+	<string name="bootstrap_installer_unzipping">Unzipping %1$s</string>
 
-    <!--  Message shown when the bootstrap installer is in the linking phase  -->
-    <string name="bootstrap_installer_linking">Resolving symlinks…</string>
+	<!-- Message shown when the bootstrap installer is in the linking phase -->
+	<string name="bootstrap_installer_linking">Resolving symlinks…</string>
 
-      <!-- Tooltip HTML Template -->
-  <string name="tooltip_html_template"><![CDATA[
+    <!-- Tooltip HTML Template -->
+    <string name="tooltip_html_template"><![CDATA[
         <!DOCTYPE html>
         <html>
         <head>
@@ -742,14 +765,128 @@
                 %2$s
             </body>
 
-        </html>
-        ]]></string>
+		</html>
+		]]></string>
 
+    <string name="info_icon_content_description">Info icon</string>
+    <string name="unknown_error">"An unknown error occurred."</string>
+    <string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
+    <string name="error_build_service_not_found">Build service not found.</string>
+    <string name="error_task_execution_failed">Task execution failed.</string>
+    <string name="error_no_output_listing_file">No output listing file found in project model.</string>
+    <string name="error_no_apk_in_output_listing">No APK found in output listing file.</string>
+    <string name="error_apk_not_exist">APK file specified does not exist: %1$s</string>
+    <string name="info_build_cancelled">Build was cancelled by the user.</string>
+    <string name="error_quick_run_failed">Quick Run failed.</string>
+    <string name="status_building">Building…</string>
+    <string name="init_failed_with_reason">%1$s: %2$s</string>
+
+    <!-- Name of the notification channel which is used to show notifications for wireless debugging -->
+	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
+
+	<!-- Hint for the notification text field which asks the user to enter the wireless debugging pairing code -->
+    <string name="notification_adb_pairing_input_paring_code">Enter pairing code</string><!-- Title for the notification when the wireless debugging pairing service is being searched. -->
+    <string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
+    <!-- Title for the notification when the wireless debugging pairing service is found. -->
+	<string name="notification_adb_pairing_service_found_title">Pairing service found</string>
+	<!-- Text for the button in the notification to stop searching for the wireless debugging pairing service. -->
+    <string name="notification_adb_pairing_stop_searching">Stop searching</string>
+    <!-- Title for the notification when wireless debugging pairing is in progress. -->
+	<string name="notification_adb_pairing_working_title">Pairing in progress</string>
+    <!-- Title for the notification when wireless debugging pairing has succeeded. -->
+	<string name="notification_adb_pairing_succeed_title">Pairing successful</string>
+	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
+    <string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+	<!-- Title for the notification when wireless debugging pairing has failed. -->
+    <string name="notification_adb_pairing_failed_title">Pairing failed</string><!-- Text for the button in the notification to retry wireless debugging pairing after it has failed. -->
+    <string name="notification_adb_pairing_retry">Retry</string><!-- Error message displayed when the entered wireless debugging pairing code is incorrect. -->
+    <string name="paring_code_is_wrong">Pairing code is wrong.</string>
+    <!-- Error message displayed when the application cannot connect to the wireless debugging service port. -->
+	<string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
+	<!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless
+		debugging. -->
+    <string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
+    <!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
+	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
+
+	<!-- Text for an action button that initiates the wireless debugging pairing process. -->
+	<string name="adb_pairing_action_start">Click to start pairing</string>
+
+	<!-- Text for an action button that prompts the user to grant notification permission for wireless debugging pairing. -->
+	<string name="adb_pairing_action_enable_notifications">Grant notification permission</string>
+
+	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
+	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.</string>
+
+	<!-- Instructional text specific to MIUI users, advising them to change notification style for successful pairing. -->
+	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" -
+		\"Notification shade\" in system settings.</string>
+	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not able to enter paring code from the notification.</string>
+
+	<!-- Instructional text explaining that the app needs local network access for wireless debugging pairing. -->
+	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access local network. It is controlled by the network permission.</string>
+
+	<!-- Instructional text for users on systems (like MIUI) that restrict background network access, advising to disable
+		battery optimization. -->
+	<string name="adb_pairing_tutorial_content_network_limation_not_foreground">Some systems (such as MIUI) disallow apps to access the network when they are not visible, even
+		if the app uses foreground service as standard. Please disable battery optimization features for Code on the Go
+		on such systems.</string>
+
+	<!-- Instructional text outlining the steps to find the pairing code in device developer options. -->
+	<string name="adb_pairing_tutorial_content_steps">Enter \"Developer options\" - \"Wireless debugging\". Tap \"Pair device with pairing code\", you
+		will see a six-digit code.</string>
+
+	<!-- Instructional text guiding the user to enter the pairing code in the notification. -->
+	<string name="adb_pairing_tutorial_content_enter_pairing_code">Enter the code in the notification to complete pairing.</string>
+
+	<!-- Instructional text clarifying how to correctly access the wireless debugging settings. -->
+	<string name="adb_pairing_tutorial_content_left_is_clickable">Please note, left part of the \"Wireless debugging\" option is clickable, tapping it will open a
+		new page. Only turing on the switch on the right is incorrect.</string>
+
+	<!-- Instructional text indicating the final step after successful pairing. -->
+	<string name="adb_pairing_tutorial_content_finish">Back to Code on the Go and the Shizuku service will start automatically.</string>
+
+	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
+		been completed. -->
+	<string name="adb_pair_required">Please go through the pairing step first.</string>
+
+	<!-- Status message indicating that the application is searching for the ADB connection port. Placeholder %1$d represents
+		the number of times the IDE has tried to find the port. Placeholder %2$d represents the maximum number of attempts to find
+		the port. -->
+	<string name="adb_connection_finding">Finding ADB connection port (try %1$d/%2$d)…</string>
+
+	<!-- Status message indicating that the application is attempting to connect to the ADB daemon on a specific port. The
+		%1$d is a placeholder for the port number. -->
+	<string name="adb_connection_connecting">Connecting to ADB daemon on port: %1$d…</string>
+
+	<!-- Status message indicating a successful connection to the ADB daemon. -->
+	<string name="adb_connection_succeeded">Successfully connected to ADB daemon!</string>
+
+	<!-- Status message indicating a failed connection to the ADB daemon. The %1$s is a placeholder for the error reason. -->
+	<string name="adb_connection_failed">Connection to ADB daemon failed: %1$s</string>
+
+	<!-- Status message indicating that the application is waiting for the ADB service to become available. -->
+	<string name="adb_connection_waiting_for_service">Waiting for service…</string>
+
+	<!-- Status message indicating that the ADB service has started. -->
+	<string name="adb_connection_done">Service started</string>
+
+	<!-- Error message displayed when the application is denied permission to start foreground services, which is necessary
+		for some features. -->
+	<string name="err_foreground_service_denial">Code on the Go is not allowed to start foreground services (OP_START_FOREGROUND denial)</string>
+
+	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
+		11, as it's a requirement. -->
+	<string name="err_debugger_requires_a11">The debugger features require Android 11 to work.</string>
     <!-- Tooltip Links HTML Template -->
     <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
     <string name="title_alert">Alert!</string>
 
-    <string name="build_variants_apply">Apply</string>
-    <string name="build_variants_cancel">Cancel</string>
-  <string name="info_icon_content_description">Info icon</string>
+    <!-- Strings from BaseApplication.java-->
+    <string name="telegram_group_url">https://t.me/androidide_discussions</string>
+    <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
+    <string name="sponsor_url">https://m.androidide.com/donate</string>
+    <string name="docs_url">http://localhost:6174/i/index.html</string>
+    <string name="adfa_email">info@appdevforall.org</string>
+    <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 </resources>

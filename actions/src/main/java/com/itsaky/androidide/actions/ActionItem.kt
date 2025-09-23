@@ -69,10 +69,26 @@ interface ActionItem {
    */
   var location: Location
 
+    /**
+     * The tooltip tag of this [ActionItem].
+     */
+    var tooltipTag: String
+      get() = ""
+      set(_) {}
+
   /**
-   * The tooltip tag of this [ActionItem].
+   * Retrieves the tooltip tag for this [ActionItem].
+   *
+   * This function allows the action to provide a context-specific tooltip. For example,
+   * the "Copy" action can have a different tooltip in a standard code editor
+   * versus a read-only output panel where the user can only view, copy, and share content.
+   *
+   * @param isReadOnlyContext `true` if the action is displayed in a context where the
+   * content is read-only (e.g., a build output or logcat panel), `false` otherwise.
+   * @return The appropriate tooltip tag for the given context, or an empty string if
+   * no tooltip is available.
    */
-  var tooltipTag: String
+  fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
 
   /**
    * The order of this action item. This is used only at some locations and not everywhere.
@@ -167,6 +183,7 @@ interface ActionItem {
      * Location marker for action items shown in editor activity's sidebar (navigation rail in the drawer).
      */
     EDITOR_SIDEBAR("ide.editor.sidebar"),
+    EDITOR_RIGHT_SIDEBAR("ide.editor.right.sidebar"),
 
     /**
      * Location marker for action items shown in the default category of editor activity's sidebar (navigation rail in the drawer).

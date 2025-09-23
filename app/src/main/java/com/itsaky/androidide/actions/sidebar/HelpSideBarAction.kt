@@ -41,7 +41,6 @@ class HelpSideBarAction(context: Context, override val order: Int) :
     init {
         label = context.getString(R.string.action_open_help)
         icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
-        tooltipTag = TooltipTag.HELP_SIDEBAR
     }
 
     override suspend fun execAction(data: ActionData): Any {
@@ -49,4 +48,5 @@ class HelpSideBarAction(context: Context, override val order: Int) :
         context.doOpenHelp()
         return true
     }
+    override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.HELP_SIDEBAR
 }

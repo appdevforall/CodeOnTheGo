@@ -38,7 +38,6 @@ class LongSelectAction(context: Context, override val order: Int) : EditorRelate
   init {
     label = context.getString(R.string.title_begin_long_select)
     icon = ContextCompat.getDrawable(context, R.drawable.editor_text_select_start)
-    tooltipTag = TooltipTag.EDITOR_TOOLBAR_LONG_SELECT
   }
 
   override fun prepare(data: ActionData) {
@@ -49,4 +48,6 @@ class LongSelectAction(context: Context, override val order: Int) : EditorRelate
   override suspend fun execAction(data: ActionData): Any {
     return data.getEditor()?.beginLongSelect() ?: false
   }
+  override fun retrieveTooltipTag(isAlternateContext: Boolean) =
+    TooltipTag.EDITOR_TOOLBAR_LONG_SELECT
 }

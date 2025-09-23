@@ -21,6 +21,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.fragments.sidebar.BuildVariantsFragment
 import com.itsaky.androidide.idetooltips.TooltipTag
 import kotlin.reflect.KClass
@@ -35,10 +36,16 @@ class BuildVariantsSidebarAction(context: Context, override val order: Int) :
 
   override val fragmentClass: KClass<out Fragment> = BuildVariantsFragment::class
   override val id: String = "ide.editor.sidebar.buildVariants"
+  override var location: ActionItem.Location = ActionItem.Location.EDITOR_RIGHT_SIDEBAR
 
+
+  companion object {
+    const val ID ="ide.editor.sidebar.buildVariants"
+  }
   init {
     label = context.getString(R.string.title_build_variants)
     icon = ContextCompat.getDrawable(context, R.drawable.ic_android)
-    tooltipTag = TooltipTag.BUILD_VARIANT_SIDEBAR
   }
+
+  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.BUILD_VARIANT_SIDEBAR
 }

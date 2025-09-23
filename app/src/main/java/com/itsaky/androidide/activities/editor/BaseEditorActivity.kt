@@ -32,12 +32,12 @@ import android.os.Process
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
-import android.text.Spanned
 import android.text.TextUtils
 import android.text.method.LinkMovementMethod
-import android.text.style.ClickableSpan
 import android.text.style.LeadingMarginSpan
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
@@ -47,7 +47,6 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
-import androidx.annotation.StringRes
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
@@ -56,13 +55,13 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.constant.MemoryConstants
 import com.blankj.utilcode.util.ConvertUtils.byte2MemorySize
 import com.blankj.utilcode.util.FileUtils
+import com.blankj.utilcode.util.SizeUtils
 import com.blankj.utilcode.util.ThreadUtils
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
@@ -75,21 +74,21 @@ import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
-import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
+import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
-import com.itsaky.androidide.fragments.SearchResultFragment
-import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.models.DiagnosticItem
@@ -106,17 +105,22 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
-import com.itsaky.androidide.utils.ActionMenuUtils.createMenu
+import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.ApkInstallationSessionCallback
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
+import com.itsaky.androidide.viewmodel.FileManagerViewModel
+import com.itsaky.androidide.viewmodel.FileOpResult
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.widgets.WidgetTableRegistry
@@ -129,7 +133,9 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import rikka.shizuku.Shizuku
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -139,313 +145,363 @@ import kotlin.math.roundToLong
  * @author Akash Yadav
  */
 @Suppress("MemberVisibilityCanBePrivate")
-abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSelectedListener,
-    DiagnosticClickListener {
+abstract class BaseEditorActivity :
+	EdgeToEdgeIDEActivity(),
+	TabLayout.OnTabSelectedListener,
+	DiagnosticClickListener {
+	protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
+	protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
+	protected var filesTreeFragment: FileTreeFragment? = null
+	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
+	protected val memoryUsageWatcher = MemoryUsageWatcher()
+	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
-    protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
-    protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
-    protected var filesTreeFragment: FileTreeFragment? = null
-    protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
-    protected val memoryUsageWatcher = MemoryUsageWatcher()
-    protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
+	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 
     var isDestroying = false
         protected set
 
-    /**
-     * Editor activity's [CoroutineScope] for executing tasks in the background.
-     */
-    protected val editorActivityScope = CoroutineScope(Dispatchers.Default)
+	/**
+	 * Editor activity's [CoroutineScope] for executing tasks in the background.
+	 */
+	protected val editorActivityScope = CoroutineScope(Dispatchers.Default)
 
-    internal var installationCallback: ApkInstallationSessionCallback? = null
+	internal var installationCallback: ApkInstallationSessionCallback? = null
 
-    var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
-    val editorViewModel by viewModels<EditorViewModel>()
-    val debuggerViewModel by viewModels<DebuggerViewModel>()
+	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
+	val editorViewModel by viewModels<EditorViewModel>()
+	val debuggerViewModel by viewModels<DebuggerViewModel>()
+	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 
-    internal var _binding: ActivityEditorBinding? = null
-    val binding: ActivityEditorBinding
-        get() = checkNotNull(_binding) { "Activity has been destroyed" }
-    val content: ContentEditorBinding
-        get() = binding.content
+	@Suppress("ktlint:standard:backing-property-naming")
+	internal var _binding: ActivityEditorBinding? = null
+	val binding: ActivityEditorBinding
+		get() = checkNotNull(_binding) { "Activity has been destroyed" }
+	val content: ContentEditorBinding
+		get() = binding.content
 
-    override val subscribeToEvents: Boolean
-        get() = true
+	override val subscribeToEvents: Boolean
+		get() = true
 
-    private val onBackPressedCallback: OnBackPressedCallback =
-        object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (binding.root.isDrawerOpen(GravityCompat.START)) {
-                    binding.root.closeDrawer(GravityCompat.START)
-                } else if (editorBottomSheet?.state != BottomSheetBehavior.STATE_COLLAPSED) {
-                    editorBottomSheet?.setState(BottomSheetBehavior.STATE_COLLAPSED)
-                } else if (binding.swipeReveal.isOpen) {
-                    binding.swipeReveal.close()
-                } else {
-                    doConfirmProjectClose()
-                }
-            }
-        }
+	private val onBackPressedCallback: OnBackPressedCallback =
+		object : OnBackPressedCallback(true) {
+			override fun handleOnBackPressed() {
+				if (binding.root.isDrawerOpen(GravityCompat.START)) {
+					binding.root.closeDrawer(GravityCompat.START)
+				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
+					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+				} else if (binding.swipeReveal.isOpen) {
+					binding.swipeReveal.close()
+				} else {
+					doConfirmProjectClose()
+				}
+			}
+		}
 
-    private val memoryUsageListener = MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
-        memoryUsage.forEachValue { proc ->
-            _binding?.memUsageView?.chart?.apply {
-                val dataset = (data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
-                    ?: run {
-                        log.error("No dataset found for process: {}: {}", proc.pid, proc.pname)
-                        return@forEachValue
-                    }
+	private val memoryUsageListener =
+		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
+			memoryUsage.forEachValue { proc ->
+				_binding?.memUsageView?.chart?.apply {
+					val dataset =
+						(data.getDataSetByIndex(pidToDatasetIdxMap[proc.pid]) as LineDataSet?)
+							?: run {
+								log.error(
+									"No dataset found for process: {}: {}",
+									proc.pid,
+									proc.pname,
+								)
+								return@forEachValue
+							}
 
-                dataset.entries.mapIndexed { index, entry ->
-                    entry.y =
-                        byte2MemorySize(proc.usageHistory[index], MemoryConstants.MB).toFloat()
-                }
+					dataset.entries.mapIndexed { index, entry ->
+						entry.y =
+							byte2MemorySize(proc.usageHistory[index], MemoryConstants.MB).toFloat()
+					}
 
-                dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
-                dataset.notifyDataSetChanged()
-                data.notifyDataChanged()
-                notifyDataSetChanged()
-                invalidate()
-            }
-        }
-    }
+					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
+					dataset.notifyDataSetChanged()
+					data.notifyDataChanged()
+					notifyDataSetChanged()
+					invalidate()
+				}
+			}
+		}
 
-    private var isImeVisible = false
-    private var contentCardRealHeight: Int? = null
-    private val editorSurfaceContainerBackground by lazy {
-        resolveAttr(R.attr.colorSurfaceDim)
-    }
-    private val editorLayoutCorners by lazy {
-        resources.getDimensionPixelSize(R.dimen.editor_container_corners).toFloat()
-    }
+	private val shizukuBinderReceivedListener =
+		Shizuku.OnBinderReceivedListener {
+			invalidateOptionsMenu()
+		}
 
-    private var isDebuggerStarting = false
-        @UiThread set(value) {
-            field = value
-            onUpdateProgressBarVisibility()
-        }
+	private var isImeVisible = false
+	private var contentCardRealHeight: Int? = null
+	private val editorSurfaceContainerBackground by lazy {
+		resolveAttr(R.attr.colorSurfaceDim)
+	}
 
-    private var debuggerService: DebuggerService? = null
-    private var debuggerPostConnectionAction: (suspend () -> Unit)? = null
-    private val debuggerServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            debuggerService = (service as DebuggerService.Binder).getService()
-            debuggerService!!.showOverlay()
+	private var isDebuggerStarting = false
+		@UiThread set(value) {
+			field = value
+			onUpdateProgressBarVisibility()
+		}
 
-            isDebuggerStarting = false
-            activityScope.launch(Dispatchers.Main.immediate) {
-                doSetStatus(getString(string.debugger_started))
-                debuggerPostConnectionAction?.invoke()
-            }
-        }
+	private var debuggerService: DebuggerService? = null
+	private var debuggerPostConnectionAction: (suspend () -> Unit)? = null
+	private val debuggerServiceConnection =
+		object : ServiceConnection {
+			override fun onServiceConnected(
+				name: ComponentName,
+				service: IBinder,
+			) {
+				debuggerService = (service as DebuggerService.Binder).getService()
+				debuggerService!!.showOverlay()
 
-        override fun onServiceDisconnected(name: ComponentName?) {
-            debuggerService = null
-            isDebuggerStarting = false
-        }
-    }
+				isDebuggerStarting = false
+				activityScope.launch(Dispatchers.Main.immediate) {
+					doSetStatus(getString(string.debugger_started))
+					debuggerPostConnectionAction?.invoke()
+				}
+			}
 
-    private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
-    private val debuggerServiceStopRunnable = Runnable {
-        if (debuggerService != null && debuggerViewModel.connectionState.value < DebuggerConnectionState.ATTACHED) {
-            unbindDebuggerService()
-        }
-    }
+			override fun onServiceDisconnected(name: ComponentName?) {
+				debuggerService = null
+				isDebuggerStarting = false
+			}
+		}
 
-    private fun unbindDebuggerService() {
-        try {
-            unbindService(debuggerServiceConnection)
-        } catch (e: Throwable) {
-            log.error("Failed to stop debugger service", e)
-        }
-    }
+	private val debuggerServiceStopHandler = Handler(Looper.getMainLooper())
+	private val debuggerServiceStopRunnable =
+		Runnable {
+			if (debuggerService != null && debuggerViewModel.connectionState.value < DebuggerConnectionState.ATTACHED) {
+				unbindDebuggerService()
+			}
+		}
 
-    private fun startDebuggerAndDo(action: suspend () -> Unit) {
-        activityScope.launch(Dispatchers.Main.immediate) {
-            if (debuggerService != null) {
-                action()
-            } else {
-                debuggerPostConnectionAction = action
-                ensureDebuggerServiceBound()
-            }
-        }
-    }
+	private fun unbindDebuggerService() {
+		try {
+			unbindService(debuggerServiceConnection)
+		} catch (e: Throwable) {
+			log.error("Failed to stop debugger service", e)
+		}
+	}
 
-    fun ensureDebuggerServiceBound() {
-        if (debuggerService != null) return
+	private fun startDebuggerAndDo(action: suspend () -> Unit) {
+		activityScope.launch(Dispatchers.Main.immediate) {
+			if (debuggerService != null) {
+				action()
+			} else {
+				debuggerPostConnectionAction = action
+				ensureDebuggerServiceBound()
+			}
+		}
+	}
 
-        if (isDebuggerStarting) {
-            log.info("Debugger service is already starting, ignoring...")
-            return
-        }
+	fun ensureDebuggerServiceBound() {
+		if (debuggerService != null) return
 
-        isDebuggerStarting = true
+		if (isDebuggerStarting) {
+			log.info("Debugger service is already starting, ignoring...")
+			return
+		}
 
-        val intent = Intent(this, DebuggerService::class.java)
-        if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
-            postStopDebuggerServiceIfNotConnected()
-            doSetStatus(getString(string.debugger_starting))
-        } else {
-            isDebuggerStarting = false
-            log.error("Debugger service doesn't exist or the IDE is not allowed to access it.")
-            doSetStatus(getString(string.debugger_starting_failed))
-        }
-    }
+		isDebuggerStarting = true
 
-    private fun postStopDebuggerServiceIfNotConnected() {
-        debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
-        debuggerServiceStopHandler.postDelayed(
-            debuggerServiceStopRunnable,
-            DEBUGGER_SERVICE_STOP_DELAY_MS
-        )
-    }
+		val intent = Intent(this, DebuggerService::class.java)
+		if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
+			postStopDebuggerServiceIfNotConnected()
+			doSetStatus(getString(string.debugger_starting))
+		} else {
+			isDebuggerStarting = false
+			log.error("Debugger service doesn't exist or the IDE is not allowed to access it.")
+			doSetStatus(getString(string.debugger_starting_failed))
+		}
+	}
 
-    protected var optionsMenuInvalidator: Runnable? = null
+	private fun postStopDebuggerServiceIfNotConnected() {
+		debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable)
+		debuggerServiceStopHandler.postDelayed(
+			debuggerServiceStopRunnable,
+			DEBUGGER_SERVICE_STOP_DELAY_MS,
+		)
+	}
+
+	protected var optionsMenuInvalidator: Runnable? = null
+
+	private lateinit var gestureDetector: GestureDetector
+    private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
+    private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
     companion object {
 
         const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
-        @JvmStatic
-        protected val PROC_IDE = "IDE"
+		@JvmStatic
+		protected val PROC_IDE = "IDE"
 
-        @JvmStatic
-        protected val PROC_GRADLE_TOOLING = "Gradle Tooling"
+		@JvmStatic
+		protected val PROC_GRADLE_TOOLING = "Gradle Tooling"
 
-        @JvmStatic
-        protected val PROC_GRADLE_DAEMON = "Gradle Daemon"
+		@JvmStatic
+		protected val PROC_GRADLE_DAEMON = "Gradle Daemon"
 
-        @JvmStatic
-        protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
+		@JvmStatic
+		protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
 
-        private const val OPTIONS_MENU_INVALIDATION_DELAY = 150L
+		private const val OPTIONS_MENU_INVALIDATION_DELAY = 150L
 
-        const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
-        const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
-        const val KEY_PROJECT_PATH = "saved_projectPath"
-    }
+		const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
+		const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
+		const val KEY_PROJECT_PATH = "saved_projectPath"
+	}
 
-    protected abstract fun provideCurrentEditor(): CodeEditorView?
+	protected abstract fun provideCurrentEditor(): CodeEditorView?
 
-    protected abstract fun provideEditorAt(index: Int): CodeEditorView?
+	protected abstract fun provideEditorAt(index: Int): CodeEditorView?
 
-    protected abstract fun doOpenFile(file: File, selection: Range?)
+	internal abstract fun doOpenFile(
+		file: File,
+		selection: Range?,
+	)
 
-    protected abstract fun doDismissSearchProgress()
+	protected abstract fun doDismissSearchProgress()
 
-    protected abstract fun getOpenedFiles(): List<OpenedFile>
-    internal abstract fun doConfirmProjectClose()
-    internal abstract fun doOpenHelp()
+	protected abstract fun getOpenedFiles(): List<OpenedFile>
 
-    protected open fun preDestroy() {
+	internal abstract fun doConfirmProjectClose()
+
+	internal abstract fun doOpenHelp()
+
+	protected open fun preDestroy() {
+		BuildOutputProvider.clearBottomSheet()
         _binding = null
 
-        optionsMenuInvalidator?.also {
-            ThreadUtils.getMainHandler().removeCallbacks(it)
-        }
+		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
-        optionsMenuInvalidator = null
+		optionsMenuInvalidator?.also {
+			ThreadUtils.getMainHandler().removeCallbacks(it)
+		}
 
-        installationCallback?.destroy()
-        installationCallback = null
+		optionsMenuInvalidator = null
 
-        if (isDestroying) {
-            memoryUsageWatcher.stopWatching(true)
-            memoryUsageWatcher.listener = null
-            editorActivityScope.cancelIfActive("Activity is being destroyed")
+		installationCallback?.destroy()
+		installationCallback = null
 
-            unbindDebuggerService()
-        }
-    }
+		if (isDestroying) {
+			memoryUsageWatcher.stopWatching(true)
+			memoryUsageWatcher.listener = null
+			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
-    protected open fun postDestroy() {
-        if (isDestroying) {
-            Lookup.getDefault().unregisterAll()
-            ApiVersionsRegistry.getInstance().clear()
-            ResourceTableRegistry.getInstance().clear()
-            WidgetTableRegistry.getInstance().clear()
-        }
-    }
+			unbindDebuggerService()
+		}
+	}
 
-    override fun bindLayout(): View {
-        this._binding = ActivityEditorBinding.inflate(layoutInflater)
-        this.diagnosticInfoBinding = this.content.diagnosticInfo
-        return this.binding.root
-    }
+	protected open fun postDestroy() {
+		if (isDestroying) {
+			Lookup.getDefault().unregisterAll()
+			ApiVersionsRegistry.getInstance().clear()
+			ResourceTableRegistry.getInstance().clear()
+			WidgetTableRegistry.getInstance().clear()
+		}
+	}
 
-    override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
-        super.onApplyWindowInsets(insets)
-        val height = contentCardRealHeight ?: return
-        val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+	override fun bindLayout(): View {
+		this._binding = ActivityEditorBinding.inflate(layoutInflater)
+		this.diagnosticInfoBinding = this.content.diagnosticInfo
+		return this.binding.root
+	}
 
-        _binding?.content?.bottomSheet?.setImeVisible(imeInsets.bottom > 0)
-        _binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
-            this.height = height - imeInsets.bottom
-        }
+	override fun onApplyWindowInsets(insets: WindowInsetsCompat) {
+		super.onApplyWindowInsets(insets)
+		val height = contentCardRealHeight ?: return
+		val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
 
-        val isImeVisible = imeInsets.bottom > 0
-        if (this.isImeVisible != isImeVisible) {
-            this.isImeVisible = isImeVisible
-            onSoftInputChanged()
-        }
-    }
+		_binding?.content?.bottomSheet?.setImeVisible(imeInsets.bottom > 0)
+		_binding?.contentCard?.updateLayoutParams<ViewGroup.LayoutParams> {
+			this.height = height - imeInsets.bottom
+		}
 
-    override fun onApplySystemBarInsets(insets: Insets) {
-        super.onApplySystemBarInsets(insets)
-        this._binding?.apply {
-            drawerSidebar.getFragment<EditorSidebarFragment>()
-                .onApplyWindowInsets(insets)
+		val isImeVisible = imeInsets.bottom > 0
+		if (this.isImeVisible != isImeVisible) {
+			this.isImeVisible = isImeVisible
+			onSoftInputChanged()
+		}
+	}
 
-            content.apply {
-                editorAppBarLayout.updatePadding(
-                    top = insets.top
-                )
-                customToolbar.setContentInsetsRelative(0, 0)
-            }
-        }
-    }
+	override fun onApplySystemBarInsets(insets: Insets) {
+		super.onApplySystemBarInsets(insets)
+		this._binding?.apply {
+			drawerSidebar
+				.getFragment<EditorSidebarFragment>()
+				.onApplyWindowInsets(insets)
 
-    @Subscribe(threadMode = MAIN)
-    open fun onInstallationResult(event: InstallationResultEvent) {
-        val intent = event.intent
-        if (isDestroying) {
-            return
-        }
+			content.apply {
+				editorAppBarLayout.updatePadding(
+					top = insets.top,
+				)
+				customToolbar.setContentInsetsRelative(0, 0)
+			}
+		}
+	}
 
-        val packageName = onResult(this, intent) ?: return
-        val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
-        if (!isDebugging) {
-            doLaunchApp(packageName)
-            return
-        }
+	@Subscribe(threadMode = MAIN)
+	open fun onInstallationResult(event: InstallationResultEvent) {
+		val intent = event.intent
+		if (isDestroying) {
+			return
+		}
 
-        startDebuggerAndDo {
-            debuggerViewModel.debugeePackage = packageName
-            withContext(Dispatchers.Main.immediate) {
-                doLaunchApp(packageName)
-            }
-        }
-    }
+		val packageName = onResult(this, intent) ?: return
+		val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
+		if (!isDebugging) {
+			doLaunchApp(packageName)
+			return
+		}
 
-    private fun doLaunchApp(packageName: String) {
-        if (BuildPreferences.launchAppAfterInstall) {
-            IntentUtils.launchApp(this, packageName)
-            return
-        }
+		startDebuggerAndDo {
+			withContext(Dispatchers.Main.immediate) {
+				doLaunchApp(
+					packageName = packageName,
+					debug = true,
+				)
+			}
+		}
+	}
 
-        val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.msg_action_open_title_application)
-        builder.setMessage(string.msg_action_open_application)
-        builder.setPositiveButton(string.yes) { dialog, _ ->
-            dialog.dismiss()
-            IntentUtils.launchApp(this, packageName)
-        }
-        builder.setNegativeButton(string.no, null)
-        builder.show()
-    }
+	private fun doLaunchApp(
+		packageName: String,
+		debug: Boolean = false,
+	) {
+		val context = this
+		val performLaunch = {
+			activityScope.launch {
+				debuggerViewModel.debugeePackage = packageName
+				IntentUtils.launchApp(
+					context = context,
+					packageName = packageName,
+					debug = debug,
+				)
+			}
+		}
+
+		if (BuildPreferences.launchAppAfterInstall) {
+			performLaunch()
+			return
+		}
+
+		val builder = newMaterialDialogBuilder(this)
+		builder.setTitle(string.msg_action_open_title_application)
+		builder.setMessage(string.msg_action_open_application)
+		builder.setPositiveButton(string.yes) { dialog, _ ->
+			dialog.dismiss()
+			performLaunch()
+		}
+		builder.setNegativeButton(string.no, null)
+		builder.show()
+	}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
         this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
@@ -474,8 +530,18 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             this::handleUiDesignerResult
         )
 
+        content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
+            showTooltip(
+                tag = TooltipTag.EDITOR_BUILD_STATUS
+            )
+            true
+        }
+
         setupMemUsageChart()
         watchMemory()
+        observeFileOperations()
+
+        setupGestureDetector()
     }
 
     private fun setupToolbar() {
@@ -499,6 +565,11 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
+            setOnNavIconLongClickListener {
+                showTooltip(
+                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
+                )
+            }
         }
 
     }
@@ -660,7 +731,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     override fun onTabUnselected(tab: Tab) {}
 
     override fun onTabReselected(tab: Tab) {
-        createMenu(this, tab.view, EDITOR_FILE_TABS, true).show()
+        showPopupWindow(
+            context = this,
+            anchorView = tab.view
+        )
     }
 
     override fun onGroupClick(group: DiagnosticGroup?) {
@@ -685,7 +759,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             hideBottomSheet()
         })
 
-        showSearchResults()
+		bottomSheetViewModel.setSheetState(currentTab = BottomSheetViewModel.TAB_SEARCH_RESULT)
         doDismissSearchProgress()
     }
 
@@ -698,39 +772,34 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     }
 
     open fun hideBottomSheet() {
-        if (editorBottomSheet?.state != BottomSheetBehavior.STATE_COLLAPSED) {
-            editorBottomSheet?.state = BottomSheetBehavior.STATE_COLLAPSED
-        }
+		bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
     }
 
-    open fun showSearchResults() = showBottomSheetFragment(SearchResultFragment::class.java)
+	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
+		log.debug("updateSheetState: {}", state)
+        content.bottomSheet.setCurrentTab(state.currentTab)
+		if (editorBottomSheet?.state != state.sheetState) {
+			editorBottomSheet?.state = state.sheetState
+		}
+	}
 
-    open fun showBottomSheetFragment(
-        fragmentClass: Class<out Fragment>,
-        sheetState: Int = BottomSheetBehavior.STATE_EXPANDED
-    ) {
-        val index = content.bottomSheet.pagerAdapter.findIndexOfFragmentByClass(fragmentClass)
-        if (index >= 0 && index < content.bottomSheet.binding.tabs.tabCount) {
-            if (editorBottomSheet?.state != sheetState) {
-                editorBottomSheet?.state = sheetState
-            }
-            content.bottomSheet.binding.tabs.getTabAt(index)?.select()
-        }
-    }
 
-    open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
-        content.bottomSheet.handleDiagnosticsResultVisibility(errorVisible)
-    }
+	open fun handleDiagnosticsResultVisibility(errorVisible: Boolean) {
+		content.bottomSheet.handleDiagnosticsResultVisibility(errorVisible)
+	}
 
     open fun handleSearchResultVisibility(errorVisible: Boolean) {
         content.bottomSheet.handleSearchResultVisibility(errorVisible)
     }
 
     open fun showFirstBuildNotice() {
-        newMaterialDialogBuilder(this).setPositiveButton(android.R.string.ok, null)
-            .setTitle(string.title_first_build).setMessage(string.msg_first_build)
+        newMaterialDialogBuilder(this)
+			.setPositiveButton(android.R.string.ok, null)
+            .setTitle(string.title_first_build)
+			.setMessage(string.msg_first_build)
             .setCancelable(false)
-            .create().show()
+            .create()
+			.show()
     }
 
     open fun getFileTreeFragment(): FileTreeFragment? {
@@ -764,12 +833,14 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
     private fun handleUiDesignerResult(result: ActivityResult) {
         if (result.resultCode != RESULT_OK || result.data == null) {
             log.warn(
-                "UI Designer returned invalid result: resultCode={}, data={}", result.resultCode,
+                "UI Designer returned invalid result: resultCode={}, data={}",
+                result.resultCode,
                 result.data
             )
             return
         }
-        val generated = result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
+        val generated =
+            result.data!!.getStringExtra(UIDesignerActivity.RESULT_GENERATED_XML)
         if (TextUtils.isEmpty(generated)) {
             log.warn("UI Designer returned blank generated XML code")
             return
@@ -804,8 +875,10 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         binding.apply {
             editorDrawerLayout.apply {
                 childId = contentCard.id
-                translationBehaviorStart = ContentTranslatingDrawerLayout.TranslationBehavior.FULL
-                translationBehaviorEnd = ContentTranslatingDrawerLayout.TranslationBehavior.FULL
+                translationBehaviorStart =
+                    ContentTranslatingDrawerLayout.TranslationBehavior.FULL
+                translationBehaviorEnd =
+                    ContentTranslatingDrawerLayout.TranslationBehavior.FULL
                 setScrimColor(Color.TRANSPARENT)
             }
         }
@@ -819,21 +892,35 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         invalidateOptionsMenu()
     }
 
-    private fun setupViews() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                debuggerViewModel.connectionState.collectLatest { state ->
-                    if (state == DebuggerConnectionState.ATTACHED) {
-                        ensureDebuggerServiceBound()
-                    }
-                    postStopDebuggerServiceIfNotConnected()
-                }
+	private fun setupViews() {
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.CREATED) {
+				launch {
+					// should be active from CREATED through DESTROYED because
+					// debugger connection updates can happen in the background
+					// which won't be reported if we use Lifecycle.State.STARTED
+					debuggerViewModel.connectionState.collectLatest { state ->
+						onDebuggerConnectionStateChanged(state)
+					}
+				}
 
-                debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
-                    debuggerService?.targetPackage = newPackage
-                }
-            }
-        }
+				launch {
+					debuggerViewModel.debugeePackageFlow.collectLatest { newPackage ->
+						debuggerService?.targetPackage = newPackage
+					}
+				}
+			}
+		}
+
+		lifecycleScope.launch {
+			repeatOnLifecycle(Lifecycle.State.STARTED) {
+				launch {
+					bottomSheetViewModel.sheetState.collectLatest { state ->
+						updateBottomSheetState(state = state)
+					}
+				}
+			}
+		}
 
         editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
         editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
@@ -863,25 +950,63 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
 
         if (!app.prefManager.getBoolean(
                 KEY_BOTTOM_SHEET_SHOWN
-            ) && editorBottomSheet?.state != BottomSheetBehavior.STATE_EXPANDED
+            ) && bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_EXPANDED
         ) {
-            editorBottomSheet?.state = BottomSheetBehavior.STATE_EXPANDED
+            bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_EXPANDED)
             ThreadUtils.runOnUiThreadDelayed({
-                editorBottomSheet?.state = BottomSheetBehavior.STATE_COLLAPSED
+				bottomSheetViewModel.setSheetState(BottomSheetBehavior.STATE_COLLAPSED)
                 app.prefManager.putBoolean(KEY_BOTTOM_SHEET_SHOWN, true)
             }, 1500)
         }
 
         binding.contentCard.progress = 0f
         binding.swipeReveal.dragListener = object : SwipeRevealLayout.OnDragListener {
-            override fun onDragStateChanged(swipeRevealLayout: SwipeRevealLayout, state: Int) {}
-            override fun onDragProgress(swipeRevealLayout: SwipeRevealLayout, progress: Float) {
+            override fun onDragStateChanged(
+                swipeRevealLayout: SwipeRevealLayout,
+                state: Int
+            ) {
+            }
+
+            override fun onDragProgress(
+                swipeRevealLayout: SwipeRevealLayout,
+                progress: Float
+            ) {
                 onSwipeRevealDragProgress(progress)
             }
         }
     }
 
-    private fun setupNoEditorView() {
+	protected open fun onDebuggerConnectionStateChanged(state: DebuggerConnectionState) {
+		log.debug("onDebuggerConnectionStateChanged: {}", state)
+		if (state == DebuggerConnectionState.ATTACHED) {
+			ensureDebuggerServiceBound()
+		}
+
+		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		if (state == DebuggerConnectionState.ATTACHED) {
+			// if a VM was just attached, make sure the debugger fragment is visible
+			bottomSheetViewModel.setSheetState(
+				sheetState = BottomSheetBehavior.STATE_HALF_EXPANDED,
+				currentTab = BottomSheetViewModel.TAB_DEBUGGER,
+			)
+		}
+
+		if (state == DebuggerConnectionState.AWAITING_BREAKPOINT) {
+			// breakpoint hit, ensure IDE is in foreground
+			debuggerViewModel.switchToIde(context = this)
+		}
+
+		postStopDebuggerServiceIfNotConnected()
+	}
+
+
+	private fun setupNoEditorView() {
+		content.noEditorLayout.setOnLongClickListener {
+			showTooltip(
+				tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
+			)
+			true
+		}
         content.noEditorSummary.movementMethod = LinkMovementMethod()
         val sb = SpannableStringBuilder()
         val indentParent = 80
@@ -918,33 +1043,24 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         sb.append("\n")
         appendHierarchicalText(R.string.msg_help_hint)
 
-        content.noEditorSummary.text = sb
-    }
-
-
-    private fun appendClickableSpan(
-        sb: SpannableStringBuilder,
-        @StringRes textRes: Int,
-        span: ClickableSpan,
-    ) {
-        val str = getString(textRes)
-        val split = str.split("@@", limit = 3)
-        if (split.size != 3) {
-            // Not a valid format
-            sb.append(str)
-            sb.append('\n')
-            return
+        content.noEditorSummary.apply {
+            text = sb
+            setOnLongClickListener {
+                content.noEditorLayout.performLongClick()
+                true
+            }
         }
-        sb.append(split[0])
-        sb.append(split[1], span, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        sb.append(split[2])
-        sb.append('\n')
     }
 
-    private fun setupBottomSheet() {
+
+	private fun setupBottomSheet() {
         editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
+        BuildOutputProvider.setBottomSheet(content.bottomSheet)
         editorBottomSheet?.addBottomSheetCallback(object : BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
+				// update the sheet state so that the ViewModel is in sync
+				bottomSheetViewModel.setSheetState(sheetState = newState)
+
                 if (newState == BottomSheetBehavior.STATE_EXPANDED) {
                     val editor = provideCurrentEditor()
                     editor?.editor?.ensureWindowsDismissed()
@@ -952,7 +1068,7 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
             }
 
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                content.apply {
+				content.apply {
                     val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
                     this.bottomSheet.onSlide(slideOffset)
                     this.viewContainer.scaleX = editorScale
@@ -1002,16 +1118,75 @@ abstract class BaseEditorActivity : EdgeToEdgeIDEActivity(), TabLayout.OnTabSele
         }
     }
 
-    private fun showNeedHelpDialog() {
-        val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.need_help)
-        builder.setMessage(string.msg_need_help)
-        builder.setPositiveButton(android.R.string.ok, null)
-        builder.create().show()
+	open fun installationSessionCallback(): SessionCallback {
+        return ApkInstallationSessionCallback(this).also { installationCallback = it }
     }
 
-    open fun installationSessionCallback(): SessionCallback {
-        return ApkInstallationSessionCallback(this).also { installationCallback = it }
+    private fun observeFileOperations() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                fileManagerViewModel.operationResult.collect { result ->
+                    when (result) {
+                        is FileOpResult.Success -> flashMessage(
+                            result.messageRes,
+                            FlashType.SUCCESS
+                        )
+
+                        is FileOpResult.Error -> flashMessage(result.messageRes, FlashType.ERROR)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setupGestureDetector() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                // Check if no files are open by looking at the displayedChild of the view flipper
+                val noFilesOpen = content.viewContainer.displayedChild == 1
+                if (!noFilesOpen) {
+                    return false // If files are open, do nothing
+                }
+
+                val diffX = e2.x - (e1?.x ?: 0f)
+
+                // Check for a right swipe (to open left drawer)
+                if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    binding.editorDrawerLayout.openDrawer(GravityCompat.START)
+                    return true
+                }
+
+                // Check for a left swipe (to open right drawer)
+                if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    binding.editorDrawerLayout.openDrawer(GravityCompat.END)
+                    return true
+                }
+
+                return false
+            }
+        })
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        // Pass the event to our gesture detector first
+        if (ev != null) {
+            gestureDetector.onTouchEvent(ev)
+        }
+        // Then, let the default dispatching happen
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun showTooltip(tag: String) {
+        TooltipManager.showTooltip(
+            context = this@BaseEditorActivity,
+            anchorView = content.customToolbar,
+            tag = tag,
+        )
     }
 }
 

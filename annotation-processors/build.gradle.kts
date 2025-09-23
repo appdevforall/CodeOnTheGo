@@ -15,35 +15,35 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import com.itsaky.androidide.build.config.BuildConfig
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-  kotlin("jvm")
+	kotlin("jvm")
 }
 
-group = "${BuildConfig.packageName}.annotations"
+group = "${BuildConfig.PACKAGE_NAME}.annotations"
 
 dependencies {
-  implementation(kotlin("stdlib"))
+	implementation(kotlin("stdlib"))
 
-  implementation(projects.annotations)
-  implementation(projects.eventbus)
+	implementation(projects.annotations)
+	implementation(projects.eventbus)
 
-  implementation(libs.androidx.annotation)
-  implementation(libs.common.javapoet)
+	implementation(libs.androidx.annotation)
+	implementation(libs.common.javapoet)
 
-  implementation("de.greenrobot:java-common:2.3.1")
+	implementation("de.greenrobot:java-common:2.3.1")
 
-  implementation(libs.google.auto.service.annotations)
-  annotationProcessor(libs.google.auto.service)
+	implementation(libs.google.auto.service.annotations)
+	annotationProcessor(libs.google.auto.service)
 
-  // Generates the required META-INF descriptor to make the processor incremental.
-  val incap = "1.0.0"
-  compileOnly("net.ltgt.gradle.incap:incap:$incap")
-  annotationProcessor("net.ltgt.gradle.incap:incap-processor:$incap")
+	// Generates the required META-INF descriptor to make the processor incremental.
+	val incap = "1.0.0"
+	compileOnly("net.ltgt.gradle.incap:incap:$incap")
+	annotationProcessor("net.ltgt.gradle.incap:incap-processor:$incap")
 }
 
 tasks.withType<KotlinCompile> {
-  kotlinOptions.jvmTarget = "17"
+	kotlinOptions.jvmTarget = "17"
 }

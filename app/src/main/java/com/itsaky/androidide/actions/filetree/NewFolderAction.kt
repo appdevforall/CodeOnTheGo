@@ -22,11 +22,13 @@ import android.view.LayoutInflater
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import java.io.File
 
@@ -43,6 +45,9 @@ class NewFolderAction(context: Context, override val order: Int) :
   ) {
 
   override val id: String = "ide.editor.fileTree.newFolder"
+
+  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
+    TooltipTag.PROJECT_FOLDER_NEW_FOLDER
 
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()
@@ -85,6 +90,9 @@ class NewFolderAction(context: Context, override val order: Int) :
       }
     }
     builder.setNegativeButton(android.R.string.cancel, null)
-    builder.create().show()
+      builder.showWithLongPressTooltip(
+          context = context,
+          tooltipTag = TooltipTag.PROJECT_NEW_FOLDER_DIALOG
+      )
   }
 }

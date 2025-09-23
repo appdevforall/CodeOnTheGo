@@ -30,8 +30,9 @@ import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
 import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
 import com.itsaky.androidide.events.ExpandTreeNodeRequestEvent
 import com.itsaky.androidide.events.FileContextMenuItemClickEvent
-import com.itsaky.androidide.events.ListProjectFilesRequestEvent
+import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.SheetOption
 import com.itsaky.androidide.utils.ApkInstaller
 import com.itsaky.androidide.utils.InstallationResultHandler
@@ -152,8 +153,30 @@ class FileTreeActionHandler : BaseEventHandler() {
     registry.executeAction(action, data)
   }
 
-  private fun requestFileListing() {
-    EventBus.getDefault().post(ListProjectFilesRequestEvent())
+  @Subscribe(threadMode = MAIN)
+  internal fun onFileOptionLongClicked(event: FileContextMenuItemLongClickEvent) {
+    val option = event.option
+    val actionData = option.extra
+    if (actionData !is ActionData) {
+      return
+    }
+
+    val registry = ActionsRegistry.getInstance() as DefaultActionsRegistry
+    val action = registry.findAction(EDITOR_FILE_TREE, option.id)
+
+    checkNotNull(action) {
+      "Invalid FileContextMenuItemClickEvent received. No action item registered with id '${option.id}'"
+    }
+    val tag = action.retrieveTooltipTag(actionData.get(File::class.java)?.isDirectory == true)
+    tag.isNotEmpty() || return
+    val activity = event[Context::class.java] as? EditorHandlerActivity
+    activity?.let { act ->
+        TooltipManager.showTooltip(
+            context = act,
+            anchorView = act.window.decorView,
+            tag = tag,
+        )
+    }
   }
 
   private fun requestExpandHeldNode() {

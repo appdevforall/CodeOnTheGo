@@ -18,25 +18,25 @@
 
 package com.itsaky.androidide.app
 
+
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
-import android.net.Uri
 import android.os.StrictMode
-import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
-import androidx.lifecycle.Observer
-import androidx.work.Operation
-import androidx.work.WorkManager
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
+import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.di.appModule
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -44,12 +44,8 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-
-
-
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
-import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TreeSitter
@@ -58,189 +54,215 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
-import com.termux.shared.logger.Logger
 import com.termux.shared.reflection.ReflectionUtils
+import com.topjohnwu.superuser.Shell
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
-import kotlinx.coroutines.CoroutineScope
+import io.sentry.Sentry
+import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.android.ext.android.getKoin
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
 class IDEApplication : TermuxApplication() {
+	private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
+	private var ideLogcatReader: IDELogcatReader? = null
 
-    private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
-    private var ideLogcatReader: IDELogcatReader? = null
+	companion object {
+		private val log = LoggerFactory.getLogger(IDEApplication::class.java)
 
-    private val applicationScope = CoroutineScope(SupervisorJob())
+		@JvmStatic
+		lateinit var instance: IDEApplication
+			private set
 
-    init {
-        if (!VMUtils.isJvm() && !isTestMode()) {
-            try {
-                TreeSitter.loadLibrary()
-            } catch (e: UnsatisfiedLinkError) {
-                Log.w("IDEApplication", "TreeSitter native library not available: ${e.message}")
-            }
+		init {
+			Shell.setDefaultBuilder(
+				Shell.Builder
+					.create()
+					.setFlags(Shell.FLAG_REDIRECT_STDERR),
+			)
+			HiddenApiBypass.setHiddenApiExemptions("")
+			if (!VMUtils.isJvm() && !isTestMode()) {
+				try {
+					if (isAtLeastR()) {
+						System.loadLibrary("adb")
+					}
+
+					TreeSitter.loadLibrary()
+				} catch (e: UnsatisfiedLinkError) {
+					log.warn("Failed to load native libraries", e)
+				}
+			}
+
+			RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+		}
+	}
+
+	@OptIn(DelicateCoroutinesApi::class)
+	override fun onCreate() {
+		instance = this
+		uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+		Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
+
+		super.onCreate()
+        startKoin {
+            androidContext(this@IDEApplication)
+            modules(appModule)
         }
 
-        RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
-    }
+        val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
+        TextProcessorEngine.additionalProcessors.add(geminiMacro)
 
-  
-    @OptIn(DelicateCoroutinesApi::class)
-    override fun onCreate() {
-        instance = this
-        uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
+		SentryAndroid.init(this)
+		ShizukuSettings.initialize(this)
 
-        super.onCreate()
-
-        if (BuildConfig.DEBUG) {
-            val builder = StrictMode.VmPolicy.Builder()
-            StrictMode.setVmPolicy(builder.build())
-            //TODO JMT
+		if (BuildConfig.DEBUG) {
+			val builder = StrictMode.VmPolicy.Builder()
+			StrictMode.setVmPolicy(builder.build())
+			// TODO JMT
 //            StrictMode.setVmPolicy(
 //                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
 //                    .build()
 //            )
-            if (DevOpsPreferences.dumpLogs) {
-                startLogcatReader()
-            }
+			if (DevOpsPreferences.dumpLogs) {
+				startLogcatReader()
+			}
 
-            checkForSecondDisplay()
+			checkForSecondDisplay()
+		}
 
+		EventBus
+			.builder()
+			.addIndex(AppEventsIndex())
+			.addIndex(EditorEventsIndex())
+			.addIndex(ProjectsApiEventsIndex())
+			.addIndex(LspApiEventsIndex())
+			.addIndex(LspJavaEventsIndex())
+			.installDefaultEventBus(true)
 
-        }
+		EventBus.getDefault().register(this)
 
-        EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
-            .addIndex(ProjectsApiEventsIndex()).addIndex(LspApiEventsIndex())
-            .addIndex(LspJavaEventsIndex()).installDefaultEventBus(true)
+		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
-        EventBus.getDefault().register(this)
+		if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+			DynamicColors.applyToActivitiesIfAvailable(this)
+		}
 
-        AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
 
-        if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-            DynamicColors.applyToActivitiesIfAvailable(this)
-        }
+		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
+		GlobalScope.launch {
+			IDEColorSchemeProvider.init()
+		}
 
-        EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+		// Tooltip database access is now handled by direct SQLite queries
+	}
 
-        ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-        GlobalScope.launch {
-            IDEColorSchemeProvider.init()
-        }
+	private fun handleCrash(
+		thread: Thread,
+		th: Throwable,
+	) {
+		writeException(th)
 
+		Sentry.captureException(th)
 
+		try {
+			val intent = Intent()
+			intent.action = CrashHandlerActivity.REPORT_ACTION
+			intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
+			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+			startActivity(intent)
+			if (uncaughtExceptionHandler != null) {
+				uncaughtExceptionHandler!!.uncaughtException(thread, th)
+			}
 
-        //Tooltip database access is now handled by direct SQLite queries
-    }
+			exitProcess(1)
+		} catch (error: Throwable) {
+			log.error("Unable to show crash handler activity", error)
+		}
+	}
 
-    private fun handleCrash(thread: Thread, th: Throwable) {
-        writeException(th)
+	fun showChangelog() {
+		val intent = Intent(Intent.ACTION_VIEW)
+		var version = BuildInfo.VERSION_NAME_SIMPLE
+		if (!version.startsWith('v')) {
+			version = "v$version"
+		}
+		intent.data = "${BuildInfo.REPO_URL}/releases/tag/$version".toUri()
+		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+		try {
+			startActivity(intent)
+		} catch (th: Throwable) {
+			log.error("Unable to start activity to show changelog", th)
+			flashError("Unable to start activity")
+		}
+	}
 
-        try {
-            val intent = Intent()
-            intent.action = CrashHandlerActivity.REPORT_ACTION
-            intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            if (uncaughtExceptionHandler != null) {
-                uncaughtExceptionHandler!!.uncaughtException(thread, th)
-            }
+	private fun startLogcatReader() {
+		if (ideLogcatReader != null) {
+			// already started
+			return
+		}
 
-            exitProcess(1)
-        } catch (error: Throwable) {
-            log.error("Unable to show crash handler activity", error)
-        }
-    }
+		log.info("Starting logcat reader...")
+		ideLogcatReader = IDELogcatReader().also { it.start() }
+	}
 
-    fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW)
-        var version = BuildInfo.VERSION_NAME_SIMPLE
-        if (!version.startsWith('v')) {
-            version = "v${version}"
-        }
-        intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/${version}")
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            startActivity(intent)
-        } catch (th: Throwable) {
-            log.error("Unable to start activity to show changelog", th)
-            flashError("Unable to start activity")
-        }
-    }
+	private fun stopLogcatReader() {
+		log.info("Stopping logcat reader...")
+		ideLogcatReader?.stop()
+		ideLogcatReader = null
+	}
 
-    private fun startLogcatReader() {
-        if (ideLogcatReader != null) {
-            // already started
-            return
-        }
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPrefChanged(event: PreferenceChangeEvent) {
+		val enabled = event.value as? Boolean?
+		if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+			if (enabled == true) {
+				startLogcatReader()
+			} else {
+				stopLogcatReader()
+			}
+		} else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
+			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		} else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
+			// Use empty locale list if the locale has been reset to 'System Default'
+			val selectedLocale = GeneralPreferences.selectedLocale
+			val localeListCompat =
+				selectedLocale?.let {
+					LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
+				} ?: LocaleListCompat.getEmptyLocaleList()
 
-        log.info("Starting logcat reader...")
-        ideLogcatReader = IDELogcatReader().also { it.start() }
-    }
+			AppCompatDelegate.setApplicationLocales(localeListCompat)
+		}
+	}
 
-    private fun stopLogcatReader() {
-        log.info("Stopping logcat reader...")
-        ideLogcatReader?.stop()
-        ideLogcatReader = null
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    fun onPrefChanged(event: PreferenceChangeEvent) {
-        val enabled = event.value as? Boolean?
-        if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
-            if (enabled == true) {
-                startLogcatReader()
-            } else {
-                stopLogcatReader()
-            }
-        } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
-            AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
-        } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
-
-            // Use empty locale list if the locale has been reset to 'System Default'
-            val selectedLocale = GeneralPreferences.selectedLocale
-            val localeListCompat = selectedLocale?.let {
-                LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
-            } ?: LocaleListCompat.getEmptyLocaleList()
-
-            AppCompatDelegate.setApplicationLocales(localeListCompat)
-        }
-    }
-
-    private fun checkForSecondDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-        var secondDisplay: Display? = null
-        for (display in displays) {
-            if (display.displayId != Display.DEFAULT_DISPLAY) {
-                // This is a secondary display
-                secondDisplay = display
-            }
-        }
-        if (secondDisplay != null) {
-            val presentation = SecondaryScreen(this, secondDisplay!!)
-            presentation.show()
-        }
-    }
-
-    companion object {
-
-        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
-
-        @JvmStatic
-        lateinit var instance: IDEApplication
-            private set
-    }
-
+	private fun checkForSecondDisplay() {
+		val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+		val displays = displayManager.displays
+		var secondDisplay: Display? = null
+		for (display in displays) {
+			if (display.displayId != Display.DEFAULT_DISPLAY) {
+				// This is a secondary display
+				secondDisplay = display
+			}
+		}
+		if (secondDisplay != null) {
+			val presentation = SecondaryScreen(this, secondDisplay!!)
+			presentation.show()
+		}
+	}
 }
