@@ -15,7 +15,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -37,13 +36,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
 
-    private val chatViewModel by viewModels<ChatViewModel>()
+    private val chatViewModel: ChatViewModel by activityViewModel()
 
     private val insetsListener = View.OnApplyWindowInsetsListener { _, insets ->
         if (isAdded) {
