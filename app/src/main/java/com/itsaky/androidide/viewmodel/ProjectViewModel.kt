@@ -2,7 +2,9 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
@@ -36,12 +38,20 @@ class ProjectViewModel : ViewModel() {
             return
         }
 
+        val manager = ProjectManagerImpl.getInstance()
+
+        // Check for a valid cached result before starting a new initialization
+        if (manager.projectInitialized && manager.cachedInitResult != null) {
+            log.debug("Project already initialized. Using cached result.")
+            _initState.value = TaskState.Success(manager.cachedInitResult!!)
+            return
+        }
+
         viewModelScope.launch {
             _initState.value = TaskState.InProgress
 
-            val manager = ProjectManagerImpl.getInstance()
-            val buildService = com.itsaky.androidide.lookup.Lookup.getDefault()
-                .lookup(com.itsaky.androidide.projects.builder.BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+            val buildService = Lookup.getDefault()
+                .lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 
             try {
                 val projectDir = File(manager.projectPath)

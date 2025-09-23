@@ -31,20 +31,6 @@ public class XmlLayoutGenerator {
       return "";
     }
     builder.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
-    builder.append(
-            """
-                    <!--
-                    \tWelcome to LayoutEditor!
-                    
-                    \tWe are proud to present our innovative layout generator app that
-                    \tallows users to create and customize stunning layouts in no time.
-                    \tWith LayoutEditor, you can easily create beautiful and custom
-                    \tlayouts that are tailored to fit your unique needs.
-                    
-                    \tThank you for using LayoutEditor and we hope you enjoy our app!
-                    -->
-                    
-                    """);
 
     return peek(editor.getChildAt(0), editor.getViewAttributeMap(), 0);
   }
