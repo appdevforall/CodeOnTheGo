@@ -17,31 +17,22 @@
 
 package com.itsaky.androidide.fragments
 
-import android.content.Context
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.view.ViewTreeObserver.OnGlobalLayoutListener
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import com.google.android.flexbox.FlexDirection
 import com.google.android.flexbox.FlexboxLayoutManager
 import com.google.android.flexbox.JustifyContent
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.TemplateListAdapter
 import com.itsaky.androidide.databinding.FragmentTemplateListBinding
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.ProjectTemplate
 import com.itsaky.androidide.utils.FlexboxUtils
-import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.viewmodel.MainViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**
@@ -144,30 +135,10 @@ class TemplateListFragment :
 		root: View,
 		tooltipTag: String,
 	) {
-		val lifecycleOwner = root.context as? LifecycleOwner ?: return
-		lifecycleOwner.lifecycleScope.launch {
-			try {
-				val tooltipData = getTooltipData(root.context, "ide", tooltipTag)
-				tooltipData?.let {
-					TooltipUtils.showIDETooltip(
-						context = root.context,
-						level = 0,
-						tooltipItem = it,
-						anchorView = root,
-					)
-				}
-			} catch (e: Exception) {
-				Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-			}
-		}
+        TooltipManager.showTooltip(
+            context = root.context,
+            anchorView = root,
+            tag = tooltipTag,
+        )
 	}
-
-	suspend fun getTooltipData(
-		context: Context,
-		category: String,
-		tag: String,
-	): IDETooltipItem? =
-		withContext(Dispatchers.IO) {
-			TooltipManager.getTooltip(context, category, tag)
-		}
 }
