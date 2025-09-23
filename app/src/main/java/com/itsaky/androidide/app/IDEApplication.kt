@@ -34,7 +34,6 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.di.agentModule
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
@@ -118,7 +117,7 @@ class IDEApplication : TermuxApplication() {
 		super.onCreate()
         startKoin {
             androidContext(this@IDEApplication)
-            modules(coreModule, agentModule)
+            modules(coreModule)
         }
 
 		SentryAndroid.init(this)

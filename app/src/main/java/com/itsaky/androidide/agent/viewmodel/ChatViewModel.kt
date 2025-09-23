@@ -1,5 +1,6 @@
 package com.itsaky.androidide.agent.viewmodel
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
@@ -8,9 +9,8 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.data.ChatStorageManager
-import com.itsaky.androidide.agent.data.ToolCall
+import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.GeminiRepository
-import com.itsaky.androidide.di.ServiceLocator
 import com.itsaky.androidide.models.AgentState
 import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.models.ChatSession
@@ -24,10 +24,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koin.core.component.KoinComponent
 import java.io.File
 
-class ChatViewModel : ViewModel(), KoinComponent {
+class ChatViewModel : ViewModel() {
     private val _sessions = MutableLiveData<MutableList<ChatSession>>(mutableListOf())
     val sessions: LiveData<MutableList<ChatSession>> = _sessions
 
@@ -59,14 +58,14 @@ class ChatViewModel : ViewModel(), KoinComponent {
         private const val SAVE_DEBOUNCE_MS = 500L
     }
 
-    private fun ensureAgentInitialized() {
+    private fun ensureAgentInitialized(context: Context) {
         if (isAgentInitialized) return
 
         try {
             // This is the moment of truth. We ask the ServiceLocator for the
             // repository. If the API key is missing, this line will throw the
             // IllegalStateException.
-            agentRepository = ServiceLocator.geminiRepository
+            agentRepository = AgenticRunner(context = context)
 
             // If we get here, the agent is ready.
             isAgentInitialized = true
@@ -85,16 +84,9 @@ class ChatViewModel : ViewModel(), KoinComponent {
         chatStorageManager = ChatStorageManager(agentDir)
     }
 
-    private fun formatToolCallForDisplay(functionCall: ToolCall): String {
-        val args = functionCall.args?.map { (key, value) ->
-            "  - **$key**: `${value.toString().removeSurrounding("\"")}`"
-        }?.joinToString("\n")
-        return "\nCalling tool: **`${functionCall.name}`** with arguments:\n$args"
-    }
-
-    fun sendMessage(text: String) {
+    fun sendMessage(text: String, context: Context) {
         val fullPrompt = constructFullPrompt(text)
-        sendMessage(fullPrompt = fullPrompt, originalUserText = text)
+        sendMessage(fullPrompt = fullPrompt, originalUserText = text, context)
     }
 
     private fun constructFullPrompt(userInput: String): String {
@@ -129,7 +121,7 @@ class ChatViewModel : ViewModel(), KoinComponent {
         return userInput
     }
 
-    fun sendMessage(fullPrompt: String, originalUserText: String) {
+    fun sendMessage(fullPrompt: String, originalUserText: String, context: Context) {
         // 1. Check if the agent is already running.
         if (_agentState.value is AgentState.Processing) {
             return
@@ -148,18 +140,19 @@ class ChatViewModel : ViewModel(), KoinComponent {
         addMessageToCurrentSession(loadingMessage)
 
         // 4. Call the single, correct function to get the agent's response.
-        retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText)
+        retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText, context)
     }
 
     private fun retrieveAgentResponse(
         prompt: String,
         messageIdToUpdate: String,
-        originalUserPrompt: String
+        originalUserPrompt: String,
+        context: Context
     ) {
         agentJob = viewModelScope.launch {
             try {
                 // Step 1: Initialize the agent if it hasn't been already.
-                ensureAgentInitialized()
+                ensureAgentInitialized(context)
 
                 // Step 2 (Guard Clause): Check if initialization was successful.
                 // If agentRepository is still null, it means initialization failed.
@@ -231,17 +224,6 @@ class ChatViewModel : ViewModel(), KoinComponent {
         if (agentJob?.isActive == true) {
             agentJob?.cancel()
         }
-    }
-
-    fun retryMessage(errorChatMessage: ChatMessage) {
-        val originalPrompt =
-            errorChatMessage.text // In case of error, we store the original prompt here.
-
-        // Update the message state to LOADING in the UI
-        updateMessageInCurrentSession(errorChatMessage.id, "...", MessageStatus.LOADING)
-
-        // Retry the API call
-        retrieveAgentResponse(originalPrompt, errorChatMessage.id, originalPrompt)
     }
 
     private fun addMessageToCurrentSession(message: ChatMessage) {
