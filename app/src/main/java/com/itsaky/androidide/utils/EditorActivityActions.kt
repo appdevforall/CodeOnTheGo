@@ -18,6 +18,7 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import com.itsaky.androidide.actions.ActionItem
+import android.util.Log
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
@@ -53,6 +54,10 @@ import com.itsaky.androidide.actions.filetree.OpenWithAction
 import com.itsaky.androidide.actions.filetree.RenameAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
+import com.itsaky.androidide.actions.PluginActionItem
+import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.adapters.EditorBottomSheetTabAdapter
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.
@@ -91,6 +96,9 @@ class EditorActivityActions {
             registry.registerAction(FindInProjectAction(context, order++))
             registry.registerAction(LaunchAppAction(context, order++))
             registry.registerAction(DisconnectLogSendersAction(context, order++))
+
+            // Plugin contributions
+            order = registerPluginActions(context, registry, order)
 
             // editor text actions
             registry.registerAction(ExpandSelectionAction(context, order++))
@@ -143,7 +151,40 @@ class EditorActivityActions {
                 action.id == QuickRunAction.ID ||
                         action.id == RunTasksAction.ID ||
                         action.id == ProjectSyncAction.ID
-            }
-        }
+      }
     }
+
+    /**
+     * Register plugin UI contributions to the actions registry.
+     *
+     * @param context The application context
+     * @param registry The actions registry
+     * @param startOrder The starting order for plugin actions
+     * @return The next available order number
+     */
+    @JvmStatic
+    private fun registerPluginActions(context: Context, registry: ActionsRegistry, startOrder: Int): Int {
+        var order = startOrder
+
+        val pluginManager = PluginManager.getInstance() ?: return order
+
+        pluginManager.getAllPluginInstances()
+            .filterIsInstance<UIExtension>()
+            .forEach { plugin ->
+                try {
+                    Log.d("plugin_debug", "Registering menu items for plugin: ${plugin.javaClass.simpleName}")
+                    plugin.getMainMenuItems().forEach { menuItem ->
+                        val action = PluginActionItem(context, menuItem, order++)
+                        registry.registerAction(action)
+                    }
+                } catch (e: Exception) {
+                    // Continue with other plugins if one fails
+                    System.err.println("")
+                    Log.d("plugin_debug", "Failed to register menu items for plugin: ${plugin.javaClass.simpleName} - ${e.message}")
+                }
+            }
+
+        return order
+    }
+  }
 }
