@@ -24,17 +24,22 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.blankj.utilcode.util.SizeUtils;
 import com.itsaky.androidide.adapters.OptionsSheetAdapter;
 import com.itsaky.androidide.events.FileContextMenuItemClickEvent;
+import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent;
 import com.itsaky.androidide.models.SheetOption;
+
+import org.greenrobot.eventbus.EventBus;
+
 import java.util.ArrayList;
 import java.util.List;
-import org.greenrobot.eventbus.EventBus;
 
 public class OptionsListFragment extends BaseBottomSheetFragment {
 
@@ -59,14 +64,30 @@ public class OptionsListFragment extends BaseBottomSheetFragment {
   public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     mList.setLayoutManager(new LinearLayoutManager(getContext()));
-    mList.setAdapter(new OptionsSheetAdapter(mOptions, option -> {
-      if (dismissOnItemClick) {
-        dismiss();
-      }
-      final var event = new FileContextMenuItemClickEvent(option);
-      event.put(Context.class, requireContext());
-      EventBus.getDefault().post(event);
-    }));
+      mList.setAdapter(new OptionsSheetAdapter(mOptions,
+              new OptionsSheetAdapter.OnOptionsClickListener() {
+                  @Override
+                  public void onOptionClick(SheetOption option) {
+
+                      if (dismissOnItemClick) {
+                          dismiss();
+                      }
+                      final var event = new FileContextMenuItemClickEvent(option);
+                      event.put(Context.class, requireContext());
+                      EventBus.getDefault().post(event);
+
+                  }
+
+                  @Override
+                  public void onOptionLongClick(SheetOption option) {
+                      if (dismissOnItemClick) {
+                          dismiss();
+                      }
+                      final var event = new FileContextMenuItemLongClickEvent(option);
+                      event.put(Context.class, requireContext());
+                      EventBus.getDefault().post(event);
+                  }
+              }));
   }
 
   public void addOption(SheetOption option) {
