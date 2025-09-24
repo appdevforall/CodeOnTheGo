@@ -233,6 +233,8 @@ dependencies {
 	implementation(projects.templatesImpl)
 	implementation(projects.uidesigner)
 	implementation(projects.xmlInflater)
+  implementation(projects.pluginApi)
+  implementation(projects.pluginManager)
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)

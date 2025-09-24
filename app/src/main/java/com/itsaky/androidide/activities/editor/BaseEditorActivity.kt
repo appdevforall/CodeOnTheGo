@@ -79,6 +79,7 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
@@ -96,6 +97,7 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -674,6 +676,11 @@ abstract class BaseEditorActivity :
 
         this.isDestroying = isFinishing
         getFileTreeFragment()?.saveTreeState()
+        
+        // Clear current activity from plugin services when activity is finishing
+        if (isFinishing) {
+            IDEApplication.instance.setCurrentActivity(null)
+        }
     }
 
     override fun onResume() {
@@ -689,6 +696,9 @@ abstract class BaseEditorActivity :
             log.error("Failed to update files list", th)
             flashError(string.msg_failed_list_files)
         }
+        
+        // Set this activity as current for plugin services
+        IDEApplication.instance.setCurrentActivity(this)
     }
 
     override fun onStop() {
@@ -718,12 +728,45 @@ abstract class BaseEditorActivity :
 
     override fun onTabSelected(tab: Tab) {
         val position = tab.position
-        editorViewModel.displayedFileIndex = position
 
-        val editorView = provideEditorAt(position)!!
+        content.editorContainer.displayedChild = position
+
+        if (this is EditorHandlerActivity && isPluginTab(position)) {
+            val pluginTabId = getPluginTabId(position)
+            if (pluginTabId != null) {
+                val tabManager = PluginEditorTabManager.getInstance()
+                tabManager.onTabSelected(pluginTabId)
+                invalidateOptionsMenu()
+                return
+            }
+        }
+
+        val fileIndex = if (this is EditorHandlerActivity) {
+            getFileIndexForTabPosition(position)
+        } else {
+            position
+        }
+
+        if (fileIndex == -1) {
+            invalidateOptionsMenu()
+            return
+        }
+
+        editorViewModel.displayedFileIndex = fileIndex
+
+        val editorView = if (this is EditorHandlerActivity) {
+            provideEditorAt(fileIndex)
+        } else {
+            provideEditorAt(position)
+        }
+
+        if (editorView == null) {
+            invalidateOptionsMenu()
+            return
+        }
+
         editorView.onEditorSelected()
-
-        editorViewModel.setCurrentFile(position, editorView.file)
+        editorViewModel.setCurrentFile(fileIndex, editorView.file)
         refreshSymbolInput(editorView)
         invalidateOptionsMenu()
     }
@@ -731,6 +774,11 @@ abstract class BaseEditorActivity :
     override fun onTabUnselected(tab: Tab) {}
 
     override fun onTabReselected(tab: Tab) {
+        val position = tab.position
+        if (this is EditorHandlerActivity && isPluginTab(position)) {
+            (this as EditorHandlerActivity).showPluginTabPopup(tab)
+            return
+        }
         showPopupWindow(
             context = this,
             anchorView = tab.view
@@ -932,13 +980,17 @@ abstract class BaseEditorActivity :
         }
 
         editorViewModel.observeFiles(this) { files ->
-            content.apply {
-                if (files.isNullOrEmpty()) {
-                    tabs.visibility = View.GONE
-                    viewContainer.displayedChild = 1
-                } else {
-                    tabs.visibility = View.VISIBLE
-                    viewContainer.displayedChild = 0
+            if (this is EditorHandlerActivity) {
+                (this as EditorHandlerActivity).updateTabVisibility()
+            } else {
+                content.apply {
+                    if (files.isNullOrEmpty()) {
+                        tabs.visibility = View.GONE
+                        viewContainer.displayedChild = 1
+                    } else {
+                        tabs.visibility = View.VISIBLE
+                        viewContainer.displayedChild = 0
+                    }
                 }
             }
 
