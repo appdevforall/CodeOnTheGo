@@ -142,7 +142,7 @@ internal object EditorSidebarActions {
 
             if (view != null && action != null) {
                 val tag = action.retrieveTooltipTag(false)
-                sidebarFragment.setupTooltip(view, TooltipCategory.CATEGORY_IDE, tag)
+                sidebarFragment.setupTooltip(view, tag)
             }
         }
 

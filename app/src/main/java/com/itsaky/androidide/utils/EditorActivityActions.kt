@@ -17,6 +17,7 @@
 package com.itsaky.androidide.utils
 
 import android.content.Context
+import com.itsaky.androidide.actions.ActionItem
 import android.util.Log
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TABS
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
@@ -51,10 +52,6 @@ import com.itsaky.androidide.actions.filetree.NewFileAction
 import com.itsaky.androidide.actions.filetree.NewFolderAction
 import com.itsaky.androidide.actions.filetree.OpenWithAction
 import com.itsaky.androidide.actions.filetree.RenameAction
-import com.itsaky.androidide.actions.github.GitHubCommitAction
-import com.itsaky.androidide.actions.github.GitHubFetchAction
-import com.itsaky.androidide.actions.github.GitHubPullAction
-import com.itsaky.androidide.actions.github.GitHubPushAction
 import com.itsaky.androidide.actions.text.RedoAction
 import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.actions.PluginActionItem
@@ -140,7 +137,12 @@ class EditorActivityActions {
         @JvmStatic
         fun clearActions() {
             // Clear actions but preserve build actions to prevent cancellation during onPause
-            val locations = arrayOf(EDITOR_FILE_TABS, EDITOR_FILE_TREE)
+            val locations = arrayOf(
+                EDITOR_TOOLBAR,
+                EDITOR_FILE_TABS,
+                EDITOR_FILE_TREE,
+                ActionItem.Location.EDITOR_FIND_ACTION_MENU
+            )
             val registry = ActionsRegistry.getInstance()
             locations.forEach(registry::clearActions)
 
