@@ -108,11 +108,19 @@ class JavaModule(
   override fun getCompileModuleProjects(): List<ModuleProject> {
     val root = IProjectManager.getInstance().rootProject ?: return emptyList()
     return this.dependencies
-      .filterIsInstance(JavaModuleProjectDependency::class.java)
+      .filterIsInstance<JavaModuleProjectDependency>()
       .filter { it.scope == SCOPE_COMPILE }
       .mapNotNull { root.findByPath(it.projectPath) }
-      .filterIsInstance(ModuleProject::class.java)
+      .filterIsInstance<ModuleProject>()
   }
+
+	override fun hasExternalDependency(group: String, name: String): Boolean {
+		return this.dependencies.any { dependency ->
+			dependency is JavaModuleExternalDependency && dependency.gradleArtifact?.let { artifact ->
+				artifact.group == group && artifact.name == name
+			} ?: false
+		}
+	}
 
   fun getDependencyClasspaths(): Set<File> {
     return this.dependencies.filterIsInstance<JavaModuleExternalDependency>()

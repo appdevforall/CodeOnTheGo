@@ -29,15 +29,19 @@ import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.api.commands.CreateFileCommand
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.templates.base.models.Dependency
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ProjectWriter
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import jdkx.lang.model.SourceVersion
 import org.greenrobot.eventbus.EventBus
@@ -65,6 +69,9 @@ class NewFileAction(val context: Context, override val order: Int) :
   private var currentNode: TreeNode? = null
 
   override val id: String = "ide.editor.fileTree.newFile"
+
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+        TooltipTag.PROJECT_FOLDER_NEWFILE
 
   companion object {
 
@@ -179,7 +186,15 @@ class NewFileAction(val context: Context, override val order: Int) :
     }
     builder.setNegativeButton(android.R.string.cancel, null)
     builder.setCancelable(false)
-    builder.create().show()
+        .showWithLongPressTooltip(
+            context = context,
+            tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE,
+            // Pass the specific buttons to the helper function
+            binding.typeClass,
+            binding.typeActivity,
+            binding.typeInterface,
+            binding.typeEnum
+        )
   }
 
   private fun doCreateJavaFile(
@@ -244,13 +259,22 @@ class NewFileAction(val context: Context, override val order: Int) :
             ProjectWriter.createJavaEnum(pkgName, className)
           )
 
-        binding.typeActivity.id ->
-          createFile(
-            node,
-            javaFileDirectory,
-            javaName,
-            ProjectWriter.createActivity(pkgName, className)
-          )
+		  binding.typeActivity.id -> {
+			  val appCompat = Dependency.AndroidX.AppCompat
+			  val projectManager = ProjectManagerImpl.getInstance()
+			  val hasAppCompatDependency = projectManager.findModuleForFile(file)
+				  ?.hasExternalDependency(appCompat.group, appCompat.artifact)
+			  createFile(
+				  node,
+				  javaFileDirectory,
+				  javaName,
+				  ProjectWriter.createActivity(
+					  pkgName,
+					  className,
+					  hasAppCompatDependency ?: false
+				  )
+			  )
+		  }
 
         else -> createFile(node, javaFileDirectory, name, "")
       }
@@ -338,7 +362,10 @@ class NewFileAction(val context: Context, override val order: Int) :
         3 -> createNewFile(context, node, file, true)
       }
     }
-    builder.create().show()
+        .showWithLongPressTooltip(
+            context = context,
+            tooltipTag = TooltipTag.PROJECT_FOLDER_NEWXML
+        )
   }
 
   private fun createNewEmptyFile(context: Context, node: TreeNode?, file: File) {
@@ -392,7 +419,10 @@ class NewFileAction(val context: Context, override val order: Int) :
       }
     }
     builder.setNegativeButton(android.R.string.cancel, null)
-    builder.create().show()
+        .showWithLongPressTooltip(
+            context = context,
+            tooltipTag = TooltipTag.PROJECT_NEWFILE_DIALOG
+        )
   }
 
   private fun createFile(

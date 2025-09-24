@@ -133,7 +133,7 @@ public class ProjectWriter {
     return ClassBuilder.createEnum(packageName, className);
   }
 
-  public static String createActivity(String packageName, String className) {
-    return ClassBuilder.createActivity(packageName, className);
+  public static String createActivity(String packageName, String className, boolean appCompatActivity) {
+    return ClassBuilder.createActivity(packageName, className, appCompatActivity);
   }
 }

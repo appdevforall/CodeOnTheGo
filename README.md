@@ -1,4 +1,4 @@
-<p align="center">
+ <p align="center">
   <img src="./images/icon.png" alt="Code On The Go" width="80" height="80"/>
 </p>
 
