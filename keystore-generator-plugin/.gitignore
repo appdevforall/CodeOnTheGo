@@ -1,0 +1,33 @@
+# Plugin-specific gitignore for keystore-generator-plugin
+
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# Local configuration
+local.properties
+
+# IDE files
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Generated keystore files (for testing)
+*.jks
+*.keystore
+
+# Build outputs
+*.apk
+*.aar
+*.dex
