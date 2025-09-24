@@ -31,7 +31,7 @@
     <string name="empty_commit">Commit message can not be empty</string>
     <string name="set_user_and_password">Please set Username and Email in settings</string>
     <string name="git_commit_heading">Please enter the commit message for your changes. An empty message aborts the commit.</string>
-    <string name="git_commit_changes">Changes to be committed, uncheck files to be excluded from this commit</string>
+    <string name="git_commit_changes">Changes to be committed. Uncheck files to be excluded from this commit</string>
 
 
     <!-- LSP, Diagnostics & Completions -->
@@ -50,7 +50,7 @@
     <string name="view_diags">Diagnostics</string>
     <string name="title_installation_failed">Installation failed</string>
     <string name="msg_picked_isnt_dir">Picked file is not a directory!</string>
-    <string name="please_wait">Please wait for a moment …</string>
+    <string name="please_wait">Please wait for a moment…</string>
 
     <!-- Project Builder -->
     <string name="title_unsupported_device">Device Not Supported</string>
@@ -175,24 +175,24 @@
     <string name="idepref_build_customgradlecommands_title">Additional Gradle flags</string>
     <string name="idepref_build_customgradlecommands_summary">Choose additional Gradle flags to execute with every task.</string>
     <string name="idepref_editor_fontsize_title">Font size</string>
-    <string name="idepref_editor_fontsize_summary">Font size of the editor</string>
-    <string name="idepref_editor_paintingflags_title">Non-printable painting flags</string>
-    <string name="idepref_editor_paintingflags_summary">Choose what non-printable characters should be drawn by the editor</string>
-    <string name="idepref_editor_word_wrap_title">Word Wrap</string>
-    <string name="idepref_editor_word_wrap_summary">Use wordwrap of the editor</string>
-    <string name="idepref_editor_use_magnifier_title">Enable Magnifier</string>
-    <string name="idepref_editor_use_magnifier_summary">Magnify text at cursor position while selecting text in editor</string>
+    <string name="idepref_editor_fontsize_summary">Set the default font size (measured in sp).</string>
+    <string name="idepref_editor_paintingflags_title">Show non-printing characters</string>
+    <string name="idepref_editor_paintingflags_summary">Choose which non-printing characters (like tabs, spaces, and line breaks) are displayed.</string>
+    <string name="idepref_editor_word_wrap_title">Word wrap</string>
+    <string name="idepref_editor_word_wrap_summary">Break long lines of text or code into multiple lines so they fit in the visible window.</string>
+    <string name="idepref_editor_use_magnifier_title">Enable magnifier</string>
+    <string name="idepref_editor_use_magnifier_summary">Long-press and hold to zoom in on the area around the cursor.</string>
     <string name="idepref_editor_title">Editor</string>
     <string name="idepref_build_title">Build &amp; Run</string>
     <string name="title_open_projects">Open last project</string>
-    <string name="msg_open_projects">If checked, the IDE will remember the last opened project and it will be reopened on next startup.</string>
+    <string name="msg_open_projects">When enabled, restarting Code on the Go will automatically open the last project that was open.</string>
     <string name="title_confirm_project_open">Confirm project opening</string>
     <string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
     <string name="title_default_shell">Use system shell in terminal</string>
     <string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
     <string name="title_general">General</string>
     <string name="title_tab_size">Tab size</string>
-    <string name="msg_tab_size">Specify number of spaces for TAB</string>
+    <string name="msg_tab_size">Set the number of spaces that the tab character indents.</string>
     <string name="msg_preferences">Preferences</string>
     <string name="pref_changelog">Changelog</string>
     <string name="msg_editor_font_size">Please choose default font size of editor :</string>
@@ -231,9 +231,7 @@
     <string name="idepref_editor_category_java" translatable="false">Java</string>
     <string name="title_files_unsaved">Unsaved files</string>
     <string name="msg_files_unsaved">Some files are not saved. Would you like to save them before closing? Unsaved files are: \n%s</string>
-    <string name="idepref_editor_autoSave_title">Save before closing files</string>
-    <string name="idepref_editor_autoSave_summary">Save files before closing them. This is an EXPERIMENTAL feature. You are expected to save the files yourself.</string>
-    <string name="idepref_java_matchLower_summary">If enabled, then typing a lower case or upper case letters will suggest class names as well as scope members.</string>
+    <string name="idepref_java_matchLower_summary">When enabled, code completion matches class names and members even when typed in lowercase (case-insensitive matching).</string>
     <string name="idepref_editor_ligatures_title">Font ligatures</string>
     <string name="idepref_editor_ligatures_summary">Enable/disable font ligatures</string>
     <string name="yes">Yes</string>
@@ -246,9 +244,9 @@
     <string name="show_tooltip_show_more">Show more</string>
     <string name="faq_activity_title">More information</string>
     <string name="idepref_java_useGoogleStyle_title">Use Google Java Style code formatting</string>
-    <string name="idepref_java_useGoogleStyle_summary">Use Google Java Style code formatting configuration for formatting Java source code.</string>
-    <string name="idepref_visiblePassword_title">Visible password flag</string>
-    <string name="idepref_visiblePassword_summary">Use for visible password input type flag in editor. This makes sure that no suggestions are proposed by soft keyboard.</string>
+    <string name="idepref_java_useGoogleStyle_summary">Format Java code using Google’s conventions.</string>
+    <string name="idepref_visiblePassword_title">Hide keyboard suggestions</string>
+    <string name="idepref_visiblePassword_summary">Disable text predictions and auto-correction for the on-screen keyboard.</string>
     <string name="previous">Previous</string>
     <string name="title_gradle_service_notification_ticker">Gradle build service started</string>
     <string name="title_gradle_service_notification">Gradle build service</string>
@@ -277,8 +275,8 @@
     <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
     <string name="msg_select_from_primary_storage">Select a directory from primary storage</string>
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
-    <string name="idepref_useIcu_title">Use ICU library</string>
-    <string name="idepref_useIcu_summary">Use ICU library to use retrive word edges for double-tap and long-press word selection.</string>
+    <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
+    <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
     <string name="msg_drawer_for_files">
   • <b>To view the file tree, build tools, and preferences:</b>\n
      - Tap the menu icon at the upper left\n
@@ -300,7 +298,7 @@
     To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
   </string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
-    <string name="idepref_editor_useSoftTabs_summary">Choose whether to use spaces instead of tab character (\\t).</string>
+    <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
     <string name="btn_docs">Documentation</string>
     <string name="btn_close">Close</string>
@@ -318,36 +316,36 @@
     <string name="xml" translatable="false">XML</string>
     <string name="idepref_xml_trimFinalNewLine_title">Trim final new line</string>
     <string name="idepref_xml_insertFinalNewLine_title">Insert final new line</string>
-    <string name="idepref_xml_trimFinalNewLine_summary">Remove extra empty line at the end of file</string>
-    <string name="idepref_xml_insertFinalNewLine_summary">Inserts an empty new line at the end of file.</string>
+    <string name="idepref_xml_trimFinalNewLine_summary">Remove empty new line characters at the end of a file.</string>
+    <string name="idepref_xml_insertFinalNewLine_summary">Insert a single new line character at the end of a file.</string>
     <string name="idepref_xml_splitAttributes_title">Split attributes</string>
-    <string name="idepref_xml_splitAttributes_summary">Format attributes on new line</string>
+    <string name="idepref_xml_splitAttributes_summary">Place each attribute on a new line.</string>
     <string name="idepref_xml_joinCDataLines_title">Join CDATA lines</string>
-    <string name="idepref_xml_joinCDataLines_summary">Normalize content inside CDATA.</string>
+    <string name="idepref_xml_joinCDataLines_summary">Combine multiple CDATA blocks into a single block.</string>
     <string name="idepref_xml_joinComment_title">Join comment lines</string>
-    <string name="idepref_xml_joinComment_summary">Normalize content inside comments.</string>
+    <string name="idepref_xml_joinComment_summary">Combine multiple single-line XML comments into a single line.</string>
     <string name="idepref_xml_joinContent_title">Join content lines</string>
-    <string name="idepref_xml_joinContent_summary">Normalize content inside elements.</string>
+    <string name="idepref_xml_joinContent_summary">Combine multiple lines of text in a single XML element into a single line.</string>
     <string name="idepref_xml_spaceBeforeEmptyClose_title">Space before empty close tag</string>
-    <string name="idepref_xml_spaceBeforeEmptyClose_summary">Insert whitespace before self closing tag end bracket.</string>
+    <string name="idepref_xml_spaceBeforeEmptyClose_summary">Add a single space before every closing tag.</string>
     <string name="idepref_xml_preserveEmptyContent_title">Preserve empty content</string>
-    <string name="idepref_xml_preserveEmptyContent_summary">Preserve empty content inside elements (whitespaces, new lines, tabs, etc).</string>
+    <string name="idepref_xml_preserveEmptyContent_summary">Preserve tags that appear on otherwise-empty lines instead of collapsing them.</string>
     <string name="idepref_xml_preserveAttrLineBreaks_title">Preserve attribute line breaks</string>
-    <string name="idepref_xml_preserveAttrLineBreaks_summary">Preserve line breaks between attributes.</string>
+    <string name="idepref_xml_preserveAttrLineBreaks_summary">Keep attributes on separate lines instead of collapsing them.</string>
     <string name="idepref_xml_closingBrackNewLine_title">Closing bracket on new line</string>
-    <string name="idepref_xml_closingBrackNewLine_summary">Place closing bracket on a new line.</string>
+    <string name="idepref_xml_closingBrackNewLine_summary">Place closing brackets and self-closing tags on a new line after the last attribute.</string>
     <string name="idepref_xml_trimTrailingWs_title">Trim trailing whitespace</string>
-    <string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespaces at the end of lines.</string>
-    <string name="idepref_maxLineWidth_title">Max line width</string>
-    <string name="idepref_maxLineWidth_summary">The maximum number of characters a line should have.</string>
+    <string name="idepref_xml_trimTrailingWs_summary">Remove extra whitespace at the end of lines.</string>
+    <string name="idepref_maxLineWidth_title">Maximum line width</string>
+    <string name="idepref_maxLineWidth_summary">Set the maximum number of characters on a single line before the editor automatically wraps or breaks the line.</string>
     <string name="idepref_splitAttrIndentSize_title">Split attributes indent size</string>
-    <string name="idepref_splitAttrIndentSize_summary">The number of spaces to index for splitted attributes.</string>
-    <string name="idepref_preservedNewLines_title">Preserved new lines</string>
-    <string name="idepref_preservedNewLines_summary">The maximum number of continuous line breaks that should be preserved.</string>
-    <string name="idepref_emptyElements_title">Empty elements behaviour</string>
-    <string name="idepref_emptyElements_summary">Choose the formatting behavior for empty elements.</string>
+    <string name="idepref_splitAttrIndentSize_summary">Set the number of spaces to automatically indent attributes that are split on separate lines.</string>
+    <string name="idepref_preservedNewLines_title">Preserve new lines</string>
+    <string name="idepref_preservedNewLines_summary">Set the maximum number of blank new lines that are kept when the file is reformatted or saved.</string>
+    <string name="idepref_emptyElements_title">Empty elements behavior</string>
+    <string name="idepref_emptyElements_summary">Choose how empty XML elements are formatted.</string>
     <string name="xml_formatting_options">XML formatting options</string>
-    <string name="xml_formatting_options_summary">Configure the XML formatter</string>
+    <string name="xml_formatting_options_summary">Set formatting preferences for XML files.</string>
     <string name="idepref_customFont_title">Use custom font</string>
     <string name="idepref_customFont_summary">If enabled, the file at \"/data/data/com.itsaky.androidide/files/home/.androidide/ui/font.ttf\" will be used as Editor font.</string>
     <string name="msg_installing_apk">Installing APK...</string>
@@ -485,9 +483,9 @@
     <string name="msg_dir_picker_failed">Failed to start directory picker : %1$s</string>
     <string name="msg_tooling_server_unavailable">Tooling API server is unavailable. Check build output and IDE logs for errors.</string>
     <string name="idepref_deleteEmptyLines_title">Delete empty lines on backspace</string>
-    <string name="idepref_deleteEmptyLines_summary">Whether the editor should delete empty lines on a single backspace key event.</string>
-    <string name="idepref_deleteTabs_title">Delete tab on backspace</string>
-    <string name="idepref_deleteTabs_summary">When enabled, the editor will delete spaces equal to the tab width when the backspace key is pressed.</string>
+    <string name="idepref_deleteEmptyLines_summary">If a line contains no visible text characters, pressing backspace removes the entire line.</string>
+    <string name="idepref_deleteTabs_title">Smart backspace indent</string>
+    <string name="idepref_deleteTabs_summary">Remove a full indent level instead of just one character when you press backspace.</string>
 
     <!--  GitHub-->
     <string name="title_warning">Warning</string>
@@ -576,7 +574,7 @@
     <string name="title_disconnect_log_senders">Disconnect log senders</string>
     <string name="title_begin_long_select">Begin long select</string>
     <string name="idepref_editor_stickScroll_title">Sticky scroll</string>
-    <string name="idepref_editor_stickyScroll_summary">Show the current scope at the top while scrolling the editor.</string>
+    <string name="idepref_editor_stickyScroll_summary">Keep the current scope header pinned at the top of the editor while you scroll.</string>
     <string name="idepref_launchAppAfterInstall_title">Launch app after installation</string>
     <string name="idepref_launchAppAfterInstall_summary">If enabled, the IDE will (without confirmation) launch the application right after it is installed.</string>
     <string name="title_run_options">Run options</string>
@@ -586,7 +584,7 @@
     <string name="title_experiment_flavor">Experimental</string>
     <string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
     <string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
-    <string name="idepref_editor_pinLineNumbers_summary">Whether the editor should pin line number panel when scrolled horizontally.</string>
+    <string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
     <string name="theme_blue_wave">Blue Wave</string>
     <string name="theme_sunny_glow">Sunny Glow</string>
     <string name="theme_material_you">Material You</string>
@@ -704,13 +702,13 @@
 	<string name="alert_message">Alert!</string>
 	<string name="fab_more">More</string>
 	<string name="msg_recent_projects">Recent projects</string>
-	<string name="msg_create_new_from_recent">Click the New project button to create a new project or\nopen from a folder</string>
+	<string name="msg_create_new_from_recent">Click the New project button to create a new project or open from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
-	<string name="open_from_folder">Open from folder</string>
+	<string name="find_saved_project">Find a saved project</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
 	<string name="feedback_email">feedback@appdevforall.org</string>
 	<string name="no_email_apps">No email apps found</string>
@@ -737,7 +735,26 @@
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
 
-	<!-- Message shown when the bootstrap installer is extract a file from the zip -->
+	<!-- Plugin System -->
+  <string name="plugin_manager">Plugin Manager</string>
+  <string name="plugin_manager_title">Plugin Manager</string>
+  <string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+  <string name="plugins">Plugins</string>
+  <string name="no_plugins_installed">No plugins installed</string>
+  <string name="install_plugin">Install Plugin</string>
+  <string name="plugin_installed">Plugin installed successfully</string>
+  <string name="plugin_install_failed">Failed to install plugin</string>
+  <string name="plugin_enabled">Plugin enabled</string>
+  <string name="plugin_disabled">Plugin disabled</string>
+  <string name="plugin_uninstalled">Plugin uninstalled</string>
+  <string name="enable_plugin">Enable</string>
+  <string name="disable_plugin">Disable</string>
+  <string name="uninstall_plugin">Uninstall</string>
+  <string name="plugin_details">Plugin Details</string>
+  <string name="plugin_permissions">Permissions</string>
+  <string name="plugin_dependencies">Dependencies</string>
+
+  <!-- Message shown when the bootstrap installer is extract a file from the zip -->
 	<!-- The first parameter is the name of the zip entry -->
 	<string name="bootstrap_installer_unzipping">Unzipping %1$s</string>
 
@@ -770,38 +787,45 @@
 		</html>
 		]]></string>
 
-	<!-- Name of the notification channel which is used to show notifications for wireless debugging -->
+    <string name="info_icon_content_description">Info icon</string>
+    <string name="unknown_error">"An unknown error occurred."</string>
+    <string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
+    <string name="error_build_service_not_found">Build service not found.</string>
+    <string name="error_task_execution_failed">Task execution failed.</string>
+    <string name="error_no_output_listing_file">No output listing file found in project model.</string>
+    <string name="error_no_apk_in_output_listing">No APK found in output listing file.</string>
+    <string name="error_apk_not_exist">APK file specified does not exist: %1$s</string>
+    <string name="info_build_cancelled">Build was cancelled by the user.</string>
+    <string name="error_quick_run_failed">Quick Run failed.</string>
+    <string name="status_building">Building…</string>
+    <string name="init_failed_with_reason">%1$s: %2$s</string>
+
+    <!-- Name of the notification channel which is used to show notifications for wireless debugging -->
 	<string name="notification_channel_adb_pairing">Wireless debugging pairing</string>
 
 	<!-- Hint for the notification text field which asks the user to enter the wireless debugging pairing code -->
-	<string name="notification_adb_pairing_input_paring_code">Enter pairing code</string>
-	<!-- Title for the notification when the wireless debugging pairing service is being searched. -->
-	<string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
-	<!-- Title for the notification when the wireless debugging pairing service is found. -->
+    <string name="notification_adb_pairing_input_paring_code">Enter pairing code</string><!-- Title for the notification when the wireless debugging pairing service is being searched. -->
+    <string name="notification_adb_pairing_searching_for_service_title">Searching for pairing service</string>
+    <!-- Title for the notification when the wireless debugging pairing service is found. -->
 	<string name="notification_adb_pairing_service_found_title">Pairing service found</string>
 	<!-- Text for the button in the notification to stop searching for the wireless debugging pairing service. -->
-	<string name="notification_adb_pairing_stop_searching">Stop searching</string>
-	<!-- Title for the notification when wireless debugging pairing is in progress. -->
+    <string name="notification_adb_pairing_stop_searching">Stop searching</string>
+    <!-- Title for the notification when wireless debugging pairing is in progress. -->
 	<string name="notification_adb_pairing_working_title">Pairing in progress</string>
-
-	<!-- Title for the notification when wireless debugging pairing has succeeded. -->
+    <!-- Title for the notification when wireless debugging pairing has succeeded. -->
 	<string name="notification_adb_pairing_succeed_title">Pairing successful</string>
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-	<string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
+    <string name="notification_adb_pairing_succeed_text">Code on the Go\'s Shizuku service will now be started.</string>
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
-	<string name="notification_adb_pairing_failed_title">Pairing failed</string>
-
-	<!-- Text for the button in the notification to retry wireless debugging pairing after it has failed. -->
-	<string name="notification_adb_pairing_retry">Retry</string>
-	<!-- Error message displayed when the entered wireless debugging pairing code is incorrect. -->
-	<string name="paring_code_is_wrong">Pairing code is wrong.</string>
-	<!-- Error message displayed when the application cannot connect to the wireless debugging service port. -->
+    <string name="notification_adb_pairing_failed_title">Pairing failed</string><!-- Text for the button in the notification to retry wireless debugging pairing after it has failed. -->
+    <string name="notification_adb_pairing_retry">Retry</string><!-- Error message displayed when the entered wireless debugging pairing code is incorrect. -->
+    <string name="paring_code_is_wrong">Pairing code is wrong.</string>
+    <!-- Error message displayed when the application cannot connect to the wireless debugging service port. -->
 	<string name="cannot_connect_port">Can\'t connect to wireless debugging service.</string>
 	<!-- Error message displayed when the KeyStore mechanism on the device is broken, preventing key generation for wireless
 		debugging. -->
-	<string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this
-		device is broken.</string>
-	<!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
+    <string name="adb_error_key_store">Unable to generate key for wireless debugging.\nThis may be because KeyStore mechanism of this device is broken.</string>
+    <!-- Label for the input field where the user enters the wireless debugging pairing code in a dialog. -->
 	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
 
 	<!-- Text for an action button that initiates the wireless debugging pairing process. -->
@@ -877,8 +901,6 @@
     <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
     <string name="title_alert">Alert!</string>
 
-    <string name="info_icon_content_description">Info icon</string>
-
     <!-- Strings from BaseApplication.java-->
     <string name="telegram_group_url">https://t.me/androidide_discussions</string>
     <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
@@ -886,4 +908,9 @@
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+
+
+<!--  Plugins-->
+  <string name="title_plugin_manager">Plugin Manager</string>
+
 </resources>
