@@ -8,4 +8,9 @@
   <color name="teal_700">#FF018786</color>
   <color name="black">#FF000000</color>
   <color name="white">#FFFFFFFF</color>
+  
+  <!-- Plugin status colors -->
+  <color name="success">#FF4CAF50</color>
+  <color name="warning">#FFFF9800</color>
+  <color name="error">#FFF44336</color>
 </resources>
