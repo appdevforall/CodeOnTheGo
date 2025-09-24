@@ -27,6 +27,9 @@ import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
@@ -34,6 +37,7 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.agent.GeminiMacroProcessor
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.appModule
 import com.itsaky.androidide.editor.processing.TextProcessorEngine
@@ -70,6 +74,7 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.koin.android.ext.android.getKoin
+import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -77,9 +82,10 @@ import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
-class IDEApplication : TermuxApplication() {
+class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
 	private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var ideLogcatReader: IDELogcatReader? = null
+	private val analyticsManager: IAnalyticsManager by inject()
 
 	companion object {
 		private val log = LoggerFactory.getLogger(IDEApplication::class.java)
@@ -168,7 +174,27 @@ class IDEApplication : TermuxApplication() {
 			IDEColorSchemeProvider.init()
 		}
 
-		// Tooltip database access is now handled by direct SQLite queries
+		initializeAnalytics()
+	}
+
+	private fun initializeAnalytics() {
+		try {
+			ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+			analyticsManager.initialize()
+			log.info("Firebase Analytics initialized successfully")
+		} catch (e: Exception) {
+			log.error("Failed to initialize Firebase Analytics", e)
+		}
+	}
+
+	override fun onStart(owner: LifecycleOwner) {
+		super.onStart(owner)
+		analyticsManager.startSession()
+	}
+
+	override fun onStop(owner: LifecycleOwner) {
+		super.onStop(owner)
+		analyticsManager.endSession()
 	}
 
 	private fun handleCrash(

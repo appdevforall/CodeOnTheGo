@@ -7,7 +7,10 @@ import com.itsaky.androidide.agent.repository.GeminiRepositoryImpl
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.SwitchableGeminiRepository
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
+import com.itsaky.androidide.analytics.AnalyticsManager
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.api.IDEApiFacade
+import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
@@ -23,6 +26,9 @@ val appModule = module {
     }
     single { FileActionManager() }
     single { GeminiMacroProcessor(get()) }
+
+    // Analytics
+    single<IAnalyticsManager> { AnalyticsManager(androidApplication()) }
 
     viewModel {
         ChatViewModel(agentRepository = get())

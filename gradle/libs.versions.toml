@@ -42,6 +42,8 @@ monitor = "1.6.1"
 monitorVersion = "1.7.2"
 sentry = "5.8.0"
 mockk = "1.14.5"
+firebase-bom = "33.7.0"
+google-services = "4.4.2"
 
 rikka-hidden-api = "4.4.0"
 rikka-refine = "4.4.0"
@@ -62,6 +64,7 @@ androidx-appcompat-v161 = { module = "androidx.appcompat:appcompat", version.ref
 androidx-constraintlayout-v214 = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
 androidx-core-ktx-v1120 = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodelKtx" }
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycleViewmodelKtx" }
 androidx-palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "paletteKtx" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtxVersion" }
 androidx-recyclerview-v132 = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
@@ -87,6 +90,10 @@ composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+
+# Firebase
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 
 
 # AndroidIDE
@@ -256,6 +263,7 @@ maven-publish = { id = "com.vanniktech.maven.publish.base", version.ref = "maven
 gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 sentry = { id = "io.sentry.android.gradle", version.ref = "sentry" }
+google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
 rikka-autoresconfig = { id = "dev.rikka.tools.autoresconfig", version = "1.2.2" }
 rikka-materialthemebuilder = { id = "dev.rikka.tools.materialthemebuilder", version = "1.5.1" }
 rikka-refine = { id = "dev.rikka.tools.refine", version.ref = "rikka-refine" }

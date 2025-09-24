@@ -29,6 +29,7 @@ import com.blankj.utilcode.util.ResourceUtils
 import com.blankj.utilcode.util.ZipUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R.*
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.managers.ToolsManager
@@ -45,6 +46,7 @@ import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import org.koin.android.ext.android.inject
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_AAR
 import com.itsaky.androidide.tooling.api.LogSenderConfig.PROPERTY_LOGSENDER_ENABLED
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
@@ -99,6 +101,8 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
   private var notificationManager: NotificationManager? = null
   private var server: IToolingApiServer? = null
   private var eventListener: EventListener? = null
+  private val analyticsManager: IAnalyticsManager by inject()
+  private var buildStartTime: Long = 0
 
   private val buildServiceScope = CoroutineScope(
     Dispatchers.Default + CoroutineName("GradleBuildService"))
@@ -270,16 +274,66 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
 
   override fun prepareBuild(buildInfo: BuildInfo) {
     updateNotification(getString(R.string.build_status_in_progress), true)
+    buildStartTime = System.currentTimeMillis()
+
+    val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
+    val buildType = buildInfo.tasks.firstOrNull()?.let { task ->
+      when {
+        task.contains("assembleDebug") -> "debug"
+        task.contains("assembleRelease") -> "release"
+        task.contains("clean") -> "clean"
+        task.contains("build") -> "build"
+        else -> "custom"
+      }
+    } ?: "unknown"
+
+    analyticsManager.trackBuildRun(buildType, projectPath)
     eventListener?.prepareBuild(buildInfo)
   }
 
   override fun onBuildSuccessful(result: BuildResult) {
     updateNotification(getString(R.string.build_status_sucess), false)
+
+    // Track build completion in Firebase Analytics
+    if (buildStartTime > 0) {
+      val duration = System.currentTimeMillis() - buildStartTime
+      val buildType = result.tasks.firstOrNull()?.let { task ->
+        when {
+          task.contains("assembleDebug") -> "debug"
+          task.contains("assembleRelease") -> "release"
+          task.contains("clean") -> "clean"
+          task.contains("build") -> "build"
+          else -> "custom"
+        }
+      } ?: "unknown"
+
+      analyticsManager.trackBuildCompleted(buildType, true, duration)
+      buildStartTime = 0
+    }
+
     eventListener?.onBuildSuccessful(result.tasks)
   }
 
   override fun onBuildFailed(result: BuildResult) {
     updateNotification(getString(R.string.build_status_failed), false)
+
+    // Track build failure in Firebase Analytics
+    if (buildStartTime > 0) {
+      val duration = System.currentTimeMillis() - buildStartTime
+      val buildType = result.tasks.firstOrNull()?.let { task ->
+        when {
+          task.contains("assembleDebug") -> "debug"
+          task.contains("assembleRelease") -> "release"
+          task.contains("clean") -> "clean"
+          task.contains("build") -> "build"
+          else -> "custom"
+        }
+      } ?: "unknown"
+
+      analyticsManager.trackBuildCompleted(buildType, false, duration)
+      buildStartTime = 0
+    }
+
     eventListener?.onBuildFailed(result.tasks)
   }
 
