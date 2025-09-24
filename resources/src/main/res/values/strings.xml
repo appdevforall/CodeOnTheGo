@@ -735,7 +735,26 @@
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
 
-	<!-- Message shown when the bootstrap installer is extract a file from the zip -->
+	<!-- Plugin System -->
+  <string name="plugin_manager">Plugin Manager</string>
+  <string name="plugin_manager_title">Plugin Manager</string>
+  <string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+  <string name="plugins">Plugins</string>
+  <string name="no_plugins_installed">No plugins installed</string>
+  <string name="install_plugin">Install Plugin</string>
+  <string name="plugin_installed">Plugin installed successfully</string>
+  <string name="plugin_install_failed">Failed to install plugin</string>
+  <string name="plugin_enabled">Plugin enabled</string>
+  <string name="plugin_disabled">Plugin disabled</string>
+  <string name="plugin_uninstalled">Plugin uninstalled</string>
+  <string name="enable_plugin">Enable</string>
+  <string name="disable_plugin">Disable</string>
+  <string name="uninstall_plugin">Uninstall</string>
+  <string name="plugin_details">Plugin Details</string>
+  <string name="plugin_permissions">Permissions</string>
+  <string name="plugin_dependencies">Dependencies</string>
+
+  <!-- Message shown when the bootstrap installer is extract a file from the zip -->
 	<!-- The first parameter is the name of the zip entry -->
 	<string name="bootstrap_installer_unzipping">Unzipping %1$s</string>
 
@@ -889,4 +908,9 @@
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+
+
+<!--  Plugins-->
+  <string name="title_plugin_manager">Plugin Manager</string>
+
 </resources>
