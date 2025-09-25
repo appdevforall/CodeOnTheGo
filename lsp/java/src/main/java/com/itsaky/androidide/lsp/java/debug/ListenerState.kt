@@ -4,12 +4,15 @@ import com.itsaky.androidide.lsp.debug.IDebugClient
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
 import com.sun.tools.jdi.SocketListeningConnector
+import com.sun.tools.jdi.isListening
 
 internal data class ListenerState(
     val client: IDebugClient,
     val connector: SocketListeningConnector,
     val args: Map<String, Connector.Argument>
 ) {
+	val isListening: Boolean
+		get() = connector.isListening(args)
 
     /**
      * Start listening for connections from VMs.
