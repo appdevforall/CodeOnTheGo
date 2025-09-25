@@ -59,6 +59,7 @@ class BottomSheetViewModel : ViewModel() {
 		@TabDef currentTab: Int = this.sheetState.value.currentTab,
 	) {
 		val newState = SheetState(sheetState, currentTab)
+		logger.debug("new SheetState: {}", newState)
 		_sheetState.update { newState }
 	}
 }

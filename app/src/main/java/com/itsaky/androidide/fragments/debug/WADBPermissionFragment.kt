@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.ShizukuStarter
-import moe.shizuku.manager.ShizukuViewModel
+import moe.shizuku.manager.ShizukuState
 import moe.shizuku.manager.adb.AdbClient
 import moe.shizuku.manager.adb.AdbKey
 import moe.shizuku.manager.adb.AdbKeyException
@@ -74,7 +74,6 @@ class WADBPermissionFragment :
 	// must be activity bound since it's also used in DebuggerFragment
 	private val debuggerViewModel by activityViewModels<DebuggerViewModel>()
 	private val wadbViewModel by activityViewModels<WADBViewModel>()
-	private val shizukuViewModel by activityViewModels<ShizukuViewModel>()
 
 	private val pairingBroadcastReceiver =
 		object : BroadcastReceiver() {
@@ -436,13 +435,24 @@ class WADBPermissionFragment :
 				object : Shizuku.OnBinderReceivedListener {
 					override fun onBinderReceived() {
 						logger.debug("Shizuku service connected")
-
 						Shizuku.removeBinderReceivedListener(this)
-						shizukuViewModel.reload()
 
-						// reset state
-						wadbViewModel.setCurrentView(VIEW_PAIRING)
-						debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
+						// onBinderReceived may be called even after the fragment, or even the
+						// activity is destroyed, so we need to ensure that we dispatch UI state
+						// updates within the lifecycle of the fragment (if visible), or the activity
+
+						// ShizukuState is a global singleton, not a ViewModel.
+						// Making it a viewModel requires us to ensure that we can safely access
+						// the view model here. But since this callback can be received even after
+						// the fragment is destroyed, it becomes difficult to do so.
+						// See ADFA-1572 for more details on why it's implemented this way.
+						ShizukuState.reload()
+
+						viewLifecycleScopeOrNull?.launch {
+							// reset state
+							wadbViewModel.setCurrentView(VIEW_PAIRING)
+							debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
+						}
 					}
 				},
 			)

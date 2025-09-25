@@ -44,5 +44,5 @@ class FileTreeSidebarAction(context: Context, override val order: Int) : Abstrac
     icon = ContextCompat.getDrawable(context, R.drawable.ic_folder)
   }
 
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.FILE_TREE_SIDEBAR
+  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.FILE_TREE_SIDEBAR
 }
