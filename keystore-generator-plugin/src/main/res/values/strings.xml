@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Keystore Generator Plugin</string>
+    <string name="plugin_name">Keystore Generator</string>
+    <string name="generate_keystore">Generate Keystore</string>
+    <string name="keystore_name">Keystore Name</string>
+    <string name="keystore_name_hint">e.g., release.jks</string>
+    <string name="keystore_password">Keystore Password</string>
+    <string name="key_alias">Key Alias</string>
+    <string name="key_alias_hint">e.g., release</string>
+    <string name="key_password">Key Password</string>
+    <string name="certificate_name">Full Name</string>
+    <string name="certificate_name_hint">e.g., John Doe</string>
+    <string name="organizational_unit">Organizational Unit</string>
+    <string name="organizational_unit_hint">e.g., Development</string>
+    <string name="organization">Organization</string>
+    <string name="organization_hint">e.g., My Company</string>
+    <string name="city">City</string>
+    <string name="city_hint">e.g., San Francisco</string>
+    <string name="state">State/Province</string>
+    <string name="state_hint">e.g., California</string>
+    <string name="country">Country Code</string>
+    <string name="country_hint">e.g., US</string>
+    <string name="create">Create</string>
+    <string name="cancel">Cancel</string>
+    <string name="keystore_generation_title">Generate Release Keystore</string>
+    <string name="keystore_details">Keystore Details</string>
+    <string name="certificate_details">Certificate Details</string>
+    <string name="success_message">Keystore created successfully!</string>
+    <string name="error_invalid_input">Please fill in all required fields</string>
+    <string name="error_generation_failed">Failed to generate keystore</string>
+    <string name="error_no_project">No project is currently open</string>
+</resources>
