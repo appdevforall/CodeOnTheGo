@@ -137,7 +137,7 @@ jobs:
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
         env:
-            KEYSTORE_FILE: ~/.keystore/adfa-keystore.jks
+            KEYSTORE_FILE: ${{ env.HOME }}/.keystore/adfa-keystore.jks
             KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
             KEY_ALIAS: ${{ vars.KEY_ALIAS }}
             KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
