@@ -581,7 +581,10 @@ internal class JDWPListenerThread(
 	}
 
 	override fun run() {
-		listenerState.startListening()
+		if (!listenerState.isListening) {
+			listenerState.startListening()
+		}
+
 		while (isAlive && !isInterrupted) {
 			try {
 				logger.debug("Waiting for VM connection")
