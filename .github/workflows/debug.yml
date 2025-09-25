@@ -126,11 +126,27 @@ jobs:
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
+      - name: Decode Keystore
+        run: |
+          mkdir -p ~/.keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ~/.keystore/adfa-keystore.jks
+
       - name: Assemble Universal APK
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
+        env:
+            KEYSTORE_FILE: ~/.keystore/adfa-keystore.jks
+            KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+            KEY_ALIAS: ${{ vars.KEY_ALIAS }}
+            KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+
+      - name: Clean up keystore
+        if: always()
+        run: |
+          # Remove the keystore file from the temporary directory
+          rm -f ~/.keystore/adfa-keystore.jks
 
       - name: Find APK file
         id: find_apk
