@@ -69,13 +69,13 @@ android {
 		getByName("debug") {
 			enableV2Signing = true
 			enableV3Signing = true
-			
+
 			// Use custom debug keystore if environment variables are available
 			val keystoreFile = System.getenv("KEYSTORE_FILE")
 			val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
 			val keyAlias = System.getenv("KEY_ALIAS") ?: "cogo-debug-key"
 			val keyPassword = System.getenv("KEY_PASSWORD")
-			
+
 			if (keystoreFile != null && keystorePassword != null && keyPassword != null) {
 				storeFile = file(keystoreFile)
 				storePassword = keystorePassword
