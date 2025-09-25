@@ -53,6 +53,7 @@ libsu-core = "6.0.0"
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
 spotless = "7.2.1"
+squareCurtains = "1.2.5"
 
 [libraries]
 
@@ -246,6 +247,8 @@ maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
 monitor = { group = "androidx.test", name = "monitor", version.ref = "monitorVersion" }
 org-json = { module = "org.json:json", version = "20210307"}
+
+square-curtains = { group = "com.squareup.curtains", name = "curtains", version.ref = "squareCurtains" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
