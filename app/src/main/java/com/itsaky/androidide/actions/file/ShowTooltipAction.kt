@@ -52,6 +52,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
             TooltipManager.showTooltip(
                 context = context,
                 anchorView = editor,
+                category = category,
                 tag = word,
             )
         }
