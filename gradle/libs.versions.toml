@@ -9,6 +9,7 @@ commonsText = "1.11.0"
 commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
+fragment = "1.8.8"
 gradle-tooling = "8.6"
 gson = "2.10.1"
 junit-jupiter = "5.10.2"
@@ -53,6 +54,7 @@ libsu-core = "6.0.0"
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
 spotless = "7.2.1"
+fragmentKtx = "1.8.8"
 
 [libraries]
 
@@ -61,6 +63,7 @@ androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref
 androidx-appcompat-v161 = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-constraintlayout-v214 = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
 androidx-core-ktx-v1120 = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodelKtx" }
 androidx-palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "paletteKtx" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtxVersion" }
@@ -84,6 +87,8 @@ composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" 
 composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
+gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
@@ -246,6 +251,7 @@ maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
 monitor = { group = "androidx.test", name = "monitor", version.ref = "monitorVersion" }
 org-json = { module = "org.json:json", version = "20210307"}
+androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragmentKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
