@@ -36,7 +36,6 @@ import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.LeadingMarginSpan
 import android.view.GestureDetector
-import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -80,6 +79,7 @@ import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
@@ -88,7 +88,6 @@ import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
 import com.itsaky.androidide.handlers.LspHandler.registerLanguageServers
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.DiagnosticClickListener
@@ -98,6 +97,7 @@ import com.itsaky.androidide.models.DiagnosticGroup
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -131,8 +131,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -678,6 +676,11 @@ abstract class BaseEditorActivity :
 
         this.isDestroying = isFinishing
         getFileTreeFragment()?.saveTreeState()
+        
+        // Clear current activity from plugin services when activity is finishing
+        if (isFinishing) {
+            IDEApplication.instance.setCurrentActivity(null)
+        }
     }
 
     override fun onResume() {
@@ -693,6 +696,9 @@ abstract class BaseEditorActivity :
             log.error("Failed to update files list", th)
             flashError(string.msg_failed_list_files)
         }
+        
+        // Set this activity as current for plugin services
+        IDEApplication.instance.setCurrentActivity(this)
     }
 
     override fun onStop() {
@@ -722,12 +728,45 @@ abstract class BaseEditorActivity :
 
     override fun onTabSelected(tab: Tab) {
         val position = tab.position
-        editorViewModel.displayedFileIndex = position
 
-        val editorView = provideEditorAt(position)!!
+        content.editorContainer.displayedChild = position
+
+        if (this is EditorHandlerActivity && isPluginTab(position)) {
+            val pluginTabId = getPluginTabId(position)
+            if (pluginTabId != null) {
+                val tabManager = PluginEditorTabManager.getInstance()
+                tabManager.onTabSelected(pluginTabId)
+                invalidateOptionsMenu()
+                return
+            }
+        }
+
+        val fileIndex = if (this is EditorHandlerActivity) {
+            getFileIndexForTabPosition(position)
+        } else {
+            position
+        }
+
+        if (fileIndex == -1) {
+            invalidateOptionsMenu()
+            return
+        }
+
+        editorViewModel.displayedFileIndex = fileIndex
+
+        val editorView = if (this is EditorHandlerActivity) {
+            provideEditorAt(fileIndex)
+        } else {
+            provideEditorAt(position)
+        }
+
+        if (editorView == null) {
+            invalidateOptionsMenu()
+            return
+        }
+
         editorView.onEditorSelected()
-
-        editorViewModel.setCurrentFile(position, editorView.file)
+        editorViewModel.setCurrentFile(fileIndex, editorView.file)
         refreshSymbolInput(editorView)
         invalidateOptionsMenu()
     }
@@ -735,6 +774,11 @@ abstract class BaseEditorActivity :
     override fun onTabUnselected(tab: Tab) {}
 
     override fun onTabReselected(tab: Tab) {
+        val position = tab.position
+        if (this is EditorHandlerActivity && isPluginTab(position)) {
+            (this as EditorHandlerActivity).showPluginTabPopup(tab)
+            return
+        }
         showPopupWindow(
             context = this,
             anchorView = tab.view
@@ -781,7 +825,7 @@ abstract class BaseEditorActivity :
 
 	private fun updateBottomSheetState(state: BottomSheetViewModel.SheetState = BottomSheetViewModel.SheetState.EMPTY) {
 		log.debug("updateSheetState: {}", state)
-		content.bottomSheet.setCurrentTab(state.currentTab)
+        content.bottomSheet.setCurrentTab(state.currentTab)
 		if (editorBottomSheet?.state != state.sheetState) {
 			editorBottomSheet?.state = state.sheetState
 		}
@@ -936,13 +980,17 @@ abstract class BaseEditorActivity :
         }
 
         editorViewModel.observeFiles(this) { files ->
-            content.apply {
-                if (files.isNullOrEmpty()) {
-                    tabs.visibility = View.GONE
-                    viewContainer.displayedChild = 1
-                } else {
-                    tabs.visibility = View.VISIBLE
-                    viewContainer.displayedChild = 0
+            if (this is EditorHandlerActivity) {
+                (this as EditorHandlerActivity).updateTabVisibility()
+            } else {
+                content.apply {
+                    if (files.isNullOrEmpty()) {
+                        tabs.visibility = View.GONE
+                        viewContainer.displayedChild = 1
+                    } else {
+                        tabs.visibility = View.VISIBLE
+                        viewContainer.displayedChild = 0
+                    }
                 }
             }
 
@@ -1186,31 +1234,11 @@ abstract class BaseEditorActivity :
     }
 
     private fun showTooltip(tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = TooltipManager.getTooltip(
-                this@BaseEditorActivity,
-                TooltipCategory.CATEGORY_IDE,
-                tag,
-            )
-            if (tooltipItem != null) {
-                TooltipManager.showIDETooltip(
-                    context = this@BaseEditorActivity,
-                    anchorView = content.customToolbar,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("EditorHandlerActivity", "Tooltip item $tooltipItem is null")
-            }
-        }
+        TooltipManager.showTooltip(
+            context = this@BaseEditorActivity,
+            anchorView = content.customToolbar,
+            tag = tag,
+        )
     }
 }
 

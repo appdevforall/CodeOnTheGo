@@ -23,10 +23,9 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
-import com.itsaky.androidide.idetooltips.IDETooltipItem
 import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.utils.TooltipUtils
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
     EditorRelatedAction() {
@@ -50,27 +49,16 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
-            activity?.getTooltipData(category, word)?.let { tooltipData ->
-                TooltipUtils.showIDETooltip(
-                    context,
-                    editor,
-                    0,
-                    IDETooltipItem(
-                        rowId = tooltipData.rowId,
-                        id = tooltipData.id,
-                        category = category,
-                        tag = tooltipData.tag,
-                        detail = tooltipData.detail,
-                        summary = tooltipData.summary,
-                        buttons = tooltipData.buttons,
-                        lastChange = tooltipData.lastChange,
-                    ),
-                )
-            }
+            TooltipManager.showTooltip(
+                context = context,
+                anchorView = editor,
+                category = category,
+                tag = word,
+            )
         }
         return true
     }
 
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
+    override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
 
 }

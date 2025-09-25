@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.FileUtils
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -23,7 +25,9 @@ class FileManagerViewModel : ViewModel() {
 
     fun renameFile(file: File, newName: String) {
         viewModelScope.launch {
-            val renamed = newName.length in 1..40 && FileUtils.rename(file, newName)
+            val renamed = withContext(Dispatchers.IO) {
+                newName.length in 1..40 && FileUtils.rename(file, newName)
+            }
 
             if (renamed) {
                 // Notify system of the rename

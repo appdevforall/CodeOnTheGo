@@ -22,9 +22,12 @@ package com.itsaky.androidide.adapters;
 
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.itsaky.androidide.databinding.LayoutOptionssheetItemBinding;
 import com.itsaky.androidide.models.SheetOption;
+
 import java.util.List;
 
 public class OptionsSheetAdapter extends RecyclerView.Adapter<OptionsSheetAdapter.VH> {
@@ -52,11 +55,18 @@ public class OptionsSheetAdapter extends RecyclerView.Adapter<OptionsSheetAdapte
     binding.icon.setImageDrawable(option.icon);
 
     binding
-        .getRoot()
-        .setOnClickListener(
-            v -> {
-              if (listener != null) listener.onOptionClick(option);
-            });
+            .getRoot()
+            .setOnClickListener(
+                    v -> {
+                      if (listener != null) listener.onOptionClick(option);
+                    });
+    binding
+            .getRoot()
+            .setOnLongClickListener(
+                    v -> {
+                      if (listener != null) listener.onOptionLongClick(option);
+                      return true;
+                    });
   }
 
   @Override
@@ -75,5 +85,7 @@ public class OptionsSheetAdapter extends RecyclerView.Adapter<OptionsSheetAdapte
 
   public static interface OnOptionsClickListener {
     public void onOptionClick(SheetOption option);
+
+    public void onOptionLongClick(SheetOption option);
   }
 }

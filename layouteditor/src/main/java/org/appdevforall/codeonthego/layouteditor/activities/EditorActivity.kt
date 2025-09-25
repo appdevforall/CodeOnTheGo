@@ -10,7 +10,6 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
@@ -35,14 +34,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.itsaky.androidide.idetooltips.TooltipCategory
-import com.itsaky.androidide.idetooltips.TooltipManager.getTooltip
-import com.itsaky.androidide.idetooltips.TooltipManager.showIDETooltip
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
+import com.itsaky.androidide.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -188,10 +180,16 @@ class EditorActivity : BaseActivity() {
             val xmlConverted = ConvertImportedXml(xml).getXmlConverted(this@EditorActivity)
 
             if (xmlConverted != null) {
-                createAndOpenNewLayout(
-                    FileUtil.getLastSegmentFromPath(path),
-                    xmlConverted
-                )
+                val fileName = FileUtil.getLastSegmentFromPath(path)
+
+                val productionPath = project.layoutPath + fileName
+                val designPath = project.layoutDesignPath + fileName
+
+                FileUtil.writeFile(productionPath, xml)
+                FileUtil.writeFile(designPath, xmlConverted)
+
+                openLayout(LayoutFile(productionPath, designPath))
+
                 make(binding.root, getString(string.success_imported)).setFadeAnimation()
                     .showAsSuccess()
             } else {
@@ -207,6 +205,7 @@ class EditorActivity : BaseActivity() {
             ).show()
         }
     }
+
 
     private fun defineFileCreator() {
         fileCreator =
@@ -281,31 +280,11 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun showTooltip(context: Context, anchorView: View, tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = getTooltip(
-                context,
-                TooltipCategory.CATEGORY_JAVA,
-                tag,
-            )
-            if (tooltipItem != null) {
-                showIDETooltip(
-                    context = context,
-                    anchorView = anchorView,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
-            }
-        }
+        TooltipManager.showTooltip(
+            context = context,
+            anchorView = anchorView,
+            tag = tag,
+        )
     }
 
     @SuppressLint("SetTextI18n")
@@ -673,18 +652,26 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun openLayout(layoutFile: LayoutFile) {
-        binding.editorLayout.loadLayoutFromParser(layoutFile.readDesignFile())
+        var contentToParse = layoutFile.readDesignFile()
+
+        if (contentToParse.isNullOrBlank()) {
+            val productionContent = layoutFile.readLayoutFile()
+            if (!productionContent.isNullOrBlank()) {
+                contentToParse = ConvertImportedXml(productionContent).getXmlConverted(this)
+                contentToParse?.let { layoutFile.saveDesignFile(it) }
+            }
+        }
+
+        binding.editorLayout.loadLayoutFromParser(contentToParse)
         project.currentLayout = layoutFile
         supportActionBar!!.subtitle = layoutFile.name
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
         }
 
-        // Force redraw layout to ensure constraints are applied
         binding.editorLayout.post {
             binding.editorLayout.requestLayout()
             binding.editorLayout.invalidate()
-            // Mark as saved since we just loaded it
             binding.editorLayout.markAsSaved()
         }
 
@@ -892,15 +879,23 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun saveXml() {
+        val currentLayoutFile = project.currentLayout as? LayoutFile ?: return
+
         if (binding.editorLayout.isEmpty()) {
-            project.currentLayout.saveLayout("")
-            ToastUtils.showShort(getString(string.layout_saved))
+            currentLayoutFile.saveLayout("")
+            currentLayoutFile.saveDesignFile("")
             binding.editorLayout.markAsSaved()
+            ToastUtils.showShort(getString(string.layout_saved))
             return
         }
 
-        val result = XmlLayoutGenerator().generate(binding.editorLayout, false)
-        project.currentLayout.saveLayout(result)
+        val productionXml = XmlLayoutGenerator().generate(binding.editorLayout, true)
+        currentLayoutFile.saveLayout(productionXml)
+
+        // Generate and save the DESIGN-TIME XML for the editor's internal use
+        val designXml = XmlLayoutGenerator().generate(binding.editorLayout, false)
+        currentLayoutFile.saveDesignFile(designXml)
+
         binding.editorLayout.markAsSaved()
         ToastUtils.showShort(getString(string.layout_saved))
     }
