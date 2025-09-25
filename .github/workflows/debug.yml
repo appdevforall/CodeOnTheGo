@@ -130,6 +130,8 @@ jobs:
         run: |
           mkdir -p ~/.keystore
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ~/.keystore/adfa-keystore.jks
+          chmod 600 ~/.keystore/adfa-keystore.jks
+          echo "KEYSTORE_FILE_PATH=$HOME/.keystore/adfa-keystore.jks" >> $GITHUB_ENV
 
       - name: Assemble Universal APK
         run: |
@@ -137,7 +139,7 @@ jobs:
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
         env:
-            KEYSTORE_FILE: ${{ env.HOME }}/.keystore/adfa-keystore.jks
+            KEYSTORE_FILE: ${{ env.KEYSTORE_FILE_PATH }}
             KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
             KEY_ALIAS: ${{ vars.KEY_ALIAS }}
             KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
