@@ -20,28 +20,24 @@ object FeedbackManager {
     /**
 	 * Shows the feedback dialog and handles sending feedback email.
 	 *
-	 * @param context The context from which feedback is being sent
+	 * @param activity The context from which feedback is being sent
 	 */
 	fun showFeedbackDialog(
-		context: Context,
         activity: Activity,
     ) {
-		val builder = DialogUtils.newMaterialDialogBuilder(context)
+		val builder = DialogUtils.newMaterialDialogBuilder(activity)
 
 		builder
 			.setTitle(R.string.title_alert)
 			.setMessage(
 				HtmlCompat.fromHtml(
-					context.getString(R.string.email_feedback_warning_prompt),
+					activity.getString(R.string.email_feedback_warning_prompt),
 					HtmlCompat.FROM_HTML_MODE_COMPACT,
 				),
 			).setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 			.setPositiveButton(android.R.string.ok) { dialog, _ ->
 				dialog.dismiss()
-                sendFeedbackWithScreenshot(
-                    context,
-                    activity
-                )
+                sendFeedbackWithScreenshot(activity)
 			}.show()
 	}
 
@@ -55,16 +51,16 @@ object FeedbackManager {
 			else -> "Unknown Screen"
 		}
 
-    private fun sendFeedbackWithScreenshot(context: Context, activity: Activity) {
+    private fun sendFeedbackWithScreenshot(activity: Activity) {
         CoroutineScope(Dispatchers.Main).launch {
-            val handler = FeedbackEmailHandler(context)
+            val handler = FeedbackEmailHandler(activity)
 
             val screenshotData = handler.captureAndPrepareScreenshotUri(activity, "Feedback")
 
-            val feedbackRecipient = context.getString(R.string.feedback_email)
+            val feedbackRecipient = activity.getString(R.string.feedback_email)
             val feedbackSubject =
-                context.getString(R.string.feedback_subject, getCurrentScreenName(context))
-            val feedbackBody = context.getString(
+                activity.getString(R.string.feedback_subject, getCurrentScreenName(activity))
+            val feedbackBody = activity.getString(
                 R.string.feedback_message,
                 BuildInfo.VERSION_NAME_SIMPLE,
                 ""
@@ -78,12 +74,12 @@ object FeedbackManager {
                 feedbackBody
             )
 
-            if (emailIntent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(
+            if (emailIntent.resolveActivity(activity.packageManager) != null) {
+                activity.startActivity(
                     Intent.createChooser(emailIntent, "Send Feedback"),
                 )
             } else {
-                Toast.makeText(context, "No email app found to send feedback.", Toast.LENGTH_LONG)
+                Toast.makeText(activity, "No email app found to send feedback.", Toast.LENGTH_LONG)
                     .show()
             }
         }

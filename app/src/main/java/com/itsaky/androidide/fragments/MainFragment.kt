@@ -323,7 +323,6 @@ class MainFragment : BaseFragment() {
     private fun performFeedbackAction() {
         context?.let { ctx ->
             FeedbackManager.showFeedbackDialog(
-                context = ctx,
                 activity = this.activity as Activity
             )
         }
