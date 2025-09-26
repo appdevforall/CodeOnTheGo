@@ -38,7 +38,6 @@ dependencies {
 	api(projects.resources)
 	api(projects.subprojects.flashbar)
 	implementation(libs.monitor)
-    implementation(libs.square.curtains)
 
 	testImplementation(projects.testing.common)
 	androidTestImplementation(projects.testing.android)

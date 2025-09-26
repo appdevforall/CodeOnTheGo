@@ -10,7 +10,6 @@ import android.os.Looper
 import android.view.PixelCopy
 import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
-import curtains.phoneWindow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -33,24 +32,23 @@ class FeedbackEmailHandler(
     }
 
     suspend fun captureAndPrepareScreenshotUri(
-        activity: Activity, // Pass the activity directly
-        screenshotName: String = "feedback_screenshot" // Default name
-    ): Pair<Uri?, String?>? { // Returns Pair<Uri, MIME type> or null on failure
+        activity: Activity,
+        screenshotName: String = "feedback_screenshot"
+    ): Pair<Uri?, String?>? {
 
         val rootView = activity.window?.decorView?.rootView ?: return null
         if (rootView.width <= 0 || rootView.height <= 0 || !rootView.isShown) return null
 
-        val window = rootView.phoneWindow ?: return null
         val screenshotBitmap = createBitmap(rootView.width, rootView.height)
 
         return try {
             val saveResultUri = withContext(Dispatchers.IO) {
                 val bitmapResult = suspendCoroutine { continuation ->
-                    PixelCopy.request(window, screenshotBitmap, { copyResult ->
+                    PixelCopy.request(activity.window, screenshotBitmap, { copyResult ->
                         if (copyResult == PixelCopy.SUCCESS) {
                             continuation.resume(screenshotBitmap)
                         } else {
-                            continuation.resume(null) // Indicate failure
+                            continuation.resume(null)
                         }
                     }, Handler(Looper.getMainLooper()))
                 }
@@ -86,7 +84,7 @@ class FeedbackEmailHandler(
             }
 
             val authority =
-                "${context.packageName}.providers.fileprovider" // Ensure this matches your manifest
+                "${context.packageName}.providers.fileprovider"
             val uri = FileProvider.getUriForFile(context, authority, screenshotFile)
             val mimeType =
                 URLConnection.guessContentTypeFromName(screenshotFile.name) ?: "image/jpeg"
