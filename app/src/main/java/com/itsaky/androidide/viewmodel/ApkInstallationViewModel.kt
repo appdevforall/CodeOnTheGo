@@ -19,11 +19,6 @@ class ApkInstallationViewModel : ViewModel() {
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(ApkInstallationViewModel::class.java)
-
-		/**
-		 * The request code for the installation confirmation dialog.
-		 */
-		const val REQ_CODE_INSTALLATION_CONFIRMATION = 38746
 	}
 
 	/**
@@ -47,7 +42,7 @@ class ApkInstallationViewModel : ViewModel() {
 		/**
 		 * The APK installation session is complete.
 		 */
-		data class Finished(val sessionId: Int, val isSuccess: Boolean): SessionState()
+		data class Finished(val sessionId: Int, val isSuccess: Boolean) : SessionState()
 	}
 
 	private val callback = object : SingleSessionCallback() {
@@ -60,7 +55,12 @@ class ApkInstallationViewModel : ViewModel() {
 		override fun onProgressChanged(sessionId: Int, progress: Float) {
 			logger.debug("onProgressChanged: sessionId={}, progress={}", sessionId, progress)
 
-			setSessionState(SessionState.InProgress(sessionId = sessionId, progress = (progress * 100).toInt()))
+			setSessionState(
+				SessionState.InProgress(
+					sessionId = sessionId,
+					progress = (progress * 100).toInt()
+				)
+			)
 		}
 
 		override fun onFinished(sessionId: Int, success: Boolean) {
@@ -111,29 +111,6 @@ class ApkInstallationViewModel : ViewModel() {
 		}
 	}
 
-	fun onInstallationConfirmationResult(context: Context, resultCode: Int): Boolean {
-		if (resultCode != REQ_CODE_INSTALLATION_CONFIRMATION) {
-			// ignore other requests
-			return false
-		}
-
-		val sessionId = reloadStatus(context)
-		if (sessionId == -1) {
-			return false
-		}
-
-		val packageInstaller = context.packageManager.packageInstaller
-		val session = try {
-			packageInstaller.getSessionInfo(sessionId)!!
-		} catch (err: Throwable) {
-			// in case of error, fall back to idle state
-			setSessionState(SessionState.Idle)
-			return false
-		}
-
-		return true
-	}
-
 	/**
 	 * Reloads the installation status.
 	 *
@@ -149,7 +126,10 @@ class ApkInstallationViewModel : ViewModel() {
 
 		if (sessionId == -1) {
 			// we're in an invalid state here, fall back to idle state
-			logger.debug("Invalid package installer session ID: {}. Falling back to IDLE state.", sessionId)
+			logger.debug(
+				"Invalid package installer session ID: {}. Falling back to IDLE state.",
+				sessionId
+			)
 			setSessionState(SessionState.Idle)
 			return -1
 		}
@@ -158,7 +138,10 @@ class ApkInstallationViewModel : ViewModel() {
 		val session = packageInstaller.mySessions.firstOrNull { it.sessionId == sessionId }
 		if (session == null) {
 			// our current session state refers to a non-existing session
-			logger.debug("PackageInstaller Session with ID {} not found. Falling back to IDLE state.", sessionId)
+			logger.debug(
+				"PackageInstaller Session with ID {} not found. Falling back to IDLE state.",
+				sessionId
+			)
 			setSessionState(SessionState.Idle)
 			return -1
 		}
@@ -166,7 +149,10 @@ class ApkInstallationViewModel : ViewModel() {
 		if (!session.isActive) {
 			// our current session state refers to a non-active session
 			setSessionState(SessionState.Idle)
-			logger.debug("PackageInstaller Session with ID {} is not active. Falling back to IDLE state.", sessionId)
+			logger.debug(
+				"PackageInstaller Session with ID {} is not active. Falling back to IDLE state.",
+				sessionId
+			)
 			return -1
 		}
 
