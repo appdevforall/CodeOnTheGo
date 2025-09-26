@@ -34,14 +34,14 @@ class PaletteListAdapter(private val drawerLayout: DrawerLayout) :
     binding.icon.setImageResource(getMipmapId(widgetItem["iconName"].toString()))
     binding.name.text = widgetItem["name"].toString()
     binding.className.text = getSuperClassName(widgetItem["className"].toString())
-
+    binding.root.contentDescription = widgetItem["name"].toString()
     binding.root.setupGestureHandling(
-      onLongPress = { view -> showTooltipForWidget(view, widgetItem) },
-      onDrag = { view -> 
-        if (ViewCompat.startDragAndDrop(view, null, DragShadowBuilder(view), widgetItem, 0)) {
-          drawerLayout.closeDrawers()
+        onLongPress = { view -> showTooltipForWidget(view, widgetItem) },
+        onDrag = { view ->
+            if (ViewCompat.startDragAndDrop(view, null, DragShadowBuilder(view), widgetItem, 0)) {
+                drawerLayout.closeDrawers()
+            }
         }
-      }
     )
 
     binding

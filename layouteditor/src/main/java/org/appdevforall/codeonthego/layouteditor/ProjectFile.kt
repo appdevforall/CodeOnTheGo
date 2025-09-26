@@ -101,18 +101,19 @@ class ProjectFile : Parcelable {
       return file.listFiles()
     }
 
-  val allLayouts: MutableList<LayoutFile>
-    get() {
-      val list: MutableList<LayoutFile> = mutableListOf()
-      val localTempList: MutableList<LayoutFile> = mutableListOf()
-      layoutDesigns?.forEachIndexed { index, designFile ->
-        localTempList.add(LayoutFile(layouts?.get(index)?.absolutePath ?: "", designFile.absolutePath))
-      }
-      return list
-    }
+    val allLayouts: MutableList<LayoutFile>
+        get() {
+            val list: MutableList<LayoutFile> = mutableListOf()
+            layouts?.forEach { file ->
+                val designFile = File(layoutDesignPath, file.name)
+                list.add(LayoutFile(file.absolutePath, designFile.absolutePath))
+            }
+            return list
+        }
 
-  val mainLayout: LayoutFile
-    get() = LayoutFile("$layoutPath$mainLayoutName.xml", "$layoutDesignPath$mainLayoutName.xml")
+
+    val mainLayout: LayoutFile
+        get() = LayoutFile("$layoutPath$mainLayoutName.xml", "$layoutDesignPath$mainLayoutName.xml")
 
   val mainLayoutDesign: LayoutFile
     get() {
@@ -122,16 +123,21 @@ class ProjectFile : Parcelable {
       return LayoutFile("$layoutPath$mainLayoutName.xml", "$layoutDesignPath$mainLayoutName.xml")
     }
 
-  var currentLayout: LayoutFile
-    get() {
-      val currentLayout = preferencesManager.prefs.getString(
-        Constants.CURRENT_LAYOUT, "")
-      val currentLayoutPath = preferencesManager.prefs.getString(Constants.CURRENT_LAYOUT, "")
-      return LayoutFile(currentLayoutPath, currentLayout)
-    }
-    set(value) {
-      preferencesManager.prefs.edit().putString(Constants.CURRENT_LAYOUT, value.path).apply()
-    }
+    var currentLayout: LayoutFile
+        get() {
+            val currentLayoutPath =
+                preferencesManager.prefs.getString(Constants.CURRENT_LAYOUT, "") ?: ""
+            val currentLayoutDesignPath =
+                preferencesManager.prefs.getString(Constants.CURRENT_LAYOUT_DESIGN, "") ?: ""
+            return LayoutFile(currentLayoutPath, currentLayoutDesignPath)
+        }
+        set(value) {
+            preferencesManager.prefs.edit().apply {
+                putString(Constants.CURRENT_LAYOUT, value.path)
+                putString(Constants.CURRENT_LAYOUT_DESIGN, value.designPath)
+                apply()
+            }
+        }
 
   fun createDefaultLayout() {
     FileUtil.writeFile(layoutPath + "layout_main.xml", "")
