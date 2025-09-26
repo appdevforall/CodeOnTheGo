@@ -54,8 +54,9 @@ object TooltipManager {
     """
 
     private const val QUERY_LAST_CHANGE = """
-        SELECT now, who
+        SELECT changeTime, who
         FROM LastChange
+        WHERE documentationSet = 'wholedb'
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
