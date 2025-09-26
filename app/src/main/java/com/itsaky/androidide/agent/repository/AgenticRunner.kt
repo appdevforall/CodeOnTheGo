@@ -44,7 +44,7 @@ class AgenticRunner(
             // Throw an exception that we can catch in the ViewModel
             throw IllegalStateException(errorMessage)
         }
-        GeminiClient(apiKey, "gemini-1.5-pro-latest") // Use a stable model version
+        GeminiClient(apiKey, "gemini-2.5-pro") // Use a stable model version
     }
 
     private val criticClient: GeminiClient by lazy {
@@ -54,7 +54,7 @@ class AgenticRunner(
             log.error(errorMessage)
             throw IllegalStateException(errorMessage)
         }
-        GeminiClient(apiKey, "gemini-1.5-flash-latest")
+        GeminiClient(apiKey, "gemini-2.5-flash")
     }
 
     private var executor: Executor = Executor()
