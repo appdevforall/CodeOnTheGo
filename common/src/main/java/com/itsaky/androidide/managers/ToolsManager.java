@@ -44,7 +44,7 @@ import java.io.Reader;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.Random;
+import java.security.SecureRandom;
 import java.util.concurrent.CompletableFuture;
 import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
@@ -302,8 +302,9 @@ public class ToolsManager {
 	}
 
 	public static String generateIssuerDN() {
+		SecureRandom random = new SecureRandom();
 		String country = Environment.KEYSTORE_EU_COUNTRY_CODES[
-				new Random().nextInt(Environment.KEYSTORE_EU_COUNTRY_CODES.length)];
+				random.nextInt(Environment.KEYSTORE_EU_COUNTRY_CODES.length)];
 		return String.format("C=%s, O=, CN=", country);
 	}
 
