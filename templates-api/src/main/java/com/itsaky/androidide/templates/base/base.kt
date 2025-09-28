@@ -156,6 +156,9 @@ inline fun baseProject(
 
             // .gitignore
             gitignore()
+
+            // keystore
+            keystore()
         }
 
         block()

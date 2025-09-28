@@ -44,10 +44,28 @@ import java.io.Reader;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import org.jetbrains.annotations.Contract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.FileWriter;
+import java.math.BigInteger;
+import java.security.*;
+import java.security.cert.X509Certificate;
+import java.util.Date;
+
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+
+
+
 
 public class ToolsManager {
 
@@ -97,8 +115,10 @@ public class ToolsManager {
 			extractCogoPlugin();
 			extractColorScheme(app);
 			writeInitScript();
-
+			generateKeystore();
 			deleteIdeenv();
+
+			LOG.info("Tools extraction completed");
 		}).whenComplete((__, error) -> {
 			if (error != null) {
 				LOG.error("Error extracting tools", error);
@@ -267,6 +287,88 @@ public class ToolsManager {
 			} catch (IOException e) {
 				LOG.error("Failed to create .nomedia file in projects directory");
 			}
+		}
+	}
+
+	private static final String CHAR_POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+	private static String generateRandomPassword(int length) {
+		SecureRandom random = new SecureRandom();
+		StringBuilder sb = new StringBuilder(length);
+		for (int i = 0; i < length; i++) {
+			sb.append(CHAR_POOL.charAt(random.nextInt(CHAR_POOL.length())));
+		}
+		return sb.toString();
+	}
+
+	public static String generateIssuerDN() {
+		String country = Environment.KEYSTORE_EU_COUNTRY_CODES[
+				new Random().nextInt(Environment.KEYSTORE_EU_COUNTRY_CODES.length)];
+		return String.format("C=%s, O=, CN=", country);
+	}
+
+	private static void generateKeystore() {
+		try {
+			String keystorePath = Environment.KEYSTORE_RELEASE.getPath();
+			String alias = generateRandomPassword(Environment.KEYSTORE_ALIAS_LEN);
+
+			LOG.debug("Generating keystore at: {}", keystorePath);
+
+			Security.addProvider(new BouncyCastleProvider());
+
+			String storePassword = generateRandomPassword(Environment.KEYSTORE_PWD_LEN);
+			String keyPassword = storePassword;
+
+			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", "BC");
+			keyGen.initialize(Environment.KEYSTORE_KEY_SIZE);
+			KeyPair keyPair = keyGen.generateKeyPair();
+
+			Date now = new Date();
+			Date expiry = new Date(now.getTime() + Environment.KEYSTORE_EXPIRY_5YRS);
+
+			X500Name issuer = new X500Name(generateIssuerDN());
+			X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+					issuer,
+					BigInteger.valueOf(System.currentTimeMillis()),
+					now,
+					expiry,
+					issuer,
+					keyPair.getPublic()
+			);
+
+			ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSAEncryption")
+					.build(keyPair.getPrivate());
+
+			X509Certificate certificate = new JcaX509CertificateConverter()
+					.getCertificate(certBuilder.build(signer));
+
+			KeyStore keyStore = KeyStore.getInstance("PKCS12");
+			keyStore.load(null, null);
+			keyStore.setKeyEntry(alias, keyPair.getPrivate(), keyPassword.toCharArray(), new java.security.cert.Certificate[]{certificate});
+
+			File keystoreFile = new File(keystorePath);
+			keystoreFile.getParentFile().mkdirs();
+
+			try (FileOutputStream fos = new FileOutputStream(keystoreFile)) {
+				keyStore.store(fos, storePassword.toCharArray());
+			}
+
+			// Write to keystore.properties
+			File propsFile = Environment.KEYSTORE_PROPERTIES;
+			Properties props = new Properties();
+			props.setProperty(Environment.KEYSTORE_PROP_STOREFILE, keystoreFile.getName());
+			props.setProperty(Environment.KEYSTORE_PROP_STOREPWD, storePassword);
+			props.setProperty(Environment.KEYSTORE_PROP_KEYALIAS, alias);
+			props.setProperty(Environment.KEYSTORE_PROP_KEYPWD, keyPassword);
+
+			try (FileWriter writer = new FileWriter(propsFile)) {
+				props.store(writer, "Generated keystore credentials");
+			}
+
+			LOG.debug("Keystore generated at: {}", keystoreFile.getAbsolutePath());
+			LOG.debug("Passwords saved to: {}", propsFile.getAbsolutePath());
+		} catch (Exception e) {
+			LOG.error("Failed to generate keystore!! ", e);
 		}
 	}
 
