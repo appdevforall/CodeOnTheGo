@@ -31,6 +31,7 @@ import com.itsaky.androidide.templates.base.root.gradleWrapperProps
 import com.itsaky.androidide.templates.base.root.settingsGradleSrcStr
 import com.itsaky.androidide.templates.base.root.settingsGroovyGradleSrcStr
 import com.itsaky.androidide.templates.base.util.optonallyKts
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.transferToStream
 import org.adfa.constants.TOML_FILE_NAME
 import java.io.File
@@ -174,6 +175,16 @@ class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipe
 		val tomlFileDest = File("${data.projectDir}/gradle", name)
 		executor.save(composeTomlFileSrc(), tomlFileDest)
 	}
+
+    fun keystore() {
+        val storeSrc = Environment.KEYSTORE_RELEASE
+        val storeDest = File(data.projectDir, Environment.KEYSTORE_RELEASE_NAME)
+        executor.copy(storeSrc, storeDest)
+
+        val propsSrc = Environment.KEYSTORE_PROPERTIES
+        val propsDest = File(data.projectDir, Environment.KEYSTORE_PROPERTIES_NAME)
+        executor.copy(propsSrc, propsDest)
+    }
 
 	override fun buildInternal(): ProjectTemplate =
 		ProjectTemplate(
