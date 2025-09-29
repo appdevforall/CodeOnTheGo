@@ -17,25 +17,15 @@
 
 package com.itsaky.androidide.adapters
 
-import android.content.Context
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateWidgetlistItemBinding
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.templates.ITemplateWidgetViewProvider
 import com.itsaky.androidide.templates.Widget
-import com.itsaky.androidide.utils.TooltipUtils
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * A [RecyclerView.Adapter] that is used to show the widgets from templates.
@@ -72,25 +62,11 @@ class TemplateWidgetsListAdapter(
 			val widget = widgets[position]
 			val view = viewProvider.createView(root.context, widget)
 			viewProvider.applyCallTooltip { tooltipTag ->
-				val lifecycleOwner = root.context as? LifecycleOwner ?: return@applyCallTooltip
-
-				lifecycleOwner.lifecycleScope.launch {
-					try {
-						// Call the method on the interface.
-						val tooltipData =
-							getTooltipData(root.context, TooltipCategory.CATEGORY_IDE, tooltipTag)
-						tooltipData?.let {
-							TooltipUtils.showIDETooltip(
-								context = root.context,
-								level = 0,
-								tooltipItem = tooltipData,
-								anchorView = root,
-							)
-						}
-					} catch (e: Exception) {
-						Log.e("Tooltip", "Error showing tooltip for $tooltipTag", e)
-					}
-				}
+                TooltipManager.showTooltip(
+                    context = root.context,
+                    anchorView = root,
+                    tag = tooltipTag,
+                )
 			}
 			root.removeAllViews()
 			root.addView(
@@ -102,13 +78,4 @@ class TemplateWidgetsListAdapter(
 			)
 		}
 	}
-
-	suspend fun getTooltipData(
-		context: Context,
-		category: String,
-		tag: String,
-	): IDETooltipItem? =
-		withContext(Dispatchers.IO) {
-			TooltipManager.getTooltip(context, category, tag)
-		}
 }

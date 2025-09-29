@@ -22,6 +22,7 @@ import com.itsaky.androidide.templates.ModuleType
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.dependencies
+import com.itsaky.androidide.utils.Environment
 import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
 import org.adfa.constants.KOTLIN_VERSION
 
@@ -47,10 +48,32 @@ private fun AndroidModuleTemplateBuilder.buildGradleSrcKts(
     isComposeModule: Boolean
 ): String {
     return """
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     ${androidPlugin(isComposeModule)}
     ${ktPlugin(isComposeModule)}
 }
+
+val keystorePropsFile = rootProject.file("${Environment.KEYSTORE_PROPERTIES_NAME}")
+val keystoreProps = Properties()
+
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(FileInputStream(keystorePropsFile))
+}
+
+val hasValidSigningProps = keystorePropsFile.exists().also { exists ->
+    if (exists) {
+        FileInputStream(keystorePropsFile).use { keystoreProps.load(it) }
+    }
+}.let {
+    listOf("${Environment.KEYSTORE_PROP_STOREFILE}", "${Environment.KEYSTORE_PROP_STOREPWD}", 
+            "${Environment.KEYSTORE_PROP_KEYALIAS}", "${Environment.KEYSTORE_PROP_KEYPWD}").all { key ->
+        keystoreProps[key] != null
+    }
+}
+
 
 android {
     namespace = "${data.packageName}"
@@ -60,8 +83,18 @@ android {
     lint {
         checkReleaseBuilds = false
     }
-    
-    
+        
+    signingConfigs {
+        if (hasValidSigningProps) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps["${Environment.KEYSTORE_PROP_STOREFILE}"] as String)
+                storePassword = keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"] as String
+                keyAlias = keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"] as String
+                keyPassword = keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"] as String
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "${data.packageName}"
         minSdk = ${data.versions.minSdk.api}
@@ -81,6 +114,9 @@ android {
 
     buildTypes {
         release {
+            if (hasValidSigningProps) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -106,10 +142,29 @@ private fun AndroidModuleTemplateBuilder.buildGradleSrcGroovy(
     isComposeModule: Boolean
 ): String {
     return """
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id '$androidPlugin'
     ${ktPlugin(isComposeModule)}
 }
+
+def keystorePropsFile = rootProject.file("${Environment.KEYSTORE_PROPERTIES_NAME}")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+def hasValidSigningProps = false
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+
+    def requiredKeys = ["${Environment.KEYSTORE_PROP_STOREFILE}", "${Environment.KEYSTORE_PROP_STOREPWD}", 
+                        "${Environment.KEYSTORE_PROP_KEYALIAS}", "${Environment.KEYSTORE_PROP_KEYPWD}"]
+    hasValidSigningProps = requiredKeys.every { key -> keystoreProps[key] }
+}
+
 
 android {
     namespace '${data.packageName}'
@@ -119,7 +174,18 @@ android {
     lint {
         checkReleaseBuilds =  false
     }
-    
+
+    if (hasValidSigningProps) {
+        signingConfigs {
+            release {
+                storeFile = rootProject.file((String) keystoreProps["${Environment.KEYSTORE_PROP_STOREFILE}"])
+                storePassword keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"]
+                keyAlias keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"]
+                keyPassword keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"]
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "${data.packageName}"
         minSdk ${data.versions.minSdk.api}
@@ -134,6 +200,9 @@ android {
 
     buildTypes {
         release {
+            if (hasValidSigningProps) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

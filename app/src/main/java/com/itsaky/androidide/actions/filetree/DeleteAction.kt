@@ -23,12 +23,14 @@ import com.blankj.utilcode.util.FileUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.flashMessage
+import com.itsaky.androidide.utils.showWithLongPressTooltip
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -41,13 +43,14 @@ class DeleteAction(context: Context, override val order: Int) :
   BaseFileTreeAction(context, labelRes = R.string.delete_file, iconRes = R.drawable.ic_delete) {
 
   override val id: String = "ide.editor.fileTree.delete"
+  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
+    TooltipTag.PROJECT_ITEM_DELETE
 
   override suspend fun execAction(data: ActionData) {
     val context = data.requireActivity()
     val file = data.requireFile()
     val lastHeld = data.getTreeNode()
-    val builder = DialogUtils.newMaterialDialogBuilder(context)
-    builder
+    DialogUtils.newMaterialDialogBuilder(context)
       .setNegativeButton(R.string.no, null)
       .setPositiveButton(R.string.yes) { dialogInterface, _ ->
         dialogInterface.dismiss()
@@ -92,8 +95,10 @@ class DeleteAction(context: Context, override val order: Int) :
         )
       )
       .setCancelable(false)
-      .create()
-      .show()
+      .showWithLongPressTooltip(
+        context = context,
+        tooltipTag = TooltipTag.PROJECT_CONFIRM_DELETE
+      )
   }
 
   private fun notifyFileDeleted(file: File, context: Context) {

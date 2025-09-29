@@ -57,7 +57,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:preserveLegacyExternalStorage="true"
         android:requestLegacyExternalStorage="true"
-        android:resizeableActivity="false"
+        android:resizeableActivity="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.AndroidIDE"
         android:usesCleartextTraffic="true"
@@ -94,6 +94,7 @@
             android:configChanges="orientation|screenSize|uiMode"
             android:launchMode="singleTop" />
         <activity android:name=".activities.PreferencesActivity" />
+        <activity android:name=".activities.PluginManagerActivity" />
         <activity android:name=".activities.AboutActivity" />
         <activity android:name=".activities.editor.FAQActivity" />
         <activity android:name=".activities.editor.HelpActivity" />

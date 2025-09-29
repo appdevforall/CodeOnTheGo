@@ -7,13 +7,17 @@ import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.commands.AddDependencyCommand
 import com.itsaky.androidide.api.commands.AddStringResourceCommand
+import com.itsaky.androidide.api.commands.DeleteFileCommand
 import com.itsaky.androidide.api.commands.GetBuildOutputCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
 import com.itsaky.androidide.api.commands.UpdateFileCommand
 import com.itsaky.androidide.projects.builder.BuildResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
 /**
@@ -30,6 +34,39 @@ object IDEApiFacade {
 
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
 
+    suspend fun triggerGradleSync(): ToolResult {
+        val activity = ActionContextProvider.getActivity()
+            ?: return ToolResult.failure("No active IDE window to sync the project.")
+
+        val syncAction = ActionsRegistry.getInstance()
+            .findAction(ActionItem.Location.EDITOR_TOOLBAR, "ide.editor.syncProject")
+            ?: return ToolResult.failure("Project Sync action could not be found.")
+
+        val actionData = ActionData.create(activity)
+
+        return try {
+            // Since this action is UI-related, ensure it runs on the main thread
+            withContext(Dispatchers.Main) {
+                (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
+                    syncAction,
+                    actionData
+                )
+            }
+
+            // WAIT LOGIC IS NOW INSIDE THE TOOL
+            // This prevents the agent from doing anything else until the sync is complete.
+            while (isBuildRunning().data == "true") {
+                delay(2000) // Check status every 2 seconds
+            }
+
+            // After waiting, return the final build output as the definitive result of the sync.
+            getBuildOutput()
+
+        } catch (e: Exception) {
+            ToolResult.failure("Failed to trigger Gradle Sync: ${e.message}")
+        }
+    }
+
     suspend fun runApp(): ToolResult {
         val activity = ActionContextProvider.getActivity()
             ?: return ToolResult.failure("No active IDE window to launch the app.")
@@ -40,36 +77,30 @@ object IDEApiFacade {
 
         val actionData = ActionData.create(activity)
 
+        // This suspendCancellableCoroutine will now ALSO wait for the build to finish.
         return suspendCancellableCoroutine { continuation ->
             val listener = java.util.function.Consumer<BuildResult> { result ->
-                // The callback now handles different outcomes
                 when {
                     result.isSuccess && result.launchResult != null && result.launchResult.isSuccess -> {
-                        // This is the true success case: Build AND Launch worked.
                         continuation.resume(ToolResult.success("App built and launched successfully on the device."))
                     }
-
                     result.isSuccess -> {
-                        // This case means the build worked, but the launch failed or didn't happen.
                         val launchError =
                             result.launchResult?.message ?: "Launch failed for an unknown reason."
                         continuation.resume(ToolResult.failure("Build was successful, but the app failed to launch: $launchError"))
                     }
-
                     else -> {
-                        // This is a build failure.
                         continuation.resume(ToolResult.failure("Build failed: ${result.message}"))
                     }
                 }
             }
 
-//            activity.addOneTimeBuildResultListener(listener)
+            activity.addOneTimeBuildResultListener(listener)
 
             (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
                 action,
                 actionData
-            )
-                ?: continuation.resume(ToolResult.failure("Failed to get action registry instance."))
+            ) ?: continuation.resume(ToolResult.failure("Failed to get action registry instance."))
         }
     }
 
@@ -100,5 +131,28 @@ object IDEApiFacade {
      */
     fun addStringResource(name: String, value: String): ToolResult {
         return AddStringResourceCommand(name, value).execute()
+    }
+
+    fun deleteFile(path: String): ToolResult {
+        val command = DeleteFileCommand(path)
+        return command.execute()
+    }
+    // Add this new function inside the IDEApiFacade object
+
+    fun isBuildRunning(): ToolResult {
+        val activity = ActionContextProvider.getActivity()
+            ?: return ToolResult.failure("No active IDE window.")
+
+        // Access the EditorViewModel to check the true internal state
+        val isInitializing = activity.editorViewModel.isInitializing
+        val isBuilding = activity.editorViewModel.isBuildInProgress
+
+        val buildIsActive = isInitializing || isBuilding
+
+        // Return the state as data in the ToolResult
+        return ToolResult.success(
+            message = "Build status checked.",
+            data = buildIsActive.toString()
+        )
     }
 }
