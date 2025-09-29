@@ -105,6 +105,7 @@ import com.itsaky.androidide.services.debug.DebuggerService
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
+import com.itsaky.androidide.ui.FeedbackButtonManager
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -188,8 +189,8 @@ abstract class BaseEditorActivity :
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-					binding.root.closeDrawer(GravityCompat.START)
+				if (binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START)) {
+					binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
 					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 				} else if (binding.swipeReveal.isOpen) {
@@ -544,6 +545,10 @@ abstract class BaseEditorActivity :
         observeFileOperations()
 
         setupGestureDetector()
+        FeedbackButtonManager(
+            activity = this,
+            feedbackFab = binding.fabFeedback
+        ).setupDraggableFab()
     }
 
     private fun setupToolbar() {
