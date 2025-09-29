@@ -43,7 +43,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
-import com.itsaky.androidide.ui.FeedbackButtonManager
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileDeleteUtils

@@ -1,13 +1,14 @@
-package com.itsaky.androidide.ui
+package org.appdevforall.codeonthego.common.ui
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.Context.MODE_PRIVATE
+import android.content.Context
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.FeedbackManager
@@ -15,7 +16,7 @@ import kotlin.math.sqrt
 
 class FeedbackButtonManager(
     val activity: Activity,
-    val feedbackFab: FloatingActionButton
+    val feedbackFab: FloatingActionButton,
 ) {
 
     companion object {
@@ -40,7 +41,12 @@ class FeedbackButtonManager(
                 override fun onLongPress(e: MotionEvent) {
                     if (!isDragging) {
                         isLongPressed = true
-                        TooltipManager.showTooltip(activity, feedbackFab, TooltipTag.FEEDBACK)
+                        TooltipManager.showTooltip(
+                            context = activity,
+                            anchorView = feedbackFab,
+                            category = TooltipCategory.CATEGORY_IDE,
+                            tag = TooltipTag.FEEDBACK
+                        )
                     }
                 }
             })
@@ -111,7 +117,7 @@ class FeedbackButtonManager(
         x: Float,
         y: Float,
     ) {
-        activity.getSharedPreferences(FAB_PREFS, MODE_PRIVATE)?.edit()?.apply {
+        activity.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
             putFloat(KEY_FAB_X, x)
             putFloat(KEY_FAB_Y, y)
             apply()
@@ -119,7 +125,7 @@ class FeedbackButtonManager(
     }
 
     private fun loadFabPosition(fab: FloatingActionButton) {
-        val prefs = activity.getSharedPreferences(FAB_PREFS, MODE_PRIVATE) ?: return
+        val prefs = activity.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
 
         val x = prefs.getFloat(KEY_FAB_X, -1f)
         val y = prefs.getFloat(KEY_FAB_Y, -1f)
