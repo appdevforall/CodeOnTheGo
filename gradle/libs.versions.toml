@@ -3,6 +3,7 @@ activityKtx = "1.8.2"
 agp = "8.8.2"
 agp-tooling = "8.11.0"
 appcompat = "1.6.1"
+bcprovJdk18on = "1.80"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
 commonsText = "1.11.0"
@@ -10,6 +11,7 @@ commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
 googleGenai = "1.16.0"
+fragment = "1.8.8"
 gradle-tooling = "8.6"
 gson = "2.10.1"
 junit-jupiter = "5.10.2"
@@ -54,6 +56,7 @@ libsu-core = "6.0.0"
 ## put it in app/src/main/jniLibs
 brotli4j = "1.18.0"
 spotless = "7.2.1"
+fragmentKtx = "1.8.8"
 
 [libraries]
 
@@ -62,12 +65,15 @@ androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref
 androidx-appcompat-v161 = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-constraintlayout-v214 = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
 androidx-core-ktx-v1120 = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodelKtx" }
 androidx-palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "paletteKtx" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceKtxVersion" }
 androidx-recyclerview-v132 = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
+bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bcprovJdk18on" }
+bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprovJdk18on" }
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
@@ -86,6 +92,8 @@ composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
 google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
+gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
@@ -148,7 +156,6 @@ rikkax-parcelablelist = { module = "dev.rikka.rikkax.parcelablelist:parcelableli
 rikkax-htmlktx = { module = "dev.rikka.rikkax.html:html-ktx", version = "1.1.2" }
 libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu-core" }
 boringssl = { module = "io.github.vvb2060.ndk:boringssl", version = "20250114" }
-bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version = "1.80" }
 
 # AndroidX
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.9.1" }
@@ -248,6 +255,7 @@ maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version
 androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "monitor" }
 monitor = { group = "androidx.test", name = "monitor", version.ref = "monitorVersion" }
 org-json = { module = "org.json:json", version = "20210307"}
+androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragmentKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

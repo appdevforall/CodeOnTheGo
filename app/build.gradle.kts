@@ -115,7 +115,6 @@ android {
     packaging {
         resources {
             excludes.add("META-INF/DEPENDENCIES")
-            // v-- Add this new line for the new conflict --v
             excludes.add("META-INF/gradle/incremental.annotation.processors")
         }
     }
@@ -241,6 +240,8 @@ dependencies {
 	implementation(projects.templatesImpl)
 	implementation(projects.uidesigner)
 	implementation(projects.xmlInflater)
+  implementation(projects.pluginApi)
+  implementation(projects.pluginManager)
 
 	implementation(projects.layouteditor)
 	implementation(projects.idetooltips)
