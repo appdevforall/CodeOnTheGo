@@ -18,4 +18,12 @@ data class ToolResult(
             return ToolResult(false, message, error_details = error_details)
         }
     }
+
+    fun toResultMap(): Map<String, Any> {
+        return mapOf(
+            "success" to success,
+            "message" to message,
+            "data" to (data ?: "")
+        )
+    }
 }

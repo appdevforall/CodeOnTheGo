@@ -16,7 +16,7 @@ import java.util.regex.Pattern
  * @param agentRepository An instance of your repository to communicate with the Gemini API.
  */
 class GeminiMacroProcessor(
-    private val agentRepository: GeminiRepository,
+    private val agentRepository: GeminiRepository?,
 ) : TextProcessor {
 
     private val macroRegex = Pattern.compile("""^.*//ai:\s*(.+)""")
@@ -26,6 +26,10 @@ class GeminiMacroProcessor(
     }
 
     override suspend fun process(context: ProcessContext): ProcessResult? {
+        if (agentRepository == null) {
+            // Return or do nothing
+            return null
+        }
         val lineNum = context.cursor.leftLine - 1
         val line = context.content.getLineString(lineNum)
         val matcher = macroRegex.matcher(line)

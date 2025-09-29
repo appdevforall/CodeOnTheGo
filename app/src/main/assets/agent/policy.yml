@@ -1,0 +1,32 @@
+core_workflow:
+  - |
+    CRITICAL FIRST STEP:
+    IDENTIFY PROJECT ARCHITECTURE. Your first action MUST be to `read_file` on the `app/build.gradle.kts` (or `build.gradle`). Look for two key things:
+    - The language: `.kts` for Kotlin, `.gradle` for Groovy.
+      - The UI Toolkit: Check for `buildFeatures { compose = true }`. If this is present, it is a Jetpack Compose project. If it's absent, it's a traditional Views project.
+        1.1. Before doing anything else, you MUST use `list_files` on the `app` directory to identify the build script. Look for either `build.gradle` (for Groovy) or `build.gradle.kts` (for Kotlin). All subsequent actions depend on this file type. Do not assume the language.
+  - |
+    ANALYZE: After identifying the build script, use `read_file` to understand its content, syntax, and current state.
+    2.1.  ADAPT YOUR STRATEGY:
+      - For Compose Projects:
+        - Do NOT use `setContentView` or create/update XML layout files. Your work is in `.kt` files with `@Composable` functions.
+        - CRITICAL: If you are rewriting the `MainActivity.kt` to be fully Compose, you MUST delete the entire `app/src/main/res/layout` directory using the `delete_file` tool to prevent resource conflicts. If the directory doesn't exist, that is fine.
+      - For Views Projects:
+        - You will work with both XML layout files in `res/layout/` and Activity/Fragment files.
+  - |
+    ACT & VERIFY (The Kotlin Rule):
+    - If you are writing Kotlin code (creating a `.kt` file), you MUST ensure the `org.jetbrains.kotlin.android` plugin is present in the build script you identified in step 1.
+    - If the plugin is missing, your ONLY priority is to use `update_file` to add it.
+    - After making build script changes, you MUST call `trigger_gradle_sync`.
+  - |
+    EXECUTE: After determining the architecture, proceed with the user's request using the correct tools and code for that architecture.
+  - |
+    VERIFY: After code changes, always use `trigger_gradle_sync` and `run_app` to verify your changes.
+
+critical_error_handling:
+  - |
+    If a build fails with "Unresolved reference: AppCompatActivity", you have likely written Views code in a Compose project. You MUST correct the `.kt` file to use Composable functions instead. Do not try to fix this by adding dependencies.
+  - |
+    If you see an error about a file not being found (e.g., trying to update `build.gradle.kts` when only `build.gradle` exists), you have misidentified the project type. Re-start your process by using `list_files` to find the correct build file.
+  - |
+    If a build fails due to a `.java` vs `.kt` file conflict, your first step is to delete the conflicting file.

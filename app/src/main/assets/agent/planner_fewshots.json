@@ -1,0 +1,86 @@
+[
+  {
+    "dialogue": [
+      {
+        "role": "user",
+        "text": "User Request: \"Create an app that asks the user for an integer and then displays that number times 2.\""
+      },
+      {
+        "role": "assistant",
+        "text": "[\n  {\n    \"name\": \"list_files\",\n    \"parameters\": { \"path\": \"app\" }\n  }\n]"
+      }
+    ]
+  },
+  {
+    "dialogue": [
+      {
+        "role": "user",
+        "text": "User Request: \"I tried to add a toolbar but now my build is failing. Please fix it.\"\n\nTOOL_RESULT:\nToolResult(success=false, message=\"Build failed.\", data=\n  \"> Task :app:compileDebugKotlin FAILED\\n  e: /path/to/project/app/src/main/java/com/example/app/MainActivity.kt: (20, 25): Unresolved reference: toolbar\\n\")"
+      },
+      {
+        "role": "assistant",
+        "text": "[\n  {\n    \"name\": \"read_file\",\n    \"parameters\": { \"path\": \"app/src/main/res/layout/activity_main.xml\" }\n  }\n]"
+      }
+    ]
+  },
+  {
+    "dialogue": [
+      {
+        "role": "user",
+        "text": "User Request: \"The app crashes when I try to open it with a ClassNotFoundException. Please fix it.\"\n\nTOOL_RESULT:\nToolResult(success=false, message=\"App crashed on launch.\", data=\n  \"FATAL EXCEPTION: main\\n  java.lang.RuntimeException: Unable to instantiate activity ComponentInfo{...MainActivity}:\\n  java.lang.ClassNotFoundException: Didn't find class \\\"...MainActivity\\\"\\n\")"
+      },
+      {
+        "role": "assistant",
+        "text": "[\n  {\n    \"name\": \"read_file\",\n    \"parameters\": { \"path\": \"app/src/main/AndroidManifest.xml\" }\n  },\n  {\n    \"name\": \"list_files\",\n    \"parameters\": { \"path\": \"app/src/main/java/com/example/myapplication15\" }\n  }\n]"
+      }
+    ]
+  },
+  {
+    "dialogue": [
+      {
+        "role": "user",
+        "text": "User Request: \"Please add the dependency 'androidx.core:core-ktx:1.9.0' to the app.\"\n\nTOOL_RESULT:\nToolResult(success=false, message=\"Invalid dependency format: 'implementation(\\\"androidx.core:core-ktx:1.9.0\\\")'\", data=null, error_details=null)"
+      },
+      {
+        "role": "assistant",
+        "text": "[\n  {\n    \"name\": \"add_dependency\",\n    \"parameters\": {\n      \"dependency\": \"androidx.core:core-ktx:1.9.0\",\n      \"build_file_path\": \"app/build.gradle.kts\"\n    }\n  }\n]"
+      }
+    ]
+  },
+  {
+    "dialogue": [
+      {
+        "role": "user",
+        "text": "Create an app that asks the user for an integer and then displays that number times 2."
+      },
+      {
+        "role": "assistant",
+        "text": "[{\"name\":\"list_files\",\"parameters\":{\"path\":\"app\",\"recursive\":true}}]"
+      }
+    ]
+  },
+  {
+    "dialogue": [
+      {
+        "role": "user",
+        "text": "Create an app that says 'Hello, Compose!'"
+      },
+      {
+        "role": "assistant",
+        "text": "[{\"name\":\"read_file\",\"parameters\":{\"path\":\"app/build.gradle.kts\"}}]"
+      }
+    ]
+  },
+  {
+    "dialogue": [
+      {
+        "role": "user",
+        "text": "User Request: \"Check the manifest and the build script to understand the project's basic setup.\""
+      },
+      {
+        "role": "assistant",
+        "text": "[{\"name\":\"read_multiple_files\",\"parameters\":{\"paths\":[\"app/src/main/AndroidManifest.xml\",\"app/build.gradle.kts\"]}}]"
+      }
+    ]
+  }
+]
