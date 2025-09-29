@@ -111,6 +111,13 @@ android {
 		abortOnError = false
 		disable.addAll(arrayOf("VectorPath", "NestedWeights", "ContentDescription", "SmallSp"))
 	}
+
+    packaging {
+        resources {
+            excludes.add("META-INF/DEPENDENCIES")
+            excludes.add("META-INF/gradle/incremental.annotation.processors")
+        }
+    }
 }
 
 kapt { arguments { arg("eventBusIndex", "${BuildConfig.PACKAGE_NAME}.events.AppEventsIndex") } }
@@ -259,12 +266,12 @@ dependencies {
 	implementation(libs.common.markwon.linkify)
 	implementation(libs.commons.text.v1140)
 
-	implementation("com.squareup.okhttp3:okhttp:4.12.0")
-	// For JSON parsing, if not already present from your diff
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 	implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 	// Koin for Dependency Injection
 	implementation("io.insert-koin:koin-android:3.5.3")
 	implementation(libs.androidx.security.crypto)
+    implementation(libs.google.genai)
 }
 
 tasks.register("downloadDocDb") {

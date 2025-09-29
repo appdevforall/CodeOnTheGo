@@ -36,8 +36,7 @@ import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.di.appModule
-import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
@@ -167,11 +166,8 @@ class IDEApplication : TermuxApplication() {
 
         startKoin {
             androidContext(this@IDEApplication)
-            modules(appModule, pluginModule)
+            modules(coreModule)
         }
-
-        val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
-        TextProcessorEngine.additionalProcessors.add(geminiMacro)
 
         SentryAndroid.init(this)
         ShizukuSettings.initialize(this)
