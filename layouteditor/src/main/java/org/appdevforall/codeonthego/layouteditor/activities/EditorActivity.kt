@@ -35,6 +35,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.idetooltips.TooltipManager
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -152,6 +153,11 @@ class EditorActivity : BaseActivity() {
                 this
             )
         )
+
+        FeedbackButtonManager(
+            activity = this,
+            feedbackFab = binding.fabFeedback
+        ).setupDraggableFab()
 
     }
 

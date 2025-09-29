@@ -17,6 +17,7 @@ dependencies {
     implementation(projects.common)
     implementation(projects.uidesigner)
     implementation(projects.idetooltips)
+    implementation(projects.commonUi)
 
     implementation (libs.androidx.lifecycle.viewmodel.ktx)
     implementation (libs.androidx.activity.ktx)
