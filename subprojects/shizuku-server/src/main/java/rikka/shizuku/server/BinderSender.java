@@ -113,7 +113,7 @@ public class BinderSender {
 
 		try {
 			ActivityManagerApis.broadcastIntent(intent, null, null, 0, null, null,
-					null, -1, null, true, intent.getComponent() == null, -2);
+					null, -1, null, true, intent.getComponent() == null, 0);
 		} catch (RemoteException e) {
 			LOGGER.e("failed to send broadcast", e);
 		}
@@ -131,7 +131,7 @@ public class BinderSender {
 				final var task = tasks.get(0);
 				if (task.topActivity != null) {
 					LOGGER.d("onForegroundActivitiesChanged: topActivity=%s", task.topActivity.flattenToString());
-					HandlerUtil.getMainHandler().post(() -> broadcastForegroundAppChanged(0, 0, new String[]{task.topActivity.getPackageName()}));
+					HandlerUtil.getMainHandler().post(() -> broadcastForegroundAppChanged(-1, -1, new String[]{task.topActivity.getPackageName()}));
 				} else {
 					LOGGER.d("onForegroundActivitiesChanged: topActivity is null");
 					HandlerUtil.getMainHandler().post(() -> broadcastForegroundAppChanged(uid, pid));

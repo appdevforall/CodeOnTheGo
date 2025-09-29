@@ -68,7 +68,7 @@ class ForegroundAppReceiver : BroadcastReceiver() {
 			"onReceive: uid={}, pid={}, packageName={}", uid, pid, packageNames.contentToString()
 		)
 
-		if (uid == -1 || pid == -1 || packageNames.isEmpty()) {
+		if (packageNames.isEmpty()) {
 			return
 		}
 
