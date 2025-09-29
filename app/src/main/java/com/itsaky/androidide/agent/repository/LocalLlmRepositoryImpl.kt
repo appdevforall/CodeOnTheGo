@@ -117,7 +117,7 @@ class LocalLlmRepositoryImpl(
                 }
             } + "\nASSISTANT:"
 
-            val rawResponse = LlmInferenceEngine.runInference(currentPrompt)
+            val rawResponse = LlmInferenceEngine.runInference(prompt)
 
             val toolMatch = toolCodeRegex.find(rawResponse)
 
@@ -232,13 +232,17 @@ class LocalLlmRepositoryImpl(
             }
 
             "add_dependency" -> {
-                val dependencyString = params.stringParam("dependency_string")
+                // FIX: Use "dependency" to match the tool's parameter definition
+                val dependencyString = params.stringParam("dependency")
+                val buildFilePath = params.stringParam("build_file_path")
+
                 if (dependencyString.isEmpty()) {
-                    ToolResult.failure("The 'dependency_string' parameter is required.")
+                    ToolResult.failure("The 'dependency' parameter is required.")
                 } else {
+                    // The API call itself is fine
                     ideApi.addDependency(
                         dependencyString = dependencyString,
-                        buildFilePath = params.stringParam("build_file_path")
+                        buildFilePath = buildFilePath
                     )
                 }
             }
