@@ -2,9 +2,7 @@ package com.itsaky.androidide.services.debug
 
 import android.app.Service
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.IBinder
-import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.debug.KillVmAction
@@ -21,7 +19,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import rikka.shizuku.server.ShizukuServerConstants
 
 /**
  * @author Akash Yadav
@@ -33,7 +30,6 @@ class DebuggerService : Service() {
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(DebuggerService::class.java)
-		const val ACTION_FOREGROUND_APP_CHANGED = ShizukuServerConstants.ACTION_FOREGROUND_APP_CHANGED + "_INTERNAL"
 	}
 
 	private val actionsRegistry = ActionsRegistry.getInstance()
