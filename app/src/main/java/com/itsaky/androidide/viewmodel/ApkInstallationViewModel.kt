@@ -104,6 +104,7 @@ class ApkInstallationViewModel : ViewModel() {
 		file: File,
 	) {
 		val packageInstaller = context.packageManager.packageInstaller
+		packageInstaller.unregisterSessionCallback(callback)
 		packageInstaller.registerSessionCallback(callback)
 
 		viewModelScope.launch {
@@ -170,6 +171,7 @@ class ApkInstallationViewModel : ViewModel() {
 
 		try {
 			val packageInstaller = context.packageManager.packageInstaller
+			packageInstaller.unregisterSessionCallback(callback)
 			packageInstaller.abandonSession(sessionId)
 		} catch (e: Exception) {
 			logger.error("Failed to abandon session with ID: {}", sessionId, e)
