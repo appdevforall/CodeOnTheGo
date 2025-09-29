@@ -44,4 +44,8 @@ dependencies {
 
 	// brotli4j
 	implementation(libs.brotli4j)
+
+    implementation(libs.bcprov.jdk18on)
+    implementation(libs.bcpkix.jdk18on)
+
 }
