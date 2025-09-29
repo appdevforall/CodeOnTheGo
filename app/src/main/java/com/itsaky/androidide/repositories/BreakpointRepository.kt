@@ -3,8 +3,8 @@ package com.itsaky.androidide.repositories
 import com.google.common.collect.HashBasedTable
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
-import com.itsaky.androidide.roomData.breakpoint.Breakpoint
 import java.io.File
 
 object BreakpointRepository {
@@ -31,62 +31,45 @@ object BreakpointRepository {
         return breakpointsFile
     }
 
-    fun loadBreakpoints(projectLocation: String): MutableList<Breakpoint> {
+    fun loadBreakpoints(projectLocation: String): List<BreakpointDefinition> {
         val breakpointFile = getBreakpointFile(projectLocation)
-        if (breakpointFile != null && !breakpointFile.exists()) {
-            return mutableListOf()
+
+        if (breakpointFile == null || !breakpointFile.exists()) {
+            return emptyList()
         }
+
         return try {
-            val jsonString = breakpointFile?.readText()
-            val type = object : TypeToken<MutableList<Breakpoint>>() {}.type
-            gson.fromJson(jsonString, type) ?: mutableListOf()
+            val jsonString = breakpointFile.readText()
+            if (jsonString.isBlank()) {
+                return emptyList()
+            }
+
+            val type = object : TypeToken<List<PositionalBreakpoint>>() {}.type
+            gson.fromJson(jsonString, type) ?: emptyList()
         } catch (e: Exception) {
-            mutableListOf()
+            e.printStackTrace()
+            emptyList()
         }
     }
 
     fun saveBreakpoints(table: HashBasedTable<String, Int, PositionalBreakpoint>) {
-        val file = breakpointsFile ?: return // si no está inicializado, no hay dónde guardar
+        val file = breakpointsFile ?: return
 
         try {
-            // 1) Cargar contenido existente (lista de PositionalBreakpoint) si lo hubiera
-            val existingList: MutableList<PositionalBreakpoint> = try {
-                val raw = file.readText()
-                if (raw.isBlank()) mutableListOf()
-                else {
-                    val type = object : TypeToken<MutableList<PositionalBreakpoint>>() {}.type
-                    gson.fromJson<MutableList<PositionalBreakpoint>>(raw, type) ?: mutableListOf()
-                }
-            } catch (_: Exception) {
-                mutableListOf()
-            }
+            val breakpointsToSave = table.values().toList()
 
-            // 2) Indexar existentes por clave única path:line
-            fun keyOf(p: PositionalBreakpoint): String {
-                val path = p.source?.path ?: ""
-                val line = p.line
-                return "$path:$line"
-            }
+            val jsonOut = gson.toJson(breakpointsToSave)
 
-            val index = LinkedHashMap<String, PositionalBreakpoint>(existingList.size)
-            existingList.forEach { p -> index[keyOf(p)] = p }
-
-            // 3) Insertar nuevos solo si no existen
-            for (cell in table.cellSet()) {
-                val p = cell.value ?: continue
-                val key = keyOf(p)
-                if (!index.containsKey(key)) {
-                    index[key] = p
-                }
-            }
-
-            // 4) Serializar y guardar
-            val merged = index.values.toList()
-            val jsonOut = gson.toJson(merged)
             file.writeText(jsonOut)
 
-        } catch (_: Exception) {
-            // Manejar/loguear si deseas
-        }
+        } catch (_: Exception) {}
+    }
+
+    fun addBreakpoint(table: HashBasedTable<String, Int, PositionalBreakpoint>) {
+        saveBreakpoints(table)
+    }
+
+    fun removeBreakpoint(table: HashBasedTable<String, Int, PositionalBreakpoint>) {
+        saveBreakpoints(table)
     }
 }

@@ -6,14 +6,10 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.Source
-import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.repositories.BreakpointRepository
-import com.itsaky.androidide.roomData.breakpoint.Breakpoint
-import com.itsaky.androidide.viewmodel.BreakpointViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +18,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
@@ -49,7 +44,6 @@ class BreakpointHandler {
     private val _highlightedLocation = MutableStateFlow<Pair<String, Int>?>(null)
     private var onSetBreakpoints: (List<BreakpointDefinition>) -> Unit by Delegates.notNull()
     private val listeners = CopyOnWriteArrayList<EventListener>()
-    private val breakpointViewModel: BreakpointViewModel? by lazy { Lookup.getDefault().lookup(BreakpointViewModel::class.java) }
 
     val highlightedLocationState: StateFlow<Pair<String, Int>?>
         get() = _highlightedLocation.asStateFlow()
@@ -77,7 +71,23 @@ class BreakpointHandler {
     fun breakpointsInFile(path: String) = ArrayList(breakpoints.row(path).values)
 
     fun begin(consumer: (List<BreakpointDefinition>) -> Unit) {
+        val projectDir = IProjectManager.getInstance().projectDir
+        val projectLocation = projectDir.absolutePath
+        val loadedBreakpoints = BreakpointRepository.loadBreakpoints(projectLocation)
+
         onSetBreakpoints = consumer
+        onSetBreakpoints(loadedBreakpoints)
+
+        synchronized(breakpoints) {
+            breakpoints.clear()
+            loadedBreakpoints.forEach { bp ->
+                if (bp is PositionalBreakpoint) {
+                    bp.source.path.let { path ->
+                        breakpoints.put(path, bp.line, bp)
+                    }
+                }
+            }
+        }
 
         scope.launch {
             for (event in events) {
@@ -205,21 +215,16 @@ class BreakpointHandler {
 
         val remove = breakpoints.contains(path, line)
 
-        val projectDir = IProjectManager.getInstance().projectDir
-        val projectLocation = projectDir.absolutePath
-
         logger.debug("{} breakpoint at line {} in {}", if (remove) "remove" else "add", line, path)
 
         if (remove) {
             breakpoints.remove(path, line)
             notifyRemoved(path, line)
+            BreakpointRepository.removeBreakpoint(breakpoints)
         } else {
-            BreakpointRepository.getBreakpointFile(projectLocation)
-
             breakpoints.put(path, line, breakpoint)
             notifyAdded(path, line)
-
-            BreakpointRepository.saveBreakpoints(breakpoints)
+            BreakpointRepository.addBreakpoint(breakpoints)
         }
 
         notifyToggled(path, line)
