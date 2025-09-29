@@ -44,6 +44,7 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
+import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -80,6 +81,7 @@ import kotlin.system.exitProcess
 class IDEApplication : TermuxApplication() {
 	private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var ideLogcatReader: IDELogcatReader? = null
+	private val crashEventSubscriber = CrashEventSubscriber()
 
 	companion object {
 		private val log = LoggerFactory.getLogger(IDEApplication::class.java)
@@ -154,6 +156,8 @@ class IDEApplication : TermuxApplication() {
 			.installDefaultEventBus(true)
 
 		EventBus.getDefault().register(this)
+
+		EventBus.getDefault().register(crashEventSubscriber)
 
 		AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
