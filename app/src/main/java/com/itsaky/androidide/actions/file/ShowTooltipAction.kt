@@ -45,6 +45,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val category = when (editor.file?.extension) {
             "java" -> TooltipCategory.CATEGORY_JAVA
             "kt" -> TooltipCategory.CATEGORY_KOTLIN
+            "xml" -> TooltipCategory.CATEGORY_XML
             else -> TooltipCategory.CATEGORY_IDE
         }
         val word = editor.text.substring(cursor.left, cursor.right)
