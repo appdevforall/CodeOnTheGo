@@ -1,26 +1,37 @@
 package rikka.shizuku.server;
 
+import static android.app.ActivityManagerHidden.PROCESS_STATE_TOP;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_ACTIVE;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_CACHED;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_GONE;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_IDLE;
 
+import static rikka.shizuku.server.ShizukuServerConstants.ACTION_FOREGROUND_APP_CHANGED;
+import static rikka.shizuku.server.ShizukuServerConstants.EXTRA_FOREGROUND_PACKAGES;
+import static rikka.shizuku.server.ShizukuServerConstants.EXTRA_FOREGROUND_PID;
+import static rikka.shizuku.server.ShizukuServerConstants.EXTRA_FOREGROUND_UID;
+
 import android.app.ActivityManagerHidden;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.RemoteException;
 import android.text.TextUtils;
-import androidx.annotation.RequiresApi;
+
 import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+
 import kotlin.collections.ArraysKt;
+import rikka.hidden.compat.ActivityManagerAccessor;
 import rikka.hidden.compat.ActivityManagerApis;
 import rikka.hidden.compat.PackageManagerApis;
 import rikka.hidden.compat.PermissionManagerApis;
 import rikka.hidden.compat.adapter.ProcessObserverAdapter;
 import rikka.hidden.compat.adapter.UidObserverAdapter;
+import rikka.shizuku.server.util.HandlerUtil;
 import rikka.shizuku.server.util.Logger;
 
 public class BinderSender {
@@ -82,6 +93,32 @@ public class BinderSender {
 		}
 	}
 
+	private static void broadcastForegroundAppChanged(int uid, int pid) {
+		String[] packages = PackageManagerApis.getPackagesForUidNoThrow(uid).toArray(new String[0]);
+		if (packages.length == 0)
+			return;
+
+		LOGGER.d("broadcastForegroundAppChanged: uid=%d: packages=%s", uid, Arrays.toString(packages));
+
+		broadcastForegroundAppChanged(uid, pid, packages);
+	}
+
+	private static void broadcastForegroundAppChanged(int uid, int pid, String[] packages) {
+		final var intent = new Intent(ACTION_FOREGROUND_APP_CHANGED);
+		intent.setPackage(BuildInfo.PACKAGE_NAME);
+		intent.putExtra(EXTRA_FOREGROUND_UID, uid);
+		intent.putExtra(EXTRA_FOREGROUND_PID, pid);
+		intent.putExtra(EXTRA_FOREGROUND_PACKAGES, packages);
+		LOGGER.d("sending broadcast: uid=%d, pid=%d, intent=%s", uid, pid, intent.toString());
+
+		try {
+			ActivityManagerApis.broadcastIntent(intent, null, null, 0, null, null,
+					null, -1, null, true, intent.getComponent() == null, -2);
+		} catch (RemoteException e) {
+			LOGGER.e("failed to send broadcast", e);
+		}
+	}
+
 	private static class ProcessObserver extends ProcessObserverAdapter {
 
 		private static final List<Integer> PID_LIST = new ArrayList<>();
@@ -89,6 +126,17 @@ public class BinderSender {
 		@Override
 		public void onForegroundActivitiesChanged(int pid, int uid, boolean foregroundActivities) throws RemoteException {
 			LOGGER.d("onForegroundActivitiesChanged: pid=%d, uid=%d, foregroundActivities=%s", pid, uid, foregroundActivities ? "true" : "false");
+			final var tasks = ActivityManagerAccessor.INSTANCE.getActivityManager().getTasks(1);
+			if (!tasks.isEmpty()) {
+				final var task = tasks.get(0);
+				if (task.topActivity != null) {
+					LOGGER.d("onForegroundActivitiesChanged: topActivity=%s", task.topActivity.flattenToString());
+					HandlerUtil.getMainHandler().post(() -> broadcastForegroundAppChanged(0, 0, new String[]{task.topActivity.getPackageName()}));
+				} else {
+					LOGGER.d("onForegroundActivitiesChanged: topActivity is null");
+					HandlerUtil.getMainHandler().post(() -> broadcastForegroundAppChanged(uid, pid));
+				}
+			}
 
 			synchronized (PID_LIST) {
 				if (PID_LIST.contains(pid) || !foregroundActivities) {
@@ -127,7 +175,6 @@ public class BinderSender {
 		}
 	}
 
-	@RequiresApi(api = Build.VERSION_CODES.N)
 	private static class UidObserver extends UidObserverAdapter {
 
 		private static final List<Integer> UID_LIST = new ArrayList<>();

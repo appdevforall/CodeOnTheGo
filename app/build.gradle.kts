@@ -224,6 +224,7 @@ dependencies {
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
 	implementation(projects.subprojects.shizukuProvider)
+	implementation(projects.subprojects.shizukuServerShared)
 	implementation(projects.subprojects.xmlUtils)
 	implementation(projects.subprojects.projects)
 	implementation(projects.subprojects.toolingApi)
