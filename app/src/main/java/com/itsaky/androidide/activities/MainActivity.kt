@@ -19,10 +19,14 @@ package com.itsaky.androidide.activities
 
 import android.content.Context
 import android.content.Intent
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.text.TextUtils
+import android.view.Display
 import android.view.View
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
@@ -32,13 +36,18 @@ import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
+import com.itsaky.androidide.ui.FeedbackButtonManager
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FileDeleteUtils
 import com.itsaky.androidide.utils.flashInfo
-import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
@@ -46,19 +55,10 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import org.appdevforall.localwebserver.WebServer
 import org.appdevforall.localwebserver.ServerConfig
-import com.itsaky.androidide.utils.Environment
+import org.appdevforall.localwebserver.WebServer
 import org.slf4j.LoggerFactory
-
-import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
-
-import android.hardware.display.DisplayManager
-import android.view.Display
-import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
-import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -68,6 +68,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     private val viewModel by viewModels<MainViewModel>()
     private var _binding: ActivityMainBinding? = null
 
+    private val shareActivityResultLauncher =
+        registerForActivityResult<Intent, ActivityResult>(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            // ACTION_SEND always returns RESULT_CANCELLED, ignore it
+            // There are no request codes
+        }
+
     companion object {
         private var instance: MainActivity? = null
 
@@ -75,6 +83,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         fun getInstance(): MainActivity? {
             return instance
         }
+
     }
 
     private val onBackPressedCallback = object : OnBackPressedCallback(true) {
@@ -131,6 +140,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
         instance = this
+
+        FeedbackButtonManager(
+            activity = this,
+            feedbackFab = binding.fabFeedback
+        ).setupDraggableFab()
     }
 
     override fun onApplySystemBarInsets(insets: Insets) {
@@ -313,4 +327,5 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             presentation.show()
         }
     }
+
 }
