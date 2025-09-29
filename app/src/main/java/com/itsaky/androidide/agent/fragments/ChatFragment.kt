@@ -23,9 +23,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
-import com.itsaky.androidide.agent.repository.AiBackend
-import com.itsaky.androidide.agent.repository.GeminiRepository
-import com.itsaky.androidide.agent.repository.SwitchableGeminiRepository
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
@@ -40,7 +37,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
-import org.koin.mp.KoinPlatform.getKoin
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -86,17 +82,6 @@ class ChatFragment :
                     flashInfo("${uris.size} images selected.")
                 }
             }
-
-        val repo = getKoin().get<GeminiRepository>() // Get the Switchable repository
-        if (repo is SwitchableGeminiRepository) {
-            repo.setActiveBackend(AiBackend.GEMINI)
-//            val modelLoaded = repo.loadLocalModel("models/your-chosen-model.gguf")
-//            if (modelLoaded) {
-//                // Success!
-//            } else {
-//                // Show an error
-//            }
-        }
     }
 
     override fun onResume() {
@@ -159,10 +144,14 @@ class ChatFragment :
 
         viewLifecycleOwner.lifecycleScope.launch {
             if (selectedContext.isEmpty()) {
-                chatViewModel.sendMessage(inputText)
+                chatViewModel.sendMessage(inputText, requireContext())
             } else {
                 val masterPrompt = buildMasterPrompt(inputText)
-                chatViewModel.sendMessage(fullPrompt = masterPrompt, originalUserText = inputText)
+                chatViewModel.sendMessage(
+                    fullPrompt = masterPrompt,
+                    originalUserText = inputText,
+                    requireContext()
+                )
             }
         }
     }
@@ -255,10 +244,12 @@ class ChatFragment :
                     findNavController().navigate(R.id.action_chatFragment_to_chatHistoryFragment)
                     true
                 }
+
                 R.id.menu_ai_settings -> {
                     findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
                     true
                 }
+
                 else -> false
             }
         }
@@ -287,6 +278,7 @@ class ChatFragment :
                         binding.btnSendPrompt.visibility = View.VISIBLE
                         binding.btnStopGeneration.visibility = View.GONE
                     }
+
                     is AgentState.Processing -> {
                         val timeString = "(${formatTime(stepTime)} of ${formatTime(totalTime)})"
                         binding.agentStatusMessage.text = state.message

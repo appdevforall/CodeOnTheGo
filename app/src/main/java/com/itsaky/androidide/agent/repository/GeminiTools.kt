@@ -1,90 +1,214 @@
 package com.itsaky.androidide.agent.repository
 
-import com.itsaky.androidide.agent.model.MyTool
+import com.google.genai.types.FunctionDeclaration
+import com.google.genai.types.Schema
+import com.google.genai.types.Tool
+import com.google.genai.types.Type
 
-object GeminiTools {
-    val allMyTools: List<MyTool> = listOf(
-        MyTool(
-            name = "create_file",
-            description = "Creates a new file at the specified relative path. Creates parent directories if they don't exist.",
-            parameters = mapOf(
-                "path" to "The relative path from the project root (e.g., 'app/src/main/res/values/strings.xml').",
-                "content" to "The initial string content of the file."
-            ),
-        ),
-        MyTool(
-            name = "read_file",
-            description = "Reads the entire content of a file.",
-            parameters = mapOf(
-                "path" to "The relative path of the file to read."
-            )
-        ),
-        MyTool(
-            name = "list_files",
-            description = "Lists all files and directories within a given path.",
-            parameters = mapOf(
-                "path" to "The relative path of the directory to inspect.",
-                "recursive" to "If true, lists files in all subdirectories as well."
-            )
-        ),
+/**
+ * Contains all FunctionDeclarations and the final Tool list for the agent,
+ * defined using a clean, map-based Kotlin style.
+ */
 
-        MyTool(
-            name = "run_app",
-            description = "Installs and launches the successfully built application on the device. Should be called after a successful build.",
-            parameters = emptyMap()
-
-        ),
-        MyTool(
-            name = "add_dependency",
-            description = "Adds a dependency string to the specified Gradle build file. This is the preferred way to add libraries to the project.",
-            parameters = mapOf(
-                "dependency_string" to "The full dependency line, including the configuration (e.g., 'implementation(\"io.coil-kt:coil-compose:2.6.0\")').",
-                "build_file_path" to "The relative path to the build.gradle or build.gradle.kts file (e.g., 'app/build.gradle.kts'). If left empty, it defaults to 'app/build.gradle.kts'."
+private val createFile = FunctionDeclaration.builder()
+    .name("create_file")
+    .description("Creates a new file at the specified relative path. Creates parent directories if they don't exist.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "path" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The relative path from the project root (e.g., 'app/src/main/res/values/strings.xml').")
+                        .build(),
+                    "content" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The initial string content of the file.")
+                        .build()
+                )
             )
-        ),
-
-        // User Interaction
-        MyTool(
-            name = "ask_user",
-            description = "Creates a new Displays a native dialog to the user with a question and a set of buttons as options. Waits for the user's selection. at the specified relative path. Creates parent directories if they don't exist.",
-            parameters = mapOf(
-                "question" to "The text to display to the user.",
-                "options" to "An array of button labels."
-            )
-        ),
-        MyTool(
-            name = "update_file",
-            description = "Updates an existing file by completely overwriting its content. To use this, you should first read the file's current content, modify it as needed, and then provide the full, final content. This is suitable for changing single lines, multiple lines, or replacing the entire file.",
-            parameters = mapOf(
-                "path" to "The relative path from the project root for the file to be updated (e.g., 'app/src/main/java/com/example/MyClass.kt').",
-                "content" to "The complete new content to write to the file."
-            )
-        ),
-        MyTool(
-            name = "get_build_output",
-            description = "Get the latest build output logs useful for errors or warnings.",
-            parameters = emptyMap()
-        ),
-
-        MyTool(
-            name = "add_string_resource",
-            description = "Adds a new string resource to the strings.xml file. This is the preferred way to handle strings, as it avoids escaping issues.",
-            parameters = mapOf(
-                "name" to "The name for the string resource (e.g., 'welcome_message'). This will be used as the resource ID.",
-                "value" to "The actual string content to be added (e.g., 'Hello, World!')."
-            )
-        )
+            .required(listOf("path", "content"))
+            .build()
     )
+    .build()
 
-    fun getToolDeclarationsAsJson(): String {
-        return allMyTools.joinToString(prefix = "[", postfix = "]", separator = ",\n") { tool ->
-            """
-                {
-                  "name": "${tool.name}",
-                  "description": "${tool.description}"
-                  "parameters": "${tool.parameters.map { it.key + ": " + it.value + "\n" }}"
-                }
-                """.trimIndent()
-        }
-    }
-}
+private val readFile = FunctionDeclaration.builder()
+    .name("read_file")
+    .description("Reads the entire content of a file.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "path" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The relative path of the file to read.")
+                        .build()
+                )
+            )
+            .required(listOf("path"))
+            .build()
+    )
+    .build()
+
+private val updateFile = FunctionDeclaration.builder()
+    .name("update_file")
+    .description("Overwrites the content of an existing file. Creates the file if it doesn't exist.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "path" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The relative path of the file to update.")
+                        .build(),
+                    "content" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The new content to write to the file.")
+                        .build()
+                )
+            )
+            .required(listOf("path", "content"))
+            .build()
+    )
+    .build()
+
+private val deleteFile = FunctionDeclaration.builder()
+    .name("delete_file")
+    .description("Deletes a file or an empty directory.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "path" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The relative path of the file or directory to delete.")
+                        .build()
+                )
+            )
+            .required(listOf("path"))
+            .build()
+    )
+    .build()
+
+private val listFiles = FunctionDeclaration.builder()
+    .name("list_files")
+    .description("Lists all files and directories within a given path.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "path" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The relative path of the directory to list. Use '.' for the project root.")
+                        .build(),
+                    "recursive" to Schema.builder()
+                        .type(Type.Known.BOOLEAN)
+                        .description("Set to true to list files in all subdirectories.")
+                        .build()
+                )
+            )
+            .required(listOf("path"))
+            .build()
+    )
+    .build()
+
+private val readMultipleFiles = FunctionDeclaration.builder()
+    .name("read_multiple_files")
+    .description("Reads the content of multiple files at once.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "paths" to Schema.builder()
+                        .type(Type.Known.ARRAY)
+                        .items(Schema.builder().type(Type.Known.STRING).build())
+                        .description("A list of relative file paths to read.")
+                        .build()
+                )
+            )
+            .required(listOf("paths"))
+            .build()
+    )
+    .build()
+
+private val addDependency = FunctionDeclaration.builder()
+    .name("add_dependency")
+    .description("Adds a new dependency to a Gradle build file.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "dependency" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The full dependency string (e.g., 'androidx.core:core-ktx:1.9.0').")
+                        .build(),
+                    "build_file_path" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The relative path to the build file (e.g., 'app/build.gradle.kts').")
+                        .build()
+                )
+            )
+            .required(listOf("dependency", "build_file_path"))
+            .build()
+    )
+    .build()
+
+private val addStringResource = FunctionDeclaration.builder()
+    .name("add_string_resource")
+    .description("Adds a new string resource to the app's strings.xml file.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "name" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The name of the string resource (e.g., 'welcome_message').")
+                        .build(),
+                    "value" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The content of the string (e.g., 'Hello World!').")
+                        .build()
+                )
+            )
+            .required(listOf("name", "value"))
+            .build()
+    )
+    .build()
+
+private val runApp = FunctionDeclaration.builder()
+    .name("run_app")
+    .description("Builds the application and runs it on a connected device or emulator. Use this as the final step to verify changes.")
+    .build()
+
+private val triggerGradleSync = FunctionDeclaration.builder()
+    .name("trigger_gradle_sync")
+    .description("Triggers a Gradle Sync for the project. This is required after modifying build files like adding dependencies.")
+    .build()
+
+private val getBuildOutput = FunctionDeclaration.builder()
+    .name("get_build_output")
+    .description("Retrieves the latest logs from the build system output. Useful for debugging build failures.")
+    .build()
+
+// Create the final list of Tool objects that the Gemini client will use
+val allAgentTools: List<Tool> = listOf(
+    Tool.builder().functionDeclarations(createFile).build(),
+    Tool.builder().functionDeclarations(readFile).build(),
+    Tool.builder().functionDeclarations(updateFile).build(),
+    Tool.builder().functionDeclarations(deleteFile).build(),
+    Tool.builder().functionDeclarations(listFiles).build(),
+    Tool.builder().functionDeclarations(readMultipleFiles).build(),
+    Tool.builder().functionDeclarations(addDependency).build(),
+    Tool.builder().functionDeclarations(addStringResource).build(),
+    Tool.builder().functionDeclarations(runApp).build(),
+    Tool.builder().functionDeclarations(triggerGradleSync).build(),
+    Tool.builder().functionDeclarations(getBuildOutput).build()
+)

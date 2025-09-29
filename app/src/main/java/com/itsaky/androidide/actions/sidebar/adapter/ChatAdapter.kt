@@ -55,7 +55,7 @@ class ChatAdapter(
                 holder.binding.btnRetry.visibility = View.GONE
             }
 
-            MessageStatus.SENT -> {
+            MessageStatus.SENT, MessageStatus.COMPLETED -> {
                 holder.binding.loadingIndicator.visibility = View.GONE
                 holder.binding.messageContent.visibility = View.VISIBLE
                 holder.binding.btnRetry.visibility = View.GONE
