@@ -88,6 +88,7 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                 TooltipManager.showTooltip(
                     context = editor.context,
                     anchorView = editor,
+                    category = category,
                     tag = tag ?: "",
                 )
                 true
