@@ -1,6 +1,7 @@
 package com.itsaky.androidide.app
 
-//import android.llama.cpp.LLamaAndroid // Unresolved reference: LLamaAndroid
+
+//import android.llama.cpp.LLamaAndroid
 import android.content.Context
 import android.util.Log
 import androidx.core.net.toUri
@@ -12,8 +13,7 @@ import java.io.FileOutputStream
  * llama.cpp inference engine.
  */
 object LlmInferenceEngine {
-
-    //    private val llamaAndroid: LLamaAndroid = LLamaAndroid.instance()
+    //    val llamaAndroid: LLamaAndroid = LLamaAndroid.instance()
     private const val TAG = "LlmInferenceEngine"
 
     suspend fun releaseModel() {
@@ -59,14 +59,15 @@ object LlmInferenceEngine {
      * Runs inference and collects the entire streamed response into a single string.
      */
     suspend fun runInference(fullPrompt: String): String {
-        return ""
-//        try {
-////             .fold() collects the entire flow into a single value
-//            llamaAndroid.send(fullPrompt)
-//                .fold("") { accumulator, value -> accumulator + value }
-//        } catch (e: Exception) {
-//            Log.e(TAG, "runInference() failed", e)
-//            "Error during inference: ${e.message}"
-//        }
+        try {
+            // This will now compile correctly because of the import
+//            val fullResponse = llamaAndroid.send(fullPrompt).fold("") { accumulator, newText ->
+//                accumulator + newText
+//            }
+            return ""//fullResponse
+        } catch (e: Exception) {
+            Log.e(TAG, "runInference() failed", e)
+            return "Error during inference: ${e.message}"
+        }
     }
 }
