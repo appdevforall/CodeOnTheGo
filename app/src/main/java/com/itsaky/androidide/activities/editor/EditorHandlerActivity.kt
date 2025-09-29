@@ -120,7 +120,7 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     override fun doCloseAll() {
-        closeAll()
+        closeAll {}
     }
 
     override fun provideCurrentEditor(): CodeEditorView? {
@@ -1128,7 +1128,10 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         // Close all plugin tabs
         val pluginTabIds = this.pluginTabIndices.keys.toList()
         for (pluginId in pluginTabIds) {
-            this.closePluginTab(this.pluginTabIndices[pluginId]!!)
+            val tabIndex = this.pluginTabIndices[pluginId]
+            if (tabIndex != null) {
+                this.closePluginTab(tabIndex)
+            }
         }
 
         editorViewModel.removeAllFiles()
