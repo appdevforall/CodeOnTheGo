@@ -126,6 +126,18 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
       return gradlew.exists() && gradleWrapperJar.exists() && gradleWrapperProps.exists()
     }
 
+  private fun getBuildType(tasks: List<String>): String {
+    return tasks.firstOrNull()?.let { task ->
+      when {
+        task.contains("assembleDebug") -> "debug"
+        task.contains("assembleRelease") -> "release"
+        task.contains("clean") -> "clean"
+        task.contains("build") -> "build"
+        else -> "custom"
+      }
+    } ?: "unknown"
+  }
+
   companion object {
 
     private val log = LoggerFactory.getLogger(GradleBuildService::class.java)
@@ -277,15 +289,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     buildStartTime = System.currentTimeMillis()
 
     val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
-    val buildType = buildInfo.tasks.firstOrNull()?.let { task ->
-      when {
-        task.contains("assembleDebug") -> "debug"
-        task.contains("assembleRelease") -> "release"
-        task.contains("clean") -> "clean"
-        task.contains("build") -> "build"
-        else -> "custom"
-      }
-    } ?: "unknown"
+    val buildType = getBuildType(buildInfo.tasks)
 
     analyticsManager.trackBuildRun(buildType, projectPath)
     eventListener?.prepareBuild(buildInfo)
@@ -297,15 +301,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     // Track build completion in Firebase Analytics
     if (buildStartTime > 0) {
       val duration = System.currentTimeMillis() - buildStartTime
-      val buildType = result.tasks.firstOrNull()?.let { task ->
-        when {
-          task.contains("assembleDebug") -> "debug"
-          task.contains("assembleRelease") -> "release"
-          task.contains("clean") -> "clean"
-          task.contains("build") -> "build"
-          else -> "custom"
-        }
-      } ?: "unknown"
+      val buildType = getBuildType(result.tasks)
 
       analyticsManager.trackBuildCompleted(buildType, true, duration)
       buildStartTime = 0
@@ -320,15 +316,7 @@ class GradleBuildService : Service(), BuildService, IToolingApiClient,
     // Track build failure in Firebase Analytics
     if (buildStartTime > 0) {
       val duration = System.currentTimeMillis() - buildStartTime
-      val buildType = result.tasks.firstOrNull()?.let { task ->
-        when {
-          task.contains("assembleDebug") -> "debug"
-          task.contains("assembleRelease") -> "release"
-          task.contains("clean") -> "clean"
-          task.contains("build") -> "build"
-          else -> "custom"
-        }
-      } ?: "unknown"
+      val buildType = getBuildType(result.tasks)
 
       analyticsManager.trackBuildCompleted(buildType, false, duration)
       buildStartTime = 0

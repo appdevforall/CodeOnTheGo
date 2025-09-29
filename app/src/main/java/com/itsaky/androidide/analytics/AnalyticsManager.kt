@@ -103,7 +103,7 @@ class AnalyticsManager(
     ) {
         val bundle = Bundle().apply {
             putString("build_type", buildType)
-            putLong("success", if (success) 1L else 0L)
+            putBoolean("success", success)
             putLong("duration_ms", durationMs)
             putLong("timestamp", System.currentTimeMillis())
         }
