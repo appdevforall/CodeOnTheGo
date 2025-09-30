@@ -34,7 +34,6 @@ import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
-import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
@@ -47,8 +46,7 @@ import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.plugins.manager.core.PluginManager
-
-
+import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -74,7 +72,6 @@ import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -82,11 +79,14 @@ import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
+const val EXIT_CODE_CRASH = 1
+
 class IDEApplication : TermuxApplication() {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
     private var pluginManager: PluginManager? = null
     private var currentActivity: android.app.Activity? = null
+    private val crashEventSubscriber = CrashEventSubscriber()
 
     companion object {
         private val log = LoggerFactory.getLogger(IDEApplication::class.java)
@@ -198,6 +198,7 @@ class IDEApplication : TermuxApplication() {
             .installDefaultEventBus(true)
 
         EventBus.getDefault().register(this)
+        EventBus.getDefault().register(crashEventSubscriber)
 
         AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
@@ -273,7 +274,7 @@ class IDEApplication : TermuxApplication() {
                 uncaughtExceptionHandler!!.uncaughtException(thread, th)
             }
 
-            exitProcess(1)
+            exitProcess(EXIT_CODE_CRASH)
         } catch (error: Throwable) {
             log.error("Unable to show crash handler activity", error)
         }

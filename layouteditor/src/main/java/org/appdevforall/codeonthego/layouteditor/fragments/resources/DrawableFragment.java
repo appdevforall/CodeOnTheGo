@@ -31,7 +31,6 @@ import org.appdevforall.codeonthego.layouteditor.adapters.DrawableResourceAdapte
 import org.appdevforall.codeonthego.layouteditor.adapters.models.DrawableFile;
 import org.appdevforall.codeonthego.layouteditor.databinding.DialogSelectDpisBinding;
 import org.appdevforall.codeonthego.layouteditor.databinding.FragmentResourcesBinding;
-import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding;
 import org.appdevforall.codeonthego.layouteditor.managers.ProjectManager;
 import org.appdevforall.codeonthego.layouteditor.tools.ImageConverter;
 import org.appdevforall.codeonthego.layouteditor.utils.FileUtil;
@@ -190,7 +189,7 @@ public class DrawableFragment extends Fragment {
             }
           }
           String toPath = drawablePath + editText.getText().toString() + extension;
-          FileUtil.copyFile(uri, toPath);
+          FileUtil.copyFile(uri, toPath, getContext());
 
           Drawable drawable =
               lastSegment.endsWith(".xml")
