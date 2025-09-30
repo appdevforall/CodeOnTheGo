@@ -77,8 +77,10 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
 
                 val tag = if (completionData == null) {
                     // completionData is null for XML attributes; use ideLabel instead
-                    val attrName = completionItem?.ideLabel?.takeIf {labelString -> labelString.contains("android") }?.substringAfterLast(":")
-                    if (isXml && attrName != null) {
+                    val label = completionItem?.ideLabel
+                    val attrName = label?.substringAfterLast(":")
+                    // Only add xml.attr. prefix if it's an attribute (no dots in label means not a class name)
+                    if (isXml && attrName != null && !label.contains('.')) {
                         "xml.attr.$attrName"
                     } else {
                         attrName

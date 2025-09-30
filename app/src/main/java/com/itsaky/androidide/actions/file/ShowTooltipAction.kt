@@ -23,6 +23,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.editor.utils.isXmlAttribute
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -50,8 +51,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
-            val tag = if (isXml) {
-                // Prepend xml.attr. and remove namespace prefix for XML attributes
+            val tag = if (isXml && editor.isXmlAttribute()) {
                 "xml.attr.${word.substringAfterLast(":")}"
             } else {
                 word
@@ -67,5 +67,4 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     }
 
     override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
-
 }
