@@ -81,10 +81,8 @@ class BreakpointHandler {
         synchronized(breakpoints) {
             breakpoints.clear()
             loadedBreakpoints.forEach { bp ->
-                if (bp is PositionalBreakpoint) {
-                    bp.source.path.let { path ->
-                        breakpoints.put(path, bp.line, bp)
-                    }
+                bp.source.path.let { path ->
+                    breakpoints.put(path, bp.line, bp)
                 }
             }
         }
@@ -213,18 +211,21 @@ class BreakpointHandler {
 
         val path = file.canonicalPath
 
-        val remove = breakpoints.contains(path, line)
+        // Synchronize the entire read-modify-save operation
+        synchronized(breakpoints) {
+            val remove = breakpoints.contains(path, line)
 
-        logger.debug("{} breakpoint at line {} in {}", if (remove) "remove" else "add", line, path)
+            logger.debug("{} breakpoint at line {} in {}", if (remove) "remove" else "add", line, path)
 
-        if (remove) {
-            breakpoints.remove(path, line)
-            notifyRemoved(path, line)
-            BreakpointRepository.removeBreakpoint(breakpoints)
-        } else {
-            breakpoints.put(path, line, breakpoint)
-            notifyAdded(path, line)
-            BreakpointRepository.addBreakpoint(breakpoints)
+            if (remove) {
+                breakpoints.remove(path, line)
+                notifyRemoved(path, line)
+            } else {
+                breakpoints.put(path, line, breakpoint)
+                notifyAdded(path, line)
+            }
+
+            BreakpointRepository.saveBreakpoints(breakpoints)
         }
 
         notifyToggled(path, line)

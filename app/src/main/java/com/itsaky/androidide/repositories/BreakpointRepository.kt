@@ -31,7 +31,7 @@ object BreakpointRepository {
         return breakpointsFile
     }
 
-    fun loadBreakpoints(projectLocation: String): List<BreakpointDefinition> {
+    fun loadBreakpoints(projectLocation: String): List<PositionalBreakpoint> {
         val breakpointFile = getBreakpointFile(projectLocation)
 
         if (breakpointFile == null || !breakpointFile.exists()) {
@@ -63,13 +63,5 @@ object BreakpointRepository {
             file.writeText(jsonOut)
 
         } catch (_: Exception) {}
-    }
-
-    fun addBreakpoint(table: HashBasedTable<String, Int, PositionalBreakpoint>) {
-        saveBreakpoints(table)
-    }
-
-    fun removeBreakpoint(table: HashBasedTable<String, Int, PositionalBreakpoint>) {
-        saveBreakpoints(table)
     }
 }
