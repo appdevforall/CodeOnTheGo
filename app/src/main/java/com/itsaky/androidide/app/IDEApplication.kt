@@ -28,12 +28,17 @@ import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
+import com.itsaky.androidide.agent.GeminiMacroProcessor
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
@@ -70,6 +75,8 @@ import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.android.ext.android.getKoin
+import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -79,12 +86,13 @@ import kotlin.system.exitProcess
 
 const val EXIT_CODE_CRASH = 1
 
-class IDEApplication : TermuxApplication() {
+class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
     private var pluginManager: PluginManager? = null
     private var currentActivity: android.app.Activity? = null
     private val crashEventSubscriber = CrashEventSubscriber()
+    private val analyticsManager: IAnalyticsManager by inject()
 
     companion object {
         private val log = LoggerFactory.getLogger(IDEApplication::class.java)
@@ -159,7 +167,7 @@ class IDEApplication : TermuxApplication() {
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
-        super.onCreate()
+        super<TermuxApplication>.onCreate()
 
         initializePluginSystem()
 
@@ -210,6 +218,28 @@ class IDEApplication : TermuxApplication() {
         GlobalScope.launch {
             IDEColorSchemeProvider.init()
         }
+
+        initializeAnalytics()
+    }
+
+    private fun initializeAnalytics() {
+        try {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+            analyticsManager.initialize()
+            log.info("Firebase Analytics initialized successfully")
+        } catch (e: Exception) {
+            log.error("Failed to initialize Firebase Analytics", e)
+        }
+    }
+
+    override fun onStart(owner: LifecycleOwner) {
+        super.onStart(owner)
+        analyticsManager.startSession()
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        super.onStop(owner)
+        analyticsManager.endSession()
     }
 
     @OptIn(DelicateCoroutinesApi::class)
