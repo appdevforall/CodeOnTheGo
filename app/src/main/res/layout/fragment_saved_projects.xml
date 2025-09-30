@@ -67,7 +67,7 @@
             android:layout_margin="16dp"
             android:layout_below="@id/tvCreateNewProject"
             android:layout_centerHorizontal="true"
-            android:text="@string/find_saved_project" />
+            android:text="@string/open_from_folder" />
 
     </RelativeLayout>
 
