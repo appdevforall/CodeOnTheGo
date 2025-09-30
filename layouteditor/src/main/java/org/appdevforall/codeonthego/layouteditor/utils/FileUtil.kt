@@ -9,7 +9,9 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.text.TextUtils
 import com.blankj.utilcode.util.ToastUtils
+import com.itsaky.androidide.eventbus.events.editor.ReportCaughtExceptionEvent
 import org.appdevforall.codeonthego.layouteditor.LayoutEditor.Companion.instance
+import org.greenrobot.eventbus.EventBus
 import java.io.BufferedReader
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -77,14 +79,39 @@ object FileUtil {
     } catch (e: IOException) {
       e.printStackTrace()
       ToastUtils.showLong(e.toString())
+
+      EventBus.getDefault().post(
+          ReportCaughtExceptionEvent(
+              throwable = e,
+              message = "copyFile failed",
+              extras = mapOf(
+                  "module" to "layouteditor",
+                  "where" to "utils.FileUtil.copyFile",
+                  "dest" to destinationPath,
+                  "uri" to uri.toString()
+              )
+          )
+      )
+
       return false
     } finally {
       try {
         inputStream?.close()
         outputStream?.close()
-      } catch (e: IOException) {
+      } catch (e: Exception) {
         e.printStackTrace()
         ToastUtils.showLong(e.toString())
+        EventBus.getDefault().post(
+        ReportCaughtExceptionEvent(
+            throwable = e,
+            message = "copyFile unexpected error",
+            extras = mapOf(
+                "module" to "layouteditor",
+                "where" to "utils.FileUtil.copyFile",
+                "dest" to destinationPath,
+                "uri" to uri.toString()
+            )
+        ))
       }
     }
   }
