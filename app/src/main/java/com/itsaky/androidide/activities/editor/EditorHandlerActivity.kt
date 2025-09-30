@@ -1116,9 +1116,6 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     private fun performCloseAllFiles(manualFinish: Boolean) {
-        // This is the core logic from your original `closeAll` method,
-        // but without the unsaved files check.
-
         // Close all open file editors
         val fileCount = editorViewModel.getOpenedFileCount()
         for (i in 0 until fileCount) {
