@@ -63,6 +63,7 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
             it.adapter = this.adapter
             it.setOnItemLongClickListener { _, view, position, _ ->
 
+                val isXml = editor.file?.extension == "xml"
                 val category = when (editor.file?.extension) {
                     "java" -> TooltipCategory.CATEGORY_JAVA
                     "kt" -> TooltipCategory.CATEGORY_KOTLIN
@@ -76,7 +77,12 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
 
                 val tag = if (completionData == null) {
                     // completionData is null for XML attributes; use ideLabel instead
-                    completionItem?.ideLabel?.takeIf {labelString -> labelString.contains("android") }?.substringAfterLast(":")
+                    val attrName = completionItem?.ideLabel?.takeIf {labelString -> labelString.contains("android") }?.substringAfterLast(":")
+                    if (isXml && attrName != null) {
+                        "xml.attr.$attrName"
+                    } else {
+                        attrName
+                    }
                 } else {
                     DocumentationReferenceProvider.getTag(completionData)
                 }
