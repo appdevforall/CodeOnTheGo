@@ -70,13 +70,14 @@ import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
+
+const val EXIT_CODE_CRASH = 1
 
 class IDEApplication : TermuxApplication() {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
@@ -271,7 +272,7 @@ class IDEApplication : TermuxApplication() {
                 uncaughtExceptionHandler!!.uncaughtException(thread, th)
             }
 
-            exitProcess(1)
+            exitProcess(EXIT_CODE_CRASH)
         } catch (error: Throwable) {
             log.error("Unable to show crash handler activity", error)
         }

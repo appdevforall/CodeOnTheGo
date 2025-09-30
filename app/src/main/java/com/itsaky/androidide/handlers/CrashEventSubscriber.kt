@@ -11,6 +11,7 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import kotlin.system.exitProcess
 
+const val EXIT_CODE_CRASH = 1
 class CrashEventSubscriber {
     private val log = LoggerFactory.getLogger(CrashEventSubscriber::class.java)
 
@@ -30,7 +31,7 @@ class CrashEventSubscriber {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
 
-                exitProcess(1)
+                exitProcess(EXIT_CODE_CRASH)
             } catch (error: Throwable) {
                 log.error("Unable to show crash handler activity", error)
             }
