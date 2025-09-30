@@ -4,11 +4,11 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.text.HtmlCompat
+import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.resources.R
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
@@ -23,7 +23,7 @@ object FeedbackManager {
 	 * @param activity The context from which feedback is being sent
 	 */
 	fun showFeedbackDialog(
-        activity: Activity,
+        activity: AppCompatActivity,
     ) {
 		val builder = DialogUtils.newMaterialDialogBuilder(activity)
 
@@ -51,8 +51,8 @@ object FeedbackManager {
 			else -> "Unknown Screen"
 		}
 
-    private fun sendFeedbackWithScreenshot(activity: Activity) {
-        CoroutineScope(Dispatchers.Main).launch {
+    private fun sendFeedbackWithScreenshot(activity: AppCompatActivity) {
+        activity.lifecycleScope.launch {
             val handler = FeedbackEmailHandler(activity)
 
             val screenshotData = handler.captureAndPrepareScreenshotUri(activity, "Feedback")

@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.common.ui
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -15,7 +15,7 @@ import com.itsaky.androidide.utils.FeedbackManager
 import kotlin.math.sqrt
 
 class FeedbackButtonManager(
-    val activity: Activity,
+    val activity: AppCompatActivity,
     val feedbackFab: FloatingActionButton,
 ) {
 
