@@ -141,10 +141,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
         instance = this
 
-        FeedbackButtonManager(
-            activity = this,
-            feedbackFab = binding.fabFeedback
-        ).setupDraggableFab()
     }
 
     override fun onApplySystemBarInsets(insets: Insets) {
@@ -326,6 +322,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             val presentation = SecondaryScreen(this, it)
             presentation.show()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        FeedbackButtonManager(
+            activity = this,
+            feedbackFab = binding.fabFeedback
+        ).setupDraggableFab()
     }
 
 }

@@ -27,7 +27,7 @@ class FeedbackButtonManager(
 
     fun setupDraggableFab() {
 
-        loadFabPosition(feedbackFab)
+        loadFabPosition()
 
         var initialX = 0f
         var initialY = 0f
@@ -117,23 +117,23 @@ class FeedbackButtonManager(
         x: Float,
         y: Float,
     ) {
-        activity.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
+        activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
             putFloat(KEY_FAB_X, x)
             putFloat(KEY_FAB_Y, y)
             apply()
         }
     }
 
-    private fun loadFabPosition(fab: FloatingActionButton) {
-        val prefs = activity.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
+    private fun loadFabPosition() {
+        val prefs = activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
 
         val x = prefs.getFloat(KEY_FAB_X, -1f)
         val y = prefs.getFloat(KEY_FAB_Y, -1f)
 
         if (x != -1f && y != -1f) {
-            fab.post {
-                fab.x = x
-                fab.y = y
+            feedbackFab.post {
+                feedbackFab.x = x
+                feedbackFab.y = y
             }
         }
     }
