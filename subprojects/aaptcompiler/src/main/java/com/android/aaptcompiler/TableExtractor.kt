@@ -214,6 +214,24 @@ class TableExtractor(
     while (eventReader.hasNext()) {
       val event = eventReader.nextEvent()
 
+        if (event.isStartElement) {
+            val element = event.asStartElement()
+            val elementName = element.name
+            // Elements with the following tags are causing xml compilation issues in the android
+            // sdk xml resources e.g public-staging.xml. Since we do not need such elements, we
+            // are excluding them from parsing
+            when (elementName.localPart) {
+                "staging-public-group-final",
+                "staging-public-group",
+                "java-symbol",
+                "public" -> {
+                    walkToEndOfElement(element, eventReader)
+                    comment = ""
+                    continue
+                }
+            }
+        }
+
       if (event.eventType == XMLStreamConstants.COMMENT) {
         comment = (event as Comment).text.trim()
         continue
