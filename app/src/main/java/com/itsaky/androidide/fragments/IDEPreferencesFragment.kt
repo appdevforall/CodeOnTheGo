@@ -29,9 +29,13 @@ import androidx.preference.PreferenceViewHolder
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILD_RUN
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVELOPER
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR_XML
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GENERAL
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GRADLE
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TOP
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
@@ -89,16 +93,27 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
         continue
       }
 
-      pref.addPreference(preference)
+      // Wrap regular preferences with long-click support if they are target preferences
+      val finalPreference = if (isTargetPreference(child.key)) {
+        createLongClickablePreference(preference, child.key)
+      } else {
+        preference
+      }
+      pref.addPreference(finalPreference)
     }
   }
 
   private fun isTargetPreference(key: String): Boolean {
     return key in listOf(
+      "idepref_configure",
       "idepref_general",
       "idepref_editor",
+      "idepref_editor_xml",
+      "idepref_xml_formattingOptions",
       "idepref_build_n_run",
-      "ide.preferences.terminal"
+      "idepref_build_gradleCommands",
+      "ide.preferences.terminal",
+      "ide.prefs.developerOptions"
     )
   }
 
@@ -135,10 +150,14 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 
   private fun getTooltipTag(key: String): String? {
     return when (key) {
+      "idepref_configure" -> PREFS_TOP
       "idepref_general" -> PREFS_GENERAL
       "idepref_editor" -> PREFS_EDITOR
+      "idepref_editor_xml", "idepref_xml_formattingOptions" -> PREFS_EDITOR_XML
       "idepref_build_n_run" -> PREFS_BUILD_RUN
+      "idepref_build_gradleCommands" -> PREFS_GRADLE
       "ide.preferences.terminal" -> PREFS_TERMUX
+      "ide.prefs.developerOptions" -> PREFS_DEVELOPER
       else -> null
     }
   }
