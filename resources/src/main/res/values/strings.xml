@@ -75,7 +75,7 @@
     <string name="new_project">New project</string>
     <string name="package_name">Package name</string>
     <string name="project_app_name">App name</string>
-    <string name="msg_create_new_project_greeting">Learn about <b>Code on the Go</b> here!</string>
+    <string name="msg_create_new_project_greeting">Read the Quick Start guide</string>
     <string name="title_confirm_open_project">Open last project?</string>
     <string name="msg_confirm_open_project">Do you want to open the last opened project? Opened project was:\n%s</string>
     <string name="title_close_project">Close this project</string>
@@ -187,7 +187,7 @@
     <string name="title_open_projects">Open last project</string>
     <string name="msg_open_projects">When enabled, restarting Code on the Go will automatically open the last project that was open.</string>
     <string name="title_confirm_project_open">Confirm project opening</string>
-    <string name="msg_confirm_project_open">Ask before opening last opened project.</string>
+    <string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
     <string name="title_default_shell">Use system shell in terminal</string>
     <string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
     <string name="title_general">General</string>
@@ -584,7 +584,7 @@
     <string name="title_experiment_flavor">Experimental</string>
     <string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
     <string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
-    <string name="idepref_editor_pinLineNumbers_summary">Whether the editor should pin line number panel when scrolled horizontally.</string>
+    <string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
     <string name="theme_blue_wave">Blue Wave</string>
     <string name="theme_sunny_glow">Sunny Glow</string>
     <string name="theme_material_you">Material You</string>
@@ -708,7 +708,7 @@
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
-	<string name="find_saved_project">Find a saved project</string>
+	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
 	<string name="feedback_email">feedback@appdevforall.org</string>
 	<string name="no_email_apps">No email apps found</string>
