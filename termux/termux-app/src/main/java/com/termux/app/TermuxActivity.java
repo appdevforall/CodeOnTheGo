@@ -58,6 +58,9 @@ import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 import com.termux.view.TerminalView;
 import com.termux.view.TerminalViewClient;
+
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager;
+
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -181,6 +184,8 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
     protected static final String LOG_TAG = "TermuxActivity";
 
+    private FeedbackButtonManager feedbackButtonManager;
+
     @SuppressLint("InflateParams")
     @NonNull
     @Override
@@ -267,6 +272,9 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         // Send the {@link TermuxConstants#BROADCAST_TERMUX_OPENED} broadcast to notify apps that Termux
         // app has been opened.
         TermuxUtils.sendTermuxOpenedBroadcast(this);
+
+        feedbackButtonManager = new FeedbackButtonManager(this, findViewById(R.id.fab_feedback));
+        feedbackButtonManager.setupDraggableFab();
     }
 
     @Override
