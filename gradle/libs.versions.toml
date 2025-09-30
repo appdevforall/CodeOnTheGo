@@ -3,12 +3,14 @@ activityKtx = "1.8.2"
 agp = "8.8.2"
 agp-tooling = "8.11.0"
 appcompat = "1.6.1"
+bcprovJdk18on = "1.80"
 colorpickerview = "2.3.0"
 commonsCompress = "1.27.1"
 commonsText = "1.11.0"
 commonsTextVersion = "1.14.0"
 constraintlayout = "2.1.4"
 coreKtx = "1.12.0"
+googleGenai = "1.16.0"
 fragment = "1.8.8"
 gradle-tooling = "8.6"
 gson = "2.10.1"
@@ -73,6 +75,8 @@ androidx-preference-ktx = { module = "androidx.preference:preference-ktx", versi
 androidx-recyclerview-v132 = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 androidx-viewpager2-v110beta02 = { module = "androidx.viewpager2:viewpager2", version.ref = "viewpager2" }
+bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bcprovJdk18on" }
+bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprovJdk18on" }
 colorpickerview = { module = "com.github.skydoves:colorpickerview", version.ref = "colorpickerview" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
@@ -90,6 +94,7 @@ composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" 
 composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 
 # Room
+google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
@@ -158,7 +163,6 @@ rikkax-parcelablelist = { module = "dev.rikka.rikkax.parcelablelist:parcelableli
 rikkax-htmlktx = { module = "dev.rikka.rikkax.html:html-ktx", version = "1.1.2" }
 libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu-core" }
 boringssl = { module = "io.github.vvb2060.ndk:boringssl", version = "20250114" }
-bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version = "1.80" }
 
 # AndroidX
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.9.1" }

@@ -40,9 +40,7 @@ import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.di.appModule
-import com.itsaky.androidide.di.pluginModule
-import com.itsaky.androidide.editor.processing.TextProcessorEngine
+import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -51,8 +49,7 @@ import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.plugins.manager.core.PluginManager
-
-
+import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -87,11 +84,14 @@ import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
+const val EXIT_CODE_CRASH = 1
+
 class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
     private var pluginManager: PluginManager? = null
     private var currentActivity: android.app.Activity? = null
+    private val crashEventSubscriber = CrashEventSubscriber()
     private val analyticsManager: IAnalyticsManager by inject()
 
     companion object {
@@ -173,11 +173,8 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
 
         startKoin {
             androidContext(this@IDEApplication)
-            modules(appModule, pluginModule)
+            modules(coreModule)
         }
-
-        val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
-        TextProcessorEngine.additionalProcessors.add(geminiMacro)
 
         SentryAndroid.init(this)
         ShizukuSettings.initialize(this)
@@ -207,6 +204,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
             .installDefaultEventBus(true)
 
         EventBus.getDefault().register(this)
+        EventBus.getDefault().register(crashEventSubscriber)
 
         AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
@@ -304,7 +302,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
                 uncaughtExceptionHandler!!.uncaughtException(thread, th)
             }
 
-            exitProcess(1)
+            exitProcess(EXIT_CODE_CRASH)
         } catch (error: Throwable) {
             log.error("Unable to show crash handler activity", error)
         }
