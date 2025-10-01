@@ -69,7 +69,7 @@
 
     <!-- Project -->
     <string name="title_first_build">Setting up your project</string>
-    <string name="msg_first_build">Code on the Go is initializing your project\'s files and directories. Please be patient!\n\nWhen setup is finished, \"Project Initialized\" will be displayed at the bottom of the screen.</string>
+    <string name="msg_first_build">Code on the Go is initializing your project. Please be patient!\n\nWhen setup is finished, \"Project initialized\" will be displayed at the bottom of the screen.</string>
     <string name="create_project">Create a new project</string>
     <string name="minimum_sdk">Minimum SDK</string>
     <string name="new_project">New project</string>
@@ -279,7 +279,7 @@
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
      <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
     <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
-    <string name="msg_help_hint">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
+    <string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
     <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
