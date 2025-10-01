@@ -208,7 +208,7 @@
     <string name="msg_empty_ui_layout">No views have been added. Click to add.</string>
     <string name="msg_generate_xml_failed">Failed to generate XML code</string>
     <string name="title_generating_xml">Generating XML code</string>
-    <string name="msg_swipe_up">Swipe up or click for build output, logs and more.</string>
+    <string name="msg_swipe_up">Swipe up for build output, logs and more</string>
 
     <!-- Crash Screen -->
     <string name="msg_ide_crashed">Code on the Go crashed</string>
@@ -277,17 +277,10 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-    <string name="msg_drawer_for_files">
-  • <b>To view the file tree, build tools, and preferences, swipe from the left edge or tap the menu at the upper left. :</b>\n
-  </string>
-    <string name="msg_swipe_for_output">
-  • <b>To view build output, logs, diagnostics, and more, tap the bottom of the page or swipe up.
-  </string>
-    <string name="msg_help_hint">
-  • <b>To get help at any time, long-press anything to view a tooltip.</string>
-    <string name="msg_long_press_help">
-    To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
-  </string>
+     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
+    <string name="msg_help_hint">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
+    <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
     <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
