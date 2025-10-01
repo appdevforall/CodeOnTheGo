@@ -49,7 +49,7 @@
     <string name="msg_no_references">No references found</string>
     <string name="view_diags">Diagnostics</string>
     <string name="title_installation_failed">Installation failed</string>
-    <string name="msg_picked_isnt_dir">Picked file is not a directory!</string>
+    <string name="msg_picked_isnt_dir">Picked file is not a directory</string>
     <string name="please_wait">Please wait for a moment…</string>
 
     <!-- Project Builder -->
@@ -208,7 +208,7 @@
     <string name="msg_empty_ui_layout">No views have been added. Click to add.</string>
     <string name="msg_generate_xml_failed">Failed to generate XML code</string>
     <string name="title_generating_xml">Generating XML code</string>
-    <string name="msg_swipe_up">Swipe up or click for build output, logs and more.</string>
+    <string name="msg_swipe_up">Tap or swipe up for build output, logs and more.</string>
 
     <!-- Crash Screen -->
     <string name="msg_ide_crashed">Code on the Go crashed</string>
@@ -277,26 +277,10 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-    <string name="msg_drawer_for_files">
-  • <b>To view the file tree, build tools, and preferences:</b>\n
-     - Tap the menu icon at the upper left\n
-     - Tap the left side of the page\n
-     - Swipe from the left side to the right
-  </string>
-    <string name="msg_swipe_for_output">
-  • <b>To view build output, logs, diagnostics, and more:</b>\n
-     - Tap the bottom of the page\n
-     - Swipe upward from the bottom
-  </string>
-    <string name="msg_help_hint">
-  • <b>Help at any time:</b>\n
-     - Long-press any item to learn about it\n
-     - In the text editor, long-press shows options.\n
-     - Tap <b>?</b> for help.
-  </string>
-    <string name="msg_long_press_help">
-    To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
-  </string>
+    <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_swipe_for_output">281 To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
+    <string name="msg_help_hint">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
+    <string name="msg_long_press_help">282 To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
     <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
