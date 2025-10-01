@@ -1,67 +1,75 @@
 package com.itsaky.androidide.repositories
 
-import com.google.common.collect.HashBasedTable
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
+import com.itsaky.androidide.utils.Environment
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
+
 object BreakpointRepository {
+    private const val BREAKPOINT_FILE_NAME = "breakpoints.json"
 
     private val gson = Gson()
 
-    private var breakpointsFile: File? = null
-    private const val BREAKPOINT_FILE_NAME = "breakpoints.json"
-
-    fun getBreakpointFile(projectLocation: String): File? {
+    fun getBreakpointFile(projectLocation: String): File {
         val projectDir = File(projectLocation)
+        val projectCacheDir = Environment.getProjectCacheDir(projectDir)
         val cacheDir = File(projectDir, ".androidide/editor")
-        if (!cacheDir.exists()) {
-            cacheDir.mkdirs()
-        }
-
-        val file = File(cacheDir, BREAKPOINT_FILE_NAME)
-        if (!file.exists()) {
-            file.createNewFile()
-        }
-
-        breakpointsFile = file
-
-        return breakpointsFile
+        val editorCacheDir = File(projectCacheDir, "editor")
+        println(cacheDir)
+        return File(editorCacheDir, BREAKPOINT_FILE_NAME)
     }
 
-    fun loadBreakpoints(projectLocation: String): List<PositionalBreakpoint> {
+    suspend fun loadBreakpoints(projectLocation: String): List<PositionalBreakpoint> {
         val breakpointFile = getBreakpointFile(projectLocation)
 
-        if (breakpointFile == null || !breakpointFile.exists()) {
-            return emptyList()
-        }
-
-        return try {
-            val jsonString = breakpointFile.readText()
-            if (jsonString.isBlank()) {
-                return emptyList()
+        return withContext(Dispatchers.IO) {
+            if (!breakpointFile.exists()) {
+                return@withContext emptyList()
             }
 
-            val type = object : TypeToken<List<PositionalBreakpoint>>() {}.type
-            gson.fromJson(jsonString, type) ?: emptyList()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
+            try {
+                val jsonString = breakpointFile.readText()
+                if (jsonString.isBlank()) {
+                    return@withContext emptyList()
+                }
+
+                val type = object : TypeToken<List<PositionalBreakpoint>>() {}.type
+                gson.fromJson(jsonString, type) ?: emptyList()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                emptyList()
+            }
         }
     }
 
-    fun saveBreakpoints(table: HashBasedTable<String, Int, PositionalBreakpoint>) {
-        val file = breakpointsFile ?: return
+    suspend fun saveBreakpoints(projectLocation: String, breakpoints: List<BreakpointDefinition>) {
+        val file = getBreakpointFile(projectLocation)
+        val jsonOut = gson.toJson(breakpoints)
 
-        try {
-            val breakpointsToSave = table.values().toList()
+        withContext(Dispatchers.IO) {
+            try {
+                file.parentFile?.mkdirs()
 
-            val jsonOut = gson.toJson(breakpointsToSave)
+                if (!file.exists()) {
+                    file.createNewFile()
+                }
 
-            file.writeText(jsonOut)
-
-        } catch (_: Exception) {}
+                file.writeText(jsonOut)
+            } catch (e: Exception) {
+                Log.e(
+                    "BreakpointManager",
+                    "Failed to save breakpoints to file: ${file.absolutePath}",
+                    e
+                )
+                Sentry.captureException(e)
+            }
+        }
     }
 }

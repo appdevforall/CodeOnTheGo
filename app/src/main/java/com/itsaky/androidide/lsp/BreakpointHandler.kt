@@ -10,6 +10,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.repositories.BreakpointRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,7 @@ private interface BreakpointEvent {
         val line: Int
     ): BreakpointEvent
 
+    object Save : BreakpointEvent
 }
 
 class BreakpointHandler {
@@ -68,26 +70,29 @@ class BreakpointHandler {
         notifyUnhighlight()
     }
 
+    fun getProjectLocation(): String {
+        val projectDir = IProjectManager.getInstance().projectDir
+        return projectDir.absolutePath
+    }
+
     fun breakpointsInFile(path: String) = ArrayList(breakpoints.row(path).values)
 
     fun begin(consumer: (List<BreakpointDefinition>) -> Unit) {
-        val projectDir = IProjectManager.getInstance().projectDir
-        val projectLocation = projectDir.absolutePath
-        val loadedBreakpoints = BreakpointRepository.loadBreakpoints(projectLocation)
+        scope.launch {
+            val loadedBreakpoints = BreakpointRepository.loadBreakpoints(getProjectLocation())
 
-        onSetBreakpoints = consumer
-        onSetBreakpoints(loadedBreakpoints)
+            onSetBreakpoints = consumer
+            onSetBreakpoints(loadedBreakpoints)
 
-        synchronized(breakpoints) {
-            breakpoints.clear()
-            loadedBreakpoints.forEach { bp ->
-                bp.source.path.let { path ->
-                    breakpoints.put(path, bp.line, bp)
+            synchronized(breakpoints) {
+                breakpoints.clear()
+                loadedBreakpoints.forEach { bp ->
+                    bp.source.path.let { path ->
+                        breakpoints.put(path, bp.line, bp)
+                    }
                 }
             }
-        }
 
-        scope.launch {
             for (event in events) {
                 process(event)
             }
@@ -115,10 +120,19 @@ class BreakpointHandler {
         events.send(BreakpointEvent.Toggle(file, line))
     }
 
+    private fun onSave() {
+        scope.launch(Dispatchers.IO) {
+            val breakpointsToSave = breakpoints.values().toList()
+            BreakpointRepository.saveBreakpoints(getProjectLocation(), breakpointsToSave)
+            logger.debug("Breakpoints saved to disk.")
+        }
+    }
+
     private fun process(event: BreakpointEvent) {
         when (event) {
             is BreakpointEvent.DocChange -> onChange(event)
             is BreakpointEvent.Toggle -> onToggle(event)
+            is BreakpointEvent.Save -> onSave()
         }
     }
 
@@ -224,8 +238,6 @@ class BreakpointHandler {
                 breakpoints.put(path, line, breakpoint)
                 notifyAdded(path, line)
             }
-
-            BreakpointRepository.saveBreakpoints(breakpoints)
         }
 
         notifyToggled(path, line)
@@ -233,6 +245,7 @@ class BreakpointHandler {
         // if we're already connected to a client, update the client as well
         val fileBreakpoints = breakpoints.row(path)
         onSetBreakpoints(ArrayList(fileBreakpoints.values))
+        events.trySend(BreakpointEvent.Save)
     }
 
     private fun notifyAdded(file: String, line: Int) {
