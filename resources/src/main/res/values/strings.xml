@@ -278,7 +278,7 @@
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
-    <string name="msg_swipe_for_output">281 To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
+    <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
     <string name="msg_help_hint">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="msg_long_press_help">282 To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
