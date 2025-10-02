@@ -16,7 +16,7 @@ import java.io.File
 
 
 object BreakpointRepository {
-    private const val BREAKPOINT_FILE_NAME = "breakpoints.json"
+    const val BREAKPOINT_FILE_NAME = "breakpoints.json"
 
     private val bpAdapter =
         RuntimeTypeAdapterFactory.of(BreakpointDefinition::class.java, "kind")
@@ -27,12 +27,15 @@ object BreakpointRepository {
         .registerTypeAdapterFactory(bpAdapter)
         .create()
 
+    fun getEditorCacheDir(projectLocation: String): File {
+      val projectDir = File(projectLocation)
+      val projectCacheDir = Environment.getProjectCacheDir(projectDir)
+      return File(projectCacheDir, "editor")
+    }
+
     fun getStoredBreakpointsFile(projectLocation: String): File {
-        val projectDir = File(projectLocation)
-        val projectCacheDir = Environment.getProjectCacheDir(projectDir)
-        val cacheDir = File(projectDir, ".androidide/editor")
-        val editorCacheDir = File(projectCacheDir, "editor")
-        println(cacheDir)
+        val editorCacheDir = getEditorCacheDir(projectLocation)
+
         return File(editorCacheDir, BREAKPOINT_FILE_NAME)
     }
 
@@ -74,24 +77,6 @@ object BreakpointRepository {
                 Log.e(
                     "BreakpointManager",
                     "Failed to save breakpoints to file: ${file.absolutePath}",
-                    e
-                )
-                Sentry.captureException(e)
-            }
-        }
-    }
-
-    suspend fun clearBreakpoints(projectLocation: String) {
-        val file = getStoredBreakpointsFile(projectLocation)
-
-        withContext(Dispatchers.IO) {
-            try {
-                file.parentFile?.mkdirs()
-                if (file.exists()) file.delete()
-            } catch (e: Exception) {
-                Log.e(
-                    "BreakpointManager",
-                    "Failed to clear breakpoints to file: ${file.absolutePath}",
                     e
                 )
                 Sentry.captureException(e)

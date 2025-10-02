@@ -216,7 +216,7 @@ class CodeEditorView(
     val handler = IDEDebugClientImpl.requireInstance().breakpoints
 
     codeEditorScope.launch {
-      val breakpoints = handler.storedPositionalBreakpoints()
+      val breakpoints = handler.positionalBreakpointsInFile()
 
       val highlightedLine = handler.highlightedLocation?.takeIf { it.first == file.canonicalPath }?.second
       editor?.apply {

@@ -15,7 +15,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,7 +41,6 @@ private interface BreakpointEvent {
     ): BreakpointEvent
 
     object Save : BreakpointEvent
-    object Clear : BreakpointEvent
 }
 
 private data class BpState(
@@ -59,6 +60,7 @@ class BreakpointHandler {
     private val stateRef = AtomicReference(
         BpState(ImmutableTable.of(), ImmutableTable.of())
     )
+    private var saveJob: Job? = null
 
     val highlightedLocationState: StateFlow<Pair<String, Int>?>
         get() = _highlightedLocation.asStateFlow()
@@ -94,8 +96,10 @@ class BreakpointHandler {
     }
 
     fun begin(consumer: (List<BreakpointDefinition>) -> Unit) {
+        val projectLocation = getProjectLocation()
+
         scope.launch {
-            val loadedBreakpoints = BreakpointRepository.getBreakpointsLocalStored(getProjectLocation())
+            val loadedBreakpoints = BreakpointRepository.getBreakpointsLocalStored(projectLocation)
 
             refreshBreakpoints(loadedBreakpoints)
             onSetBreakpoints = consumer
@@ -120,7 +124,7 @@ class BreakpointHandler {
         listeners.remove(listener)
     }
 
-    suspend fun storedPositionalBreakpoints(): List<PositionalBreakpoint> = BreakpointRepository.getPositionalBreakpoints(getProjectLocation())
+    suspend fun positionalBreakpointsInFile(): List<PositionalBreakpoint> = BreakpointRepository.getPositionalBreakpoints(getProjectLocation())
 
     suspend fun change(event: DocumentChangeEvent) {
         events.send(BreakpointEvent.DocChange(event))
@@ -154,38 +158,11 @@ class BreakpointHandler {
         stateRef.set(snap)
     }
 
-    private fun onSave() {
-        scope.launch(Dispatchers.IO) {
-            val snap = stateRef.get()
-            val breakpointsToSave = buildList {
-                addAll(snap.positional.values())
-                addAll(snap.method.values())
-            }
-            BreakpointRepository.saveBreakpoints(getProjectLocation(), breakpointsToSave)
-            logger.debug("Breakpoints saved to disk.")
-        }
-    }
-
-    private fun onClear() {
-        scope.launch {
-            stateRef.set(BpState(
-                positional = ImmutableTable.of(),
-                method     = ImmutableTable.of()
-            ))
-
-            onSetBreakpoints(emptyList())
-            BreakpointRepository.clearBreakpoints(getProjectLocation())
-
-            logger.debug("All breakpoints cleared (memory + disk).")
-        }
-    }
-
     private fun process(event: BreakpointEvent) {
         when (event) {
             is BreakpointEvent.DocChange -> onChange(event)
             is BreakpointEvent.Toggle -> onToggle(event)
             is BreakpointEvent.Save -> onSave()
-            is BreakpointEvent.Clear -> onClear()
         }
     }
 
@@ -210,7 +187,7 @@ class BreakpointHandler {
             newPos.row(path).clear()
 
             stateRef.set(current.copy(positional = ImmutableTable.copyOf(newPos)))
-            events.trySend(BreakpointEvent.Clear)
+            events.trySend(BreakpointEvent.Save)
             return
         }
 
@@ -281,6 +258,20 @@ class BreakpointHandler {
 
         stateRef.set(current.copy(positional = ImmutableTable.copyOf(newPos)))
         events.trySend(BreakpointEvent.Save)
+    }
+
+    private fun onSave() {
+        saveJob?.cancel()
+        saveJob = scope.launch(Dispatchers.IO) {
+            delay(1000)
+            val snap = stateRef.get()
+            val breakpointsToSave = buildList {
+                addAll(snap.positional.values())
+                addAll(snap.method.values())
+            }
+            BreakpointRepository.saveBreakpoints(getProjectLocation(), breakpointsToSave)
+            logger.debug("Breakpoints saved to disk.")
+        }
     }
 
     private fun notifyAdded(file: String, line: Int) {
