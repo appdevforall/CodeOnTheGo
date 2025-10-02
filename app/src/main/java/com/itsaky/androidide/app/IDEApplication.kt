@@ -28,6 +28,9 @@ import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
@@ -35,8 +38,9 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.agent.GeminiMacroProcessor
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.di.appModule
+import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
@@ -47,8 +51,7 @@ import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.plugins.manager.core.PluginManager
-
-
+import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -75,6 +78,7 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.koin.android.ext.android.getKoin
+import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -82,11 +86,15 @@ import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
-class IDEApplication : TermuxApplication() {
+const val EXIT_CODE_CRASH = 1
+
+class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
     private var pluginManager: PluginManager? = null
     private var currentActivity: android.app.Activity? = null
+    private val crashEventSubscriber = CrashEventSubscriber()
+    private val analyticsManager: IAnalyticsManager by inject()
 
     companion object {
         private val log = LoggerFactory.getLogger(IDEApplication::class.java)
@@ -161,17 +169,14 @@ class IDEApplication : TermuxApplication() {
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
-        super.onCreate()
+        super<TermuxApplication>.onCreate()
 
         initializePluginSystem()
 
         startKoin {
             androidContext(this@IDEApplication)
-            modules(appModule, pluginModule)
+            modules(coreModule, pluginModule)
         }
-
-        val geminiMacro: GeminiMacroProcessor = getKoin().get<GeminiMacroProcessor>()
-        TextProcessorEngine.additionalProcessors.add(geminiMacro)
 
         SentryAndroid.init(this)
         ShizukuSettings.initialize(this)
@@ -201,6 +206,7 @@ class IDEApplication : TermuxApplication() {
             .installDefaultEventBus(true)
 
         EventBus.getDefault().register(this)
+        EventBus.getDefault().register(crashEventSubscriber)
 
         AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
@@ -214,6 +220,28 @@ class IDEApplication : TermuxApplication() {
         GlobalScope.launch {
             IDEColorSchemeProvider.init()
         }
+
+        initializeAnalytics()
+    }
+
+    private fun initializeAnalytics() {
+        try {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+            analyticsManager.initialize()
+            log.info("Firebase Analytics initialized successfully")
+        } catch (e: Exception) {
+            log.error("Failed to initialize Firebase Analytics", e)
+        }
+    }
+
+    override fun onStart(owner: LifecycleOwner) {
+        super.onStart(owner)
+        analyticsManager.startSession()
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        super.onStop(owner)
+        analyticsManager.endSession()
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -276,7 +304,7 @@ class IDEApplication : TermuxApplication() {
                 uncaughtExceptionHandler!!.uncaughtException(thread, th)
             }
 
-            exitProcess(1)
+            exitProcess(EXIT_CODE_CRASH)
         } catch (error: Throwable) {
             log.error("Unable to show crash handler activity", error)
         }

@@ -3,7 +3,7 @@ package com.itsaky.androidide.models
 import java.util.UUID
 
 enum class MessageStatus {
-    SENT, LOADING, ERROR
+    SENT, LOADING, ERROR, COMPLETED
 }
 
 data class ChatMessage(

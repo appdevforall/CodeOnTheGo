@@ -26,7 +26,7 @@
 
     <!-- Git -->
     <string name="commit_message">Commit message</string>
-    <string name="commit_changes">Commit Changes</string>
+    <string name="commit_changes">Commit changes</string>
     <string name="title_commit">Commit</string>
     <string name="empty_commit">Commit message can not be empty</string>
     <string name="set_user_and_password">Please set Username and Email in settings</string>
@@ -49,18 +49,18 @@
     <string name="msg_no_references">No references found</string>
     <string name="view_diags">Diagnostics</string>
     <string name="title_installation_failed">Installation failed</string>
-    <string name="msg_picked_isnt_dir">Picked file is not a directory!</string>
-    <string name="please_wait">Please wait for a moment…</string>
+    <string name="msg_picked_isnt_dir">The picked file is not a directory!</string>
+    <string name="please_wait">Please wait for a moment.</string>
 
     <!-- Project Builder -->
-    <string name="title_unsupported_device">Device Not Supported</string>
+    <string name="title_unsupported_device">This device is not supported</string>
     <string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code On The Go.</string>
     <string name="title_clear_output">Clear output</string>
     <string name="build_output">Build output</string>
     <string name="quick_run_debug">Quick run</string>
-    <string name="msg_sync_needed">Gradle files have changed. Please rebuild your project to sync dependencies and configurations.</string>
+    <string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
     <string name="preparing">Preparing</string>
-    <string name="preparing_first">Preparing. First build may take up to 10–15 minutes!</string>
+    <string name="preparing_first">Initializing a project may take a few moments.</string>
     <string name="msg_installing_gradlew">Gradle Wrapper is not available!\nInstalling default one. Gradle v7.4 will be downloaded if necessary.</string>
     <string name="run">Run</string>
     <string name="gradle" translatable="false">Gradle</string>
@@ -68,8 +68,8 @@
 
 
     <!-- Project -->
-    <string name="title_first_build">Setting up your new project</string>
-    <string name="msg_first_build">Code on the Go is setting up your new project\'s files and directories. Please be patient!\n\nWhen setup is finished, \"Project Initialized\" will be displayed at the bottom of the screen.</string>
+    <string name="title_first_build">Setting up your project</string>
+    <string name="msg_first_build">Code on the Go is initializing your project. Please be patient!\n\nWhen setup is finished, \"Project initialized\" will be displayed at the bottom of the screen.</string>
     <string name="create_project">Create a new project</string>
     <string name="minimum_sdk">Minimum SDK</string>
     <string name="new_project">New project</string>
@@ -83,7 +83,7 @@
     <string name="msg_create_new_project">Create new project</string>
     <string name="msg_open_existing_project">Open a saved project</string>
     <string name="msg_delete_existing_project">Delete a saved project</string>
-    <string name="msg_delete_existing_project_failed">Failed to delete existing project </string>
+    <string name="msg_delete_existing_project_failed">Failed to delete existing project</string>
     <string name="title_confirm_project_close">Close project</string>
     <string name="cancel_project_text">Cancel</string>
     <string name="close_without_saving">Close without saving files</string>
@@ -111,23 +111,23 @@
     <string name="msg_find_project_filter">Separated by \'|\'</string>
     <string name="msg_empty_search_query">Please enter text</string>
     <string name="msg_select_search_modules">Select modules to search</string>
-    <string name="msg_searching_project">Finding in project, please wait…</string>
+    <string name="msg_searching_project">Searching the project…</string>
     <string name="view_search_results">Search results</string>
     <string name="project_created_successfully">Project created successfully!</string>
     <string name="project_creation_failed">Failed to create project</string>
-    <string name="msg_folder_creation_failed">Failed to create folder!</string>
-    <string name="msg_file_creation_failed">Failed to create file!</string>
-    <string name="msg_layout_file_creation_failed">Failed to create layout file!</string>
-    <string name="msg_folder_created">Folder created successfully!</string>
-    <string name="msg_file_created">File created successfully!</string>
-    <string name="msg_folder_exists">Folder already exists!</string>
-    <string name="msg_file_exists">File already exists!</string>
-    <string name="msg_layout_file_exists">Layout file already exists!</string>
-    <string name="msg_invalid_name">Invalid Name!</string>
+    <string name="msg_folder_creation_failed">Failed to create folder</string>
+    <string name="msg_file_creation_failed">Failed to create file</string>
+    <string name="msg_layout_file_creation_failed">Failed to create layout file</string>
+    <string name="msg_folder_created">Folder created successfully</string>
+    <string name="msg_file_created">File created successfully</string>
+    <string name="msg_folder_exists">Folder already exists</string>
+    <string name="msg_file_exists">File already exists</string>
+    <string name="msg_layout_file_exists">Layout file already exists</string>
+    <string name="msg_invalid_name">Invalid name</string>
     <string name="text_create">Create</string>
     <string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created automatically.</string>
-    <string name="folder_name">Folder Name</string>
-    <string name="file_name">File Name</string>
+    <string name="folder_name">Folder name</string>
+    <string name="file_name">File name</string>
     <string name="new_name">New name</string>
     <string name="new_file">New file</string>
     <string name="create_auto_layout">Create layout file</string>
@@ -138,17 +138,17 @@
     <string name="msg_confirm_delete">Are you sure you want to delete:\n%s?</string>
     <string name="copied">Copied successfully!</string>
     <string name="msg_rename_file">Enter new name for file/folder.</string>
-    <string name="renamed">Renamed successfully!</string>
-    <string name="rename_failed">Unable to rename file!</string>
-    <string name="deleted">Deleted successfully!</string>
-    <string name="delete_failed">Unable to delete file!</string>
+    <string name="renamed">Renamed successfully</string>
+    <string name="rename_failed">Unable to rename file</string>
+    <string name="deleted">Deleted successfully</string>
+    <string name="delete_failed">Unable to delete file</string>
     <string name="copy_path">Copy path</string>
     <string name="rename_file">Rename</string>
     <string name="delete_file">Delete</string>
     <string name="action_closeAll">Close all</string>
     <string name="action_closeOthers">Close others</string>
     <string name="action_closeThis">Close this</string>
-    <string name="all_saved">All files saved!</string>
+    <string name="all_saved">All files saved</string>
     <string name="save_failed">Failed to save files</string>
     <string name="msg_newfile_dest">Destination: %s/</string>
     <string name="restype_drawable">Drawable</string>
@@ -159,7 +159,7 @@
     <string name="classtype_activity">Activity</string>
     <string name="title_interface">Interface</string>
     <string name="classtype_enum">Enum</string>
-    <string name="msg_failed_list_files">Failed to list project files!</string>
+    <string name="msg_failed_list_files">Failed to list project files</string>
 
     <!-- Code Editor -->
     <string name="open_with">Open with...</string>
@@ -269,7 +269,7 @@
 
     <string name="build_status_idle">No builds in progress</string>
     <string name="build_status_in_progress">Build in progress…</string>
-    <string name="build_status_failed">Build failed. See build output for more details.</string>
+    <string name="build_status_failed">Build failed. See the build output panel for more details.</string>
     <string name="build_status_sucess">Build successful</string>
     <string name="msg_output_text_extraction_failed">Failed to get text from editor</string>
     <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
@@ -277,26 +277,10 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-    <string name="msg_drawer_for_files">
-  • <b>To view the file tree, build tools, and preferences:</b>\n
-     - Tap the menu icon at the upper left\n
-     - Tap the left side of the page\n
-     - Swipe from the left side to the right
-  </string>
-    <string name="msg_swipe_for_output">
-  • <b>To view build output, logs, diagnostics, and more:</b>\n
-     - Tap the bottom of the page\n
-     - Swipe upward from the bottom
-  </string>
-    <string name="msg_help_hint">
-  • <b>Help at any time:</b>\n
-     - Long-press any item to learn about it\n
-     - In the text editor, long-press shows options.\n
-     - Tap <b>?</b> for help.
-  </string>
-    <string name="msg_long_press_help">
-    To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
-  </string>
+     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
+    <string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
+    <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
     <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
@@ -708,7 +692,7 @@
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
-	<string name="find_saved_project">Find a saved project</string>
+	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
 	<string name="feedback_email">feedback@appdevforall.org</string>
 	<string name="no_email_apps">No email apps found</string>
@@ -840,10 +824,10 @@
 	<!-- Instructional text specific to MIUI users, advising them to change notification style for successful pairing. -->
 	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" -
 		\"Notification shade\" in system settings.</string>
-	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not able to enter paring code from the notification.</string>
+	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not be able to enter pairing code from the notification.</string>
 
 	<!-- Instructional text explaining that the app needs local network access for wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access local network. It is controlled by the network permission.</string>
+	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access the local network. It is controlled by the network permission.</string>
 
 	<!-- Instructional text for users on systems (like MIUI) that restrict background network access, advising to disable
 		battery optimization. -->
@@ -859,15 +843,14 @@
 	<string name="adb_pairing_tutorial_content_enter_pairing_code">Enter the code in the notification to complete pairing.</string>
 
 	<!-- Instructional text clarifying how to correctly access the wireless debugging settings. -->
-	<string name="adb_pairing_tutorial_content_left_is_clickable">Please note, left part of the \"Wireless debugging\" option is clickable, tapping it will open a
-		new page. Only turing on the switch on the right is incorrect.</string>
+	<string name="adb_pairing_tutorial_content_left_is_clickable">In addition to enabling wireless debugging, you must tap the text \"Wireless debugging\" to issue additional pairing commands.</string>
 
 	<!-- Instructional text indicating the final step after successful pairing. -->
 	<string name="adb_pairing_tutorial_content_finish">Back to Code on the Go and the Shizuku service will start automatically.</string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
-	<string name="adb_pair_required">Please go through the pairing step first.</string>
+	<string name="adb_pair_required">Please enable wireless debugging and pair the device with the service.</string>
 
 	<!-- Status message indicating that the application is searching for the ADB connection port. Placeholder %1$d represents
 		the number of times the IDE has tried to find the port. Placeholder %2$d represents the maximum number of attempts to find
@@ -879,7 +862,7 @@
 	<string name="adb_connection_connecting">Connecting to ADB daemon on port: %1$d…</string>
 
 	<!-- Status message indicating a successful connection to the ADB daemon. -->
-	<string name="adb_connection_succeeded">Successfully connected to ADB daemon!</string>
+	<string name="adb_connection_succeeded">Successfully connected to ADB daemon</string>
 
 	<!-- Status message indicating a failed connection to the ADB daemon. The %1$s is a placeholder for the error reason. -->
 	<string name="adb_connection_failed">Connection to ADB daemon failed: %1$s</string>
