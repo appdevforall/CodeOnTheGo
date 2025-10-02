@@ -41,6 +41,8 @@ import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.coreModule
+import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -173,7 +175,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
 
         startKoin {
             androidContext(this@IDEApplication)
-            modules(coreModule)
+            modules(coreModule, pluginModule)
         }
 
         SentryAndroid.init(this)
