@@ -1,4 +1,4 @@
-package com.itsaky.androidide.models
+package com.itsaky.androidide.agent
 
 /**
  * Represents the various states of the Gemini agent during an operation.

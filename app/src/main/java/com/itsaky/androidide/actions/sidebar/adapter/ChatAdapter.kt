@@ -13,8 +13,8 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
-import com.itsaky.androidide.models.ChatMessage
-import com.itsaky.androidide.models.MessageStatus
+import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.MessageStatus
 import io.noties.markwon.Markwon
 import java.util.Locale
 

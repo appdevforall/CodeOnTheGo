@@ -11,10 +11,10 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.GeminiRepository
-import com.itsaky.androidide.models.AgentState
-import com.itsaky.androidide.models.ChatMessage
-import com.itsaky.androidide.models.ChatSession
-import com.itsaky.androidide.models.MessageStatus
+import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.ChatSession
+import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers

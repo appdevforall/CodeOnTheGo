@@ -1,8 +1,8 @@
 package com.itsaky.androidide.agent.repository
 
 import com.itsaky.androidide.agent.data.ToolCall
-import com.itsaky.androidide.models.AgentState
-import com.itsaky.androidide.models.ChatMessage
+import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ChatMessage
 
 interface GeminiRepository {
     var onStateUpdate: ((AgentState) -> Unit)?
