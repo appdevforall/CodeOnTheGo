@@ -25,8 +25,6 @@ import android.text.TextUtils
 import android.view.Display
 import android.view.View
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.result.ActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
@@ -62,19 +60,10 @@ import java.io.File
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
-	private val DATABASENAME = "documentation.db"
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
 	private val viewModel by viewModels<MainViewModel>()
 	private var _binding: ActivityMainBinding? = null
-
-	private val shareActivityResultLauncher =
-		registerForActivityResult<Intent, ActivityResult>(
-			ActivityResultContracts.StartActivityForResult(),
-		) {
-			// ACTION_SEND always returns RESULT_CANCELLED, ignore it
-			// There are no request codes
-		}
 
 	companion object {
 		private var instance: MainActivity? = null
