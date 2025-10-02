@@ -23,99 +23,98 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class FeedbackEmailHandler(
-    val context: Context
+	val context: Context,
 ) {
+	companion object {
+		private const val SCREENSHOTS_DIR = "feedback_screenshots"
+		private val log = LoggerFactory.getLogger(FeedbackEmailHandler::class.java)
+	}
 
-    companion object {
-        private const val SCREENSHOTS_DIR = "feedback_screenshots"
-        private val log = LoggerFactory.getLogger(FeedbackEmailHandler::class.java)
-    }
+	suspend fun captureAndPrepareScreenshotUri(
+		activity: Activity,
+		screenshotName: String = "feedback_screenshot",
+	): Pair<Uri?, String?>? {
+		val rootView = activity.window?.decorView?.rootView ?: return null
+		if (rootView.width <= 0 || rootView.height <= 0 || !rootView.isShown) return null
 
-    suspend fun captureAndPrepareScreenshotUri(
-        activity: Activity,
-        screenshotName: String = "feedback_screenshot"
-    ): Pair<Uri?, String?>? {
+		val screenshotBitmap = createBitmap(rootView.width, rootView.height)
 
-        val rootView = activity.window?.decorView?.rootView ?: return null
-        if (rootView.width <= 0 || rootView.height <= 0 || !rootView.isShown) return null
+		return try {
+			val saveResultUri =
+				withContext(Dispatchers.IO) {
+					val bitmapResult =
+						suspendCoroutine { continuation ->
+							PixelCopy.request(activity.window, screenshotBitmap, { copyResult ->
+								if (copyResult == PixelCopy.SUCCESS) {
+									continuation.resume(screenshotBitmap)
+								} else {
+									continuation.resume(null)
+								}
+							}, Handler(Looper.getMainLooper()))
+						}
 
-        val screenshotBitmap = createBitmap(rootView.width, rootView.height)
+					if (bitmapResult == null) {
+						log.error("PixelCopy failed.")
+						return@withContext null
+					}
 
-        return try {
-            val saveResultUri = withContext(Dispatchers.IO) {
-                val bitmapResult = suspendCoroutine { continuation ->
-                    PixelCopy.request(activity.window, screenshotBitmap, { copyResult ->
-                        if (copyResult == PixelCopy.SUCCESS) {
-                            continuation.resume(screenshotBitmap)
-                        } else {
-                            continuation.resume(null)
-                        }
-                    }, Handler(Looper.getMainLooper()))
-                }
+					saveBitmapToFileWithProvider(context, bitmapResult, screenshotName)
+				}
+			saveResultUri
+		} catch (e: Exception) {
+			log.error("Failed to capture or save screenshot", e)
+			null
+		}
+	}
 
-                if (bitmapResult == null) {
-                    log.error("PixelCopy failed.")
-                    return@withContext null
-                }
+	private fun saveBitmapToFileWithProvider(
+		context: Context,
+		bitmap: Bitmap,
+		name: String,
+	): Pair<Uri?, String?>? =
+		try {
+			val screenshotsDir = File(context.filesDir, SCREENSHOTS_DIR).apply { mkdirs() }
+			val timestamp =
+				SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+			val filename = "${timestamp}_$name.jpg"
+			val screenshotFile = File(screenshotsDir, filename)
 
-                saveBitmapToFileWithProvider(context, bitmapResult, screenshotName)
-            }
-            saveResultUri
-        } catch (e: Exception) {
-            log.error("Failed to capture or save screenshot", e)
-            null
-        }
-    }
+			FileOutputStream(screenshotFile).use { out ->
+				bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+			}
 
-    private fun saveBitmapToFileWithProvider(
-        context: Context,
-        bitmap: Bitmap,
-        name: String
-    ): Pair<Uri?, String?>? {
-        return try {
-            val screenshotsDir = File(context.filesDir, SCREENSHOTS_DIR).apply { mkdirs() }
-            val timestamp =
-                SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-            val filename = "${timestamp}_${name}.jpg"
-            val screenshotFile = File(screenshotsDir, filename)
+			val authority =
+				"${context.packageName}.providers.fileprovider"
+			val uri = FileProvider.getUriForFile(context, authority, screenshotFile)
+			val mimeType =
+				URLConnection.guessContentTypeFromName(screenshotFile.name) ?: "image/jpeg"
+			Pair(uri, mimeType)
+		} catch (e: Exception) {
+			log.error("Failed to save bitmap to file", e)
+			null
+		}
 
-            FileOutputStream(screenshotFile).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
-            }
+	fun prepareEmailIntent(
+		attachmentUri: Uri?,
+		attachmentMimeType: String?,
+		emailRecipient: String,
+		subject: String,
+		body: String,
+	): Intent {
+		val intent =
+			Intent(Intent.ACTION_SEND).apply {
+				putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+				putExtra(Intent.EXTRA_SUBJECT, subject)
+				putExtra(Intent.EXTRA_TEXT, body)
 
-            val authority =
-                "${context.packageName}.providers.fileprovider"
-            val uri = FileProvider.getUriForFile(context, authority, screenshotFile)
-            val mimeType =
-                URLConnection.guessContentTypeFromName(screenshotFile.name) ?: "image/jpeg"
-            Pair(uri, mimeType)
-        } catch (e: Exception) {
-            log.error("Failed to save bitmap to file", e)
-            null
-        }
-    }
-
-    fun prepareEmailIntent(
-        attachmentUri: Uri?,
-        attachmentMimeType: String?,
-        emailRecipient: String,
-        subject: String,
-        body: String
-    ): Intent {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
-            putExtra(Intent.EXTRA_SUBJECT, subject)
-            putExtra(Intent.EXTRA_TEXT, body)
-
-            if (attachmentUri != null && attachmentMimeType != null) {
-                this.type = attachmentMimeType
-                putExtra(Intent.EXTRA_STREAM, attachmentUri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } else {
-                this.type = "text/plain"
-            }
-        }
-        return intent
-    }
-
+				if (attachmentUri != null && attachmentMimeType != null) {
+					this.type = attachmentMimeType
+					putExtra(Intent.EXTRA_STREAM, attachmentUri)
+					addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				} else {
+					this.type = "text/plain"
+				}
+			}
+		return intent
+	}
 }

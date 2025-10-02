@@ -30,77 +30,77 @@ import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
 class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
-  private var _binding: ActivityPreferencesBinding? = null
-  private val binding: ActivityPreferencesBinding
-    get() = checkNotNull(_binding) { "Activity has been destroyed" }
+private var _binding: ActivityPreferencesBinding? = null
+private val binding: ActivityPreferencesBinding
+	get() = checkNotNull(_binding) { "Activity has been destroyed" }
 
-  private val rootFragment by lazy {
-    IDEPreferencesFragment()
-  }
+private val rootFragment by lazy {
+	IDEPreferencesFragment()
+}
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+override fun onCreate(savedInstanceState: Bundle?) {
+	super.onCreate(savedInstanceState)
 
-    setSupportActionBar(binding.toolbar)
-    supportActionBar!!.setTitle(R.string.ide_preferences)
-    supportActionBar!!.setDisplayHomeAsUpEnabled(true)
+	setSupportActionBar(binding.toolbar)
+	supportActionBar!!.setTitle(R.string.ide_preferences)
+	supportActionBar!!.setDisplayHomeAsUpEnabled(true)
 
-    binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
-      FeedbackButtonManager(
-          activity = this,
-          feedbackFab = binding.fabFeedback
-      ).setupDraggableFab()
+	binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+	FeedbackButtonManager(
+		activity = this,
+		feedbackFab = binding.fabFeedback
+	).setupDraggableFab()
 
-    if (savedInstanceState != null) {
-      return
-    }
+	if (savedInstanceState != null) {
+	return
+	}
 
-    (prefs.children as MutableList?)?.clear()
+	(prefs.children as MutableList?)?.clear()
 
-    prefs.addRootPreferences()
+	prefs.addRootPreferences()
 
-    val args = Bundle()
-    args.putParcelableArrayList(
-      IDEPreferencesFragment.EXTRA_CHILDREN,
-      ArrayList(prefs.children)
-    )
+	val args = Bundle()
+	args.putParcelableArrayList(
+	IDEPreferencesFragment.EXTRA_CHILDREN,
+	ArrayList(prefs.children)
+	)
 
-    rootFragment.arguments = args
-    loadFragment(rootFragment)
-  }
+	rootFragment.arguments = args
+	loadFragment(rootFragment)
+}
 
-  override fun onApplySystemBarInsets(insets: Insets) {
-    val binding = _binding ?: return
-    val toolbar: View = binding.toolbar
-    toolbar.setPadding(
-      toolbar.paddingLeft + insets.left,
-      toolbar.paddingTop,
-      toolbar.paddingRight + insets.right,
-      toolbar.paddingBottom
-    )
+override fun onApplySystemBarInsets(insets: Insets) {
+	val binding = _binding ?: return
+	val toolbar: View = binding.toolbar
+	toolbar.setPadding(
+	toolbar.paddingLeft + insets.left,
+	toolbar.paddingTop,
+	toolbar.paddingRight + insets.right,
+	toolbar.paddingBottom
+	)
 
-    val fragmentContainer: View = binding.fragmentContainerParent
-    fragmentContainer.setPadding(
-      fragmentContainer.paddingLeft + insets.left,
-      fragmentContainer.paddingTop,
-      fragmentContainer.paddingRight + insets.right,
-      fragmentContainer.paddingBottom
-    )
-  }
+	val fragmentContainer: View = binding.fragmentContainerParent
+	fragmentContainer.setPadding(
+	fragmentContainer.paddingLeft + insets.left,
+	fragmentContainer.paddingTop,
+	fragmentContainer.paddingRight + insets.right,
+	fragmentContainer.paddingBottom
+	)
+}
 
-  override fun bindLayout(): View {
-    _binding = ActivityPreferencesBinding.inflate(
-      layoutInflater
-    )
-    return binding.root
-  }
+override fun bindLayout(): View {
+	_binding = ActivityPreferencesBinding.inflate(
+	layoutInflater
+	)
+	return binding.root
+}
 
-  private fun loadFragment(fragment: Fragment) {
-    super.loadFragment(fragment, binding.fragmentContainer.id)
-  }
+private fun loadFragment(fragment: Fragment) {
+	super.loadFragment(fragment, binding.fragmentContainer.id)
+}
 
-  override fun onDestroy() {
-    super.onDestroy()
-    _binding = null
-  }
+override fun onDestroy() {
+	super.onDestroy()
+	_binding = null
+}
 }

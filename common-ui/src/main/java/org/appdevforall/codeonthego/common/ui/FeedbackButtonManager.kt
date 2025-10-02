@@ -15,126 +15,127 @@ import com.itsaky.androidide.utils.FeedbackManager
 import kotlin.math.sqrt
 
 class FeedbackButtonManager(
-    val activity: AppCompatActivity,
-    val feedbackFab: FloatingActionButton,
+	val activity: AppCompatActivity,
+	val feedbackFab: FloatingActionButton,
 ) {
+	companion object {
+		private const val FAB_PREFS = "FabPrefs"
+		private const val KEY_FAB_X = "fab_x"
+		private const val KEY_FAB_Y = "fab_y"
+	}
 
-    companion object {
-        private const val FAB_PREFS = "FabPrefs"
-        private const val KEY_FAB_X = "fab_x"
-        private const val KEY_FAB_Y = "fab_y"
-    }
+	fun setupDraggableFab() {
+		loadFabPosition()
 
-    fun setupDraggableFab() {
+		var initialX = 0f
+		var initialY = 0f
+		var initialTouchX = 0f
+		var initialTouchY = 0f
+		var isDragging = false
+		var isLongPressed = false
 
-        loadFabPosition()
+		val gestureDetector =
+			GestureDetector(
+				activity,
+				object : GestureDetector.SimpleOnGestureListener() {
+					override fun onLongPress(e: MotionEvent) {
+						if (!isDragging) {
+							isLongPressed = true
+							TooltipManager.showTooltip(
+								context = activity,
+								anchorView = feedbackFab,
+								category = TooltipCategory.CATEGORY_IDE,
+								tag = TooltipTag.FEEDBACK,
+							)
+						}
+					}
+				},
+			)
 
-        var initialX = 0f
-        var initialY = 0f
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-        var isDragging = false
-        var isLongPressed = false
+		@SuppressLint("ClickableViewAccessibility")
+		feedbackFab.setOnTouchListener { v, event ->
+			val parentView = v.parent as? ViewGroup ?: return@setOnTouchListener false
 
-        val gestureDetector =
-            GestureDetector(activity, object : GestureDetector.SimpleOnGestureListener() {
-                override fun onLongPress(e: MotionEvent) {
-                    if (!isDragging) {
-                        isLongPressed = true
-                        TooltipManager.showTooltip(
-                            context = activity,
-                            anchorView = feedbackFab,
-                            category = TooltipCategory.CATEGORY_IDE,
-                            tag = TooltipTag.FEEDBACK
-                        )
-                    }
-                }
-            })
+			gestureDetector.onTouchEvent(event)
 
-        @SuppressLint("ClickableViewAccessibility")
-        feedbackFab.setOnTouchListener { v, event ->
-            val parentView = v.parent as? ViewGroup ?: return@setOnTouchListener false
+			when (event.action) {
+				MotionEvent.ACTION_DOWN -> {
+					initialX = v.x
+					initialY = v.y
+					initialTouchX = event.rawX
+					initialTouchY = event.rawY
+					isDragging = false
+					isLongPressed = false
+					true
+				}
 
-            gestureDetector.onTouchEvent(event)
+				MotionEvent.ACTION_MOVE -> {
+					val dX = event.rawX - initialTouchX
+					val dY = event.rawY - initialTouchY
 
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = v.x
-                    initialY = v.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    isDragging = false
-                    isLongPressed = false
-                    true
-                }
+					if (!isDragging &&
+						sqrt((dX * dX + dY * dY).toDouble()) >
+						ViewConfiguration
+							.get(
+								v.context,
+							).scaledTouchSlop
+					) {
+						isDragging = true
+					}
 
-                MotionEvent.ACTION_MOVE -> {
-                    val dX = event.rawX - initialTouchX
-                    val dY = event.rawY - initialTouchY
+					if (isDragging) {
+						v.x = (initialX + dX).coerceIn(0f, (parentView.width - v.width).toFloat())
+						v.y = (initialY + dY).coerceIn(0f, (parentView.height - v.height).toFloat())
+					}
+					true
+				}
 
-                    if (!isDragging &&
-                        sqrt((dX * dX + dY * dY).toDouble()) >
-                        ViewConfiguration
-                            .get(
-                                v.context,
-                            ).scaledTouchSlop
-                    ) {
-                        isDragging = true
-                    }
+				MotionEvent.ACTION_UP -> {
+					if (isDragging) {
+						saveFabPosition(v.x, v.y)
+					} else if (!isLongPressed) {
+						v.performClick()
+					}
+					true
+				}
 
-                    if (isDragging) {
-                        v.x = (initialX + dX).coerceIn(0f, (parentView.width - v.width).toFloat())
-                        v.y = (initialY + dY).coerceIn(0f, (parentView.height - v.height).toFloat())
-                    }
-                    true
-                }
+				else -> false
+			}
+		}
 
-                MotionEvent.ACTION_UP -> {
-                    if (isDragging) {
-                        saveFabPosition(v.x, v.y)
-                    } else if (!isLongPressed) {
-                        v.performClick()
-                    }
-                    true
-                }
+		feedbackFab.setOnClickListener {
+			performFeedbackAction()
+		}
+	}
 
-                else -> false
-            }
-        }
+	private fun performFeedbackAction() {
+		FeedbackManager.showFeedbackDialog(
+			activity = activity,
+		)
+	}
 
-        feedbackFab.setOnClickListener {
-            performFeedbackAction()
-        }
-    }
+	private fun saveFabPosition(
+		x: Float,
+		y: Float,
+	) {
+		activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
+			putFloat(KEY_FAB_X, x)
+			putFloat(KEY_FAB_Y, y)
+			apply()
+		}
+	}
 
-    private fun performFeedbackAction() {
-        FeedbackManager.showFeedbackDialog(
-            activity = activity,
-        )
-    }
+	private fun loadFabPosition() {
+		val prefs = activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
 
-    private fun saveFabPosition(
-        x: Float,
-        y: Float,
-    ) {
-        activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
-            putFloat(KEY_FAB_X, x)
-            putFloat(KEY_FAB_Y, y)
-            apply()
-        }
-    }
+		val x = prefs.getFloat(KEY_FAB_X, -1f)
+		val y = prefs.getFloat(KEY_FAB_Y, -1f)
 
-    private fun loadFabPosition() {
-        val prefs = activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
-
-        val x = prefs.getFloat(KEY_FAB_X, -1f)
-        val y = prefs.getFloat(KEY_FAB_Y, -1f)
-
-        if (x != -1f && y != -1f) {
-            feedbackFab.post {
-                feedbackFab.x = x
-                feedbackFab.y = y
-            }
-        }
-    }
+		if (x != -1f && y != -1f) {
+			feedbackFab.post {
+				feedbackFab.x = x
+				feedbackFab.y = y
+			}
+		}
+	}
 }
