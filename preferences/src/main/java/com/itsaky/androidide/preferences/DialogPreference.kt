@@ -47,7 +47,7 @@ abstract class DialogPreference : SimplePreference() {
     alertDialog.show()
 
       val listView = alertDialog.listView
-      listView.setOnItemLongClickListener { _, view, position, _ ->
+      listView?.setOnItemLongClickListener { _, view, position, _ ->
           TooltipManager.showTooltip(preference.context, view, tooltipTag)
           true
       }
