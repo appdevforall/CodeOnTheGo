@@ -42,7 +42,6 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     override suspend fun execAction(data: ActionData): Any {
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
-        val isXml = editor.file?.extension == "xml"
         val category = when (editor.file?.extension) {
             "java" -> TooltipCategory.CATEGORY_JAVA
             "kt" -> TooltipCategory.CATEGORY_KOTLIN
@@ -51,7 +50,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
-            val tag = if (isXml && editor.isXmlAttribute()) {
+            val tag = if (category == TooltipCategory.CATEGORY_XML && editor.isXmlAttribute()) {
                 "xml.attr.${word.substringAfterLast(":")}"
             } else {
                 word
