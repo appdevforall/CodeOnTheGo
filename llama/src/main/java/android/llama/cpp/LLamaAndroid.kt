@@ -12,12 +12,9 @@ import kotlin.concurrent.thread
 
 class LLamaAndroid {
 
-    // ADD THIS: Gets the context size (n_ctx) of the loaded model
     private external fun model_n_ctx(context: Long): Int
 
-    // ADD THIS: Converts text to tokens. The 'add_bos' adds a 'begin-of-sentence' token.
     private external fun tokenize(context: Long, text: String, add_bos: Boolean): IntArray
-    // ADD THIS public function to get the context size
     suspend fun getContextSize(): Int {
         return withContext(runLoop) {
             when (val state = threadLocalState.get()) {
