@@ -11,27 +11,10 @@ cmake_minimum_required(VERSION 3.22.1)
 # build script scope).
 project("llama-android")
 
-#include(FetchContent)
-#FetchContent_Declare(
-#        llama
-#        GIT_REPOSITORY https://github.com/ggml-org/llama.cpp
-#        GIT_TAG        master
-#)
+# Ensure we build a static library to link into our main shared library
+set(LLAMA_STATIC ON CACHE BOOL "Build llama as a static library")
+set(LLAMA_SHARED OFF CACHE BOOL "Do not build llama as a shared library")
 
-# Also provides "common"
-#FetchContent_MakeAvailable(llama)
-
-# Creates and names a library, sets it as either STATIC
-# or SHARED, and provides the relative paths to its source code.
-# You can define multiple libraries, and CMake builds them for you.
-# Gradle automatically packages shared libraries with your APK.
-#
-# In this top level CMakeLists.txt, ${CMAKE_PROJECT_NAME} is used to define
-# the target library name; in the sub-module's CMakeLists.txt, ${PROJECT_NAME}
-# is preferred for the same purpose.
-#
-
-#load local llama.cpp
 add_subdirectory(../../../../subprojects/llama.cpp/ build-llama)
 
 # In order to load a library into your app from Java/Kotlin, you must call
