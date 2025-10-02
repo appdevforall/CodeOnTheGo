@@ -7,24 +7,6 @@
 #include "llama.h"
 #include "common.h"
 
-// Write C++ code here.
-//
-// Do not forget to dynamically load the C++ library into your application.
-//
-// For instance,
-//
-// In MainActivity.java:
-//    static {
-//       System.loadLibrary("llama-android");
-//    }
-//
-// Or, in MainActivity.kt:
-//    companion object {
-//      init {
-//         System.loadLibrary("llama-android")
-//      }
-//    }
-
 #define TAG "llama-android.cpp"
 #define LOGi(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 #define LOGe(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
@@ -436,7 +418,6 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
     if (!la_int_var_value) la_int_var_value = env->GetMethodID(la_int_var, "getValue", "()I");
     if (!la_int_var_inc) la_int_var_inc = env->GetMethodID(la_int_var, "inc", "()V");
 
-    // sample the most likely token
     const auto new_token_id = llama_sampler_sample(sampler, context, -1);
 
     const auto n_cur = env->CallIntMethod(intvar_ncur, la_int_var_value);
@@ -487,9 +468,7 @@ Java_android_llama_cpp_LLamaAndroid_model_1n_1ctx(
     }
     return llama_n_ctx(context);
 }
-// In your llama-android.cpp file...
 
-// Replace the ENTIRE existing tokenize function with this one
 extern "C" JNIEXPORT jintArray JNICALL
 Java_android_llama_cpp_LLamaAndroid_tokenize(
         JNIEnv *env,
@@ -497,28 +476,21 @@ Java_android_llama_cpp_LLamaAndroid_tokenize(
         jlong context_ptr,
         jstring text_to_tokenize,
         jboolean add_bos) {
-    // Get the context pointer from the jlong
     auto *context = reinterpret_cast<llama_context *>(context_ptr);
     if (!context) {
         return env->NewIntArray(0); // Return empty array if context is invalid
     }
 
-    // Convert the Java string to a C++ string
     const char *text_chars = env->GetStringUTFChars(text_to_tokenize, nullptr);
     std::string text(text_chars);
     env->ReleaseStringUTFChars(text_to_tokenize, text_chars);
 
-    // **THE FIX:** Use the existing 'common_tokenize' helper function from common.h
-    // This is the same function used elsewhere in your file.
-    bool parse_special = false; // We don't need to parse special tokens for this
+    bool parse_special = false;
     const std::vector<llama_token> tokens_list = common_tokenize(context, text, add_bos, parse_special);
 
-    // Create a new Java integer array to hold the results
     jintArray result = env->NewIntArray(tokens_list.size());
 
     if (!tokens_list.empty()) {
-        // Copy the C++ vector data into the Java array
-        // A cast is safe here because llama_token is an int32_t, same as jint
         env->SetIntArrayRegion(result, 0, tokens_list.size(), reinterpret_cast<const jint *>(tokens_list.data()));
     }
 
