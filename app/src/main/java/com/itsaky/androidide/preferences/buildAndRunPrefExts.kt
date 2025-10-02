@@ -18,7 +18,6 @@
 package com.itsaky.androidide.preferences
 
 import com.itsaky.androidide.R
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GRADLE
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_COMMANDS
 import com.itsaky.androidide.preferences.internal.BuildPreferences.LAUNCH_APP_AFTER_INSTALL
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isBuildCacheEnabled
@@ -31,7 +30,6 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.isWarningMode
 import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfterInstall
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
-import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import kotlin.reflect.KMutableProperty0
 
@@ -68,9 +66,6 @@ private class GradleCommands(
     override val summary: Int? = string.idepref_build_customgradlecommands_summary,
     override val icon: Int? = drawable.ic_bash_commands,
 ) : PropertyBasedMultiChoicePreference() {
-
-    @IgnoredOnParcel
-    override val tooltipTag: String = PREFS_GRADLE
 
     override fun getProperties(): Map<String, KMutableProperty0<Boolean>> {
         return linkedMapOf(
