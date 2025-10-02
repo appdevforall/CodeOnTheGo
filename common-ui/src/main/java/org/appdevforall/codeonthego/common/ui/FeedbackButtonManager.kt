@@ -118,7 +118,7 @@ class FeedbackButtonManager(
 		x: Float,
 		y: Float,
 	) {
-		activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
+		activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE).edit().apply {
 			putFloat(KEY_FAB_X, x)
 			putFloat(KEY_FAB_Y, y)
 			apply()
@@ -126,7 +126,7 @@ class FeedbackButtonManager(
 	}
 
 	private fun loadFabPosition() {
-		val prefs = activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
+		val prefs = activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)
 
 		val x = prefs.getFloat(KEY_FAB_X, -1f)
 		val y = prefs.getFloat(KEY_FAB_Y, -1f)
