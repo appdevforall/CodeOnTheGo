@@ -9,6 +9,7 @@ interface GeminiRepository {
     var onToolCall: ((ToolCall) -> Unit)?
     var onToolMessage: ((String) -> Unit)?
     var onAskUser: ((question: String, options: List<String>) -> Unit)?
+    var onProgressUpdate: ((message: ChatMessage) -> Unit)?
 
     fun getPartialReport(): String
     suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse

@@ -76,6 +76,8 @@ class AgenticRunner(
     override var onToolMessage: ((String) -> Unit)? = null
     override var onStateUpdate: ((AgentState) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
+    override var onProgressUpdate: ((message: ChatMessage) -> Unit)? = null
+
 
     private val toolTracker = ToolExecutionTracker()
 

@@ -154,7 +154,12 @@ class ChatViewModel : ViewModel() {
 
         agentRepository = when (backend) {
             AiBackend.GEMINI -> {
-                AgenticRunner(context)
+                // You can also set the callback for AgenticRunner if you implement it there
+                AgenticRunner(context).apply {
+                    onProgressUpdate = { progressMessage ->
+                        addMessageToCurrentSession(progressMessage)
+                    }
+                }
             }
 
             AiBackend.LOCAL_LLM -> {
@@ -166,9 +171,17 @@ class ChatViewModel : ViewModel() {
                     )
                     return null
                 }
-                val localRepo = LocalLlmRepositoryImpl(context)
+
+                // ✨ 2. Create the repository and set the onProgressUpdate callback
+                val localRepo = LocalLlmRepositoryImpl(context).apply {
+                    onProgressUpdate = { progressMessage ->
+                        // When the repo sends a message, add it to our chat session
+                        addMessageToCurrentSession(progressMessage)
+                    }
+                }
+
                 if (localRepo.loadModel(modelPath)) {
-                    localRepo
+                    localRepo // Return the configured repository
                 } else {
                     Log.e("ChatViewModel", "Failed to load the local model from path: $modelPath")
                     null

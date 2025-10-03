@@ -8,6 +8,7 @@ import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.MessageStatus
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -65,6 +66,8 @@ class LocalLlmRepositoryImpl(
     override var onToolCall: ((ToolCall) -> Unit)? = null
     override var onToolMessage: ((String) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
+    override var onProgressUpdate: ((message: ChatMessage) -> Unit)? = null
+
 
     suspend fun loadModel(modelUriString: String): Boolean {
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
@@ -113,84 +116,63 @@ class LocalLlmRepositoryImpl(
         val toolDescriptions = tools.values.joinToString("\n") { "- ${it.name}: ${it.description}" }
         SYSTEM_PROMPT.replace("[AVAILABLE_TOOLS]", toolDescriptions)
     }
-    private fun buildPromptWithHistory(history: List<UiMessage>): String {
+    private fun buildPromptWithHistory(history: List<ChatMessage>): String {
         val historyBuilder = StringBuilder()
-
-        // Add the special begin_of_text token ONLY at the start.
         historyBuilder.append("<|begin_of_text|>")
         historyBuilder.append("<|start_header_id|>system<|end_header_id|>\n\n$masterSystemPrompt<|eot_id|>")
 
         for (message in history) {
-            when (message.type) {
-                MessageType.USER -> {
+            when (message.sender) {
+                ChatMessage.Sender.USER -> {
                     historyBuilder.append("<|start_header_id|>user<|end_header_id|>\n\n${message.text}<|eot_id|>")
                 }
-                // The placeholder is the last message, so we don't append it to the prompt.
-                MessageType.MODEL -> {
-                    if (message.text.isNotBlank()) {
-                        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}")
+                ChatMessage.Sender.AGENT -> {
+                    if (message.text.isNotBlank() && message.status != MessageStatus.LOADING) {
+                        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}<|eot_id|>")
                     }
                 }
-                // There are no SYSTEM messages in the initial turn.
-                MessageType.SYSTEM -> {}
+                else -> {} // Ignore system/tool messages for the prompt history
             }
         }
-
-        // Prompt the assistant to start its turn.
         historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n")
-
         return historyBuilder.toString()
     }
-    var conversation = listOf<UiMessage>()
 
     override suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse {
         if (!LlmInferenceEngine.isModelLoaded) {
             return AgentResponse(text = "No local model is currently loaded. Please select one in AI Settings.", report = "")
         }
 
-        LlmInferenceEngine.clearKvCache()
-        addMessage(prompt, MessageType.USER)
-        val placeholder = "..."
-        addMessage(placeholder, MessageType.MODEL)
-        var fullPromptHistory = buildPromptWithHistory(conversation)
-
         toolTracker.startTracking()
-        val fullHistory = mutableListOf(
-            ChatMessage(text = buildSystemPrompt(), sender = ChatMessage.Sender.SYSTEM)
-        )
-        fullHistory.addAll(history)
-        fullHistory.add(ChatMessage(text = prompt, sender = ChatMessage.Sender.USER))
+        LlmInferenceEngine.clearKvCache()
+
+        // The ViewModel already added the user message. We build the prompt from the history it provides.
+        var fullPromptHistory = buildPromptWithHistory(history)
 
         // Agentic loop for tool usage
         for (i in 1..10) { // Max 10 turns
             onStateUpdate?.invoke(AgentState.Processing("Local LLM is thinking... (Turn ${i})"))
-            val isFinalAnswerTurn = i > 1
-            val stopStrings = if (isFinalAnswerTurn) {
-                listOf("<|eot_id|>")
-            } else {
-                listOf("<|eot_id|>", "</tool_call>")
-            }
 
+            val stopStrings = listOf("<|eot_id|>", "</tool_call>")
             val rawResponse = LlmInferenceEngine.runInference(fullPromptHistory, stopStrings)
-
             Log.d("AgentDebug", "Raw Model Result: \"$rawResponse\"")
-            // Add the model's raw response to history
-            fullHistory.add(ChatMessage(text = rawResponse, sender = ChatMessage.Sender.AGENT))
 
             val toolMatch = parseToolCall(rawResponse)
             if (toolMatch == null) {
                 // No tool call found, this is the final answer
                 onStateUpdate?.invoke(AgentState.Idle)
-                updateLastMessage(rawResponse.trim())
                 Log.d("AgentDebug", "No tool call detected. Concluding.")
                 return AgentResponse(text = rawResponse.trim(), report = toolTracker.generateReport())
             }
 
+            // A tool was called, let's show the progress
             val toolCallEndIndex = rawResponse.indexOf("</tool_call>")
-            val trimmedResponse =
-                rawResponse.substring(0, toolCallEndIndex + "</tool_call>".length)
+            val toolCallText = rawResponse.substring(0, toolCallEndIndex + "</tool_call>".length)
 
-            updateLastMessage(trimmedResponse)
+            // ✨ 4. Send the model's "thought" process back to the ViewModel
+            val thoughtMessage = "🤖 **Thought:** I will use the `${toolMatch.name}` tool.\n```json\n$toolCallText\n```"
+            onProgressUpdate?.invoke(ChatMessage(text = thoughtMessage, sender = ChatMessage.Sender.SYSTEM))
+
             Log.d("AgentDebug", "Tool Call Detected: $toolMatch")
 
             val tool = tools[toolMatch.name]
@@ -198,11 +180,12 @@ class LocalLlmRepositoryImpl(
                 val result = tool.execute(context, toolMatch.args ?: emptyMap())
                 Log.d("AgentDebug", "Tool Response: \"$result\"")
 
-                addMessage(result, MessageType.SYSTEM)
+                // ✨ 5. Send the tool's result back to the ViewModel
+                val toolResultMessage = "✅ **Tool Result:**\n```\n$result\n```"
+                onProgressUpdate?.invoke(ChatMessage(text = toolResultMessage, sender = ChatMessage.Sender.SYSTEM))
 
-                addMessage("", MessageType.MODEL)
-
-                fullPromptHistory += "$trimmedResponse<|eot_id|>"
+                // Append the conversation history for the next turn
+                fullPromptHistory += "$toolCallText<|eot_id|>"
                 fullPromptHistory += """
                 <|start_header_id|>user<|end_header_id|>
 
@@ -215,7 +198,7 @@ class LocalLlmRepositoryImpl(
 
             } else {
                 val errorMsg = "Error: Model tried to call unknown tool '${toolMatch.name}'"
-                updateLastMessage(errorMsg) // Update placeholder with error
+                onProgressUpdate?.invoke(ChatMessage(text = errorMsg, sender = ChatMessage.Sender.SYSTEM))
                 Log.e("AgentDebug", errorMsg)
                 break // Exit loop on error
             }
@@ -223,21 +206,6 @@ class LocalLlmRepositoryImpl(
 
         onStateUpdate?.invoke(AgentState.Idle)
         return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
-    }
-    private val messageIdCounter = AtomicLong(0)
-    private fun addMessage(text: String, type: MessageType) {
-        val message = UiMessage(messageIdCounter.getAndIncrement(), text, type)
-        conversation = conversation + message
-//        _uiMessages.postValue(conversation)
-    }
-
-    private fun updateLastMessage(updatedText: String) {
-        if (conversation.isNotEmpty()) {
-            val lastMessage = conversation.last()
-            val updatedMessage = lastMessage.copy(text = updatedText)
-            conversation = conversation.dropLast(1) + updatedMessage
-//            _uiMessages.postValue(conversation)
-        }
     }
 
     private suspend fun executeTool(toolCall: ToolCallRequest): ToolResult {
