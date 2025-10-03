@@ -154,34 +154,33 @@ class ChatViewModel : ViewModel() {
 
         agentRepository = when (backend) {
             AiBackend.GEMINI -> {
-                // You can also set the callback for AgenticRunner if you implement it there
                 AgenticRunner(context).apply {
-                    onProgressUpdate = { progressMessage ->
-                        addMessageToCurrentSession(progressMessage)
+                    onProgressUpdate = { progressMessage -> addMessageToCurrentSession(progressMessage) }
+                    onStateUpdate = { newState ->
+                        _agentState.value = newState
+                        if (newState is AgentState.Processing) {
+                            resetStepTimer()
+                        }
                     }
                 }
             }
-
             AiBackend.LOCAL_LLM -> {
                 val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
                 if (modelPath.isNullOrBlank()) {
-                    Log.e(
-                        "ChatViewModel",
-                        "Local LLM backend is selected but no model path is saved."
-                    )
+                    Log.e("ChatViewModel", "Local LLM backend is selected but no model path is saved.")
                     return null
                 }
-
-                // ✨ 2. Create the repository and set the onProgressUpdate callback
                 val localRepo = LocalLlmRepositoryImpl(context).apply {
-                    onProgressUpdate = { progressMessage ->
-                        // When the repo sends a message, add it to our chat session
-                        addMessageToCurrentSession(progressMessage)
+                    onProgressUpdate = { progressMessage -> addMessageToCurrentSession(progressMessage) }
+                    onStateUpdate = { newState ->
+                        _agentState.value = newState
+                        if (newState is AgentState.Processing) {
+                            resetStepTimer()
+                        }
                     }
                 }
-
                 if (localRepo.loadModel(modelPath)) {
-                    localRepo // Return the configured repository
+                    localRepo
                 } else {
                     Log.e("ChatViewModel", "Failed to load the local model from path: $modelPath")
                     null
@@ -249,8 +248,11 @@ class ChatViewModel : ViewModel() {
         context: Context
     ) {
         agentJob = viewModelScope.launch {
+            startTimer()
             try {
                 _agentState.value = AgentState.Processing("Initializing AI Backend...")
+                resetStepTimer()
+
                 val repository = initializeAndGetAgentRepository(context)
                 if (repository == null) {
                     val prefs = BaseApplication.getBaseInstance().prefManager
@@ -260,18 +262,14 @@ class ChatViewModel : ViewModel() {
                         AiBackend.GEMINI -> "Gemini API Key not found. Please set it in AI Settings."
                         AiBackend.LOCAL_LLM -> "Local LLM model not selected or failed to load. Please select a valid model in AI Settings."
                     }
-                    updateMessageInCurrentSession(
-                        messageIdToUpdate,
-                        errorMessage,
-                        MessageStatus.ERROR
-                    )
+                    updateMessageInCurrentSession(messageIdToUpdate, errorMessage, MessageStatus.ERROR)
                     return@launch
                 }
-                _agentState.value = AgentState.Processing("Thinking...")
                 val agentResponse = withContext(Dispatchers.IO) {
                     val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
                     repository.generateASimpleResponse(prompt, history)
                 }
+
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = agentResponse.text,
@@ -284,19 +282,12 @@ class ChatViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) {
-                    updateMessageInCurrentSession(
-                        messageIdToUpdate,
-                        "Operation cancelled by user.",
-                        MessageStatus.ERROR
-                    )
+                    updateMessageInCurrentSession(messageIdToUpdate, "Operation cancelled by user.", MessageStatus.ERROR)
                     val partialReport = agentRepository?.getPartialReport()
                     if (partialReport?.isNotBlank() == true) {
-                        addMessageToCurrentSession(
-                            ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM)
-                        )
+                        addMessageToCurrentSession(ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM))
                     }
                 } else {
-                    // Handle other exceptions if necessary
                     updateMessageInCurrentSession(
                         messageId = messageIdToUpdate,
                         newText = "An error occurred: ${e.message}",
@@ -306,6 +297,7 @@ class ChatViewModel : ViewModel() {
                 }
             } finally {
                 _agentState.value = AgentState.Idle
+                stopTimer()
             }
         }
     }
@@ -405,5 +397,41 @@ class ChatViewModel : ViewModel() {
                 chatStorageManager.saveSession(it)
             }
         }
+    }
+
+    /**
+     * Starts a background coroutine to update the elapsed time flows every 100ms.
+     */
+    private fun startTimer() {
+        stopTimer() // Ensure any previous timer is stopped
+        operationStartTime = System.currentTimeMillis()
+        stepStartTime = System.currentTimeMillis()
+        timerJob = viewModelScope.launch {
+            while (true) {
+                val now = System.currentTimeMillis()
+                _totalElapsedTime.value = now - operationStartTime
+                _stepElapsedTime.value = now - stepStartTime
+                delay(100) // Update frequency
+            }
+        }
+    }
+
+    /**
+     * Stops the timer coroutine and resets the elapsed time values.
+     */
+    private fun stopTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        _totalElapsedTime.value = 0L
+        _stepElapsedTime.value = 0L
+    }
+
+    /**
+     * Resets the step timer when the agent moves to a new task (e.g., thinking -> acting).
+     */
+    private fun resetStepTimer() {
+        stepStartTime = System.currentTimeMillis()
+        // Reset to 0 immediately for a responsive UI
+        _stepElapsedTime.value = 0L
     }
 }
