@@ -102,8 +102,8 @@ class ChatViewModel : ViewModel() {
     }
 
     fun sendMessage(text: String, context: Context) {
-        val fullPrompt = constructFullPrompt(text)
-        sendMessage(fullPrompt = fullPrompt, originalUserText = text, context)
+//        val fullPrompt = constructFullPrompt(text)
+        sendMessage(fullPrompt = text, originalUserText = text, context)
     }
 
     private fun constructFullPrompt(userInput: String): String {

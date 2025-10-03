@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:tools="http://schemas.android.com/tools"
     android:orientation="vertical">
 
     <TextView
@@ -15,8 +16,17 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_browse_model"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Browse for Model File" />
+
+    <Button
+        android:id="@+id/loadSavedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:enabled="false"
+        android:text="Load from saved"
+        tools:enabled="true" />
 
 </LinearLayout>

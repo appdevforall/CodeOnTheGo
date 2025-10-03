@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import androidx.core.net.toUri
 
 /**
  * A singleton wrapper for the LLamaAndroid library.
@@ -30,7 +31,7 @@ object LlmInferenceEngine {
         }
         return withContext(Dispatchers.IO) {
             try {
-                val modelUri = Uri.parse(modelUriString)
+                val modelUri = modelUriString.toUri()
                 val fileName = "local_model.gguf" // Use a consistent cached name
                 val destinationFile = File(context.cacheDir, fileName)
 
@@ -88,5 +89,9 @@ object LlmInferenceEngine {
                 Log.e(TAG, "Error releasing model", e)
             }
         }
+    }
+
+    suspend fun clearKvCache() {
+        llama.clearKvCache()
     }
 }

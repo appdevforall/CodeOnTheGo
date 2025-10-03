@@ -15,6 +15,35 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonPrimitive
+enum class MessageType {
+    SYSTEM, USER, MODEL
+}
+data class UiMessage(
+    val id: Long,
+    val text: String,
+    val type: MessageType
+)
+
+private const val SYSTEM_PROMPT = """
+You are a helpful and smart assistant integrated into an Android application.
+You have access to the following tools to get real-time information. Do not make up information for these tools.
+
+[AVAILABLE_TOOLS]
+
+To use a tool, you must respond with a JSON object inside a special <tool_call> tag. Your response should contain nothing else.
+The JSON object must have "tool_name" and "args" keys.
+"args" must be an object containing the arguments for the tool. If no arguments are needed, use an empty object {}.
+
+Example of a tool call:
+<tool_call>
+{
+  "tool_name": "get_current_datetime",
+  "args": {}
+}
+</tool_call>
+
+After the tool is called, you will receive the result and you must use it to answer the user's original question.
+"""
 
 class LocalLlmRepositoryImpl(
     private val context: Context,
@@ -70,10 +99,50 @@ class LocalLlmRepositoryImpl(
         """.trimIndent()
     }
 
+    private val tools: Map<String, Tool> = listOf(
+        BatteryTool(),
+        GetDateTimeTool()
+    ).associateBy { it.name }
+
+    private val masterSystemPrompt: String by lazy {
+        val toolDescriptions = tools.values.joinToString("\n") { "- ${it.name}: ${it.description}" }
+        SYSTEM_PROMPT.replace("[AVAILABLE_TOOLS]", toolDescriptions)
+    }
+    private fun buildPromptWithHistory(history: List<UiMessage>): String {
+        val historyBuilder = StringBuilder()
+
+        // Add the special begin_of_text token ONLY at the start.
+        historyBuilder.append("<|begin_of_text|>")
+        historyBuilder.append("<|start_header_id|>system<|end_header_id|>\n\n$masterSystemPrompt<|eot_id|>")
+
+        for (message in history) {
+            when (message.type) {
+                MessageType.USER -> {
+                    historyBuilder.append("<|start_header_id|>user<|end_header_id|>\n\n${message.text}<|eot_id|>")
+                }
+                // The placeholder is the last message, so we don't append it to the prompt.
+                MessageType.MODEL -> {
+                    if (message.text.isNotBlank()) {
+                        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}")
+                    }
+                }
+                // There are no SYSTEM messages in the initial turn.
+                MessageType.SYSTEM -> {}
+            }
+        }
+
+        // Prompt the assistant to start its turn.
+        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n")
+
+        return historyBuilder.toString()
+    }
+
     override suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse {
         if (!LlmInferenceEngine.isModelLoaded) {
             return AgentResponse(text = "No local model is currently loaded. Please select one in AI Settings.", report = "")
         }
+
+        LlmInferenceEngine.clearKvCache()
 
         toolTracker.startTracking()
         val fullHistory = mutableListOf(
