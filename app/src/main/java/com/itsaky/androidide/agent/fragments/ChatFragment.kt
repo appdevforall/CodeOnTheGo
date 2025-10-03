@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
+import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.ACTION_EDIT
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
@@ -336,7 +337,7 @@ class ChatFragment :
 
     private fun handleMessageAction(action: String, message: ChatMessage) {
         when (action) {
-            ChatAdapter.ACTION_EDIT -> {
+            ACTION_EDIT -> {
                 // Set the selected message's text into the input field
                 binding.promptInputEdittext.setText(message.text)
 
