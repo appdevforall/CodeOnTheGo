@@ -34,20 +34,21 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
     private val binding get() = _binding!!
     private val viewModel: AiSettingsViewModel by viewModels()
 
-    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let {
-            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            requireContext().contentResolver.takePersistableUriPermission(it, takeFlags)
+    private val filePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                requireContext().contentResolver.takePersistableUriPermission(it, takeFlags)
 
-            val uriString = it.toString()
-            // The fragment's only job is to save the path via the ViewModel.
-            viewModel.saveLocalModelPath(uriString)
-            viewModel.loadModelFromUri(uriString, requireContext())
-            // It also updates its own UI.
-            updateLocalLlmUi(binding.backendSpecificSettingsContainer)
-            flashInfo("Local model path saved.")
+                val uriString = it.toString()
+                // The fragment's only job is to save the path via the ViewModel.
+                viewModel.saveLocalModelPath(uriString)
+                viewModel.loadModelFromUri(uriString, requireContext())
+                // It also updates its own UI.
+                updateLocalLlmUi(binding.backendSpecificSettingsContainer)
+                flashInfo("Attempting to load selected model...")
+            }
         }
-    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -66,7 +67,11 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
     private fun setupBackendSelector() {
         val backends = viewModel.getAvailableBackends()
         val backendNames = backends.map { it.name }
-        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, backendNames)
+        val adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_dropdown_item,
+            backendNames
+        )
         binding.backendAutocomplete.setAdapter(adapter)
 
         val currentBackend = viewModel.getCurrentBackend()
@@ -91,6 +96,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                     .inflate(R.layout.layout_settings_local_llm, container, true)
                 updateLocalLlmUi(localLlmView)
             }
+
             AiBackend.GEMINI -> {
                 val geminiApiView = LayoutInflater.from(requireContext())
                     .inflate(R.layout.layout_settings_gemini_api, container, true)
@@ -118,7 +124,10 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 // A model is saved
                 loadSavedButton.isEnabled = true
                 modelPathTextView.visibility = View.VISIBLE
-                context?.let { modelPathTextView.text = "💾 Saved: ${uri.toUri().getFileName(it)}" }
+                context?.let {
+                    modelPathTextView.text =
+                        getString(R.string.ai_setting_saved, uri.toUri().getFileName(it))
+                }
 
             } else {
                 // No model is saved
@@ -131,19 +140,26 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             when (state) {
                 is ModelLoadingState.Idle -> {
                     modelStatusTextView.visibility = View.VISIBLE
-                    modelStatusTextView.text = "🤷‍♀️ No model is currently loaded."
+                    modelStatusTextView.text =
+                        getString(R.string.ai_setting_no_model_is_currently_loaded)
                 }
+
                 is ModelLoadingState.Loading -> {
                     modelStatusTextView.visibility = View.VISIBLE
-                    modelStatusTextView.text = "🔄 Loading model, please wait..."
+                    modelStatusTextView.text =
+                        getString(R.string.ai_setting_loading_model_please_wait)
                 }
+
                 is ModelLoadingState.Loaded -> {
                     modelStatusTextView.visibility = View.VISIBLE
-                    modelStatusTextView.text = "✅ Model loaded: ${state.modelName}"
+                    modelStatusTextView.text =
+                        getString(R.string.ai_setting_model_loaded, state.modelName)
                 }
+
                 is ModelLoadingState.Error -> {
                     modelStatusTextView.visibility = View.VISIBLE
-                    modelStatusTextView.text = "❌ Error loading model: ${state.message}"
+                    modelStatusTextView.text =
+                        getString(R.string.ai_setting_error_loading_model, state.message)
                 }
             }
         }
@@ -162,7 +178,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
                     remove(SAVED_MODEL_URI_KEY)
                 }
-                viewModel.onNewModelSelected(null) // This will disable the button
+                viewModel.onNewModelSelected(null)
             }
         } else {
             viewModel.log("No saved model found.")
