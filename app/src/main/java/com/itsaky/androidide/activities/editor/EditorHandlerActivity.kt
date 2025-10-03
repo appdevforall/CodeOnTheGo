@@ -66,6 +66,8 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
 import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -117,8 +119,8 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         openFileAndSelect(file, selection)
     }
 
-    override fun doCloseAll(runAfter: () -> Unit) {
-        closeAll(runAfter)
+    override fun doCloseAll() {
+        closeAll {}
     }
 
     override fun provideCurrentEditor(): CodeEditorView? {
@@ -701,55 +703,22 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
     }
 
     override fun closeAll(runAfter: () -> Unit) {
-        val count = editorViewModel.getOpenedFileCount()
         val unsavedFiles =
             editorViewModel.getOpenedFiles().map(this::getEditorForFile)
                 .filter { it != null && it.isModified }
 
         if (unsavedFiles.isNotEmpty()) {
-            // There are unsaved files
+            // If there are unsaved files, show the confirmation dialog.
             notifyFilesUnsaved(unsavedFiles) { closeAll(runAfter) }
             return
         }
 
-        // Close all files
-        for (i in 0 until count) {
-            getEditorAtIndex(i)?.close() ?: run {
-                log.error("Unable to close file at index {}", i)
-            }
-        }
-
-        // Close all plugin tabs
-        val pluginTabIds = pluginTabIndices.keys.toList()
-        for (pluginId in pluginTabIds) {
-            val tabIndex = pluginTabIndices[pluginId]
-            if (tabIndex != null) {
-                try {
-                    val fragment = supportFragmentManager.findFragmentByTag("plugin_tab_$pluginId")
-                    if (fragment != null) {
-                        supportFragmentManager.beginTransaction()
-                            .remove(fragment)
-                            .commitAllowingStateLoss()
-                    }
-                } catch (e: Exception) {
-                    log.error("Error removing plugin fragment for $pluginId", e)
-                }
-            }
-        }
-
-        editorViewModel.removeAllFiles()
-        content.apply {
-            tabs.removeAllTabs()
-            tabs.requestLayout()
-            editorContainer.removeAllViews()
-        }
-
-        pluginTabIndices.clear()
-        tabIndexToPluginId.clear()
-        updateTabVisibility()
-
+        // If there are NO unsaved files, just perform the close action directly.
+        // The 'manualFinish' is false because this action doesn't exit the activity by itself.
+        performCloseAllFiles(manualFinish = false)
         runAfter()
     }
+
 
     override fun getOpenedFiles() =
         editorViewModel.getOpenedFiles().mapNotNull {
@@ -1140,5 +1109,72 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
         binding.root.addView(closeItem)
         popupWindow.showAsDropDown(anchorView, 0, 0)
+    }
+
+    override fun doConfirmProjectClose() {
+        confirmProjectClose()
+    }
+
+    private fun performCloseAllFiles(manualFinish: Boolean) {
+        // Close all open file editors
+        val fileCount = editorViewModel.getOpenedFileCount()
+        for (i in 0 until fileCount) {
+            getEditorAtIndex(i)?.close()
+        }
+
+        // Close all plugin tabs
+        val pluginTabIds = this.pluginTabIndices.keys.toList()
+        for (pluginId in pluginTabIds) {
+            val tabIndex = this.pluginTabIndices[pluginId]
+            if (tabIndex != null) {
+                this.closePluginTab(tabIndex)
+            }
+        }
+
+        editorViewModel.removeAllFiles()
+        content.apply {
+            tabs.removeAllTabs()
+            editorContainer.removeAllViews()
+        }
+
+        if (manualFinish) {
+            finish()
+        }
+    }
+
+    private fun confirmProjectClose() {
+        val builder = newMaterialDialogBuilder(this)
+        builder.setTitle(string.title_confirm_project_close)
+        builder.setMessage(string.msg_confirm_project_close)
+
+        builder.setNegativeButton(string.cancel_project_text, null)
+
+        // OPTION 1: Close without saving
+        builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
+            dialog.dismiss()
+
+            for (i in 0 until editorViewModel.getOpenedFileCount()) {
+                (content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
+            }
+
+            GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
+
+            performCloseAllFiles(manualFinish = true)
+        }
+
+        // OPTION 2: Save and close
+        builder.setPositiveButton(string.save_close_project) { dialog, _ ->
+            dialog.dismiss()
+
+            saveAllAsync(notify = false) {
+                GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
+
+                runOnUiThread {
+                    performCloseAllFiles(manualFinish = true)
+                }
+            }
+        }
+
+        builder.show()
     }
 }
