@@ -46,6 +46,7 @@ class ContextSelectionAdapter(
             is HeaderItem -> {
                 (holder as HeaderViewHolder).binding.headerTitle.text = item.title
             }
+
             is SelectableItem -> {
                 val itemHolder = holder as ItemViewHolder
                 itemHolder.binding.itemText.text = item.text

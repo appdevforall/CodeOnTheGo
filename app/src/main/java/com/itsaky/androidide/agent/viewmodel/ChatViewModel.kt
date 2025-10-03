@@ -130,7 +130,8 @@ class ChatViewModel : ViewModel() {
         agentRepository = when (backend) {
             AiBackend.GEMINI -> {
                 AgenticRunner(context).apply {
-                    onProgressUpdate = { progressMessage -> addMessageToCurrentSession(progressMessage) }
+                    onProgressUpdate =
+                        { progressMessage -> addMessageToCurrentSession(progressMessage) }
                     onStateUpdate = { newState ->
                         _agentState.value = newState
                         if (newState is AgentState.Processing) {
@@ -139,14 +140,19 @@ class ChatViewModel : ViewModel() {
                     }
                 }
             }
+
             AiBackend.LOCAL_LLM -> {
                 val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
                 if (modelPath.isNullOrBlank()) {
-                    Log.e("ChatViewModel", "Local LLM backend is selected but no model path is saved.")
+                    Log.e(
+                        "ChatViewModel",
+                        "Local LLM backend is selected but no model path is saved."
+                    )
                     return null
                 }
                 val localRepo = LocalLlmRepositoryImpl(context).apply {
-                    onProgressUpdate = { progressMessage -> addMessageToCurrentSession(progressMessage) }
+                    onProgressUpdate =
+                        { progressMessage -> addMessageToCurrentSession(progressMessage) }
                     onStateUpdate = { newState ->
                         _agentState.value = newState
                         if (newState is AgentState.Processing) {

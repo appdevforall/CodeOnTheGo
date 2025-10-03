@@ -69,7 +69,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
             _modelLoadingState.value = ModelLoadingState.Loading
             val success = LlmInferenceEngine.initModelFromFile(context, path)
             if (success && LlmInferenceEngine.loadedModelName != null) {
-                _modelLoadingState.value = ModelLoadingState.Loaded(LlmInferenceEngine.loadedModelName!!)
+                _modelLoadingState.value =
+                    ModelLoadingState.Loaded(LlmInferenceEngine.loadedModelName!!)
             } else {
                 _modelLoadingState.value = ModelLoadingState.Error("Failed to load model")
             }
@@ -86,7 +87,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
 
     fun checkInitialSavedModel(context: Context) {
         if (LlmInferenceEngine.isModelLoaded && LlmInferenceEngine.loadedModelName != null) {
-            _modelLoadingState.value = ModelLoadingState.Loaded(LlmInferenceEngine.loadedModelName!!)
+            _modelLoadingState.value =
+                ModelLoadingState.Loaded(LlmInferenceEngine.loadedModelName!!)
         } else {
             _modelLoadingState.value = ModelLoadingState.Idle
         }
