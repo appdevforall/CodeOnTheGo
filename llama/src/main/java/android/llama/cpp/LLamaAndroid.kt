@@ -216,6 +216,19 @@ class LLamaAndroid {
     }
 
     companion object {
+        private val nativeLog = LoggerFactory.getLogger("llama.cpp")
+
+        @JvmStatic
+        fun logFromNative(level: Int, message: String) {
+            val cleanMessage = message.trim()
+            when (level) {
+                // We'll map GGML_LOG_LEVEL to SLF4J levels
+                2 -> nativeLog.error(cleanMessage) // GGML_LOG_LEVEL_ERROR = 2
+                3 -> nativeLog.warn(cleanMessage)  // GGML_LOG_LEVEL_WARN  = 3
+                4 -> nativeLog.info(cleanMessage)   // GGML_LOG_LEVEL_INFO  = 4
+                else -> nativeLog.debug(cleanMessage)
+            }
+        }
         private class IntVar(value: Int) {
             @Volatile
             var value: Int = value

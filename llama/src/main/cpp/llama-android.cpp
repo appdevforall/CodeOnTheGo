@@ -54,11 +54,85 @@ bool is_valid_utf8(const char * string) {
     return true;
 }
 
-static void log_callback(ggml_log_level level, const char * fmt, void * data) {
-    if (level == GGML_LOG_LEVEL_ERROR)     __android_log_print(ANDROID_LOG_ERROR, TAG, fmt, data);
-    else if (level == GGML_LOG_LEVEL_INFO) __android_log_print(ANDROID_LOG_INFO, TAG, fmt, data);
-    else if (level == GGML_LOG_LEVEL_WARN) __android_log_print(ANDROID_LOG_WARN, TAG, fmt, data);
-    else __android_log_print(ANDROID_LOG_DEFAULT, TAG, fmt, data);
+#define TAG "llama-android.cpp"
+#define LOGi(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOGe(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+static JavaVM *g_jvm = nullptr;
+static jclass g_llama_android_class = nullptr;
+static jmethodID g_log_from_native_method = nullptr;
+
+
+void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
+    if (!g_jvm || !g_llama_android_class || !g_log_from_native_method) {
+        __android_log_print(ANDROID_LOG_DEBUG, "llama.cpp", "%s", message);
+        return;
+    }
+
+    JNIEnv *env;
+    bool did_attach_thread = false;
+
+    // Get the JNIEnv for the current thread.
+    jint get_env_result = g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+
+    if (get_env_result == JNI_EDETACHED) {
+        // If the thread is not attached, attach it.
+        if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+            __android_log_print(ANDROID_LOG_ERROR, TAG, "Failed to attach thread for logging: %s",
+                                message);
+            return;
+        }
+        did_attach_thread = true;
+    } else if (get_env_result != JNI_OK) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "Failed to get JNIEnv for logging: %s",
+                            message);
+        return;
+    }
+
+    jstring jni_message = env->NewStringUTF(message);
+    if (jni_message == nullptr) {
+        // Handle potential out-of-memory error
+        if (did_attach_thread) {
+            g_jvm->DetachCurrentThread();
+        }
+        return;
+    }
+
+    env->CallStaticVoidMethod(g_llama_android_class, g_log_from_native_method, (jint) level,
+                              jni_message);
+    env->DeleteLocalRef(jni_message);
+
+    // ✨ THE FIX: Only detach the thread if we were the ones who attached it.
+    // In the case of the Llm-RunLoop, we will NOT detach it.
+    if (did_attach_thread) {
+        g_jvm->DetachCurrentThread();
+    }
+}
+
+
+// The rest of your C++ file remains the same.
+// The slf4j_log_callback, JNI_OnLoad, and log_to_android functions are all correct.
+static void slf4j_log_callback(ggml_log_level level, const char *fmt, void *data) {
+    log_to_kotlin_bridge(level, fmt);
+}
+
+// JNI_OnLoad remains exactly the same as before.
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+    g_jvm = vm;
+    JNIEnv *env;
+    if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        return -1;
+    }
+
+    jclass local_class = env->FindClass("android/llama/cpp/LLamaAndroid");
+    if (!local_class) return -1;
+    g_llama_android_class = (jclass) env->NewGlobalRef(local_class);
+
+    g_log_from_native_method = env->GetStaticMethodID(g_llama_android_class, "logFromNative",
+                                                      "(ILjava/lang/String;)V");
+    if (!g_log_from_native_method) return -1;
+
+    return JNI_VERSION_1_6;
 }
 
 extern "C"
@@ -134,7 +208,7 @@ Java_android_llama_cpp_LLamaAndroid_backend_1free(JNIEnv *, jobject) {
 extern "C"
 JNIEXPORT void JNICALL
 Java_android_llama_cpp_LLamaAndroid_log_1to_1android(JNIEnv *, jobject) {
-    llama_log_set(log_callback, NULL);
+    llama_log_set(slf4j_log_callback, NULL);
 }
 
 extern "C"
@@ -334,7 +408,7 @@ Java_android_llama_cpp_LLamaAndroid_free_1sampler(JNIEnv *, jobject, jlong sampl
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_android_llama_cpp_LLamaAndroid_backend_1init(JNIEnv *, jobject) {
+Java_android_llama_cpp_LLamaAndroid_backend_1init(JNIEnv *, jobject, jboolean numa) {
     llama_backend_init();
 }
 
@@ -353,8 +427,7 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
         jlong batch_pointer,
         jstring jtext,
         jboolean format_chat,
-        jint n_len
-) {
+        jint n_len, jobjectArray stop) {
 
     cached_token_chars.clear();
 
