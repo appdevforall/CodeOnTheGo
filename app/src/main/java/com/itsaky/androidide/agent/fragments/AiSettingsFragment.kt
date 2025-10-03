@@ -6,17 +6,16 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.textfield.TextInputEditText
 import com.itsaky.androidide.R
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
 import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
+import com.itsaky.androidide.databinding.LayoutSettingsGeminiApiBinding
+import com.itsaky.androidide.databinding.LayoutSettingsLocalLlmBinding
 import com.itsaky.androidide.utils.flashInfo
 
 
@@ -32,10 +31,11 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
             requireContext().contentResolver.takePersistableUriPermission(it, takeFlags)
 
             val uriString = it.toString()
-            // The fragment's only job is to save the path via the ViewModel.
             settingsViewModel.saveLocalModelPath(uriString)
-            // It also updates its own UI.
-            updateLocalLlmUi(binding.backendSpecificSettingsContainer)
+
+            // Re-render the backend-specific UI to reflect the change.
+            // This is more robust than trying to update individual views.
+            updateBackendSpecificUi(settingsViewModel.getCurrentBackend())
             flashInfo("Local model path saved.")
         }
     }
@@ -66,7 +66,6 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
         binding.backendAutocomplete.setOnItemClickListener { _, _, position, _ ->
             val selectedBackend = backends[position]
-            // Its only job is to save the backend selection.
             settingsViewModel.saveBackend(selectedBackend)
             updateBackendSpecificUi(selectedBackend)
         }
@@ -75,60 +74,60 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
     private fun updateBackendSpecificUi(backend: AiBackend) {
         val container = binding.backendSpecificSettingsContainer
         container.removeAllViews()
+        val inflater = LayoutInflater.from(requireContext())
 
         when (backend) {
             AiBackend.LOCAL_LLM -> {
-                val localLlmView = LayoutInflater.from(requireContext())
-                    .inflate(R.layout.layout_settings_local_llm, container, true)
-                updateLocalLlmUi(localLlmView)
+                // Inflate using the generated binding class
+                val localLlmBinding = LayoutSettingsLocalLlmBinding.inflate(inflater, container, true)
+                updateLocalLlmUi(localLlmBinding)
             }
             AiBackend.GEMINI -> {
-                val geminiApiView = LayoutInflater.from(requireContext())
-                    .inflate(R.layout.layout_settings_gemini_api, container, true)
-                setupGeminiApiUi(geminiApiView)
+                // Inflate using the generated binding class
+                val geminiApiBinding = LayoutSettingsGeminiApiBinding.inflate(inflater, container, true)
+                setupGeminiApiUi(geminiApiBinding)
             }
         }
     }
 
-    private fun updateLocalLlmUi(view: View) {
-        val modelPathTextView = view.findViewById<TextView>(R.id.selected_model_path)
-        val browseButton = view.findViewById<Button>(R.id.btn_browse_model)
-
+    /**
+     * Updates the Local LLM settings UI using its specific binding class.
+     */
+    private fun updateLocalLlmUi(localBinding: LayoutSettingsLocalLlmBinding) {
         val savedPath = settingsViewModel.getLocalModelPath()
         // Display the URI string to the user.
         val displayName = savedPath?.let { Uri.parse(it).lastPathSegment } ?: "No model selected"
-        modelPathTextView.text = displayName
+        localBinding.selectedModelPath.text = displayName
 
-
-        browseButton.setOnClickListener {
+        localBinding.btnBrowseModel.setOnClickListener {
             filePickerLauncher.launch(arrayOf("*/*"))
         }
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    private fun setupGeminiApiUi(view: View) {
-        val apiKeyInput = view.findViewById<TextInputEditText>(R.id.gemini_api_key_input)
-        val saveButton = view.findViewById<Button>(R.id.btn_save_api_key)
-
+    /**
+     * Sets up the Gemini API settings UI using its specific binding class.
+     */
+    private fun setupGeminiApiUi(geminiBinding: LayoutSettingsGeminiApiBinding) {
         if (!settingsViewModel.getGeminiApiKey().isNullOrBlank()) {
-            apiKeyInput.setText("••••••••••••••••••••")
+            geminiBinding.geminiApiKeyInput.setText("••••••••••••••••••••")
         }
 
-        saveButton.setOnClickListener {
-            val apiKey = apiKeyInput.text.toString()
+        geminiBinding.btnSaveApiKey.setOnClickListener {
+            val apiKey = geminiBinding.geminiApiKeyInput.text.toString()
             if (apiKey.isNotBlank() && apiKey != "••••••••••••••••••••") {
                 settingsViewModel.saveGeminiApiKey(apiKey)
                 flashInfo("API Key saved securely.")
-                apiKeyInput.setText("••••••••••••••••••••")
+                geminiBinding.geminiApiKeyInput.setText("••••••••••••••••••••")
             } else if (apiKey.isBlank()) {
                 flashInfo("API Key cannot be empty.")
             } else {
                 flashInfo("Please enter a new API Key to save.")
             }
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }
