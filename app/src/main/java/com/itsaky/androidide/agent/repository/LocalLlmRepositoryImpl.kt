@@ -5,7 +5,6 @@ import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
-import com.itsaky.androidide.app.LlmInferenceEngine
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import kotlinx.serialization.Serializable
@@ -22,12 +21,11 @@ class LocalLlmRepositoryImpl(
     private val ideApi: IDEApiFacade,
 ) : GeminiRepository {
 
-    private var isModelLoaded = false
     private val toolTracker = ToolExecutionTracker()
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    // A simple regex to find the <tool_code> block
-    private val toolCodeRegex = Regex("<tool_code>(.*?)</tool_code>", RegexOption.DOT_MATCHES_ALL)
+    // Regex to find a JSON block inside our custom markers
+    private val toolCallRegex = Regex("\\[TOOL_CALL\\](.*?)\\[/TOOL_CALL\\]", RegexOption.DOT_MATCHES_ALL)
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
     override var onToolCall: ((ToolCall) -> Unit)? = null
@@ -35,119 +33,87 @@ class LocalLlmRepositoryImpl(
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
 
     suspend fun loadModel(modelUriString: String): Boolean {
-        if (isModelLoaded) {
-            LlmInferenceEngine.releaseModel()
-        }
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
-        isModelLoaded = LlmInferenceEngine.initModelFromFile(context, modelUriString)
-        val status =
-            if (isModelLoaded) "Local model loaded successfully!" else "Error: Failed to load local model."
+        val success = LlmInferenceEngine.initModelFromFile(context, modelUriString)
+        val status = if (success) "Local model loaded successfully!" else "Error: Failed to load local model."
         onStateUpdate?.invoke(AgentState.Processing(status))
         onStateUpdate?.invoke(AgentState.Idle)
-        return isModelLoaded
+        return success
     }
 
     private fun buildSystemPrompt(): String {
         val toolDefinitions = LocalLlmTools.allTools.joinToString("\n") { tool ->
-            val params = tool.parameters.entries.joinToString(", ") { (key, _) -> "$key: string" }
-            "${tool.name}($params) - ${tool.description}"
+            val params = tool.parameters.entries.joinToString(", ") { (key, desc) -> """"$key": "string" // $desc""" }
+            "- ${tool.name}({ $params })"
         }
 
-        // ✅ Instruct the model to use plain text markers instead of XML/HTML tags.
         return """
-    You are an expert programmer's assistant. Use the provided tools to help the user.
-    To use a tool, respond with ONLY a JSON block wrapped in [TOOL_CALL] and [/TOOL_CALL] markers.
+        You are a helpful programmer's assistant. To accomplish the user's request, you must use the available tools.
+        To use a tool, you MUST respond with ONLY a JSON object inside [TOOL_CALL] and [/TOOL_CALL] markers. Your response should contain nothing else.
+        The JSON object must have "tool_name" and "parameters" keys.
 
-    Example:
-    [TOOL_CALL]
-    {
-      "tool_name": "create_file",
-      "parameters": {
-        "path": "app/src/main/res/values/strings.xml",
-        "content": "<resources></resources>"
-      }
+        Example of a tool call:
+        [TOOL_CALL]
+        {
+          "tool_name": "list_files",
+          "parameters": {
+            "path": ".",
+            "recursive": "false"
+          }
+        }
+        [/TOOL_CALL]
+
+        If you believe you have fully answered the user's question, respond with the final answer in plain text without any markers.
+
+        Available tools:
+        $toolDefinitions
+        """.trimIndent()
     }
-    [/TOOL_CALL]
 
-    If you can answer directly, do not use any markers.
-
-    Available tools:
-    $toolDefinitions
-    """.trimIndent()
-    }
-
-    override suspend fun generateASimpleResponse(
-        prompt: String,
-        history: List<ChatMessage>
-    ): AgentResponse {
-        if (!isModelLoaded) {
-            return AgentResponse(text = "No local model is currently loaded.", report = "")
+    override suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse {
+        if (!LlmInferenceEngine.isModelLoaded) {
+            return AgentResponse(text = "No local model is currently loaded. Please select one in AI Settings.", report = "")
         }
 
         toolTracker.startTracking()
-        val systemPrompt = buildSystemPrompt()
         val fullHistory = mutableListOf(
-            ChatMessage(
-                text = systemPrompt,
-                sender = ChatMessage.Sender.SYSTEM,
-                timestamp = System.currentTimeMillis()
-            )
+            ChatMessage(text = buildSystemPrompt(), sender = ChatMessage.Sender.SYSTEM)
         )
         fullHistory.addAll(history)
-        fullHistory.add(
-            ChatMessage(
-                text = prompt,
-                sender = ChatMessage.Sender.USER,
-                timestamp = System.currentTimeMillis()
-            )
-        )
+        fullHistory.add(ChatMessage(text = prompt, sender = ChatMessage.Sender.USER))
 
-
+        // Agentic loop for tool usage
         for (i in 1..10) { // Max 10 turns
-            onStateUpdate?.invoke(AgentState.Processing("Waiting for local LLM..."))
+            onStateUpdate?.invoke(AgentState.Processing("Local LLM is thinking... (Turn ${i})"))
 
+            // Format the history into a single string prompt
             val currentPrompt = fullHistory.joinToString("\n") {
-                // A simple prompt format for the local model
                 when (it.sender) {
                     ChatMessage.Sender.USER -> "USER: ${it.text}"
                     ChatMessage.Sender.AGENT -> "ASSISTANT: ${it.text}"
                     ChatMessage.Sender.SYSTEM -> it.text
-                    // ✅ FIX 1: Add a case to correctly format tool results for the model.
                     ChatMessage.Sender.TOOL -> "TOOL_RESULT: ${it.text}"
                 }
             } + "\nASSISTANT:"
 
-            val rawResponse = LlmInferenceEngine.runInference(prompt)
+            val rawResponse = LlmInferenceEngine.runInference(currentPrompt)
 
-            val toolMatch = toolCodeRegex.find(rawResponse)
+            // Add the model's raw response to history
+            fullHistory.add(ChatMessage(text = rawResponse, sender = ChatMessage.Sender.AGENT))
 
+            val toolMatch = toolCallRegex.find(rawResponse)
             if (toolMatch == null) {
-                // No tool call detected, this is the final answer
-                val finalReport = toolTracker.generateReport()
-                return AgentResponse(text = rawResponse, report = finalReport)
+                // No tool call found, this is the final answer
+                onStateUpdate?.invoke(AgentState.Idle)
+                return AgentResponse(text = rawResponse.trim(), report = toolTracker.generateReport())
             }
 
-            // ✅ FIX 2: Add the model's response to history with the correct sender.
-            fullHistory.add(
-                ChatMessage(
-                    text = rawResponse,
-                    sender = ChatMessage.Sender.AGENT,
-                    timestamp = System.currentTimeMillis()
-                )
-            )
-
-            val jsonContent = toolMatch.groupValues[1]
+            // A tool call was found
+            val jsonContent = toolMatch.groupValues[1].trim()
             try {
                 val toolCallRequest = json.decodeFromString<ToolCallRequest>(jsonContent)
 
-                // For UI Callbacks (reusing Firebase type for simplicity)
-                val functionCallPart = ToolCall(
-                    name = toolCallRequest.tool_name,
-                    args = toolCallRequest.parameters.mapValues { it.value } // Simplified conversion
-                )
-                onToolCall?.invoke(functionCallPart)
                 onStateUpdate?.invoke(AgentState.Processing("Executing tool: `${toolCallRequest.tool_name}`"))
-
                 val toolStartTime = System.currentTimeMillis()
                 val result: ToolResult = executeTool(toolCallRequest)
                 val toolDuration = System.currentTimeMillis() - toolStartTime
@@ -156,146 +122,65 @@ class LocalLlmRepositoryImpl(
 
                 // Add tool result to history for the next turn
                 val resultJsonString = json.encodeToString(result)
-                // This now uses the new 'TOOL' sender type, which is handled above.
-                fullHistory.add(
-                    ChatMessage(
-                        text = resultJsonString,
-                        sender = ChatMessage.Sender.TOOL,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
+                fullHistory.add(ChatMessage(text = resultJsonString, sender = ChatMessage.Sender.TOOL))
 
             } catch (e: Exception) {
-                // Failed to parse or execute the tool call
-                val errorMsg = "Error processing tool call: ${e.message}"
-                fullHistory.add(
-                    ChatMessage(
-                        text = errorMsg,
-                        sender = ChatMessage.Sender.TOOL,
-                        timestamp = System.currentTimeMillis()
-                    )
-                )
+                val errorMsg = "Error processing tool call: ${e.message}. JSON content: $jsonContent"
+                onToolMessage?.invoke(errorMsg)
+                fullHistory.add(ChatMessage(text = errorMsg, sender = ChatMessage.Sender.TOOL))
                 // Continue the loop, letting the model know its tool call failed
             }
         }
 
+        onStateUpdate?.invoke(AgentState.Idle)
         return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
     }
 
-
-    // Place these helper functions inside your LocalLlmRepositoryImpl class
-    private fun Map<String, JsonElement>.stringParam(key: String, default: String = ""): String {
-        return this[key]?.jsonPrimitive?.content ?: default
-    }
-
-    private fun Map<String, JsonElement>.booleanParam(
-        key: String,
-        default: Boolean = false
-    ): Boolean {
-        return this[key]?.jsonPrimitive?.booleanOrNull ?: default
-    }
-
     private suspend fun executeTool(toolCall: ToolCallRequest): ToolResult {
-        // Use the helper functions to cleanly extract parameters
         val params = toolCall.parameters
-
         return when (toolCall.tool_name) {
-            "create_file" -> {
-                ideApi.createFile(
-                    path = params.stringParam("path"),
-                    content = params.stringParam("content")
-                )
-            }
-
-            "update_file" -> {
-                ideApi.updateFile(
-                    path = params.stringParam("path"),
-                    content = params.stringParam("content")
-                )
-            }
-
-            "read_file" -> {
-                ideApi.readFile(
-                    path = params.stringParam("path")
-                )
-            }
-
-            "list_files" -> {
-                ideApi.listFiles(
-                    path = params.stringParam("path"),
-                    recursive = params.booleanParam("recursive")
-                )
-            }
-
-            "run_app" -> {
-                ideApi.runApp()
-            }
-
+            "create_file" -> ideApi.createFile(path = params.stringParam("path"), content = params.stringParam("content"))
+            "read_file" -> ideApi.readFile(path = params.stringParam("path"))
+            "update_file" -> ideApi.updateFile(path = params.stringParam("path"), content = params.stringParam("content"))
+            "delete_file" -> ideApi.deleteFile(path = params.stringParam("path"))
+            "list_files" -> ideApi.listFiles(path = params.stringParam("path"), recursive = params.booleanParam("recursive"))
             "add_dependency" -> {
-                // FIX: Use "dependency" to match the tool's parameter definition
-                val dependencyString = params.stringParam("dependency")
-                val buildFilePath = params.stringParam("build_file_path")
-
-                if (dependencyString.isEmpty()) {
-                    ToolResult.failure("The 'dependency' parameter is required.")
-                } else {
-                    // The API call itself is fine
-                    ideApi.addDependency(
-                        dependencyString = dependencyString,
-                        buildFilePath = buildFilePath
-                    )
-                }
+                val dep = params.stringParam("dependency")
+                val path = params.stringParam("build_file_path")
+                if (dep.isEmpty() || path.isEmpty()) ToolResult.failure("'dependency' and 'build_file_path' are required.")
+                else ideApi.addDependency(if (path.endsWith(".kts")) "implementation(\"$dep\")" else "implementation '$dep'", path)
             }
-
-            "get_build_output" -> {
-                ideApi.getBuildOutput()
-            }
-
             "add_string_resource" -> {
                 val name = params.stringParam("name")
                 val value = params.stringParam("value")
-                if (name.isEmpty() || value.isEmpty()) {
-                    ToolResult.failure("Both 'name' and 'value' parameters are required for add_string_resource.")
-                } else {
-                    ideApi.addStringResource(name, value)
-                }
+                if (name.isEmpty() || value.isEmpty()) ToolResult.failure("'name' and 'value' are required.")
+                else ideApi.addStringResource(name, value)
             }
-
+            "run_app" -> ideApi.runApp()
+            "trigger_gradle_sync" -> ideApi.triggerGradleSync()
+            "get_build_output" -> ideApi.getBuildOutput()
             "ask_user" -> {
                 val question = params.stringParam("question", "...")
                 val optionsJson = params["options"]
-                val options = optionsJson?.let {
-                    // The JSON library can decode directly from a JsonElement
-                    json.decodeFromJsonElement(ListSerializer(String.serializer()), it)
-                } ?: listOf()
-
+                val options = optionsJson?.let { json.decodeFromJsonElement(ListSerializer(String.serializer()), it) } ?: listOf()
                 onAskUser?.invoke(question, options)
-
-                ToolResult(
-                    success = true,
-                    message = "The user has been asked the question. Await their response in the next turn."
-                )
+                ToolResult.success("User has been asked. Await their response.")
             }
-
             else -> ToolResult.failure("Unknown tool: ${toolCall.tool_name}")
         }
     }
 
-    // Helper data class for deserializing the model's tool request
+    private fun Map<String, JsonElement>.stringParam(key: String, default: String = ""): String = this[key]?.jsonPrimitive?.content ?: default
+    private fun Map<String, JsonElement>.booleanParam(key: String, default: Boolean = false): Boolean = this[key]?.jsonPrimitive?.booleanOrNull ?: default
+
     @Serializable
-    private data class ToolCallRequest(
-        val tool_name: String,
-        val parameters: Map<String, JsonElement>
-    )
+    private data class ToolCallRequest(val tool_name: String, val parameters: Map<String, JsonElement>)
 
-    override fun getPartialReport(): String {
-        return toolTracker.generatePartialReport()
-    }
-
-    override suspend fun generateCode(
-        prompt: String, fileContent: String, fileName: String, fileRelativePath: String
-    ): String {
-        // This implementation can remain separate as it doesn't use the tool-calling loop
-        return "Code generation not yet implemented for the local LLM."
+    override fun getPartialReport(): String = toolTracker.generatePartialReport()
+    override suspend fun generateCode(prompt: String, fileContent: String, fileName: String, fileRelativePath: String): String {
+        onStateUpdate?.invoke(AgentState.Processing("Generating code with local LLM..."))
+        val response = LlmInferenceEngine.runInference("USER: Based on the file $fileName, $prompt\nASSISTANT:")
+        onStateUpdate?.invoke(AgentState.Idle)
+        return response
     }
 }
