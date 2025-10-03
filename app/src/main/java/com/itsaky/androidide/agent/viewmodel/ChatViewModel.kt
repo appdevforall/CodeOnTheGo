@@ -291,12 +291,21 @@ class ChatViewModel : ViewModel() {
                             ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM)
                         )
                     }
+                } else {
+                    // Handle other exceptions if necessary
+                    updateMessageInCurrentSession(
+                        messageId = messageIdToUpdate,
+                        newText = "An error occurred: ${e.message}",
+                        newStatus = MessageStatus.ERROR,
+                        originalPrompt = originalUserPrompt
+                    )
                 }
+            } finally {
+                _agentState.value = AgentState.Idle
             }
         }
     }
 
-    // ✨ New private helper to build the text for the status display
     private fun buildBackendDisplayText(
         backend: AiBackend,
         modelPath: String?,
@@ -316,8 +325,13 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-
     fun stopAgentResponse() {
+        // ✨ Step 1: Immediately signal the underlying repository/engine to stop.
+        // This will interrupt the blocking native code.
+        agentRepository?.stop()
+
+        // ✨ Step 2: Cancel the coroutine job. This will trigger the catch block
+        // for a clean and predictable state update.
         if (agentJob?.isActive == true) {
             agentJob?.cancel()
         }

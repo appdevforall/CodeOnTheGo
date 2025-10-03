@@ -9,6 +9,14 @@ import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
+// ✨ 1. Import necessary coroutine classes
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -33,6 +41,10 @@ class AgenticRunner(
     private val context: Context, // Keep the context
     private val maxSteps: Int = 20
 ) : GeminiRepository {
+
+    // ✨ 2. Create a cancellable Job and a CoroutineScope for the runner
+    private val runnerJob = Job()
+    private val runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
 
     // Use lazy initialization for the clients
     private val plannerClient: GeminiClient by lazy {
@@ -66,6 +78,18 @@ class AgenticRunner(
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
 
     private val toolTracker = ToolExecutionTracker()
+
+    // ✨ 3. Implement the stop() method from the interface
+    /**
+     * Immediately cancels the runner's CoroutineScope.
+     * This will interrupt any ongoing network calls (plan, critique) and
+     * cause the run loop to terminate with a CancellationException.
+     */
+    override fun stop() {
+        log.info("Stop requested for AgenticRunner. Cancelling job.")
+        // Cancel the job with a message for debugging
+        runnerJob.cancel("User requested to stop the agent.")
+    }
 
     override fun getPartialReport(): String {
         return toolTracker.generatePartialReport()
@@ -167,12 +191,22 @@ class AgenticRunner(
         prompt: String,
         history: List<ChatMessage>
     ): AgentResponse {
-        val finalMessage = run(prompt, history)
+        // ✨ 4. Execute the main run logic within the cancellable runnerScope
+        // We use async/await to get the result or the cancellation exception.
+        val finalMessage = try {
+            runnerScope.async {
+                run(prompt, history)
+            }.await()
+        } catch (e: CancellationException) {
+            log.warn("generateASimpleResponse caught cancellation.")
+            "Operation cancelled by user."
+        }
+
         onStateUpdate?.invoke(AgentState.Idle)
-        return AgentResponse(text = finalMessage, report = "Completed workflow.")
+        return AgentResponse(text = finalMessage, report = toolTracker.generatePartialReport())
     }
 
-    suspend fun run(
+    private suspend fun run(
         prompt: String,
         chatHistory: List<ChatMessage>? = null,
     ): String {
@@ -201,6 +235,9 @@ class AgenticRunner(
 
         try {
             for (step in 0 until maxSteps) {
+                // ✨ 5. Add an explicit check for cancellation at the start of each loop
+                runnerScope.ensureActive()
+
                 val message = "Orchestrator: Step ${step + 1}..."
                 log.info(message)
                 onStateUpdate?.invoke(AgentState.Processing(message))
@@ -228,16 +265,12 @@ class AgenticRunner(
                     return finalText
                 }
 
-                // The main loop is now clean. It just executes the tool call.
-                // The tool itself (runApp or triggerGradleSync) will handle all the waiting.
                 val toolResultsParts = executor.execute(functionCalls)
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
                 logTurn("tool", toolResultsParts)
 
-                // Gracefully exit the loop on a successful app run.
                 val lastToolName = functionCalls.lastOrNull()?.name()?.getOrNull()
                 if (lastToolName == "run_app") {
-                    // Since the tool now waits, its result is the FINAL result.
                     val runResultJson =
                         toolResultsParts.first().functionResponse().get().response().get()
                     val successMessage = runResultJson["message"] as? String ?: ""
@@ -262,6 +295,11 @@ class AgenticRunner(
             }
             throw RuntimeException("Agentic run exceeded max_steps ($maxSteps)")
         } catch (err: Exception) {
+            // ✨ 6. Specifically handle CancellationException to provide a clean message
+            if (err is CancellationException) {
+                log.warn("Agentic run was cancelled during execution.")
+                return "Operation cancelled by user."
+            }
             log.error("Agentic run failed", err)
             return "Agentic run failed: ${err.message}"
         } finally {

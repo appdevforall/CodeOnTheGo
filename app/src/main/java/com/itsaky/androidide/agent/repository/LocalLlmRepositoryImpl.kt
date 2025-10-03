@@ -252,4 +252,8 @@ class LocalLlmRepositoryImpl(
         onStateUpdate?.invoke(AgentState.Idle)
         return response
     }
+
+    override fun stop() {
+        LlmInferenceEngine.stopInference()
+    }
 }

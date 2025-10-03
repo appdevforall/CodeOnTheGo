@@ -18,4 +18,6 @@ interface GeminiRepository {
         fileName: String,
         fileRelativePath: String
     ): String
+
+    fun stop()
 }

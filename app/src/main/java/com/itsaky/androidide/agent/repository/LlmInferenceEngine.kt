@@ -125,4 +125,17 @@ object LlmInferenceEngine {
     suspend fun clearKvCache() {
         llama.clearKvCache()
     }
+
+    /**
+     * ✨ Immediately stops any ongoing inference in the native layer.
+     * This assumes the underlying LLamaAndroid library supports this operation.
+     */
+    fun stopInference() {
+        Log.d(TAG, "Attempting to stop inference immediately.")
+        try {
+            llama.stop() // Assumed method in the native library
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calling stop on native library", e)
+        }
+    }
 }

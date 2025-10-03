@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 class LLamaAndroid {
@@ -44,6 +45,8 @@ class LLamaAndroid {
     private val tag: String? = this::class.simpleName
 
     private val threadLocalState: ThreadLocal<State> = ThreadLocal.withInitial { State.Idle }
+
+    private val isStopped = AtomicBoolean(false)
 
     private val runLoop: CoroutineDispatcher = Executors.newSingleThreadExecutor {
         thread(start = false, name = "Llm-RunLoop") {
@@ -110,6 +113,15 @@ class LLamaAndroid {
 
     private external fun kv_cache_clear(context: Long)
 
+    /**
+     * Sets a flag to immediately stop the current inference loop.
+     * The loop will terminate cooperatively after the current token is processed.
+     */
+    fun stop() {
+        Log.d(tag, "Stop requested for current generation.")
+        isStopped.set(true)
+    }
+
     suspend fun bench(pp: Int, tg: Int, pl: Int, nr: Int = 1): String {
         return withContext(runLoop) {
             when (val state = threadLocalState.get()) {
@@ -133,9 +145,7 @@ class LLamaAndroid {
                     val context = new_context(model)
                     if (context == 0L) throw IllegalStateException("new_context() failed")
 
-                    // **THE FIX:** Change 512 to a larger value, like the context size.
-                    // Using 2048 is a safe bet since that's your n_ctx.
-                    val batch = new_batch(2048, 0, 1) // <-- MODIFIED LINE
+                    val batch = new_batch(2048, 0, 1)
                     if (batch == 0L) throw IllegalStateException("new_batch() failed")
 
                     val sampler = new_sampler()
@@ -157,6 +167,9 @@ class LLamaAndroid {
     ): Flow<String> = flow {
         when (val state = threadLocalState.get()) {
             is State.Loaded -> {
+                // ✨ 3. Reset the stop flag at the beginning of every new generation.
+                isStopped.set(false)
+
                 // If requested, clear the cache BEFORE starting this turn
                 if (clearCache) {
                     kv_cache_clear(state.context)
@@ -174,6 +187,12 @@ class LLamaAndroid {
                 )
 
                 while (ncur.value <= nlen) {
+                    // ✨ 4. Check the stop flag on each iteration of the loop.
+                    if (isStopped.get()) {
+                        Log.i(tag, "Stopping generation loop because stop flag was set.")
+                        break // Exit the loop immediately
+                    }
+
                     val str = completion_loop(state.context, state.batch, state.sampler, nlen, ncur)
                     if (str == null) {
                         break

@@ -81,4 +81,5 @@ class SwitchableGeminiRepository(
         fileRelativePath: String
     ) = activeRepository.generateCode(prompt, fileContent, fileName, fileRelativePath)
 
+    override fun stop() = activeRepository.stop()
 }
