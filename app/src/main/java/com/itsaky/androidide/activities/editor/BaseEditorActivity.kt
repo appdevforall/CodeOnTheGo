@@ -130,6 +130,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -186,8 +187,8 @@ abstract class BaseEditorActivity :
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-					binding.root.closeDrawer(GravityCompat.START)
+				if (binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START)) {
+					binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
 					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 				} else if (binding.swipeReveal.isOpen) {
@@ -536,6 +537,9 @@ abstract class BaseEditorActivity :
             )
             true
         }
+
+        FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+            .setupDraggableFab()
 
         setupMemUsageChart()
         watchMemory()
