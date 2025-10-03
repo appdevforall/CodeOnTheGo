@@ -35,8 +35,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import androidx.core.net.toUri
 
-// ✨ New Data class to hold the UI state for the backend status display
 data class BackendStatus(val displayText: String)
 
 class ChatViewModel : ViewModel() {
@@ -46,7 +46,6 @@ class ChatViewModel : ViewModel() {
     private val _currentSession = MutableLiveData<ChatSession?>()
     val currentSession: LiveData<ChatSession?> = _currentSession
 
-    // ✨ New LiveData to expose the backend status to the UI
     private val _backendStatus = MutableLiveData<BackendStatus>()
     val backendStatus: LiveData<BackendStatus> = _backendStatus
 
@@ -66,7 +65,6 @@ class ChatViewModel : ViewModel() {
     private var saveJob: Job? = null
     private val chatStorageManager: ChatStorageManager
 
-    // ✨ New properties to track settings changes
     private var lastKnownBackendName: String? = null
     private var lastKnownModelPath: String? = null
 
@@ -75,7 +73,6 @@ class ChatViewModel : ViewModel() {
         private const val SAVE_DEBOUNCE_MS = 500L
     }
 
-    // ✨ New public function to add a system message to the chat
     fun addSystemMessage(text: String) {
         val systemMessage = ChatMessage(
             text = text,
@@ -84,18 +81,15 @@ class ChatViewModel : ViewModel() {
         addMessageToCurrentSession(systemMessage)
     }
 
-    // ✨ Modified function to handle BOTH the system message and the UI display
     fun checkBackendStatusOnResume(context: Context) {
         val prefs = BaseApplication.getBaseInstance().prefManager
         val currentBackendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)!!
         val currentModelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
         val backend = AiBackend.valueOf(currentBackendName)
 
-        // --- Part 1: Update the continuous UI status display ---
         val displayText = buildBackendDisplayText(backend, currentModelPath, context)
         _backendStatus.value = BackendStatus(displayText)
 
-        // --- Part 2: Handle the one-time system message for changes ---
         val isFirstCheck = lastKnownBackendName == null
         val backendChanged = !isFirstCheck && lastKnownBackendName != currentBackendName
         val modelChanged =
@@ -106,12 +100,10 @@ class ChatViewModel : ViewModel() {
             addSystemMessage(message)
         }
 
-        // --- Part 3: Update the last known state for the next check ---
         lastKnownBackendName = currentBackendName
         lastKnownModelPath = currentModelPath
     }
 
-    // ✨ New private helper to construct the message string
     private fun buildSystemMessage(
         backend: AiBackend,
         modelPath: String?,
@@ -123,7 +115,7 @@ class ChatViewModel : ViewModel() {
         val message = StringBuilder("🤖 System: $backendDisplayName backend selected.")
         if (backend == AiBackend.LOCAL_LLM) {
             if (modelPath != null) {
-                val fileName = getFileNameFromUri(Uri.parse(modelPath), context)
+                val fileName = getFileNameFromUri(modelPath.toUri(), context)
                 message.append("\nCurrent model: $fileName")
             } else {
                 message.append("\n⚠️ Warning: No model file selected.")
@@ -132,7 +124,6 @@ class ChatViewModel : ViewModel() {
         return message.toString()
     }
 
-    // ✨ New private helper to get filename from URI
     private fun getFileNameFromUri(uri: Uri, context: Context): String {
         var result: String? = null
         if (uri.scheme == "content") {
@@ -315,8 +306,7 @@ class ChatViewModel : ViewModel() {
             AiBackend.GEMINI -> "Gemini"
             AiBackend.LOCAL_LLM -> {
                 if (modelPath != null) {
-                    val fileName = getFileNameFromUri(Uri.parse(modelPath), context)
-                    // Return a shortened version of the filename to fit the UI
+                    val fileName = getFileNameFromUri(modelPath.toUri(), context)
                     if (fileName.length > 15) "${fileName.take(12)}..." else fileName
                 } else {
                     "Local LLM"
@@ -326,12 +316,7 @@ class ChatViewModel : ViewModel() {
     }
 
     fun stopAgentResponse() {
-        // ✨ Step 1: Immediately signal the underlying repository/engine to stop.
-        // This will interrupt the blocking native code.
         agentRepository?.stop()
-
-        // ✨ Step 2: Cancel the coroutine job. This will trigger the catch block
-        // for a clean and predictable state update.
         if (agentJob?.isActive == true) {
             agentJob?.cancel()
         }
