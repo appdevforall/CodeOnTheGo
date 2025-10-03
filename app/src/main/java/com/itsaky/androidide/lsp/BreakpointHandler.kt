@@ -97,12 +97,12 @@ class BreakpointHandler {
 
     fun begin(consumer: (List<BreakpointDefinition>) -> Unit) {
         val projectLocation = getProjectLocation()
+        onSetBreakpoints = consumer
 
         scope.launch {
             val loadedBreakpoints = BreakpointRepository.getBreakpointsLocalStored(projectLocation)
 
             refreshBreakpoints(loadedBreakpoints)
-            onSetBreakpoints = consumer
             onSetBreakpoints(loadedBreakpoints)
 
             for (event in events) {
@@ -173,13 +173,16 @@ class BreakpointHandler {
 
         val current = stateRef.get()
 
+        // Create a copy, because 'breakpoints' may be cleared even before the coroutine is launched
         val newPos = HashBasedTable.create(current.positional)
 
         if (ev.changeType == ChangeType.NEW_TEXT) {
             logger.debug("new content set to file {}. removing all breakpoints", path)
 
-            // all of the editor's text was invalidated
-            // remove all breakpoints in this file
+            /*
+            * All of the editor's text was invalidated
+            * remove all breakpoints in this file
+            */
             val localBreakpoints = ArrayList(newPos.row(path).values)
             localBreakpoints.forEach { notifyRemoved(path, it.line) }
 
@@ -199,20 +202,41 @@ class BreakpointHandler {
 
         for ((line, bp) in fileBreakpoints) {
             if (line < start.line) {
+                /*
+                * This breakpoint lies before the edit region, or on the same line
+                * as a result, it doesn't require an update to the line number
+                */
+                logger.debug("keep breakpoint at line {} in file {}", line, path)
                 updated[line] = bp
                 continue
             }
 
             if (start.line != end.line && range.containsLine(line)) {
+                /*
+                * In case of multi-line edits, if the breakpoint line was in the edited region
+                * then the breakpoint is no longer valid
+                * in such cases, remove all breakpoints which were in the edited region
+                */
                 logger.debug("removing breakpoint at line {} in file {}", line, path)
                 notifyRemoved(path, line)
                 continue
             }
 
+            // We assume that the end line always > start line
             var delta = end.line - start.line
-            if (ev.changeType == ChangeType.DELETE) delta = -delta
+            if (ev.changeType == ChangeType.DELETE) {
+              // Content was deleted, so the lines must be reduced by delta
+              delta = -delta
+            }
 
+            logger.debug("updating breakpoints in file {} by delta {}", path, delta)
+
+            /*
+            * For breakpoints that lie beyond the edit range, we need to update their line
+            * numbers according to the delta in change range
+            */
             val newLine = line + delta
+            logger.debug("breakpoint at line {} moved to line {} in file {}", line, newLine, path)
             updated[newLine] = bp.copy(line = newLine)
             notifyMoved(path, line, newLine)
         }
@@ -222,10 +246,10 @@ class BreakpointHandler {
             putAll(updated)
         }
 
-        val newList = updated.values.toList()
-        onSetBreakpoints(newList)
-
         stateRef.set(current.copy(positional = ImmutableTable.copyOf(newPos)))
+        val newList = updated.values.toList()
+        // Publish the new breakpoints to the client, if connected
+        onSetBreakpoints(newList)
     }
 
     private fun onToggle(event: BreakpointEvent.Toggle) {
