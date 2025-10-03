@@ -5,12 +5,11 @@ import android.database.Cursor
 import android.llama.cpp.LLamaAndroid
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.util.Log
 import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.fold
-import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream
 
@@ -19,7 +18,7 @@ import java.io.FileOutputStream
  * This object manages loading, running, and releasing the local LLM.
  */
 object LlmInferenceEngine {
-    private const val TAG = "LlmInferenceEngine"
+    private val log = LoggerFactory.getLogger(LlmInferenceEngine::class.java)
     private val llama = LLamaAndroid.instance()
 
     var isModelLoaded = false
@@ -27,10 +26,6 @@ object LlmInferenceEngine {
     var loadedModelName: String? = null
         private set
 
-    /**
-     * Copies a model from a URI to a local cache file and loads it into memory.
-     * @return True if the model was loaded successfully, false otherwise.
-     */
     suspend fun initModelFromFile(context: Context, modelUriString: String): Boolean {
         if (isModelLoaded) {
             releaseModel()
@@ -41,22 +36,20 @@ object LlmInferenceEngine {
                 val originalFileName = getFileNameFromUri(modelUri, context)
                 val destinationFile = File(context.cacheDir, "local_model.gguf")
 
-                // Copy the model file from the URI to the app's cache
                 context.contentResolver.openInputStream(modelUri)?.use { inputStream ->
                     FileOutputStream(destinationFile).use { outputStream ->
                         inputStream.copyTo(outputStream)
                     }
                 }
-                Log.d(TAG, "Model copied to cache at ${destinationFile.path}")
+                log.info("Model copied to cache at {}", destinationFile.path)
 
-                // Load the model from the cached file
                 llama.load(destinationFile.path)
                 isModelLoaded = true
                 loadedModelName = originalFileName
-                Log.d(TAG, "Successfully loaded local model: $loadedModelName")
+                log.info("Successfully loaded local model: {}", loadedModelName)
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize or load model from file", e)
+                log.error("Failed to initialize or load model from file", e)
                 isModelLoaded = false
                 loadedModelName = null
                 false
@@ -64,14 +57,9 @@ object LlmInferenceEngine {
         }
     }
 
-    /**
-     * Runs inference on the loaded model with a given prompt.
-     * @param prompt The full text prompt for the model.
-     * @return The model's generated response as a String.
-     */
     suspend fun runInference(prompt: String, stopStrings: List<String>): String {
         if (!isModelLoaded) {
-            Log.e(TAG, "Inference attempted but no model is loaded.")
+            log.error("Inference attempted but no model is loaded.")
             return "Error: Model not loaded."
         }
         llama.clearKvCache()
@@ -80,24 +68,21 @@ object LlmInferenceEngine {
                 val send = llama.send(prompt, stop = stopStrings)
                 send.fold("") { accumulator, value -> accumulator + value }
             } catch (e: Exception) {
-                Log.e(TAG, "Error during model inference", e)
+                log.error("Error during model inference", e)
                 "Error during inference: ${e.message}"
             }
         }
     }
 
-    /**
-     * Unloads the current model from memory.
-     */
     suspend fun releaseModel() {
         if (isModelLoaded) {
             try {
                 llama.unload()
                 isModelLoaded = false
                 loadedModelName = null
-                Log.d(TAG, "Model released.")
+                log.info("Model released.")
             } catch (e: Exception) {
-                Log.e(TAG, "Error releasing model", e)
+                log.error("Error releasing model", e)
             }
         }
     }
@@ -129,16 +114,12 @@ object LlmInferenceEngine {
         llama.clearKvCache()
     }
 
-    /**
-     * ✨ Immediately stops any ongoing inference in the native layer.
-     * This assumes the underlying LLamaAndroid library supports this operation.
-     */
     fun stopInference() {
-        Log.d(TAG, "Attempting to stop inference immediately.")
+        log.info("Attempting to stop inference immediately.")
         try {
-            llama.stop() // Assumed method in the native library
+            llama.stop()
         } catch (e: Exception) {
-            Log.e(TAG, "Error calling stop on native library", e)
+            log.error("Error calling stop on native library", e)
         }
     }
 }

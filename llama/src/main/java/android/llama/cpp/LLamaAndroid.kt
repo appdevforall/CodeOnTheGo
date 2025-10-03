@@ -1,17 +1,19 @@
 package android.llama.cpp
 
-import android.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 class LLamaAndroid {
+
+    private val log = LoggerFactory.getLogger(LLamaAndroid::class.java)
 
     private external fun model_n_ctx(context: Long): Int
 
@@ -42,7 +44,6 @@ class LLamaAndroid {
             }
         }
     }
-    private val tag: String? = this::class.simpleName
 
     private val threadLocalState: ThreadLocal<State> = ThreadLocal.withInitial { State.Idle }
 
@@ -50,21 +51,19 @@ class LLamaAndroid {
 
     private val runLoop: CoroutineDispatcher = Executors.newSingleThreadExecutor {
         thread(start = false, name = "Llm-RunLoop") {
-            Log.d(tag, "Dedicated thread for native code: ${Thread.currentThread().name}")
+            log.debug("Dedicated thread for native code: {}", Thread.currentThread().name)
 
-            // No-op if called more than once.
             System.loadLibrary("llama-android")
 
-            // Set llama log handler to Android
             log_to_android()
             backend_init(false)
 
-            Log.d(tag, system_info())
+            log.debug("System Info: {}", system_info())
 
             it.run()
         }.apply {
             uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, exception: Throwable ->
-                Log.e(tag, "Unhandled exception", exception)
+                log.error("Unhandled exception on Llm-RunLoop thread", exception)
             }
         }
     }.asCoroutineDispatcher()
@@ -113,12 +112,8 @@ class LLamaAndroid {
 
     private external fun kv_cache_clear(context: Long)
 
-    /**
-     * Sets a flag to immediately stop the current inference loop.
-     * The loop will terminate cooperatively after the current token is processed.
-     */
     fun stop() {
-        Log.d(tag, "Stop requested for current generation.")
+        log.info("Stop requested for current generation.")
         isStopped.set(true)
     }
 
@@ -126,7 +121,7 @@ class LLamaAndroid {
         return withContext(runLoop) {
             when (val state = threadLocalState.get()) {
                 is State.Loaded -> {
-                    Log.d(tag, "bench(): $state")
+                    log.debug("bench(): {}", state)
                     bench_model(state.context, state.model, state.batch, pp, tg, pl, nr)
                 }
 
@@ -140,7 +135,7 @@ class LLamaAndroid {
             when (threadLocalState.get()) {
                 is State.Idle -> {
                     val model = load_model(pathToModel)
-                    if (model == 0L)  throw IllegalStateException("load_model() failed")
+                    if (model == 0L) throw IllegalStateException("load_model() failed")
 
                     val context = new_context(model)
                     if (context == 0L) throw IllegalStateException("new_context() failed")
@@ -151,9 +146,10 @@ class LLamaAndroid {
                     val sampler = new_sampler()
                     if (sampler == 0L) throw IllegalStateException("new_sampler() failed")
 
-                    Log.i(tag, "Loaded model $pathToModel")
+                    log.info("Loaded model {}", pathToModel)
                     threadLocalState.set(State.Loaded(model, context, batch, sampler))
                 }
+
                 else -> throw IllegalStateException("Model already loaded")
             }
         }
@@ -167,10 +163,8 @@ class LLamaAndroid {
     ): Flow<String> = flow {
         when (val state = threadLocalState.get()) {
             is State.Loaded -> {
-                // ✨ 3. Reset the stop flag at the beginning of every new generation.
                 isStopped.set(false)
 
-                // If requested, clear the cache BEFORE starting this turn
                 if (clearCache) {
                     kv_cache_clear(state.context)
                 }
@@ -187,10 +181,9 @@ class LLamaAndroid {
                 )
 
                 while (ncur.value <= nlen) {
-                    // ✨ 4. Check the stop flag on each iteration of the loop.
                     if (isStopped.get()) {
-                        Log.i(tag, "Stopping generation loop because stop flag was set.")
-                        break // Exit the loop immediately
+                        log.info("Stopping generation loop because stop flag was set.")
+                        break
                     }
 
                     val str = completion_loop(state.context, state.batch, state.sampler, nlen, ncur)
@@ -200,15 +193,11 @@ class LLamaAndroid {
                     emit(str)
                 }
             }
+
             else -> {}
         }
     }.flowOn(runLoop)
 
-    /**
-     * Unloads the model and frees resources.
-     *
-     * This is a no-op if there's no model loaded.
-     */
     suspend fun unload() {
         withContext(runLoop) {
             when (val state = threadLocalState.get()) {
@@ -220,6 +209,7 @@ class LLamaAndroid {
 
                     threadLocalState.set(State.Idle)
                 }
+
                 else -> {}
             }
         }
@@ -239,11 +229,15 @@ class LLamaAndroid {
         }
 
         private sealed interface State {
-            data object Idle: State
-            data class Loaded(val model: Long, val context: Long, val batch: Long, val sampler: Long): State
+            data object Idle : State
+            data class Loaded(
+                val model: Long,
+                val context: Long,
+                val batch: Long,
+                val sampler: Long
+            ) : State
         }
 
-        // Enforce only one instance of Llm.
         private val _instance: LLamaAndroid = LLamaAndroid()
 
         fun instance(): LLamaAndroid = _instance
