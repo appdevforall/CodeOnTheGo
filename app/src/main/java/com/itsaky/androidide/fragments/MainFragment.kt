@@ -15,6 +15,7 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.UiThread
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.activityViewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -65,6 +66,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
 import org.eclipse.jgit.api.CloneCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.ProgressMonitor
@@ -180,7 +182,10 @@ class MainFragment : BaseFragment() {
             true
         }
 
-        setupDraggableFab()
+        FeedbackButtonManager(
+            activity = requireActivity() as AppCompatActivity,
+            feedbackFab = binding?.floatingActionButton!!,
+        ).setupDraggableFab()
     }
 
     private fun setupDraggableFab() {

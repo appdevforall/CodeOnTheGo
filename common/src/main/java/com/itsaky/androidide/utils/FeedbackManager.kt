@@ -80,7 +80,7 @@ object FeedbackManager {
 			} else {
 				Toast
 					.makeText(activity,
-                        context.getString(R.string.no_email_apps), Toast.LENGTH_LONG)
+                        activity.getString(R.string.no_email_apps), Toast.LENGTH_LONG)
 					.show()
 			}
 		}
