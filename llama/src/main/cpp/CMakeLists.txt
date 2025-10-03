@@ -36,8 +36,10 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         log)
 
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+        SYSTEM_INCLUDE_DIRECTORIES ""
         INCLUDE_DIRECTORIES ""
 )
+
 target_include_directories(${CMAKE_PROJECT_NAME}
         PRIVATE
         ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include

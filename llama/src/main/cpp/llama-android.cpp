@@ -62,6 +62,25 @@ static JavaVM *g_jvm = nullptr;
 static jclass g_llama_android_class = nullptr;
 static jmethodID g_log_from_native_method = nullptr;
 
+template<typename JVM>
+static auto attach_current_thread_impl(JVM *jvm, JNIEnv **env, int)
+-> decltype(jvm->AttachCurrentThread(env, nullptr), jint{}) {
+    // Header has the JNIEnv** signature
+    return jvm->AttachCurrentThread(env, nullptr);
+}
+
+template<typename JVM>
+static jint attach_current_thread_impl(JVM *jvm, JNIEnv **env, long) {
+    // Fallback for headers that want void** (e.g., Flox)
+    void *venv = nullptr;
+    jint r = jvm->AttachCurrentThread(&venv, nullptr);
+    *env = reinterpret_cast<JNIEnv *>(venv);
+    return r;
+}
+
+static inline jint attach_current_thread(JavaVM *jvm, JNIEnv **env) {
+    return attach_current_thread_impl(jvm, env, 0);
+}
 
 void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
     if (!g_jvm || !g_llama_android_class || !g_log_from_native_method) {
@@ -69,22 +88,18 @@ void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
         return;
     }
 
-    JNIEnv *env;
+    JNIEnv *env = nullptr;
     bool did_attach_thread = false;
 
-    // Check if the current thread is attached to the JVM.
     jint get_env_result = g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
-
     if (get_env_result == JNI_EDETACHED) {
-        JNIEnv *env;
-        if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+        if (attach_current_thread(g_jvm, &env) != JNI_OK || !env) {
             __android_log_print(ANDROID_LOG_ERROR, TAG, "AttachCurrentThread failed");
             return;
         }
         did_attach_thread = true;
     } else if (get_env_result != JNI_OK) {
-        __android_log_print(ANDROID_LOG_ERROR, TAG, "Failed to get JNIEnv for logging: %s",
-                            message);
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "GetEnv failed");
         return;
     }
 
