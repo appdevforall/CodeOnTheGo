@@ -1,15 +1,17 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
+import android.database.Cursor
 import android.llama.cpp.LLamaAndroid
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
+import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import androidx.core.net.toUri
 
 /**
  * A singleton wrapper for the LLamaAndroid library.
@@ -18,7 +20,10 @@ import androidx.core.net.toUri
 object LlmInferenceEngine {
     private const val TAG = "LlmInferenceEngine"
     private val llama = LLamaAndroid.instance()
+
     var isModelLoaded = false
+        private set
+    var loadedModelName: String? = null
         private set
 
     /**
@@ -32,8 +37,8 @@ object LlmInferenceEngine {
         return withContext(Dispatchers.IO) {
             try {
                 val modelUri = modelUriString.toUri()
-                val fileName = "local_model.gguf" // Use a consistent cached name
-                val destinationFile = File(context.cacheDir, fileName)
+                val originalFileName = getFileNameFromUri(modelUri, context)
+                val destinationFile = File(context.cacheDir, "local_model.gguf")
 
                 // Copy the model file from the URI to the app's cache
                 context.contentResolver.openInputStream(modelUri)?.use { inputStream ->
@@ -46,11 +51,13 @@ object LlmInferenceEngine {
                 // Load the model from the cached file
                 llama.load(destinationFile.path)
                 isModelLoaded = true
-                Log.d(TAG, "Successfully loaded local model.")
+                loadedModelName = originalFileName
+                Log.d(TAG, "Successfully loaded local model: $loadedModelName")
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize or load model from file", e)
                 isModelLoaded = false
+                loadedModelName = null
                 false
             }
         }
@@ -84,11 +91,35 @@ object LlmInferenceEngine {
             try {
                 llama.unload()
                 isModelLoaded = false
+                loadedModelName = null
                 Log.d(TAG, "Model released.")
             } catch (e: Exception) {
                 Log.e(TAG, "Error releasing model", e)
             }
         }
+    }
+
+    private fun getFileNameFromUri(uri: Uri, context: Context): String {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            val cursor: Cursor? = context.contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val colIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (colIndex >= 0) {
+                        result = it.getString(colIndex)
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path
+            val cut = result?.lastIndexOf('/')
+            if (cut != null && cut != -1) {
+                result = result.substring(cut + 1)
+            }
+        }
+        return result ?: "Unknown File"
     }
 
     suspend fun clearKvCache() {
