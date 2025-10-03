@@ -1,4 +1,4 @@
-include_directories(${ANDROID_NDK}/sysroot/usr/include)
+include_directories(BEFORE ${ANDROID_NDK}/sysroot/usr/include)
 
 cmake_minimum_required(VERSION 3.22.1)
 

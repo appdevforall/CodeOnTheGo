@@ -77,20 +77,9 @@ void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
 
     if (get_env_result == JNI_EDETACHED) {
         JNIEnv *env;
-        if (g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_EDETACHED) {
-#if defined(__ANDROID__) && defined(__cplusplus)
-            // NDK's C++ signature: JNIEnv**
-            if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
-                __android_log_print(ANDROID_LOG_ERROR, TAG, "AttachCurrentThread failed");
-                return;
-            }
-#else
-            // Fallback C signature: void**
-    if (g_jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) {
-        __android_log_print(ANDROID_LOG_ERROR, TAG, "AttachCurrentThread failed");
-        return;
-    }
-#endif
+        if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+            __android_log_print(ANDROID_LOG_ERROR, TAG, "AttachCurrentThread failed");
+            return;
         }
         did_attach_thread = true;
     } else if (get_env_result != JNI_OK) {
