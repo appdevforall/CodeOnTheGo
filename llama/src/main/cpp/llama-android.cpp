@@ -76,17 +76,21 @@ void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
     jint get_env_result = g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
 
     if (get_env_result == JNI_EDETACHED) {
-        // If not attached, attach it.
-#ifdef __cplusplus
-        // C++ variant
-        if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+        JNIEnv *env;
+        if (g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_EDETACHED) {
+#if defined(__ANDROID__) && defined(__cplusplus)
+            // NDK's C++ signature: JNIEnv**
+            if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+                __android_log_print(ANDROID_LOG_ERROR, TAG, "AttachCurrentThread failed");
+                return;
+            }
 #else
-            // C variant
-            if (g_jvm->AttachCurrentThread((void **)&env, nullptr) != JNI_OK) {
+            // Fallback C signature: void**
+    if (g_jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "AttachCurrentThread failed");
+        return;
+    }
 #endif
-            __android_log_print(ANDROID_LOG_ERROR, TAG, "Failed to attach thread for logging: %s",
-                                message);
-            return;
         }
         did_attach_thread = true;
     } else if (get_env_result != JNI_OK) {
@@ -193,7 +197,7 @@ Java_android_llama_cpp_LLamaAndroid_new_1context(JNIEnv *env, jobject, jlong jmo
     ctx_params.n_threads       = n_threads;
     ctx_params.n_threads_batch = n_threads;
 
-    llama_context * context = llama_new_context_with_model(model, ctx_params);
+    llama_context *context = llama_init_from_model(model, ctx_params);
 
     if (!context) {
         LOGe("llama_new_context_with_model() returned null)");
@@ -450,10 +454,9 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
     bool parse_special = (format_chat == JNI_TRUE);
     const auto tokens_list = common_tokenize(context, text, true, parse_special);
 
-    auto n_ctx = llama_n_ctx(context);
-    auto n_kv_req = tokens_list.size() + n_len;
-
-    LOGi("n_len = %d, n_ctx = %d, n_kv_req = %d", n_len, n_ctx, n_kv_req);
+    int n_ctx = llama_n_ctx(context);
+    size_t n_kv_req = tokens_list.size() + static_cast<size_t>(n_len);
+    LOGi("n_len = %d, n_ctx = %d, n_kv_req = %zu", n_len, n_ctx, n_kv_req);
 
     if (n_kv_req > n_ctx) {
         LOGe("error: n_kv_req > n_ctx, the required KV cache size is not big enough");

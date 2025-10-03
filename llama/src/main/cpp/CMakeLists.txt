@@ -1,8 +1,5 @@
-# For more information about using CMake with Android Studio, read the
-# documentation: https://d.android.com/studio/projects/add-native-code.html.
-# For more examples on how to use CMake, see https://github.com/android/ndk-samples.
+include_directories(${ANDROID_NDK}/sysroot/usr/include)
 
-# Sets the minimum CMake version required for this project.
 cmake_minimum_required(VERSION 3.22.1)
 
 # Declares the project name. The project name can be accessed via ${ PROJECT_NAME},
