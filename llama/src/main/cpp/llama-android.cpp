@@ -109,14 +109,20 @@ void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
     }
 }
 
+void log_info_to_kt(const char *fmt, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
 
-// The rest of your C++ file remains the same.
-// The slf4j_log_callback, JNI_OnLoad, and log_to_android functions are all correct.
+    log_to_kotlin_bridge((ggml_log_level) 4, buffer);
+}
+
 static void slf4j_log_callback(ggml_log_level level, const char *fmt, void *data) {
     log_to_kotlin_bridge(level, fmt);
 }
 
-// JNI_OnLoad remains exactly the same as before.
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     g_jvm = vm;
     JNIEnv *env;
@@ -504,7 +510,10 @@ Java_android_llama_cpp_LLamaAndroid_completion_1loop(
     jstring new_token = nullptr;
     if (is_valid_utf8(cached_token_chars.c_str())) {
         new_token = env->NewStringUTF(cached_token_chars.c_str());
-        LOGi("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(), new_token_chars.c_str(), new_token_id);
+
+        log_info_to_kt("cached: %s, new_token_chars: `%s`, id: %d", cached_token_chars.c_str(),
+                       new_token_chars.c_str(), new_token_id);
+
         cached_token_chars.clear();
     } else {
         new_token = env->NewStringUTF("");

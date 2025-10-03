@@ -222,7 +222,6 @@ class LLamaAndroid {
         fun logFromNative(level: Int, message: String) {
             val cleanMessage = message.trim()
             when (level) {
-                // We'll map GGML_LOG_LEVEL to SLF4J levels
                 2 -> nativeLog.error(cleanMessage) // GGML_LOG_LEVEL_ERROR = 2
                 3 -> nativeLog.warn(cleanMessage)  // GGML_LOG_LEVEL_WARN  = 3
                 4 -> nativeLog.info(cleanMessage)   // GGML_LOG_LEVEL_INFO  = 4
