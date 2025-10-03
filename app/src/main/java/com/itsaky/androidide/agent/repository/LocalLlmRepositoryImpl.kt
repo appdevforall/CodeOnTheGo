@@ -18,7 +18,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class LocalLlmRepositoryImpl(
     private val context: Context,
-    private val ideApi: IDEApiFacade,
+    private val ideApi: IDEApiFacade = IDEApiFacade,
 ) : GeminiRepository {
 
     private val toolTracker = ToolExecutionTracker()

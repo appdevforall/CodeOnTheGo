@@ -15,6 +15,12 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.MessageStatus
+import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
+import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
+import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.api.IDEApiFacade
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -43,9 +49,8 @@ class ChatViewModel : ViewModel() {
     private var timerJob: Job? = null
     private var operationStartTime: Long = 0
     private var stepStartTime: Long = 0
-    private var isAgentInitialized = false
 
-    // A placeholder for the repository.
+    // MODIFIED: This is no longer injected, it will be created on-demand.
     private var agentRepository: GeminiRepository? = null
     private var agentJob: Job? = null
     private var saveJob: Job? = null
@@ -53,30 +58,42 @@ class ChatViewModel : ViewModel() {
 
     companion object {
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
-
-        // Set a debounce window (e.g., 500 milliseconds)
         private const val SAVE_DEBOUNCE_MS = 500L
     }
 
-    private fun ensureAgentInitialized(context: Context) {
-        if (isAgentInitialized) return
+    // NEW METHOD: Creates and configures the correct repository based on SharedPreferences.
+    private suspend fun initializeAndGetAgentRepository(context: Context): GeminiRepository? {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
+        val backend = AiBackend.valueOf(backendName ?: "GEMINI")
 
-        try {
-            // This is the moment of truth. We ask the ServiceLocator for the
-            // repository. If the API key is missing, this line will throw the
-            // IllegalStateException.
-            agentRepository = AgenticRunner(context = context)
-
-            // If we get here, the agent is ready.
-            isAgentInitialized = true
-        } catch (e: Exception) {
-            // If it fails, we keep the repository as null and set the flag.
-            // We'll handle showing the error message in startAgent().
-            isAgentInitialized = true // Mark as initialized to prevent retries
-            agentRepository = null
-            Log.e("ChatViewModel", "Failed to initialize agent", e)
+        agentRepository = when (backend) {
+            AiBackend.GEMINI -> {
+                // For Gemini, we create the AgenticRunner.
+                // It will internally check for the API key.
+                AgenticRunner(context)
+            }
+            AiBackend.LOCAL_LLM -> {
+                val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+                if (modelPath.isNullOrBlank()) {
+                    // If no model path is saved, we can't proceed.
+                    Log.e("ChatViewModel", "Local LLM backend is selected but no model path is saved.")
+                    return null
+                }
+                // Create the LocalLlmRepositoryImpl instance
+                val localRepo = LocalLlmRepositoryImpl(context)
+                // IMPORTANT: Load the model. This must complete before any inference.
+                if (localRepo.loadModel(modelPath)) {
+                    localRepo // Return the successfully initialized repo
+                } else {
+                    Log.e("ChatViewModel", "Failed to load the local model from path: $modelPath")
+                    null // Return null if loading fails
+                }
+            }
         }
+        return agentRepository
     }
+
 
     init {
         val baseDir = IProjectManager.getInstance().projectDir
@@ -92,22 +109,17 @@ class ChatViewModel : ViewModel() {
     private fun constructFullPrompt(userInput: String): String {
         val messages = _currentSession.value?.messages ?: return userInput
         if (messages.size < 2) return userInput
-
-        // Find the last message from the AGENT and the last message from the USER before that
         val lastAgentMessage = messages.lastOrNull { it.sender == ChatMessage.Sender.AGENT }
         val lastUserMessageBeforeAgent = messages.lastOrNull {
             it.sender == ChatMessage.Sender.USER && it.timestamp < (lastAgentMessage?.timestamp
                 ?: 0)
         }
 
-        // Heuristic: If the last agent message contains "Options:", it was likely a question
-        // and the current userInput is the answer.
         if (lastAgentMessage != null && lastUserMessageBeforeAgent != null && lastAgentMessage.text.contains(
                 "Options:"
             )
         ) {
             Log.d("ChatViewModel", "Resuming context after user answer.")
-            // Re-establish the context for the model
             return """
             The user is responding to your previous question.
             Original user request: "${lastUserMessageBeforeAgent.text}"
@@ -116,33 +128,25 @@ class ChatViewModel : ViewModel() {
             Based on the user's answer, please continue with the original request.
             """.trimIndent()
         }
-
-        // If not resuming, just use the plain user input
         return userInput
     }
 
     fun sendMessage(fullPrompt: String, originalUserText: String, context: Context) {
-        // 1. Check if the agent is already running.
         if (_agentState.value is AgentState.Processing) {
             return
         }
-
-        // 2. Add the user's message to the UI immediately.
         val userMessage = ChatMessage(text = originalUserText, sender = ChatMessage.Sender.USER)
         addMessageToCurrentSession(userMessage)
-
-        // 3. Add a "loading" message to the UI.
         val loadingMessage = ChatMessage(
             text = "...",
             sender = ChatMessage.Sender.AGENT,
             status = MessageStatus.LOADING
         )
         addMessageToCurrentSession(loadingMessage)
-
-        // 4. Call the single, correct function to get the agent's response.
         retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText, context)
     }
 
+    // MODIFIED: This function now uses the new on-demand repository creation.
     private fun retrieveAgentResponse(
         prompt: String,
         messageIdToUpdate: String,
@@ -151,23 +155,25 @@ class ChatViewModel : ViewModel() {
     ) {
         agentJob = viewModelScope.launch {
             try {
-                // Step 1: Initialize the agent if it hasn't been already.
-                ensureAgentInitialized(context)
+                _agentState.value = AgentState.Processing("Initializing AI Backend...")
+
+                // Step 1: Initialize the agent based on current SharedPreferences.
+                val repository = initializeAndGetAgentRepository(context)
 
                 // Step 2 (Guard Clause): Check if initialization was successful.
-                // If agentRepository is still null, it means initialization failed.
-                // We use 'val' to create a non-nullable reference for the rest of the function.
-                val repository = agentRepository ?: run {
-                    // Update the UI with the specific error and exit the function.
-                    updateMessageInCurrentSession(
-                        messageId = messageIdToUpdate,
-                        newText = "Gemini API Key not found or invalid. Please configure it in AI Settings.",
-                        newStatus = MessageStatus.ERROR
-                    )
+                if (repository == null) {
+                    val prefs = BaseApplication.getBaseInstance().prefManager
+                    val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
+                    val backend = AiBackend.valueOf(backendName ?: "GEMINI")
+                    val errorMessage = when (backend) {
+                        AiBackend.GEMINI -> "Gemini API Key not found. Please set it in AI Settings."
+                        AiBackend.LOCAL_LLM -> "Local LLM model not selected or failed to load. Please select a valid model in AI Settings."
+                    }
+                    updateMessageInCurrentSession(messageIdToUpdate, errorMessage, MessageStatus.ERROR)
                     return@launch
                 }
 
-                _agentState.value = AgentState.Processing("Thinking...") // Set state to processing
+                _agentState.value = AgentState.Processing("Thinking...")
 
                 // Step 3: Run the agent on a background thread.
                 val agentResponse = withContext(Dispatchers.IO) {
@@ -179,27 +185,19 @@ class ChatViewModel : ViewModel() {
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = agentResponse.text,
-                    newStatus = MessageStatus.SENT // Use SENT for a successful, final message
+                    newStatus = MessageStatus.SENT
                 )
 
-                // Step 5 (Optional): Add the execution report if it exists.
+                // Step 5: Add the execution report.
                 if (agentResponse.report.isNotBlank()) {
                     addMessageToCurrentSession(
-                        ChatMessage(
-                            text = agentResponse.report,
-                            sender = ChatMessage.Sender.SYSTEM,
-                            status = MessageStatus.SENT
-                        )
+                        ChatMessage(text = agentResponse.report, sender = ChatMessage.Sender.SYSTEM)
                     )
                 }
+
             } catch (e: Exception) {
-                // This now handles all other errors, like network issues or cancellations.
                 if (e is CancellationException) {
-                    updateMessageInCurrentSession(
-                        messageId = messageIdToUpdate,
-                        newText = "Operation cancelled by user.",
-                        newStatus = MessageStatus.ERROR
-                    )
+                    updateMessageInCurrentSession(messageIdToUpdate, "Operation cancelled by user.", MessageStatus.ERROR)
                     val partialReport = agentRepository?.getPartialReport()
                     if (partialReport?.isNotBlank() == true) {
                         addMessageToCurrentSession(
@@ -220,6 +218,9 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+
+    // The rest of the file remains the same...
+
     fun stopAgentResponse() {
         if (agentJob?.isActive == true) {
             agentJob?.cancel()
@@ -232,7 +233,6 @@ class ChatViewModel : ViewModel() {
         _currentSession.postValue(session)
         scheduleSaveCurrentSession()
     }
-
 
     private fun updateMessageInCurrentSession(
         messageId: String,
@@ -255,15 +255,10 @@ class ChatViewModel : ViewModel() {
 
     fun loadSessions(prefs: SharedPreferences) {
         val loadedSessions = chatStorageManager.loadAllSessions()
-
         if (loadedSessions.isEmpty()) {
-            // If no chats are found on disk, start with a fresh session
             loadedSessions.add(ChatSession())
         }
-
         _sessions.value = loadedSessions
-
-        // Find the last active session using the ID from SharedPreferences
         val currentId = prefs.getString(CURRENT_CHAT_ID_PREF_KEY, null)
         _currentSession.value = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
     }
@@ -271,11 +266,7 @@ class ChatViewModel : ViewModel() {
     fun saveAllSessionsAndState(prefs: SharedPreferences) {
         saveJob?.cancel()
         _currentSession.value?.let { chatStorageManager.saveSession(it) }
-
-        _sessions.value?.let {
-            chatStorageManager.saveAllSessions(it)
-        }
-
+        _sessions.value?.let { chatStorageManager.saveAllSessions(it) }
         _currentSession.value?.let {
             prefs.edit { putString(CURRENT_CHAT_ID_PREF_KEY, it.id) }
         }
@@ -289,47 +280,17 @@ class ChatViewModel : ViewModel() {
         scheduleSaveCurrentSession()
     }
 
-
     fun setCurrentSession(sessionId: String) {
-        // Before switching, ensure the current session is saved
         saveJob?.cancel()
         _currentSession.value?.let { chatStorageManager.saveSession(it) }
-
         val session = _sessions.value?.find { it.id == sessionId }
         if (session != null) {
             _currentSession.value = session
         }
     }
 
-    private fun startTimers() {
-        operationStartTime = System.currentTimeMillis()
-        stepStartTime = operationStartTime // The first step starts with the operation
-        timerJob?.cancel()
-        timerJob = viewModelScope.launch {
-            while (true) {
-                val now = System.currentTimeMillis()
-                _totalElapsedTime.value = now - operationStartTime
-                _stepElapsedTime.value = now - stepStartTime
-                delay(100) // Update UI every 100ms
-            }
-        }
-    }
-
-    private fun resetStepTimer() {
-        stepStartTime = System.currentTimeMillis()
-        _stepElapsedTime.value = 0L
-    }
-
-    private fun stopTimers() {
-        timerJob?.cancel()
-        _totalElapsedTime.value = 0L
-        _stepElapsedTime.value = 0L
-    }
-
     private fun scheduleSaveCurrentSession() {
-        // Cancel any previously scheduled save
         saveJob?.cancel()
-        // Launch a new coroutine to save after a delay
         saveJob = viewModelScope.launch {
             delay(SAVE_DEBOUNCE_MS)
             _currentSession.value?.let {
