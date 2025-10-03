@@ -58,9 +58,11 @@ import java.io.File
 
 import android.hardware.display.DisplayManager
 import android.view.Display
+import androidx.appcompat.app.AppCompatActivity
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -134,6 +136,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
         instance = this
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Setting this up in onResume instead on onCreate so that the updated fab's position
+        // is retrieved when navigating between MainActivity's fragments
+        FeedbackButtonManager(
+            activity = this,
+            feedbackFab = binding.fabFeedback,
+        ).setupDraggableFab()
     }
 
     override fun onApplySystemBarInsets(insets: Insets) {

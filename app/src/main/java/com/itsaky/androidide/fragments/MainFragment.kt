@@ -154,11 +154,6 @@ class MainFragment : BaseFragment() {
             TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
-
-        FeedbackButtonManager(
-            activity = requireActivity() as AppCompatActivity,
-            feedbackFab = binding?.floatingActionButton!!,
-        ).setupDraggableFab()
     }
 
     private fun performOptionsMenuClick(action: MainScreenAction) {
