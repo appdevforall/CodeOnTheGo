@@ -2,32 +2,27 @@ package com.itsaky.androidide.agent.repository
 
 import android.content.Context
 import android.util.Log
+import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
-import com.itsaky.androidide.agent.AgentState
-import com.itsaky.androidide.agent.ChatMessage
-import com.itsaky.androidide.agent.MessageStatus
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import org.json.JSONObject
-import java.util.concurrent.atomic.AtomicLong
 import java.util.regex.Pattern
 
-enum class MessageType {
-    SYSTEM, USER, MODEL
-}
-data class UiMessage(
-    val id: Long,
-    val text: String,
-    val type: MessageType
+@Serializable
+data class ParsedToolCall(
+    @SerialName("tool_name") val name: String,
+    val args: Map<String, JsonElement>? = null
 )
 
 private const val SYSTEM_PROMPT = """
@@ -131,7 +126,7 @@ class LocalLlmRepositoryImpl(
                         historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}<|eot_id|>")
                     }
                 }
-                else -> {} // Ignore system/tool messages for the prompt history
+                else -> {}
             }
         }
         historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n")
@@ -146,11 +141,9 @@ class LocalLlmRepositoryImpl(
         toolTracker.startTracking()
         LlmInferenceEngine.clearKvCache()
 
-        // The ViewModel already added the user message. We build the prompt from the history it provides.
         var fullPromptHistory = buildPromptWithHistory(history)
 
-        // Agentic loop for tool usage
-        for (i in 1..10) { // Max 10 turns
+        for (i in 1..10) {
             onStateUpdate?.invoke(AgentState.Processing("Local LLM is thinking... (Turn ${i})"))
 
             val stopStrings = listOf("<|eot_id|>", "</tool_call>")
@@ -159,17 +152,14 @@ class LocalLlmRepositoryImpl(
 
             val toolMatch = parseToolCall(rawResponse)
             if (toolMatch == null) {
-                // No tool call found, this is the final answer
                 onStateUpdate?.invoke(AgentState.Idle)
                 Log.d("AgentDebug", "No tool call detected. Concluding.")
                 return AgentResponse(text = rawResponse.trim(), report = toolTracker.generateReport())
             }
 
-            // A tool was called, let's show the progress
             val toolCallEndIndex = rawResponse.indexOf("</tool_call>")
             val toolCallText = rawResponse.substring(0, toolCallEndIndex + "</tool_call>".length)
 
-            // ✨ 4. Send the model's "thought" process back to the ViewModel
             val thoughtMessage = "🤖 **Thought:** I will use the `${toolMatch.name}` tool.\n```json\n$toolCallText\n```"
             onProgressUpdate?.invoke(ChatMessage(text = thoughtMessage, sender = ChatMessage.Sender.SYSTEM))
 
@@ -180,11 +170,9 @@ class LocalLlmRepositoryImpl(
                 val result = tool.execute(context, toolMatch.args ?: emptyMap())
                 Log.d("AgentDebug", "Tool Response: \"$result\"")
 
-                // ✨ 5. Send the tool's result back to the ViewModel
                 val toolResultMessage = "✅ **Tool Result:**\n```\n$result\n```"
                 onProgressUpdate?.invoke(ChatMessage(text = toolResultMessage, sender = ChatMessage.Sender.SYSTEM))
 
-                // Append the conversation history for the next turn
                 fullPromptHistory += "$toolCallText<|eot_id|>"
                 fullPromptHistory += """
                 <|start_header_id|>user<|end_header_id|>
@@ -263,28 +251,17 @@ class LocalLlmRepositoryImpl(
         LlmInferenceEngine.stopInference()
     }
 
-    private fun parseToolCall(text: String): ToolCall? {
+    private fun parseToolCall(text: String): ParsedToolCall? {
         val pattern = Pattern.compile("<tool_call>(.*?)</tool_call>", Pattern.DOTALL)
         val matcher = pattern.matcher(text)
         if (matcher.find()) {
             val jsonStr = matcher.group(1)?.trim()
-            if (jsonStr.isNullOrBlank()) {
-                Log.e("ToolParse", "Found tool_call tags but the content was empty.")
-                return null
-            }
-
-            try {
-                val json = JSONObject(jsonStr)
-                val toolName = json.getString("tool_name")
-                val argsJson = json.getJSONObject("args")
-                val argsMap = mutableMapOf<String, JsonElement>()
-                argsJson.keys().forEach { key ->
-                    argsMap[key] = argsJson.get(key) as JsonElement
-                }
-                return ToolCall(toolName, argsMap)
+            if (jsonStr.isNullOrBlank()) return null
+            return try {
+                json.decodeFromString<ParsedToolCall>(jsonStr)
             } catch (e: Exception) {
                 Log.e("ToolParse", "Failed to parse tool call JSON", e)
-                return null
+                null
             }
         }
         return null

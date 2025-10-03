@@ -1,11 +1,9 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
-import android.database.Cursor
 import android.llama.cpp.LLamaAndroid
-import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.core.net.toUri
+import com.itsaky.androidide.utils.getFileName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.withContext
@@ -33,7 +31,7 @@ object LlmInferenceEngine {
         return withContext(Dispatchers.IO) {
             try {
                 val modelUri = modelUriString.toUri()
-                val originalFileName = getFileNameFromUri(modelUri, context)
+                val originalFileName = modelUri.getFileName(context)
                 val destinationFile = File(context.cacheDir, "local_model.gguf")
 
                 context.contentResolver.openInputStream(modelUri)?.use { inputStream ->
@@ -85,29 +83,6 @@ object LlmInferenceEngine {
                 log.error("Error releasing model", e)
             }
         }
-    }
-
-    private fun getFileNameFromUri(uri: Uri, context: Context): String {
-        var result: String? = null
-        if (uri.scheme == "content") {
-            val cursor: Cursor? = context.contentResolver.query(uri, null, null, null, null)
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    val colIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (colIndex >= 0) {
-                        result = it.getString(colIndex)
-                    }
-                }
-            }
-        }
-        if (result == null) {
-            result = uri.path
-            val cut = result?.lastIndexOf('/')
-            if (cut != null && cut != -1) {
-                result = result.substring(cut + 1)
-            }
-        }
-        return result ?: "Unknown File"
     }
 
     suspend fun clearKvCache() {

@@ -2,9 +2,6 @@ package com.itsaky.androidide.agent.viewmodel
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.database.Cursor
-import android.net.Uri
-import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -25,6 +22,7 @@ import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.utils.getFileName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -115,36 +113,13 @@ class ChatViewModel : ViewModel() {
         val message = StringBuilder("🤖 System: $backendDisplayName backend selected.")
         if (backend == AiBackend.LOCAL_LLM) {
             if (modelPath != null) {
-                val fileName = getFileNameFromUri(modelPath.toUri(), context)
+                val fileName = modelPath.toUri().getFileName(context)
                 message.append("\nCurrent model: $fileName")
             } else {
                 message.append("\n⚠️ Warning: No model file selected.")
             }
         }
         return message.toString()
-    }
-
-    private fun getFileNameFromUri(uri: Uri, context: Context): String {
-        var result: String? = null
-        if (uri.scheme == "content") {
-            val cursor: Cursor? = context.contentResolver.query(uri, null, null, null, null)
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    val colIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (colIndex >= 0) {
-                        result = it.getString(colIndex)
-                    }
-                }
-            }
-        }
-        if (result == null) {
-            result = uri.path
-            val cut = result?.lastIndexOf('/')
-            if (cut != null && cut != -1) {
-                result = result.substring(cut + 1)
-            }
-        }
-        return result ?: "Unknown File"
     }
 
     private suspend fun initializeAndGetAgentRepository(context: Context): GeminiRepository? {
@@ -350,7 +325,7 @@ class ChatViewModel : ViewModel() {
             AiBackend.GEMINI -> "Gemini"
             AiBackend.LOCAL_LLM -> {
                 if (modelPath != null) {
-                    val fileName = getFileNameFromUri(modelPath.toUri(), context)
+                    val fileName = modelPath.toUri().getFileName(context)
                     if (fileName.length > 15) "${fileName.take(12)}..." else fileName
                 } else {
                     "Local LLM"

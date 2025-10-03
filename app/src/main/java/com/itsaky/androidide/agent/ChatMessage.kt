@@ -15,6 +15,6 @@ data class ChatMessage(
     var isExpanded: Boolean = false
 ) {
     enum class Sender {
-        USER, AGENT, SYSTEM, TOOL
+        USER, AGENT, SYSTEM
     }
 }

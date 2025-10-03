@@ -2,16 +2,16 @@ package com.itsaky.androidide.agent.fragments
 
 import android.content.Context
 import android.content.Intent
-import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -19,11 +19,10 @@ import com.google.android.material.textfield.TextInputEditText
 import com.itsaky.androidide.R
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
+import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
 import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
 import com.itsaky.androidide.utils.flashInfo
-import androidx.core.content.edit
-import androidx.core.net.toUri
-import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
+import com.itsaky.androidide.utils.getFileName
 
 
 const val SAVED_MODEL_URI_KEY = "saved_model_uri"
@@ -104,7 +103,6 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         val modelPathTextView = view.findViewById<TextView>(R.id.selected_model_path)
         val browseButton = view.findViewById<Button>(R.id.btn_browse_model)
         val loadSavedButton = view.findViewById<Button>(R.id.loadSavedButton)
-        // ✨ Get a reference to our new status TextView ✨
         val modelStatusTextView = view.findViewById<TextView>(R.id.model_status_text_view)
 
         viewModel.checkInitialSavedModel(requireContext())
@@ -120,7 +118,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 // A model is saved
                 loadSavedButton.isEnabled = true
                 modelPathTextView.visibility = View.VISIBLE
-                modelPathTextView.text = "💾 Saved: ${getFileNameFromUri(uri.toUri())}"
+                context?.let { modelPathTextView.text = "💾 Saved: ${uri.toUri().getFileName(it)}" }
 
             } else {
                 // No model is saved
@@ -152,7 +150,6 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
     }
 
     private fun loadFromSaved() {
-        // Now, this function can rely on the ViewModel's state
         val savedUri = viewModel.savedModelPath.value
         if (savedUri != null) {
             val hasPermission = requireActivity().contentResolver.persistedUriPermissions.any {
@@ -162,42 +159,14 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
                 viewModel.loadModelFromUri(savedUri, requireContext())
             } else {
                 viewModel.log("Permission for saved model lost. Please select it again.")
-                // Clear the invalid preference and update the ViewModel
                 requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
                     remove(SAVED_MODEL_URI_KEY)
                 }
                 viewModel.onNewModelSelected(null) // This will disable the button
             }
         } else {
-            // This case should ideally not happen since the button would be disabled,
-            // but it's good practice to handle it.
             viewModel.log("No saved model found.")
         }
-    }
-
-    private fun getFileNameFromUri(uri: Uri): String {
-        var result: String? = null
-        if (uri.scheme == "content") {
-            val cursor: Cursor? = requireActivity().contentResolver.query(uri, null, null, null, null)
-            try {
-                if (cursor != null && cursor.moveToFirst()) {
-                    val colIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (colIndex >= 0) {
-                        result = cursor.getString(colIndex)
-                    }
-                }
-            } finally {
-                cursor?.close()
-            }
-        }
-        if (result == null) {
-            result = uri.path
-            val cut = result?.lastIndexOf('/')
-            if (cut != null && cut != -1) {
-                result = result.substring(cut + 1)
-            }
-        }
-        return result ?: "Unknown File"
     }
 
     override fun onDestroyView() {
