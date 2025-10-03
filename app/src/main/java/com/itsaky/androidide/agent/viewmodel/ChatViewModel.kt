@@ -2,6 +2,9 @@ package com.itsaky.androidide.agent.viewmodel
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.database.Cursor
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.content.edit
 import androidx.lifecycle.LiveData
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 class ChatViewModel : ViewModel() {
     private val _sessions = MutableLiveData<MutableList<ChatSession>>(mutableListOf())
@@ -50,18 +54,92 @@ class ChatViewModel : ViewModel() {
     private var operationStartTime: Long = 0
     private var stepStartTime: Long = 0
 
-    // MODIFIED: This is no longer injected, it will be created on-demand.
     private var agentRepository: GeminiRepository? = null
     private var agentJob: Job? = null
     private var saveJob: Job? = null
     private val chatStorageManager: ChatStorageManager
+
+    // ✨ New properties to track settings changes
+    private var lastKnownBackendName: String? = null
+    private var lastKnownModelPath: String? = null
 
     companion object {
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
         private const val SAVE_DEBOUNCE_MS = 500L
     }
 
-    // NEW METHOD: Creates and configures the correct repository based on SharedPreferences.
+    // ✨ New public function to add a system message to the chat
+    fun addSystemMessage(text: String) {
+        val systemMessage = ChatMessage(
+            text = text,
+            sender = ChatMessage.Sender.SYSTEM
+        )
+        addMessageToCurrentSession(systemMessage)
+    }
+
+    // ✨ New function to be called from Fragment's onResume
+    fun checkBackendStatusOnResume(context: Context) {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        val currentBackendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)!!
+        val currentModelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+
+        // Determine if settings have changed since the last time this screen was viewed
+        val isFirstCheck = lastKnownBackendName == null
+        val backendChanged = !isFirstCheck && lastKnownBackendName != currentBackendName
+        val modelChanged = !isFirstCheck && lastKnownBackendName == AiBackend.LOCAL_LLM.name && lastKnownModelPath != currentModelPath
+
+        if (backendChanged || modelChanged) {
+            val backend = AiBackend.valueOf(currentBackendName)
+            val message = buildSystemMessage(backend, currentModelPath, context)
+            addSystemMessage(message)
+        }
+
+        // Update the last known state for the next check
+        lastKnownBackendName = currentBackendName
+        lastKnownModelPath = currentModelPath
+    }
+
+    // ✨ New private helper to construct the message string
+    private fun buildSystemMessage(backend: AiBackend, modelPath: String?, context: Context): String {
+        val backendDisplayName = backend.name.replace("_", " ")
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+
+        val message = StringBuilder("🤖 System: $backendDisplayName backend selected.")
+        if (backend == AiBackend.LOCAL_LLM) {
+            if (modelPath != null) {
+                val fileName = getFileNameFromUri(Uri.parse(modelPath), context)
+                message.append("\nCurrent model: $fileName")
+            } else {
+                message.append("\n⚠️ Warning: No model file selected.")
+            }
+        }
+        return message.toString()
+    }
+
+    // ✨ New private helper to get filename from URI
+    private fun getFileNameFromUri(uri: Uri, context: Context): String {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            val cursor: Cursor? = context.contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val colIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (colIndex >= 0) {
+                        result = it.getString(colIndex)
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path
+            val cut = result?.lastIndexOf('/')
+            if (cut != null && cut != -1) {
+                result = result.substring(cut + 1)
+            }
+        }
+        return result ?: "Unknown File"
+    }
+
     private suspend fun initializeAndGetAgentRepository(context: Context): GeminiRepository? {
         val prefs = BaseApplication.getBaseInstance().prefManager
         val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
@@ -69,25 +147,20 @@ class ChatViewModel : ViewModel() {
 
         agentRepository = when (backend) {
             AiBackend.GEMINI -> {
-                // For Gemini, we create the AgenticRunner.
-                // It will internally check for the API key.
                 AgenticRunner(context)
             }
             AiBackend.LOCAL_LLM -> {
                 val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
                 if (modelPath.isNullOrBlank()) {
-                    // If no model path is saved, we can't proceed.
                     Log.e("ChatViewModel", "Local LLM backend is selected but no model path is saved.")
                     return null
                 }
-                // Create the LocalLlmRepositoryImpl instance
                 val localRepo = LocalLlmRepositoryImpl(context)
-                // IMPORTANT: Load the model. This must complete before any inference.
                 if (localRepo.loadModel(modelPath)) {
-                    localRepo // Return the successfully initialized repo
+                    localRepo
                 } else {
                     Log.e("ChatViewModel", "Failed to load the local model from path: $modelPath")
-                    null // Return null if loading fails
+                    null
                 }
             }
         }
@@ -102,7 +175,6 @@ class ChatViewModel : ViewModel() {
     }
 
     fun sendMessage(text: String, context: Context) {
-//        val fullPrompt = constructFullPrompt(text)
         sendMessage(fullPrompt = text, originalUserText = text, context)
     }
 
@@ -146,7 +218,6 @@ class ChatViewModel : ViewModel() {
         retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText, context)
     }
 
-    // MODIFIED: This function now uses the new on-demand repository creation.
     private fun retrieveAgentResponse(
         prompt: String,
         messageIdToUpdate: String,
@@ -156,11 +227,7 @@ class ChatViewModel : ViewModel() {
         agentJob = viewModelScope.launch {
             try {
                 _agentState.value = AgentState.Processing("Initializing AI Backend...")
-
-                // Step 1: Initialize the agent based on current SharedPreferences.
                 val repository = initializeAndGetAgentRepository(context)
-
-                // Step 2 (Guard Clause): Check if initialization was successful.
                 if (repository == null) {
                     val prefs = BaseApplication.getBaseInstance().prefManager
                     val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
@@ -172,29 +239,21 @@ class ChatViewModel : ViewModel() {
                     updateMessageInCurrentSession(messageIdToUpdate, errorMessage, MessageStatus.ERROR)
                     return@launch
                 }
-
                 _agentState.value = AgentState.Processing("Thinking...")
-
-                // Step 3: Run the agent on a background thread.
                 val agentResponse = withContext(Dispatchers.IO) {
                     val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
                     repository.generateASimpleResponse(prompt, history)
                 }
-
-                // Step 4: Update the UI with the final response.
                 updateMessageInCurrentSession(
                     messageId = messageIdToUpdate,
                     newText = agentResponse.text,
                     newStatus = MessageStatus.SENT
                 )
-
-                // Step 5: Add the execution report.
                 if (agentResponse.report.isNotBlank()) {
                     addMessageToCurrentSession(
                         ChatMessage(text = agentResponse.report, sender = ChatMessage.Sender.SYSTEM)
                     )
                 }
-
             } catch (e: Exception) {
                 if (e is CancellationException) {
                     updateMessageInCurrentSession(messageIdToUpdate, "Operation cancelled by user.", MessageStatus.ERROR)
@@ -218,8 +277,6 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-
-    // The rest of the file remains the same...
 
     fun stopAgentResponse() {
         if (agentJob?.isActive == true) {

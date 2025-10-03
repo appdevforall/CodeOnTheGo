@@ -88,6 +88,9 @@ class ChatFragment :
         super.onResume()
         // Attach the listener to the top-level window view
         activity?.window?.decorView?.setOnApplyWindowInsetsListener(insetsListener)
+
+        // ✨ New: Check for backend changes when the screen becomes visible
+        chatViewModel.checkBackendStatusOnResume(requireContext())
     }
 
     override fun onFragmentLongPressed() {
@@ -294,9 +297,6 @@ class ChatFragment :
         }
     }
 
-    /**
-     * Formats milliseconds into a string like "1m 2.3s" or "5.4s".
-     */
     private fun formatTime(millis: Long): String {
         if (millis < 0) return ""
 
