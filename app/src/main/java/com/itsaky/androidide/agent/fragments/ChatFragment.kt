@@ -86,10 +86,7 @@ class ChatFragment :
 
     override fun onResume() {
         super.onResume()
-        // Attach the listener to the top-level window view
         activity?.window?.decorView?.setOnApplyWindowInsetsListener(insetsListener)
-
-        // ✨ New: Check for backend changes when the screen becomes visible
         chatViewModel.checkBackendStatusOnResume(requireContext())
     }
 
@@ -109,6 +106,9 @@ class ChatFragment :
         setupUI()
         setupListeners()
         setupStateObservers()
+        chatViewModel.backendStatus.observe(viewLifecycleOwner) { status ->
+            binding.backendStatusText.text = status.displayText
+        }
         chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
             session?.let {
                 chatAdapter.submitList(it.messages.toList())
@@ -202,10 +202,6 @@ class ChatFragment :
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
         }
-        val modes = arrayOf("Agent", "Ask", "Manual")
-        val adapter =
-            ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, modes)
-        binding.agentModeAutocomplete.setAdapter(adapter)
     }
 
     private fun setupListeners() {

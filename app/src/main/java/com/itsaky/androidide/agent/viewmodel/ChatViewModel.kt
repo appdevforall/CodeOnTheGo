@@ -36,12 +36,19 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 
+// ✨ New Data class to hold the UI state for the backend status display
+data class BackendStatus(val displayText: String)
+
 class ChatViewModel : ViewModel() {
     private val _sessions = MutableLiveData<MutableList<ChatSession>>(mutableListOf())
     val sessions: LiveData<MutableList<ChatSession>> = _sessions
 
     private val _currentSession = MutableLiveData<ChatSession?>()
     val currentSession: LiveData<ChatSession?> = _currentSession
+
+    // ✨ New LiveData to expose the backend status to the UI
+    private val _backendStatus = MutableLiveData<BackendStatus>()
+    val backendStatus: LiveData<BackendStatus> = _backendStatus
 
     private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
     val agentState = _agentState.asStateFlow()
@@ -77,30 +84,39 @@ class ChatViewModel : ViewModel() {
         addMessageToCurrentSession(systemMessage)
     }
 
-    // ✨ New function to be called from Fragment's onResume
+    // ✨ Modified function to handle BOTH the system message and the UI display
     fun checkBackendStatusOnResume(context: Context) {
         val prefs = BaseApplication.getBaseInstance().prefManager
         val currentBackendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)!!
         val currentModelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+        val backend = AiBackend.valueOf(currentBackendName)
 
-        // Determine if settings have changed since the last time this screen was viewed
+        // --- Part 1: Update the continuous UI status display ---
+        val displayText = buildBackendDisplayText(backend, currentModelPath, context)
+        _backendStatus.value = BackendStatus(displayText)
+
+        // --- Part 2: Handle the one-time system message for changes ---
         val isFirstCheck = lastKnownBackendName == null
         val backendChanged = !isFirstCheck && lastKnownBackendName != currentBackendName
-        val modelChanged = !isFirstCheck && lastKnownBackendName == AiBackend.LOCAL_LLM.name && lastKnownModelPath != currentModelPath
+        val modelChanged =
+            !isFirstCheck && lastKnownBackendName == AiBackend.LOCAL_LLM.name && lastKnownModelPath != currentModelPath
 
         if (backendChanged || modelChanged) {
-            val backend = AiBackend.valueOf(currentBackendName)
             val message = buildSystemMessage(backend, currentModelPath, context)
             addSystemMessage(message)
         }
 
-        // Update the last known state for the next check
+        // --- Part 3: Update the last known state for the next check ---
         lastKnownBackendName = currentBackendName
         lastKnownModelPath = currentModelPath
     }
 
     // ✨ New private helper to construct the message string
-    private fun buildSystemMessage(backend: AiBackend, modelPath: String?, context: Context): String {
+    private fun buildSystemMessage(
+        backend: AiBackend,
+        modelPath: String?,
+        context: Context
+    ): String {
         val backendDisplayName = backend.name.replace("_", " ")
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
@@ -149,10 +165,14 @@ class ChatViewModel : ViewModel() {
             AiBackend.GEMINI -> {
                 AgenticRunner(context)
             }
+
             AiBackend.LOCAL_LLM -> {
                 val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
                 if (modelPath.isNullOrBlank()) {
-                    Log.e("ChatViewModel", "Local LLM backend is selected but no model path is saved.")
+                    Log.e(
+                        "ChatViewModel",
+                        "Local LLM backend is selected but no model path is saved."
+                    )
                     return null
                 }
                 val localRepo = LocalLlmRepositoryImpl(context)
@@ -236,7 +256,11 @@ class ChatViewModel : ViewModel() {
                         AiBackend.GEMINI -> "Gemini API Key not found. Please set it in AI Settings."
                         AiBackend.LOCAL_LLM -> "Local LLM model not selected or failed to load. Please select a valid model in AI Settings."
                     }
-                    updateMessageInCurrentSession(messageIdToUpdate, errorMessage, MessageStatus.ERROR)
+                    updateMessageInCurrentSession(
+                        messageIdToUpdate,
+                        errorMessage,
+                        MessageStatus.ERROR
+                    )
                     return@launch
                 }
                 _agentState.value = AgentState.Processing("Thinking...")
@@ -256,23 +280,38 @@ class ChatViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) {
-                    updateMessageInCurrentSession(messageIdToUpdate, "Operation cancelled by user.", MessageStatus.ERROR)
+                    updateMessageInCurrentSession(
+                        messageIdToUpdate,
+                        "Operation cancelled by user.",
+                        MessageStatus.ERROR
+                    )
                     val partialReport = agentRepository?.getPartialReport()
                     if (partialReport?.isNotBlank() == true) {
                         addMessageToCurrentSession(
                             ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM)
                         )
                     }
-                } else {
-                    updateMessageInCurrentSession(
-                        messageId = messageIdToUpdate,
-                        newText = "An error occurred: ${e.message}",
-                        newStatus = MessageStatus.ERROR,
-                        originalPrompt = originalUserPrompt
-                    )
                 }
-            } finally {
-                _agentState.value = AgentState.Idle
+            }
+        }
+    }
+
+    // ✨ New private helper to build the text for the status display
+    private fun buildBackendDisplayText(
+        backend: AiBackend,
+        modelPath: String?,
+        context: Context
+    ): String {
+        return when (backend) {
+            AiBackend.GEMINI -> "Gemini"
+            AiBackend.LOCAL_LLM -> {
+                if (modelPath != null) {
+                    val fileName = getFileNameFromUri(Uri.parse(modelPath), context)
+                    // Return a shortened version of the filename to fit the UI
+                    if (fileName.length > 15) "${fileName.take(12)}..." else fileName
+                } else {
+                    "Local LLM"
+                }
             }
         }
     }
