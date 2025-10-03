@@ -8,7 +8,6 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.ArrayAdapter
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
@@ -23,12 +22,12 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
+import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
-import com.itsaky.androidide.agent.AgentState
-import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.utils.flashInfo
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
@@ -37,8 +36,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
@@ -264,7 +261,6 @@ class ChatFragment :
     @SuppressLint("SetTextI18n")
     private fun setupStateObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
-            // Combine all three state flows. This block will run if any of them emit a new value.
             chatViewModel.agentState.combine(chatViewModel.stepElapsedTime) { state, stepTime ->
                 state to stepTime
             }.combine(chatViewModel.totalElapsedTime) { (state, stepTime), totalTime ->
@@ -279,7 +275,10 @@ class ChatFragment :
                     }
 
                     is AgentState.Processing -> {
-                        val timeString = "(${formatTime(stepTime)} of ${formatTime(totalTime)})"
+                        val stepTimeFormatted = chatViewModel.formatTime(stepTime)
+                        val totalTimeFormatted = chatViewModel.formatTime(totalTime)
+                        val timeString = "($stepTimeFormatted of $totalTimeFormatted)"
+
                         binding.agentStatusMessage.text = state.message
                         binding.agentStatusTimer.text = timeString
                         binding.agentStatusContainer.isVisible = true
@@ -290,22 +289,6 @@ class ChatFragment :
                     }
                 }
             }
-        }
-    }
-
-    private fun formatTime(millis: Long): String {
-        if (millis < 0) return ""
-
-        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.MINUTES.toSeconds(minutes)
-        val remainingMillis = millis % 1000
-
-        val totalSeconds = seconds + (remainingMillis / 1000.0)
-
-        return if (minutes > 0) {
-            String.format(Locale.US, "%dm %.1fs", minutes, totalSeconds)
-        } else {
-            String.format(Locale.US, "%.1fs", totalSeconds)
         }
     }
 

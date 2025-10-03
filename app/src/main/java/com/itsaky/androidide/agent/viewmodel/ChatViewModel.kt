@@ -7,22 +7,22 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.agent.data.ChatStorageManager
-import com.itsaky.androidide.agent.repository.AgenticRunner
-import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.MessageStatus
+import com.itsaky.androidide.agent.data.ChatStorageManager
+import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
-import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
-import androidx.core.net.toUri
+import java.util.concurrent.TimeUnit
 
 data class BackendStatus(val displayText: String)
 
@@ -241,6 +241,22 @@ class ChatViewModel : ViewModel() {
         retrieveAgentResponse(fullPrompt, loadingMessage.id, originalUserText, context)
     }
 
+    fun formatTime(millis: Long): String {
+        if (millis < 0) return ""
+
+        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
+        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.MINUTES.toSeconds(minutes)
+        val remainingMillis = millis % 1000
+
+        val totalSeconds = seconds + (remainingMillis / 1000.0)
+
+        return if (minutes > 0) {
+            String.format(Locale.US, "%dm %.1fs", minutes, totalSeconds)
+        } else {
+            String.format(Locale.US, "%.1fs", totalSeconds)
+        }
+    }
+
     private fun retrieveAgentResponse(
         prompt: String,
         messageIdToUpdate: String,
@@ -255,6 +271,7 @@ class ChatViewModel : ViewModel() {
 
                 val repository = initializeAndGetAgentRepository(context)
                 if (repository == null) {
+                    // ... (error handling)
                     val prefs = BaseApplication.getBaseInstance().prefManager
                     val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
                     val backend = AiBackend.valueOf(backendName ?: "GEMINI")
@@ -262,9 +279,14 @@ class ChatViewModel : ViewModel() {
                         AiBackend.GEMINI -> "Gemini API Key not found. Please set it in AI Settings."
                         AiBackend.LOCAL_LLM -> "Local LLM model not selected or failed to load. Please select a valid model in AI Settings."
                     }
-                    updateMessageInCurrentSession(messageIdToUpdate, errorMessage, MessageStatus.ERROR)
+                    updateMessageInCurrentSession(
+                        messageIdToUpdate,
+                        errorMessage,
+                        MessageStatus.ERROR
+                    )
                     return@launch
                 }
+
                 val agentResponse = withContext(Dispatchers.IO) {
                     val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
                     repository.generateASimpleResponse(prompt, history)
@@ -280,6 +302,7 @@ class ChatViewModel : ViewModel() {
                         ChatMessage(text = agentResponse.report, sender = ChatMessage.Sender.SYSTEM)
                     )
                 }
+
             } catch (e: Exception) {
                 if (e is CancellationException) {
                     updateMessageInCurrentSession(messageIdToUpdate, "Operation cancelled by user.", MessageStatus.ERROR)
@@ -296,6 +319,12 @@ class ChatViewModel : ViewModel() {
                     )
                 }
             } finally {
+                val finalTimeMillis = _totalElapsedTime.value
+                if (finalTimeMillis > 100) {
+                    val formattedTime = formatTime(finalTimeMillis)
+                    addSystemMessage("🤖 Workflow finished in $formattedTime.")
+                }
+
                 _agentState.value = AgentState.Idle
                 stopTimer()
             }
