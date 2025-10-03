@@ -163,12 +163,10 @@ class MainFragment : BaseFragment() {
             }
 
         binding!!.actions.adapter = MainActionsListAdapter(actions)
-        binding!!.greetingText.setOnClickListener {
-            TooltipUtils.showWebPage(
-                requireContext(),
-                "http://localhost:6174/i/getstarted_top.html",
-            )
-        }
+
+        binding!!.mainImage.setOnClickListener { openQuickstartPageAction() }
+        binding!!.getStarted.setOnClickListener { openQuickstartPageAction() }
+        binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
 
         binding!!.headerContainer?.setOnLongClickListener {
             TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
@@ -321,6 +319,15 @@ class MainFragment : BaseFragment() {
             ACTION_DELETE_PROJECT -> MAIN_PROJECT_DELETE
             ACTION_DOCS -> MAIN_HELP
             else -> ""
+        }
+    }
+
+    private fun openQuickstartPageAction() {
+        context?.let { ctx ->
+            TooltipUtils.showWebPage(
+                ctx,
+                "http://localhost:6174/i/cogo-quickstart.html",
+            )
         }
     }
 
