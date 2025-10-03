@@ -26,6 +26,10 @@ class ChatAdapter(
 ) :
     ListAdapter<ChatMessage, RecyclerView.ViewHolder>(DiffCallback) {
 
+    private val expandedMessageIds = mutableSetOf<String>()
+
+    private object ExpansionPayload
+
     companion object {
         private const val VIEW_TYPE_DEFAULT = 0
         private const val VIEW_TYPE_SYSTEM = 1
@@ -57,6 +61,22 @@ class ChatAdapter(
                 val binding = ListItemChatMessageBinding.inflate(inflater, parent, false)
                 DefaultMessageViewHolder(binding)
             }
+        }
+    }
+
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.contains(ExpansionPayload)) {
+            // Partial bind: only update the expansion UI
+            if (holder is SystemMessageViewHolder) {
+                updateSystemMessageExpansion(holder, getItem(position))
+            }
+        } else {
+            // Full bind
+            super.onBindViewHolder(holder, position, payloads)
         }
     }
 
@@ -104,31 +124,43 @@ class ChatAdapter(
     }
 
     private fun bindSystemMessage(holder: SystemMessageViewHolder, message: ChatMessage) {
-        // The full content is always set, ready for when it becomes visible
+        // Full bind: always process the markdown content
         markwon.setMarkdown(holder.binding.messageContent, message.text)
 
-        // Set UI state based on the data model
-        if (message.isExpanded) {
-            holder.binding.messageHeaderTitle.text = "System Log" // Show simple title when expanded
-            holder.binding.messageContent.visibility = View.VISIBLE
-            holder.binding.expandIcon.rotation = 180f
-        } else {
-            // ✨ Show a preview of the content when collapsed
-            holder.binding.messageHeaderTitle.text = createPreview(message.text)
-            holder.binding.messageContent.visibility = View.GONE
-            holder.binding.expandIcon.rotation = 0f
-        }
+        // Set the current expansion state
+        updateSystemMessageExpansion(holder, message)
 
         // Handle click to expand/collapse
         holder.binding.messageHeader.setOnClickListener {
-            message.isExpanded = !message.isExpanded
-            notifyItemChanged(holder.bindingAdapterPosition, Unit) // Re-bind with animation
+            // Update the internal state set
+            if (!expandedMessageIds.remove(message.id)) {
+                expandedMessageIds.add(message.id)
+            }
+            // Notify the adapter with the specific payload for an efficient update
+            notifyItemChanged(holder.bindingAdapterPosition, ExpansionPayload)
         }
     }
 
     /**
-     * ✨ New helper function to create a clean, single-line preview from raw markdown text.
+     * A new helper function that only updates the views related to the expansion state.
+     * This is called for both full and partial binds.
      */
+    private fun updateSystemMessageExpansion(
+        holder: SystemMessageViewHolder,
+        message: ChatMessage
+    ) {
+        val isExpanded = expandedMessageIds.contains(message.id)
+        if (isExpanded) {
+            holder.binding.messageHeaderTitle.text = "System Log"
+            holder.binding.messageContent.visibility = View.VISIBLE
+            holder.binding.expandIcon.rotation = 180f
+        } else {
+            holder.binding.messageHeaderTitle.text = createPreview(message.text)
+            holder.binding.messageContent.visibility = View.GONE
+            holder.binding.expandIcon.rotation = 0f
+        }
+    }
+
     private fun createPreview(rawText: String): String {
         val cleanedText = rawText
             .replace(Regex("`{1,3}|\\*{1,2}|_"), "") // Remove common markdown characters
