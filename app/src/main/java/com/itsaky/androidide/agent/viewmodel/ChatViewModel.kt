@@ -271,7 +271,6 @@ class ChatViewModel : ViewModel() {
 
                 val repository = initializeAndGetAgentRepository(context)
                 if (repository == null) {
-                    // ... (error handling)
                     val prefs = BaseApplication.getBaseInstance().prefManager
                     val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
                     val backend = AiBackend.valueOf(backendName ?: "GEMINI")
@@ -292,11 +291,16 @@ class ChatViewModel : ViewModel() {
                     repository.generateASimpleResponse(prompt, history)
                 }
 
-                updateMessageInCurrentSession(
-                    messageId = messageIdToUpdate,
-                    newText = agentResponse.text,
-                    newStatus = MessageStatus.SENT
+                removeMessageFromCurrentSession(messageIdToUpdate)
+
+                addMessageToCurrentSession(
+                    ChatMessage(
+                        text = agentResponse.text,
+                        sender = ChatMessage.Sender.AGENT,
+                        status = MessageStatus.SENT
+                    )
                 )
+
                 if (agentResponse.report.isNotBlank()) {
                     addMessageToCurrentSession(
                         ChatMessage(text = agentResponse.report, sender = ChatMessage.Sender.SYSTEM)
@@ -305,10 +309,16 @@ class ChatViewModel : ViewModel() {
 
             } catch (e: Exception) {
                 if (e is CancellationException) {
-                    updateMessageInCurrentSession(messageIdToUpdate, "Operation cancelled by user.", MessageStatus.ERROR)
+                    updateMessageInCurrentSession(
+                        messageIdToUpdate,
+                        "Operation cancelled by user.",
+                        MessageStatus.ERROR
+                    )
                     val partialReport = agentRepository?.getPartialReport()
                     if (partialReport?.isNotBlank() == true) {
-                        addMessageToCurrentSession(ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM))
+                        addMessageToCurrentSession(
+                            ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM)
+                        )
                     }
                 } else {
                     updateMessageInCurrentSession(
@@ -361,6 +371,18 @@ class ChatViewModel : ViewModel() {
         session.messages.add(message)
         _currentSession.postValue(session)
         scheduleSaveCurrentSession()
+    }
+
+    private fun removeMessageFromCurrentSession(messageId: String) {
+        val session = _currentSession.value ?: return
+        val currentMessages = session.messages.toMutableList()
+        val messageIndex = currentMessages.indexOfFirst { it.id == messageId }
+        if (messageIndex != -1) {
+            currentMessages.removeAt(messageIndex)
+            session.messages.clear()
+            session.messages.addAll(currentMessages)
+            _currentSession.postValue(session)
+        }
     }
 
     private fun updateMessageInCurrentSession(
