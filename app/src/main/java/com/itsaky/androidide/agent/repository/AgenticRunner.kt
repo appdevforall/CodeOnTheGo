@@ -79,7 +79,6 @@ class AgenticRunner(
 
     private val toolTracker = ToolExecutionTracker()
 
-    // ✨ 3. Implement the stop() method from the interface
     /**
      * Immediately cancels the runner's CoroutineScope.
      * This will interrupt any ongoing network calls (plan, critique) and
@@ -179,7 +178,6 @@ class AgenticRunner(
             formattedExamples.append("--- End Example ---\n\n")
         }
 
-        // THE FIX IS HERE: Change the final instruction to be more forceful.
         val finalInstruction =
             "Based on the user's request, you MUST respond by calling one or more of the available tools. Do not provide a conversational answer."
 
@@ -191,8 +189,6 @@ class AgenticRunner(
         prompt: String,
         history: List<ChatMessage>
     ): AgentResponse {
-        // ✨ 4. Execute the main run logic within the cancellable runnerScope
-        // We use async/await to get the result or the cancellation exception.
         val finalMessage = try {
             runnerScope.async {
                 run(prompt, history)

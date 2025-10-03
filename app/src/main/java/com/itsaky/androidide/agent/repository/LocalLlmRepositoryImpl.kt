@@ -1,6 +1,7 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
+import android.util.Log
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.model.ToolResult
@@ -15,6 +16,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicLong
+import java.util.regex.Pattern
+
 enum class MessageType {
     SYSTEM, USER, MODEL
 }
@@ -136,6 +141,7 @@ class LocalLlmRepositoryImpl(
 
         return historyBuilder.toString()
     }
+    var conversation = listOf<UiMessage>()
 
     override suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse {
         if (!LlmInferenceEngine.isModelLoaded) {
@@ -143,6 +149,10 @@ class LocalLlmRepositoryImpl(
         }
 
         LlmInferenceEngine.clearKvCache()
+        addMessage(prompt, MessageType.USER)
+        val placeholder = "..."
+        addMessage(placeholder, MessageType.MODEL)
+        var fullPromptHistory = buildPromptWithHistory(conversation)
 
         toolTracker.startTracking()
         val fullHistory = mutableListOf(
@@ -154,55 +164,80 @@ class LocalLlmRepositoryImpl(
         // Agentic loop for tool usage
         for (i in 1..10) { // Max 10 turns
             onStateUpdate?.invoke(AgentState.Processing("Local LLM is thinking... (Turn ${i})"))
+            val isFinalAnswerTurn = i > 1
+            val stopStrings = if (isFinalAnswerTurn) {
+                listOf("<|eot_id|>")
+            } else {
+                listOf("<|eot_id|>", "</tool_call>")
+            }
 
-            // Format the history into a single string prompt
-            val currentPrompt = fullHistory.joinToString("\n") {
-                when (it.sender) {
-                    ChatMessage.Sender.USER -> "USER: ${it.text}"
-                    ChatMessage.Sender.AGENT -> "ASSISTANT: ${it.text}"
-                    ChatMessage.Sender.SYSTEM -> it.text
-                    ChatMessage.Sender.TOOL -> "TOOL_RESULT: ${it.text}"
-                }
-            } + "\nASSISTANT:"
+            val rawResponse = LlmInferenceEngine.runInference(fullPromptHistory, stopStrings)
 
-            val rawResponse = LlmInferenceEngine.runInference(currentPrompt)
-
+            Log.d("AgentDebug", "Raw Model Result: \"$rawResponse\"")
             // Add the model's raw response to history
             fullHistory.add(ChatMessage(text = rawResponse, sender = ChatMessage.Sender.AGENT))
 
-            val toolMatch = toolCallRegex.find(rawResponse)
+            val toolMatch = parseToolCall(rawResponse)
             if (toolMatch == null) {
                 // No tool call found, this is the final answer
                 onStateUpdate?.invoke(AgentState.Idle)
+                updateLastMessage(rawResponse.trim())
+                Log.d("AgentDebug", "No tool call detected. Concluding.")
                 return AgentResponse(text = rawResponse.trim(), report = toolTracker.generateReport())
             }
 
-            // A tool call was found
-            val jsonContent = toolMatch.groupValues[1].trim()
-            try {
-                val toolCallRequest = json.decodeFromString<ToolCallRequest>(jsonContent)
+            val toolCallEndIndex = rawResponse.indexOf("</tool_call>")
+            val trimmedResponse =
+                rawResponse.substring(0, toolCallEndIndex + "</tool_call>".length)
 
-                onStateUpdate?.invoke(AgentState.Processing("Executing tool: `${toolCallRequest.tool_name}`"))
-                val toolStartTime = System.currentTimeMillis()
-                val result: ToolResult = executeTool(toolCallRequest)
-                val toolDuration = System.currentTimeMillis() - toolStartTime
-                toolTracker.logToolCall(toolCallRequest.tool_name, toolDuration)
-                onToolMessage?.invoke(result.message)
+            updateLastMessage(trimmedResponse)
+            Log.d("AgentDebug", "Tool Call Detected: $toolMatch")
 
-                // Add tool result to history for the next turn
-                val resultJsonString = json.encodeToString(result)
-                fullHistory.add(ChatMessage(text = resultJsonString, sender = ChatMessage.Sender.TOOL))
+            val tool = tools[toolMatch.name]
+            if (tool != null) {
+                val result = tool.execute(context, toolMatch.args ?: emptyMap())
+                Log.d("AgentDebug", "Tool Response: \"$result\"")
 
-            } catch (e: Exception) {
-                val errorMsg = "Error processing tool call: ${e.message}. JSON content: $jsonContent"
-                onToolMessage?.invoke(errorMsg)
-                fullHistory.add(ChatMessage(text = errorMsg, sender = ChatMessage.Sender.TOOL))
-                // Continue the loop, letting the model know its tool call failed
+                addMessage(result, MessageType.SYSTEM)
+
+                addMessage("", MessageType.MODEL)
+
+                fullPromptHistory += "$trimmedResponse<|eot_id|>"
+                fullPromptHistory += """
+                <|start_header_id|>user<|end_header_id|>
+
+                [TOOL_RESULT]
+                $result
+                [/TOOL_RESULT]<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+                Based on the tool results, here is the answer to the user's question:
+                """.trimIndent()
+
+            } else {
+                val errorMsg = "Error: Model tried to call unknown tool '${toolMatch.name}'"
+                updateLastMessage(errorMsg) // Update placeholder with error
+                Log.e("AgentDebug", errorMsg)
+                break // Exit loop on error
             }
         }
 
         onStateUpdate?.invoke(AgentState.Idle)
         return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
+    }
+    private val messageIdCounter = AtomicLong(0)
+    private fun addMessage(text: String, type: MessageType) {
+        val message = UiMessage(messageIdCounter.getAndIncrement(), text, type)
+        conversation = conversation + message
+//        _uiMessages.postValue(conversation)
+    }
+
+    private fun updateLastMessage(updatedText: String) {
+        if (conversation.isNotEmpty()) {
+            val lastMessage = conversation.last()
+            val updatedMessage = lastMessage.copy(text = updatedText)
+            conversation = conversation.dropLast(1) + updatedMessage
+//            _uiMessages.postValue(conversation)
+        }
     }
 
     private suspend fun executeTool(toolCall: ToolCallRequest): ToolResult {
@@ -248,12 +283,42 @@ class LocalLlmRepositoryImpl(
     override fun getPartialReport(): String = toolTracker.generatePartialReport()
     override suspend fun generateCode(prompt: String, fileContent: String, fileName: String, fileRelativePath: String): String {
         onStateUpdate?.invoke(AgentState.Processing("Generating code with local LLM..."))
-        val response = LlmInferenceEngine.runInference("USER: Based on the file $fileName, $prompt\nASSISTANT:")
+        val response = LlmInferenceEngine.runInference(
+            "USER: Based on the file $fileName, $prompt\nASSISTANT:",
+            emptyList()
+        )
         onStateUpdate?.invoke(AgentState.Idle)
         return response
     }
 
     override fun stop() {
         LlmInferenceEngine.stopInference()
+    }
+
+    private fun parseToolCall(text: String): ToolCall? {
+        val pattern = Pattern.compile("<tool_call>(.*?)</tool_call>", Pattern.DOTALL)
+        val matcher = pattern.matcher(text)
+        if (matcher.find()) {
+            val jsonStr = matcher.group(1)?.trim()
+            if (jsonStr.isNullOrBlank()) {
+                Log.e("ToolParse", "Found tool_call tags but the content was empty.")
+                return null
+            }
+
+            try {
+                val json = JSONObject(jsonStr)
+                val toolName = json.getString("tool_name")
+                val argsJson = json.getJSONObject("args")
+                val argsMap = mutableMapOf<String, JsonElement>()
+                argsJson.keys().forEach { key ->
+                    argsMap[key] = argsJson.get(key) as JsonElement
+                }
+                return ToolCall(toolName, argsMap)
+            } catch (e: Exception) {
+                Log.e("ToolParse", "Failed to parse tool call JSON", e)
+                return null
+            }
+        }
+        return null
     }
 }

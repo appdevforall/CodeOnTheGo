@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -68,14 +69,16 @@ object LlmInferenceEngine {
      * @param prompt The full text prompt for the model.
      * @return The model's generated response as a String.
      */
-    suspend fun runInference(prompt: String): String {
+    suspend fun runInference(prompt: String, stopStrings: List<String>): String {
         if (!isModelLoaded) {
             Log.e(TAG, "Inference attempted but no model is loaded.")
             return "Error: Model not loaded."
         }
+        llama.clearKvCache()
         return withContext(Dispatchers.IO) {
             try {
-                llama.send(prompt).reduce { acc, s -> acc + s }
+                val send = llama.send(prompt, stop = stopStrings)
+                send.fold("") { accumulator, value -> accumulator + value }
             } catch (e: Exception) {
                 Log.e(TAG, "Error during model inference", e)
                 "Error during inference: ${e.message}"
