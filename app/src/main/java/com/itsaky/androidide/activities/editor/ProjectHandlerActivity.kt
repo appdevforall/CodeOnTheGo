@@ -861,7 +861,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     private fun openHelpActivity() {
         val intent = Intent(this, HelpActivity::class.java)
-        intent.putExtra(CONTENT_KEY, R.string.docs_url)
+        intent.putExtra(CONTENT_KEY, getString(string.docs_url))
         startActivity(intent)
     }
 
