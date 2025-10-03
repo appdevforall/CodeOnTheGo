@@ -69,7 +69,7 @@ const val TOML_FILE_NAME = "libs.versions.toml"
 
 // Help
 const val HELP_PAGE_URL =
-	"file:///android_asset/CoGoTooltips/html/cogohelp/index.html"
+	"http://localhost:6174/i/index.html"
 
 // Documentation
 const val DOCUMENTATION_DB = "documentation.db"
