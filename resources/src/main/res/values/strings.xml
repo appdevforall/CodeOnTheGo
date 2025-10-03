@@ -772,6 +772,7 @@
 		]]></string>
 
     <string name="info_icon_content_description">Info icon</string>
+    <string name="feedback_button_description">Send feedback about this tooltip</string>
     <string name="unknown_error">"An unknown error occurred."</string>
     <string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
     <string name="error_build_service_not_found">Build service not found.</string>
