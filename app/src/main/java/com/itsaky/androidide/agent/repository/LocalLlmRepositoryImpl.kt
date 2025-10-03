@@ -74,6 +74,21 @@ class LocalLlmRepositoryImpl(
         SYSTEM_PROMPT.replace("[AVAILABLE_TOOLS]", toolDescriptions)
     }
 
+    /**
+     * Constructs the full prompt string for the LLM, including system instructions and chat history,
+     * using a model-specific chat template.
+     *
+     * IMPORTANT: The current implementation uses the Llama 3.x / 3.2 chat template.
+     * It relies on special tokens like `<|begin_of_text|>`, `<|start_header_id|>`, `<|eot_id|>`, etc.
+     *
+     * To support a different model family (e.g., Mistral, Gemma, Phi-3), you MUST
+     * modify this function to adhere to that model's required template. You can usually
+     * find the correct chat template in the model's official documentation or on its
+     * Hugging Face page.
+     *
+     * @param history The list of previous chat messages to include in the prompt.
+     * @return A fully formatted string ready to be sent to the LLM.
+     */
     private fun buildPromptWithHistory(history: List<ChatMessage>): String {
         val historyBuilder = StringBuilder()
         historyBuilder.append("<|begin_of_text|>")
