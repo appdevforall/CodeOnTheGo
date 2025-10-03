@@ -23,6 +23,7 @@ import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
 import com.itsaky.androidide.utils.flashInfo
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
 
 
 const val SAVED_MODEL_URI_KEY = "saved_model_uri"
@@ -103,6 +104,8 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         val modelPathTextView = view.findViewById<TextView>(R.id.selected_model_path)
         val browseButton = view.findViewById<Button>(R.id.btn_browse_model)
         val loadSavedButton = view.findViewById<Button>(R.id.loadSavedButton)
+        // ✨ Get a reference to our new status TextView ✨
+        val modelStatusTextView = view.findViewById<TextView>(R.id.model_status_text_view)
 
         viewModel.checkInitialSavedModel(requireContext())
 
@@ -112,17 +115,38 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
         loadSavedButton.setOnClickListener { loadFromSaved() }
 
-        viewModel.savedModelPath.observe(requireActivity()) { uri ->
+        viewModel.savedModelPath.observe(viewLifecycleOwner) { uri ->
             if (uri != null) {
                 // A model is saved
                 loadSavedButton.isEnabled = true
                 modelPathTextView.visibility = View.VISIBLE
-                modelPathTextView.text = "Saved: ${getFileNameFromUri(uri.toUri())}"
+                modelPathTextView.text = "💾 Saved: ${getFileNameFromUri(uri.toUri())}"
 
             } else {
                 // No model is saved
                 loadSavedButton.isEnabled = false
                 modelPathTextView.visibility = View.GONE
+            }
+        }
+
+        viewModel.modelLoadingState.observe(viewLifecycleOwner) { state ->
+            when (state) {
+                is ModelLoadingState.Idle -> {
+                    modelStatusTextView.visibility = View.VISIBLE
+                    modelStatusTextView.text = "🤷‍♀️ No model is currently loaded."
+                }
+                is ModelLoadingState.Loading -> {
+                    modelStatusTextView.visibility = View.VISIBLE
+                    modelStatusTextView.text = "🔄 Loading model, please wait..."
+                }
+                is ModelLoadingState.Loaded -> {
+                    modelStatusTextView.visibility = View.VISIBLE
+                    modelStatusTextView.text = "✅ Model loaded: ${state.modelName}"
+                }
+                is ModelLoadingState.Error -> {
+                    modelStatusTextView.visibility = View.VISIBLE
+                    modelStatusTextView.text = "❌ Error loading model: ${state.message}"
+                }
             }
         }
     }
