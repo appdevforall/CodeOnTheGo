@@ -131,9 +131,6 @@ class PluginManager private constructor(
     suspend fun loadPlugins() = withContext(Dispatchers.IO) {
         logger.info("Loading plugins from directory: ${pluginsDir.absolutePath}")
 
-        // Initialize documentation tracking table
-        documentationManager.initializePluginTracking()
-
         // Load plugin states first
         loadPluginStates()
 
