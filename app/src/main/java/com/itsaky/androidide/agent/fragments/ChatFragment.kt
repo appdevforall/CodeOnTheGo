@@ -1,6 +1,5 @@
 package com.itsaky.androidide.agent.fragments
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -259,7 +258,6 @@ class ChatFragment :
         }
     }
 
-    @SuppressLint("SetTextI18n")
     private fun setupStateObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
             chatViewModel.agentState.combine(chatViewModel.stepElapsedTime) { state, stepTime ->
@@ -270,9 +268,8 @@ class ChatFragment :
                 when (state) {
                     is AgentState.Idle -> {
                         binding.agentStatusContainer.isVisible = false
-                        binding.promptInputLayout.isEnabled = true
-                        binding.btnSendPrompt.visibility = View.VISIBLE
-                        binding.btnStopGeneration.visibility = View.GONE
+                        binding.btnStopGeneration.isVisible = false
+                        binding.btnSendPrompt.isEnabled = true
                     }
 
                     is AgentState.Processing -> {
@@ -282,11 +279,33 @@ class ChatFragment :
 
                         binding.agentStatusMessage.text = state.message
                         binding.agentStatusTimer.text = timeString
+                        binding.agentStatusTimer.isVisible = true
                         binding.agentStatusContainer.isVisible = true
+                        binding.btnStopGeneration.isVisible = true
 
-                        binding.promptInputLayout.isEnabled = false
-                        binding.btnSendPrompt.visibility = View.GONE
-                        binding.btnStopGeneration.visibility = View.VISIBLE
+                        // Ensure the button is enabled when processing starts.
+                        binding.btnStopGeneration.isEnabled = true
+
+                        binding.btnSendPrompt.isEnabled = false
+                    }
+
+                    is AgentState.Cancelling -> {
+                        binding.agentStatusMessage.text = "Stopping..."
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+                        binding.btnStopGeneration.isVisible = true
+
+                        binding.btnStopGeneration.isEnabled = false
+
+                        binding.btnSendPrompt.isEnabled = false
+                    }
+
+                    is AgentState.Error -> {
+                        binding.agentStatusMessage.text = state.message
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+                        binding.btnStopGeneration.isVisible = false
+                        binding.btnSendPrompt.isEnabled = true
                     }
                 }
             }

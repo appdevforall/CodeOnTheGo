@@ -348,6 +348,7 @@ class ChatViewModel : ViewModel() {
     }
 
     fun stopAgentResponse() {
+        _agentState.value = AgentState.Cancelling
         agentRepository?.stop()
         if (agentJob?.isActive == true) {
             agentJob?.cancel()

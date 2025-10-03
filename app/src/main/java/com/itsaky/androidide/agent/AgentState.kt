@@ -4,9 +4,14 @@ package com.itsaky.androidide.agent
  * Represents the various states of the Gemini agent during an operation.
  */
 sealed class AgentState {
-    /** The agent is idle and ready for a new prompt. */
-    data object Idle : AgentState()
-
-    /** The agent is actively working on a request, with a specific status message. */
+    object Idle : AgentState()
     data class Processing(val message: String) : AgentState()
+
+    /**
+     * A new state to indicate that a cancellation has been requested.
+     * The UI will observe this to disable the stop button immediately.
+     */
+    object Cancelling : AgentState()
+
+    data class Error(val message: String) : AgentState()
 }
