@@ -35,7 +35,9 @@
             android:layout_weight="1"
             android:textAppearance="?attr/textAppearanceLabelMedium"
             android:textColor="?attr/colorOnSurfaceVariant"
-            tools:text="System Log" />
+            tools:text="System Log"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <ImageView
             android:id="@+id/expand_icon"

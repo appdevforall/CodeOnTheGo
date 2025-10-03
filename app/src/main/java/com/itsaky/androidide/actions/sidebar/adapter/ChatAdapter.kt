@@ -24,15 +24,13 @@ class ChatAdapter(
     private val markwon: Markwon,
     private val onMessageAction: (action: String, message: ChatMessage) -> Unit
 ) :
-    ListAdapter<ChatMessage, RecyclerView.ViewHolder>(DiffCallback) { // ✨ Use generic ViewHolder
+    ListAdapter<ChatMessage, RecyclerView.ViewHolder>(DiffCallback) {
 
-    // ✨ 1. Define constants for our view types
     companion object {
         private const val VIEW_TYPE_DEFAULT = 0
         private const val VIEW_TYPE_SYSTEM = 1
     }
 
-    // ✨ 2. Create a sealed class for our different ViewHolders
     sealed class MessageViewHolder(view: View) : RecyclerView.ViewHolder(view)
 
     class DefaultMessageViewHolder(val binding: ListItemChatMessageBinding) :
@@ -55,7 +53,6 @@ class ChatAdapter(
                 val binding = ListItemChatSystemMessageBinding.inflate(inflater, parent, false)
                 SystemMessageViewHolder(binding)
             }
-
             else -> { // VIEW_TYPE_DEFAULT
                 val binding = ListItemChatMessageBinding.inflate(inflater, parent, false)
                 DefaultMessageViewHolder(binding)
@@ -65,7 +62,6 @@ class ChatAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val message = getItem(position)
-        // ✨ 5. Bind data based on the type of holder
         when (holder) {
             is DefaultMessageViewHolder -> bindDefaultMessage(holder, message)
             is SystemMessageViewHolder -> bindSystemMessage(holder, message)
@@ -108,26 +104,39 @@ class ChatAdapter(
     }
 
     private fun bindSystemMessage(holder: SystemMessageViewHolder, message: ChatMessage) {
-        // Simple title, you can make this more dynamic if you want
-        holder.binding.messageHeaderTitle.text = "System Log"
+        // The full content is always set, ready for when it becomes visible
         markwon.setMarkdown(holder.binding.messageContent, message.text)
 
-        // Set initial state based on the data model
+        // Set UI state based on the data model
         if (message.isExpanded) {
+            holder.binding.messageHeaderTitle.text = "System Log" // Show simple title when expanded
             holder.binding.messageContent.visibility = View.VISIBLE
             holder.binding.expandIcon.rotation = 180f
         } else {
+            // ✨ Show a preview of the content when collapsed
+            holder.binding.messageHeaderTitle.text = createPreview(message.text)
             holder.binding.messageContent.visibility = View.GONE
             holder.binding.expandIcon.rotation = 0f
         }
 
         // Handle click to expand/collapse
         holder.binding.messageHeader.setOnClickListener {
-            // Toggle the state in the data model
             message.isExpanded = !message.isExpanded
-            notifyItemChanged(holder.adapterPosition, Unit) // Re-bind with animation
+            notifyItemChanged(holder.bindingAdapterPosition, Unit) // Re-bind with animation
         }
     }
+
+    /**
+     * ✨ New helper function to create a clean, single-line preview from raw markdown text.
+     */
+    private fun createPreview(rawText: String): String {
+        val cleanedText = rawText
+            .replace(Regex("`{1,3}|\\*{1,2}|_"), "") // Remove common markdown characters
+            .replace(Regex("\\s+"), " ") // Collapse all whitespace and newlines into a single space
+            .trim()
+        return "Log: $cleanedText" // Prepend a label for context
+    }
+
 
     private fun showContextMenu(view: View, message: ChatMessage) {
         val context = view.context
@@ -166,7 +175,6 @@ class ChatAdapter(
             return oldItem.id == newItem.id
         }
         override fun areContentsTheSame(oldItem: ChatMessage, newItem: ChatMessage): Boolean {
-            // Include isExpanded in the comparison
             return oldItem == newItem
         }
     }
