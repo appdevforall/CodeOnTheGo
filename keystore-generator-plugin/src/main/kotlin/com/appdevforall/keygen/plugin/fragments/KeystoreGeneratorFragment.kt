@@ -400,24 +400,135 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
             val isKotlinDsl = buildFile.name.endsWith(".kts")
             val keystoreRelativePath = "${keystoreFile.name}"
 
-            val signingConfig = if (isKotlinDsl) {
-                generateKotlinSigningConfig(config, keystoreRelativePath)
+            // Read the current file content
+            val currentContent = fileService?.readFile(buildFile) ?: ""
+
+            // Check if a release signing config already exists
+            val hasReleaseConfig = if (isKotlinDsl) {
+                currentContent.contains("create(\"release\")") ||
+                currentContent.contains("getByName(\"release\")")
             } else {
-                generateGroovySigningConfig(config, keystoreRelativePath)
+                currentContent.contains("release {")
             }
 
-            val androidPattern = "android {"
-            val success = fileService?.insertAfterPattern(buildFile, androidPattern, signingConfig) ?: false
+            if (hasReleaseConfig) {
+                // Update existing release config
+                val updatedContent = updateExistingSigningConfig(currentContent, config, keystoreRelativePath, isKotlinDsl)
 
-            if (success) {
-                showToast("Build file updated with signing config")
+                if (updatedContent != currentContent) {
+                    val success = fileService?.writeFile(buildFile, updatedContent) ?: false
+                    if (success) {
+                        showToast("Updated existing release signing config")
+                    } else {
+                        showToast("Failed to update signing config")
+                    }
+                } else {
+                    showToast("Could not update signing config - pattern not found")
+                }
             } else {
-                showToast("Could not find android block in ${buildFile.name}")
+                // Insert new signing config
+                val signingConfig = if (isKotlinDsl) {
+                    generateKotlinSigningConfig(config, keystoreRelativePath)
+                } else {
+                    generateGroovySigningConfig(config, keystoreRelativePath)
+                }
+
+                // Check if signingConfigs block exists
+                val hasSigningConfigs = currentContent.contains("signingConfigs")
+
+                if (hasSigningConfigs) {
+                    // Insert release config into existing signingConfigs block
+                    val releaseConfig = if (isKotlinDsl) {
+                        """
+        create("release") {
+            storeFile = file("$keystoreRelativePath")
+            storePassword = "${String(config.keystorePassword)}"
+            keyAlias = "${config.keyAlias}"
+            keyPassword = "${String(config.keyPassword)}"
+        }"""
+                    } else {
+                        """
+        release {
+            storeFile file('$keystoreRelativePath')
+            storePassword '${String(config.keystorePassword)}'
+            keyAlias '${config.keyAlias}'
+            keyPassword '${String(config.keyPassword)}'
+        }"""
+                    }
+
+                    val success = fileService?.insertAfterPattern(buildFile, "signingConfigs {", releaseConfig) ?: false
+
+                    if (success) {
+                        showToast("Added release signing config")
+                    } else {
+                        showToast("Failed to add release config to signingConfigs block")
+                    }
+                } else {
+                    // Insert entire signingConfigs block after android {
+                    val androidPattern = "android {"
+                    val success = fileService?.insertAfterPattern(buildFile, androidPattern, signingConfig) ?: false
+
+                    if (success) {
+                        showToast("Build file updated with signing config")
+                    } else {
+                        showToast("Could not find android block in ${buildFile.name}")
+                    }
+                }
             }
 
         } catch (e: Exception) {
             showToast("Error modifying build file: ${e.message}")
         }
+    }
+
+    private fun updateExistingSigningConfig(
+        content: String,
+        config: KeystoreConfig,
+        keystoreRelativePath: String,
+        isKotlinDsl: Boolean
+    ): String {
+        var result = content
+
+        if (isKotlinDsl) {
+            // Update Kotlin DSL patterns
+            // Pattern 1: create("release") { ... }
+            val createPattern = """create\("release"\)\s*\{[^}]*\}""".toRegex(RegexOption.DOT_MATCHES_ALL)
+            if (createPattern.containsMatchIn(result)) {
+                val newConfig = """create("release") {
+            storeFile = file("$keystoreRelativePath")
+            storePassword = "${String(config.keystorePassword)}"
+            keyAlias = "${config.keyAlias}"
+            keyPassword = "${String(config.keyPassword)}"
+        }"""
+                result = result.replace(createPattern, newConfig)
+            } else {
+                // Pattern 2: getByName("release") { ... }
+                val getByNamePattern = """getByName\("release"\)\s*\{[^}]*\}""".toRegex(RegexOption.DOT_MATCHES_ALL)
+                if (getByNamePattern.containsMatchIn(result)) {
+                    val newConfig = """getByName("release") {
+            storeFile = file("$keystoreRelativePath")
+            storePassword = "${String(config.keystorePassword)}"
+            keyAlias = "${config.keyAlias}"
+            keyPassword = "${String(config.keyPassword)}"
+        }"""
+                    result = result.replace(getByNamePattern, newConfig)
+                }
+            }
+        } else {
+            // Update Groovy DSL pattern
+            val groovyPattern = """release\s*\{[^}]*\}""".toRegex(RegexOption.DOT_MATCHES_ALL)
+            if (groovyPattern.containsMatchIn(result)) {
+                val newConfig = """release {
+            storeFile file('$keystoreRelativePath')
+            storePassword '${String(config.keystorePassword)}'
+            keyAlias '${config.keyAlias}'
+            keyPassword '${String(config.keyPassword)}'
+        }"""
+                result = result.replace(groovyPattern, newConfig)
+            }
+        }
+
+        return result
     }
 
     private fun generateKotlinSigningConfig(config: KeystoreConfig, keystoreRelativePath: String): String {

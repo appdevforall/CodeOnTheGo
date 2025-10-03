@@ -290,6 +290,109 @@ object PluginTooltipManager {
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+
+        val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
+        if (infoButton != null) {
+            // Make the info icon fully visible
+            infoButton.alpha = 1.0f
+
+            // Apply a darker tint color to make it more visible
+            val tintColor = MaterialColors.getColor(
+                context,
+                com.google.android.material.R.attr.colorOnSurfaceVariant,
+                "Color attribute not found in theme"
+            )
+            infoButton.setColorFilter(tintColor)
+
+            infoButton.setOnClickListener {
+                onInfoButtonClicked(context, anchorView, popupWindow, tooltipItem)
+            }
+        }
+    }
+
+    /**
+     * Handles the click on the info icon in the tooltip.
+     */
+    private fun onInfoButtonClicked(
+        context: Context,
+        anchorView: View,
+        popupWindow: PopupWindow,
+        tooltip: IDETooltipItem
+    ) {
+        // Dismiss the current tooltip popup
+        popupWindow.dismiss()
+
+        // Show debug info in a new popup window after a short delay
+        anchorView.postDelayed({
+            showDebugInfoPopup(context, anchorView, tooltip)
+        }, 100)
+    }
+
+    /**
+     * Shows debug info in a popup window similar to the tooltip.
+     */
+    private fun showDebugInfoPopup(
+        context: Context,
+        anchorView: View,
+        tooltip: IDETooltipItem
+    ) {
+        val inflater = LayoutInflater.from(context)
+        val popupView = inflater.inflate(R.layout.ide_tooltip_window, null)
+        val debugPopup = PopupWindow(
+            popupView,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        // Hide the see more button and info icon for debug popup
+        popupView.findViewById<TextView>(R.id.see_more)?.visibility = View.GONE
+        popupView.findViewById<ImageButton>(R.id.icon_info)?.visibility = View.GONE
+
+        // Get the WebView to display debug info
+        val webView = popupView.findViewById<WebView>(R.id.webview)
+
+        val textColor = MaterialColors.getColor(
+            context,
+            com.google.android.material.R.attr.colorOnSurface,
+            "Color attribute not found in theme"
+        )
+
+        fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
+        val hexColor = textColor.toHexColor()
+
+        val debugHtml = """
+            <h3>Plugin Tooltip Debug Info</h3>
+            <b>Version:</b> <small>${tooltip.lastChange}</small><br/>
+            <b>Row:</b> ${tooltip.rowId}<br/>
+            <b>ID:</b> ${tooltip.id}<br/>
+            <b>Category:</b> ${tooltip.category}<br/>
+            <b>Tag:</b> ${tooltip.tag}<br/>
+            <br/>
+            <b>Raw Summary:</b><br/>
+            <small>${Html.escapeHtml(tooltip.summary)}</small><br/>
+            <br/>
+            <b>Raw Detail:</b><br/>
+            <small>${Html.escapeHtml(tooltip.detail)}</small><br/>
+            <br/>
+            <b>Buttons:</b> ${if (tooltip.buttons.isEmpty()) "None" else tooltip.buttons.joinToString("<br/>") { "• ${it.first}" }}
+        """.trimIndent()
+
+        val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, debugHtml)
+
+        webView.settings.javaScriptEnabled = false // No need for JS in debug view
+        webView.setBackgroundColor(Color.TRANSPARENT)
+        webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
+
+        // Set popup properties
+        val transparentColor = getColor(context, android.R.color.transparent)
+        debugPopup.setBackgroundDrawable(transparentColor.toDrawable())
+        popupView.setBackgroundResource(R.drawable.idetooltip_popup_background)
+
+        debugPopup.isFocusable = true
+        debugPopup.isOutsideTouchable = true
+
+        // Show the debug popup
+        debugPopup.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
     }
 
 }
