@@ -72,12 +72,18 @@ void log_to_kotlin_bridge(ggml_log_level level, const char *message) {
     JNIEnv *env;
     bool did_attach_thread = false;
 
-    // Get the JNIEnv for the current thread.
+    // Check if the current thread is attached to the JVM.
     jint get_env_result = g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
 
     if (get_env_result == JNI_EDETACHED) {
-        // If the thread is not attached, attach it.
-        if (g_jvm->AttachCurrentThread(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) {
+        // If not attached, attach it.
+#ifdef __cplusplus
+        // C++ variant
+        if (g_jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+#else
+            // C variant
+            if (g_jvm->AttachCurrentThread((void **)&env, nullptr) != JNI_OK) {
+#endif
             __android_log_print(ANDROID_LOG_ERROR, TAG, "Failed to attach thread for logging: %s",
                                 message);
             return;
