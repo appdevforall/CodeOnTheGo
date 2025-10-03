@@ -42,29 +42,24 @@ class ChatViewModel : ViewModel() {
 
     private val _sessions = MutableLiveData<MutableList<ChatSession>>(mutableListOf())
     val sessions: LiveData<MutableList<ChatSession>> = _sessions
-
     private val _currentSession = MutableLiveData<ChatSession?>()
     val currentSession: LiveData<ChatSession?> = _currentSession
-
     private val _backendStatus = MutableLiveData<BackendStatus>()
     val backendStatus: LiveData<BackendStatus> = _backendStatus
-
     private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
     val agentState = _agentState.asStateFlow()
-
     private val _totalElapsedTime = MutableStateFlow(0L)
     val totalElapsedTime = _totalElapsedTime.asStateFlow()
     private val _stepElapsedTime = MutableStateFlow(0L)
     val stepElapsedTime = _stepElapsedTime.asStateFlow()
-    private var timerJob: Job? = null
-    private var operationStartTime: Long = 0
-    private var stepStartTime: Long = 0
 
     private var agentRepository: GeminiRepository? = null
     private var agentJob: Job? = null
     private var saveJob: Job? = null
+    private var timerJob: Job? = null
+    private var operationStartTime: Long = 0
+    private var stepStartTime: Long = 0
     private val chatStorageManager: ChatStorageManager
-
     private var lastKnownBackendName: String? = null
     private var lastKnownModelPath: String? = null
 
@@ -73,12 +68,67 @@ class ChatViewModel : ViewModel() {
         private const val SAVE_DEBOUNCE_MS = 500L
     }
 
+    init {
+        val baseDir = IProjectManager.getInstance().projectDir
+        val agentDir = File(baseDir, "agent")
+        chatStorageManager = ChatStorageManager(agentDir)
+    }
+
     fun addSystemMessage(text: String) {
         val systemMessage = ChatMessage(
             text = text,
             sender = ChatMessage.Sender.SYSTEM
         )
         addMessageToCurrentSession(systemMessage)
+    }
+
+    private suspend fun getOrCreateRepository(context: Context): GeminiRepository? {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
+        val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+
+        // If the repository exists and settings haven't changed, return the existing instance.
+        if (agentRepository != null && lastKnownBackendName == backendName && lastKnownModelPath == modelPath) {
+            return agentRepository
+        }
+
+        log.info("Settings changed or repository not initialized. Creating new instance.")
+
+        // Settings have changed, so we need to create a new instance.
+        lastKnownBackendName = backendName
+        lastKnownModelPath = modelPath
+        val backend = AiBackend.valueOf(backendName ?: "GEMINI")
+
+        agentRepository = when (backend) {
+            AiBackend.GEMINI -> {
+                log.info("Creating new AgenticRunner (Gemini) instance.")
+                AgenticRunner(context).apply {
+                    onProgressUpdate = { addMessageToCurrentSession(it) }
+                    onStateUpdate = { _agentState.value = it }
+                }
+            }
+
+            AiBackend.LOCAL_LLM -> {
+                if (modelPath.isNullOrBlank()) {
+                    log.error("Initialization failed: Local LLM model path is missing.")
+                    null
+                } else {
+                    log.info("Creating new LocalLlmRepositoryImpl instance.")
+                    val localRepo = LocalLlmRepositoryImpl(context).apply {
+                        onProgressUpdate = { addMessageToCurrentSession(it) }
+                        onStateUpdate = { _agentState.value = it }
+                    }
+                    if (localRepo.loadModel(modelPath)) {
+                        log.info("Local LLM model loaded successfully from path: {}", modelPath)
+                        localRepo
+                    } else {
+                        log.error("Failed to load Local LLM model from path: {}", modelPath)
+                        null
+                    }
+                }
+            }
+        }
+        return agentRepository
     }
 
     fun checkBackendStatusOnResume(context: Context) {
@@ -124,73 +174,14 @@ class ChatViewModel : ViewModel() {
         return message.toString()
     }
 
-    private suspend fun initializeAndGetAgentRepository(context: Context): GeminiRepository? {
-        val prefs = BaseApplication.getBaseInstance().prefManager
-        val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
-        val backend = AiBackend.valueOf(backendName ?: "GEMINI")
-
-        log.info("Initializing AI backend: {}", backend.name)
-
-        agentRepository = when (backend) {
-            AiBackend.GEMINI -> {
-                AgenticRunner(context).apply {
-                    onProgressUpdate =
-                        { progressMessage -> addMessageToCurrentSession(progressMessage) }
-                    onStateUpdate = { newState ->
-                        _agentState.value = newState
-                        if (newState is AgentState.Processing) {
-                            resetStepTimer()
-                        }
-                    }
-                }
-            }
-
-            AiBackend.LOCAL_LLM -> {
-                val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
-                if (modelPath.isNullOrBlank()) {
-                    log.error("Initialization failed: Local LLM model path is missing.")
-                    return null
-                }
-                val localRepo = LocalLlmRepositoryImpl(context).apply {
-                    onProgressUpdate =
-                        { progressMessage -> addMessageToCurrentSession(progressMessage) }
-                    onStateUpdate = { newState ->
-                        _agentState.value = newState
-                        if (newState is AgentState.Processing) {
-                            resetStepTimer()
-                        }
-                    }
-                }
-                if (localRepo.loadModel(modelPath)) {
-                    log.info("Local LLM model loaded successfully from path: {}", modelPath)
-                    localRepo
-                } else {
-                    log.error(
-                        "Initialization failed: Could not load Local LLM model from path: {}",
-                        modelPath
-                    )
-                    null
-                }
-            }
-        }
-        return agentRepository
-    }
-
-
-    init {
-        val baseDir = IProjectManager.getInstance().projectDir
-        val agentDir = File(baseDir, "agent")
-        chatStorageManager = ChatStorageManager(agentDir)
-    }
-
-    fun sendMessage(text: String, context: Context) {
-        sendMessage(fullPrompt = text, originalUserText = text, context)
-    }
-
     fun sendMessage(fullPrompt: String, originalUserText: String, context: Context) {
-        if (_agentState.value is AgentState.Processing) {
+        if (_agentState.value !is AgentState.Idle) {
+            log.warn("sendMessage called while agent was not idle. Ignoring.")
             return
         }
+
+        _agentState.value = AgentState.Processing("Thinking...")
+
         val userMessage = ChatMessage(text = originalUserText, sender = ChatMessage.Sender.USER)
         addMessageToCurrentSession(userMessage)
         val loadingMessage = ChatMessage(
@@ -228,10 +219,8 @@ class ChatViewModel : ViewModel() {
             startTimer()
             log.info("Starting agent workflow for prompt: \"{}\"", originalUserPrompt)
             try {
-                _agentState.value = AgentState.Processing("Initializing AI Backend...")
-                resetStepTimer()
-
-                val repository = initializeAndGetAgentRepository(context)
+                // Now we just get the stable repository instance.
+                val repository = getOrCreateRepository(context)
                 if (repository == null) {
                     log.error("Aborting workflow: AI repository failed to initialize.")
                     val prefs = BaseApplication.getBaseInstance().prefManager
@@ -246,31 +235,27 @@ class ChatViewModel : ViewModel() {
                         errorMessage,
                         MessageStatus.ERROR
                     )
+                    _agentState.value = AgentState.Idle
                     return@launch
                 }
+
+                resetStepTimer()
 
                 val agentResponse = withContext(Dispatchers.IO) {
                     val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
                     log.debug(
-                        """
-                        --- AGENT REQUEST ---
-                        Prompt: {}
-                        History Messages: {}
-                        ---------------------
-                    """.trimIndent(), prompt, history.size
+                        "--- AGENT REQUEST ---\nPrompt: {}\nHistory Messages: {}",
+                        prompt,
+                        history.size
                     )
                     repository.generateASimpleResponse(prompt, history)
                 }
 
                 log.debug(
-                    """
-                    --- AGENT RESPONSE ---
-                    Text: {}
-                    Report: {}
-                    ----------------------
-                """.trimIndent(), agentResponse.text, agentResponse.report
+                    "--- AGENT RESPONSE ---\nText: {}\nReport: {}",
+                    agentResponse.text,
+                    agentResponse.report
                 )
-
                 removeMessageFromCurrentSession(messageIdToUpdate)
 
                 log.info("Displaying final agent response to user.")
@@ -285,10 +270,12 @@ class ChatViewModel : ViewModel() {
                 if (agentResponse.report.isNotBlank()) {
                     log.info("Displaying execution report.")
                     addMessageToCurrentSession(
-                        ChatMessage(text = agentResponse.report, sender = ChatMessage.Sender.SYSTEM)
+                        ChatMessage(
+                            text = agentResponse.report,
+                            sender = ChatMessage.Sender.SYSTEM
+                        )
                     )
                 }
-
             } catch (e: Exception) {
                 if (e is CancellationException) {
                     log.warn("Workflow was cancelled by user.")
@@ -300,16 +287,19 @@ class ChatViewModel : ViewModel() {
                     val partialReport = agentRepository?.getPartialReport()
                     if (partialReport?.isNotBlank() == true) {
                         addMessageToCurrentSession(
-                            ChatMessage(text = partialReport, sender = ChatMessage.Sender.SYSTEM)
+                            ChatMessage(
+                                text = partialReport,
+                                sender = ChatMessage.Sender.SYSTEM
+                            )
                         )
                     }
                 } else {
                     log.error("An unexpected error occurred during agent workflow.", e)
                     updateMessageInCurrentSession(
-                        messageId = messageIdToUpdate,
-                        newText = "An error occurred: ${e.message}",
-                        newStatus = MessageStatus.ERROR,
-                        originalPrompt = originalUserPrompt
+                        messageIdToUpdate,
+                        "An error occurred: ${e.message}",
+                        MessageStatus.ERROR,
+                        originalUserPrompt
                     )
                 }
             } finally {
@@ -321,13 +311,11 @@ class ChatViewModel : ViewModel() {
                 } else {
                     log.info("Workflow finished.")
                 }
-
                 _agentState.value = AgentState.Idle
                 stopTimer()
             }
         }
     }
-
 
     private fun buildBackendDisplayText(
         backend: AiBackend,

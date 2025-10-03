@@ -144,7 +144,7 @@ class ChatFragment :
 
         viewLifecycleOwner.lifecycleScope.launch {
             if (selectedContext.isEmpty()) {
-                chatViewModel.sendMessage(inputText, requireContext())
+                chatViewModel.sendMessage(inputText, inputText, requireContext())
             } else {
                 val masterPrompt = buildMasterPrompt(inputText)
                 chatViewModel.sendMessage(
@@ -203,7 +203,9 @@ class ChatFragment :
 
     private fun setupListeners() {
         binding.promptInputEdittext.doAfterTextChanged { text ->
-            binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
+            if (chatViewModel.agentState.value is AgentState.Idle) {
+                binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
+            }
         }
         binding.btnSendPrompt.setOnClickListener {
             handleSendMessage()
@@ -268,8 +270,12 @@ class ChatFragment :
                 when (state) {
                     is AgentState.Idle -> {
                         binding.agentStatusContainer.isVisible = false
+
                         binding.btnStopGeneration.isVisible = false
-                        binding.btnSendPrompt.isEnabled = true
+                        binding.btnSendPrompt.isVisible = true
+
+                        binding.btnSendPrompt.isEnabled =
+                            binding.promptInputEdittext.text?.isNotBlank() == true
                     }
 
                     is AgentState.Processing -> {
@@ -281,31 +287,34 @@ class ChatFragment :
                         binding.agentStatusTimer.text = timeString
                         binding.agentStatusTimer.isVisible = true
                         binding.agentStatusContainer.isVisible = true
+
                         binding.btnStopGeneration.isVisible = true
+                        binding.btnSendPrompt.isVisible = false
 
-                        // Ensure the button is enabled when processing starts.
                         binding.btnStopGeneration.isEnabled = true
-
-                        binding.btnSendPrompt.isEnabled = false
                     }
 
                     is AgentState.Cancelling -> {
                         binding.agentStatusMessage.text = "Stopping..."
                         binding.agentStatusTimer.isVisible = false
                         binding.agentStatusContainer.isVisible = true
+
                         binding.btnStopGeneration.isVisible = true
+                        binding.btnSendPrompt.isVisible = false
 
                         binding.btnStopGeneration.isEnabled = false
-
-                        binding.btnSendPrompt.isEnabled = false
                     }
 
                     is AgentState.Error -> {
                         binding.agentStatusMessage.text = state.message
                         binding.agentStatusTimer.isVisible = false
                         binding.agentStatusContainer.isVisible = true
+
                         binding.btnStopGeneration.isVisible = false
-                        binding.btnSendPrompt.isEnabled = true
+                        binding.btnSendPrompt.isVisible = true
+
+                        binding.btnSendPrompt.isEnabled =
+                            binding.promptInputEdittext.text?.isNotBlank() == true
                     }
                 }
             }
