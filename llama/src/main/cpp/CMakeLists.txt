@@ -1,4 +1,7 @@
-include_directories(BEFORE ${ANDROID_NDK}/sysroot/usr/include)
+include_directories(BEFORE
+        ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include
+        ${ANDROID_NDK}/sysroot/usr/include
+)
 
 cmake_minimum_required(VERSION 3.22.1)
 
@@ -31,3 +34,13 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         common
         android
         log)
+
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+        INCLUDE_DIRECTORIES ""
+)
+target_include_directories(${CMAKE_PROJECT_NAME}
+        PRIVATE
+        ${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include
+        ${ANDROID_NDK}/sysroot/usr/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
