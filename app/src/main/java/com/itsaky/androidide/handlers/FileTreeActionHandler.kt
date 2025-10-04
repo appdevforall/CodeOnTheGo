@@ -34,7 +34,6 @@ import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.SheetOption
-import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.flashError
 import com.unnamed.b.atv.model.TreeNode
 import org.greenrobot.eventbus.EventBus
@@ -74,7 +73,8 @@ class FileTreeActionHandler : BaseEventHandler() {
     if (event.file.name.endsWith(".apk")) {
       context.apkInstallationViewModel.installApk(
 		  context = context,
-		  file = event.file,
+		  apk = event.file,
+		  launchInDebugMode = false
 	  )
       return
     }
