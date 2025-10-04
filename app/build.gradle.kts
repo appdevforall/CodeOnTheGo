@@ -31,6 +31,7 @@ plugins {
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
+	alias(libs.plugins.google.services)
 	kotlin("plugin.serialization")
 }
 
@@ -272,6 +273,13 @@ dependencies {
 	// Koin for Dependency Injection
 	implementation("io.insert-koin:koin-android:3.5.3")
 	implementation(libs.androidx.security.crypto)
+
+	// Firebase Analytics
+	implementation(platform(libs.firebase.bom))
+	implementation(libs.firebase.analytics)
+
+	// Lifecycle Process for app lifecycle tracking
+	implementation(libs.androidx.lifecycle.process)
     implementation(libs.google.genai)
 }
 

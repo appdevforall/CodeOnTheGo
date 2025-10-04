@@ -1,11 +1,9 @@
 package rikka.shizuku.server;
 
-import static android.app.ActivityManagerHidden.PROCESS_STATE_TOP;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_ACTIVE;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_CACHED;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_GONE;
 import static android.app.ActivityManagerHidden.UID_OBSERVER_IDLE;
-
 import static rikka.shizuku.server.ShizukuServerConstants.ACTION_FOREGROUND_APP_CHANGED;
 import static rikka.shizuku.server.ShizukuServerConstants.EXTRA_FOREGROUND_PACKAGES;
 import static rikka.shizuku.server.ShizukuServerConstants.EXTRA_FOREGROUND_PID;
@@ -13,10 +11,7 @@ import static rikka.shizuku.server.ShizukuServerConstants.EXTRA_FOREGROUND_UID;
 
 import android.app.ActivityManagerHidden;
 import android.content.Intent;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.os.RemoteException;
-import android.text.TextUtils;
 
 import com.itsaky.androidide.buildinfo.BuildInfo;
 
@@ -24,11 +19,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import kotlin.collections.ArraysKt;
 import rikka.hidden.compat.ActivityManagerAccessor;
 import rikka.hidden.compat.ActivityManagerApis;
 import rikka.hidden.compat.PackageManagerApis;
-import rikka.hidden.compat.PermissionManagerApis;
 import rikka.hidden.compat.adapter.ProcessObserverAdapter;
 import rikka.hidden.compat.adapter.UidObserverAdapter;
 import rikka.shizuku.server.util.HandlerUtil;
@@ -37,9 +30,6 @@ import rikka.shizuku.server.util.Logger;
 public class BinderSender {
 
 	private static final Logger LOGGER = new Logger("BinderSender");
-
-	private static final String PERMISSION_MANAGER = BuildInfo.PACKAGE_NAME + ".shizuku.permission.SHIZUKU_MANAGER";
-	private static final String PERMISSION = BuildInfo.PACKAGE_NAME + ".shizuku.permission.SHIZUKU_API_V23";
 
 	private static ShizukuService sShizukuService;
 
@@ -62,35 +52,12 @@ public class BinderSender {
 		}
 	}
 
-	private static void sendBinder(int uid, int pid) throws RemoteException {
-		List<String> packages = PackageManagerApis.getPackagesForUidNoThrow(uid);
-		if (packages.isEmpty())
-			return;
+	private static void sendBinder() {
+		sShizukuService.sendBinderToManager();
+	}
 
-		LOGGER.d("sendBinder to uid %d: packages=%s", uid, TextUtils.join(", ", packages));
-
-		int userId = uid / 100000;
-		for (String packageName : packages) {
-			PackageInfo pi = PackageManagerApis.getPackageInfoNoThrow(packageName, PackageManager.GET_PERMISSIONS, userId);
-			if (pi == null || pi.requestedPermissions == null)
-				continue;
-
-			if (ArraysKt.contains(pi.requestedPermissions, PERMISSION_MANAGER)) {
-				boolean granted;
-				if (pid == -1)
-					granted = PermissionManagerApis.checkPermission(PERMISSION_MANAGER, uid) == PackageManager.PERMISSION_GRANTED;
-				else
-					granted = ActivityManagerApis.checkPermission(PERMISSION_MANAGER, pid, uid) == PackageManager.PERMISSION_GRANTED;
-
-				if (granted) {
-					ShizukuService.sendBinderToManager(sShizukuService, userId);
-					return;
-				}
-			} else if (ArraysKt.contains(pi.requestedPermissions, PERMISSION)) {
-				ShizukuService.sendBinderToUserApp(sShizukuService, packageName, userId);
-				return;
-			}
-		}
+	private static void onUidGone(int uid) {
+		sShizukuService.onUidGone(uid);
 	}
 
 	private static void broadcastForegroundAppChanged(int uid, int pid) {
@@ -145,7 +112,7 @@ public class BinderSender {
 				PID_LIST.add(pid);
 			}
 
-			sendBinder(uid, pid);
+			sendBinder();
 		}
 
 		@Override
@@ -171,7 +138,7 @@ public class BinderSender {
 				PID_LIST.add(pid);
 			}
 
-			sendBinder(uid, pid);
+			sendBinder();
 		}
 	}
 
@@ -182,7 +149,6 @@ public class BinderSender {
 		@Override
 		public void onUidActive(int uid) throws RemoteException {
 			LOGGER.d("onUidCachedChanged: uid=%d", uid);
-
 			uidStarts(uid);
 		}
 
@@ -198,14 +164,12 @@ public class BinderSender {
 		@Override
 		public void onUidGone(int uid, boolean disabled) throws RemoteException {
 			LOGGER.d("onUidGone: uid=%d, disabled=%s", uid, Boolean.toString(disabled));
-
 			uidGone(uid);
 		}
 
 		@Override
 		public void onUidIdle(int uid, boolean disabled) throws RemoteException {
 			LOGGER.d("onUidIdle: uid=%d, disabled=%s", uid, Boolean.toString(disabled));
-
 			uidStarts(uid);
 		}
 
@@ -215,6 +179,7 @@ public class BinderSender {
 				if (index != -1) {
 					UID_LIST.remove(index);
 					LOGGER.v("Uid %d dead", uid);
+					BinderSender.onUidGone(uid);
 				}
 			}
 		}
@@ -229,7 +194,7 @@ public class BinderSender {
 				LOGGER.v("Uid %d starts", uid);
 			}
 
-			sendBinder(uid, -1);
+			sendBinder();
 		}
 	}
 }
