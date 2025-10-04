@@ -28,6 +28,7 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityContributorsBinding
 import com.itsaky.androidide.utils.getConnectionInfo
 import com.itsaky.androidide.viewmodel.ContributorsViewModel
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
 
 /**
  * @author Akash Yadav
@@ -66,6 +67,11 @@ class ContributorsActivity : EdgeToEdgeIDEActivity() {
 
       noConnection.root.setText(R.string.msg_no_internet)
       loadingProgress.isVisible = false
+
+        FeedbackButtonManager(
+            activity = this@ContributorsActivity,
+            feedbackFab = fabFeedback,
+        ).setupDraggableFab()
     }
 
     viewModel._crowdinTranslators.observe(this) { translators ->
