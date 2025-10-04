@@ -9,7 +9,9 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.text.TextUtils
 import com.blankj.utilcode.util.ToastUtils
+import com.itsaky.androidide.eventbus.events.editor.ReportCaughtExceptionEvent
 import org.appdevforall.codeonthego.layouteditor.LayoutEditor.Companion.instance
+import org.greenrobot.eventbus.EventBus
 import java.io.BufferedReader
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -24,6 +26,8 @@ import java.io.OutputStream
 import java.net.URLDecoder
 import java.nio.file.Files
 import java.nio.file.Paths
+
+private const val BUFFER_SIZE = 1024
 
 object FileUtil {
   fun readFromUri(uri: Uri, context: Context): String? {
@@ -56,15 +60,15 @@ object FileUtil {
   }
 
   @JvmStatic
-  fun copyFile(uri: Uri, destinationPath: String): Boolean {
+  fun copyFile(uri: Uri, destinationPath: String, context: Context): Boolean {
     var inputStream: InputStream? = null
     var outputStream: OutputStream? = null
 
     try {
-      inputStream = instance!!.context.contentResolver.openInputStream(uri)
+      inputStream = context.contentResolver.openInputStream(uri)
       outputStream = FileOutputStream(File(destinationPath))
 
-      val buffer = ByteArray(1024)
+      val buffer = ByteArray(BUFFER_SIZE)
       var length: Int
 
       while ((inputStream!!.read(buffer).also { length = it }) > 0) {
@@ -75,14 +79,39 @@ object FileUtil {
     } catch (e: IOException) {
       e.printStackTrace()
       ToastUtils.showLong(e.toString())
+
+      EventBus.getDefault().post(
+          ReportCaughtExceptionEvent(
+              throwable = e,
+              message = "copyFile failed",
+              extras = mapOf(
+                  "module" to "layouteditor",
+                  "where" to "utils.FileUtil.copyFile",
+                  "dest" to destinationPath,
+                  "uri" to uri.toString()
+              )
+          )
+      )
+
       return false
     } finally {
       try {
         inputStream?.close()
         outputStream?.close()
-      } catch (e: IOException) {
+      } catch (e: Exception) {
         e.printStackTrace()
         ToastUtils.showLong(e.toString())
+        EventBus.getDefault().post(
+        ReportCaughtExceptionEvent(
+            throwable = e,
+            message = "copyFile unexpected error",
+            extras = mapOf(
+                "module" to "layouteditor",
+                "where" to "utils.FileUtil.copyFile",
+                "dest" to destinationPath,
+                "uri" to uri.toString()
+            )
+        ))
       }
     }
   }
@@ -103,7 +132,7 @@ object FileUtil {
       val outputStream = ByteArrayOutputStream()
 
       // Create a buffer of 1024 bytes
-      val _buf = ByteArray(1024)
+      val _buf = ByteArray(BUFFER_SIZE)
       var i: Int
 
       // Read the bytes from the input stream, write them to the output stream and close the streams
@@ -145,7 +174,7 @@ object FileUtil {
       out = FileOutputStream(newFileName)
 
       // Buffer for read and write
-      val buffer = ByteArray(1024)
+      val buffer = ByteArray(BUFFER_SIZE)
       var read: Int
 
       // Read from InputStream and write to OutputStream
@@ -204,7 +233,7 @@ object FileUtil {
     try {
       fr = FileReader(File(path))
 
-      val buff = CharArray(1024)
+      val buff = CharArray(BUFFER_SIZE)
       var length = 0
 
       // Read the contents of the file and append them to the StringBuilder
@@ -280,7 +309,7 @@ object FileUtil {
       fis = FileInputStream(sourcePath)
       fos = FileOutputStream(destPath, false)
 
-      val buff = ByteArray(1024)
+      val buff = ByteArray(BUFFER_SIZE)
       var length = 0
 
       // Read and write the bytes from source path to destination path.
@@ -310,7 +339,7 @@ object FileUtil {
 
   @Throws(IOException::class)
   fun copyFile(`in`: InputStream, out: OutputStream) {
-    val buffer = ByteArray(1024)
+    val buffer = ByteArray(BUFFER_SIZE)
     var read: Int
     while ((`in`.read(buffer).also { read = it }) != -1) {
       out.write(buffer, 0, read)
@@ -482,11 +511,11 @@ object FileUtil {
         val selectionArgs = arrayOf(split[1])
 
         // Get Data Column from content Uri
-        path = getDataColumn(contentUri, selection, selectionArgs).toString()
+        path = getDataColumn(contentUri, selection, selectionArgs, context).toString()
       }
     } else if (ContentResolver.SCHEME_CONTENT.equals(uri.scheme, ignoreCase = true)) {
       // Get Data Column from content Uri
-      path = getDataColumn(uri, null, null).toString()
+      path = getDataColumn(uri, null, null, context).toString()
     } else if (ContentResolver.SCHEME_FILE.equals(uri.scheme, ignoreCase = true)) {
       // Get File Path from Uri
       path = uri.path.toString()
@@ -510,14 +539,14 @@ object FileUtil {
    * @return The data column retrieved from the specified URI.
    */
   @SuppressLint("Recycle")
-  private fun getDataColumn(uri: Uri?, selection: String?, selectionArgs: Array<String>?): String? {
+  private fun getDataColumn(uri: Uri?, selection: String?, selectionArgs: Array<String>?, context: Context): String? {
     val column =
       MediaStore.Images.Media.DATA // Column name of the data column to be retrieved
     val projection = arrayOf(column) // Projection of the data column to be retrieved
 
     try {
       val cursor =
-        instance!!.context // Get the application context
+        context // Get the application context
           .contentResolver // Get the content resolver
           .query(uri!!, projection, selection, selectionArgs, null) // Query the content resolver
       if (cursor != null && cursor.moveToFirst()) {
