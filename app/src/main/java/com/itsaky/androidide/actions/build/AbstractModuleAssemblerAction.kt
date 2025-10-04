@@ -47,6 +47,6 @@ abstract class AbstractModuleAssemblerAction(
         actionScope.launch {
             activity.saveAllResult()
         }
-        buildViewModel.runQuickBuild(module, variant)
+        buildViewModel.runQuickBuild(module, variant, launchInDebugMode = id == DebugAction.ID)
     }
 }
