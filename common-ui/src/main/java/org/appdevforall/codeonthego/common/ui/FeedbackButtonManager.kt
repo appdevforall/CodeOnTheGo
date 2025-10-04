@@ -24,6 +24,9 @@ class FeedbackButtonManager(
 		private const val KEY_FAB_Y = "fab_y"
 	}
 
+	// This function is called in the onCreate method of the activity that contains the FAB
+	// For activities that are navigated back to, this function is called in onResume so that
+	// the FAB's updated position is retrieved from shared preferences because onCreate is called once
 	fun setupDraggableFab() {
 		loadFabPosition()
 
