@@ -79,8 +79,27 @@ object ShizukuState {
 				null
 			}
 
-		val permissionTest =
+		val permission = try {
 			Shizuku.checkRemotePermission("android.permission.GRANT_RUNTIME_PERMISSIONS") == PackageManager.PERMISSION_GRANTED
-		return ServiceStatus(uid, apiVersion, patchVersion, seContext, permissionTest)
+		} catch (e: Exception) {
+			// this can happen when the cotg_server process is not running, or
+			// if it was started during an earlier installation of Code on the Go, but wasn't
+			// stopped when the app was uninstalled.
+			logger.error(
+				"Failed to check GRANT_RUNTIME_PERMISSIONS permission." +
+						" Is the cotg_server process running?" +
+						" Is the process running from an earlier installation of CoGo?" +
+						" uid=" + uid +
+						" apiVersion=" + apiVersion +
+						" patchVersion=" + patchVersion +
+						" seContext=" + seContext, e
+			)
+
+			// we won't be able to use Shizuku anyways, so it's better to notify listeners
+			// that cotg_server is not running than returning an invalid status
+			return ServiceStatus.EMPTY
+		}
+
+		return ServiceStatus(uid, apiVersion, patchVersion, seContext, permission)
 	}
 }

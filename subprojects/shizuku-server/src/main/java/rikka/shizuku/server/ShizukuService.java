@@ -19,10 +19,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+
 import com.itsaky.androidide.buildinfo.BuildInfo;
+
 import java.util.List;
+
 import moe.shizuku.api.BinderContainer;
 import moe.shizuku.common.util.OsUtils;
 import moe.shizuku.common.util.UserUtils;
@@ -49,15 +53,26 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 		Looper.loop();
 	}
 
-	static void sendBinderToManager(Binder binder, int userId) {
+	static void sendBinderToManager(ShizukuService binder, int userId) {
 		sendBinderToUserApp(binder, MANAGER_APPLICATION_ID, userId);
 	}
 
-	static void sendBinderToUserApp(Binder binder, String packageName, int userId) {
+	static void sendBinderToUserApp(ShizukuService binder, String packageName, int userId) {
 		sendBinderToUserApp(binder, packageName, userId, true);
 	}
 
-	static void sendBinderToUserApp(Binder binder, String packageName, int userId, boolean retry) {
+	static void sendBinderToUserApp(ShizukuService binder, String packageName, int userId, boolean retry) {
+		final var packageInfo = PackageManagerApis.getPackageInfoNoThrow(packageName, 0, userId);
+		if (packageInfo == null || packageInfo.applicationInfo == null) {
+			LOGGER.w("package %s in user %d not found", packageName, userId);
+			return;
+		}
+
+		if (!MANAGER_APPLICATION_ID.equals(packageInfo.packageName) || !binder.isManager(packageInfo.applicationInfo.uid)) {
+			LOGGER.w("Cannot send binder to package %s in user %d (not manager)", packageName, userId);
+			return;
+		}
+
 		try {
 			DeviceIdleControllerApis.addPowerSaveTempWhitelistApp(packageName, 30 * 1000, userId,
 					316/* PowerExemptionManager#REASON_SHELL */, "shell");
@@ -122,7 +137,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 		}
 	}
 
-	private static void sendBinderToManager(Binder binder) {
+	private static void sendBinderToManager(ShizukuService binder) {
 		for (int userId : UserUtils.getUserIds()) {
 			sendBinderToManager(binder, userId);
 		}
@@ -164,15 +179,10 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 		assert ai != null;
 		managerAppId = ai.uid;
 
-		ApkChangedObservers.start(ai.sourceDir, () -> {
-			if (getManagerApplicationInfo() == null) {
-				LOGGER.w("manager app is uninstalled in user 0, exiting...");
-				System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
-			}
-		});
+		LOGGER.d("manager app: pck=%s uid=%d", ai.packageName, ai.uid);
+		LOGGER.d("cotg_server: uid=%d", Process.myUid());
 
 		BinderSender.register(this);
-
 		mainHandler.post(this::sendBinderToManager);
 	}
 
@@ -199,7 +209,10 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 		}
 
 		isManager = MANAGER_APPLICATION_ID.equals(requestPackageName);
-		if (!isManager) {
+
+		// verify package name, then verify that the it's the same manager that started this server process
+		// manager can have a different UID if it was reinstalled, but the server wasn't stopped for some reason
+		if (!isManager || !isManager(callingUid)) {
 			String msg = "Permission Denial: attachApplication from pid="
 					+ Binder.getCallingPid()
 					+ " is not manager ";
@@ -272,5 +285,19 @@ public class ShizukuService extends Service<ShizukuUserServiceManager> {
 
 	void sendBinderToManager() {
 		sendBinderToManager(this);
+	}
+
+	public void onUidGone(int uid) {
+		if (!isManager(uid)) {
+			return;
+		}
+
+		// manager was either killed or uninstalled
+		// if it was uninstalled, we need to exit
+		final var managerInfo = getManagerApplicationInfo();
+		if (managerInfo == null) {
+			LOGGER.w("manager app is uninstalled in user 0, exiting...");
+			System.exit(ServerConstants.MANAGER_APP_NOT_FOUND);
+		}
 	}
 }
