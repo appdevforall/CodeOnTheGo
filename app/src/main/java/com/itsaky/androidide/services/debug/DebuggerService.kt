@@ -1,12 +1,8 @@
 package com.itsaky.androidide.services.debug
 
 import android.app.Service
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.IBinder
-import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.debug.KillVmAction
@@ -19,6 +15,9 @@ import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**
@@ -29,6 +28,10 @@ class DebuggerService : Service() {
 		fun getService(): DebuggerService = this@DebuggerService
 	}
 
+	companion object {
+		private val logger = LoggerFactory.getLogger(DebuggerService::class.java)
+	}
+
 	private val actionsRegistry = ActionsRegistry.getInstance()
 	private lateinit var actionsList: List<ActionItem>
 	private lateinit var overlayManager: DebugOverlayManager
@@ -36,30 +39,6 @@ class DebuggerService : Service() {
 	private val serviceScope = CoroutineScope(Dispatchers.Default)
 
 	internal var targetPackage: String? = null
-
-	private var foregroundAppReceiver =
-		object : BroadcastReceiver() {
-			override fun onReceive(
-				context: Context,
-				intent: Intent?,
-			) {
-				if (intent?.action != ForegroundDetectionService.ACTION_FOREGROUND_APP_CHANGED) {
-					return
-				}
-
-				val packageName = intent.getStringExtra(ForegroundDetectionService.EXTRA_PACKAGE_NAME)
-				logger.debug("onReceive: packageName={} targetPackage={}", packageName, targetPackage)
-				if (packageName == BuildInfo.PACKAGE_NAME || (targetPackage != null && packageName == targetPackage)) {
-					showOverlay()
-				} else {
-					hideOverlay()
-				}
-			}
-		}
-
-	companion object {
-		private val logger = LoggerFactory.getLogger(DebuggerService::class.java)
-	}
 
 	override fun onCreate() {
 		logger.debug("onCreate()")
@@ -79,12 +58,23 @@ class DebuggerService : Service() {
 		this.actionsList.forEach(actionsRegistry::registerAction)
 		this.overlayManager = DebugOverlayManager.create(serviceScope, this)
 
-		ContextCompat.registerReceiver(
-			this,
-			foregroundAppReceiver,
-			IntentFilter(ForegroundDetectionService.ACTION_FOREGROUND_APP_CHANGED),
-			ContextCompat.RECEIVER_NOT_EXPORTED,
-		)
+		serviceScope.launch {
+			ForegroundAppReceiver.foregroundAppState.collectLatest { state ->
+				withContext(Dispatchers.Main) {
+					onForegroundAppChanged(state)
+				}
+			}
+		}
+	}
+
+	private fun onForegroundAppChanged(state: ForegroundAppState) {
+		logger.debug("onForegroundAppChanged(event={})", state)
+		val packageNames = state.packageNames
+		if (BuildInfo.PACKAGE_NAME in packageNames || (targetPackage != null && targetPackage in packageNames)) {
+			showOverlay()
+		} else {
+			hideOverlay()
+		}
 	}
 
 	override fun onDestroy() {
@@ -100,7 +90,6 @@ class DebuggerService : Service() {
 
 		super.onDestroy()
 
-		unregisterReceiver(foregroundAppReceiver)
 		actionsList.forEach(actionsRegistry::unregisterAction)
 	}
 
@@ -116,14 +105,17 @@ class DebuggerService : Service() {
 
 	fun setOverlayVisibility(isShown: Boolean) = if (isShown) showOverlay() else hideOverlay()
 
-	override fun onBind(intent: Intent?): IBinder = this.binder
+	override fun onBind(intent: Intent?): IBinder {
+		logger.debug("onBind(intent={}): extras={}", intent, intent?.extras)
+		return this.binder
+	}
 
 	override fun onStartCommand(
 		intent: Intent?,
 		flags: Int,
 		startId: Int,
 	): Int {
-		logger.debug("onStartCommand()")
+		logger.debug("onStartCommand(intent={}, flags={}, startId={}): extras={}", intent, flags, startId, intent?.extras)
 		// if the service is killed by the system, there is no point in restarting it
 		return START_NOT_STICKY
 	}

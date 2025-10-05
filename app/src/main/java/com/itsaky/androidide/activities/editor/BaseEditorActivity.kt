@@ -18,7 +18,6 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
@@ -306,7 +305,7 @@ abstract class BaseEditorActivity :
 		isDebuggerStarting = true
 
 		val intent = Intent(this, DebuggerService::class.java)
-		if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
+		if (bindService(intent, debuggerServiceConnection, BIND_AUTO_CREATE)) {
 			postStopDebuggerServiceIfNotConnected()
 			doSetStatus(getString(string.debugger_starting))
 		} else {
