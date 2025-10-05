@@ -23,6 +23,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
@@ -61,6 +62,10 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
             setupRecyclerView()
             setupFab()
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+            ).setupDraggableFab()
             observeViewModel()
         } catch (e: Exception) {
             // Log the error and finish the activity if something goes wrong

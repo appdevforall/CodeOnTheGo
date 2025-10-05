@@ -76,4 +76,12 @@
         android:contentDescription="Install Plugin"
         app:srcCompat="@drawable/ic_add" />
 
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_feedback"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:layout_gravity="bottom|start"
+        android:src="@drawable/baseline_feedback_64" />
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
