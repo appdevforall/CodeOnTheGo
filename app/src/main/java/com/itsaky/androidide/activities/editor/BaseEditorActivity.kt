@@ -625,6 +625,8 @@ abstract class BaseEditorActivity :
             }
             val parentWidth = parentView.width
 
+            val minEditorWidthPx = SizeUtils.dp2px(200f)
+
             when (event.action) {
                 MotionEvent.ACTION_MOVE -> {
                     if (parentWidth == 0) {
@@ -634,9 +636,6 @@ abstract class BaseEditorActivity :
 
                     val touchXInParent = view.x + event.x
                     var percent = touchXInParent / parentWidth
-
-                    // Your clamping is correct
-//                    percent = max(0.4f, min(0.9f, percent))
 
                     Log.d(
                         TAG,
@@ -652,20 +651,21 @@ abstract class BaseEditorActivity :
                 MotionEvent.ACTION_UP -> {
                     val currentPercent =
                         (verticalGuideline?.layoutParams as ConstraintLayout.LayoutParams).guidePercent
-                    // Define thresholds
-                    val fullScreenThreshold =
-                        0.2f // If guideline is less than 20% (panel > 80%), go full screen.
-                    val hideThreshold =
-                        0.7f     // If guideline is more than 75% (panel < 25%), hide it.
 
+                    val fullScreenThreshold =
+                        0.2f
+
+                    val hideThreshold: Float =
+                        if (parentWidth > 0 && minEditorWidthPx < parentWidth) {
+                            minEditorWidthPx.toFloat() / parentWidth.toFloat()
+                        } else {
+                            0.7f
+                        }
 
                     if (currentPercent < fullScreenThreshold) {
-                        // Animate to nearly full-screen state (e.g., 1% for the editor)
                         animateGuideline(0.01f)
-                    } else if (currentPercent > hideThreshold) {
+                    } else if (currentPercent < hideThreshold) {
                         animateGuideline(1.0f, true)
-                    } else {
-
                     }
                 }
 
