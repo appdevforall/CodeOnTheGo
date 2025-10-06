@@ -18,5 +18,13 @@
 <resources>
     <!--  Required by F-Droid-->
     <string name="app_name" translatable="false">Code on the Go</string>
+    <string name="ai_agent">AI Agent</string>
+    <string name="new_chat">New Chat</string>
+    <string name="history">History</string>
+    <string name="export_chat">Export Chat</string>
+    <string name="share">Share</string>
+    <string name="delete_chat">Delete Chat</string>
+    <string name="ai_settings">AI Settings</string>
+    <string name="close">Close</string>
 
 </resources>

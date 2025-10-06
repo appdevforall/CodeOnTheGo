@@ -14,7 +14,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:menu="@menu/chat_menu"
-        app:title="AI Agent" />
+        app:title="@string/ai_agent" />
 
     <TextView
         android:id="@+id/empty_chat_view"
