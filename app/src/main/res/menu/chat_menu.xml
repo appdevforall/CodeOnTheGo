@@ -12,19 +12,9 @@
         android:icon="@drawable/chat_history"
         app:showAsAction="ifRoom" />
     <item
-        android:id="@+id/menu_chat_export"
-        android:title="@string/export_chat" />
-    <item
-        android:id="@+id/menu_chat_share"
-        android:title="@string/share" />
-    <item
-        android:id="@+id/menu_chat_delete"
-        android:title="@string/delete_chat" />
-    <item
         android:id="@+id/menu_ai_settings"
         android:title="@string/ai_settings"
         android:icon="@drawable/ic_settings" />
-
     <item
         android:id="@+id/menu_chat_close"
         android:title="@string/close" />
