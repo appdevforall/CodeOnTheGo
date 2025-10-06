@@ -97,18 +97,19 @@ class ApkInstallationViewModel : ViewModel() {
 	 * Installs the APK file.
 	 *
 	 * @param context The context.
-	 * @param file The APK file to install.
+	 * @param apk The APK file to install.
 	 */
 	fun installApk(
 		context: Context,
-		file: File,
+		apk: File,
+		launchInDebugMode: Boolean,
 	) {
 		val packageInstaller = context.packageManager.packageInstaller
 		packageInstaller.unregisterSessionCallback(callback)
 		packageInstaller.registerSessionCallback(callback)
 
 		viewModelScope.launch {
-			ApkInstaller.installApk(context, file)
+			ApkInstaller.installApk(context, apk, launchInDebugMode)
 		}
 	}
 
