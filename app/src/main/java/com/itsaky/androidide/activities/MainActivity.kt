@@ -62,7 +62,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
-import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
+import com.itsaky.androidide.FeedbackButtonManager
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 

@@ -28,7 +28,7 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityContributorsBinding
 import com.itsaky.androidide.utils.getConnectionInfo
 import com.itsaky.androidide.viewmodel.ContributorsViewModel
-import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
+import com.itsaky.androidide.FeedbackButtonManager
 
 /**
  * @author Akash Yadav

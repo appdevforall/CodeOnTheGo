@@ -61,7 +61,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
+import com.itsaky.androidide.FeedbackButtonManager
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {

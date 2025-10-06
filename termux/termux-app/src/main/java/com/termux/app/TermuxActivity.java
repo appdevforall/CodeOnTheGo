@@ -58,7 +58,7 @@ import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 import com.termux.view.TerminalView;
 import com.termux.view.TerminalViewClient;
-import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager;
+import com.itsaky.androidide.FeedbackButtonManager;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;

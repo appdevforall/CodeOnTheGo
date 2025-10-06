@@ -25,7 +25,7 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
 import com.itsaky.androidide.fragments.IDEPreferencesFragment
 import com.itsaky.androidide.preferences.addRootPreferences
-import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
 class PreferencesActivity : EdgeToEdgeIDEActivity() {

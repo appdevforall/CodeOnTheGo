@@ -43,7 +43,7 @@ import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
 import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.resolveAttr
-import org.appdevforall.codeonthego.common.ui.FeedbackButtonManager
+import com.itsaky.androidide.FeedbackButtonManager
 
 class AboutActivity : EdgeToEdgeIDEActivity() {
 
