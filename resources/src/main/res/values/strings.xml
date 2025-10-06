@@ -590,8 +590,6 @@
     <string name="permission_title_install_packages">Install packages</string>
     <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
     <string name="permission_title_overlay_window">Overlay window</string>
-    <string name="permission_title_accessibility">Accessibility</string>
-    <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
     <string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications</string>
@@ -628,8 +626,6 @@
 	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
 
 	<string name="debugger_title">Debugger</string>
-	<string name="debugger_foreground_detection_service_description">Code on the Go uses accessibility services to detect foreground applications for automatically
-		show/hide the debugger overlay window.</string>
 	<string name="debugger_starting">Starting debugger…</string>
 	<string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
 	<string name="debugger_started">Debugger started</string>
@@ -691,7 +687,7 @@
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
-	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
+	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
 	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
 	<string name="feedback_email">feedback@appdevforall.org</string>

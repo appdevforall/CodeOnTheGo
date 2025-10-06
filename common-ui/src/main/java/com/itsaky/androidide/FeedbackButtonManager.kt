@@ -1,4 +1,4 @@
-package org.appdevforall.codeonthego.common.ui
+package com.itsaky.androidide
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -15,8 +15,8 @@ import com.itsaky.androidide.utils.FeedbackManager
 import kotlin.math.sqrt
 
 class FeedbackButtonManager(
-	val activity: AppCompatActivity,
-	val feedbackFab: FloatingActionButton,
+    val activity: AppCompatActivity,
+    val feedbackFab: FloatingActionButton,
 ) {
 	companion object {
 		private const val FAB_PREFS = "FabPrefs"
@@ -38,22 +38,22 @@ class FeedbackButtonManager(
 		var isLongPressed = false
 
 		val gestureDetector =
-			GestureDetector(
-				activity,
-				object : GestureDetector.SimpleOnGestureListener() {
-					override fun onLongPress(e: MotionEvent) {
-						if (!isDragging) {
-							isLongPressed = true
-							TooltipManager.showTooltip(
-								context = activity,
-								anchorView = feedbackFab,
-								category = TooltipCategory.CATEGORY_IDE,
-								tag = TooltipTag.FEEDBACK,
-							)
-						}
-					}
-				},
-			)
+            GestureDetector(
+                activity,
+                object : GestureDetector.SimpleOnGestureListener() {
+                    override fun onLongPress(e: MotionEvent) {
+                        if (!isDragging) {
+                            isLongPressed = true
+                            TooltipManager.showTooltip(
+                                context = activity,
+                                anchorView = feedbackFab,
+                                category = TooltipCategory.CATEGORY_IDE,
+                                tag = TooltipTag.FEEDBACK,
+                            )
+                        }
+                    }
+                },
+            )
 
 		@SuppressLint("ClickableViewAccessibility")
 		feedbackFab.setOnTouchListener { v, event ->
