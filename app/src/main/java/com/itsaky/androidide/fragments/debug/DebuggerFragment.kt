@@ -37,7 +37,7 @@ import rikka.shizuku.Shizuku
  * @author Akash Yadav
  */
 class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
-	private lateinit var tabs: Array<Pair<String, Fragment>>
+	private lateinit var tabs: Array<Pair<String, () -> Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 
 	var currentView: Int
@@ -78,8 +78,8 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 		tabs =
 			Array(TABS_COUNT) { position ->
 				when (position) {
-					TAB_INDEX_VARIABLES -> getString(R.string.debugger_variables) to VariableListFragment()
-					TAB_INDEX_CALL_STACK -> getString(R.string.debugger_call_stack) to CallStackFragment()
+					TAB_INDEX_VARIABLES -> getString(R.string.debugger_variables) to { VariableListFragment() }
+					TAB_INDEX_CALL_STACK -> getString(R.string.debugger_call_stack) to { CallStackFragment() }
 					else -> throw IllegalStateException("Unknown position: $position")
 				}
 			}
@@ -246,11 +246,11 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
 class DebuggerPagerAdapter(
 	fragment: DebuggerFragment,
-	private val fragments: List<Fragment>,
+	private val factories: List<() -> Fragment>,
 ) : FragmentStateAdapter(fragment) {
-	override fun getItemCount(): Int = fragments.size
+	override fun getItemCount(): Int = factories.size
 
-	override fun createFragment(position: Int): Fragment = fragments[position]
+	override fun createFragment(position: Int): Fragment = factories[position].invoke()
 }
 
 class ThreadSelectorListAdapter(
