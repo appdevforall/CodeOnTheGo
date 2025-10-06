@@ -26,7 +26,7 @@
         android:layout_height="wrap_content"
         android:contentDescription="@string/info_icon_content_description"
         android:src="@drawable/ic_info"
-        android:alpha="0.5"
+        android:alpha="0.25"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:clickable="true"
         android:focusable="true"
