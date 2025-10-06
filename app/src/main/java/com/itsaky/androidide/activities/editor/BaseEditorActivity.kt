@@ -578,7 +578,6 @@ abstract class BaseEditorActivity :
             "setupResizablePanel: rightPanelContainer is ${if (rightPanelContainer == null) "NULL" else "FOUND"}"
         )
 
-        // Check which layout is active
         if (rightPanelContainer?.layoutParams is CoordinatorLayout.LayoutParams) {
             Log.d(TAG, "setupResizablePanel: Portrait mode detected (CoordinatorLayout).")
             isPortraitMode = true
