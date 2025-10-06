@@ -16,6 +16,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.viewmodel.AiSettingsViewModel
@@ -23,6 +24,9 @@ import com.itsaky.androidide.agent.viewmodel.ModelLoadingState
 import com.itsaky.androidide.databinding.FragmentAiSettingsBinding
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.getFileName
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 const val SAVED_MODEL_URI_KEY = "saved_model_uri"
@@ -191,24 +195,77 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
     }
 
     private fun setupGeminiApiUi(view: View) {
+        val apiKeyLayout = view.findViewById<TextInputLayout>(R.id.gemini_api_key_layout)
         val apiKeyInput = view.findViewById<TextInputEditText>(R.id.gemini_api_key_input)
         val saveButton = view.findViewById<Button>(R.id.btn_save_api_key)
+        val editButton = view.findViewById<Button>(R.id.btn_edit_api_key)
+        val clearButton = view.findViewById<Button>(R.id.btn_clear_api_key)
+        val statusTextView = view.findViewById<TextView>(R.id.gemini_api_key_status_text)
 
-        if (!viewModel.getGeminiApiKey().isNullOrBlank()) {
-            apiKeyInput.setText("••••••••••••••••••••")
+        // A helper function to manage the UI state
+        fun updateUiState(isEditing: Boolean) {
+            if (isEditing) {
+                statusTextView.visibility = View.GONE
+                apiKeyLayout.visibility = View.VISIBLE
+                saveButton.visibility = View.VISIBLE
+                editButton.visibility = View.GONE
+                clearButton.visibility = View.GONE
+            } else {
+                // State: A key is saved
+                statusTextView.visibility = View.VISIBLE
+                // --- CHANGE: HIDE the input field when not editing ---
+                apiKeyLayout.visibility = View.GONE
+                saveButton.visibility = View.GONE
+                editButton.visibility = View.VISIBLE
+                clearButton.visibility = View.VISIBLE
+            }
+        }
+
+        val savedApiKey = viewModel.getGeminiApiKey()
+        if (savedApiKey.isNullOrBlank()) {
+            updateUiState(isEditing = true)
+            apiKeyInput.setText("")
+        } else {
+            updateUiState(isEditing = false)
+            val timestamp = viewModel.getGeminiApiKeySaveTimestamp()
+            if (timestamp > 0) {
+                val sdf = SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
+                val savedDate = sdf.format(Date(timestamp))
+                statusTextView.text = getString(R.string.gemini_api_key_saved_on, savedDate)
+            } else {
+                // Fallback text if timestamp is missing for some reason
+                statusTextView.text = "API Key is saved."
+            }
         }
 
         saveButton.setOnClickListener {
             val apiKey = apiKeyInput.text.toString()
-            if (apiKey.isNotBlank() && apiKey != "••••••••••••••••••••") {
+            if (apiKey.isNotBlank()) {
                 viewModel.saveGeminiApiKey(apiKey)
                 flashInfo("API Key saved securely.")
-                apiKeyInput.setText("••••••••••••••••••••")
-            } else if (apiKey.isBlank()) {
-                flashInfo("API Key cannot be empty.")
+
+                updateUiState(isEditing = false)
+                val timestamp = viewModel.getGeminiApiKeySaveTimestamp()
+                val sdf = SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
+                val savedDate = sdf.format(Date(timestamp))
+                statusTextView.text = getString(R.string.gemini_api_key_saved_on, savedDate)
+
             } else {
-                flashInfo("Please enter a new API Key to save.")
+                flashInfo("API Key cannot be empty.")
             }
+        }
+
+        editButton.setOnClickListener {
+            updateUiState(isEditing = true)
+            apiKeyInput.setText("••••••••••••••••••••")
+            apiKeyInput.requestFocus()
+        }
+
+        clearButton.setOnClickListener {
+            viewModel.clearGeminiApiKey()
+            flashInfo("API Key cleared.")
+            updateUiState(isEditing = true)
+            apiKeyInput.setText("")
         }
     }
 }

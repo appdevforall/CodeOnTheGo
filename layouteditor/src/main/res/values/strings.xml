@@ -163,4 +163,10 @@
     <string name="tooltip_size">Size</string>
     <string name="warning_import_compatibility">*Be aware it will fail to import when you try to import the layout file with view, different from LayoutEditor view set!</string>
     <string name="default_layout_name">layout_new</string>
+
+    <string name="gemini_api_key">Gemini API Key</string>
+    <string name="save_key">Save Key</string>
+    <string name="clear">Clear</string>
+    <string name="edit">Edit</string>
+    <string name="gemini_api_key_saved_on">Gemini API Key saved on %s</string>
 </resources>
