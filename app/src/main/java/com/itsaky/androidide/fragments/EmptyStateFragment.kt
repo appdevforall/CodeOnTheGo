@@ -2,25 +2,17 @@ package com.itsaky.androidide.fragments
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.util.Log
 import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.lifecycleScope
 import androidx.viewbinding.ViewBinding
 import com.itsaky.androidide.databinding.FragmentEmptyStateBinding
 import com.itsaky.androidide.editor.ui.EditorLongPressEvent
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.viewmodel.EmptyStateFragmentViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -70,7 +62,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
 
-    // Initialize the detector
+
     gestureDetector = GestureDetector(requireContext(), gestureListener)
 
     // Set a non-consuming touch listener on the root ViewFlipper
@@ -97,29 +89,12 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
   }
 
   fun showTooltipDialog(tooltipTag: String) {
-    activity?.lifecycleScope?.launch {
-      try {
-        val tooltipData = getTooltipData(TooltipCategory.CATEGORY_IDE, tooltipTag)
-        tooltipData?.let {
-          activity?.window?.decorView?.let { anchorView ->
-            TooltipUtils.showIDETooltip(
-              context = requireContext(),
-              anchorView = anchorView,
-              level = 0,
-              tooltipItem = it
-            )
-          }
-        }
-      } catch (e: Exception) {
-        Log.e("Tooltip", "Error loading tooltip for $tooltipTag", e)
-      }
-    }
-  }
-
-  suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
-    return withContext(Dispatchers.IO) {
-      TooltipManager.getTooltip(requireContext(), category, tag)
-    }
+      val anchorView = activity?.window?.decorView ?: return
+      TooltipManager.showTooltip(
+          context = requireContext(),
+          anchorView = anchorView,
+          tag = tooltipTag,
+      )
   }
 
   override fun onResume() {

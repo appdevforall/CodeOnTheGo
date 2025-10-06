@@ -2,8 +2,11 @@ package com.itsaky.androidide.idetooltips
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
+import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.text.Html
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -14,11 +17,17 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
+import com.itsaky.androidide.activities.editor.HelpActivity
 import com.itsaky.androidide.utils.Environment
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import java.io.File
 
 
@@ -26,7 +35,7 @@ object TooltipManager {
     private const val TAG = "TooltipManager"
     private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
     private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
-                                               "/Download/documentation.db")
+            "/Download/documentation.db")
 
     private const val QUERY_TOOLTIP = """
         SELECT T.rowid, T.id, T.summary, T.detail
@@ -45,8 +54,9 @@ object TooltipManager {
     """
 
     private const val QUERY_LAST_CHANGE = """
-        SELECT now, who
+        SELECT changeTime, who
         FROM LastChange
+        WHERE documentationSet = 'wholedb'
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
@@ -56,7 +66,8 @@ object TooltipManager {
             var dbPath = Environment.DOC_DB.absolutePath
 
             // TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
-            val debugDatabaseTimestamp = if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
+            val debugDatabaseTimestamp =
+                if (debugDatabaseFile.exists()) debugDatabaseFile.lastModified() else -1L
 
             if (debugDatabaseTimestamp > databaseTimestamp) {
                 // Switch to the debug database.
@@ -64,10 +75,10 @@ object TooltipManager {
             }
 
             var lastChange = "n/a"
-            var rowId      = -1
-            var tooltipId  = -1
-            var summary    = "n/a"
-            var detail     = "n/a"
+            var rowId = -1
+            var tooltipId = -1
+            var summary = "n/a"
+            var detail = "n/a"
             var buttons: ArrayList<Pair<String, String>> = ArrayList<Pair<String, String>>()
 
             try {
@@ -81,39 +92,116 @@ object TooltipManager {
                 Log.d(TAG, "last change is '${lastChange}'.")
 
                 cursor = db.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category))
-                
+
                 when (cursor.count) {
                     0 -> throw NoTooltipFoundException(category, tag)
-                    1 -> { /* Expected case, continue processing */ }
+                    1 -> { /* Expected case, continue processing */
+                    }
+
                     else -> throw DatabaseCorruptionException(
                         "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows). " +
-                        "Each category/tag combination should be unique."
+                                "Each category/tag combination should be unique."
                     )
                 }
 
                 cursor.moveToFirst()
 
-                rowId     = cursor.getInt(0)
+                rowId = cursor.getInt(0)
                 tooltipId = cursor.getInt(1)
-                summary   = cursor.getString(2)
-                detail    = cursor.getString(3)
+                summary = cursor.getString(2)
+                detail = cursor.getString(3)
 
                 cursor = db.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString()))
 
                 while (cursor.moveToNext()) {
-                    buttons.add(Pair(cursor.getString(0), "http://localhost:6174/" + cursor.getString(1)))
+                    buttons.add(
+                        Pair(
+                            cursor.getString(0),
+                            "http://localhost:6174/" + cursor.getString(1)
+                        )
+                    )
                 }
 
-                Log.d(TAG, "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons.")
+                Log.d(
+                    TAG,
+                    "For tooltip ${tooltipId}, retrieved ${buttons.size} buttons. They are $buttons."
+                )
 
                 cursor.close()
                 db.close()
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error getting tooltip for category='$category', tag='$tag': ${e.message}")
+                Log.e(
+                    TAG,
+                    "Error getting tooltip for category='$category', tag='$tag': ${e.message}"
+                )
             }
 
             IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
+        }
+    }
+
+    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
+    fun showTooltip(context: Context, anchorView: View, tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                TooltipCategory.CATEGORY_IDE,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                                if (context !is android.app.Activity) {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+            }
+        }
+    }
+
+    // Displays a tooltip in a particular context with a specific category
+    fun showTooltip(context: Context, anchorView: View, category: String, tag: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val tooltipItem = getTooltip(
+                context,
+                category,
+                tag,
+            )
+            if (tooltipItem != null) {
+                showIDETooltip(
+                    context = context,
+                    anchorView = anchorView,
+                    level = 0,
+                    tooltipItem = tooltipItem,
+                    onHelpLinkClicked = { context, url, title ->
+                        val intent =
+                            Intent(context, HelpActivity::class.java).apply {
+                                putExtra(CONTENT_KEY, url)
+                                putExtra(CONTENT_TITLE_KEY, title)
+                                if (context !is android.app.Activity) {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                            }
+                        context.startActivity(intent)
+                    }
+                )
+            } else {
+                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
+            }
         }
     }
 
@@ -173,7 +261,7 @@ object TooltipManager {
             "Color attribute not found in theme"
         )
 
-// TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
+        // TODO: The color string below should be externalized so our documentation team can control them, for example with CSS. --DS, 30-Jul-2025
         fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
@@ -194,19 +282,22 @@ object TooltipManager {
                     detailContent
                 }
             }
+
             else -> ""
         }
 
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
-        val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
+        val styledHtml =
+            context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 url?.let { clickedUrl ->
                     popupWindow.dismiss()
                     // Find the button label for this URL to use as title
-                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first ?: tooltipItem.tag
+                    val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first
+                        ?: tooltipItem.tag
                     onActionButtonClick(popupWindow, Pair(clickedUrl, buttonLabel))
                 }
                 return true
@@ -214,7 +305,7 @@ object TooltipManager {
         }
 
         webView.settings.javaScriptEnabled = true
-        webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        webView.setBackgroundColor(Color.TRANSPARENT)
         webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
 
         seeMore.setOnClickListener {
@@ -223,7 +314,10 @@ object TooltipManager {
                 level == 0 -> 1
                 else -> level + 1
             }
-            Log.d(TAG, "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
+            Log.d(
+                TAG,
+                "See More clicked: level $level -> $nextLevel (detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
+            )
             onSeeMoreClicked(popupWindow, nextLevel, tooltipItem)
         }
         val shouldShowSeeMore = when {
@@ -231,7 +325,10 @@ object TooltipManager {
             else -> false
         }
         seeMore.visibility = if (shouldShowSeeMore) View.VISIBLE else View.GONE
-        Log.d(TAG, "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})")
+        Log.d(
+            TAG,
+            "See More visibility: $shouldShowSeeMore (level=$level, detail.isNotBlank=${tooltipItem.detail.isNotBlank()}, buttons.isNotEmpty=${tooltipItem.buttons.isNotEmpty()})"
+        )
 
         val transparentColor = getColor(context, android.R.color.transparent)
         popupWindow.setBackgroundDrawable(ColorDrawable(transparentColor))
@@ -245,10 +342,15 @@ object TooltipManager {
             onInfoButtonClicked(context, popupWindow, tooltipItem)
         }
     }
+
     /**
      * Handles the click on the info icon in the tooltip.
      */
-    private fun onInfoButtonClicked(context: Context, popupWindow: PopupWindow, tooltip: IDETooltipItem) {
+    private fun onInfoButtonClicked(
+        context: Context,
+        popupWindow: PopupWindow,
+        tooltip: IDETooltipItem
+    ) {
         popupWindow.dismiss()
 
         val metadata = """
@@ -257,18 +359,24 @@ object TooltipManager {
         <b>ID:</b> ${tooltip.id}<br/>
         <b>Category:</b> '${tooltip.category}'<br/>
         <b>Tag:</b> '${tooltip.tag}'<br/>
-        <b>Raw Summary:</b> '${android.text.Html.escapeHtml(tooltip.summary)}'<br/>
-        <b>Raw Detail:</b> '${android.text.Html.escapeHtml(tooltip.detail)}'<br/>
+        <b>Raw Summary:</b> '${Html.escapeHtml(tooltip.summary)}'<br/>
+        <b>Raw Detail:</b> '${Html.escapeHtml(tooltip.detail)}'<br/>
         <b>Buttons:</b> ${tooltip.buttons.joinToString { "'${it.first} → ${it.second}'" }}<br/>
         """.trimIndent()
 
-        androidx.appcompat.app.AlertDialog.Builder(context)
+        AlertDialog.Builder(context)
             .setTitle("Tooltip Debug Info")
-            .setMessage(android.text.Html.fromHtml(metadata, android.text.Html.FROM_HTML_MODE_LEGACY))
+            .setMessage(
+                Html.fromHtml(
+                    metadata,
+                    Html.FROM_HTML_MODE_LEGACY
+                )
+            )
             .setPositiveButton(android.R.string.ok) { dialog, _ ->
                 dialog.dismiss()
             }
             .setCancelable(true) // Allow dismissing by tapping outside
             .show()
     }
+
 }

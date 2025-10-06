@@ -69,6 +69,13 @@ interface ActionItem {
    */
   var location: Location
 
+    /**
+     * The tooltip tag of this [ActionItem].
+     */
+    var tooltipTag: String
+      get() = ""
+      set(_) {}
+
   /**
    * Retrieves the tooltip tag for this [ActionItem].
    *
@@ -176,6 +183,7 @@ interface ActionItem {
      * Location marker for action items shown in editor activity's sidebar (navigation rail in the drawer).
      */
     EDITOR_SIDEBAR("ide.editor.sidebar"),
+    EDITOR_RIGHT_SIDEBAR("ide.editor.right.sidebar"),
 
     /**
      * Location marker for action items shown in the default category of editor activity's sidebar (navigation rail in the drawer).

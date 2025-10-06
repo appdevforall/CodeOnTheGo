@@ -22,22 +22,31 @@ import android.view.LayoutInflater
 import androidx.core.view.isVisible
 import com.blankj.utilcode.util.FileIOUtils
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.FileActionManager
+import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
+import com.itsaky.androidide.api.commands.CreateFileCommand
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.templates.base.models.Dependency
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ProjectWriter
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import jdkx.lang.model.SourceVersion
 import org.greenrobot.eventbus.EventBus
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.get
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.Objects
@@ -48,14 +57,21 @@ import java.util.regex.Pattern
  *
  * @author Akash Yadav
  */
-class NewFileAction(context: Context, override val order: Int) :
+class NewFileAction(val context: Context, override val order: Int) :
   BaseDirNodeAction(
     context = context,
     labelRes = R.string.new_file,
     iconRes = R.drawable.ic_new_file
-  ) {
+  ), KoinComponent, FileActionObserver {
+
+  private val fileActionManager: FileActionManager = get()
+
+  private var currentNode: TreeNode? = null
 
   override val id: String = "ide.editor.fileTree.newFile"
+
+    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+        TooltipTag.PROJECT_FOLDER_NEWFILE
 
   companion object {
 
@@ -170,7 +186,15 @@ class NewFileAction(context: Context, override val order: Int) :
     }
     builder.setNegativeButton(android.R.string.cancel, null)
     builder.setCancelable(false)
-    builder.create().show()
+        .showWithLongPressTooltip(
+            context = context,
+            tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE,
+            // Pass the specific buttons to the helper function
+            binding.typeClass,
+            binding.typeActivity,
+            binding.typeInterface,
+            binding.typeEnum
+        )
   }
 
   private fun doCreateJavaFile(
@@ -210,11 +234,9 @@ class NewFileAction(context: Context, override val order: Int) :
       file
     }
 
-    val created =
       when (id) {
         binding.typeClass.id ->
           createFile(
-              context,
               node,
               javaFileDirectory,
               javaName,
@@ -223,7 +245,6 @@ class NewFileAction(context: Context, override val order: Int) :
 
         binding.typeInterface.id ->
           createFile(
-            context,
             node,
             javaFileDirectory,
             javaName,
@@ -232,30 +253,37 @@ class NewFileAction(context: Context, override val order: Int) :
 
         binding.typeEnum.id ->
           createFile(
-            context,
             node,
             javaFileDirectory,
             javaName,
             ProjectWriter.createJavaEnum(pkgName, className)
           )
 
-        binding.typeActivity.id ->
-          createFile(
-            context,
-            node,
-            javaFileDirectory,
-            javaName,
-            ProjectWriter.createActivity(pkgName, className)
-          )
+		  binding.typeActivity.id -> {
+			  val appCompat = Dependency.AndroidX.AppCompat
+			  val projectManager = ProjectManagerImpl.getInstance()
+			  val hasAppCompatDependency = projectManager.findModuleForFile(file)
+				  ?.hasExternalDependency(appCompat.group, appCompat.artifact)
+			  createFile(
+				  node,
+				  javaFileDirectory,
+				  javaName,
+				  ProjectWriter.createActivity(
+					  pkgName,
+					  className,
+					  hasAppCompatDependency ?: false
+				  )
+			  )
+		  }
 
-        else -> createFile(context, node, javaFileDirectory, name, "")
+        else -> createFile(node, javaFileDirectory, name, "")
       }
 
     node?.let {
       requestCollapseNode(it, true)
     }
 
-    if (created is Boolean && autoLayout) {
+    if (autoLayout) {
       val packagePath = pkgName.toString().replace(".", "/")
       createAutoLayout(context, javaFileDirectory, name, packagePath)
     }
@@ -334,7 +362,10 @@ class NewFileAction(context: Context, override val order: Int) :
         3 -> createNewFile(context, node, file, true)
       }
     }
-    builder.create().show()
+        .showWithLongPressTooltip(
+            context = context,
+            tooltipTag = TooltipTag.PROJECT_FOLDER_NEWXML
+        )
   }
 
   private fun createNewEmptyFile(context: Context, node: TreeNode?, file: File) {
@@ -381,54 +412,51 @@ class NewFileAction(context: Context, override val order: Int) :
       }
 
       try {
-        createFile(context, node, folder, name, content)
+        createFile(node, folder, name, content)
       } catch (e: Exception) {
         log.error("Failed to create file", e)
         flashError(e.cause?.message ?: e.message)
       }
     }
     builder.setNegativeButton(android.R.string.cancel, null)
-    builder.create().show()
+        .showWithLongPressTooltip(
+            context = context,
+            tooltipTag = TooltipTag.PROJECT_NEWFILE_DIALOG
+        )
   }
 
   private fun createFile(
-    context: Context,
     node: TreeNode?,
     directory: File,
     name: String,
     content: String
-  ): Boolean {
+  ) {
     if (name.length !in 1..40 || name.startsWith("/")) {
       flashError(R.string.msg_invalid_name)
-      return false
+      return
     }
-
-    val newFile = File(directory, name)
-    if (newFile.exists()) {
-      flashError(R.string.msg_file_exists)
-      return false
-    }
-    if (!FileIOUtils.writeFileFromString(newFile, content)) {
-      flashError(R.string.msg_file_creation_failed)
-      return false
-    }
-
-    notifyFileCreated(newFile, context)
-    // TODO Notify language servers about file created event
-    flashSuccess(R.string.msg_file_created)
-    if (node != null) {
-      val newNode = TreeNode(newFile)
-      newNode.viewHolder = FileTreeViewHolder(context)
-      node.addChild(newNode)
-      requestExpandNode(node)
-    } else {
-      requestFileListing()
-    }
-
-    return true
+    this.currentNode = node
+    val command = CreateFileCommand(directory, name, content)
+    fileActionManager.execute(command, this)
   }
 
   private fun notifyFileCreated(file: File, context: Context) {
     EventBus.getDefault().post(FileCreationEvent(file).putData(context))
+  }
+
+  override fun onActionSuccess(message: String, createdFile: File?) {
+    flashSuccess(R.string.msg_file_created)
+    if (currentNode != null && createdFile != null) {
+      val newNode = TreeNode(createdFile)
+      newNode.viewHolder = FileTreeViewHolder(this.context)
+      currentNode!!.addChild(newNode)
+      requestExpandNode(currentNode!!)
+    } else {
+      requestFileListing()
+    }
+  }
+
+  override fun onActionFailure(errorMessage: String) {
+    flashError(errorMessage)
   }
 }

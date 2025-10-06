@@ -20,13 +20,10 @@ package com.itsaky.androidide.managers;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
-import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.os.Build;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.WorkerThread;
-
 import com.aayushatharva.brotli4j.Brotli4jLoader;
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream;
 import com.blankj.utilcode.util.FileIOUtils;
@@ -37,11 +34,6 @@ import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider;
 import com.itsaky.androidide.utils.Environment;
 import com.itsaky.androidide.utils.IoUtilsKt;
-
-import org.jetbrains.annotations.Contract;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -52,284 +44,333 @@ import java.io.Reader;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
+import java.security.SecureRandom;
 import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.Contract;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.FileWriter;
+import java.math.BigInteger;
+import java.security.*;
+import java.security.cert.X509Certificate;
+import java.util.Date;
+
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+
+
+
 
 public class ToolsManager {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ToolsManager.class);
-    private static final String[] EXTRACT_JDWP_LIBS = {
-            "jdwp",
-            "dt_socket",
-            "npt"
-    };
+	private static final Logger LOG = LoggerFactory.getLogger(ToolsManager.class);
 
-    public static String COMMON_ASSET_DATA_DIR = "data/common";
+	public static String COMMON_ASSET_DATA_DIR = "data/common";
 
-    public static String DATABASE_ASSET_DATA_DIR = "database";
+	public static String DATABASE_ASSET_DATA_DIR = "database";
 
-    public static void init(@NonNull BaseApplication app, Runnable onFinish) {
+	/**
+	 * Keywords: [assets, gradle, gradleWrapper, localJars, Jars, Jar, ProjectTemplate, postRecipe ] ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common Why do we need build/intermediates/*** folder when we can just use assets? I don't know. During my short search I wasn't able to find anything meaningful in regards to that folder. The fact is that app copies assets from data/common folder. And to add any new libs using existing mechanisms
+	 *
+	 * @param name
+	 *            - asset name
+	 * @return Full path to debug/compressed_assets/name
+	 * @see ToolsManager getCommonAsset(String name)
+	 * @see ResourceUtils copyFileFromAssets We have to put our files under data/common folder. And add new postRecipe entry to templates
+	 */
 
-        if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
-            LOG.error("Device not supported");
-            return;
-        }
+	@NonNull
+	@Contract(pure = true)
+	public static String getCommonAsset(String name) {
+		return COMMON_ASSET_DATA_DIR + "/" + name;
+	}
 
-        CompletableFuture.runAsync(() -> {
-            // Load installed JDK distributions
-            IJdkDistributionProvider.getInstance().loadDistributions();
+	@NonNull
+	@Contract(pure = true)
+	public static String getDatabaseAsset(String name) {
+		return DATABASE_ASSET_DATA_DIR + "/" + name;
+	}
 
-            updateToolingJar(app.getAssets());
-            extractLogSender(app);
+	public static void init(@NonNull BaseApplication app, Runnable onFinish) {
 
-            writeNoMediaFile();
-            extractCogoPlugin();
-            extractColorScheme(app);
-            extractJdwp(app);
-            writeInitScript();
+		if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
+			LOG.error("Device not supported");
+			return;
+		}
 
-            deleteIdeenv();
-        }).whenComplete((__, error) -> {
-            if (error != null) {
-                LOG.error("Error extracting tools", error);
-            }
+		CompletableFuture.runAsync(() -> {
+			// Load installed JDK distributions
+			IJdkDistributionProvider.getInstance().loadDistributions();
 
-            if (onFinish != null) {
-                onFinish.run();
-            }
-        });
-    }
+			updateToolingJar(app.getAssets());
+			extractLogSender(app);
 
-    @WorkerThread
-    private static void extractLogSender(BaseApplication app) {
-        if (Environment.LOGSENDER_AAR.exists()) {
-            FileUtils.delete(Environment.LOGSENDER_AAR);
-        }
+			writeNoMediaFile();
+			extractCogoPlugin();
+			extractColorScheme(app);
+			writeInitScript();
+			generateKeystore();
+			deleteIdeenv();
 
-        Environment.mkdirIfNotExits(Environment.LOGSENDER_DIR);
+			LOG.info("Tools extraction completed");
+		}).whenComplete((__, error) -> {
+			if (error != null) {
+				LOG.error("Error extracting tools", error);
+			}
 
-        final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
-        ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
-                Environment.LOGSENDER_AAR.getAbsolutePath());
-    }
+			if (onFinish != null) {
+				onFinish.run();
+			}
+		});
+	}
 
-    @WorkerThread
-    private static void updateToolingJar(AssetManager assets) {
-        // Ensure relevant shared libraries are loaded
-        Brotli4jLoader.ensureAvailability();
+	private static void deleteIdeenv() {
+		final var file = new File(Environment.BIN_DIR, "ideenv");
+		if (file.exists() && !file.delete()) {
+			LOG.warn("Unable to delete file: {}", file);
+		}
+	}
 
-        final var toolingJarName = "tooling-api-all.jar";
-        InputStream toolingJarStream;
-        try {
-            toolingJarStream = assets.open(ToolsManager.getCommonAsset(toolingJarName));
-        } catch (IOException e) {
-            try {
-                toolingJarStream = new BrotliInputStream(assets.open(ToolsManager.getCommonAsset(toolingJarName + ".br")));
-            } catch (IOException e2) {
-                LOG.error("Tooling jar not found in assets {}", e2.getMessage());
-                return;
-            }
-        }
+	private static void extractCogoPlugin() {
+		if (Environment.COGO_PLUGIN_JAR.exists()) {
+			FileUtils.delete(Environment.COGO_PLUGIN_JAR);
+		}
 
-        try {
-            final var toolingJarFile = Environment.TOOLING_API_JAR;
-            if (toolingJarFile.exists()) {
-                FileUtils.delete(toolingJarFile);
-            }
+		ResourceUtils.copyFileFromAssets(getCommonAsset("cogo-plugin.jar"),
+				Environment.COGO_PLUGIN_JAR.getAbsolutePath());
+	}
 
-            Objects.requireNonNull(toolingJarFile.getParentFile()).mkdirs();
-            try (final var fos = new FileOutputStream(toolingJarFile)) {
-                IoUtilsKt.transferToStream(toolingJarStream, fos);
-            }
-        } catch (Throwable err) {
-            LOG.error("Failed to copy tooling API jar", err);
-        } finally {
-            try {
-                toolingJarStream.close();
-            } catch (IOException e) {
-                LOG.error("Failed to close tooling API jar stream", e);
-            }
-        }
-    }
+	private static void extractColorScheme(final BaseApplication app) {
+		final var defPath = "editor/schemes";
+		final var dir = new File(Environment.ANDROIDIDE_UI, defPath);
+		try {
+			for (final String asset : app.getAssets().list(defPath)) {
 
-    private static void extractJdwp(final BaseApplication app) {
-        try {
-            if (Environment.JDWP_AAR.exists()) {
-                FileUtils.delete(Environment.JDWP_AAR);
-            }
+				final var prop = new File(dir, asset + "/" + "scheme.prop");
+				if (prop.exists() && !shouldExtractScheme(app, new File(dir, asset),
+						defPath + "/" + asset)) {
+					continue;
+				}
 
-            if (!Environment.JDWP_LIB_DIR.exists() && !Environment.JDWP_LIB_DIR.mkdirs()) {
-                throw new RuntimeException("Unable to create directory " + Environment.JDWP_LIB_DIR.getAbsolutePath());
-            }
+				final File schemeDir = new File(dir, asset);
+				if (schemeDir.exists()) {
+					schemeDir.delete();
+				}
 
-            final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
-            ResourceUtils.copyFileFromAssets(getCommonAsset("libjdwp-remote-" + variant + "-release.aar"),
-                    Environment.JDWP_AAR.getAbsolutePath());
+				ResourceUtils.copyFileFromAssets(defPath + "/" + asset, schemeDir.getAbsolutePath());
+			}
+		} catch (IOException e) {
+			LOG.error("Failed to extract color schemes", e);
+		}
+	}
 
-            final var packageManager = app.getPackageManager();
-            final var packageInfo = packageManager.getPackageInfo(app.getPackageName(), PackageManager.GET_META_DATA);
-            Objects.requireNonNull(packageManager, "Unable to get package info for current context");
+	@WorkerThread
+	private static void extractLogSender(BaseApplication app) {
+		if (Environment.LOGSENDER_AAR.exists()) {
+			FileUtils.delete(Environment.LOGSENDER_AAR);
+		}
 
-            final var appInfo = packageInfo.applicationInfo;
-            Objects.requireNonNull(appInfo, "Unable to get application info for current context");
+		Environment.mkdirIfNotExits(Environment.LOGSENDER_DIR);
 
-            final var nativeLibsDir = new File(appInfo.nativeLibraryDir);
+		final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
+		ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
+				Environment.LOGSENDER_AAR.getAbsolutePath());
+	}
 
-            for (var libName : EXTRACT_JDWP_LIBS) {
-                final var libIN = new File(nativeLibsDir, "lib" + libName + ".so");
+	@NonNull
+	private static String readInitScript() {
+		return ResourceUtils.readAssets2String(getCommonAsset("androidide.init.gradle"));
+	}
 
-                if (!libIN.exists()) {
-                    throw new IllegalStateException("Unable to find lib" + libName + ".so in " + nativeLibsDir.getAbsolutePath());
-                }
+	private static boolean shouldExtractScheme(final BaseApplication app, final File dir,
+			final String path) throws IOException {
 
-                final var buildConfigProvider = IDEBuildConfigProvider.getInstance();
-                final var libOUTDir = new File(Environment.JDWP_LIB_DIR, buildConfigProvider.getDeviceArch().getAbi());
-                final var libOUT = new File(libOUTDir, libIN.getName());
-                if (!libOUTDir.exists() && !libOUTDir.mkdirs()) {
-                    throw new RuntimeException("Unable to create directory " + libOUT.getParentFile().getAbsolutePath());
-                }
+		final var schemePropFile = new File(dir, "scheme.prop");
+		if (!schemePropFile.exists()) {
+			return true;
+		}
 
-                if (!libOUT.exists()) {
-                    FileUtils.copy(libIN, libOUT);
-                }
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-    }
+		final var files = app.getAssets().list(path);
+		if (Arrays.stream(files).noneMatch("scheme.prop"::equals)) {
+			// no scheme.prop file
+			return true;
+		}
 
-    private static void extractColorScheme(final BaseApplication app) {
-        final var defPath = "editor/schemes";
-        final var dir = new File(Environment.ANDROIDIDE_UI, defPath);
-        try {
-            for (final String asset : app.getAssets().list(defPath)) {
+		try {
+			final var props = new Properties();
+			Reader reader = new InputStreamReader(app.getAssets().open(path + "/scheme.prop"));
+			props.load(reader);
+			reader.close();
 
-                final var prop = new File(dir, asset + "/" + "scheme.prop");
-                if (prop.exists() && !shouldExtractScheme(app, new File(dir, asset),
-                        defPath + "/" + asset)) {
-                    continue;
-                }
+			final var version = Integer.parseInt(props.getProperty("scheme.version", "0"));
+			if (version == 0) {
+				return true;
+			}
 
-                final File schemeDir = new File(dir, asset);
-                if (schemeDir.exists()) {
-                    schemeDir.delete();
-                }
+			props.clear();
 
-                ResourceUtils.copyFileFromAssets(defPath + "/" + asset, schemeDir.getAbsolutePath());
-            }
-        } catch (IOException e) {
-            LOG.error("Failed to extract color schemes", e);
-        }
-    }
+			reader = new FileReader(schemePropFile);
+			props.load(reader);
+			reader.close();
 
-    private static boolean shouldExtractScheme(final BaseApplication app, final File dir,
-                                               final String path) throws IOException {
+			final var fileVersion = Integer.parseInt(props.getProperty("scheme.version", "0"));
+			if (fileVersion < 0) {
+				return true;
+			}
 
-        final var schemePropFile = new File(dir, "scheme.prop");
-        if (!schemePropFile.exists()) {
-            return true;
-        }
+			return version > fileVersion;
+		} catch (Throwable err) {
+			LOG.error("Failed to read color scheme version for scheme '{}'", path, err);
+			return false;
+		}
+	}
 
-        final var files = app.getAssets().list(path);
-        if (Arrays.stream(files).noneMatch("scheme.prop"::equals)) {
-            // no scheme.prop file
-            return true;
-        }
+	@WorkerThread
+	private static void updateToolingJar(AssetManager assets) {
+		// Ensure relevant shared libraries are loaded
+		Brotli4jLoader.ensureAvailability();
 
-        try {
-            final var props = new Properties();
-            Reader reader = new InputStreamReader(app.getAssets().open(path + "/scheme.prop"));
-            props.load(reader);
-            reader.close();
+		final var toolingJarName = "tooling-api-all.jar";
+		InputStream toolingJarStream;
+		try {
+			toolingJarStream = assets.open(ToolsManager.getCommonAsset(toolingJarName));
+		} catch (IOException e) {
+			try {
+				toolingJarStream = new BrotliInputStream(assets.open(ToolsManager.getCommonAsset(toolingJarName + ".br")));
+			} catch (IOException e2) {
+				LOG.error("Tooling jar not found in assets {}", e2.getMessage());
+				return;
+			}
+		}
 
-            final var version = Integer.parseInt(props.getProperty("scheme.version", "0"));
-            if (version == 0) {
-                return true;
-            }
+		try {
+			final var toolingJarFile = Environment.TOOLING_API_JAR;
+			if (toolingJarFile.exists()) {
+				FileUtils.delete(toolingJarFile);
+			}
 
-            props.clear();
+			Objects.requireNonNull(toolingJarFile.getParentFile()).mkdirs();
+			try (final var fos = new FileOutputStream(toolingJarFile)) {
+				IoUtilsKt.transferToStream(toolingJarStream, fos);
+			}
+		} catch (Throwable err) {
+			LOG.error("Failed to copy tooling API jar", err);
+		} finally {
+			try {
+				toolingJarStream.close();
+			} catch (IOException e) {
+				LOG.error("Failed to close tooling API jar stream", e);
+			}
+		}
+	}
 
-            reader = new FileReader(schemePropFile);
-            props.load(reader);
-            reader.close();
+	private static void writeInitScript() {
+		if (Environment.INIT_SCRIPT.exists()) {
+			FileUtils.delete(Environment.INIT_SCRIPT);
+		}
+		FileIOUtils.writeFileFromString(Environment.INIT_SCRIPT, readInitScript());
+	}
 
-            final var fileVersion = Integer.parseInt(props.getProperty("scheme.version", "0"));
-            if (fileVersion < 0) {
-                return true;
-            }
+	private static void writeNoMediaFile() {
+		final var noMedia = new File(BaseApplication.getBaseInstance().getProjectsDir(), ".nomedia");
+		if (!noMedia.exists()) {
+			try {
+				if (!noMedia.createNewFile()) {
+					LOG.error("Failed to create .nomedia file in projects directory");
+				}
+			} catch (IOException e) {
+				LOG.error("Failed to create .nomedia file in projects directory");
+			}
+		}
+	}
 
-            return version > fileVersion;
-        } catch (Throwable err) {
-            LOG.error("Failed to read color scheme version for scheme '{}'", path, err);
-            return false;
-        }
-    }
+	private static final String CHAR_POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-    private static void writeNoMediaFile() {
-        final var noMedia = new File(BaseApplication.getBaseInstance().getProjectsDir(), ".nomedia");
-        if (!noMedia.exists()) {
-            try {
-                if (!noMedia.createNewFile()) {
-                    LOG.error("Failed to create .nomedia file in projects directory");
-                }
-            } catch (IOException e) {
-                LOG.error("Failed to create .nomedia file in projects directory");
-            }
-        }
-    }
+	private static String generateRandomPassword(int length) {
+		SecureRandom random = new SecureRandom();
+		StringBuilder sb = new StringBuilder(length);
+		for (int i = 0; i < length; i++) {
+			sb.append(CHAR_POOL.charAt(random.nextInt(CHAR_POOL.length())));
+		}
+		return sb.toString();
+	}
 
-    private static void deleteIdeenv() {
-        final var file = new File(Environment.BIN_DIR, "ideenv");
-        if (file.exists() && !file.delete()) {
-            LOG.warn("Unable to delete file: {}", file);
-        }
-    }
+	public static String generateIssuerDN() {
+		SecureRandom random = new SecureRandom();
+		String country = Environment.KEYSTORE_EU_COUNTRY_CODES[
+				random.nextInt(Environment.KEYSTORE_EU_COUNTRY_CODES.length)];
+		return String.format("C=%s, O=, CN=", country);
+	}
 
-    /**
-     * Keywords: [assets, gradle, gradleWrapper, localJars, Jars, Jar, ProjectTemplate, postRecipe ]
-     * ~/AndroidIDE/app/build/intermediates/assets/debug/mergeDebugAssets/data/common
-     * Why do we need build/intermediates/*** folder when we can just use assets? I don't know.
-     * During my short search I wasn't able to find anything meaningful in regards to that folder.
-     * The fact is that app copies assets from data/common folder.
-     * And to add any new libs using existing mechanisms
-     *
-     * @param name - asset name
-     * @return Full path to debug/compressed_assets/name
-     * @see ToolsManager getCommonAsset(String name)
-     * @see ResourceUtils copyFileFromAssets
-     * We have to put our files under data/common folder.  And add new postRecipe entry to templates
-     */
+	private static void generateKeystore() {
+		try {
+			String keystorePath = Environment.KEYSTORE_RELEASE.getPath();
+			String alias = generateRandomPassword(Environment.KEYSTORE_ALIAS_LEN);
 
-    @NonNull
-    @Contract(pure = true)
-    public static String getCommonAsset(String name) {
-        return COMMON_ASSET_DATA_DIR + "/" + name;
-    }
+			LOG.debug("Generating keystore at: {}", keystorePath);
 
-    @NonNull
-    @Contract(pure = true)
-    public static String getDatabaseAsset(String name) {
-        return DATABASE_ASSET_DATA_DIR + "/" + name;
-    }
+			Security.addProvider(new BouncyCastleProvider());
 
-    private static void extractCogoPlugin() {
-        if (Environment.COGO_PLUGIN_JAR.exists()) {
-            FileUtils.delete(Environment.COGO_PLUGIN_JAR);
-        }
+			String storePassword = generateRandomPassword(Environment.KEYSTORE_PWD_LEN);
+			String keyPassword = storePassword;
 
-        ResourceUtils.copyFileFromAssets(getCommonAsset("cogo-plugin.jar"),
-                Environment.COGO_PLUGIN_JAR.getAbsolutePath());
-    }
+			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", "BC");
+			keyGen.initialize(Environment.KEYSTORE_KEY_SIZE);
+			KeyPair keyPair = keyGen.generateKeyPair();
 
-    private static void writeInitScript() {
-        if (Environment.INIT_SCRIPT.exists()) {
-            FileUtils.delete(Environment.INIT_SCRIPT);
-        }
-        FileIOUtils.writeFileFromString(Environment.INIT_SCRIPT, readInitScript());
-    }
+			Date now = new Date();
+			Date expiry = new Date(now.getTime() + Environment.KEYSTORE_EXPIRY_5YRS);
 
-    @NonNull
-    private static String readInitScript() {
-        return ResourceUtils.readAssets2String(getCommonAsset("androidide.init.gradle"));
-    }
+			X500Name issuer = new X500Name(generateIssuerDN());
+			X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
+					issuer,
+					BigInteger.valueOf(System.currentTimeMillis()),
+					now,
+					expiry,
+					issuer,
+					keyPair.getPublic()
+			);
+
+			ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSAEncryption")
+					.build(keyPair.getPrivate());
+
+			X509Certificate certificate = new JcaX509CertificateConverter()
+					.getCertificate(certBuilder.build(signer));
+
+			KeyStore keyStore = KeyStore.getInstance("PKCS12");
+			keyStore.load(null, null);
+			keyStore.setKeyEntry(alias, keyPair.getPrivate(), keyPassword.toCharArray(), new java.security.cert.Certificate[]{certificate});
+
+			File keystoreFile = new File(keystorePath);
+			keystoreFile.getParentFile().mkdirs();
+
+			try (FileOutputStream fos = new FileOutputStream(keystoreFile)) {
+				keyStore.store(fos, storePassword.toCharArray());
+			}
+
+			// Write to keystore.properties
+			File propsFile = Environment.KEYSTORE_PROPERTIES;
+			Properties props = new Properties();
+			props.setProperty(Environment.KEYSTORE_PROP_STOREFILE, keystoreFile.getName());
+			props.setProperty(Environment.KEYSTORE_PROP_STOREPWD, storePassword);
+			props.setProperty(Environment.KEYSTORE_PROP_KEYALIAS, alias);
+			props.setProperty(Environment.KEYSTORE_PROP_KEYPWD, keyPassword);
+
+			try (FileWriter writer = new FileWriter(propsFile)) {
+				props.store(writer, "Generated keystore credentials");
+			}
+
+			LOG.debug("Keystore generated at: {}", keystoreFile.getAbsolutePath());
+			LOG.debug("Passwords saved to: {}", propsFile.getAbsolutePath());
+		} catch (Exception e) {
+			LOG.error("Failed to generate keystore!! ", e);
+		}
+	}
 
 }

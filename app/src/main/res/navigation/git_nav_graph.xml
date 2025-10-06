@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/git_nav_graph"
+    app:startDestination="@id/gitFragment">
+
+    <fragment
+        android:id="@+id/gitFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitFragment"
+        android:label="Git"
+        tools:layout="@layout/fragment_git">
+
+        <action
+            android:id="@+id/action_gitFragment_to_gitCommitFragment"
+            app:destination="@id/gitCommitFragment" />
+
+        <action
+            android:id="@+id/action_gitFragment_to_gitRemotesListFragment"
+            app:destination="@id/gitRemotesListFragment" />
+
+        <action
+            android:id="@+id/action_gitFragment_to_gitCommitListFragment"
+            app:destination="@id/gitCommitListFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/gitCommitFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitCommitFragment"
+        android:label="Commit Changes"
+        tools:layout="@layout/fragment_git_commit" />
+
+    <fragment
+        android:id="@+id/gitRemotesListFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitRemotesListFragment"
+        android:label="Manage Remotes"
+        tools:layout="@layout/fragment_git_remotes_list">
+        <action
+            android:id="@+id/action_gitRemotesListFragment_to_gitEditRemoteFragment"
+            app:destination="@id/gitEditRemoteFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/gitEditRemoteFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitEditRemoteFragment"
+        android:label="Edit Remote"
+        tools:layout="@layout/fragment_git_edit_remote">
+        <argument
+            android:name="remoteName"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
+    </fragment>
+
+
+    <fragment
+        android:id="@+id/gitCommitListFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitHistoryFragment"
+        android:label="Git Log"
+        tools:layout="@layout/fragment_git_commit_list">
+        <action
+            android:id="@+id/action_gitCommitListFragment_to_gitShowCommitFragment"
+            app:destination="@id/gitShowCommitFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/gitShowCommitFragment"
+        android:name="com.itsaky.androidide.fragments.sidebar.GitCommitDetailFragment"
+        android:label="Commit Details"
+        tools:layout="@layout/fragment_git_edit_remote">
+        <argument
+            android:name="commitHash"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
+    </fragment>
+</navigation>

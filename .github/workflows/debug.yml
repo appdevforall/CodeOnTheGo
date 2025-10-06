@@ -28,10 +28,52 @@ env:
   SENTRY_DSN_DEBUG: ${{ secrets.SENTRY_DSN_DEBUG }}
 
 jobs:
+  check_changes:
+    name: Check for meaningful changes
+    runs-on: self-hosted
+    outputs:
+      must_build: ${{ steps.check.outputs.must_build }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Check if new branch with no meaningful commits
+        id: check
+        run: |
+          # Get the current branch name
+          BRANCH_NAME=$(git branch --show-current)
+          echo "Current branch: $BRANCH_NAME"
+
+          # Check commit count for logging
+          BRANCH_ONLY_COMMITS=$(git log --oneline origin/stage..HEAD 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+          echo "Commits ahead of stage: $BRANCH_ONLY_COMMITS"
+
+          # For non-stage branches, check if they are identical to stage
+          if [[ "$BRANCH_NAME" != "stage" ]]; then
+            DIFF_COUNT=$(git diff --name-only origin/stage..HEAD | wc -l | tr -d ' ' || echo "0")
+            echo "Files changed from stage: $DIFF_COUNT"
+            
+            if [[ "$DIFF_COUNT" -eq 0 ]]; then
+              echo "::notice::Skipping build for branch identical to stage"
+              echo "must_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "Branch has changes, proceeding with build"
+              echo "must_build=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Stage branch detected, proceeding with build"
+            echo "must_build=true" >> $GITHUB_OUTPUT
+          fi
+
   build_apk:
     name: Build Universal APK
     runs-on: self-hosted
     timeout-minutes: 60
+    needs: check_changes
+    if: needs.check_changes.outputs.must_build == 'true'
 
     steps:
 
@@ -40,13 +82,27 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-
-
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
+
+      - name: Validate branch name length
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          BRANCH_LENGTH=${#BRANCH_NAME}
+          echo "Branch name: $BRANCH_NAME"
+          echo "Branch name length: $BRANCH_LENGTH characters"
+          
+          if [ $BRANCH_LENGTH -gt 80 ]; then
+            echo "ERROR: Branch name exceeds the 80 character limit ($BRANCH_LENGTH characters)"
+            echo "This causes Google Cloud authentication to fail due to subject mapping limits."
+            echo "Please rename your branch to 80 characters or fewer and try again."
+            exit 1
+          fi
+          
+          echo "Branch name length is valid ($BRANCH_LENGTH ≤ 80 characters)"
 
       - name: Install Git LFS
         run: |
@@ -54,11 +110,6 @@ jobs:
           sudo apt-get install -y git-lfs
           git lfs install
           git lfs pull
-
-      - name: Initialize submodules
-        run: |
-          git submodule init
-          git submodule update --remote
 
       - name: Check if Nix is installed
         id: check_nix
@@ -75,9 +126,18 @@ jobs:
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
 
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "google-services.json created successfully"
+
       - name: Assemble Universal APK
         run: |
+          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
       - name: Find APK file
         id: find_apk
@@ -121,7 +181,6 @@ jobs:
           COMMIT_MSG: ${{ steps.pr_info.outputs.COMMIT_MSG }}
         run: |
           JIRA_TICKET=$(echo "$BRANCH_NAME" | grep -o 'ADFA-[0-9]\+' | head -1)
-          
 
           if [ -n "$JIRA_TICKET" ]; then
             JIRA_URL="https://appdevforall.atlassian.net/browse/${JIRA_TICKET}"
@@ -164,6 +223,19 @@ jobs:
             exit 1
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Write CI Performance Data
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          GRADLE_START: ${{ env.gradle_time_start }}
+          GRADLE_END: ${{ env.gradle_time_end }}
+          DB_PASSWORD: ${{ secrets.PG_PERFORMANCE_PASSWORD }}
+        run: |
+          apk_size_bytes=$( /usr/bin/stat -c '%s' $APK_PATH )
+          uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $( basename $APK_PATH ) $GRADLE_START $GRADLE_END $apk_size_bytes
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload
@@ -217,7 +289,6 @@ jobs:
           fi
 
           echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
-
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
