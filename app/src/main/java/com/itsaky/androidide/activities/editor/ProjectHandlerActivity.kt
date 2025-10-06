@@ -74,7 +74,6 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
-import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -267,7 +266,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             is BuildState.AwaitingInstall -> {
-                installApk(state.apkFile)
+                installApk(state)
                 buildViewModel.installationAttempted()
             }
         }
@@ -275,11 +274,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         invalidateOptionsMenu()
     }
 
-    private fun installApk(apk: File) {
+    private fun installApk(state: BuildState.AwaitingInstall) {
 		apkInstallationViewModel.installApk(
 			context = this,
-			file = apk,
-		)
+			apk = state.apkFile,
+			launchInDebugMode = state.launchInDebugMode,
+        )
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

@@ -22,7 +22,7 @@ class BuildViewModel : ViewModel() {
     private val _buildState = MutableStateFlow<BuildState>(BuildState.Idle)
     val buildState: StateFlow<BuildState> = _buildState
 
-    fun runQuickBuild(module: AndroidModule, variant: BasicAndroidVariantMetadata) {
+    fun runQuickBuild(module: AndroidModule, variant: BasicAndroidVariantMetadata, launchInDebugMode: Boolean) {
         if (_buildState.value is BuildState.InProgress) {
             log.warn("Build is already in progress. Ignoring new request.")
             return
@@ -56,7 +56,7 @@ class BuildViewModel : ViewModel() {
                     throw RuntimeException("APK file specified does not exist: $apkFile")
                 }
 
-                _buildState.value = BuildState.AwaitingInstall(apkFile)
+                _buildState.value = BuildState.AwaitingInstall(apkFile, launchInDebugMode)
 
             } catch (e: Exception) {
                 if (e is CancellationException) {
