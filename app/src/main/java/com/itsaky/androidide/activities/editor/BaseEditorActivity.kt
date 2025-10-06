@@ -77,7 +77,6 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
@@ -146,8 +145,6 @@ import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.io.File
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -571,11 +568,6 @@ abstract class BaseEditorActivity :
 
         setupGestureDetector()
 
-        val fab: FloatingActionButton? = findViewById(R.id.fab_show_agent_panel)
-        fab?.setOnClickListener {
-            Log.d(TAG, "FAB clicked, calling toggleAgentPanel()") // Using the log tag from before
-            toggleAgentPanel()
-        }
     }
 
     private fun setupResizablePanel() {
@@ -623,6 +615,7 @@ abstract class BaseEditorActivity :
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupDragToResizeListener() {
+
         Log.d(TAG, "setupDragToResizeListener: Attaching touch listener.")
         resizeDivider?.setOnTouchListener { view, event ->
             val parentView = view.parent as? View
@@ -643,7 +636,7 @@ abstract class BaseEditorActivity :
                     var percent = touchXInParent / parentWidth
 
                     // Your clamping is correct
-                    percent = max(0.4f, min(0.9f, percent))
+//                    percent = max(0.4f, min(0.9f, percent))
 
                     Log.d(
                         TAG,
@@ -659,18 +652,20 @@ abstract class BaseEditorActivity :
                 MotionEvent.ACTION_UP -> {
                     val currentPercent =
                         (verticalGuideline?.layoutParams as ConstraintLayout.LayoutParams).guidePercent
+                    // Define thresholds
+                    val fullScreenThreshold =
+                        0.2f // If guideline is less than 20% (panel > 80%), go full screen.
+                    val hideThreshold =
+                        0.7f     // If guideline is more than 75% (panel < 25%), hide it.
 
-                    // Define your thresholds here (adjust as needed for the best feel)
-                    val hideThreshold = 0.9f  // If panel is less than 10% visible, snap it closed.
-                    val expandThreshold =
-                        0.6f // If panel is more than 40% visible, snap it to a max width.
 
-                    if (currentPercent > hideThreshold) {
-                        // Animate to the hidden state
-                        animateGuideline(1.0f)
-                    } else if (currentPercent < expandThreshold) {
-                        // Animate to the fully expanded (but limited) state
-                        animateGuideline(expandThreshold)
+                    if (currentPercent < fullScreenThreshold) {
+                        // Animate to nearly full-screen state (e.g., 1% for the editor)
+                        animateGuideline(0.01f)
+                    } else if (currentPercent > hideThreshold) {
+                        animateGuideline(1.0f, true)
+                    } else {
+
                     }
                 }
 
@@ -687,62 +682,47 @@ abstract class BaseEditorActivity :
      */
     override fun toggleAgentPanel() {
         Log.d(TAG, "toggleAgentPanel: Called.")
-        if (isPortraitMode) {
-            Log.d(TAG, "toggleAgentPanel: Handling for Portrait mode.")
-            // ... (portrait logic is likely fine, no logs needed unless it also fails)
-            rightPanelBottomSheetBehavior?.let {
-                it.state =
-                    if (it.state == BottomSheetBehavior.STATE_HIDDEN || it.state == BottomSheetBehavior.STATE_COLLAPSED) {
-                        BottomSheetBehavior.STATE_HALF_EXPANDED
-                    } else {
-                        BottomSheetBehavior.STATE_HIDDEN
-                    }
-            }
-        } else {
-            Log.d(TAG, "toggleAgentPanel: Handling for Landscape/Tablet mode.")
+
             rightPanelContainer?.let {
                 val isCurrentlyVisible = it.visibility == View.VISIBLE
-                Log.d(TAG, "toggleAgentPanel: Panel is currently visible: $isCurrentlyVisible")
 
                 if (isCurrentlyVisible) {
-                    Log.d(TAG, "toggleAgentPanel: HIDING panel. Setting guidePercent to 1.0f.")
-                    it.visibility = View.GONE
-                    resizeDivider?.visibility = View.GONE
-
-                    (verticalGuideline?.layoutParams as ConstraintLayout.LayoutParams).guidePercent =
-                        1.0f
-                    findViewById<View>(R.id.editor_root_container).requestLayout()
-
+                    // Animate to hidden state
+                    animateGuideline(1.0f)
                 } else {
-                    Log.d(TAG, "toggleAgentPanel: SHOWING panel. Setting guidePercent to 0.7f.")
+                    // Retrieve the last saved percentage, or use the default
+                    val percentToShow: Float = 0.5f
+
+                    // Set initial state before animating
                     it.visibility = View.VISIBLE
                     resizeDivider?.visibility = View.VISIBLE
+                    verticalGuideline?.setGuidelinePercent(1.0f) // Start from closed position
 
-                    (verticalGuideline?.layoutParams as ConstraintLayout.LayoutParams).guidePercent =
-                        0.7f
-
-                    it.post {
-                        Log.d(TAG, "toggleAgentPanel: Posting requestLayout after showing.")
-                        findViewById<View>(R.id.editor_root_container).requestLayout()
-                    }
+                    // Animate to the saved/default percentage
+                    animateGuideline(percentToShow)
                 }
             } ?: Log.e(TAG, "toggleAgentPanel: rightPanelContainer is NULL!")
-        }
+
     }
 
-    private fun animateGuideline(toPercent: Float) {
+    private fun animateGuideline(toPercent: Float, shouldHideOnEnd: Boolean = false) {
         val guideline = verticalGuideline ?: return
         val params = guideline.layoutParams as ConstraintLayout.LayoutParams
 
         val animator = ValueAnimator.ofFloat(params.guidePercent, toPercent)
-        animator.duration = 200 // A quick, snappy animation
+        animator.duration = 250 // Slightly longer for a smoother feel
+
+        // Ensure views are visible before starting an "opening" animation
+        if (toPercent < 1.0f) {
+            rightPanelContainer?.visibility = View.VISIBLE
+            resizeDivider?.visibility = View.VISIBLE
+        }
 
         animator.addUpdateListener { animation ->
             guideline.setGuidelinePercent(animation.animatedValue as Float)
         }
 
-        // If we're animating to the hidden state, make the views GONE when finished.
-        if (toPercent == 1.0f) {
+        if (toPercent.toDouble() == 1.0 && shouldHideOnEnd) {
             animator.doOnEnd {
                 rightPanelContainer?.visibility = View.GONE
                 resizeDivider?.visibility = View.GONE
