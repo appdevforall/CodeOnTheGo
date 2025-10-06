@@ -1,7 +1,6 @@
 package com.itsaky.androidide.actions.build
 
 import android.content.Context
-import android.content.Intent
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -65,11 +64,4 @@ class DebugAction(
 
 		return Shizuku.pingBinder()
 	}
-
-	override fun onCreateLaunchIntent(): Intent =
-		super.onCreateLaunchIntent().apply {
-			// add an extra value to indicate that the debugger should be started before launching
-			// this application
-			putExtra(ID, true)
-		}
 }
