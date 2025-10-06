@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
@@ -55,6 +56,7 @@ import androidx.collection.MutableIntIntMap
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Guideline
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.animation.doOnEnd
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
@@ -654,6 +656,24 @@ abstract class BaseEditorActivity :
                     findViewById<View>(R.id.editor_root_container).requestLayout()
                 }
 
+                MotionEvent.ACTION_UP -> {
+                    val currentPercent =
+                        (verticalGuideline?.layoutParams as ConstraintLayout.LayoutParams).guidePercent
+
+                    // Define your thresholds here (adjust as needed for the best feel)
+                    val hideThreshold = 0.9f  // If panel is less than 10% visible, snap it closed.
+                    val expandThreshold =
+                        0.6f // If panel is more than 40% visible, snap it to a max width.
+
+                    if (currentPercent > hideThreshold) {
+                        // Animate to the hidden state
+                        animateGuideline(1.0f)
+                    } else if (currentPercent < expandThreshold) {
+                        // Animate to the fully expanded (but limited) state
+                        animateGuideline(expandThreshold)
+                    }
+                }
+
                 MotionEvent.ACTION_DOWN -> {
                     Log.d(TAG, "onDrag: ACTION_DOWN detected on divider.")
                 }
@@ -708,6 +728,28 @@ abstract class BaseEditorActivity :
                 }
             } ?: Log.e(TAG, "toggleAgentPanel: rightPanelContainer is NULL!")
         }
+    }
+
+    private fun animateGuideline(toPercent: Float) {
+        val guideline = verticalGuideline ?: return
+        val params = guideline.layoutParams as ConstraintLayout.LayoutParams
+
+        val animator = ValueAnimator.ofFloat(params.guidePercent, toPercent)
+        animator.duration = 200 // A quick, snappy animation
+
+        animator.addUpdateListener { animation ->
+            guideline.setGuidelinePercent(animation.animatedValue as Float)
+        }
+
+        // If we're animating to the hidden state, make the views GONE when finished.
+        if (toPercent == 1.0f) {
+            animator.doOnEnd {
+                rightPanelContainer?.visibility = View.GONE
+                resizeDivider?.visibility = View.GONE
+            }
+        }
+
+        animator.start()
     }
 
     private fun setupToolbar() {
