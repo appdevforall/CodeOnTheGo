@@ -17,11 +17,13 @@
 
 package com.itsaky.androidide.utils
 
+import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageInstaller
+import androidx.core.app.PendingIntentCompat
 import com.itsaky.androidide.services.InstallationResultReceiver
 import org.slf4j.LoggerFactory
 
@@ -32,78 +34,68 @@ import org.slf4j.LoggerFactory
  */
 object InstallationResultHandler {
 
-  private const val INSTALL_PACKAGE_REQ_CODE = 2304
-  private const val INSTALL_PACKAGE_ACTION = "com.itsaky.androidide.installer.INSTALL_PACKAGE"
+	private val log = LoggerFactory.getLogger(InstallationResultHandler::class.java)
 
-  private val log = LoggerFactory.getLogger(InstallationResultHandler::class.java)
+	@JvmStatic
+	fun onResult(context: Activity?, intent: Intent?): String? {
+		if (context == null || intent == null || intent.action != InstallationResultReceiver.ACTION_INSTALL_STATUS) {
+			log.warn("Invalid broadcast received. action={}", intent?.action)
+			return null
+		}
 
-  @JvmStatic
-  fun createEditorActivitySender(
-    context: Context,
-    createIntent: () -> Intent = { Intent() },
-  ): IntentSender {
-    val intent = createIntent()
-    intent.setClass(context, InstallationResultReceiver::class.java)
-    intent.action = INSTALL_PACKAGE_ACTION
-    return PendingIntent.getBroadcast(
-      context,
-      INSTALL_PACKAGE_REQ_CODE,
-      intent,
-      PendingIntent.FLAG_UPDATE_CURRENT
-    ).intentSender
-  }
+		log.debug("onResult: intent={}, intent.extras={}", intent, intent.extras)
 
-  @JvmStatic
-  fun onResult(context: Context?, intent: Intent?): String? {
-    if (context == null || intent == null || intent.action != INSTALL_PACKAGE_ACTION) {
-      log.warn("Invalid broadcast received. action={}", intent?.action)
-      return null
-    }
+		val extras =
+			intent.extras
+				?: run {
+					log.warn("Invalid intent received in broadcast")
+					return null
+				}
 
-    val extras =
-      intent.extras
-        ?: run {
-          log.warn("Invalid intent received in broadcast")
-          return null
-        }
+		val packageName = extras.getString(PackageInstaller.EXTRA_PACKAGE_NAME)
+		val status = extras.getInt(PackageInstaller.EXTRA_STATUS)
+		val message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE)
 
-    val packageName = extras.getString(PackageInstaller.EXTRA_PACKAGE_NAME)
-    val status = extras.getInt(PackageInstaller.EXTRA_STATUS)
-    val message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE)
-    return when (status) {
-      PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-        @Suppress("DEPRECATION")
-        extras.get(Intent.EXTRA_INTENT)?.let {
-          if (it is Intent) {
-            if ((it.flags and Intent.FLAG_ACTIVITY_NEW_TASK) != Intent.FLAG_ACTIVITY_NEW_TASK) {
-              it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(it)
-          }
-        }
-        null
-      }
+		return when (status) {
+			PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+				log.debug("PENDING_USER_ACTION: extras={}", extras)
+				@Suppress("DEPRECATION")
+				extras.get(Intent.EXTRA_INTENT)?.let { intent ->
+					if (intent is Intent) {
+						if ((intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK) != Intent.FLAG_ACTIVITY_NEW_TASK) {
+							intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+						}
+						log.debug("startingActivity: intent={}, intent.extras={}", intent, intent.extras)
+						context.startActivity(intent)
+					}
+				}
+				null
+			}
 
-      PackageInstaller.STATUS_SUCCESS -> {
-        log.info("Package installed successfully!")
-        packageName
-      }
+			PackageInstaller.STATUS_SUCCESS -> {
+				log.info("Package installed successfully!")
+				packageName
+			}
 
-      PackageInstaller.STATUS_FAILURE,
-      PackageInstaller.STATUS_FAILURE_ABORTED,
-      PackageInstaller.STATUS_FAILURE_BLOCKED,
-      PackageInstaller.STATUS_FAILURE_CONFLICT,
-      PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
-      PackageInstaller.STATUS_FAILURE_INVALID,
-      PackageInstaller.STATUS_FAILURE_STORAGE -> {
-        log.error("Package installation failed with status code {} and message {}", status, message)
-        null
-      }
+			PackageInstaller.STATUS_FAILURE,
+			PackageInstaller.STATUS_FAILURE_ABORTED,
+			PackageInstaller.STATUS_FAILURE_BLOCKED,
+			PackageInstaller.STATUS_FAILURE_CONFLICT,
+			PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
+			PackageInstaller.STATUS_FAILURE_INVALID,
+			PackageInstaller.STATUS_FAILURE_STORAGE -> {
+				log.error(
+					"Package installation failed with status code {} and message {}",
+					status,
+					message
+				)
+				null
+			}
 
-      else -> {
-        log.warn("Invalid status code received in broadcast: {}", status)
-        null
-      }
-    }
-  }
+			else -> {
+				log.warn("Invalid status code received in broadcast: {}", status)
+				null
+			}
+		}
+	}
 }
