@@ -224,6 +224,11 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 				viewModel.setSelectedThreadIndex(index)
 			}
 		}
+        
+        binding.debuggerContents.debuggerContentContainer.setOnClickListener { 
+            
+            true
+        }
 
 
 		val mediator =

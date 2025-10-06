@@ -54,8 +54,9 @@ object TooltipManager {
     """
 
     private const val QUERY_LAST_CHANGE = """
-        SELECT now, who
+        SELECT changeTime, who
         FROM LastChange
+        WHERE documentationSet = 'wholedb'
     """
 
     suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
@@ -159,6 +160,9 @@ object TooltipManager {
                             Intent(context, HelpActivity::class.java).apply {
                                 putExtra(CONTENT_KEY, url)
                                 putExtra(CONTENT_TITLE_KEY, title)
+                                if (context !is android.app.Activity) {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                             }
                         context.startActivity(intent)
                     }
@@ -188,6 +192,9 @@ object TooltipManager {
                             Intent(context, HelpActivity::class.java).apply {
                                 putExtra(CONTENT_KEY, url)
                                 putExtra(CONTENT_TITLE_KEY, title)
+                                if (context !is android.app.Activity) {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                             }
                         context.startActivity(intent)
                     }
