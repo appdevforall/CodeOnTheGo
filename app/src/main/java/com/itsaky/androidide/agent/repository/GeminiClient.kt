@@ -74,8 +74,6 @@ class GeminiClient(
         while (attempts < maxAttempts) {
             try {
                 var response: GenerateContentResponse? = null
-
-                // MODIFIED: Build the config based on the new 'forceToolUse' flag
                 val config = if (forceToolUse && tools.isNotEmpty()) {
                     log.info("Tool use is being forced for this API call.")
                     val toolConfig = ToolConfig.builder()
@@ -120,13 +118,10 @@ class GeminiClient(
                 val content = candidate.content().getOrNull()
 
                 if (content == null) {
-                    // NEW: Get the finish reason from the candidate itself.
                     val finishReason = candidate.finishReason().getOrNull()
 
-                    // NEW: Log the reason before throwing the error.
                     log.error("Candidate did not contain content. Finish Reason: {}", finishReason)
 
-                    // NEW: Include the reason in the exception for better debugging.
                     throw Exception("Candidate did not contain any content. Finish Reason: $finishReason")
                 }
 
@@ -137,14 +132,11 @@ class GeminiClient(
                 attempts++
                 log.warn("ServerException (500) on attempt $attempts. Retrying...", e)
                 if (attempts >= maxAttempts) {
-                    // If we've exhausted all retries, re-throw the final exception
                     throw e
                 }
-                // Wait before retrying (1 second, then 2 seconds)
                 Thread.sleep(attempts * 1000L)
             }
         }
-        // This line should not be reachable, but is a safeguard
         throw IllegalStateException("Retry logic failed unexpectedly.")
     }
 }
