@@ -578,16 +578,6 @@ abstract class BaseEditorActivity :
             "setupResizablePanel: rightPanelContainer is ${if (rightPanelContainer == null) "NULL" else "FOUND"}"
         )
 
-        // Add a layout listener to log the final state of the panel after any layout change
-        rightPanelContainer?.viewTreeObserver?.addOnGlobalLayoutListener {
-            rightPanelContainer?.let {
-                Log.d(
-                    TAG,
-                    "OnGlobalLayout: panel width=${it.width}, visibility=${it.visibility}, guidePercent=${(verticalGuideline?.layoutParams as? ConstraintLayout.LayoutParams)?.guidePercent}"
-                )
-            }
-        }
-
         // Check which layout is active
         if (rightPanelContainer?.layoutParams is CoordinatorLayout.LayoutParams) {
             Log.d(TAG, "setupResizablePanel: Portrait mode detected (CoordinatorLayout).")
