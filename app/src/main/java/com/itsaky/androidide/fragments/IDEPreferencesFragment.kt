@@ -76,14 +76,8 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
         preference.fragment = IDEPreferencesFragment::class.java.name
         preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
 
-        // Wrap target preferences with long-click support
-        val finalPreference = if (isTargetPreference(child.key)) {
-          createLongClickablePreference(preference, child.key)
-        } else {
-          preference
-        }
 
-        pref.addPreference(finalPreference)
+        pref.addPreference(preference)
         continue
       }
 
@@ -93,74 +87,12 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
         continue
       }
 
-      // Wrap regular preferences with long-click support if they are target preferences
-      val finalPreference = if (isTargetPreference(child.key)) {
-        createLongClickablePreference(preference, child.key)
-      } else {
-        preference
-      }
-      pref.addPreference(finalPreference)
+
+      pref.addPreference(preference)
     }
   }
 
-  private fun isTargetPreference(key: String): Boolean {
-    return key in listOf(
-      "idepref_configure",
-      "idepref_general",
-      "idepref_editor",
-      "idepref_editor_xml",
-      "idepref_xml_formattingOptions",
-      "idepref_build_n_run",
-      "idepref_build_gradleCommands",
-      "ide.preferences.terminal",
-      "ide.prefs.developerOptions"
-    )
-  }
 
-  private fun createLongClickablePreference(originalPreference: Preference, key: String): Preference {
-    return object : Preference(requireContext()) {
-      init {
-        // Copy essential properties from original preference
-        this.key = originalPreference.key
-        title = originalPreference.title
-        summary = originalPreference.summary
-        fragment = originalPreference.fragment
-        extras.putAll(originalPreference.extras)
-        
-        // Match the original preference's icon space settings
-        icon = originalPreference.icon
-        isIconSpaceReserved = originalPreference.isIconSpaceReserved
-      }
-
-      override fun onBindViewHolder(holder: PreferenceViewHolder) {
-        super.onBindViewHolder(holder)
-        // Set up long click listener on the view
-        holder.itemView.setOnLongClickListener { view ->
-          val tooltipTag = getTooltipTag(key)
-          if (tooltipTag != null) {
-            showTooltip(view, tooltipTag)
-          } else {
-            Log.d("IDEPreferencesFragment", "Long click detected on preference: $key")
-          }
-          true
-        }
-      }
-    }
-  }
-
-  private fun getTooltipTag(key: String): String? {
-    return when (key) {
-      "idepref_configure" -> PREFS_TOP
-      "idepref_general" -> PREFS_GENERAL
-      "idepref_editor" -> PREFS_EDITOR
-      "idepref_editor_xml", "idepref_xml_formattingOptions" -> PREFS_EDITOR_XML
-      "idepref_build_n_run" -> PREFS_BUILD_RUN
-      "idepref_build_gradleCommands" -> PREFS_GRADLE
-      "ide.preferences.terminal" -> PREFS_TERMUX
-      "ide.prefs.developerOptions" -> PREFS_DEVELOPER
-      else -> null
-    }
-  }
 
   private fun showTooltip(anchorView: View, tooltipTag: String) {
       TooltipManager.showTooltip(
@@ -168,6 +100,21 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
           anchorView = anchorView,
           tag = tooltipTag,
       )
+  }
+
+  fun getCurrentScreenTooltip(): String {
+    val firstChildKey = children.firstOrNull()?.key
+    return when (firstChildKey) {
+      "idepref_configure" -> PREFS_TOP
+      "idepref_general_interface" -> PREFS_GENERAL
+      "idepref_editor_common" -> PREFS_EDITOR
+      "idepref_build_gradle" -> PREFS_GRADLE
+      "idepref_build_gradleCommands" -> PREFS_GRADLE
+      "ide.preferences.terminal.debugging" -> PREFS_TERMUX
+      "ide.prefs.developerOptions.debugging" -> PREFS_DEVELOPER
+      "idepref_xml_trimFinalNewLine" -> PREFS_EDITOR_XML
+      else -> PREFS_TOP
+    }
   }
 
   companion object {
