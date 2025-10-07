@@ -195,7 +195,8 @@ private class PreservedNewLines(
 private class SplitAttributesIndentSize(
   override val key: String = XmlPreferences.SPLIT_ATTRIBUTES_INDENT_SIZE,
   override val title: Int = string.idepref_splitAttrIndentSize_title,
-  override val summary: Int? = string.idepref_splitAttrIndentSize_summary
+  override val summary: Int? = string.idepref_splitAttrIndentSize_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) :
   NumberInputEditTextPreference(
     hint = string.idepref_splitAttrIndentSize_title,
