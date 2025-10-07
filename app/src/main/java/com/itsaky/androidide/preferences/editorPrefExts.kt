@@ -22,6 +22,7 @@ import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutTextSizeSliderBinding
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.preferences.internal.EditorPreferences.COMPLETIONS_MATCH_LOWER
 import com.itsaky.androidide.preferences.internal.EditorPreferences.DELETE_EMPTY_LINES
@@ -87,6 +88,7 @@ private class TextSize(
   override val icon: Int? = drawable.ic_text_size,
   override val dialogTitle: Int = string.title_change_text_size,
   override val dialogMessage: Int? = string.msg_editor_font_size,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : DialogPreference() {
 
   override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
