@@ -37,8 +37,8 @@
 
     <ImageButton
         android:id="@+id/feedback_button"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:contentDescription="@string/feedback_button_description"
         android:src="@drawable/ic_feedback"
         android:alpha="1.0"
@@ -48,8 +48,7 @@
         android:scaleType="centerInside"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginEnd="4dp"
-        android:layout_marginTop="4dp"
+        android:layout_margin="4dp"
         app:tint="?attr/colorPrimary" />
 
     <TextView
