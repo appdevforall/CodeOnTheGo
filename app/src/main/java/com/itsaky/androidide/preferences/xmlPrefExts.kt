@@ -182,7 +182,8 @@ private class MaxLineWidth(
 private class PreservedNewLines(
   override val key: String = XmlPreferences.PRESERVED_NEW_LINES,
   override val title: Int = string.idepref_preservedNewLines_title,
-  override val summary: Int? = string.idepref_preservedNewLines_summary
+  override val summary: Int? = string.idepref_preservedNewLines_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) :
   NumberInputEditTextPreference(
     hint = string.idepref_preservedNewLines_title,
