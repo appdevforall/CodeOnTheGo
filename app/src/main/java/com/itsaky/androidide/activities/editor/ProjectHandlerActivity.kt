@@ -71,11 +71,9 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.ui.CodeEditorView
-import com.itsaky.androidide.utils.ApkInstaller
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
-import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -270,9 +268,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             is BuildState.AwaitingInstall -> {
-                // ✅ The ViewModel has told us it's time to install!
-                installApk(state.apkFile)
-                // Tell the ViewModel we've handled the install event.
+                installApk(state)
                 buildViewModel.installationAttempted()
             }
         }
@@ -280,19 +276,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         invalidateOptionsMenu()
     }
 
-    private fun installApk(apk: File) {
-        log.debug("Installing APK: {}", apk)
-
-        if (!apk.exists()) {
-            log.error("APK file does not exist!")
-            return
-        }
-
-        ApkInstaller.installApk(
-            this,
-            InstallationResultHandler.createEditorActivitySender(this) { Intent() },
-            apk,
-            installationSessionCallback()
+    private fun installApk(state: BuildState.AwaitingInstall) {
+		apkInstallationViewModel.installApk(
+			context = this,
+			apk = state.apkFile,
+			launchInDebugMode = state.launchInDebugMode,
         )
     }
 

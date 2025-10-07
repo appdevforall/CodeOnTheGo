@@ -35,9 +35,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.models.OnboardingPermissionItem
-import com.itsaky.androidide.services.debug.ForegroundDetectionService
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.isAccessibilityEnabled
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastT
 import org.slf4j.LoggerFactory
@@ -129,25 +127,12 @@ class PermissionsFragment :
 				),
 			)
 
-			permissions.add(
-				OnboardingPermissionItem(
-					Manifest.permission.BIND_ACCESSIBILITY_SERVICE,
-					R.string.permission_title_accessibility,
-					R.string.permission_desc_accessibility,
-					canDetectForegroundApps(context),
-					isOptional = true,
-				),
-			)
-
 			return permissions
 		}
 
 		@JvmStatic
 		@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 		fun canPostNotifications(context: Context) = isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
-
-		@JvmStatic
-		fun canDetectForegroundApps(context: Context): Boolean = context.isAccessibilityEnabled<ForegroundDetectionService>()
 
 		@JvmStatic
 		fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
@@ -183,7 +168,6 @@ class PermissionsFragment :
 				Manifest.permission_group.STORAGE -> isStoragePermissionGranted(context)
 				Manifest.permission.REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
 				Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
-				Manifest.permission.BIND_ACCESSIBILITY_SERVICE -> canDetectForegroundApps(context)
 				else -> checkSelfPermission(context, permission)
 			}
 
