@@ -36,6 +36,7 @@ import com.itsaky.androidide.fragments.onboarding.GreetingFragment
 import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
+import com.itsaky.androidide.fragments.onboarding.PermissionsInfoFragment
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
@@ -108,6 +109,7 @@ class OnboardingActivity : AppIntro2() {
 		isWizardMode = true
 
 		addSlide(GreetingFragment())
+		addSlide(PermissionsInfoFragment())
 
 		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
 			val errorMessage =
