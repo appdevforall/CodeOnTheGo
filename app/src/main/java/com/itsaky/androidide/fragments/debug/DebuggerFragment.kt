@@ -39,6 +39,7 @@ import rikka.shizuku.Shizuku
 class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
 	private lateinit var tabs: Array<Pair<String, Fragment>>
 	private val viewModel by activityViewModels<DebuggerViewModel>()
+	private var mediator: TabLayoutMediator? = null
 
 	var currentView: Int
 		get() = viewModel.currentView
@@ -99,105 +100,95 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			viewModel.setThreads(emptyList())
 
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-				viewModel.observeCurrentView(
-					scope = this,
-					notifyOn = Dispatchers.Main,
-				) { viewIndex ->
-					binding.root.displayedChild = viewIndex
 
-					// don't show debugger UI in the following cases
-					// 1. current view is not debugger UI
-					// 2. current view is debugger UI but not connected to a VM
-					// 3. current view is debugger UI but no thread data is available
-					emptyStateViewModel.isEmpty.value =
-						currentView == VIEW_DEBUGGER &&
-						(
-							viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
-								viewModel.allThreads.value.isEmpty()
-						)
-				}
+			  launch {
+          viewModel.currentViewFlow.collect { viewIndex ->
+            binding.root.displayedChild = viewIndex
 
-				viewModel.observeConnectionState(
-					scope = this,
-					notifyOn = Dispatchers.Main,
-				) { state ->
-					val message =
-						when (state) {
-							// not connected to a VM
-							DebuggerConnectionState.DETACHED -> getString(R.string.debugger_state_not_connected)
+            // don't show debugger UI in the following cases
+            // 1. current view is not debugger UI
+            // 2. current view is debugger UI but not connected to a VM
+            // 3. current view is debugger UI but no thread data is available
+            emptyStateViewModel.isEmpty.value =
+              currentView == VIEW_DEBUGGER &&
+              (
+                viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
+                  viewModel.allThreads.value.isEmpty()
+              )
+          }
+        }
 
-							// connected, but not suspended
-							DebuggerConnectionState.ATTACHED -> {
-								viewModel.debugClient.clientOrNull?.let { client ->
-									getString(
-										R.string.debugger_state_connected,
-										client.name,
-										client.version,
-									)
-								}
-							}
+        launch {
+          viewModel.connectionState.collect { state ->
+            val message =
+              when (state) {
+                // not connected to a VM
+                DebuggerConnectionState.DETACHED -> getString(R.string.debugger_state_not_connected)
 
-							// ----
-							// No need to show any message for below states
-							// the debugger UI will show the active threads, variables and call stack when the
-							// VM is in one of these states
+                // connected, but not suspended
+                DebuggerConnectionState.ATTACHED -> {
+                  viewModel.debugClient.clientOrNull?.let { client ->
+                    getString(
+                      R.string.debugger_state_connected,
+                      client.name,
+                      client.version,
+                    )
+                  }
+                }
 
-							// suspended, but not due to a breakpoint hit or step event
-							DebuggerConnectionState.SUSPENDED -> null
-							// suspended due to a breakpoint hit or step event
-							DebuggerConnectionState.AWAITING_BREAKPOINT -> null
-						}
+                // ----
+                // No need to show any message for below states
+                // the debugger UI will show the active threads, variables and call stack when the
+                // VM is in one of these states
 
-					emptyStateViewModel.isEmpty.value =
-						currentView == VIEW_DEBUGGER &&
-						message != null
-					emptyStateViewModel.emptyMessage.value = message
-				}
+                // suspended, but not due to a breakpoint hit or step event
+                DebuggerConnectionState.SUSPENDED -> null
+                // suspended due to a breakpoint hit or step event
+                DebuggerConnectionState.AWAITING_BREAKPOINT -> null
+              }
 
-				viewModel.observeLatestThreads(
-					scope = this,
-					notifyOn = Dispatchers.IO,
-				) { threads ->
-					val descriptors =
-						threads
-							.map { thread ->
-								async { thread.resolve() }
-							}.awaitAll()
+            emptyStateViewModel.isEmpty.value =
+              currentView == VIEW_DEBUGGER &&
+              message != null
+            emptyStateViewModel.emptyMessage.value = message
+          }
+        }
 
-					withContext(Dispatchers.Main) {
-						emptyStateViewModel.isEmpty.value =
-							currentView == VIEW_DEBUGGER &&
-							descriptors.isEmpty()
-						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
-							ThreadSelectorListAdapter(
-								requireContext(),
-								descriptors,
-							),
-						)
-					}
-				}
+        launch {
+          viewModel.allThreads.collect { threads ->
+            val descriptors = withContext(Dispatchers.IO) {
+              threads.map { thread -> async { thread.resolve() } }.awaitAll()
+            }
 
-				viewModel.observeLatestSelectedThread(
-					scope = this,
-					notifyOn = Dispatchers.IO,
-				) { thread, index ->
-					if (index < 0) {
-						return@observeLatestSelectedThread
-					}
+            emptyStateViewModel.isEmpty.value =
+              currentView == VIEW_DEBUGGER && descriptors.isEmpty()
+            binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
+              ThreadSelectorListAdapter(requireContext(), descriptors)
+            )
+          }
+        }
 
-					val descriptor = thread!!.resolve()
-					withContext(Dispatchers.Main) {
-						this@DebuggerFragment.context?.also { context ->
-							binding.debuggerContents.threadLayoutSelector.spinnerText.apply {
-								listSelection = index
-								setText(
-									descriptor?.displayText()
-										?: context.getString(R.string.debugger_thread_resolution_failure),
-									false,
-								)
-							}
-						}
-					}
+        launch {
+				  viewModel.selectedThread.collect { (thread, index) ->
+				    if (index < 0) {
+				      return@collect
+				    }
+
+				    val descriptor = withContext(Dispatchers.IO) {
+              thread!!.resolve()
+            }
+
+            this@DebuggerFragment.context?.also { context ->
+              binding.debuggerContents.threadLayoutSelector.spinnerText.apply {
+                listSelection = index
+                setText(
+                descriptor?.displayText()
+                  ?: context.getString(R.string.debugger_thread_resolution_failure),
+                  false,
+                )
+              }
+            }
+          }
 				}
 
 				ShizukuState.serviceStatus.collectLatest { currentStatus ->
@@ -216,17 +207,21 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			}
 		}
 
-		val mediator =
-			TabLayoutMediator(
-				binding.debuggerContents.tabs,
-				binding.debuggerContents.pager,
-			) { tab, position ->
-				tab.text = tabs[position].first
-			}
-
 		binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
-		mediator.attach()
+		mediator = TabLayoutMediator(
+            binding.debuggerContents.tabs,
+            binding.debuggerContents.pager,
+    ) { tab, position ->
+        tab.text = tabs[position].first
+    }
+		mediator?.attach()
 	}
+
+	override fun onDestroyView() {
+    mediator?.detach()
+    mediator = null
+    super.onDestroyView()
+  }
 
 	override fun onFragmentLongPressed() {
 		// TODO be defined

@@ -105,6 +105,8 @@ class DebuggerViewModel : ViewModel() {
 		get() = _currentView.value
 		set(value) = _currentView.update { value }
 
+  val currentViewFlow = _currentView.asStateFlow()
+
 	val connectionState = _connectionState.asStateFlow()
 
 	val debugeePackageFlow = _debugeePackage.asStateFlow()
@@ -156,17 +158,6 @@ class DebuggerViewModel : ViewModel() {
 					initialValue = null to -1,
 				)
 
-	val selectedFrameVariables: StateFlow<List<ResolvableVariable<*>>>
-		get() =
-			selectedFrame
-				.map { (frame, _) ->
-					frame?.getVariables() ?: emptyList()
-				}.stateIn(
-					scope = viewModelScope,
-					started = SharingStarted.Eagerly,
-					initialValue = emptyList(),
-				)
-
 	val variablesTree: StateFlow<Tree<ResolvableVariable<*>>>
 		get() =
 			state
@@ -185,42 +176,6 @@ class DebuggerViewModel : ViewModel() {
 
 	fun setConnectionState(state: DebuggerConnectionState) {
 		_connectionState.update { state }
-	}
-
-	@OptIn(ExperimentalStdlibApi::class)
-	fun observeCurrentView(
-		scope: CoroutineScope = viewModelScope,
-		observeOn: CoroutineDispatcher = Dispatchers.Default,
-		notifyOn: CoroutineDispatcher? = null,
-		consume: suspend (Int) -> Unit,
-	) = scope.launch(observeOn) {
-		_currentView.collectLatest { viewIndex ->
-			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-				withContext(notifyOn) {
-					consume(viewIndex)
-				}
-			} else {
-				consume(viewIndex)
-			}
-		}
-	}
-
-	@OptIn(ExperimentalStdlibApi::class)
-	fun observeConnectionState(
-		scope: CoroutineScope = viewModelScope,
-		observeOn: CoroutineDispatcher = Dispatchers.Default,
-		notifyOn: CoroutineDispatcher? = null,
-		consume: suspend (DebuggerConnectionState) -> Unit,
-	) = scope.launch(observeOn) {
-		connectionState.collectLatest { state ->
-			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-				withContext(notifyOn) {
-					consume(state)
-				}
-			} else {
-				consume(state)
-			}
-		}
 	}
 
 	suspend fun setThreads(threads: List<ThreadInfo>) =
@@ -299,24 +254,6 @@ class DebuggerViewModel : ViewModel() {
 			Tree.createTree(VariableTreeNodeGenerator.newInstance(roots?.toSet() ?: emptySet()))
 		}
 
-	@OptIn(ExperimentalStdlibApi::class)
-	fun observeLatestThreads(
-		scope: CoroutineScope = viewModelScope,
-		observeOn: CoroutineDispatcher = Dispatchers.Default,
-		notifyOn: CoroutineDispatcher? = null,
-		consume: suspend (List<ResolvableThreadInfo>) -> Unit,
-	) = scope.launch(observeOn) {
-		allThreads.collectLatest { threads ->
-			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-				withContext(notifyOn) {
-					consume(threads)
-				}
-			} else {
-				consume(threads)
-			}
-		}
-	}
-
 	suspend fun setSelectedThreadIndex(index: Int) =
 		withContext(Dispatchers.IO) {
 			state.update { current ->
@@ -349,24 +286,6 @@ class DebuggerViewModel : ViewModel() {
 				)
 			}
 		}
-
-	@OptIn(ExperimentalStdlibApi::class)
-	fun observeLatestSelectedThread(
-		scope: CoroutineScope = viewModelScope,
-		observeOn: CoroutineDispatcher = Dispatchers.Default,
-		notifyOn: CoroutineDispatcher? = null,
-		consume: suspend (ResolvableThreadInfo?, Int) -> Unit,
-	) = scope.launch(observeOn) {
-		selectedThread.collectLatest { (thread, index) ->
-			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-				withContext(notifyOn) {
-					consume(thread, index)
-				}
-			} else {
-				consume(thread, index)
-			}
-		}
-	}
 
 	@OptIn(ExperimentalStdlibApi::class)
 	fun observeLatestAllFrames(
@@ -419,24 +338,6 @@ class DebuggerViewModel : ViewModel() {
 				}
 			} else {
 				consume(frame, index)
-			}
-		}
-	}
-
-	@OptIn(ExperimentalStdlibApi::class)
-	fun observeLatestVariablesTree(
-		scope: CoroutineScope = viewModelScope,
-		observeOn: CoroutineDispatcher = Dispatchers.Default,
-		notifyOn: CoroutineDispatcher? = null,
-		consume: suspend (Tree<ResolvableVariable<*>>) -> Unit,
-	) = scope.launch(observeOn) {
-		variablesTree.collectLatest { tree ->
-			if (notifyOn != null && notifyOn != coroutineContext[CoroutineDispatcher]) {
-				withContext(notifyOn) {
-					consume(tree)
-				}
-			} else {
-				consume(tree)
 			}
 		}
 	}

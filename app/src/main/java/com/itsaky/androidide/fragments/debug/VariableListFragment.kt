@@ -11,7 +11,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
@@ -19,7 +18,7 @@ import kotlinx.coroutines.launch
  */
 class VariableListFragment : Fragment() {
 
-    private lateinit var treeView: TreeView<ResolvableVariable<*>>
+    private var treeView: TreeView<ResolvableVariable<*>>? = null
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
 
@@ -28,18 +27,15 @@ class VariableListFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        if (::treeView.isInitialized) {
-            return treeView
-        }
-
-        treeView = TreeView(requireContext())
-        return treeView
+        val view = TreeView<ResolvableVariable<*>>(requireContext())
+        treeView = view
+        return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        treeView.apply {
+        treeView?.apply {
             supportHorizontalScroll = true
             supportDragging = false
             tree = viewModel.variablesTree.value
@@ -50,15 +46,17 @@ class VariableListFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.observeLatestVariablesTree(
-                    scope = this,
-                    notifyOn = Dispatchers.Main
-                ) { tree ->
-                    treeView.tree = tree
-                    treeView.refresh()
+                viewModel.variablesTree.collect { tree ->
+                    treeView?.tree = tree
+                    treeView?.refresh()
                 }
             }
         }
 
+    }
+
+    override fun onDestroyView() {
+        treeView = null
+        super.onDestroyView()
     }
 }
