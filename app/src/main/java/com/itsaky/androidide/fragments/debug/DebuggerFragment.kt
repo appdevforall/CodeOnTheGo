@@ -31,6 +31,7 @@ import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
+import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -192,8 +193,8 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							ThreadSelectorListAdapter(
 								requireContext(),
 								descriptors,
-                                onItemLongClick = { thread, index, view ->
-                                    showToolTipDialog(DEBUG_THREAD_SELECTOR, view)
+                                onItemLongClick = { _, _, _ ->
+                                    showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.debuggerContentContainer.rootView)
                                 }
 							),
 						)
@@ -322,35 +323,35 @@ class ThreadSelectorListAdapter(
 
 		val isEnabled = item.state != ThreadState.UNKNOWN && item.state != ThreadState.ZOMBIE
 
-        if (isEnabled) {
-            var longPressDetected = false
+	if (isEnabled) {
+		var longPressDetected = false
 
-            val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-                override fun onLongPress(e: MotionEvent) {
-                    longPressDetected = true
-                    try {
-                        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-                        if (view.isAttachedToWindow) {
-                            onItemLongClick.invoke(item, position, view)
-                        }
-                    } catch (e: Exception) {
-                        Log.d("ThreadAdapter", "Error on long press: ${e.message}")
-                    }
-                }
+		val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+			override fun onLongPress(e: MotionEvent) {
+				longPressDetected = true
+				try {
+					view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+					if (view.isAttachedToWindow) {
+						onItemLongClick.invoke(item, position, view)
+					}
+				} catch (e: Exception) {
+                    Sentry.captureException(e)
+				}
+			}
 
-                override fun onDown(e: MotionEvent): Boolean {
-                    longPressDetected = false
-                    return true
-                }
-            })
+			override fun onDown(e: MotionEvent): Boolean {
+				longPressDetected = false
+				return true
+			}
+		})
 
-            view.setOnTouchListener { v, event ->
-                gestureDetector.onTouchEvent(event)
-                longPressDetected // Only consume if long press was detected
-            }
-        } else {
-            view.setOnTouchListener(null)
-        }
+		view.setOnTouchListener { v, event ->
+			gestureDetector.onTouchEvent(event)
+			longPressDetected
+		}
+	} else {
+		view.setOnTouchListener(null)
+	}
 
 		view.isEnabled = isEnabled
 		view.text = item.displayText()
