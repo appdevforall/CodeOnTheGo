@@ -21,21 +21,6 @@
         app:layout_constraintVertical_bias="0.06" />
 
     <ImageButton
-        android:id="@+id/feedback_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:contentDescription="@string/feedback_button_description"
-        android:src="@drawable/ic_feedback"
-        android:alpha="0.5"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:clickable="true"
-        android:focusable="true"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/icon_info"
-        android:layout_margin="4dp"
-        app:tint="?attr/colorOnSurface" />
-
-    <ImageButton
         android:id="@+id/icon_info"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -46,9 +31,26 @@
         android:clickable="true"
         android:focusable="true"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         android:layout_margin="4dp"
         app:tint="?attr/colorOnSurface" />
+
+    <ImageButton
+        android:id="@+id/feedback_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:contentDescription="@string/feedback_button_description"
+        android:src="@drawable/ic_feedback"
+        android:alpha="1.0"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:scaleType="centerInside"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginEnd="4dp"
+        android:layout_marginTop="4dp"
+        app:tint="?attr/colorPrimary" />
 
     <TextView
         android:id="@+id/see_more"
