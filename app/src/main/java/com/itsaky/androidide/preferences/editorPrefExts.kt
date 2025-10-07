@@ -133,6 +133,7 @@ private class TabSize(
   override val title: Int = string.title_tab_size,
   override val summary: Int? = string.msg_tab_size,
   override val icon: Int? = drawable.ic_tab,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : SingleChoicePreference() {
 
   @IgnoredOnParcel
