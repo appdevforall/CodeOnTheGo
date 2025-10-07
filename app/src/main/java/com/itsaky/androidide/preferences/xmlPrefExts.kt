@@ -18,6 +18,7 @@
 package com.itsaky.androidide.preferences
 
 import androidx.preference.Preference
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.XmlPreferences
 import com.itsaky.androidide.resources.R.string
 import kotlinx.parcelize.IgnoredOnParcel
@@ -168,7 +169,8 @@ private class TrimTrailingWhitespace(
 private class MaxLineWidth(
   override val key: String = XmlPreferences.MAX_LINE_WIDTH,
   override val title: Int = string.idepref_maxLineWidth_title,
-  override val summary: Int? = string.idepref_maxLineWidth_summary
+  override val summary: Int? = string.idepref_maxLineWidth_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) :
   NumberInputEditTextPreference(
     hint = string.idepref_maxLineWidth_title,
