@@ -1,9 +1,12 @@
 package com.itsaky.androidide.fragments.debug
 
+import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -18,6 +21,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_NOT_CONNECTED
 import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_THREAD_SELECTOR
 import com.itsaky.androidide.lsp.debug.model.ThreadDescriptor
 import com.itsaky.androidide.lsp.debug.model.ThreadState
@@ -98,6 +102,13 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 
         binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
             showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.threadLayoutSelector.root)
+        }
+
+        binding.debuggerContents.debuggerContentContainer.rootView.setOnLongClickListener { view ->
+            if (viewModel.connectionState.value == DebuggerConnectionState.DETACHED) {
+                showToolTipDialog(DEBUG_NOT_CONNECTED, view)
+            }
+            true
         }
 
         viewLifecycleScope.launch(Dispatchers.Main) {
@@ -181,6 +192,9 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							ThreadSelectorListAdapter(
 								requireContext(),
 								descriptors,
+                                onItemLongClick = { thread, index, view ->
+                                    showToolTipDialog(DEBUG_THREAD_SELECTOR, view)
+                                }
 							),
 						)
 					}
@@ -224,12 +238,6 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 				viewModel.setSelectedThreadIndex(index)
 			}
 		}
-        
-        binding.debuggerContents.debuggerContentContainer.setOnClickListener { 
-            
-            true
-        }
-
 
 		val mediator =
 			TabLayoutMediator(
@@ -251,7 +259,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 	}
 
 	override fun onFragmentLongPressed() {
-		// TODO be defined
+        showToolTipDialog(DEBUG_NOT_CONNECTED)
 	}
 
     fun showToolTipDialog(
@@ -288,8 +296,10 @@ class DebuggerPagerAdapter(
 class ThreadSelectorListAdapter(
 	context: Context,
 	items: List<ThreadDescriptor?>,
+    private val onItemLongClick: ((ThreadDescriptor, Int, View) -> Unit)
 ) : ArrayAdapter<ThreadDescriptor?>(context, android.R.layout.simple_dropdown_item_1line, items) {
-	override fun getView(
+    @SuppressLint("ClickableViewAccessibility")
+    override fun getView(
 		position: Int,
 		convertView: View?,
 		parent: ViewGroup,
@@ -311,6 +321,36 @@ class ThreadSelectorListAdapter(
 		}
 
 		val isEnabled = item.state != ThreadState.UNKNOWN && item.state != ThreadState.ZOMBIE
+
+        if (isEnabled) {
+            var longPressDetected = false
+
+            val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onLongPress(e: MotionEvent) {
+                    longPressDetected = true
+                    try {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        if (view.isAttachedToWindow) {
+                            onItemLongClick.invoke(item, position, view)
+                        }
+                    } catch (e: Exception) {
+                        Log.d("ThreadAdapter", "Error on long press: ${e.message}")
+                    }
+                }
+
+                override fun onDown(e: MotionEvent): Boolean {
+                    longPressDetected = false
+                    return true
+                }
+            })
+
+            view.setOnTouchListener { v, event ->
+                gestureDetector.onTouchEvent(event)
+                longPressDetected // Only consume if long press was detected
+            }
+        } else {
+            view.setOnTouchListener(null)
+        }
 
 		view.isEnabled = isEnabled
 		view.text = item.displayText()
