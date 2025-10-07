@@ -208,7 +208,8 @@ private class SplitAttributesIndentSize(
 private class EmptyElementsBehavior(
   override val key: String = XmlPreferences.EMPTY_ELEMENTS_BEHAVIOR,
   override val title: Int = string.idepref_emptyElements_title,
-  override val summary: Int? = string.idepref_emptyElements_summary
+  override val summary: Int? = string.idepref_emptyElements_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) : SingleChoicePreference() {
 
   @IgnoredOnParcel
