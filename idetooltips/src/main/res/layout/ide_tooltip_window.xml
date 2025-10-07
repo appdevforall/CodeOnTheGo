@@ -26,7 +26,7 @@
         android:layout_height="wrap_content"
         android:contentDescription="@string/feedback_button_description"
         android:src="@drawable/ic_feedback"
-        android:alpha="0.7"
+        android:alpha="0.5"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:clickable="true"
         android:focusable="true"

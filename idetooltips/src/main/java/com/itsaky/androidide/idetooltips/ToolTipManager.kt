@@ -346,8 +346,6 @@ object TooltipManager {
         }
 
         val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
-        val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
-        feedbackButton.startAnimation(pulseAnimation)
 
         feedbackButton.setOnClickListener {
             onFeedbackButtonClicked(context, popupWindow, tooltipItem)
