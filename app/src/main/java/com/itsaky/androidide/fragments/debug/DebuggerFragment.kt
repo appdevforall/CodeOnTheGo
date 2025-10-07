@@ -175,7 +175,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 				    }
 
 				    val descriptor = withContext(Dispatchers.IO) {
-              thread!!.resolve()
+              thread?.resolve()
             }
 
             this@DebuggerFragment.context?.also { context ->
