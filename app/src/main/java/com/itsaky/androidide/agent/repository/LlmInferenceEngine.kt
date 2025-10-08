@@ -60,8 +60,7 @@ object LlmInferenceEngine {
 
     suspend fun initModelFromFile(context: Context, modelUriString: String): Boolean {
         if (!isInitialized) {
-            log.error("Engine not initialized. Call initialize() first.")
-            return false
+            initialize(context)
         }
         if (isModelLoaded) {
             releaseModel()

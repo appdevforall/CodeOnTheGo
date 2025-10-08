@@ -23,6 +23,32 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.reflect.jvm.javaMethod
 
+fun TaskContainer.registerD8Task(
+    taskName: String,
+    inputJar: File,
+    outputDex: File
+): org.gradle.api.tasks.TaskProvider<Exec> {
+    val androidSdkDir = android.sdkDirectory.absolutePath
+    val buildToolsVersion = android.buildToolsVersion // Gets the version from your project
+    val d8Executable = File("$androidSdkDir/build-tools/$buildToolsVersion/d8")
+
+    if (!d8Executable.exists()) {
+        throw FileNotFoundException("D8 executable not found at: ${d8Executable.absolutePath}")
+    }
+
+    return register<Exec>(taskName) {
+        inputs.file(inputJar)
+        outputs.file(outputDex)
+
+        commandLine(
+            d8Executable.absolutePath,
+            "--release", // Enables optimizations
+            "--output", outputDex.parent, // D8 outputs to a directory
+            inputJar.absolutePath
+        )
+    }
+}
+
 plugins {
 	id("com.android.application")
 	id("kotlin-android")
@@ -347,13 +373,46 @@ fun createAssetsZip(arch: String) {
 	val androidSdkName = "android-sdk-$arch.zip"
 
     val llamaAarName = when (arch) {
-        "arm64-v8a" -> "v8/llama-impl-v8-release.aar"
-        "armeabi-v7a" -> "v7/llama-impl-v7-release.aar"
+        "arm64-v8a" -> "llama-impl-v8-release.aar"
+        "armeabi-v7a" -> "llama-impl-v7-release.aar"
         else -> throw IllegalArgumentException("Unsupported architecture for Llama AAR: $arch")
     }
-    val llamaAarFile = project.rootDir.resolve("app/libs/$llamaAarName")
-    if (!llamaAarFile.exists()) {
-        throw FileNotFoundException("Llama AAR not found at: ${llamaAarFile.absolutePath}")
+    val originalLlamaAarFile = project.rootDir.resolve("llama-impl/build/outputs/aar/$llamaAarName")
+
+    // 1. Unzip the original classes.jar to a temporary location
+    val tempDir = project.layout.buildDirectory.dir("tmp/d8/$arch").get().asFile
+    tempDir.deleteRecursively()
+    tempDir.mkdirs()
+    val tempClassesJar = File(tempDir, "classes.jar")
+
+    ZipInputStream(originalLlamaAarFile.inputStream()).use { zis ->
+        var entry = zis.nextEntry
+        while (entry != null) {
+            if (entry.name == "classes.jar") {
+                tempClassesJar.outputStream().use { fos -> zis.copyTo(fos) }
+                break
+            }
+            entry = zis.nextEntry
+        }
+    }
+
+    // 2. Define the output path for our new classes.dex
+    val dexOutputFile = File(tempDir, "classes.dex")
+
+    // 3. Run the D8 command-line tool
+    project.exec {
+        val androidSdkDir = android.sdkDirectory.absolutePath
+        val buildToolsVersion = android.buildToolsVersion
+        commandLine(
+            "$androidSdkDir/build-tools/$buildToolsVersion/d8",
+            "--release",
+            "--output", tempDir.absolutePath,
+            tempClassesJar.absolutePath
+        )
+    }.assertNormalExitValue()
+
+    if (!dexOutputFile.exists()) {
+        throw GradleException("D8 task failed to produce classes.dex")
     }
 
     ZipOutputStream(zipFile.outputStream()).use { zipOut ->
@@ -382,23 +441,43 @@ fun createAssetsZip(arch: String) {
 			filePath.inputStream().use { input -> input.copyTo(zipOut) }
 			zipOut.closeEntry()
 		}
-        project.logger.lifecycle("Zipping Llama AAR from ${llamaAarFile.absolutePath}")
-        // We give it a generic name inside the ZIP so the app doesn't need to know if it was v7 or v8.
-        // This path matches the "dynamic_libs/llama.aar" used in the runtime code.
+        project.logger.lifecycle("Repackaging Llama AAR with classes.dex...")
+
+        // Create the entry for our modified AAR inside assets-*.zip
         zipOut.putNextEntry(ZipEntry("dynamic_libs/llama.aar"))
-        llamaAarFile.inputStream().use { input -> input.copyTo(zipOut) }
-        zipOut.closeEntry()
+
+        // Use another ZipOutputStream to build the new AAR in memory and stream it
+        ZipOutputStream(zipOut).use { aarZipOut ->
+            // Copy all files from the original AAR *except* classes.jar
+            ZipInputStream(originalLlamaAarFile.inputStream()).use { originalAarStream ->
+                var entry = originalAarStream.nextEntry
+                while (entry != null) {
+                    if (entry.name != "classes.jar") {
+                        aarZipOut.putNextEntry(ZipEntry(entry.name))
+                        originalAarStream.copyTo(aarZipOut)
+                        aarZipOut.closeEntry()
+                    }
+                    entry = originalAarStream.nextEntry
+                }
+            }
+
+            aarZipOut.putNextEntry(ZipEntry("classes.dex"))
+            dexOutputFile.inputStream().use { dexInput -> dexInput.copyTo(aarZipOut) }
+            aarZipOut.closeEntry()
+        }
 		println("Created ${zipFile.name} successfully at ${zipFile.parentFile.absolutePath}")
 	}
 }
 
 tasks.register("assembleV8Assets") {
+    dependsOn(":llama-impl:assembleV8Release")
 	doLast {
 		createAssetsZip("arm64-v8a")
 	}
 }
 
 tasks.register("assembleV7Assets") {
+    dependsOn(":llama-impl:assembleV7Release")
 	doLast {
 		createAssetsZip("armeabi-v7a")
 	}
