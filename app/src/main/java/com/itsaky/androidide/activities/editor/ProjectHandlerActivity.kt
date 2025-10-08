@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
 import androidx.activity.viewModels
@@ -69,10 +70,10 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_FOUND
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
-import com.itsaky.androidide.utils.ApkInstaller
+import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
-import com.itsaky.androidide.utils.InstallationResultHandler
+import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -88,6 +89,7 @@ import com.itsaky.androidide.viewmodel.ProjectViewModel
 import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.HELP_PAGE_URL
 import java.io.File
@@ -204,11 +206,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         observeStates()
         startServices()
 
-//        binding.endNav.visibility = if (isExperimentsEnabled()) {
-//            View.VISIBLE
-//        } else {
-//            View.GONE
-//        }
+        binding.endNav.visibility = if (isExperimentsEnabled()) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
     }
 
     private fun observeStates() {
@@ -266,9 +268,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             is BuildState.AwaitingInstall -> {
-                // ✅ The ViewModel has told us it's time to install!
-                installApk(state.apkFile)
-                // Tell the ViewModel we've handled the install event.
+                installApk(state)
                 buildViewModel.installationAttempted()
             }
         }
@@ -276,19 +276,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         invalidateOptionsMenu()
     }
 
-    private fun installApk(apk: File) {
-        log.debug("Installing APK: {}", apk)
-
-        if (!apk.exists()) {
-            log.error("APK file does not exist!")
-            return
-        }
-
-        ApkInstaller.installApk(
-            this,
-            InstallationResultHandler.createEditorActivitySender(this) { Intent() },
-            apk,
-            installationSessionCallback()
+    private fun installApk(state: BuildState.AwaitingInstall) {
+		apkInstallationViewModel.installApk(
+			context = this,
+			apk = state.apkFile,
+			launchInDebugMode = state.launchInDebugMode,
         )
     }
 

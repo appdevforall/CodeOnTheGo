@@ -20,10 +20,8 @@ package com.itsaky.androidide.activities.editor
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.pm.PackageInstaller.SessionCallback
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -115,7 +113,6 @@ import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
-import com.itsaky.androidide.utils.ApkInstallationSessionCallback
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
@@ -124,6 +121,7 @@ import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
@@ -177,12 +175,11 @@ abstract class BaseEditorActivity :
 	 */
 	protected val editorActivityScope = CoroutineScope(Dispatchers.Default)
 
-	internal var installationCallback: ApkInstallationSessionCallback? = null
-
 	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
 	val editorViewModel by viewModels<EditorViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
+	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
@@ -328,7 +325,7 @@ abstract class BaseEditorActivity :
 		isDebuggerStarting = true
 
 		val intent = Intent(this, DebuggerService::class.java)
-		if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
+		if (bindService(intent, debuggerServiceConnection, BIND_AUTO_CREATE)) {
 			postStopDebuggerServiceIfNotConnected()
 			doSetStatus(getString(string.debugger_starting))
 		} else {
@@ -396,7 +393,7 @@ abstract class BaseEditorActivity :
 
 	protected open fun preDestroy() {
 		BuildOutputProvider.clearBottomSheet()
-        _binding = null
+		_binding = null
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
@@ -406,8 +403,7 @@ abstract class BaseEditorActivity :
 
 		optionsMenuInvalidator = null
 
-		installationCallback?.destroy()
-		installationCallback = null
+		apkInstallationViewModel.destroy(this)
 
 		if (isDestroying) {
 			memoryUsageWatcher.stopWatching(true)
@@ -544,6 +540,7 @@ abstract class BaseEditorActivity :
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
 
+		setupStateObservers()
         setupViews()
         setupResizablePanel()
 
@@ -851,7 +848,7 @@ abstract class BaseEditorActivity :
 
         this.isDestroying = isFinishing
         getFileTreeFragment()?.saveTreeState()
-        
+
         // Clear current activity from plugin services when activity is finishing
         if (isFinishing) {
             IDEApplication.instance.setCurrentActivity(null)
@@ -865,13 +862,15 @@ abstract class BaseEditorActivity :
         memoryUsageWatcher.listener = memoryUsageListener
         memoryUsageWatcher.startWatching()
 
+		apkInstallationViewModel.reloadStatus(this)
+
         try {
             getFileTreeFragment()?.listProjectFiles()
         } catch (th: Throwable) {
             log.error("Failed to update files list", th)
             flashError(string.msg_failed_list_files)
         }
-        
+
         // Set this activity as current for plugin services
         IDEApplication.instance.setCurrentActivity(this)
     }
@@ -1115,7 +1114,7 @@ abstract class BaseEditorActivity :
         invalidateOptionsMenu()
     }
 
-	private fun setupViews() {
+	private fun setupStateObservers() {
 		lifecycleScope.launch {
 			repeatOnLifecycle(Lifecycle.State.CREATED) {
 				launch {
@@ -1145,33 +1144,35 @@ abstract class BaseEditorActivity :
 			}
 		}
 
-        editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
-        editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
-        editorViewModel._statusText.observe(this) {
-            content.bottomSheet.setStatus(
-                it.first,
-                it.second
-            )
-        }
+		editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._statusText.observe(this) {
+			content.bottomSheet.setStatus(
+				it.first,
+				it.second
+			)
+		}
 
-        editorViewModel.observeFiles(this) { files ->
-            if (this is EditorHandlerActivity) {
-                (this as EditorHandlerActivity).updateTabVisibility()
-            } else {
-                content.apply {
-                    if (files.isNullOrEmpty()) {
-                        tabs.visibility = View.GONE
-                        viewContainer.displayedChild = 1
-                    } else {
-                        tabs.visibility = View.VISIBLE
-                        viewContainer.displayedChild = 0
-                    }
-                }
-            }
+		editorViewModel.observeFiles(this) { files ->
+			if (this is EditorHandlerActivity) {
+				this.updateTabVisibility()
+			} else {
+				content.apply {
+					if (files.isNullOrEmpty()) {
+						tabs.visibility = View.GONE
+						viewContainer.displayedChild = 1
+					} else {
+						tabs.visibility = View.VISIBLE
+						viewContainer.displayedChild = 0
+					}
+				}
+			}
 
-            invalidateOptionsMenu()
-        }
+			invalidateOptionsMenu()
+		}
+	}
 
+	private fun setupViews() {
         setupNoEditorView()
         setupBottomSheet()
 
@@ -1343,10 +1344,6 @@ abstract class BaseEditorActivity :
             invalidateOptionsMenu()
             content.bottomSheet.onSoftInputChanged()
         }
-    }
-
-	open fun installationSessionCallback(): SessionCallback {
-        return ApkInstallationSessionCallback(this).also { installationCallback = it }
     }
 
     private fun observeFileOperations() {
