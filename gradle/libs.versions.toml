@@ -23,6 +23,7 @@ koinAndroid = "4.1.1"
 kotlin = "2.1.21"
 kotlin-coroutines = "1.9.0"
 kotlinxCoroutinesCore = "1.10.2"
+kotlinxSerializationJson = "1.9.0"
 lifecycleViewmodelKtx = "2.7.0"
 paletteKtx = "1.0.0"
 playServicesOssLicenses = "17.1.0"
@@ -106,6 +107,7 @@ gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koinAndroid" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }

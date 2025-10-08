@@ -304,6 +304,7 @@ dependencies {
 	implementation(libs.common.markwon.linkify)
 	implementation(libs.commons.text.v1140)
 
+    implementation(libs.kotlinx.serialization.json)
 	// Koin for Dependency Injection
     implementation(libs.koin.android)
 	implementation(libs.androidx.security.crypto)
@@ -315,8 +316,6 @@ dependencies {
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
     implementation(libs.google.genai)
-
-    //ai-agent
     implementation(project(":llama-api"))
     coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
 }
