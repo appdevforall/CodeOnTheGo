@@ -134,7 +134,8 @@ class MainFragment : BaseFragment() {
                             val intent =
                                 Intent(context, HelpActivity::class.java).apply {
                                     putExtra(CONTENT_KEY, getString(R.string.docs_url))
-                                    putExtra(CONTENT_TITLE_KEY, "CoGo Documentation")
+                                    putExtra(CONTENT_TITLE_KEY,
+                                        getString(R.string.back_to_cogo))
                                 }
                             context?.startActivity(intent)
                         }
