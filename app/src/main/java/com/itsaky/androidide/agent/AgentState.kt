@@ -1,7 +1,7 @@
 package com.itsaky.androidide.agent
 
 /**
- * Represents the various states of the Gemini agent during an operation.
+ * Represents the various states of the AI agent during an operation.
  */
 sealed class AgentState {
     object Idle : AgentState()
