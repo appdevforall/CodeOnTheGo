@@ -23,8 +23,8 @@ import java.util.Locale
 /** @author Akash Yadav */
 object ProjectConfig {
 	const val REPO_HOST = "github.com"
-	const val REPO_OWNER = "AndroidIDEOfficial"
-	const val REPO_NAME = "AndroidIDE"
+	const val REPO_OWNER = "appdevforall"
+	const val REPO_NAME = "CodeOnTheGo"
 	const val REPO_URL = "https://$REPO_HOST/$REPO_OWNER/$REPO_NAME"
 	const val SCM_GIT =
 		"scm:git:git://$REPO_HOST/$REPO_OWNER/$REPO_NAME.git"
