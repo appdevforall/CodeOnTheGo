@@ -899,4 +899,6 @@
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
 
+    <string name="back_to_cogo">Back to Code on the Go</string>
+
 </resources>

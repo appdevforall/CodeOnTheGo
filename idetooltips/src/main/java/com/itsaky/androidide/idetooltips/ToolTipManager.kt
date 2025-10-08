@@ -159,7 +159,7 @@ object TooltipManager {
                         val intent =
                             Intent(context, HelpActivity::class.java).apply {
                                 putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
+                                putExtra(CONTENT_TITLE_KEY, context.getString(R.string.back_to_cogo))
                                 if (context !is android.app.Activity) {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
@@ -191,7 +191,7 @@ object TooltipManager {
                         val intent =
                             Intent(context, HelpActivity::class.java).apply {
                                 putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, title)
+                                putExtra(CONTENT_TITLE_KEY, context.getString(R.string.back_to_cogo))
                                 if (context !is android.app.Activity) {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
