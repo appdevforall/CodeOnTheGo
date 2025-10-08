@@ -13,7 +13,6 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.UiThread
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.activityViewModels
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -29,8 +28,6 @@ import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.FEEDBACK
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
@@ -53,13 +50,11 @@ import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
-import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -164,10 +159,7 @@ class MainFragment : BaseFragment() {
 
         binding!!.actions.adapter = MainActionsListAdapter(actions)
 
-        binding!!.mainImage.setOnClickListener { openQuickstartPageAction() }
-        binding!!.getStarted.setOnClickListener { openQuickstartPageAction() }
-        binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
-
+        binding!!.headerContainer?.setOnClickListener { openQuickstartPageAction() }
         binding!!.headerContainer?.setOnLongClickListener {
             TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
@@ -324,10 +316,11 @@ class MainFragment : BaseFragment() {
 
     private fun openQuickstartPageAction() {
         context?.let { ctx ->
-            TooltipUtils.showWebPage(
-                ctx,
-                "http://localhost:6174/i/cogo-quickstart.html",
-            )
+            val intent = Intent(ctx, HelpActivity::class.java).apply {
+                putExtra(CONTENT_KEY, getString(R.string.quickstart_url))
+                putExtra(CONTENT_TITLE_KEY, "Back to Code on the Go")
+            }
+           context?.startActivity(intent)
         }
     }
 
