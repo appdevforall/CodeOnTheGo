@@ -197,14 +197,20 @@ object FeedbackManager {
 		customSubject: String,
 		metadata: String,
 		includeScreenshot: Boolean = true,
-		shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null
+		shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null,
+		appVersion: String? = null
 	) {
+		val message = buildString {
+			append(metadata)
+			append("\n\nApp Version: ${appVersion ?: "Unknown"}")
+		}
+
 		if (includeScreenshot) {
 			captureScreenshot(context) { screenshotFile ->
 				sendFeedbackWithAttachment(
 					context,
 					customSubject,
-					metadata,
+					message,
 					screenshotFile,
 					shareActivityResultLauncher
 				)
@@ -213,7 +219,7 @@ object FeedbackManager {
 			sendFeedbackWithAttachment(
 				context,
 				customSubject,
-				metadata,
+				message,
 				null,
 				shareActivityResultLauncher
 			)
