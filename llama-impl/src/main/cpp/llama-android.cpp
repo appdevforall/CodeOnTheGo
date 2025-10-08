@@ -384,8 +384,15 @@ Java_android_llama_cpp_LLamaAndroid_new_1batch(JNIEnv *, jobject, jint n_tokens,
 extern "C"
 JNIEXPORT void JNICALL
 Java_android_llama_cpp_LLamaAndroid_free_1batch(JNIEnv *, jobject, jlong batch_pointer) {
-    //llama_batch_free(*reinterpret_cast<llama_batch *>(batch_pointer));
     const auto batch = reinterpret_cast<llama_batch *>(batch_pointer);
+    if (!batch) return;
+
+    free(batch->token);
+    free(batch->embd);
+    free(batch->pos);
+    free(batch->n_seq_id);
+    free(batch->seq_id);
+    free(batch->logits);
     delete batch;
 }
 
@@ -467,6 +474,9 @@ Java_android_llama_cpp_LLamaAndroid_completion_1init(
 
     if (n_kv_req > n_ctx) {
         LOGe("error: n_kv_req > n_ctx, the required KV cache size is not big enough");
+        env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"),
+                      "Prompt is too long for the model's context size.");
+        return 0;
     }
 
     for (auto id: tokens_list) {
