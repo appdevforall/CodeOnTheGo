@@ -157,7 +157,7 @@ class MainFragment : BaseFragment() {
 
         FeedbackButtonManager(
             activity = requireActivity() as AppCompatActivity,
-            feedbackFab = binding?.floatingActionButton!!,
+            feedbackFab = binding?.floatingActionButton,
         ).setupDraggableFab()
     }
 
