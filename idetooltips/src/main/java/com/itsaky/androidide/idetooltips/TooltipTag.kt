@@ -26,6 +26,7 @@ object TooltipTag {
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
     const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
+    const val PREFS_GRADLE = "prefs.gradle"
 
     // General Preferences
     const val PREFS_EDITOR = "prefs.editor"
@@ -115,7 +116,15 @@ object TooltipTag {
     // Template Details
     const val SETUP_PREVIOUS = "setup.previous"
     const val SETUP_OVERVIEW = "setup.overview"
-    const val SETUP_CREATE_PROJECT = "setup.create.project"
+	const val SETUP_CREATE_PROJECT = "setup.create.project"
+
+    // Debugger
+    const val PROJECT_DEBUGGER_OUTPUT = "project.debugger.output"
+    const val DEBUG_THREAD_SELECTOR = "debug.thread.selector"
+    const val DEBUG_OUTPUT_VARIABLES = "debug.output.variables"
+    const val DEBUG_OUTPUT_CALLSTACK = "debug.output.callstack"
+    const val DEBUG_NOT_CONNECTED = "debug.not.connected"
+    const val DEBUG_THREAD_SELECT_DIALOG = "debug.thread.select.dialog"
     const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 
     const val DIALOG_FIND_IN_PROJECT = "project.find.dialog"
