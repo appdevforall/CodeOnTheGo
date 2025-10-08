@@ -134,7 +134,7 @@ inline static float ggml_lookup_fp16_to_fp32(ggml_fp16_t f) {
 #endif
 
 #if !defined(GGML_CPU_FP32_TO_FP16)
-#define GGML_CPU_FP32_TO_FP16(x) GGML_COMPUTE_FP32_TO_FP16(x)
+#define GGML_CPU_FP32_TO_FP16(x) GGML_CPU_COMPUTE_FP32_TO_FP16(x)
 #endif
 
 

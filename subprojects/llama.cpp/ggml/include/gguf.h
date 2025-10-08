@@ -161,33 +161,6 @@ extern "C" {
     // assumes that at least gguf_get_tensor_size bytes can be read from data
     GGML_API void gguf_set_tensor_data(struct gguf_context * ctx, const char * name, const void * data);
 
-    // writing gguf files can be done in 3 ways:
-    //
-    // - write the entire gguf_context to a binary file in a single pass:
-    //
-    //   gguf_write_to_file(ctx, fname, /*only_meta =*/ false);
-    //
-    // - write only the meta data to a file, then re-open the file and append the tensor data:
-    //
-    //   gguf_write_to_file(ctx, fname, /*only_meta =*/ true);
-    //   FILE * f = fopen(fname, "ab");
-    //   fwrite(f, ...); // write tensor data
-    //   fclose(f);
-    //
-    // - first prepare a file with a placeholder for the meta data, write the tensor data, then write the meta data:
-    //
-    //   FILE * f = fopen(fname, "wb");
-    //   const size_t size_meta = gguf_get_meta_size(ctx);
-    //   fseek(f, size_meta, SEEK_SET);
-    //   fwrite(f, ...); // write tensor data
-    //   void * data = malloc(size_meta);
-    //   gguf_get_meta_data(ctx, data);
-    //   rewind(f);
-    //   fwrite(data, 1, data, f);
-    //   free(data);
-    //   fclose(f);
-    //
-
     // write the entire context to a binary file
     GGML_API bool gguf_write_to_file(const struct gguf_context * ctx, const char * fname, bool only_meta);
 

@@ -165,7 +165,7 @@ void quantize_row_q8_K(const float * GGML_RESTRICT x, void * GGML_RESTRICT y, in
         min_vec = wasm_f32x4_pmin(min_vec, wasm_i32x4_shuffle(min_vec, min_vec, 1, 0, 3, 2));
         float max = wasm_f32x4_extract_lane(max_vec, 0);
         float min = wasm_f32x4_extract_lane(min_vec, 0);
-        float amax = -min > max ? min : max;
+        float amax = -min > max ? -min : max;
 
         if (amax == 0.0f) {
             yc[i].d = 0.0f;
