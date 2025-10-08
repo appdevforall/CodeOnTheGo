@@ -27,7 +27,7 @@ class FeedbackEmailHandler(
 	val context: Context,
 ) {
 	companion object {
-		private const val SCREENSHOTS_DIR = "feedback_screenshots"
+        const val SCREENSHOTS_DIR = "feedback_screenshots"
 		private val log = LoggerFactory.getLogger(FeedbackEmailHandler::class.java)
 	}
 

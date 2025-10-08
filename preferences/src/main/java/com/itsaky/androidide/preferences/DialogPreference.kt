@@ -19,7 +19,9 @@ package com.itsaky.androidide.preferences
 
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.applyLongPressRecursively
 
 /**
  * A preference which shows a dialog when clicked.
@@ -33,6 +35,7 @@ abstract class DialogPreference : SimplePreference() {
 
   open val dialogMessage: Int? = null
   open val dialogCancellable: Boolean = false
+  open val tooltipTag: String = ""
 
   override fun onPreferenceClick(preference: Preference): Boolean {
     val dialog = DialogUtils.newMaterialDialogBuilder(preference.context)
@@ -40,7 +43,20 @@ abstract class DialogPreference : SimplePreference() {
     dialogMessage?.let { dialog.setMessage(it) }
     dialog.setCancelable(this.dialogCancellable)
     onConfigureDialog(preference, dialog)
-    dialog.show()
+    val alertDialog = dialog.create()
+    alertDialog.show()
+
+      val listView = alertDialog.listView
+      listView?.setOnItemLongClickListener { _, view, position, _ ->
+          TooltipManager.showTooltip(preference.context, view, tooltipTag)
+          true
+      }
+
+    alertDialog.window?.decorView?.applyLongPressRecursively {
+        TooltipManager.showTooltip(preference.context, it, tooltipTag)
+        true
+    }
+
     return true
   }
 
