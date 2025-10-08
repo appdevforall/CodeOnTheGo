@@ -1,8 +1,8 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
-import android.llama.cpp.LLamaAndroid
 import androidx.core.net.toUri
+import com.itsaky.androidide.llamacpp.api.ILlamaController
 import com.itsaky.androidide.utils.DynamicLibraryLoader
 import com.itsaky.androidide.utils.getFileName
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +20,7 @@ import java.io.FileOutputStream
 object LlmInferenceEngine {
     private val log = LoggerFactory.getLogger(LlmInferenceEngine::class.java)
 
-    private var llamaController: LLamaAndroid? = null
+    private var llamaController: ILlamaController? = null
     private var isInitialized = false
 
     var isModelLoaded = false
@@ -48,7 +48,7 @@ object LlmInferenceEngine {
             val instanceMethod = llamaAndroidClass.getMethod("instance")
             val llamaInstance = instanceMethod.invoke(null) // 'null' for static method
 
-            llamaController = llamaInstance as LLamaAndroid
+            llamaController = llamaInstance as ILlamaController
             isInitialized = true
             log.info("Llama Inference Engine initialized successfully.")
             true

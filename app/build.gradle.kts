@@ -281,6 +281,7 @@ dependencies {
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
     implementation(libs.google.genai)
+    implementation(project(":llama-api"))
 }
 
 tasks.register("downloadDocDb") {

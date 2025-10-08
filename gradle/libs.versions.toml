@@ -18,6 +18,7 @@ junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
 kotlin = "2.1.21"
 kotlin-coroutines = "1.9.0"
+kotlinxCoroutinesCore = "1.10.2"
 lifecycleViewmodelKtx = "2.7.0"
 paletteKtx = "1.0.0"
 playServicesOssLicenses = "17.1.0"
@@ -97,6 +98,7 @@ composite-treeview = { module = "com.itsaky.androidide.build:treeview" }
 google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 gson-v2101 = { module = "com.google.code.gson:gson", version.ref = "gson" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
 play-services-oss-licenses = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
