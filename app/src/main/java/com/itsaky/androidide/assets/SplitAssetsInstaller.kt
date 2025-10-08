@@ -95,7 +95,6 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
                         destDir.mkdirs()
                         val destFile = File(destDir, "llama.aar")
 
-                        // 2. Copy the file from the ZIP to the destination
                         logger.debug("Extracting '{}' to {}", entry.name, destFile.absolutePath)
                         destFile.outputStream().use { output ->
                             zipInput.copyTo(output)
