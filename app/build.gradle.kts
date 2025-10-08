@@ -347,8 +347,6 @@ fun createAssetsZip(arch: String) {
 	val bootstrapName = "bootstrap-$arch.zip"
 	val androidSdkName = "android-sdk-$arch.zip"
 
-    // --- START: ADDED LOGIC ---
-    // 1. Determine which Llama AAR to bundle based on the architecture
     val llamaAarName = when (arch) {
         "arm64-v8a" -> "v8/llama-v8-release.aar"
         "armeabi-v7a" -> "v7/llama-v7-release.aar"
