@@ -30,6 +30,7 @@ android {
 dependencies {
 	implementation(projects.common)
 	implementation(projects.eventbusEvents)
+	implementation(projects.idetooltips)
 	implementation(projects.resources)
 	implementation(projects.shared)
 	implementation(libs.androidx.annotation)
