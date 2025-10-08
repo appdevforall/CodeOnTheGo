@@ -347,8 +347,8 @@ fun createAssetsZip(arch: String) {
 	val androidSdkName = "android-sdk-$arch.zip"
 
     val llamaAarName = when (arch) {
-        "arm64-v8a" -> "v8/llama-v8-release.aar"
-        "armeabi-v7a" -> "v7/llama-v7-release.aar"
+        "arm64-v8a" -> "v8/llama-impl-v8-release.aar"
+        "armeabi-v7a" -> "v7/llama-impl-v7-release.aar"
         else -> throw IllegalArgumentException("Unsupported architecture for Llama AAR: $arch")
     }
     val llamaAarFile = project.rootDir.resolve("app/libs/$llamaAarName")
