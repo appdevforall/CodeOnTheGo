@@ -108,6 +108,11 @@ android {
 		release {
 			manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
 		}
 	}
 
@@ -144,6 +149,11 @@ android {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/gradle/incremental.annotation.processors")
         }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 }
 
@@ -308,6 +318,7 @@ dependencies {
 	implementation(libs.androidx.lifecycle.process)
     implementation(libs.google.genai)
     implementation(project(":llama-api"))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
 
 tasks.register("downloadDocDb") {
@@ -357,21 +368,17 @@ tasks.register("downloadDocDb") {
 }
 
 fun createAssetsZip(arch: String) {
-	val outputDir =
-		project.layout.buildDirectory
-			.dir("outputs/assets")
-			.get()
-			.asFile
-	if (!outputDir.exists()) {
-		outputDir.mkdirs()
-		println("Creating output directory: ${outputDir.absolutePath}")
-	}
+    val outputDir =
+        project.layout.buildDirectory
+            .dir("outputs/assets")
+            .get()
+            .asFile
+    if (!outputDir.exists()) {
+        outputDir.mkdirs()
+    }
+    val zipFile = outputDir.resolve("assets-$arch.zip")
 
-	val zipFile = outputDir.resolve("assets-$arch.zip")
-	val sourceDir = project.rootDir.resolve("assets")
-	val bootstrapName = "bootstrap-$arch.zip"
-	val androidSdkName = "android-sdk-$arch.zip"
-
+    // --- Part 1: Get the classes.jar from our llama-impl AAR ---
     val llamaAarName = when (arch) {
         "arm64-v8a" -> "llama-impl-v8-release.aar"
         "armeabi-v7a" -> "llama-impl-v7-release.aar"
@@ -379,12 +386,12 @@ fun createAssetsZip(arch: String) {
     }
     val originalLlamaAarFile = project.rootDir.resolve("llama-impl/build/outputs/aar/$llamaAarName")
 
-    // 1. Unzip the original classes.jar to a temporary location
     val tempDir = project.layout.buildDirectory.dir("tmp/d8/$arch").get().asFile
     tempDir.deleteRecursively()
     tempDir.mkdirs()
     val tempClassesJar = File(tempDir, "classes.jar")
 
+    // Extract just the classes.jar from our target AAR
     ZipInputStream(originalLlamaAarFile.inputStream()).use { zis ->
         var entry = zis.nextEntry
         while (entry != null) {
@@ -395,26 +402,75 @@ fun createAssetsZip(arch: String) {
             entry = zis.nextEntry
         }
     }
+    if (!tempClassesJar.exists()) {
+        throw GradleException("classes.jar not found inside ${originalLlamaAarFile.name}")
+    }
 
-    // 2. Define the output path for our new classes.dex
+    val llamaImplProject = project.project(":llama-impl")
+    val flavorName = if (arch == "arm64-v8a") "v8" else "v7"
+    val configName = "${flavorName}ReleaseRuntimeClasspath"
+    val runtimeClasspathFiles = llamaImplProject.configurations.getByName(configName).files
+
+    val explodedAarsDir = project.layout.buildDirectory.dir("tmp/exploded-aars/$arch").get().asFile
+    explodedAarsDir.mkdirs()
+
+    val d8Classpath = mutableListOf<File>()
+    runtimeClasspathFiles.forEach { file ->
+        if (file.name.endsWith(".jar")) {
+            d8Classpath.add(file)
+        } else if (file.name.endsWith(".aar")) {
+            // It's an AAR, extract its classes.jar
+            project.copy {
+                from(project.zipTree(file)) {
+                    include("classes.jar")
+                }
+                into(explodedAarsDir)
+                // Rename to avoid collisions
+                rename { "${file.nameWithoutExtension}-classes.jar" }
+            }
+            d8Classpath.add(File(explodedAarsDir, "${file.nameWithoutExtension}-classes.jar"))
+        }
+    }
+
+    // --- Part 3: Run D8 with the corrected command-line arguments ---
     val dexOutputFile = File(tempDir, "classes.dex")
-
-    // 3. Run the D8 command-line tool
     project.exec {
         val androidSdkDir = android.sdkDirectory.absolutePath
         val buildToolsVersion = android.buildToolsVersion
-        commandLine(
-            "$androidSdkDir/build-tools/$buildToolsVersion/d8",
-            "--release",
-            "--output", tempDir.absolutePath,
-            tempClassesJar.absolutePath
-        )
+        val d8Executable = File("$androidSdkDir/build-tools/$buildToolsVersion/d8")
+
+        // 1. Start building the command arguments list
+        val d8Command = mutableListOf<String>()
+        d8Command.add(d8Executable.absolutePath)
+        d8Command.add("--release")
+        d8Command.add("--min-api")
+        d8Command.add(android.defaultConfig.minSdk.toString()) // Add minSdk for better desugaring
+
+        // 2. Add the --classpath flag REPEATEDLY for each dependency file
+        d8Classpath.forEach { file ->
+            if (file.exists()) {
+                d8Command.add("--classpath")
+                d8Command.add(file.absolutePath)
+            }
+        }
+
+        // 3. Add the final output and input arguments
+        d8Command.add("--output")
+        d8Command.add(tempDir.absolutePath)
+        d8Command.add(tempClassesJar.absolutePath)
+
+        // 4. Set the full command line
+        commandLine(d8Command)
     }.assertNormalExitValue()
 
     if (!dexOutputFile.exists()) {
         throw GradleException("D8 task failed to produce classes.dex")
     }
 
+    // --- Part 4: Repackage everything into the final assets-*.zip (Unchanged) ---
+    val sourceDir = project.rootDir.resolve("assets")
+    val bootstrapName = "bootstrap-$arch.zip"
+    val androidSdkName = "android-sdk-$arch.zip"
     ZipOutputStream(zipFile.outputStream()).use { zipOut ->
         arrayOf(
             androidSdkName,
@@ -460,13 +516,12 @@ fun createAssetsZip(arch: String) {
                     entry = originalAarStream.nextEntry
                 }
             }
-
             aarZipOut.putNextEntry(ZipEntry("classes.dex"))
             dexOutputFile.inputStream().use { dexInput -> dexInput.copyTo(aarZipOut) }
             aarZipOut.closeEntry()
         }
-		println("Created ${zipFile.name} successfully at ${zipFile.parentFile.absolutePath}")
-	}
+        println("Created ${zipFile.name} successfully at ${zipFile.parentFile.absolutePath}")
+    }
 }
 
 tasks.register("assembleV8Assets") {

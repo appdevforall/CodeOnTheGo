@@ -1,5 +1,3 @@
-// In a file like: app/src/main/java/com/itsaky/androidide/utils/DynamicLibraryLoader.kt
-
 package com.itsaky.androidide.utils
 
 import android.content.Context
@@ -14,34 +12,33 @@ object DynamicLibraryLoader {
     private const val LLAMA_LIB_VERSION = 1 // Increment this if you update the AAR
 
     fun getLlamaClassLoader(context: Context): ClassLoader? {
-        // 1. Find the AAR file that the installer already extracted.
         val extractedAarFile =
             File(context.getDir("dynamic_libs", Context.MODE_PRIVATE), "llama.aar")
         if (!extractedAarFile.exists()) {
-            Log.e(
-                "DynamicLoad",
-                "Llama AAR not found at its installed location. Did the asset installation run?"
-            )
+            Log.e("DynamicLoad", "Llama AAR not found. Did asset installation run?")
             return null
         }
 
-        // 2. Unzip the AAR into a versioned 'codeCache' directory.
-        //    This is where the .so files and classes.jar will live.
-        val baseDir = File(context.codeCacheDir, "llama_runtime")
-        val versionedDir = File(baseDir, "v$LLAMA_LIB_VERSION")
+        // 1. Use a private, versioned directory for the UNZIPPED code.
+        // This is separate from the codeCache.
+        val baseUnzipDir = context.getDir("llama_unzipped", Context.MODE_PRIVATE)
+        val versionedUnzipDir = File(baseUnzipDir, "v$LLAMA_LIB_VERSION")
 
-        if (!versionedDir.exists()) {
+        // 2. Use a different directory for the OPTIMIZED dex files.
+        val optimizedDir = File(context.codeCacheDir, "llama_opt")
+
+        if (!versionedUnzipDir.exists()) {
             Log.i("DynamicLoad", "Unzipping Llama AAR for first use...")
-            baseDir.deleteRecursively()
-            versionedDir.mkdirs()
+            baseUnzipDir.deleteRecursively()
+            versionedUnzipDir.mkdirs()
             try {
                 ZipInputStream(extractedAarFile.inputStream()).use { zipStream ->
                     var entry = zipStream.nextEntry
                     while (entry != null) {
-                        val outputFile = File(versionedDir, entry.name)
+                        val outputFile = File(versionedUnzipDir, entry.name)
                         outputFile.parentFile?.mkdirs()
                         if (!entry.isDirectory) {
-                            outputFile.outputStream().use { it.write(zipStream.readBytes()) }
+                            outputFile.outputStream().use { fos -> zipStream.copyTo(fos) }
                         }
                         zipStream.closeEntry()
                         entry = zipStream.nextEntry
@@ -49,26 +46,29 @@ object DynamicLibraryLoader {
                 }
             } catch (e: Exception) {
                 Log.e("DynamicLoad", "Failed to unzip the installed Llama AAR", e)
-                baseDir.deleteRecursively() // Clean up failed attempt
+                baseUnzipDir.deleteRecursively()
                 return null
             }
         }
 
-        // 3. Create the ClassLoader pointing to the unzipped contents.
-        val jarFile = File(versionedDir, "classes.jar")
-        val optimizedDir = File(versionedDir, "dex_opt").also { it.mkdirs() }
+        val dexFile = File(versionedUnzipDir, "classes.dex")
         val abi = Build.SUPPORTED_ABIS[0]
-        val nativeLibPath = File(versionedDir, "jni/$abi").absolutePath
+        val nativeLibDir = File(versionedUnzipDir, "jni/$abi")
 
-        if (!jarFile.exists() || !File(nativeLibPath).exists()) {
-            Log.e("DynamicLoad", "AAR contents are invalid (classes.jar or native libs missing).")
+        if (!dexFile.exists() || !nativeLibDir.exists()) {
+            Log.e("DynamicLoad", "AAR contents are invalid (classes.dex or native libs missing).")
+            baseUnzipDir.deleteRecursively()
             return null
         }
 
+        // Ensure the optimized directory exists and is clean
+        optimizedDir.deleteRecursively()
+        optimizedDir.mkdirs()
+
         return DexClassLoader(
-            jarFile.absolutePath,
-            optimizedDir.absolutePath,
-            nativeLibPath,
+            dexFile.absolutePath,
+            optimizedDir.absolutePath, // Use the dedicated optimized directory
+            nativeLibDir.absolutePath,
             context.classLoader
         )
     }
