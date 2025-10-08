@@ -67,10 +67,6 @@ const val CONTENT_TITLE_KEY = "CONTENT_TITLE_KEY"
 // Toml
 const val TOML_FILE_NAME = "libs.versions.toml"
 
-// Help
-const val HELP_PAGE_URL =
-	"file:///android_asset/CoGoTooltips/html/cogohelp/index.html"
-
 // Documentation
 const val DOCUMENTATION_DB = "documentation.db"
 
