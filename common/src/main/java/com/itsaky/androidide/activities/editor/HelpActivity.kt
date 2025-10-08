@@ -20,10 +20,12 @@ package com.itsaky.androidide.activities.editor
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
+import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
+import com.itsaky.androidide.utils.isSystemInDarkMode
 import org.adfa.constants.CONTENT_TITLE_KEY
 
 class HelpActivity : BaseIDEActivity() {
@@ -46,6 +48,12 @@ class HelpActivity : BaseIDEActivity() {
             setSupportActionBar(toolbar)
             supportActionBar!!.setDisplayHomeAsUpEnabled(true)
             toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+
+            // Set status bar icons to be dark in light mode and light in dark mode
+            WindowCompat.getInsetsController(this@HelpActivity.window, this@HelpActivity.window.decorView).apply {
+                isAppearanceLightStatusBars = !isSystemInDarkMode()
+                isAppearanceLightNavigationBars = !isSystemInDarkMode()
+            }
 
             val pageTitle = intent.getStringExtra(CONTENT_TITLE_KEY)
             val htmlContent = intent.getStringExtra(CONTENT_KEY)
