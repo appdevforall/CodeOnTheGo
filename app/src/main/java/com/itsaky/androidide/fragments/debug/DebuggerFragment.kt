@@ -245,7 +245,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
       }
 
 		binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
-		mediator.attach()
+		mediator?.attach()
 	}
 
 	override fun onDestroyView() {
