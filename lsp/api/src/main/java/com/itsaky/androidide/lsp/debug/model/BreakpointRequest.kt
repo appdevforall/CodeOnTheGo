@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.debug.model
 
+import com.google.gson.annotations.SerializedName
 import com.itsaky.androidide.lsp.debug.RemoteClient
 
 enum class SuspendPolicy {
@@ -75,11 +76,22 @@ interface BreakpointDefinition {
  * @property logMessage The message to log when the breakpoint is hit.
  */
 data class PositionalBreakpoint(
+    @SerializedName("source")
     override val source: Source,
+
+    @SerializedName("line")
     val line: Int,
+
+    @SerializedName("column")
     val column: Int = 0,
+
+    @SerializedName("condition")
     override val condition: String? = null,
+
+    @SerializedName("hitCondition")
     override val hitCondition: String? = null,
+
+    @SerializedName("logMessage")
     override val logMessage: String? = null,
 ): BreakpointDefinition
 
@@ -93,10 +105,21 @@ data class PositionalBreakpoint(
  * @property logMessage The message to log when the breakpoint is hit.
  */
 data class MethodBreakpoint(
+    @SerializedName("source")
     override val source: Source,
+
+    @SerializedName("methodId")
     val methodId: String,
+
+    @SerializedName("methodArgs")
     val methodArgs: List<String>,
+
+    @SerializedName("condition")
     override val condition: String? = null,
+
+    @SerializedName("hitCondition")
     override val hitCondition: String? = null,
+
+    @SerializedName("logMessage")
     override val logMessage: String? = null,
 ): BreakpointDefinition
