@@ -74,7 +74,6 @@ import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
-import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -90,9 +89,7 @@ import com.itsaky.androidide.viewmodel.ProjectViewModel
 import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.HELP_PAGE_URL
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
@@ -269,7 +266,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             is BuildState.AwaitingInstall -> {
-                installApk(state.apkFile)
+                installApk(state)
                 buildViewModel.installationAttempted()
             }
         }
@@ -277,11 +274,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         invalidateOptionsMenu()
     }
 
-    private fun installApk(apk: File) {
+    private fun installApk(state: BuildState.AwaitingInstall) {
 		apkInstallationViewModel.installApk(
 			context = this,
-			file = apk,
-		)
+			apk = state.apkFile,
+			launchInDebugMode = state.launchInDebugMode,
+        )
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -863,7 +861,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     private fun openHelpActivity() {
         val intent = Intent(this, HelpActivity::class.java)
-        intent.putExtra(CONTENT_KEY, HELP_PAGE_URL)
+        intent.putExtra(CONTENT_KEY, getString(string.docs_url))
         startActivity(intent)
     }
 
