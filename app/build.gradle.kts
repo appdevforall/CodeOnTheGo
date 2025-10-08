@@ -347,15 +347,27 @@ fun createAssetsZip(arch: String) {
 	val bootstrapName = "bootstrap-$arch.zip"
 	val androidSdkName = "android-sdk-$arch.zip"
 
-	ZipOutputStream(zipFile.outputStream()).use { zipOut ->
-		arrayOf(
-			androidSdkName,
-			"localMvnRepository.zip",
-			"gradle-8.14.3-bin.zip",
-			"gradle-api-8.14.3.jar.zip",
-			"documentation.db",
-			bootstrapName,
-		).forEach { fileName ->
+    // --- START: ADDED LOGIC ---
+    // 1. Determine which Llama AAR to bundle based on the architecture
+    val llamaAarName = when (arch) {
+        "arm64-v8a" -> "v8/llama-v8-release.aar"
+        "armeabi-v7a" -> "v7/llama-v7-release.aar"
+        else -> throw IllegalArgumentException("Unsupported architecture for Llama AAR: $arch")
+    }
+    val llamaAarFile = project.rootDir.resolve("app/libs/$llamaAarName")
+    if (!llamaAarFile.exists()) {
+        throw FileNotFoundException("Llama AAR not found at: ${llamaAarFile.absolutePath}")
+    }
+
+    ZipOutputStream(zipFile.outputStream()).use { zipOut ->
+        arrayOf(
+            androidSdkName,
+            "localMvnRepository.zip",
+            "gradle-8.14.3-bin.zip",
+            "gradle-api-8.14.3.jar.zip",
+            "documentation.db",
+            bootstrapName,
+        ).forEach { fileName ->
 			val filePath = sourceDir.resolve(fileName)
 			if (!filePath.exists()) {
 				throw FileNotFoundException(filePath.absolutePath)
@@ -373,7 +385,12 @@ fun createAssetsZip(arch: String) {
 			filePath.inputStream().use { input -> input.copyTo(zipOut) }
 			zipOut.closeEntry()
 		}
-
+        project.logger.lifecycle("Zipping Llama AAR from ${llamaAarFile.absolutePath}")
+        // We give it a generic name inside the ZIP so the app doesn't need to know if it was v7 or v8.
+        // This path matches the "dynamic_libs/llama.aar" used in the runtime code.
+        zipOut.putNextEntry(ZipEntry("dynamic_libs/llama.aar"))
+        llamaAarFile.inputStream().use { input -> input.copyTo(zipOut) }
+        zipOut.closeEntry()
 		println("Created ${zipFile.name} successfully at ${zipFile.parentFile.absolutePath}")
 	}
 }
