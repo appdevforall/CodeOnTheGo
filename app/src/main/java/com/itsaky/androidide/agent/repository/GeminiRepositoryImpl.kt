@@ -11,8 +11,8 @@
 //import com.itsaky.androidide.agent.repository.GeminiTools.allMyTools
 //import com.itsaky.androidide.agent.viewmodel.ExecutorAgent
 //import com.itsaky.androidide.api.IDEApiFacade
-//import com.itsaky.androidide.models.AgentState
-//import com.itsaky.androidide.models.ChatMessage
+//import com.itsaky.androidide.agent.AgentState
+//import com.itsaky.androidide.agent.ChatMessage
 //import com.itsaky.androidide.models.PlanStep
 //import com.itsaky.androidide.models.StepResult
 //import kotlinx.coroutines.Dispatchers
