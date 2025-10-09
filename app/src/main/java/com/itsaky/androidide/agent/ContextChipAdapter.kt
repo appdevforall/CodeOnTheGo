@@ -1,4 +1,4 @@
-package com.itsaky.androidide.adapters
+package com.itsaky.androidide.agent
 
 import android.view.LayoutInflater
 import android.view.ViewGroup

@@ -20,7 +20,6 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
-import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -345,7 +344,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
   private inner class RightDragCallback : ViewDragHelper.Callback() {
     override fun tryCaptureView(child: View, pointerId: Int): Boolean {
-      return child.id == R.id.right_drawer_sidebar
+        return true//child.id == R.id.right_drawer_sidebar
     }
 
     override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {

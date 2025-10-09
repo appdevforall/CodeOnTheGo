@@ -163,4 +163,22 @@
     <string name="tooltip_size">Size</string>
     <string name="warning_import_compatibility">*Be aware it will fail to import when you try to import the layout file with view, different from LayoutEditor view set!</string>
     <string name="default_layout_name">layout_new</string>
+
+    <string name="gemini_api_key">Gemini API Key</string>
+    <string name="save_key">Save Key</string>
+    <string name="clear">Clear</string>
+    <string name="edit">Edit</string>
+    <string name="gemini_api_key_saved_on">Gemini API Key saved on %s</string>
+
+    <string name="ai_agent">AI Agent</string>
+    <string name="new_chat">New Chat</string>
+    <string name="history">History</string>
+    <string name="ai_settings">AI Settings</string>
+    <string name="agent_close">Close</string>
+    <string name="api_key_is_saved">API Key is saved.</string>
+
+    <string name="api_key_cleared">API Key cleared.</string>
+    <string name="api_key_cannot_be_empty">API Key cannot be empty.</string>
+    <string name="api_key_saved_securely">API Key saved securely.</string>
+    <string name="obfuscated_api_key">••••••••••••••••••••</string>
 </resources>
