@@ -31,7 +31,6 @@
     android:layout_marginTop="@dimen/sidebar_header_logo_margin_top"
     android:adjustViewBounds="true"
     android:scaleType="fitCenter"
-    app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Medium"
     app:srcCompat="@drawable/app_dev_for_all_logo" />
 
 </FrameLayout>
