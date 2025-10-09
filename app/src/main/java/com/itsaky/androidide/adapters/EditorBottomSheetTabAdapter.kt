@@ -117,6 +117,14 @@ class EditorBottomSheetTabAdapter(
 		addPluginTabs()
 	}
 
+	fun clearAll() {
+    val size = tabs.size
+    if (size == 0) return
+    tabs.clear()
+    pluginFragmentFactories.clear()
+    notifyDataSetChanged()
+  }
+
 	fun removeFragment(klass: Class<out Fragment>) {
 		val index = findIndexOfFragmentByClass(klass)
 		if (index == -1) {

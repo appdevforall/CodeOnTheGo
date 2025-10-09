@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class IDELogFragment : LogViewFragment() {
-	private val lifecycleAwareAppender = LifecycleAwareAppender(Lifecycle.State.CREATED)
+	private var lifecycleAwareAppender: LifecycleAwareAppender? = LifecycleAwareAppender(Lifecycle.State.CREATED)
 
 	override fun isSimpleFormattingEnabled() = true
 
@@ -51,14 +51,14 @@ class IDELogFragment : LogViewFragment() {
 		// Register with GlobalBufferAppender to receive all logs (including buffered ones)
 		GlobalBufferAppender.registerConsumer(this::appendLine)
 
-		lifecycleAwareAppender.consumer = this::appendLine
-		lifecycleAwareAppender.attachTo(viewLifecycleOwner)
+		lifecycleAwareAppender?.consumer = this::appendLine
+		lifecycleAwareAppender?.attachTo(viewLifecycleOwner)
 
 		val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
 		val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
 
-		lifecycleAwareAppender.context = loggerContext
-		lifecycleAwareAppender.start()
+		lifecycleAwareAppender?.context = loggerContext
+		lifecycleAwareAppender?.start()
 
 		rootLogger.addAppender(lifecycleAwareAppender)
 	}
@@ -69,9 +69,10 @@ class IDELogFragment : LogViewFragment() {
 		// Unregister from GlobalBufferAppender
 		GlobalBufferAppender.unregisterConsumer(this::appendLine)
 
-		lifecycleAwareAppender.stop()
+		lifecycleAwareAppender?.stop()
 
 		val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
 		logger.detachAppender(lifecycleAwareAppender)
+		lifecycleAwareAppender = null
 	}
 }
