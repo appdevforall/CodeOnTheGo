@@ -3,30 +3,19 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/menu_new_chat"
-        android:title="New Chat"
+        android:title="@string/new_chat"
         android:icon="@drawable/ic_add"
         app:showAsAction="ifRoom" />
     <item
         android:id="@+id/menu_chat_history"
-        android:title="History"
+        android:title="@string/history"
         android:icon="@drawable/chat_history"
         app:showAsAction="ifRoom" />
     <item
-        android:id="@+id/menu_chat_export"
-        android:title="Export Chat" />
-    <item
-        android:id="@+id/menu_chat_share"
-        android:title="Share" />
-    <item
-        android:id="@+id/menu_chat_delete"
-        android:title="Delete Chat" />
-    <item
         android:id="@+id/menu_ai_settings"
-        android:title="AI Settings"
-        android:icon="@drawable/ic_settings"
-        app:showAsAction="ifRoom" />
-
+        android:title="@string/ai_settings"
+        android:icon="@drawable/ic_settings" />
     <item
         android:id="@+id/menu_chat_close"
-        android:title="Close" />
+        android:title="@string/close" />
 </menu>
