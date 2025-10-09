@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AnimationUtils
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
@@ -21,7 +22,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FeedbackManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -337,9 +340,18 @@ object TooltipManager {
         popupWindow.isFocusable = true
         popupWindow.isOutsideTouchable = true
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
+
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
         infoButton.setOnClickListener {
             onInfoButtonClicked(context, popupWindow, tooltipItem)
+        }
+
+        val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
+        val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
+        feedbackButton.startAnimation(pulseAnimation)
+
+        feedbackButton.setOnClickListener {
+            onFeedbackButtonClicked(context, popupWindow, tooltipItem)
         }
     }
 
@@ -377,6 +389,46 @@ object TooltipManager {
             }
             .setCancelable(true) // Allow dismissing by tapping outside
             .show()
+    }
+
+    private fun onFeedbackButtonClicked(
+        context: Context,
+        popupWindow: PopupWindow,
+        tooltip: IDETooltipItem
+    ) {
+        popupWindow.dismiss()
+
+        val feedbackMetadata = buildTooltipFeedbackMetadata(tooltip)
+
+        FeedbackManager.sendFeedbackWithScreenshot(
+            context = context,
+            customSubject = "Tooltip Feedback - ${tooltip.tag}",
+            metadata = feedbackMetadata,
+            includeScreenshot = true,
+            appVersion = BuildInfo.VERSION_NAME_SIMPLE
+        )
+    }
+
+
+    private fun buildTooltipFeedbackMetadata(tooltip: IDETooltipItem): String {
+        return """
+            Please describe your feedback above this line.
+
+            --- Tooltip Information ---
+            Version: '${tooltip.lastChange}'
+            Row: ${tooltip.rowId}
+            ID: ${tooltip.id}
+            Category: '${tooltip.category}'
+            Tag: '${tooltip.tag}'
+
+            Summary: '${tooltip.summary}'
+            Detail: '${tooltip.detail}'
+
+            Buttons:
+            ${tooltip.buttons.joinToString("\n") { " - ${it.first}: ${it.second}" }}
+
+            ---
+        """.trimIndent()
     }
 
 }
