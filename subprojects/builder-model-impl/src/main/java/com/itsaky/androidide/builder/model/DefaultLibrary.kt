@@ -48,7 +48,7 @@ class DefaultLibrary : Library, Serializable {
   var lookupPackage: Boolean = true
 
   /**
-   * The package name of this library. MUST NOT be accesed directly. Use
+   * The package name of this library. MUST NOT be accessed directly. Use
    * `DefaultLibrary.findPackageName()` method defined in the `:subprojects:tooling-api-models`
    * module.
    */

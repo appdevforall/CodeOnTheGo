@@ -1,0 +1,32 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+
+package com.itsaky.androidide.project;
+
+// Common compiler settings
+message JavaCompilerSettings {
+
+  // The Java source compatibility.
+  string sourceCompatibility = 1;
+
+  // The Java target compatibility.
+  string targetCompatibility = 2;
+}
+
+// Info about an external library.
+message LibraryInfo {
+
+  // The group of the library.
+  string group = 1;
+
+  // The name of the library.
+  string name = 2;
+
+  // The version of the library.
+  string version = 3;
+}
+
+// The key used to determine whether the model is up to date.
+message SerialKey {
+
+}

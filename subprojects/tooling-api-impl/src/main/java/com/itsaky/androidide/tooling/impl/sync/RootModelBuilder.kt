@@ -17,15 +17,14 @@
 
 package com.itsaky.androidide.tooling.impl.sync
 
-import com.itsaky.androidide.builder.model.DefaultProjectSyncIssues
-import com.itsaky.androidide.builder.model.DefaultSyncIssue
+import com.android.builder.model.v2.ide.SyncIssue
 import com.itsaky.androidide.builder.model.shouldBeIgnored
+import com.itsaky.androidide.project.GradleBuild
+import com.itsaky.androidide.project.GradleModels
+import com.itsaky.androidide.project.SyncIssue
 import com.itsaky.androidide.tooling.api.IAndroidProject
-import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
-import com.itsaky.androidide.tooling.api.util.AndroidModulePropertyCopier
 import com.itsaky.androidide.tooling.impl.Main
-import com.itsaky.androidide.tooling.impl.internal.ProjectImpl
 import com.itsaky.androidide.tooling.impl.util.configureFrom
 import org.gradle.tooling.ConfigurableLauncher
 import org.gradle.tooling.model.idea.IdeaProject
@@ -37,100 +36,141 @@ import java.io.Serializable
  *
  * @author Akash Yadav
  */
-class RootModelBuilder(initializationParams: InitializeProjectParams) :
-  AbstractModelBuilder<RootProjectModelBuilderParams, IProject>(initializationParams),
-  Serializable {
+object RootModelBuilder :
+	AbstractModelBuilder<RootProjectModelBuilderParams, GradleModels.GradleBuild>(), Serializable {
 
-  private val serialVersionUID = 1L
+	private val serialVersionUID = 1L
 
-  override fun build(param: RootProjectModelBuilderParams): IProject {
+	override fun build(
+		initializeParams: InitializeProjectParams,
+		param: RootProjectModelBuilderParams
+	): GradleModels.GradleBuild {
 
-    val (projectConnection, cancellationToken) = param
+		val (projectConnection, cancellationToken) = param
 
-    // do not reference the 'initializationParams' field in the
-    val initializationParams = initializationParams
+		// do not reference the 'initializationParams' field in the
+		val executor = projectConnection.action { controller ->
+			val ideaProject = controller.getModelAndLog(IdeaProject::class.java)
 
-    val executor = projectConnection.action { controller ->
-      val ideaProject = controller.getModelAndLog(IdeaProject::class.java)
+			val ideaModules = ideaProject.modules
+			val modulePaths =
+				mapOf(*ideaModules.map { it.name to it.gradleProject.path }.toTypedArray())
+			val rootModule = ideaModules.find { it.gradleProject.parent == null }
+				?: throw ModelBuilderException(
+					"Unable to find root project"
+				)
 
-      val ideaModules = ideaProject.modules
-      val modulePaths = mapOf(*ideaModules.map { it.name to it.gradleProject.path }.toTypedArray())
-      val rootModule = ideaModules.find { it.gradleProject.parent == null }
-        ?: throw ModelBuilderException(
-          "Unable to find root project")
+			val rootProjectVersions = getAndroidVersions(rootModule, controller)
 
-      val rootProjectVersions = getAndroidVersions(rootModule, controller)
+			val syncIssues = hashSetOf<SyncIssue>()
+			val syncIssueReporter = ISyncIssueReporter { syncIssue ->
+				if (syncIssue.shouldBeIgnored()) {
+					// this SyncIssue should not be shown to the user
+					return@ISyncIssueReporter
+				}
+				syncIssues.add(syncIssue)
+			}
 
-      val syncIssues = hashSetOf<DefaultSyncIssue>()
-      val syncIssueReporter = ISyncIssueReporter {
-        if (it.shouldBeIgnored()) {
-          // this SyncIssue should not be shown to the user
-          return@ISyncIssueReporter
-        }
+			val rootGradleProject = GradleProjectModelBuilder
+				.build(initializeParams, rootModule.gradleProject)
+				.toBuilder()
 
-        val issue = it as? DefaultSyncIssue ?: AndroidModulePropertyCopier.copy(it)
-        syncIssues.add(issue)
-      }
+			if (rootProjectVersions != null) {
+				// Root project is an Android project
+				checkAgpVersion(rootProjectVersions, syncIssueReporter)
+				val androidProject = AndroidProjectModelBuilder
+					.build(
+						initializeParams, AndroidProjectModelBuilderParams(
+							controller,
+							rootModule,
+							rootProjectVersions,
+							syncIssueReporter
+						)
+					)
 
-      val rootProject = if (rootProjectVersions != null) {
-        // Root project is an Android project
-        checkAgpVersion(rootProjectVersions, syncIssueReporter)
-        AndroidProjectModelBuilder(initializationParams)
-          .build(AndroidProjectModelBuilderParams(
-            controller,
-            rootModule,
-            rootProjectVersions,
-            syncIssueReporter
-          ))
-      } else {
-        GradleProjectModelBuilder(initializationParams).build(rootModule.gradleProject)
-      }
+				rootGradleProject.setAndroidProject(androidProject)
+			}
 
-      val projects = ideaModules.map { ideaModule ->
-        ModuleProjectModelBuilder(initializationParams).build(
-          ModuleProjectModelBuilderParams(
-            controller,
-            ideaProject,
-            ideaModule,
-            modulePaths,
-            syncIssueReporter
-          ))
-      }
+			val projects = ideaModules.map { ideaModule ->
+				val gradleProject =
+					GradleProjectModelBuilder
+						.build(initializeParams, ideaModule.gradleProject)
+						.toBuilder()
 
-      return@action ProjectImpl(
-        rootProject,
-        rootModule.gradleProject.path,
-        projects,
-        DefaultProjectSyncIssues(syncIssues)
-      )
-    }
+				val versions = getAndroidVersions(ideaModule, controller)
+				if (versions != null) {
+					checkAgpVersion(versions, syncIssueReporter)
+					val androidProject = AndroidProjectModelBuilder
+						.build(
+							initializeParams, AndroidProjectModelBuilderParams(
+								controller,
+								ideaModule,
+								versions,
+								syncIssueReporter
+							)
+						)
 
-    executor.configureFrom(initializationParams)
-    applyAndroidModelBuilderProps(executor)
+					gradleProject.setAndroidProject(androidProject)
+				} else {
+					val javaProject = JavaProjectModelBuilder
+						.build(
+							initializeParams,
+							JavaProjectModelBuilderParams(ideaProject, ideaModule, modulePaths)
+						)
 
-    if (cancellationToken != null) {
-      executor.withCancellationToken(cancellationToken)
-    }
+					gradleProject.setJavaProject(javaProject)
+				}
 
-    val logger = LoggerFactory.getLogger("RootModelBuilder")
-    logger.warn("Starting build. See build output for more details...")
+				gradleProject.build()
+			}
 
-    if (Main.client != null) {
-      Main.client.logOutput("Starting build...")
-    }
+			return@action GradleBuild(
+				rootProject = rootGradleProject.build(),
+				subProjectList = projects,
+				syncIssueList = syncIssues.map { syncIssue ->
+					SyncIssue(
+						data = syncIssue.data,
+						message = syncIssue.message,
+						multilineMessageList = syncIssue.multiLineMessage?.filterNotNull()
+							?: emptyList(),
+						type = syncIssue.type,
+						severity = when (syncIssue.severity) {
+							SyncIssue.SEVERITY_ERROR -> GradleModels.SyncIssueSeverity.SeverityError
+							SyncIssue.SEVERITY_WARNING -> GradleModels.SyncIssueSeverity.SeverityWarning
+							else -> throw IllegalArgumentException("Unknown severity: ${syncIssue.severity}")
+						}
+					)
+				}
+			)
+		}
 
-    return executor.run().also {
-      logger.debug("Build action executed. Result: {}", it)
-    }
-  }
+		executor.configureFrom(initializeParams)
+		applyAndroidModelBuilderProps(executor)
 
-  private fun applyAndroidModelBuilderProps(
-    launcher: ConfigurableLauncher<*>) {
-    launcher.addProperty(IAndroidProject.PROPERTY_BUILD_MODEL_ONLY, true)
-    launcher.addProperty(IAndroidProject.PROPERTY_INVOKED_FROM_IDE, true)
-  }
+		if (cancellationToken != null) {
+			executor.withCancellationToken(cancellationToken)
+		}
 
-  private fun ConfigurableLauncher<*>.addProperty(property: String, value: Any) {
-    addArguments(String.format("-P%s=%s", property, value))
-  }
+		val logger = LoggerFactory.getLogger("RootModelBuilder")
+		logger.warn("Starting build. See build output for more details...")
+
+		if (Main.client != null) {
+			Main.client.logOutput("Starting build...")
+		}
+
+		return executor.run().also {
+			logger.debug("Build action executed. Result: {}", it)
+		}
+	}
+
+	private fun applyAndroidModelBuilderProps(
+		launcher: ConfigurableLauncher<*>
+	) {
+		launcher.addProperty(IAndroidProject.PROPERTY_BUILD_MODEL_ONLY, true)
+		launcher.addProperty(IAndroidProject.PROPERTY_INVOKED_FROM_IDE, true)
+	}
+
+	private fun ConfigurableLauncher<*>.addProperty(property: String, value: Any) {
+		addArguments(String.format("-P%s=%s", property, value))
+	}
 }

@@ -24,7 +24,6 @@ import ch.qos.logback.classic.spi.ConfiguratorRank
 import ch.qos.logback.core.spi.ContextAwareBase
 import com.google.auto.service.AutoService
 import com.itsaky.androidide.logging.JvmStdErrAppender
-import com.itsaky.androidide.logging.encoder.IDELogFormatEncoder
 
 /**
  * Default logging configurator for the Tooling API Runtime.
