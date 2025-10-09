@@ -110,15 +110,7 @@ object FeedbackManager {
 					putExtra(Intent.EXTRA_TEXT, feedbackMessage)
 				}
 
-			if (shareActivityResultLauncher != null) {
-				shareActivityResultLauncher.launch(
-					Intent.createChooser(feedbackIntent, "Send Feedback"),
-				)
-			} else {
-				context.startActivity(
-					Intent.createChooser(feedbackIntent, "Send Feedback"),
-				)
-			}
+			launchIntentChooser(feedbackIntent, "Send Feedback", context, shareActivityResultLauncher)
 		}.recoverCatching {
 			// Fallback to general send intent
 			val fallbackIntent =
@@ -129,21 +121,12 @@ object FeedbackManager {
 					putExtra(Intent.EXTRA_TEXT, feedbackMessage)
 				}
 
-			if (shareActivityResultLauncher != null) {
-				shareActivityResultLauncher.launch(
-					Intent.createChooser(
-						fallbackIntent,
-						context.getString(R.string.send_feedback),
-					),
-				)
-			} else {
-				context.startActivity(
-					Intent.createChooser(
-						fallbackIntent,
-						context.getString(R.string.send_feedback),
-					),
-				)
-			}
+			launchIntentChooser(
+				fallbackIntent,
+				context.getString(R.string.send_feedback),
+				context,
+				shareActivityResultLauncher
+			)
 		}.recoverCatching {
 			// If all else fails, show simple contact dialog
 			showContactDialog(context)
@@ -266,12 +249,12 @@ object FeedbackManager {
 				}
 			}
 
-			val chooser = Intent.createChooser(intent, context.getString(R.string.send_feedback))
-			if (shareActivityResultLauncher != null) {
-				shareActivityResultLauncher.launch(chooser)
-			} else {
-				context.startActivity(chooser)
-			}
+			launchIntentChooser(
+				intent,
+				context.getString(R.string.send_feedback),
+				context,
+				shareActivityResultLauncher
+			)
 		}.recoverCatching {
 			val fallbackIntent = Intent(Intent.ACTION_SENDTO).apply {
 				data = "mailto:${EMAIL_SUPPORT}?subject=${Uri.encode(subject)}&body=${Uri.encode(message)}".toUri()
@@ -358,6 +341,17 @@ object FeedbackManager {
 			logger.error("Failed to save screenshot", it)
 			callback(null)
 		}
+	}
+
+
+	private fun launchIntentChooser(
+		intent: Intent,
+		chooserTitle: String,
+		context: Context,
+		shareActivityResultLauncher: ActivityResultLauncher<Intent>?
+	) {
+		val chooser = Intent.createChooser(intent, chooserTitle)
+		shareActivityResultLauncher?.launch(chooser) ?: context.startActivity(chooser)
 	}
 
 	/**
