@@ -60,6 +60,10 @@ brotli4j = "1.18.0"
 spotless = "7.2.1"
 fragmentKtx = "1.8.8"
 
+protobuf = "4.32.1"
+protobuf-plugin = "0.9.5"
+protoc-gen-kotlin-ext = "1.1.0"
+
 [libraries]
 
 # Dependencies in composite build
@@ -202,7 +206,8 @@ google-auto-value-annotations = { module = "com.google.auto.value:auto-value-ann
 google-auto-value-ap = { module = "com.google.auto.value:auto-value", version = "1.10.4" }
 google-auto-service-annotations = { module = "com.google.auto.service:auto-service-annotations", version = "1.1.1" }
 google-auto-service = { module = "com.google.auto.service:auto-service", version = "1.1.1" }
-google-protobuf = { module = "com.google.protobuf:protobuf-java", version = "3.25.3" }
+google-protobuf-java = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
+google-protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobuf" }
 google-java-format = { module = "com.google.googlejavaformat:google-java-format", version = "1.20.0" }
 google-flexbox = { module = "com.google.android.flexbox:flexbox", version = "3.0.0" }
 
@@ -210,7 +215,6 @@ google-flexbox = { module = "com.google.android.flexbox:flexbox", version = "3.0
 aapt2-common = { module = "com.android.tools:common", version = "31.2.2" }
 aapt2-annotations = { module = "com.android.tools:annotations", version = "31.2.2" }
 aapt2-jb-annotations = { module = "org.jetbrains:annotations", version = "24.1.0" }
-aapt2-proto = { module = "com.android.tools.build:aapt2-proto", version = "8.3.0-10880808" }
 
 logging-logback-core = { module = "ch.qos.logback:logback-core", version.ref = "logback" }
 logging-logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
@@ -274,6 +278,7 @@ gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 sentry = { id = "io.sentry.android.gradle", version.ref = "sentry" }
 google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
+google-protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 rikka-autoresconfig = { id = "dev.rikka.tools.autoresconfig", version = "1.2.2" }
 rikka-materialthemebuilder = { id = "dev.rikka.tools.materialthemebuilder", version = "1.5.1" }
 rikka-refine = { id = "dev.rikka.tools.refine", version.ref = "rikka-refine" }
