@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.LayoutInflater
@@ -28,7 +27,7 @@ class VariableListFragment : Fragment() {
     val fragmentTooltipTag: String = DEBUG_OUTPUT_VARIABLES
 
     private var treeView: TreeView<ResolvableVariable<*>>? = null
-    private lateinit var gestureDetector: GestureDetector
+    private var gestureDetector: GestureDetector? = null
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
 
@@ -66,14 +65,19 @@ class VariableListFragment : Fragment() {
 
         gestureDetector = GestureDetector(requireContext(), gestureListener)
 
+
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.variablesTree.collect { tree ->
+                viewModel.observeLatestVariablesTree(
+                    scope = this,
+                    notifyOn = Dispatchers.Main
+                ) { tree ->
                     treeView?.tree = tree
                     treeView?.refresh()
 
                     treeView?.setOnTouchListener { _, event ->
-                        gestureDetector.onTouchEvent(event)
+                        gestureDetector?.onTouchEvent(event)
                         false
                     }
                 }
@@ -84,6 +88,7 @@ class VariableListFragment : Fragment() {
 
     override fun onDestroyView() {
         treeView = null
+        gestureDetector = null
         super.onDestroyView()
     }
 }

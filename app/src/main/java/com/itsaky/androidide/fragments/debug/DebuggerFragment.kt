@@ -3,7 +3,6 @@ package com.itsaky.androidide.fragments.debug
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
 import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -12,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -47,7 +47,7 @@ import rikka.shizuku.Shizuku
  * @author Akash Yadav
  */
 class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
-	private lateinit var tabs: Array<Pair<String, () -> Fragment>>
+	private var tabs: Array<Pair<String, () -> Fragment>>? = null
 	private val viewModel by activityViewModels<DebuggerViewModel>()
 	private var mediator: TabLayoutMediator? = null
 
@@ -102,18 +102,18 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			}
 		}
 
-        binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
-            showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.threadLayoutSelector.root)
-        }
+    binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
+      showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.threadLayoutSelector.root)
+    }
 
-        binding.debuggerContents.debuggerContentContainer.rootView.setOnLongClickListener { view ->
-            if (viewModel.connectionState.value == DebuggerConnectionState.DETACHED) {
-                showToolTipDialog(DEBUG_NOT_CONNECTED, view)
-            }
-            true
-        }
+    binding.debuggerContents.debuggerContentContainer.rootView.setOnLongClickListener { view ->
+      if (viewModel.connectionState.value == DebuggerConnectionState.DETACHED) {
+        showToolTipDialog(DEBUG_NOT_CONNECTED, view)
+      }
+      true
+    }
 
-        viewLifecycleScope.launch(Dispatchers.Main) {
+    viewLifecycleScope.launch(Dispatchers.Main) {
 			ShizukuState.reload().await()
 		}
 
@@ -121,40 +121,43 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			viewModel.setThreads(emptyList())
 
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-				launch {
-          viewModel.currentViewFlow.collect { viewIndex ->
-            binding.root.displayedChild = viewIndex
+				viewModel.observeCurrentView(
+					scope = this,
+					notifyOn = Dispatchers.Main,
+				) { viewIndex ->
+					binding.root.displayedChild = viewIndex
 
-            // don't show debugger UI in the following cases
-            // 1. current view is not debugger UI
-            // 2. current view is debugger UI but not connected to a VM
-            // 3. current view is debugger UI but no thread data is available
-            emptyStateViewModel.isEmpty.value =
-              currentView == VIEW_DEBUGGER &&
-              (
-                viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
-                  viewModel.allThreads.value.isEmpty()
-              )
-          }
-        }
+					// don't show debugger UI in the following cases
+					// 1. current view is not debugger UI
+					// 2. current view is debugger UI but not connected to a VM
+					// 3. current view is debugger UI but no thread data is available
+					emptyStateViewModel.isEmpty.value =
+						currentView == VIEW_DEBUGGER &&
+						(
+							viewModel.connectionState.value < DebuggerConnectionState.ATTACHED ||
+								viewModel.allThreads.value.isEmpty()
+						)
+				}
 
-				launch {
-          viewModel.connectionState.collect { state ->
-            val message =
-              when (state) {
-                // not connected to a VM
-                DebuggerConnectionState.DETACHED -> getString(R.string.debugger_state_not_connected)
+				viewModel.observeConnectionState(
+					scope = this,
+					notifyOn = Dispatchers.Main,
+				) { state ->
+					val message =
+						when (state) {
+							// not connected to a VM
+							DebuggerConnectionState.DETACHED -> getString(R.string.debugger_state_not_connected)
 
-                // connected, but not suspended
-                DebuggerConnectionState.ATTACHED -> {
-                  viewModel.debugClient.clientOrNull?.let { client ->
-                    getString(
-                      R.string.debugger_state_connected,
-                      client.name,
-                      client.version,
-                    )
-                  }
-                }
+							// connected, but not suspended
+							DebuggerConnectionState.ATTACHED -> {
+								viewModel.debugClient.clientOrNull?.let { client ->
+									getString(
+										R.string.debugger_state_connected,
+										client.name,
+										client.version,
+									)
+								}
+							}
 
 							// ----
 							// No need to show any message for below states
@@ -162,56 +165,64 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							// VM is in one of these states
 
 							// suspended, but not due to a breakpoint hit or step event
-                DebuggerConnectionState.SUSPENDED -> null
-                // suspended due to a breakpoint hit or step event
-                DebuggerConnectionState.AWAITING_BREAKPOINT -> null
-              }
+							DebuggerConnectionState.SUSPENDED -> null
+							// suspended due to a breakpoint hit or step event
+							DebuggerConnectionState.AWAITING_BREAKPOINT -> null
+						}
 
-            emptyStateViewModel.isEmpty.value =
-              currentView == VIEW_DEBUGGER &&
-              message != null
-            emptyStateViewModel.emptyMessage.value = message
-          }
-        }
+					emptyStateViewModel.isEmpty.value =
+						currentView == VIEW_DEBUGGER &&
+						message != null
+					emptyStateViewModel.emptyMessage.value = message
+				}
 
-				launch {
-          viewModel.allThreads.collect { threads ->
-            val descriptors = withContext(Dispatchers.IO) {
-              threads.map { thread -> async { thread.resolve() } }.awaitAll()
-            }
+				viewModel.observeLatestThreads(
+					scope = this,
+					notifyOn = Dispatchers.IO,
+				) { threads ->
+					val descriptors =
+						threads
+							.map { thread ->
+								async { thread.resolve() }
+							}.awaitAll()
 
-            emptyStateViewModel.isEmpty.value =
-              currentView == VIEW_DEBUGGER && descriptors.isEmpty()
-            binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
-              ThreadSelectorListAdapter(requireContext(), descriptors,
-                                onItemLongClick = { _, _, _ ->
-                                    showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.debuggerContentContainer.rootView)
-                                })
-            )
-          }
-        }
+					withContext(Dispatchers.Main) {
+						emptyStateViewModel.isEmpty.value =
+							currentView == VIEW_DEBUGGER &&
+							descriptors.isEmpty()
+						binding.debuggerContents.threadLayoutSelector.spinnerText.setAdapter(
+							ThreadSelectorListAdapter(
+								requireContext(),
+								descriptors,
+								onItemLongClick = { _, _, _ ->
+								  showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.debuggerContentContainer.rootView)
+                }
+							),
+						)
+					}
+				}
 
-        launch {
-				  viewModel.selectedThread.collect { (thread, index) ->
-				    if (index < 0) {
-				      return@collect
-				    }
+				viewModel.observeLatestSelectedThread(
+					scope = this,
+					notifyOn = Dispatchers.IO,
+				) { thread, index ->
+					if (index < 0) {
+						return@observeLatestSelectedThread
+					}
 
-				    val descriptor = withContext(Dispatchers.IO) {
-              thread?.resolve()
-            }
-
-            this@DebuggerFragment.context?.also { context ->
-              binding.debuggerContents.threadLayoutSelector.spinnerText.apply {
-                listSelection = index
-                setText(
-                descriptor?.displayText()
-                  ?: context.getString(R.string.debugger_thread_resolution_failure),
-                  false,
-                )
-              }
-            }
-          }
+					val descriptor = thread!!.resolve()
+					withContext(Dispatchers.Main) {
+						this@DebuggerFragment.context?.also { context ->
+							binding.debuggerContents.threadLayoutSelector.spinnerText.apply {
+								listSelection = index
+								setText(
+									descriptor?.displayText()
+										?: context.getString(R.string.debugger_thread_resolution_failure),
+									false,
+								)
+							}
+						}
+					}
 				}
 
 				ShizukuState.serviceStatus.collectLatest { currentStatus ->
@@ -230,27 +241,37 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			}
 		}
 
-			mediator = TabLayoutMediator(
-            binding.debuggerContents.tabs,
-            binding.debuggerContents.pager,
-      ) { tab, position ->
-          tab.text = tabs[position].first
-          tab.view.setOnLongClickListener { view ->
-              when(position){
-                  0 -> showToolTipDialog(DEBUG_OUTPUT_VARIABLES, view)
-                  1 -> showToolTipDialog(DEBUG_OUTPUT_CALLSTACK, view)
-              }
-              true
+		mediator =
+			TabLayoutMediator(
+				binding.debuggerContents.tabs,
+				binding.debuggerContents.pager,
+			) { tab, position ->
+				tab.text = tabs?.get(position)?.first
+        tab.view.setOnLongClickListener { view ->
+          when(position){
+            0 -> showToolTipDialog(DEBUG_OUTPUT_VARIABLES, view)
+            1 -> showToolTipDialog(DEBUG_OUTPUT_CALLSTACK, view)
           }
-      }
-
-		binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
+          true
+        }
+			}
+    tabs?.let { tab ->
+      binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(childFragmentManager, viewLifecycleOwner.lifecycle,tab.map { it.second })
+    }
 		mediator?.attach()
 	}
 
 	override fun onDestroyView() {
     mediator?.detach()
     mediator = null
+    tabs = null
+
+    with(binding.debuggerContents.threadLayoutSelector.spinnerText) {
+      onItemClickListener = null
+    }
+
+    binding.debuggerContents.pager.adapter = null
+
     super.onDestroyView()
   }
 
@@ -280,9 +301,10 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 }
 
 class DebuggerPagerAdapter(
-	fragment: DebuggerFragment,
-	private val factories: List<() -> Fragment>,
-) : FragmentStateAdapter(fragment) {
+  fragmentManager: FragmentManager,
+  lifecycle: Lifecycle,
+  private val factories: List<() -> Fragment>,
+) : FragmentStateAdapter(fragmentManager, lifecycle) {
 	override fun getItemCount(): Int = factories.size
 
 	override fun createFragment(position: Int): Fragment = factories[position].invoke()
