@@ -15,10 +15,23 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<com.google.android.material.imageview.ShapeableImageView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
-  android:layout_width="48dp"
-  android:layout_height="48dp"
-  android:padding="8dp"
-  app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Medium"
-  app:srcCompat="@mipmap/ic_launcher" />
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:layout_gravity="top|center_horizontal">
+
+  <com.google.android.material.imageview.ShapeableImageView
+    android:layout_width="@dimen/sidebar_header_logo_size"
+    android:layout_height="@dimen/sidebar_header_logo_size"
+    android:layout_gravity="center_horizontal"
+    android:layout_marginStart="@dimen/sidebar_header_logo_padding"
+    android:layout_marginEnd="@dimen/sidebar_header_logo_padding"
+    android:layout_marginBottom="@dimen/sidebar_header_logo_padding"
+    android:layout_marginTop="@dimen/sidebar_header_logo_margin_top"
+    android:adjustViewBounds="true"
+    android:scaleType="fitCenter"
+    app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Medium"
+    app:srcCompat="@drawable/app_dev_for_all_logo" />
+
+</FrameLayout>
