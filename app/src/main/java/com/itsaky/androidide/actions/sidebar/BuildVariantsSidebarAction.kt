@@ -36,7 +36,7 @@ class BuildVariantsSidebarAction(context: Context, override val order: Int) :
 
   override val fragmentClass: KClass<out Fragment> = BuildVariantsFragment::class
   override val id: String = "ide.editor.sidebar.buildVariants"
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_RIGHT_SIDEBAR
+    override var location: ActionItem.Location = ActionItem.Location.EDITOR_SIDEBAR
 
 
   companion object {

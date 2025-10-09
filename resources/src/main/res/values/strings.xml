@@ -895,7 +895,12 @@
     <string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
-
+    <!--  AI Agent-->
+    <string name="ai_setting_saved">💾 Saved: %1$s</string>
+    <string name="ai_setting_no_model_is_currently_loaded">🤷‍♀️ No model is currently loaded</string>
+    <string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
+    <string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
+    <string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
 
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>

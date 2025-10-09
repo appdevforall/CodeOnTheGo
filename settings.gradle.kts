@@ -173,7 +173,7 @@ include(
 	":testing:tooling",
 	":testing:unit",
     ":plugin-api",
-    ":plugin-manager",
+    ":plugin-manager"
 )
 
 object FDroidConfig {
