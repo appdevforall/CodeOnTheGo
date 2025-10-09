@@ -267,7 +267,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
         super.onResume()
         FeedbackButtonManager(
             activity = this@AboutActivity,
-            feedbackFab = binding.fabFeedback!!,
+            feedbackFab = binding.fabFeedback,
         ).setupDraggableFab()
     }
 
