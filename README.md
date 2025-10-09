@@ -1,35 +1,22 @@
  <p align="center">
-  <img src="./images/icon.png" alt="Code On The Go" width="80" height="80"/>
+  <img src="./images/ADFA_logo.png" alt="Code On The Go" width="80" height="80"/>
 </p>
 
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
-  An IDE to develop real, Gradle-based Android applications on Android devices.
+ Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access.
 <p><br>
 
 <p align="center">
-<!-- Latest release -->
-<img src="https://img.shields.io/github/v/release/AndroidIDEOfficial/AndroidIDE?include_prereleases&amp;label=latest%20release" alt="Latest release">
-<!-- Build and test -->
-<img src="https://github.com/AndroidIDEOfficial/AndroidIDE/actions/workflows/build.yml/badge.svg" alt="Builds and tests">
-<!-- CodeFactor -->
-<img src="https://www.codefactor.io/repository/github/androidideofficial/androidide/badge/main" alt="CodeFactor">
-<!-- Crowdin -->
-<a href="https://crowdin.com/project/androidide"><img src="https://badges.crowdin.net/androidide/localized.svg" alt="Crowdin"></a>
-<!-- License -->
 <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License"></p>
+<br>
 
 <p align="center">
-  <a href="https://docs.androidide.com/">Explore the docs »</a> &nbsp; &nbsp;
-</p>
-
-<p align="center">
-  <a href="https://github.com/AndroidIDEOfficial/AndroidIDE/issues/new?labels=bug&template=BUG.yml&title=%5BBug%5D%3A+">Report a bug</a> &nbsp; &#8226; &nbsp;
-  <a href="https://github.com/AndroidIDEOfficial/AndroidIDE/issues/new?labels=feature&template=FEATURE.yml&title=%5BFeature%5D%3A+">Request a feature</a> &nbsp; &#8226; &nbsp;
+  <a href="https://github.com/appdevforall/CodeOnTheGo/issues">Report a bug or request a feature</a> &nbsp; &#8226; &nbsp
   <a href="https://t.me/androidide_discussions">Join us on Telegram</a>
 </p>
 
-> **We are looking for contributors/maintainers to help keep the project alive and speed up the development. You can help by fixing bugs, implementing & improving features, writing documentation, etc.**
+> **We appreciate and welcome contributors to speed the development of new features and enhancements!**
 
 ## Features
 
@@ -80,23 +67,7 @@ scripts\install-git-hooks.bat
 
 ## Installation
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.svg"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/packages/com.itsaky.androidide)
-[<img src="https://github.com/Kunzisoft/Github-badge/raw/main/get-it-on-github.svg"
-    alt="Get it on F-Droid"
-    height="80">](https://github.com/AndroidIDEOfficial/AndroidIDE/releases)
-
-> _Please install Code On The Go from trusted sources only i.e._
-> - [_The Code On The Go website_](https://CodeOnTheGo.com)
-> - [_GitHub Releases_](https://github.com/AndroidIDEOfficial/AndroidIDE/releases)
-> - [_GitHub Actions_](https://github.com/AndroidIDEOfficial/AndroidIDE/actions?query=branch%3Adev+event%3Apush)
-> - [_F-Droid_](https://f-droid.org/packages/com.itsaky.androidide/)
-
-- Download the Code On The Go APK from the mentioned trusted sources.
-- Follow the
-  instructions [here](https://docs.androidide.com/tutorials/get-started.html) to
-  install the build tools.
+ <a href="https://www.appdevforall.org/codeonthego">Download the Code On The Go APK from the App Dev for All website.</a>
 
 ## Limitations
 
@@ -125,20 +96,15 @@ For translations, visit the [Crowdin project page](https://crowdin.com/project/a
   for [AndroidTreeView](https://github.com/bmelnychuk/AndroidTreeView)
 - [George Fraser](https://github.com/georgewfraser) for
   the [Java Language Server](https://github.com/georgewfraser/java-language-server)
-
-Thanks to all the developers who have contributed to this project.
-
-<p>This project is supported by:</p>
-<p>
-  <a href="https://m.do.co/c/54add371d1d7">
-    <img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/SVG/DO_Logo_horizontal_blue.svg" width="201px">
-  </a>
-</p>
+- Vivek NAME for Awesome LayoutEditor
+ 
+Thanks to all the developers who have contributed to this project! 
 
 ## Contact Us
 
-- [Website](https://m.androidide.com)
+- [Website](https://www.appdevforall.org)
 - [Telegram](https://t.me/androidide_discussions)
+- [Email](mailto:feedback@appdevforall.org)
 
 ## License
 
@@ -159,3 +125,4 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
