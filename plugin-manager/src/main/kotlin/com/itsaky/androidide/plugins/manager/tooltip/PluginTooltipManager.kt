@@ -59,6 +59,9 @@ object PluginTooltipManager {
         return context.getDatabasePath("plugin_documentation.db").absolutePath
     }
 
+
+    private fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
+
     /**
      * Retrieve a tooltip from the plugin documentation database.
      */
@@ -223,13 +226,12 @@ object PluginTooltipManager {
             "Color attribute not found in theme"
         )
 
-        fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
         val tooltipHtmlContent = when (level) {
             0 -> tooltipItem.summary
             1 -> {
-                val detailContent = if (tooltipItem.detail.isNotBlank()) tooltipItem.detail else ""
+                val detailContent = tooltipItem.detail.ifBlank { "" }
                 if (tooltipItem.buttons.isNotEmpty()) {
                     val linksHtml = tooltipItem.buttons.joinToString("<br>") { (label, url) ->
                         context.getString(R.string.tooltip_links_html_template, url, label)
@@ -357,7 +359,6 @@ object PluginTooltipManager {
             "Color attribute not found in theme"
         )
 
-        fun Int.toHexColor(): String = String.format("#%06X", 0xFFFFFF and this)
         val hexColor = textColor.toHexColor()
 
         val debugHtml = """

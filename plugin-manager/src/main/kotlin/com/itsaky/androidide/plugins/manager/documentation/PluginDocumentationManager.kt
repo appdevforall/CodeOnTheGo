@@ -20,68 +20,68 @@ class PluginDocumentationManager(private val context: Context) {
 
     companion object {
         private const val TAG = "PluginDocManager"
-        private const val DATABASE_VERSION = 1
-        private const val DATABASE_NAME = "plugin_documentation.db"
-
-        private const val THIRD_PARTY_DISCLAIMER = "<br><br><em style='color: #888; font-size: 0.9em;'>⚠️ This documentation is provided by a third-party plugin.</em>"
-
-        // Database schema creation statements
-        private const val CREATE_CATEGORIES_TABLE = """
-            CREATE TABLE IF NOT EXISTS PluginTooltipCategories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category TEXT NOT NULL UNIQUE
-            )
-        """
-
-        private const val CREATE_TOOLTIPS_TABLE = """
-            CREATE TABLE IF NOT EXISTS PluginTooltips (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                categoryId INTEGER NOT NULL,
-                tag TEXT NOT NULL,
-                summary TEXT NOT NULL,
-                detail TEXT,
-                FOREIGN KEY(categoryId) REFERENCES PluginTooltipCategories(id),
-                UNIQUE(categoryId, tag)
-            )
-        """
-
-        private const val CREATE_BUTTONS_TABLE = """
-            CREATE TABLE IF NOT EXISTS PluginTooltipButtons (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tooltipId INTEGER NOT NULL,
-                description TEXT NOT NULL,
-                uri TEXT NOT NULL,
-                buttonNumberId INTEGER NOT NULL,
-                FOREIGN KEY(tooltipId) REFERENCES PluginTooltips(id) ON DELETE CASCADE
-            )
-        """
-
-        private const val CREATE_TRACKING_TABLE = """
-            CREATE TABLE IF NOT EXISTS PluginTracking (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pluginId TEXT NOT NULL,
-                tooltipId INTEGER NOT NULL,
-                categoryId INTEGER NOT NULL,
-                installedAt INTEGER NOT NULL,
-                UNIQUE(pluginId, tooltipId)
-            )
-        """
-
-        private const val CREATE_METADATA_TABLE = """
-            CREATE TABLE IF NOT EXISTS PluginMetadata (
-                pluginId TEXT PRIMARY KEY,
-                lastUpdated INTEGER NOT NULL,
-                version TEXT
-            )
-        """
     }
+
+    private val databaseVersion = 1
+    private val databaseName = "plugin_documentation.db"
+    private val thirdPartyDisclaimer = "<br><br><em style='color: #888; font-size: 0.9em;'>⚠️ This documentation is provided by a third-party plugin.</em>"
+
+    // Database schema creation statements
+    private val createCategoriesTable = """
+        CREATE TABLE IF NOT EXISTS PluginTooltipCategories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL UNIQUE
+        )
+    """
+
+    private val createTooltipsTable = """
+        CREATE TABLE IF NOT EXISTS PluginTooltips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            categoryId INTEGER NOT NULL,
+            tag TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            detail TEXT,
+            FOREIGN KEY(categoryId) REFERENCES PluginTooltipCategories(id),
+            UNIQUE(categoryId, tag)
+        )
+    """
+
+    private val createButtonsTable = """
+        CREATE TABLE IF NOT EXISTS PluginTooltipButtons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tooltipId INTEGER NOT NULL,
+            description TEXT NOT NULL,
+            uri TEXT NOT NULL,
+            buttonNumberId INTEGER NOT NULL,
+            FOREIGN KEY(tooltipId) REFERENCES PluginTooltips(id) ON DELETE CASCADE
+        )
+    """
+
+    private val createTrackingTable = """
+        CREATE TABLE IF NOT EXISTS PluginTracking (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pluginId TEXT NOT NULL,
+            tooltipId INTEGER NOT NULL,
+            categoryId INTEGER NOT NULL,
+            installedAt INTEGER NOT NULL,
+            UNIQUE(pluginId, tooltipId)
+        )
+    """
+
+    private val createMetadataTable = """
+        CREATE TABLE IF NOT EXISTS PluginMetadata (
+            pluginId TEXT PRIMARY KEY,
+            lastUpdated INTEGER NOT NULL,
+            version TEXT
+        )
+    """
 
     /**
      * Get or create the plugin documentation database.
      */
     private suspend fun getPluginDatabase(): SQLiteDatabase? = withContext(Dispatchers.IO) {
         try {
-            val dbPath = context.getDatabasePath(DATABASE_NAME).absolutePath
+            val dbPath = context.getDatabasePath(databaseName).absolutePath
             val dbFile = File(dbPath)
 
             val isNewDatabase = !dbFile.exists()
@@ -126,11 +126,11 @@ class PluginDocumentationManager(private val context: Context) {
     private fun initializeDatabase(db: SQLiteDatabase) {
         db.transaction {
             try {
-                execSQL(CREATE_CATEGORIES_TABLE)
-                execSQL(CREATE_TOOLTIPS_TABLE)
-                execSQL(CREATE_BUTTONS_TABLE)
-                execSQL(CREATE_TRACKING_TABLE)
-                execSQL(CREATE_METADATA_TABLE)
+                execSQL(createCategoriesTable)
+                execSQL(createTooltipsTable)
+                execSQL(createButtonsTable)
+                execSQL(createTrackingTable)
+                execSQL(createMetadataTable)
 
                 // Create indices for better performance
                 execSQL("CREATE INDEX IF NOT EXISTS idx_tooltips_category ON PluginTooltips(categoryId)")
@@ -341,8 +341,8 @@ class PluginDocumentationManager(private val context: Context) {
 
             // Update existing tooltip with disclaimer
             val updateValues = ContentValues().apply {
-                put("summary", entry.summary + THIRD_PARTY_DISCLAIMER)
-                put("detail", if (entry.detail.isNotBlank()) entry.detail + THIRD_PARTY_DISCLAIMER else "")
+                put("summary", entry.summary + thirdPartyDisclaimer)
+                put("detail", if (entry.detail.isNotBlank()) entry.detail + thirdPartyDisclaimer else "")
             }
             db.update("PluginTooltips", updateValues, "id = ?", arrayOf(existingId.toString()))
 
@@ -357,8 +357,8 @@ class PluginDocumentationManager(private val context: Context) {
         val values = ContentValues().apply {
             put("categoryId", categoryId)
             put("tag", entry.tag)
-            put("summary", entry.summary + THIRD_PARTY_DISCLAIMER)
-            put("detail", if (entry.detail.isNotBlank()) entry.detail + THIRD_PARTY_DISCLAIMER else "")
+            put("summary", entry.summary + thirdPartyDisclaimer)
+            put("detail", if (entry.detail.isNotBlank()) entry.detail + thirdPartyDisclaimer else "")
         }
         return db.insert("PluginTooltips", null, values)
     }
@@ -445,7 +445,7 @@ class PluginDocumentationManager(private val context: Context) {
      * Check if the plugin documentation database exists and is accessible.
      */
     suspend fun isDatabaseAvailable(): Boolean = withContext(Dispatchers.IO) {
-        val dbPath = context.getDatabasePath(DATABASE_NAME).absolutePath
+        val dbPath = context.getDatabasePath(databaseName).absolutePath
         if (!File(dbPath).exists()) {
             return@withContext false
         }

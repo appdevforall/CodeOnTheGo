@@ -399,11 +399,8 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
         try {
             val isKotlinDsl = buildFile.name.endsWith(".kts")
             val keystoreRelativePath = "${keystoreFile.name}"
-
-            // Read the current file content
             val currentContent = fileService?.readFile(buildFile) ?: ""
 
-            // Check if a release signing config already exists
             val hasReleaseConfig = if (isKotlinDsl) {
                 currentContent.contains("create(\"release\")") ||
                 currentContent.contains("getByName(\"release\")")
@@ -412,73 +409,88 @@ class KeystoreGeneratorFragment : Fragment(), BuildStatusListener {
             }
 
             if (hasReleaseConfig) {
-                // Update existing release config
-                val updatedContent = updateExistingSigningConfig(currentContent, config, keystoreRelativePath, isKotlinDsl)
-
-                if (updatedContent != currentContent) {
-                    val success = fileService?.writeFile(buildFile, updatedContent) ?: false
-                    if (success) {
-                        showToast("Updated existing release signing config")
-                    } else {
-                        showToast("Failed to update signing config")
-                    }
-                } else {
-                    showToast("Could not update signing config - pattern not found")
-                }
+                handleExistingReleaseConfig(buildFile, currentContent, config, keystoreRelativePath, isKotlinDsl)
             } else {
-                // Insert new signing config
-                val signingConfig = if (isKotlinDsl) {
-                    generateKotlinSigningConfig(config, keystoreRelativePath)
-                } else {
-                    generateGroovySigningConfig(config, keystoreRelativePath)
-                }
+                handleNewReleaseConfig(buildFile, currentContent, config, keystoreRelativePath, isKotlinDsl)
+            }
 
-                // Check if signingConfigs block exists
-                val hasSigningConfigs = currentContent.contains("signingConfigs")
+        } catch (e: Exception) {
+            showToast("Error modifying build file: ${e.message}")
+        }
+    }
 
-                if (hasSigningConfigs) {
-                    // Insert release config into existing signingConfigs block
-                    val releaseConfig = if (isKotlinDsl) {
-                        """
+    private fun handleExistingReleaseConfig(
+        buildFile: File,
+        currentContent: String,
+        config: KeystoreConfig,
+        keystoreRelativePath: String,
+        isKotlinDsl: Boolean
+    ) {
+        val updatedContent = updateExistingSigningConfig(currentContent, config, keystoreRelativePath, isKotlinDsl)
+
+        when {
+            updatedContent == currentContent -> showToast("Could not update signing config - pattern not found")
+            fileService?.writeFile(buildFile, updatedContent) == true -> showToast("Updated existing release signing config")
+            else -> showToast("Failed to update signing config")
+        }
+    }
+
+    private fun handleNewReleaseConfig(
+        buildFile: File,
+        currentContent: String,
+        config: KeystoreConfig,
+        keystoreRelativePath: String,
+        isKotlinDsl: Boolean
+    ) {
+        val signingConfig = when (isKotlinDsl) {
+            true -> generateKotlinSigningConfig(config, keystoreRelativePath)
+            false -> generateGroovySigningConfig(config, keystoreRelativePath)
+        }
+
+        when (currentContent.contains("signingConfigs")) {
+            true -> insertIntoExistingSigningConfigs(buildFile, config, keystoreRelativePath, isKotlinDsl)
+            false -> insertNewSigningConfigsBlock(buildFile, signingConfig)
+        }
+    }
+
+    private fun insertIntoExistingSigningConfigs(
+        buildFile: File,
+        config: KeystoreConfig,
+        keystoreRelativePath: String,
+        isKotlinDsl: Boolean
+    ) {
+        val releaseConfig = when (isKotlinDsl) {
+            true -> """
         create("release") {
             storeFile = file("$keystoreRelativePath")
             storePassword = "${String(config.keystorePassword)}"
             keyAlias = "${config.keyAlias}"
             keyPassword = "${String(config.keyPassword)}"
         }"""
-                    } else {
-                        """
+            false -> """
         release {
             storeFile file('$keystoreRelativePath')
             storePassword '${String(config.keystorePassword)}'
             keyAlias '${config.keyAlias}'
             keyPassword '${String(config.keyPassword)}'
         }"""
-                    }
-
-                    val success = fileService?.insertAfterPattern(buildFile, "signingConfigs {", releaseConfig) ?: false
-
-                    if (success) {
-                        showToast("Added release signing config")
-                    } else {
-                        showToast("Failed to add release config to signingConfigs block")
-                    }
-                } else {
-                    // Insert entire signingConfigs block after android {
-                    val androidPattern = "android {"
-                    val success = fileService?.insertAfterPattern(buildFile, androidPattern, signingConfig) ?: false
-
-                    if (success) {
-                        showToast("Build file updated with signing config")
-                    } else {
-                        showToast("Could not find android block in ${buildFile.name}")
-                    }
-                }
-            }
-
-        } catch (e: Exception) {
-            showToast("Error modifying build file: ${e.message}")
         }
+
+        val success = fileService?.insertAfterPattern(buildFile, "signingConfigs {", releaseConfig) == true
+        val message = when (success) {
+            true -> "Added release signing config"
+            false -> "Failed to add release config to signingConfigs block"
+        }
+        showToast(message)
+    }
+
+    private fun insertNewSigningConfigsBlock(buildFile: File, signingConfig: String) {
+        val success = fileService?.insertAfterPattern(buildFile, "android {", signingConfig) == true
+        val message = when (success) {
+            true -> "Build file updated with signing config"
+            false -> "Could not find android block in ${buildFile.name}"
+        }
+        showToast(message)
     }
 
     private fun updateExistingSigningConfig(
