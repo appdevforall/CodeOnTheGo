@@ -18,7 +18,6 @@
 package com.itsaky.androidide.handlers
 
 import android.content.Context
-import androidx.core.view.GravityCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionMenu
@@ -69,7 +68,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     }
 
     val context = event[Context::class.java]!! as EditorHandlerActivity
-    context.binding.root.closeDrawer(GravityCompat.START)
+//    context.binding.root.closeDrawer(GravityCompat.START)
     if (event.file.name.endsWith(".apk")) {
       context.apkInstallationViewModel.installApk(
 		  context = context,
