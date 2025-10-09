@@ -526,6 +526,12 @@
     <string name="msg_invalid_project_details">Invalid project details</string>
     <string name="msg_use_kts">Use Kotlin Script (.kts) for Gradle build files</string>
     <string name="title_privacy">Privacy</string>
+
+    <string name="privacy_disclosure_title">Privacy &amp; Analytics</string>
+    <string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and Sentry to help us improve the app experience.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is being used. This includes information about app features, performance metrics, and crash reports.\n\nSentry helps us track and fix errors to provide you with a more stable experience.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy to ensure your privacy is protected.</string>
+    <string name="privacy_disclosure_accept">I Understand</string>
+    <string name="privacy_disclosure_learn_more">Learn More</string>
+
     <string name="title_unique_id">Unique ID</string>
     <string name="title_device">Device</string>
     <string name="title_app_version">App version</string>
@@ -590,8 +596,6 @@
     <string name="permission_title_install_packages">Install packages</string>
     <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
     <string name="permission_title_overlay_window">Overlay window</string>
-    <string name="permission_title_accessibility">Accessibility</string>
-    <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
     <string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications</string>
@@ -628,8 +632,6 @@
 	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
 
 	<string name="debugger_title">Debugger</string>
-	<string name="debugger_foreground_detection_service_description">Code on the Go uses accessibility services to detect foreground applications for automatically
-		show/hide the debugger overlay window.</string>
 	<string name="debugger_starting">Starting debugger…</string>
 	<string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
 	<string name="debugger_started">Debugger started</string>
@@ -691,7 +693,7 @@
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
-	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
+	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
 	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
 	<string name="feedback_email">feedback@appdevforall.org</string>
@@ -890,11 +892,14 @@
     <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
+    <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 
 
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
+
+    <string name="back_to_cogo">Back to Code on the Go</string>
 
 </resources>
