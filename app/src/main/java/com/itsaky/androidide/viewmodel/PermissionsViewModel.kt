@@ -8,6 +8,7 @@ import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.withStopWatch
+import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,9 +29,8 @@ class PermissionsViewModel : ViewModel() {
     private val _state = MutableStateFlow<PermissionsState>(PermissionsPending)
     val state: StateFlow<PermissionsState> = _state.asStateFlow()
 
-    private val _installationProgress = MutableStateFlow<String>("")
+    private val _installationProgress = MutableStateFlow("")
     val installationProgress: StateFlow<String> = _installationProgress.asStateFlow()
-
     fun onPermissionsUpdated(allGranted: Boolean) {
         if (allGranted && _state.value is PermissionsPending) {
             _state.value =PermissionsGranted
@@ -54,10 +54,7 @@ class PermissionsViewModel : ViewModel() {
                         val result = withStopWatch("Assets installation") {
                             AssetsInstallationHelper.install(context) { progress ->
                                 log.debug("Assets installation progress: {}", progress.message)
-                                // Update progress on main thread
-                                viewModelScope.launch(Dispatchers.Main) {
-                                    _installationProgress.value = progress.message
-                                }
+                                _installationProgress.value = progress.message
                             }
                         }
 
@@ -72,6 +69,7 @@ class PermissionsViewModel : ViewModel() {
                                 _state.value =InstallationComplete
                             }
                             is AssetsInstallationHelper.Result.Failure -> {
+                                result.cause?.let { Sentry.captureException(it) }
                                 _state.value =InstallationError(
                                     result.cause?.message ?: "Installation failed"
                                 )
@@ -79,6 +77,7 @@ class PermissionsViewModel : ViewModel() {
                         }
                     }
                 } catch (e: Exception) {
+                    Sentry.captureException(e)
                     log.error("IDE setup installation failed", e)
                     _state.value =InstallationError(
                         e.message ?: "An unknown error occurred"

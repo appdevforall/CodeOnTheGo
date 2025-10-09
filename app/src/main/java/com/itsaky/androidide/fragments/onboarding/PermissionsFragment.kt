@@ -49,6 +49,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastT
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.PermissionsState
 import com.itsaky.androidide.viewmodel.PermissionsState.InstallationComplete
 import com.itsaky.androidide.viewmodel.PermissionsState.InstallationError
@@ -57,6 +58,7 @@ import com.itsaky.androidide.viewmodel.PermissionsState.PermissionsGranted
 import com.itsaky.androidide.viewmodel.PermissionsState.PermissionsPending
 import com.itsaky.androidide.viewmodel.PermissionsViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -230,7 +232,7 @@ class PermissionsFragment :
 	}
 
 	private fun observeViewModelState() {
-		viewLifecycleOwner.lifecycleScope.launch {
+		viewLifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				viewModel.state.collect { state ->
 					handleState(state)
@@ -289,14 +291,15 @@ class PermissionsFragment :
 			return
 		}
 
-		lifecycleScope.launch {
+		viewLifecycleScope.launch {
 			doAsyncWithProgress(
 				Dispatchers.IO,
 				configureFlashbar = { builder, _ ->
 					builder.title(getString(R.string.ide_setup_in_progress))
 				},
 			) { flashbar, _ ->
-				val progressJob = launch(Dispatchers.Main) {
+				// Launch progress collector as a child coroutine
+				launch(Dispatchers.Main) {
 					viewModel.installationProgress.collect { progress ->
 						if (progress.isNotEmpty()) {
 							flashbar.flashbarView.setMessage(progress)
@@ -306,20 +309,16 @@ class PermissionsFragment :
 
 				viewModel.startIdeSetup(requireContext())
 
-				viewModel.state.collect { state ->
+				viewModel.state.first { state ->
 					when (state) {
 						is InstallationComplete -> {
-							progressJob.cancel()
 							withContext(Dispatchers.Main) {
 								(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
 							}
-							return@collect
+							true
 						}
-						is InstallationError -> {
-							progressJob.cancel()
-							return@collect
-						}
-						else -> { }
+						is InstallationError -> true
+						else -> false
 					}
 				}
 			}
