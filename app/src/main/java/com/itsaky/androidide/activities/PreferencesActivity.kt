@@ -38,6 +38,8 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
     IDEPreferencesFragment()
   }
 
+    private var feedbackButtonManager: FeedbackButtonManager? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
@@ -46,6 +48,12 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
     supportActionBar!!.setDisplayHomeAsUpEnabled(true)
 
     binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+
+      feedbackButtonManager = FeedbackButtonManager(
+          activity = this,
+          feedbackFab = binding.fabFeedback,
+      )
+      feedbackButtonManager?.setupDraggableFab()
 
     if (savedInstanceState != null) {
       return
@@ -102,12 +110,6 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 
     override fun onResume() {
         super.onResume()
-
-        // Setting this up in onResume instead on onCreate so that the updated fab's position
-        // is retrieved when navigating back here from from AboutActivity
-        FeedbackButtonManager(
-            activity = this,
-            feedbackFab = binding.fabFeedback,
-        ).setupDraggableFab()
+        feedbackButtonManager?.loadFabPosition()
     }
 }

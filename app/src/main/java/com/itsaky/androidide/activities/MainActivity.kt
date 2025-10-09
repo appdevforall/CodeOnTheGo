@@ -39,7 +39,6 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashInfo
-import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
@@ -58,7 +57,6 @@ import java.io.File
 
 import android.hardware.display.DisplayManager
 import android.view.Display
-import androidx.appcompat.app.AppCompatActivity
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
@@ -66,12 +64,12 @@ import com.itsaky.androidide.FeedbackButtonManager
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
-    private val DATABASENAME = "documentation.db"
     private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
     private val viewModel by viewModels<MainViewModel>()
     private var _binding: ActivityMainBinding? = null
     private val analyticsManager: IAnalyticsManager by inject()
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
     companion object {
         private var instance: MainActivity? = null
@@ -116,6 +114,12 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         openLastProject()
         setupSecondaryDisplay()
 
+        feedbackButtonManager = FeedbackButtonManager(
+            activity = this,
+            feedbackFab = binding.fabFeedback,
+        )
+        feedbackButtonManager?.setupDraggableFab()
+
         viewModel.currentScreen.observe(this) { screen ->
             if (screen == -1) {
                 return@observe
@@ -140,12 +144,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Setting this up in onResume instead on onCreate so that the updated fab's position
-        // is retrieved when navigating between MainActivity's fragments
-        FeedbackButtonManager(
-            activity = this,
-            feedbackFab = binding.fabFeedback,
-        ).setupDraggableFab()
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onApplySystemBarInsets(insets: Insets) {

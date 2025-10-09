@@ -314,6 +314,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG);
 
         mIsOnResumeAfterOnCreate = false;
+        feedbackButtonManager.loadFabPosition();
     }
 
     @Override

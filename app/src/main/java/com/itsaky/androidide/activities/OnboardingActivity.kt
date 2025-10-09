@@ -70,6 +70,7 @@ class OnboardingActivity : AppIntro2() {
 
 	private var listJdkInstallationsJob: Job? = null
     private lateinit var feedbackButton: FloatingActionButton
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
@@ -200,10 +201,11 @@ class OnboardingActivity : AppIntro2() {
                     }
 
                     appIntroContainer.addView(feedbackButton)
-                    FeedbackButtonManager(
+                    feedbackButtonManager = FeedbackButtonManager(
                         activity = this@OnboardingActivity,
                         feedbackFab = feedbackButton
-                    ).setupDraggableFab()
+                    )
+                    feedbackButtonManager?.setupDraggableFab()
                 } else {
                     logger.error("Could not find AppIntro2 container to add FAB.")
                 }
@@ -218,6 +220,7 @@ class OnboardingActivity : AppIntro2() {
 				tryNavigateToMainIfSetupIsCompleted()
 			}
 		}
+        feedbackButtonManager?.loadFabPosition()
 	}
 
 	override fun onDestroy() {

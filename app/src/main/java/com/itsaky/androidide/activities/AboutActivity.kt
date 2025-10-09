@@ -58,6 +58,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     return _binding!!.root
   }
 
+    private var feedbackButtonManager: FeedbackButtonManager? = null
+
   companion object {
 
     private var id = 0
@@ -77,6 +79,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       supportActionBar!!.setDisplayHomeAsUpEnabled(true)
       supportActionBar!!.setTitle(R.string.about)
       toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
 
       aboutHeader.apply {
         ideVersion.text = createVersionText()
@@ -265,10 +269,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 
     override fun onResume() {
         super.onResume()
-        FeedbackButtonManager(
-            activity = this@AboutActivity,
-            feedbackFab = binding.fabFeedback,
-        ).setupDraggableFab()
+        feedbackButtonManager?.loadFabPosition()
     }
 
   override fun onDestroy() {

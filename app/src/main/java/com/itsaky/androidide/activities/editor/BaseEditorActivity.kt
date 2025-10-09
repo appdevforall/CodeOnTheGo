@@ -158,6 +158,7 @@ abstract class BaseEditorActivity :
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
     var isDestroying = false
         protected set
@@ -537,8 +538,9 @@ abstract class BaseEditorActivity :
             true
         }
 
-        FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
-            .setupDraggableFab()
+        feedbackButtonManager =
+            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
         watchMemory()
@@ -702,6 +704,7 @@ abstract class BaseEditorActivity :
 
         // Set this activity as current for plugin services
         IDEApplication.instance.setCurrentActivity(this)
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onStop() {

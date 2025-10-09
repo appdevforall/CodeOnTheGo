@@ -42,6 +42,7 @@ class ContributorsActivity : EdgeToEdgeIDEActivity() {
     }
 
   private val viewModel by viewModels<ContributorsViewModel>()
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
   override fun bindLayout(): View {
     _binding = ActivityContributorsBinding.inflate(layoutInflater)
@@ -68,10 +69,11 @@ class ContributorsActivity : EdgeToEdgeIDEActivity() {
       noConnection.root.setText(R.string.msg_no_internet)
       loadingProgress.isVisible = false
 
-        FeedbackButtonManager(
+        feedbackButtonManager = FeedbackButtonManager(
             activity = this@ContributorsActivity,
             feedbackFab = fabFeedback,
-        ).setupDraggableFab()
+        )
+        feedbackButtonManager?.setupDraggableFab()
     }
 
     viewModel._crowdinTranslators.observe(this) { translators ->
@@ -109,6 +111,11 @@ class ContributorsActivity : EdgeToEdgeIDEActivity() {
       )
     }
   }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
 
   override fun onDestroy() {
     super.onDestroy()
