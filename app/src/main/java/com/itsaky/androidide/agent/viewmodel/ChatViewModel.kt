@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -42,10 +43,16 @@ data class BackendStatus(val displayText: String)
 class ChatViewModel : ViewModel() {
     private val log = LoggerFactory.getLogger(ChatViewModel::class.java)
 
+    // --- State Exposure ---
     private val _sessions = MutableLiveData<MutableList<ChatSession>>(mutableListOf())
     val sessions: LiveData<MutableList<ChatSession>> = _sessions
     private val _currentSession = MutableLiveData<ChatSession?>()
     val currentSession: LiveData<ChatSession?> = _currentSession
+
+    // New StateFlow for chat messages, mirroring the source example
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
     private val _backendStatus = MutableLiveData<BackendStatus>()
     val backendStatus: LiveData<BackendStatus> = _backendStatus
     private val _agentState = MutableStateFlow<AgentState>(AgentState.Idle)
@@ -55,6 +62,7 @@ class ChatViewModel : ViewModel() {
     private val _stepElapsedTime = MutableStateFlow(0L)
     val stepElapsedTime = _stepElapsedTime.asStateFlow()
 
+    // --- Private Properties ---
     private var agentRepository: GeminiRepository? = null
     private var agentJob: Job? = null
     private var saveJob: Job? = null
@@ -344,23 +352,22 @@ class ChatViewModel : ViewModel() {
             agentJob?.cancel()
         }
     }
+    // --- Message Management ---
 
     private fun addMessageToCurrentSession(message: ChatMessage) {
         val session = _currentSession.value ?: return
         session.messages.add(message)
-        _currentSession.postValue(session)
+        _chatMessages.value = session.messages.toList() // Update the flow
         scheduleSaveCurrentSession()
     }
 
     private fun removeMessageFromCurrentSession(messageId: String) {
         val session = _currentSession.value ?: return
         val currentMessages = session.messages.toMutableList()
-        val messageIndex = currentMessages.indexOfFirst { it.id == messageId }
-        if (messageIndex != -1) {
-            currentMessages.removeAt(messageIndex)
+        if (currentMessages.removeAll { it.id == messageId }) {
             session.messages.clear()
             session.messages.addAll(currentMessages)
-            _currentSession.postValue(session)
+            _chatMessages.value = session.messages.toList() // Update the flow
         }
     }
 
@@ -378,10 +385,12 @@ class ChatViewModel : ViewModel() {
                 text = text,
                 status = newStatus
             )
-            _currentSession.postValue(session)
+            _chatMessages.value = session.messages.toList() // Update the flow
             scheduleSaveCurrentSession()
         }
     }
+
+    // --- Session Management ---
 
     fun loadSessions(prefs: SharedPreferences) {
         val loadedSessions = chatStorageManager.loadAllSessions()
@@ -390,7 +399,10 @@ class ChatViewModel : ViewModel() {
         }
         _sessions.value = loadedSessions
         val currentId = prefs.getString(CURRENT_CHAT_ID_PREF_KEY, null)
-        _currentSession.value = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
+        val session = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
+        _currentSession.value = session
+        _chatMessages.value =
+            session.messages.toList() // Initialize the flow with current session's messages
     }
 
     fun saveAllSessionsAndState(prefs: SharedPreferences) {
@@ -405,8 +417,9 @@ class ChatViewModel : ViewModel() {
     fun createNewSession() {
         val newSession = ChatSession()
         _sessions.value?.add(0, newSession)
-        _sessions.postValue(_sessions.value)
+        _sessions.postValue(_sessions.value) // To update session list UI
         _currentSession.value = newSession
+        _chatMessages.value = newSession.messages.toList() // Update flow for the new empty session
         scheduleSaveCurrentSession()
     }
 
@@ -416,6 +429,7 @@ class ChatViewModel : ViewModel() {
         val session = _sessions.value?.find { it.id == sessionId }
         if (session != null) {
             _currentSession.value = session
+            _chatMessages.value = session.messages.toList() // Update flow on session change
         }
     }
 

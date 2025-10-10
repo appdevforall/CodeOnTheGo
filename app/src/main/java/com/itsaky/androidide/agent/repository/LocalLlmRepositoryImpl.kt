@@ -79,13 +79,11 @@ class LocalLlmRepositoryImpl(
         val toolDescriptions = tools.values.joinToString("\n") { "- ${it.name}: ${it.description}" }
         SYSTEM_PROMPT.replace("[AVAILABLE_TOOLS]", toolDescriptions)
     }
-    private var currentModelFamily: ModelFamily = ModelFamily.UNKNOWN
-
     private fun buildPromptWithHistory(
         history: List<ChatMessage>,
         isFinalAnswerTurn: Boolean
     ): String {
-        return when (currentModelFamily) {
+        return when (engine.currentModelFamily) {
             ModelFamily.LLAMA3 -> buildLlama3Prompt(history)
             ModelFamily.GEMMA2 -> {
                 if (isFinalAnswerTurn) {

@@ -13,8 +13,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.Observer
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -103,18 +104,22 @@ class ChatFragment :
         setupUI()
         setupListeners()
         setupStateObservers()
+
         chatViewModel.backendStatus.observe(viewLifecycleOwner) { status ->
             binding.backendStatusText.text = status.displayText
         }
-        chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
-            session?.let {
-                chatAdapter.submitList(it.messages.toList())
-                updateUIState(it.messages)
-                binding.chatRecyclerView.post {
-                    binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                chatViewModel.chatMessages.collect { messages ->
+                    chatAdapter.submitList(messages)
+                    updateUIState(messages)
+                    if (messages.isNotEmpty()) {
+                        binding.chatRecyclerView.scrollToPosition(messages.size - 1)
+                    }
                 }
             }
-        })
+        }
         parentFragmentManager.setFragmentResultListener(
             "chat_history_request",
             viewLifecycleOwner

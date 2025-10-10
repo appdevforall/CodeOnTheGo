@@ -31,7 +31,8 @@ class LlmInferenceEngine(
     var isModelLoaded: Boolean = false
         private set
     var loadedModelName: String? = null
-        private set
+    var currentModelFamily: ModelFamily = ModelFamily.UNKNOWN
+
     var loadedModelPath: String? = null
         private set
 
@@ -63,14 +64,16 @@ class LlmInferenceEngine(
                 llama.load(destinationFile.path)
                 isModelLoaded = true
                 loadedModelPath = destinationFile.path
-                loadedModelName = displayName // <-- SET THE MODEL NAME HERE
+                loadedModelName = displayName
+                currentModelFamily = detectModelFamily(destinationFile.path)
                 log.info("Successfully loaded local model: {}", loadedModelName)
                 true
             } catch (e: Exception) {
                 log.error("Failed to initialize or load model from file", e)
                 isModelLoaded = false
                 loadedModelPath = null
-                loadedModelName = null // <-- Clear on failure
+                loadedModelName = null
+                currentModelFamily = ModelFamily.UNKNOWN
                 false
             }
         }
@@ -87,6 +90,7 @@ class LlmInferenceEngine(
         isModelLoaded = false
         loadedModelPath = null
         loadedModelName = null
+        currentModelFamily = ModelFamily.UNKNOWN
     }
 
     /**
@@ -155,5 +159,14 @@ class LlmInferenceEngine(
      */
     fun stop() {
         llama.stop()
+    }
+
+    private fun detectModelFamily(path: String): ModelFamily {
+        val lowerPath = path.lowercase()
+        return when {
+            lowerPath.contains("gemma") -> ModelFamily.GEMMA2
+            lowerPath.contains("llama") -> ModelFamily.LLAMA3
+            else -> ModelFamily.UNKNOWN
+        }
     }
 }
