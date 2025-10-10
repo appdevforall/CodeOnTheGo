@@ -17,6 +17,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -41,6 +44,11 @@ class AgenticRunner(
     private val context: Context,
     private val maxSteps: Int = 20
 ) : GeminiRepository {
+    private val _messages = MutableStateFlow<List<ChatMessage>>(
+        listOf(
+        )
+    )
+    override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
     private val runnerJob = Job()
     private val runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)

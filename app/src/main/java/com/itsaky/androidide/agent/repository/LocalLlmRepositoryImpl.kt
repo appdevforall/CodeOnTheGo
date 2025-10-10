@@ -58,7 +58,7 @@ class LocalLlmRepositoryImpl(
         listOf(
         )
     )
-    val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+    override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
     suspend fun loadModel(modelUriString: String): Boolean {
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
@@ -110,6 +110,9 @@ class LocalLlmRepositoryImpl(
                 report = ""
             )
         }
+        addMessage(prompt, Sender.USER)
+        val placeholder = "..."
+        addMessage(placeholder, Sender.AGENT)
 
         runAgentLoop(history)
         return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
