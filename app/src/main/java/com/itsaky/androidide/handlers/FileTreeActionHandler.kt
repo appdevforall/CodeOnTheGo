@@ -70,6 +70,7 @@ class FileTreeActionHandler : BaseEventHandler() {
 
     val context = event[Context::class.java]!! as EditorHandlerActivity
     context.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+//    context.binding.root.closeDrawer(GravityCompat.START)
     if (event.file.name.endsWith(".apk")) {
       context.apkInstallationViewModel.installApk(
 		  context = context,

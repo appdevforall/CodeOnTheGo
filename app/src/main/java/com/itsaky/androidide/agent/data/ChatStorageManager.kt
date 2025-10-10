@@ -2,8 +2,8 @@ package com.itsaky.androidide.agent.data
 
 import android.util.Log
 import com.google.gson.Gson
-import com.itsaky.androidide.models.ChatMessage
-import com.itsaky.androidide.models.ChatSession
+import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.ChatSession
 import java.io.File
 
 /**

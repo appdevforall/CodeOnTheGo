@@ -1,82 +1,121 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:app="http://schemas.android.com/apk/res-auto"
-  xmlns:tools="http://schemas.android.com/tools"
-  android:layout_width="match_parent"
-  android:layout_height="match_parent"
-    tools:ignore="DuplicateIncludedIds">
-
-  <com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
-      android:id="@+id/editor_drawerLayout"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      android:background="?attr/colorSurfaceDim">
-
-  <com.itsaky.androidide.ui.SwipeRevealLayout
-    android:id="@+id/swipe_reveal"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/editor_root_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    app:dragHandle="@id/custom_toolbar">
+    tools:context=".activities.editor.BaseEditorActivity">
 
-    <include
-      android:id="@+id/mem_usage_view"
-      layout="@layout/layout_mem_usage" />
+    <FrameLayout
+        android:id="@+id/main_content_wrapper"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/guideline_vertical_end"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
-    <com.google.android.material.card.MaterialCardView
-      android:id="@+id/content_card"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      app:cardBackgroundColor="?attr/colorSurface"
-      app:cardCornerRadius="@dimen/editor_container_corners"
-      app:cardElevation="0dp"
-      app:strokeWidth="0dp">
+        <com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
+            android:id="@+id/editor_drawerLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurfaceDim">
 
-      <include
-        android:id="@+id/content"
-        layout="@layout/content_editor" />
+            <com.itsaky.androidide.ui.SwipeRevealLayout
+                android:id="@+id/swipe_reveal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:dragHandle="@id/custom_toolbar">
 
-    </com.google.android.material.card.MaterialCardView>
+                <include
+                    android:id="@+id/mem_usage_view"
+                    layout="@layout/layout_mem_usage" />
 
-  </com.itsaky.androidide.ui.SwipeRevealLayout>
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/content_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:cardBackgroundColor="?attr/colorSurface"
+                    app:cardCornerRadius="@dimen/editor_container_corners"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0dp">
 
-  <com.google.android.material.navigation.NavigationView
-    android:id="@+id/startNav"
-    android:layout_width="wrap_content"
-    android:layout_height="match_parent"
-    android:layout_gravity="start"
-    app:elevation="8dp">
+                    <include
+                        android:id="@+id/content"
+                        layout="@layout/content_editor" />
+
+                </com.google.android.material.card.MaterialCardView>
+
+            </com.itsaky.androidide.ui.SwipeRevealLayout>
+
+            <com.google.android.material.navigation.NavigationView
+                android:id="@+id/startNav"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="start"
+                app:elevation="8dp">
+
+                <androidx.fragment.app.FragmentContainerView
+                    android:id="@+id/drawer_sidebar"
+                    android:name="com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+            </com.google.android.material.navigation.NavigationView>
+
+        </com.itsaky.androidide.ui.ContentTranslatingDrawerLayout>
+
+    </FrameLayout>
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_vertical_end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="1.0" />
+
+    <FrameLayout
+        android:id="@+id/resize_divider"
+        android:layout_width="24dp"
+        android:layout_height="0dp"
+        android:elevation="8dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/guideline_vertical_end"
+        app:layout_constraintStart_toStartOf="@id/guideline_vertical_end"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="-6dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_resize"
+            app:tint="?attr/colorControlNormal" />
+
+    </FrameLayout>
 
     <androidx.fragment.app.FragmentContainerView
-      android:id="@+id/drawer_sidebar"
-      android:name="com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent" />
-
-  </com.google.android.material.navigation.NavigationView>
-
-    <com.google.android.material.navigation.NavigationView
-        android:id="@+id/endNav"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_gravity="end"
-        app:elevation="8dp">
-
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/right_drawer_sidebar"
-            android:name="com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-    </com.google.android.material.navigation.NavigationView>
-
-</com.itsaky.androidide.ui.ContentTranslatingDrawerLayout>
+        android:id="@+id/right_panel_container"
+        android:name="com.itsaky.androidide.agent.fragments.RightEditorSidebarFragment"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:elevation="8dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guideline_vertical_end"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
 
   <com.google.android.material.floatingactionbutton.FloatingActionButton
       android:id="@+id/fab_feedback"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:layout_alignParentStart="true"
-      android:layout_alignParentBottom="true"
       android:layout_margin="16dp"
-      android:src="@drawable/baseline_feedback_64" />
-</RelativeLayout>
+      android:src="@drawable/baseline_feedback_64"
+      app:layout_constraintBottom_toBottomOf="parent"
+      app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
