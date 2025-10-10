@@ -7,17 +7,8 @@ import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.ToolCall
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import java.util.regex.Pattern
-
-@Serializable
-data class ParsedToolCall(
-    @SerialName("tool_name") val name: String,
-    val args: Map<String, JsonElement>? = null
-)
 
 private const val SYSTEM_PROMPT = """
 You are a helpful and smart assistant integrated into an Android application.
