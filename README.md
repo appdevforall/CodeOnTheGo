@@ -89,14 +89,13 @@ For translations, visit the [Crowdin project page](https://crowdin.com/project/a
 
 ## Thanks to
 
-- [Rosemoe](https://github.com/Rosemoe) for the
-  awesome [CodeEditor](https://github.com/Rosemoe/sora-editor)
+- [Rosemoe](https://github.com/Rosemoe) for [CodeEditor](https://github.com/Rosemoe/sora-editor)
 - [Termux](https://github.com/termux) for [Terminal Emulator](https://github.com/termux/termux-app)
 - [Bogdan Melnychuk](https://github.com/bmelnychuk)
   for [AndroidTreeView](https://github.com/bmelnychuk/AndroidTreeView)
 - [George Fraser](https://github.com/georgewfraser) for
   the [Java Language Server](https://github.com/georgewfraser/java-language-server)
-- Vivek NAME for Awesome LayoutEditor
+- itsvks19 for [LayoutEditor](https://github.com/itsvks19/LayoutEditor)
  
 Thanks to all the developers who have contributed to this project! 
 
@@ -125,4 +124,5 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
