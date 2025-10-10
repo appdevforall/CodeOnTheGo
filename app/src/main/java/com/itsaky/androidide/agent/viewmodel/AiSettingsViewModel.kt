@@ -95,4 +95,12 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         val savedUriString = getLocalModelPath()
         _savedModelPath.value = savedUriString
     }
+
+    fun getGeminiApiKeySaveTimestamp(): Long {
+        return EncryptedPrefs.getGeminiApiKeySaveTimestamp(getApplication())
+    }
+
+    fun clearGeminiApiKey() {
+        EncryptedPrefs.clearGeminiApiKey(getApplication())
+    }
 }

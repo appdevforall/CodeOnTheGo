@@ -263,9 +263,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         // Track project open in Firebase Analytics
         analyticsManager.trackProjectOpened(root.absolutePath)
 
+        if (isFinishing) {
+            return
+        }
+
         val intent = Intent(this, EditorActivityKt::class.java).apply {
             putExtra("PROJECT_PATH", root.absolutePath)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
 
         startActivity(intent)

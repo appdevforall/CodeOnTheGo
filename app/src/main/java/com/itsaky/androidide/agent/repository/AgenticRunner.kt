@@ -1,15 +1,15 @@
 package com.itsaky.androidide.agent.repository
 
+// ✨ 1. Import necessary coroutine classes
 import android.content.Context
 import com.google.genai.types.Content
 import com.google.genai.types.Part
 import com.google.genai.types.Tool
+import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
-import com.itsaky.androidide.agent.AgentState
-import com.itsaky.androidide.agent.ChatMessage
-// ✨ 1. Import necessary coroutine classes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,15 +38,13 @@ import kotlin.jvm.optionals.getOrNull
 
 
 class AgenticRunner(
-    private val context: Context, // Keep the context
+    private val context: Context,
     private val maxSteps: Int = 20
 ) : GeminiRepository {
 
-    // ✨ 2. Create a cancellable Job and a CoroutineScope for the runner
     private val runnerJob = Job()
     private val runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
 
-    // Use lazy initialization for the clients
     private val plannerClient: GeminiClient by lazy {
         // Fetch the key when the client is first needed
         val apiKey = EncryptedPrefs.getGeminiApiKey(context)
@@ -88,7 +86,6 @@ class AgenticRunner(
      */
     override fun stop() {
         log.info("Stop requested for AgenticRunner. Cancelling job.")
-        // Cancel the job with a message for debugging
         runnerJob.cancel("User requested to stop the agent.")
     }
 
@@ -117,7 +114,6 @@ class AgenticRunner(
     companion object {
         private val log = LoggerFactory.getLogger(AgenticRunner::class.java)
 
-        // For robust JSON serialization, including for unknown types
         private val json = Json {
             prettyPrint = true
             isLenient = true
@@ -233,7 +229,6 @@ class AgenticRunner(
 
         try {
             for (step in 0 until maxSteps) {
-                // ✨ 5. Add an explicit check for cancellation at the start of each loop
                 runnerScope.ensureActive()
 
                 val message = "Orchestrator: Step ${step + 1}..."
@@ -293,7 +288,6 @@ class AgenticRunner(
             }
             throw RuntimeException("Agentic run exceeded max_steps ($maxSteps)")
         } catch (err: Exception) {
-            // ✨ 6. Specifically handle CancellationException to provide a clean message
             if (err is CancellationException) {
                 log.warn("Agentic run was cancelled during execution.")
                 return "Operation cancelled by user."
@@ -316,10 +310,8 @@ class AgenticRunner(
         val logEntry = buildJsonObject {
             put("step", logEntries.size + 1)
             put("turn", turn)
-            // 'content' will now be a proper JsonArray
             putJsonArray("content") {
                 parts.forEach { part ->
-                    // serializePart should now return a JsonObject
                     add(serializePartToJsonObject(part))
                 }
             }
@@ -333,11 +325,8 @@ class AgenticRunner(
             return buildJsonObject {
                 put("type", "function_call")
                 put("name", fc.name().get())
-                // fc.args() is a Map, so we can convert it to a JsonObject
                 putJsonObject("args") {
                     fc.args().get().forEach { (key, value) ->
-                        // This is a simple conversion; you might need a more robust one
-                        // if your arg values are not just strings.
                         put(key, value.toString())
                     }
                 }
@@ -347,7 +336,7 @@ class AgenticRunner(
             return buildJsonObject {
                 put("type", "function_response")
                 put("name", fr.name().get())
-                put("response", fr.response().toString()) // Simplified for logging
+                put("response", fr.response().toString())
             }
         }
         part.text().getOrNull()?.let { text ->
@@ -398,7 +387,6 @@ class AgenticRunner(
                 .bufferedReader()
                 .use { it.readText() }
         } catch (e: Exception) {
-            // log.error("Failed to load planner_fewshots.txt from assets.", e)
             println("Error reading few-shots text file: ${e.message}")
             "" // Return an empty string if the file can't be read
         }
@@ -406,21 +394,16 @@ class AgenticRunner(
 
     private fun getFewShotsConfig(): List<Map<String, Any>> {
         try {
-            // 1. Read the file (your original code is perfect here)
             val jsonString = context.assets.open("agent/planner_fewshots.json")
                 .bufferedReader()
                 .use { it.readText() }
 
-            // 2. Decode the JSON string into a list of JsonObject
             val jsonObjects =
                 json.decodeFromString(ListSerializer(JsonObject.serializer()), jsonString)
 
-            // 3. Safely convert each JsonObject into a standard Map<String, Any>
             return jsonObjects.map { it.toStandardMap() }
 
         } catch (e: Exception) {
-            // Your error handling is good
-            // log.error("Failed to load or parse planner_fewshots.json from assets.", e)
             println("Error parsing few-shots JSON: ${e.message}")
             return emptyList()
         }
@@ -436,7 +419,6 @@ private fun JsonObject.toStandardMap(): Map<String, Any> {
         jsonElement.toAny()
     }
 }
-
 
 /**
  * Recursive helper function to convert any JsonElement into a standard Kotlin type.
