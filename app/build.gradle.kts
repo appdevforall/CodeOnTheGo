@@ -31,6 +31,7 @@ plugins {
 	id("androidx.navigation.safeargs.kotlin")
 	id("com.itsaky.androidide.desugaring")
 	alias(libs.plugins.sentry)
+	alias(libs.plugins.google.services)
 	kotlin("plugin.serialization")
 }
 
@@ -224,6 +225,7 @@ dependencies {
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
 	implementation(projects.subprojects.shizukuProvider)
+	implementation(projects.subprojects.shizukuServerShared)
 	implementation(projects.subprojects.xmlUtils)
 	implementation(projects.subprojects.projects)
 	implementation(projects.subprojects.toolingApi)
@@ -271,7 +273,16 @@ dependencies {
 	// Koin for Dependency Injection
 	implementation("io.insert-koin:koin-android:3.5.3")
 	implementation(libs.androidx.security.crypto)
+
+	// Firebase Analytics
+	implementation(platform(libs.firebase.bom))
+	implementation(libs.firebase.analytics)
+
+	// Lifecycle Process for app lifecycle tracking
+	implementation(libs.androidx.lifecycle.process)
     implementation(libs.google.genai)
+    "v7Implementation"(files("libs/v7/llama-v7-release.aar"))
+    "v8Implementation"(files("libs/v8/llama-v8-release.aar"))
 }
 
 tasks.register("downloadDocDb") {

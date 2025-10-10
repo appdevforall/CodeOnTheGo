@@ -18,7 +18,6 @@
 package com.itsaky.androidide.handlers
 
 import android.content.Context
-import androidx.core.view.GravityCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionMenu
@@ -34,8 +33,6 @@ import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.models.SheetOption
-import com.itsaky.androidide.utils.ApkInstaller
-import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.flashError
 import com.unnamed.b.atv.model.TreeNode
 import org.greenrobot.eventbus.EventBus
@@ -71,14 +68,13 @@ class FileTreeActionHandler : BaseEventHandler() {
     }
 
     val context = event[Context::class.java]!! as EditorHandlerActivity
-    context.binding.root.closeDrawer(GravityCompat.START)
+//    context.binding.root.closeDrawer(GravityCompat.START)
     if (event.file.name.endsWith(".apk")) {
-      ApkInstaller.installApk(
-        context,
-        InstallationResultHandler.createEditorActivitySender(context),
-        event.file,
-        context.installationSessionCallback()
-      )
+      context.apkInstallationViewModel.installApk(
+		  context = context,
+		  apk = event.file,
+		  launchInDebugMode = false
+	  )
       return
     }
 
