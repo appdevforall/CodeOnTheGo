@@ -26,13 +26,16 @@ object TooltipTag {
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
     const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
-    const val PREFS_GRADLE = "prefs.gradle"
 
     // General Preferences
+    const val PREFS_TOP = "prefs.top"
     const val PREFS_EDITOR = "prefs.editor"
     const val PREFS_GENERAL = "prefs.general"
     const val PREFS_BUILD_RUN = "prefs.buildrun"
+    const val PREFS_GRADLE = "prefs.gradle"
     const val PREFS_TERMUX = "prefs.termux"
+    const val PREFS_EDITOR_XML = "prefs.editor.xml"
+    const val PREFS_DEVELOPER = "prefs.developer"
     const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
     const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
     const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
