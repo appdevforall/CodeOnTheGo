@@ -12,6 +12,7 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.MessageStatus
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
@@ -78,7 +79,7 @@ class ChatViewModel : ViewModel() {
     fun addSystemMessage(text: String) {
         val systemMessage = ChatMessage(
             text = text,
-            sender = ChatMessage.Sender.SYSTEM
+            sender = Sender.SYSTEM
         )
         addMessageToCurrentSession(systemMessage)
     }
@@ -179,11 +180,11 @@ class ChatViewModel : ViewModel() {
 
         _agentState.value = AgentState.Processing("Thinking...")
 
-        val userMessage = ChatMessage(text = originalUserText, sender = ChatMessage.Sender.USER)
+        val userMessage = ChatMessage(text = originalUserText, sender = Sender.USER)
         addMessageToCurrentSession(userMessage)
         val loadingMessage = ChatMessage(
             text = "...",
-            sender = ChatMessage.Sender.AGENT,
+            sender = Sender.AGENT,
             status = MessageStatus.LOADING
         )
         addMessageToCurrentSession(loadingMessage)
@@ -259,7 +260,7 @@ class ChatViewModel : ViewModel() {
                 addMessageToCurrentSession(
                     ChatMessage(
                         text = agentResponse.text,
-                        sender = ChatMessage.Sender.AGENT,
+                        sender = Sender.AGENT,
                         status = MessageStatus.SENT
                     )
                 )
@@ -269,7 +270,7 @@ class ChatViewModel : ViewModel() {
                     addMessageToCurrentSession(
                         ChatMessage(
                             text = agentResponse.report,
-                            sender = ChatMessage.Sender.SYSTEM
+                            sender = Sender.SYSTEM
                         )
                     )
                 }
@@ -287,7 +288,7 @@ class ChatViewModel : ViewModel() {
                             addMessageToCurrentSession(
                                 ChatMessage(
                                     text = partialReport,
-                                    sender = ChatMessage.Sender.SYSTEM
+                                    sender = Sender.SYSTEM
                                 )
                             )
                         }

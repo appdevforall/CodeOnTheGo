@@ -15,6 +15,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.ACTION_EDIT
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.MessageStatus
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
 import com.itsaky.androidide.databinding.ListItemChatSystemMessageBinding
 import io.noties.markwon.Markwon
@@ -45,7 +46,7 @@ class ChatAdapter(
 
     override fun getItemViewType(position: Int): Int {
         return when (getItem(position).sender) {
-            ChatMessage.Sender.SYSTEM -> VIEW_TYPE_SYSTEM
+            Sender.SYSTEM -> VIEW_TYPE_SYSTEM
             else -> VIEW_TYPE_DEFAULT
         }
     }
@@ -176,7 +177,7 @@ class ChatAdapter(
         popup.inflate(R.menu.chat_message_context_menu)
 
         val editItem = popup.menu.findItem(R.id.menu_edit_message)
-        editItem.isVisible = message.sender == ChatMessage.Sender.USER
+        editItem.isVisible = message.sender == Sender.USER
 
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
