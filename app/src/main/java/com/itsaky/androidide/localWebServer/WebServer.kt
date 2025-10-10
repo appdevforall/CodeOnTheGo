@@ -124,6 +124,8 @@ FROM   LastChange
         val writer = PrintWriter(output, true)
         val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
         brotliSupported = false //assume nothing
+        var rangeStart: Long? = null
+        var rangeEnd: Long? = null
 
         // Read the request method line, it is always the first line of the request
         var requestLine = reader.readLine() ?: return
@@ -148,6 +150,7 @@ FROM   LastChange
 
         //the HTTP headers follow the the method line, read until eof or 0 length
         //if we encounter the Encoding Header, check to see if brotli encoding (br) is supported
+        //also check for Range header for partial content requests
         while(requestLine.length > 0) {
             requestLine = reader.readLine() ?: break
 
@@ -159,7 +162,37 @@ FROM   LastChange
                     break
                 }
                 brotliSupported = parts.contains(brotliCompression)
-                break
+            } else if (requestLine.startsWith("Range:")) {
+                // Parse Range header: "Range: bytes=start-end" or "Range: bytes=start-" or "Range: bytes=-suffix"
+                val rangeValue = requestLine.substringAfter("Range: ").trim()
+                if (rangeValue.startsWith("bytes=")) {
+                    val rangeSpec = rangeValue.substring(6) // Remove "bytes="
+                    if (rangeSpec.contains(",")) {
+                        // Multiple ranges not supported, will return 416 later
+                        rangeStart = -1
+                        rangeEnd = -1
+                    } else {
+                        val parts = rangeSpec.split("-")
+                        if (parts.size == 2) {
+                            if (parts[0].isEmpty()) {
+                                // Suffix range: bytes=-suffix
+                                val suffix = parts[1].toLongOrNull()
+                                if (suffix != null && suffix > 0) {
+                                    rangeStart = -suffix // Will be calculated later based on content length
+                                    rangeEnd = -1 // Indicates suffix range
+                                }
+                            } else if (parts[1].isEmpty()) {
+                                // Open-ended range: bytes=start-
+                                rangeStart = parts[0].toLongOrNull()
+                                rangeEnd = -1 // Will be set to content length - 1 later
+                            } else {
+                                // Full range: bytes=start-end
+                                rangeStart = parts[0].toLongOrNull()
+                                rangeEnd = parts[1].toLongOrNull()
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -239,10 +272,60 @@ WHERE  path = ?
             }
         }
 
+        // Handle range requests
+        val contentLength = dbContent.size
+        var responseContent = dbContent
+        var isRangeRequest = rangeStart != null
+        var actualRangeStart = 0L
+        var actualRangeEnd = (contentLength - 1).toLong()
+        
+        if (isRangeRequest) {
+            // Validate range request
+            if (rangeStart == -1L && rangeEnd == -1L) {
+                // Multiple ranges not supported
+                return sendError(writer, 416, "Range Not Satisfiable", "Multiple ranges not supported")
+            }
+            
+            if (rangeStart == null || rangeEnd == null) {
+                return sendError(writer, 416, "Range Not Satisfiable", "Invalid range format")
+            }
+            
+            // Handle suffix range (bytes=-suffix)
+            if (rangeStart < 0) {
+                actualRangeStart = maxOf(0, contentLength + rangeStart)
+                actualRangeEnd = (contentLength - 1).toLong()
+            }
+            // Handle open-ended range (bytes=start-)
+            else if (rangeEnd == -1L) {
+                actualRangeStart = rangeStart
+                actualRangeEnd = (contentLength - 1).toLong()
+            }
+            // Handle full range (bytes=start-end)
+            else {
+                actualRangeStart = rangeStart
+                actualRangeEnd = minOf(rangeEnd, (contentLength - 1).toLong())
+            }
+            
+            // Validate range bounds
+            if (actualRangeStart < 0 || actualRangeStart >= contentLength || actualRangeEnd < actualRangeStart) {
+                return sendError(writer, 416, "Range Not Satisfiable", "Range out of bounds")
+            }
+            
+            // Extract the requested byte range
+            responseContent = dbContent.sliceArray(actualRangeStart.toInt()..actualRangeEnd.toInt())
+        }
+        
         //send our response
-        writer.println("HTTP/1.1 200 OK")
+        if (isRangeRequest) {
+            writer.println("HTTP/1.1 206 Partial Content")
+            writer.println("Content-Range: bytes $actualRangeStart-$actualRangeEnd/$contentLength")
+        } else {
+            writer.println("HTTP/1.1 200 OK")
+        }
+        
         writer.println("Content-Type: $dbMimeType")
-        writer.println("Content-Length: ${dbContent.size}")
+        writer.println("Content-Length: ${responseContent.size}")
+        writer.println("Accept-Ranges: bytes")
 
         if (compression != "none") {
             writer.println("Content-Encoding: ${compression}")
@@ -251,7 +334,7 @@ WHERE  path = ?
         writer.println("Connection: close")
         writer.println()
         writer.flush()
-        output.write(dbContent)
+        output.write(responseContent)
         output.flush()
         cursor.close()
     }
