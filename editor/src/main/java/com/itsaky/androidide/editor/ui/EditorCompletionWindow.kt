@@ -77,11 +77,7 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                 val tag = if (completionData == null) {
                     val label = completionItem?.ideLabel ?: ""
                     val attrName = if (label.contains(':')) label.substringAfterLast(':') else label
-                    if (category == TooltipCategory.CATEGORY_XML && attrName.isNotEmpty() && !label.contains('.')) {
-                        "xml.attr.$attrName"
-                    } else {
-                        attrName.ifEmpty { null }
-                    }
+                    attrName.ifEmpty { null }
                 } else {
                     DocumentationReferenceProvider.getTag(completionData)
                 }

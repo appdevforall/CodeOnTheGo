@@ -51,7 +51,7 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
             val tag = if (category == TooltipCategory.CATEGORY_XML && editor.isXmlAttribute()) {
-                "xml.attr.${word.substringAfterLast(":")}"
+                word.substringAfterLast(":")
             } else {
                 word
             }
