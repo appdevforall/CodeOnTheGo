@@ -45,7 +45,7 @@ public class Main {
 
     LOG.debug("Starting Tooling API server...");
     final var project = new ProjectImpl();
-    final var server = new ToolingApiServerImpl(project);
+    final var server = new ToolingApiServerImpl();
     final var launcher =
         ToolingApiLauncher.newServerLauncher(server, project, System.in, System.out);
     Main.future = launcher.startListening();

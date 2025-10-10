@@ -18,13 +18,12 @@
 package com.itsaky.androidide.projects
 
 import androidx.annotation.RestrictTo
-import com.android.builder.model.v2.models.ProjectSyncIssues
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.projects.api.Project
+import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.builder.BuildService
-import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.utils.ServiceLoader
 import java.io.File
@@ -37,139 +36,143 @@ import java.nio.file.Path
  */
 interface IProjectManager {
 
-  companion object {
+	companion object {
 
-    private var projectManager: IProjectManager? = null
+		private var projectManager: IProjectManager? = null
 
-    /**
-     * Get the project manager instance.
-     */
-    @JvmStatic
-    fun getInstance(): IProjectManager {
-      return projectManager ?: ServiceLoader.load(IProjectManager::class.java).findFirstOrThrow()
-        .also {
-          projectManager = it
-        }
-    }
-  }
+		/**
+		 * Get the project manager instance.
+		 */
+		@JvmStatic
+		fun getInstance(): IProjectManager {
+			return projectManager ?: ServiceLoader.load(IProjectManager::class.java)
+				.findFirstOrThrow()
+				.also {
+					projectManager = it
+				}
+		}
+	}
 
-  /**
-   * The root project model.
-   */
-  val rootProject: Project?
+	/**
+	 * The Gradle build model.
+	 */
+	val gradleBuild: GradleModels.GradleBuild?
 
-  /**
-   * The path to the project's root directory.
-   */
-  val projectDirPath: String
+	/**
+	 * The workspace of the project.
+	 */
+	val workspace: Workspace?
 
-  /**
-   * The project's root directory.
-   */
-  val projectDir: File
-    get() = File(projectDirPath)
+	/**
+	 * The path to the project's root directory.
+	 */
+	val projectDirPath: String
 
-  /**
-   * Issues that were encountered during project synchronization.
-   */
-  val projectSyncIssues: ProjectSyncIssues?
+	/**
+	 * The project's root directory.
+	 */
+	val projectDir: File
+		get() = File(projectDirPath)
 
-  /**
-   * Build variant information about Android modules in the project.
-   *
-   * The entries in this map are the Gradle project paths mapped to the corresponding [BuildVariantInfo]s.
-   */
-  val androidBuildVariants: Map<String, BuildVariantInfo>
+	/**
+	 * Issues that were encountered during project synchronization.
+	 */
+	val projectSyncIssues: List<GradleModels.SyncIssue>?
 
-  /**
-   * Setup the project with the given [project proxy][project] from the Tooling API.
-   *
-   * @param project The project proxy.
-   */
-  @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
-  suspend fun setupProject(
-    project: IProject = Lookup.getDefault().lookup(BuildService.KEY_PROJECT_PROXY)!!
-  )
+	/**
+	 * Build variant information about Android modules in the project.
+	 *
+	 * The entries in this map are the Gradle project paths mapped to the corresponding [BuildVariantInfo]s.
+	 */
+	val androidBuildVariants: Map<String, BuildVariantInfo>
 
-  /**
-   * Get the list of the modules in this project which are Android projects.
-   *
-   * @return The list of Android modules.
-   */
-  fun getAndroidModules(): List<AndroidModule>
+	/**
+	 * Setup the project with the given [project proxy][gradleBuild] from the Tooling API.
+	 *
+	 * @param gradleBuild The project proxy.
+	 */
+	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
+	suspend fun setup(gradleBuild: GradleModels.GradleBuild)
 
-  /**
-   * Get the list of modules in this project which are Android application modules.
-   *
-   * @return The list of Android application modules.
-   */
-  fun getAndroidAppModules(): List<AndroidModule>
+	/**
+	 * Get the list of the modules in this project which are Android projects.
+	 *
+	 * @return The list of Android modules.
+	 */
+	fun getAndroidModules(): List<AndroidModule>
 
-  /**
-   * Get the list of modules in this project which are Android library modules.
-   *
-   * @return The list of Android library modules.
-   */
-  fun getAndroidLibraryModules(): List<AndroidModule>
+	/**
+	 * Get the list of modules in this project which are Android application modules.
+	 *
+	 * @return The list of Android application modules.
+	 */
+	fun getAndroidAppModules(): List<AndroidModule>
 
-  /**
-   * Find the module for the given file.
-   *
-   * @param file The file to find the module for.
-   * @return The module project, or `null` if not found.
-   */
-  fun findModuleForFile(file: File): ModuleProject? {
-    return findModuleForFile(file, true)
-  }
+	/**
+	 * Get the list of modules in this project which are Android library modules.
+	 *
+	 * @return The list of Android library modules.
+	 */
+	fun getAndroidLibraryModules(): List<AndroidModule>
 
-  /**
-   * Find the module for the given file.
-   *
-   * @param file The file to find the module for.
-   * @param checkExistance Whether to check if the file exists or not.
-   * @return The [ModuleProject] for the given file, or `null` if cannot be found.
-   */
-  fun findModuleForFile(file: File, checkExistance: Boolean): ModuleProject?
+	/**
+	 * Find the module for the given file.
+	 *
+	 * @param file The file to find the module for.
+	 * @return The module project, or `null` if not found.
+	 */
+	fun findModuleForFile(file: File): ModuleProject? {
+		return findModuleForFile(file, true)
+	}
 
-  /**
-   * Find the module for the given file.
-   *
-   * @param file The file to find the module for.
-   * @return The module project, or `null` if not found.
-   */
-  fun findModuleForFile(file: Path): ModuleProject? {
-    return findModuleForFile(file, true)
-  }
+	/**
+	 * Find the module for the given file.
+	 *
+	 * @param file The file to find the module for.
+	 * @param checkExistance Whether to check if the file exists or not.
+	 * @return The [ModuleProject] for the given file, or `null` if cannot be found.
+	 */
+	fun findModuleForFile(file: File, checkExistance: Boolean): ModuleProject?
 
-  /**
-   * Find the module for the given file.
-   *
-   * @param file The file to find the module for.
-   * @param checkExistance Whether to check if the file exists or not.
-   * @return The [ModuleProject] for the given file, or `null` if cannot be found.
-   */
-  fun findModuleForFile(file: Path, checkExistance: Boolean): ModuleProject? {
-    return findModuleForFile(file.toFile(), checkExistance)
-  }
+	/**
+	 * Find the module for the given file.
+	 *
+	 * @param file The file to find the module for.
+	 * @return The module project, or `null` if not found.
+	 */
+	fun findModuleForFile(file: Path): ModuleProject? {
+		return findModuleForFile(file, true)
+	}
 
-  /**
-   * Check if any of the module projects contain the given [file] in their source folder.
-   *
-   * @param file The file to check.
-   * @return `true` if the given [file] is a source file in any of the mdoules, `false` otherwise.
-   */
-  fun containsSourceFile(file: Path): Boolean
+	/**
+	 * Find the module for the given file.
+	 *
+	 * @param file The file to find the module for.
+	 * @param checkExistance Whether to check if the file exists or not.
+	 * @return The [ModuleProject] for the given file, or `null` if cannot be found.
+	 */
+	fun findModuleForFile(file: Path, checkExistance: Boolean): ModuleProject? {
+		return findModuleForFile(file.toFile(), checkExistance)
+	}
 
-  /**
-   * Checks if the given file is a resource file in any of the included Android modules.
-   *
-   * @param file The file to check.
-   * @return `true` if the given file is a resource file in any of the Android modules, `false` otherwise.
-   */
-  fun isAndroidResource(file: File): Boolean
+	/**
+	 * Check if any of the module projects contain the given [file] in their source folder.
+	 *
+	 * @param file The file to check.
+	 * @return `true` if the given [file] is a source file in any of the mdoules, `false` otherwise.
+	 */
+	fun containsSourceFile(file: Path): Boolean
 
-  /**
-   * Destroy the project manager.
-   */
-  fun destroy()
+	/**
+	 * Checks if the given file is a resource file in any of the included Android modules.
+	 *
+	 * @param file The file to check.
+	 * @return `true` if the given file is a resource file in any of the Android modules, `false` otherwise.
+	 */
+	fun isAndroidResource(file: File): Boolean
+
+	/**
+	 * Destroy the project manager.
+	 */
+	fun destroy()
 }

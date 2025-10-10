@@ -64,8 +64,9 @@ import com.itsaky.androidide.lsp.util.LSPEditorActions
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager.getActiveDocumentCount
 import com.itsaky.androidide.projects.IProjectManager.Companion.getInstance
+import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.projects.api.Project
+import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.VMUtils
 import kotlinx.coroutines.CoroutineScope
@@ -81,250 +82,250 @@ import java.util.Objects
 
 class JavaLanguageServer : ILanguageServer {
 
-  private val completionProvider: CompletionProvider = CompletionProvider()
-  private val diagnosticProvider = JavaDiagnosticProvider()
-  override var client: ILanguageClient? = null
-    private set
+	private val completionProvider: CompletionProvider = CompletionProvider()
+	private val diagnosticProvider = JavaDiagnosticProvider()
+	override var client: ILanguageClient? = null
+		private set
 
-  private var _settings: IServerSettings? = null
-  private var selectedFile: Path? = null
-  private val timer = AnalyzeTimer { analyzeSelected() }
-  private var cachedCompletion: CachedCompletion
+	private var _settings: IServerSettings? = null
+	private var selectedFile: Path? = null
+	private val timer = AnalyzeTimer { analyzeSelected() }
+	private var cachedCompletion: CachedCompletion
 
-  val settings: IServerSettings
-    get() {
-      return _settings ?: JavaServerSettings.getInstance()
-        .also { _settings = it }
-    }
+	val settings: IServerSettings
+		get() {
+			return _settings ?: JavaServerSettings.getInstance()
+				.also { _settings = it }
+		}
 
-  override val serverId: String = SERVER_ID
+	override val serverId: String = SERVER_ID
 
-  override val debugAdapter: IDebugAdapter = JavaDebugAdapter()
+	override val debugAdapter: IDebugAdapter = JavaDebugAdapter()
 
-  companion object {
+	companion object {
 
-    const val SERVER_ID = "ide.lsp.java"
-    private val log = LoggerFactory.getLogger(JavaLanguageServer::class.java)
-  }
+		const val SERVER_ID = "ide.lsp.java"
+		private val log = LoggerFactory.getLogger(JavaLanguageServer::class.java)
+	}
 
-  init {
-    cachedCompletion = CachedCompletion.EMPTY
+	init {
+		cachedCompletion = CachedCompletion.EMPTY
 
-    applySettings(JavaServerSettings.getInstance())
+		applySettings(JavaServerSettings.getInstance())
 
-    if (!EventBus.getDefault().isRegistered(this)) {
-      EventBus.getDefault().register(this)
-    }
+		if (!EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().register(this)
+		}
 
-    init()
-  }
+		init()
+	}
 
-  override fun shutdown() {
-    (this.debugAdapter as? AutoCloseable?)?.close()
-    JavaCompilerProvider.getInstance().destroy()
-    SourceFileManager.clearCache()
-    CacheFSInfoSingleton.clearCache()
-    clearCache()
-    EventBus.getDefault().unregister(this)
-    timer.cancel()
-  }
+	override fun shutdown() {
+		(this.debugAdapter as? AutoCloseable?)?.close()
+		JavaCompilerProvider.getInstance().destroy()
+		SourceFileManager.clearCache()
+		CacheFSInfoSingleton.clearCache()
+		clearCache()
+		EventBus.getDefault().unregister(this)
+		timer.cancel()
+	}
 
-  override fun connectClient(client: ILanguageClient?) {
-    this.client = client
-  }
+	override fun connectClient(client: ILanguageClient?) {
+		this.client = client
+	}
 
-  override fun connectDebugClient(client: IDebugClient) {
-    if (JdwpOptions.JDWP_ENABLED) {
-      this.debugAdapter.connectDebugClient(client)
-    }
-  }
+	override fun connectDebugClient(client: IDebugClient) {
+		if (JdwpOptions.JDWP_ENABLED) {
+			this.debugAdapter.connectDebugClient(client)
+		}
+	}
 
-  override fun applySettings(settings: IServerSettings?) {
-    this._settings = settings
-  }
+	override fun applySettings(settings: IServerSettings?) {
+		this._settings = settings
+	}
 
-  override fun setupWithProject(project: Project) {
-    LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
+	override fun setupWithProject(workspace: Workspace) {
+		LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
 
-    // Once we have project initialized
-    // Destory the NO_MODULE_COMPILER instance
-    JavaCompilerService.NO_MODULE_COMPILER.destroy()
+		// Once we have project initialized
+		// Destory the NO_MODULE_COMPILER instance
+		JavaCompilerService.NO_MODULE_COMPILER.destroy()
 
-    // Clear cached file managers
-    SourceFileManager.clearCache()
+		// Clear cached file managers
+		SourceFileManager.clearCache()
 
-    // Clear cached JAR file system for R.jar
-    // Using the cached instance will result in completions not being updated for updated resources
-    // TODO Clearing caches for JAR files ending with '/R.jar' is probably not a good idea
-    //    Maybe this could be improved by using data from the AndroidModule project model
-    clearCachesForPaths { path: String -> path.endsWith("/R.jar") }
+		// Clear cached JAR file system for R.jar
+		// Using the cached instance will result in completions not being updated for updated resources
+		// TODO Clearing caches for JAR files ending with '/R.jar' is probably not a good idea
+		//    Maybe this could be improved by using data from the AndroidModule project model
+		clearCachesForPaths { path: String -> path.endsWith("/R.jar") }
 
-    // Clear cached module-specific compilers
-    JavaCompilerProvider.getInstance().destroy()
+		// Clear cached module-specific compilers
+		JavaCompilerProvider.getInstance().destroy()
 
-    // Cache classpath locations
-    for (subModule in project.subProjects) {
-      if (subModule !is ModuleProject || subModule.path == project.rootProject.path) {
-        continue
-      }
-      SourceFileManager.forModule(subModule)
-    }
-    startOrRestartAnalyzeTimer()
-  }
+		// Cache classpath locations
+		for (subModule in workspace.subProjects) {
+			if (subModule !is ModuleProject || subModule.path == workspace.rootProject.path) {
+				continue
+			}
+			SourceFileManager.forModule(subModule)
+		}
+		startOrRestartAnalyzeTimer()
+	}
 
-  override fun complete(params: CompletionParams?): CompletionResult {
-    val compiler = getCompiler(params!!.file)
-    if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)
-    ) {
-      return CompletionResult.EMPTY
-    }
+	override fun complete(params: CompletionParams?): CompletionResult {
+		val compiler = getCompiler(params!!.file)
+		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)
+		) {
+			return CompletionResult.EMPTY
+		}
 
-    if (diagnosticProvider.isAnalyzing()) {
-      log.warn("Cancelling source code analysis due to completion request")
-      diagnosticProvider.cancel()
-    }
+		if (diagnosticProvider.isAnalyzing()) {
+			log.warn("Cancelling source code analysis due to completion request")
+			diagnosticProvider.cancel()
+		}
 
-    completionProvider.reset(
-      compiler, settings, cachedCompletion) { cachedCompletion: CachedCompletion ->
-      updateCachedCompletion(cachedCompletion)
-    }
+		completionProvider.reset(
+			compiler, settings, cachedCompletion
+		) { cachedCompletion: CachedCompletion ->
+			updateCachedCompletion(cachedCompletion)
+		}
 
-    return completionProvider.complete(params)
-  }
+		return completionProvider.complete(params)
+	}
 
-  override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
-    val compiler = getCompiler(params.file)
-    return if (!settings.referencesEnabled()) {
-      ReferenceResult(emptyList())
-    } else ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
-  }
+	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
+		val compiler = getCompiler(params.file)
+		return if (!settings.referencesEnabled()) {
+			ReferenceResult(emptyList())
+		} else ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
+	}
 
-  override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
-    val compiler = getCompiler(params.file)
-    return if (!settings.definitionsEnabled()) {
-      DefinitionResult(emptyList())
-    } else DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
-  }
+	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
+		val compiler = getCompiler(params.file)
+		return if (!settings.definitionsEnabled()) {
+			DefinitionResult(emptyList())
+		} else DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
+	}
 
-  override suspend fun expandSelection(params: ExpandSelectionParams): Range {
-    val compiler = getCompiler(params.file)
-    return if (!settings.smartSelectionsEnabled()) {
-      params.selection
-    } else JavaSelectionProvider(compiler).expandSelection(params)
-  }
+	override suspend fun expandSelection(params: ExpandSelectionParams): Range {
+		val compiler = getCompiler(params.file)
+		return if (!settings.smartSelectionsEnabled()) {
+			params.selection
+		} else JavaSelectionProvider(compiler).expandSelection(params)
+	}
 
-  override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
-    val compiler = getCompiler(params.file)
-    return if (!settings.signatureHelpEnabled()) {
-      SignatureHelp(emptyList(), -1, -1)
-    } else SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
-  }
+	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
+		val compiler = getCompiler(params.file)
+		return if (!settings.signatureHelpEnabled()) {
+			SignatureHelp(emptyList(), -1, -1)
+		} else SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
+	}
 
-  override suspend fun analyze(file: Path): DiagnosticResult {
-    if (!settings.diagnosticsEnabled() || !DocumentUtils.isJavaFile(file)) {
-      return DiagnosticResult.NO_UPDATE
-    }
+	override suspend fun analyze(file: Path): DiagnosticResult {
+		if (!settings.diagnosticsEnabled() || !DocumentUtils.isJavaFile(file)) {
+			return DiagnosticResult.NO_UPDATE
+		}
 
-    return if (!settings.codeAnalysisEnabled()) {
-      DiagnosticResult.NO_UPDATE
-    } else diagnosticProvider.analyze(file)
-  }
+		return if (!settings.codeAnalysisEnabled()) {
+			DiagnosticResult.NO_UPDATE
+		} else diagnosticProvider.analyze(file)
+	}
 
-  override fun formatCode(params: FormatCodeParams?): CodeFormatResult {
-    return CodeFormatProvider(settings).format(params)
-  }
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult {
+		return CodeFormatProvider(settings).format(params)
+	}
 
-  override fun handleFailure(failure: LSPFailure?): Boolean {
-    return when (failure!!.type) {
-      FailureType.COMPLETION -> {
-        if (isCancelled(failure.error)) {
-          return true
-        }
-        JavaCompilerProvider.getInstance().destroy()
-        true
-      }
-    }
-  }
+	override fun handleFailure(failure: LSPFailure?): Boolean {
+		return when (failure!!.type) {
+			FailureType.COMPLETION -> {
+				if (isCancelled(failure.error)) {
+					return true
+				}
+				JavaCompilerProvider.getInstance().destroy()
+				true
+			}
+		}
+	}
 
-  @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-  fun getCompiler(file: Path?): JavaCompilerService {
-    if (!DocumentUtils.isJavaFile(file)) {
-      return JavaCompilerService.NO_MODULE_COMPILER
-    }
-    val root = getInstance().rootProject
-      ?: return JavaCompilerService.NO_MODULE_COMPILER
-    val module = root.findModuleForFile(file!!) ?: return JavaCompilerService.NO_MODULE_COMPILER
-    return JavaCompilerProvider.get(module)
-  }
+	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+	fun getCompiler(file: Path?): JavaCompilerService {
+		if (!DocumentUtils.isJavaFile(file)) {
+			return JavaCompilerService.NO_MODULE_COMPILER
+		}
+		val module = ProjectManagerImpl.getInstance().findModuleForFile(file!!)
+			?: return JavaCompilerService.NO_MODULE_COMPILER
+		return JavaCompilerProvider.get(module)
+	}
 
-  private fun updateCachedCompletion(cachedCompletion: CachedCompletion) {
-    Objects.requireNonNull(cachedCompletion)
-    this.cachedCompletion = cachedCompletion
-  }
+	private fun updateCachedCompletion(cachedCompletion: CachedCompletion) {
+		Objects.requireNonNull(cachedCompletion)
+		this.cachedCompletion = cachedCompletion
+	}
 
-  private fun startOrRestartAnalyzeTimer() {
-    if (VMUtils.isJvm()) {
-      return
-    }
-    if (!timer.isStarted) {
-      timer.start()
-    } else {
-      timer.restart()
-    }
-  }
+	private fun startOrRestartAnalyzeTimer() {
+		if (VMUtils.isJvm()) {
+			return
+		}
+		if (!timer.isStarted) {
+			timer.start()
+		} else {
+			timer.restart()
+		}
+	}
 
-  @Subscribe(threadMode = ThreadMode.ASYNC)
-  @Suppress("unused")
-  fun onContentChange(event: DocumentChangeEvent) {
-    if (!DocumentUtils.isJavaFile(event.changedFile)) {
-      return
-    }
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onContentChange(event: DocumentChangeEvent) {
+		if (!DocumentUtils.isJavaFile(event.changedFile)) {
+			return
+		}
 
-    // TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
-    JavaCompilerService.NO_MODULE_COMPILER.onDocumentChange(event)
-    val module = getInstance()
-      .findModuleForFile(event.changedFile)
-    if (module != null) {
-      val compiler = JavaCompilerProvider.get(module)
-      compiler.onDocumentChange(event)
-    }
-    startOrRestartAnalyzeTimer()
-  }
+		// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
+		JavaCompilerService.NO_MODULE_COMPILER.onDocumentChange(event)
+		val module = getInstance()
+			.findModuleForFile(event.changedFile)
+		if (module != null) {
+			val compiler = JavaCompilerProvider.get(module)
+			compiler.onDocumentChange(event)
+		}
+		startOrRestartAnalyzeTimer()
+	}
 
-  @Subscribe(threadMode = ThreadMode.ASYNC)
-  @Suppress("unused")
-  fun onFileSelected(event: DocumentSelectedEvent) {
-    selectedFile = event.selectedFile
-  }
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onFileSelected(event: DocumentSelectedEvent) {
+		selectedFile = event.selectedFile
+	}
 
-  @Subscribe(threadMode = ThreadMode.ASYNC)
-  @Suppress("unused")
-  fun onFileOpened(event: DocumentOpenEvent) {
-    selectedFile = event.openedFile
-    startOrRestartAnalyzeTimer()
-  }
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onFileOpened(event: DocumentOpenEvent) {
+		selectedFile = event.openedFile
+		startOrRestartAnalyzeTimer()
+	}
 
-  @Subscribe(threadMode = ThreadMode.ASYNC)
-  @Suppress("unused")
-  fun onFileClosed(event: DocumentCloseEvent) {
-    diagnosticProvider.clearTimestamp(event.closedFile)
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	@Suppress("unused")
+	fun onFileClosed(event: DocumentCloseEvent) {
+		diagnosticProvider.clearTimestamp(event.closedFile)
 
-    if (getActiveDocumentCount() == 0) {
-      selectedFile = null
-      timer.cancel()
-    }
-  }
+		if (getActiveDocumentCount() == 0) {
+			selectedFile = null
+			timer.cancel()
+		}
+	}
 
-  private fun analyzeSelected() {
-    if (selectedFile == null || client == null) {
-      return
-    }
+	private fun analyzeSelected() {
+		if (selectedFile == null || client == null) {
+			return
+		}
 
-    CoroutineScope(Dispatchers.Default).launch {
-      val result = analyze(selectedFile!!)
-      withContext(Dispatchers.Main) {
-        client?.publishDiagnostics(result)
-      }
-    }
-  }
+		CoroutineScope(Dispatchers.Default).launch {
+			val result = analyze(selectedFile!!)
+			withContext(Dispatchers.Main) {
+				client?.publishDiagnostics(result)
+			}
+		}
+	}
 }

@@ -17,10 +17,8 @@
 
 package com.itsaky.androidide.projects.builder
 
-import com.android.utils.cxx.os.exe
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lookup.Lookup.Key
-import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
@@ -37,60 +35,56 @@ import java.util.concurrent.CompletableFuture
  */
 interface BuildService {
 
-  companion object {
+	companion object {
 
-    /** Key that can be used to retrieve the [BuildService] instance using the [Lookup] API. */
-    @JvmField
-    val KEY_BUILD_SERVICE = Key<BuildService>()
+		/** Key that can be used to retrieve the [BuildService] instance using the [Lookup] API. */
+		@JvmField
+		val KEY_BUILD_SERVICE = Key<BuildService>()
 
-    /**
-     * Key that can be used to retrieve the instance of Tooling API's [IProject] model using the
-     * [Lookup] API.
-     */
-    @JvmField
-    val KEY_PROJECT_PROXY = Key<IProject>()
-  }
+	}
 
-  /** Whether a build is in progress or not. */
-  val isBuildInProgress: Boolean
+	/** Whether a build is in progress or not. */
+	val isBuildInProgress: Boolean
 
-  /** Returns `true` if and only if the tooling API server has been started, `false` otherwise. */
-  fun isToolingServerStarted(): Boolean
+	/** Returns `true` if and only if the tooling API server has been started, `false` otherwise. */
+	fun isToolingServerStarted(): Boolean
 
-  /**
-   * Returns the [ToolingServerMetadata] of the tooling API server.
-   */
-  fun metadata(): CompletableFuture<ToolingServerMetadata>
+	/**
+	 * Returns the [ToolingServerMetadata] of the tooling API server.
+	 */
+	fun metadata(): CompletableFuture<ToolingServerMetadata>
 
-  /**
-   * Initialize the project.
-   *
-   * @param params Parameters for the project initialization.
-   * @return A [CompletableFuture] which returns an [InitializeResult] when the project
-   *   initialization process finishes.
-   */
-  fun initializeProject(params: InitializeProjectParams): CompletableFuture<InitializeResult>
+	/**
+	 * Initialize the project.
+	 *
+	 * @param params Parameters for the project initialization.
+	 * @return A [CompletableFuture] which returns an [InitializeResult] when the project
+	 *   initialization process finishes.
+	 */
+	fun initializeProject(params: InitializeProjectParams): CompletableFuture<InitializeResult>
 
-  /**
-   * @see executeTasks
-   */
-  fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> = executeTasks(tasks.toList())
+	/**
+	 * @see executeTasks
+	 */
+	fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> =
+		executeTasks(tasks.toList())
 
-  /**
-   * @see executeTasks
-   */
-  fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> = executeTasks(TaskExecutionMessage(tasks))
+	/**
+	 * @see executeTasks
+	 */
+	fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> =
+		executeTasks(TaskExecutionMessage(tasks))
 
-  /**
-   * Execute the given tasks.
-   *
-   * @param message The tasks to execute. If the fully qualified path of the task is not specified,
-   *   then it will be executed in the root project directory.
-   * @return A [CompletableFuture] which returns a list of [TaskExecutionResult]. The result
-   *   contains a list of tasks that were executed and the result of the whole execution.
-   */
-  fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult>
+	/**
+	 * Execute the given tasks.
+	 *
+	 * @param message The tasks to execute. If the fully qualified path of the task is not specified,
+	 *   then it will be executed in the root project directory.
+	 * @return A [CompletableFuture] which returns a list of [TaskExecutionResult]. The result
+	 *   contains a list of tasks that were executed and the result of the whole execution.
+	 */
+	fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult>
 
-  /** Cancel any running build. */
-  fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult>
+	/** Cancel any running build. */
+	fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult>
 }

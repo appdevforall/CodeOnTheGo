@@ -77,7 +77,7 @@ class ProjectViewModel : ViewModel() {
                 }
 
                 manager.cachedInitResult = result
-                manager.setupProject() // I/O operation
+                manager.setup() // I/O operation
                 manager.notifyProjectUpdate()
 
                 _initState.value = TaskState.Success(result)
