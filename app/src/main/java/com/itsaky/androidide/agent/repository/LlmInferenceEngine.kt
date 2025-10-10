@@ -65,7 +65,7 @@ class LlmInferenceEngine(
                 isModelLoaded = true
                 loadedModelPath = destinationFile.path
                 loadedModelName = displayName
-                currentModelFamily = detectModelFamily(destinationFile.path)
+                currentModelFamily = detectModelFamily(displayName)
                 log.info("Successfully loaded local model: {}", loadedModelName)
                 true
             } catch (e: Exception) {

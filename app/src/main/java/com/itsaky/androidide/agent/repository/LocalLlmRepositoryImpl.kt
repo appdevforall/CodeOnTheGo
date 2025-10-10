@@ -72,7 +72,8 @@ class LocalLlmRepositoryImpl(
 
     private val tools: Map<String, Tool> = listOf(
         BatteryTool(),
-        GetDateTimeTool()
+        GetDateTimeTool(),
+        GetWeatherTool(),
     ).associateBy { it.name }
 
     private val masterSystemPrompt: String by lazy {
@@ -109,22 +110,22 @@ class LocalLlmRepositoryImpl(
             )
         }
         addMessage(prompt, Sender.USER)
-        val placeholder = "..."
+        val placeholder = ""
         addMessage(placeholder, Sender.AGENT)
 
-        runAgentLoop(history)
+        runAgentLoop()
         return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
     }
 
     @OptIn(InternalSerializationApi::class)
-    private suspend fun runAgentLoop(history: List<ChatMessage>) {
+    private suspend fun runAgentLoop() {
         toolTracker.startTracking()
 
         val maxTurns = 5
         var currentTurn = 0
         while (currentTurn < maxTurns) {
             Log.d("AgentDebug", "--- [Step ${currentTurn + 1}] ---")
-            val currentHistory = history
+            val currentHistory = _messages.value
             val isFinalAnswerTurn =
                 currentHistory.getOrNull(currentHistory.size - 2)?.sender == Sender.TOOL
 
