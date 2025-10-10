@@ -2,6 +2,7 @@ package com.itsaky.androidide.agent.viewmodel
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.llama.cpp.LLamaAndroid
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.LiveData
@@ -16,6 +17,7 @@ import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.GeminiRepository
+import com.itsaky.androidide.agent.repository.LlmInferenceEngine
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
@@ -114,7 +116,9 @@ class ChatViewModel : ViewModel() {
                     null
                 } else {
                     log.info("Creating new LocalLlmRepositoryImpl instance.")
-                    val localRepo = LocalLlmRepositoryImpl(context).apply {
+                    val llamaAndroid = LLamaAndroid.instance()
+                    val engine = LlmInferenceEngine(llamaAndroid)
+                    val localRepo = LocalLlmRepositoryImpl(context, engine).apply {
                         onProgressUpdate = { addMessageToCurrentSession(it) }
                         onStateUpdate = { _agentState.value = it }
                     }

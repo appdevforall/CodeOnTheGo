@@ -32,7 +32,8 @@ After the tool is called, you will receive the result and you must use it to ans
 """
 
 class LocalLlmRepositoryImpl(
-    private val context: Context
+    private val context: Context,
+    private val engine: LlmInferenceEngine
 ) : GeminiRepository {
 
     private val toolTracker = ToolExecutionTracker()
@@ -47,7 +48,7 @@ class LocalLlmRepositoryImpl(
 
     suspend fun loadModel(modelUriString: String): Boolean {
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
-        val success = LlmInferenceEngine.initModelFromFile(context, modelUriString)
+        val success = engine.initModelFromFile(context, modelUriString)
         val status =
             if (success) "Local model loaded successfully!" else "Error: Failed to load local model."
         onStateUpdate?.invoke(AgentState.Processing(status))
@@ -108,7 +109,7 @@ class LocalLlmRepositoryImpl(
         prompt: String,
         history: List<ChatMessage>
     ): AgentResponse {
-        if (!LlmInferenceEngine.isModelLoaded) {
+        if (!engine.isModelLoaded) {
             return AgentResponse(
                 text = "No local model is currently loaded. Please select one in AI Settings.",
                 report = ""
@@ -116,7 +117,6 @@ class LocalLlmRepositoryImpl(
         }
 
         toolTracker.startTracking()
-        LlmInferenceEngine.clearKvCache()
 
         var fullPromptHistory = buildPromptWithHistory(history)
 
@@ -124,7 +124,7 @@ class LocalLlmRepositoryImpl(
             onStateUpdate?.invoke(AgentState.Processing("Local LLM is thinking... (Turn ${i})"))
 
             val stopStrings = listOf("<|eot_id|>", "</tool_call>")
-            val rawResponse = LlmInferenceEngine.runInference(fullPromptHistory, stopStrings)
+            val rawResponse = engine.runInference(fullPromptHistory, stopStrings)
             Log.d("AgentDebug", "Raw Model Result: \"$rawResponse\"")
 
             val toolMatch = parseToolCall(rawResponse)
@@ -200,7 +200,7 @@ class LocalLlmRepositoryImpl(
         fileRelativePath: String
     ): String {
         onStateUpdate?.invoke(AgentState.Processing("Generating code with local LLM..."))
-        val response = LlmInferenceEngine.runInference(
+        val response = engine.runInference(
             "USER: Based on the file $fileName, $prompt\nASSISTANT:",
             emptyList()
         )
@@ -209,7 +209,7 @@ class LocalLlmRepositoryImpl(
     }
 
     override fun stop() {
-        LlmInferenceEngine.stopInference()
+        engine.stop()
     }
 
     private fun parseToolCall(text: String): ParsedToolCall? {
