@@ -95,7 +95,7 @@ For translations, visit the [Crowdin project page](https://crowdin.com/project/a
   for [AndroidTreeView](https://github.com/bmelnychuk/AndroidTreeView)
 - [George Fraser](https://github.com/georgewfraser) for
   the [Java Language Server](https://github.com/georgewfraser/java-language-server)
-- itsvks19 for [LayoutEditor](https://github.com/itsvks19/LayoutEditor)
+- [Vivek](https://github.com/itsvks19) for [LayoutEditor](https://github.com/itsvks19/LayoutEditor)
  
 Thanks to all the developers who have contributed to this project! 
 
@@ -124,5 +124,6 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
