@@ -30,7 +30,8 @@ class LlmInferenceEngine(
     private val log = LoggerFactory.getLogger(LlmInferenceEngine::class.java)
     var isModelLoaded: Boolean = false
         private set
-
+    var loadedModelName: String? = null
+        private set
     var loadedModelPath: String? = null
         private set
 
@@ -41,6 +42,15 @@ class LlmInferenceEngine(
         return withContext(ioDispatcher) {
             try {
                 val modelUri = modelUriString.toUri()
+                // Helper to get a display name from the URI
+                val displayName =
+                    context.contentResolver.query(modelUri, null, null, null, null)?.use { cursor ->
+                        val nameIndex =
+                            cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        cursor.moveToFirst()
+                        cursor.getString(nameIndex)
+                    } ?: "local_model.gguf"
+
                 val destinationFile = File(context.cacheDir, "local_model.gguf")
 
                 context.contentResolver.openInputStream(modelUri)?.use { inputStream ->
@@ -53,12 +63,14 @@ class LlmInferenceEngine(
                 llama.load(destinationFile.path)
                 isModelLoaded = true
                 loadedModelPath = destinationFile.path
-                log.info("Successfully loaded local model: {}", loadedModelPath)
+                loadedModelName = displayName // <-- SET THE MODEL NAME HERE
+                log.info("Successfully loaded local model: {}", loadedModelName)
                 true
             } catch (e: Exception) {
                 log.error("Failed to initialize or load model from file", e)
                 isModelLoaded = false
                 loadedModelPath = null
+                loadedModelName = null // <-- Clear on failure
                 false
             }
         }
@@ -74,6 +86,7 @@ class LlmInferenceEngine(
         }
         isModelLoaded = false
         loadedModelPath = null
+        loadedModelName = null
     }
 
     /**

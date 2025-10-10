@@ -2,7 +2,6 @@ package com.itsaky.androidide.agent.viewmodel
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.llama.cpp.LLamaAndroid
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.LiveData
@@ -17,7 +16,7 @@ import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.GeminiRepository
-import com.itsaky.androidide.agent.repository.LlmInferenceEngine
+import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
@@ -95,8 +94,6 @@ class ChatViewModel : ViewModel() {
         }
 
         log.info("Settings changed or repository not initialized. Creating new instance.")
-
-        // Settings have changed, so we need to create a new instance.
         lastKnownBackendName = backendName
         lastKnownModelPath = modelPath
         val backend = AiBackend.valueOf(backendName ?: "GEMINI")
@@ -111,23 +108,19 @@ class ChatViewModel : ViewModel() {
             }
 
             AiBackend.LOCAL_LLM -> {
-                if (modelPath.isNullOrBlank()) {
-                    log.error("Initialization failed: Local LLM model path is missing.")
-                    null
+                // Get the SINGLE, SHARED instance of the engine
+                val engine = LlmInferenceEngineProvider.instance
+
+                // The model should ALREADY be loaded by the settings page.
+                // We just check if it's ready.
+                if (!engine.isModelLoaded) {
+                    log.error("Initialization failed: Local LLM model is not loaded.")
+                    null // Return null to show an error message in the UI
                 } else {
-                    log.info("Creating new LocalLlmRepositoryImpl instance.")
-                    val llamaAndroid = LLamaAndroid.instance()
-                    val engine = LlmInferenceEngine(llamaAndroid)
-                    val localRepo = LocalLlmRepositoryImpl(context, engine).apply {
+                    log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
+                    LocalLlmRepositoryImpl(context, engine).apply {
                         onProgressUpdate = { addMessageToCurrentSession(it) }
                         onStateUpdate = { _agentState.value = it }
-                    }
-                    if (localRepo.loadModel(modelPath)) {
-                        log.info("Local LLM model loaded successfully from path: {}", modelPath)
-                        localRepo
-                    } else {
-                        log.error("Failed to load Local LLM model from path: {}", modelPath)
-                        null
                     }
                 }
             }
