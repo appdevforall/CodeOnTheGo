@@ -8,9 +8,14 @@ import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.data.ToolCall
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.json.Json
+import java.util.concurrent.atomic.AtomicLong
 import java.util.regex.Pattern
 
 private const val SYSTEM_PROMPT = """
@@ -47,7 +52,13 @@ class LocalLlmRepositoryImpl(
     override var onToolMessage: ((String) -> Unit)? = null
     override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
     override var onProgressUpdate: ((message: ChatMessage) -> Unit)? = null
+    private val messageIdCounter = AtomicLong(0)
 
+    private val _messages = MutableStateFlow<List<ChatMessage>>(
+        listOf(
+        )
+    )
+    val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
     suspend fun loadModel(modelUriString: String): Boolean {
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
@@ -100,6 +111,12 @@ class LocalLlmRepositoryImpl(
             )
         }
 
+        runAgentLoop(history)
+        return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
+    }
+
+    @OptIn(InternalSerializationApi::class)
+    private suspend fun runAgentLoop(history: List<ChatMessage>) {
         toolTracker.startTracking()
 
         val maxTurns = 5
@@ -187,7 +204,6 @@ class LocalLlmRepositoryImpl(
             }
             currentTurn++
         }
-        return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
     }
 
     private fun buildGemma2Prompt(history: List<ChatMessage>): String {
@@ -330,29 +346,29 @@ Answer:
 
 
     private fun addMessage(text: String, type: Sender) {
-//        val message = ChatMessage(messageIdCounter.getAndIncrement(), text, type)
-//        _messages.update { currentList -> currentList + message }
+        val message = ChatMessage(messageIdCounter.getAndIncrement().toString(), text, type)
+        _messages.update { currentList -> currentList + message }
     }
 
     private fun updateLastMessage(updatedText: String) {
-//        _messages.update { currentList ->
-//            if (currentList.isEmpty()) return@update currentList
-//            val lastMessage = currentList.last()
-//            val updatedMessage = lastMessage.copy(text = updatedText)
-//            currentList.dropLast(1) + updatedMessage
-//        }
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            val updatedMessage = lastMessage.copy(text = updatedText)
+            currentList.dropLast(1) + updatedMessage
+        }
     }
 
     private fun updateLastMessageDuration(durationMs: Long) {
-//        _messages.update { currentList ->
-//            if (currentList.isEmpty()) return@update currentList
-//            val lastMessage = currentList.last()
-//            if (lastMessage.type == Sender.AGENT) {
-//                val updatedMessage = lastMessage.copy(durationMs = durationMs)
-//                currentList.dropLast(1) + updatedMessage
-//            } else {
-//                currentList
-//            }
-//        }
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            if (lastMessage.sender == Sender.AGENT) {
+                val updatedMessage = lastMessage.copy(durationMs = durationMs)
+                currentList.dropLast(1) + updatedMessage
+            } else {
+                currentList
+            }
+        }
     }
 }
