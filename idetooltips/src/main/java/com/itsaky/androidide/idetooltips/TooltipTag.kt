@@ -26,7 +26,6 @@ object TooltipTag {
 	const val PROJECT_BUILD_OUTPUT = "project.buildoutput"
 	const val PROJECT_GRADLE_TASKS = "project.gradle.tasks"
     const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
-    const val PREFS_GRADLE = "prefs.gradle"
 
     // General Preferences
     const val PREFS_TOP = "prefs.top"
