@@ -18,6 +18,7 @@
 package com.itsaky.androidide.preferences
 
 import androidx.preference.Preference
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.XmlPreferences
 import com.itsaky.androidide.resources.R.string
 import kotlinx.parcelize.IgnoredOnParcel
@@ -168,7 +169,8 @@ private class TrimTrailingWhitespace(
 private class MaxLineWidth(
   override val key: String = XmlPreferences.MAX_LINE_WIDTH,
   override val title: Int = string.idepref_maxLineWidth_title,
-  override val summary: Int? = string.idepref_maxLineWidth_summary
+  override val summary: Int? = string.idepref_maxLineWidth_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) :
   NumberInputEditTextPreference(
     hint = string.idepref_maxLineWidth_title,
@@ -180,7 +182,8 @@ private class MaxLineWidth(
 private class PreservedNewLines(
   override val key: String = XmlPreferences.PRESERVED_NEW_LINES,
   override val title: Int = string.idepref_preservedNewLines_title,
-  override val summary: Int? = string.idepref_preservedNewLines_summary
+  override val summary: Int? = string.idepref_preservedNewLines_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) :
   NumberInputEditTextPreference(
     hint = string.idepref_preservedNewLines_title,
@@ -192,7 +195,8 @@ private class PreservedNewLines(
 private class SplitAttributesIndentSize(
   override val key: String = XmlPreferences.SPLIT_ATTRIBUTES_INDENT_SIZE,
   override val title: Int = string.idepref_splitAttrIndentSize_title,
-  override val summary: Int? = string.idepref_splitAttrIndentSize_summary
+  override val summary: Int? = string.idepref_splitAttrIndentSize_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) :
   NumberInputEditTextPreference(
     hint = string.idepref_splitAttrIndentSize_title,
@@ -204,7 +208,8 @@ private class SplitAttributesIndentSize(
 private class EmptyElementsBehavior(
   override val key: String = XmlPreferences.EMPTY_ELEMENTS_BEHAVIOR,
   override val title: Int = string.idepref_emptyElements_title,
-  override val summary: Int? = string.idepref_emptyElements_summary
+  override val summary: Int? = string.idepref_emptyElements_summary,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR_XML,
 ) : SingleChoicePreference() {
 
   @IgnoredOnParcel
