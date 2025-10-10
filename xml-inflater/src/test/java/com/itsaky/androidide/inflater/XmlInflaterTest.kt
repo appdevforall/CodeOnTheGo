@@ -45,9 +45,7 @@ object XmlInflaterTest {
 
     ToolingApiTestLauncher.launchServer {
       assertThat(result?.isSuccessful).isTrue()
-
-      Lookup.getDefault().register(BuildService.KEY_PROJECT_PROXY, project)
-      runBlocking { IProjectManager.getInstance().setupProject(project) }
+      runBlocking { IProjectManager.getInstance().setup(gradleBuild) }
       init.set(true)
     }
   }

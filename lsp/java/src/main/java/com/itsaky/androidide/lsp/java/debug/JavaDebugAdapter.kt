@@ -304,7 +304,7 @@ internal class JavaDebugAdapter :
 					val qualifiedName =
 						ProjectManagerImpl
 							.getInstance()
-							.rootProject
+							.workspace
 							?.subProjects
 							?.filterIsInstance<ModuleProject>()
 							?.firstNotNullOfOrNull { module ->

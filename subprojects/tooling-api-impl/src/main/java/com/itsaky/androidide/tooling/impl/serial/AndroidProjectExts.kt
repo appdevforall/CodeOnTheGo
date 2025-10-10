@@ -99,7 +99,7 @@ fun Library.asProtoModel() = Library(
 fun AndroidLibraryData.asProtoModel() = AndroidLibraryData(
 	compileJarFilePathsList = this.compileJarFiles.map { it.absolutePath },
 	manifestFilePath = this.manifest.absolutePath,
-	resFolderPath = this.resFolder.absolutePath
+	resFolderPath = this.resFolder.absolutePath,
 )
 
 fun ProjectInfo.asProtoModel() = ProjectInfo(

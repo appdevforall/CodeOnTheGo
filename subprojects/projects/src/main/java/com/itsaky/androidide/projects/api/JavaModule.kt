@@ -17,113 +17,108 @@
 
 package com.itsaky.androidide.projects.api
 
-import com.itsaky.androidide.builder.model.IJavaCompilerSettings
+import com.google.protobuf.MessageLite
+import com.itsaky.androidide.project.GradleModels
+import com.itsaky.androidide.project.JavaModels
 import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.tooling.api.ProjectType.Java
-import com.itsaky.androidide.tooling.api.models.GradleTask
-import com.itsaky.androidide.tooling.api.models.JavaContentRoot
-import com.itsaky.androidide.tooling.api.models.JavaModuleDependency
-import com.itsaky.androidide.tooling.api.models.JavaModuleExternalDependency
-import com.itsaky.androidide.tooling.api.models.JavaModuleProjectDependency
+import com.itsaky.androidide.projects.models.buildDir
+import com.itsaky.androidide.projects.models.directory
+import com.itsaky.androidide.projects.models.jarFile
 import java.io.File
 
 /**
  * A [GradleProject] model implementation for Java library modules which is exposed to other modules and
  * provides additional helper methods.
- *
- * @param name The display name of the project.
- * @param description The project description.
- * @param path The project path (same as Gradle project paths). For example, `:app`,
- * `:module:submodule`, etc. Root project is always represented by path `:`.
- * @param projectDir The project directory.
- * @param buildDir The build directory of the project.
- * @param buildScript The Gradle buildscript file of the project.
- * @param tasks The tasks of the project.
- * @param contentRoots The source roots of this module.
- * @param dependencies The dependencies of this module.
  * @author Akash Yadav
  */
 class JavaModule(
-  name: String,
-  description: String,
-  path: String,
-  projectDir: File,
-  buildDir: File,
-  buildScript: File,
-  tasks: List<GradleTask>,
-  override val compilerSettings: IJavaCompilerSettings,
-  val contentRoots: List<JavaContentRoot>,
-  val dependencies: List<JavaModuleDependency>,
-  val classesJar: File?
-) :
-  ModuleProject(
-    name,
-    description,
-    path,
-    projectDir,
-    buildDir,
-    buildScript,
-    tasks
-  ) {
+	delegate: GradleModels.GradleProject
+) : ModuleProject(delegate), JavaModels.JavaProjectOrBuilder by delegate.javaProject {
 
-  companion object {
+	companion object {
 
-    const val SCOPE_COMPILE = "COMPILE"
-    const val SCOPE_RUNTIME = "RUNTIME"
-  }
+		const val SCOPE_COMPILE = "COMPILE"
+		const val SCOPE_RUNTIME = "RUNTIME"
+	}
 
-  init {
-    type = Java
-  }
+	init {
+		check(delegate.hasJavaProject()) {
+			"Project '${delegate.path}' is not a Java project"
+		}
+	}
 
-  override fun getClassPaths(): Set<File> {
-    return getModuleClasspaths()
-  }
+	private val classesJar by lazy {
+		var jar = File(delegate.buildDir, "libs/${delegate.name}.jar")
+		if (jar.exists()) {
+			return@lazy jar
+		}
 
-  override fun getSourceDirectories(): Set<File> {
-    val sources = mutableSetOf<File>()
-    contentRoots.forEach {
-      sources.addAll(it.sourceDirectories.map { sourceDirectory -> sourceDirectory.directory })
-    }
-    return sources
-  }
+		jar = File(delegate.buildDir, "libs").listFiles()
+			?.first { delegate.name?.let(it.name::startsWith) ?: false }
+			?: File("module-jar-does-not-exist.jar")
 
-  override fun getCompileSourceDirectories(): Set<File> {
-    val dirs = getSourceDirectories().toMutableSet()
-    getCompileModuleProjects().forEach { dirs.addAll(it.getSourceDirectories()) }
-    return dirs
-  }
+		return@lazy jar
+	}
 
-  override fun getModuleClasspaths(): Set<File> {
-    return mutableSetOf(classesJar ?: File("does-not-exist.jar"))
-  }
+	override fun isInitialized(): Boolean {
+		return super.isInitialized()
+	}
 
-  override fun getCompileClasspaths(): Set<File> {
-    val classpaths = getModuleClasspaths().toMutableSet()
-    getCompileModuleProjects().forEach { classpaths.addAll(it.getCompileClasspaths()) }
-    classpaths.addAll(getDependencyClasspaths())
-    return classpaths
-  }
+	override fun getDefaultInstanceForType(): MessageLite? {
+		return super.getDefaultInstanceForType()
+	}
 
-  override fun getCompileModuleProjects(): List<ModuleProject> {
-    val root = IProjectManager.getInstance().rootProject ?: return emptyList()
-    return this.dependencies
-      .filterIsInstance<JavaModuleProjectDependency>()
-      .filter { it.scope == SCOPE_COMPILE }
-      .mapNotNull { root.findByPath(it.projectPath) }
-      .filterIsInstance<ModuleProject>()
-  }
+	override fun getClassPaths(): Set<File> {
+		return getModuleClasspaths()
+	}
+
+	override fun getSourceDirectories(): Set<File> {
+		val sources = mutableSetOf<File>()
+		contentRootList.forEach { contentRoot ->
+			sources.addAll(contentRoot.sourceDirectoryList.map { sourceDirectory ->
+				sourceDirectory.directory
+			})
+		}
+		return sources
+	}
+
+	override fun getCompileSourceDirectories(): Set<File> {
+		val dirs = getSourceDirectories().toMutableSet()
+		getCompileModuleProjects().forEach { dirs.addAll(it.getSourceDirectories()) }
+		return dirs
+	}
+
+	override fun getModuleClasspaths(): Set<File> {
+		return mutableSetOf(classesJar)
+	}
+
+	override fun getCompileClasspaths(): Set<File> {
+		val classpaths = getModuleClasspaths().toMutableSet()
+		getCompileModuleProjects().forEach { classpaths.addAll(it.getCompileClasspaths()) }
+		classpaths.addAll(getDependencyClassPaths())
+		return classpaths
+	}
+
+	override fun getCompileModuleProjects(): List<ModuleProject> {
+		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+		return this.dependencyList
+			.filter { it.hasModule() && it.scope == SCOPE_COMPILE }
+			.mapNotNull { root.findByPath(it.module.projectPath) }
+			.filterIsInstance<ModuleProject>()
+	}
 
 	override fun hasExternalDependency(group: String, name: String): Boolean {
-		return this.dependencies.any { dependency ->
-			dependency is JavaModuleExternalDependency && dependency.gradleArtifact?.let { artifact ->
+		return this.dependencyList.any { dependency ->
+			dependency.hasExternalLibrary() && dependency.externalLibrary.libraryInfo?.let { artifact ->
 				artifact.group == group && artifact.name == name
 			} ?: false
 		}
 	}
 
-  fun getDependencyClasspaths(): Set<File> {
-    return this.dependencies.filterIsInstance<JavaModuleExternalDependency>()
-      .mapNotNull { it.jarFile }.toHashSet()
-  }
+	fun getDependencyClassPaths(): Set<File> {
+		return this.dependencyList
+			.mapNotNull { dependency ->
+				dependency.jarFile.takeIf { it.exists() }
+			}.toHashSet()
+	}
 }
