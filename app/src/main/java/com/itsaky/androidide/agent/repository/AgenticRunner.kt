@@ -197,13 +197,14 @@ class AgenticRunner(
 
         // 2. Add the user's new message to the flow so it appears instantly
         addMessage(prompt, Sender.USER)
+
         val finalMessage = try {
             runnerScope.async {
-                run(prompt, history)
+                run()
             }.await()
         } catch (e: CancellationException) {
             log.warn("generateASimpleResponse caught cancellation.")
-            updateLastMessage("Operation cancelled by user.")
+            updateLastMessage("Operation cancelled by user.") // Update UI on cancellation
             "Operation cancelled by user."
         }
 
@@ -211,106 +212,35 @@ class AgenticRunner(
         return AgentResponse(text = finalMessage, report = toolTracker.generatePartialReport())
     }
 
-    private suspend fun run(
-        prompt: String,
-        chatHistory: List<ChatMessage>? = null,
-    ): String {
+    private suspend fun run(): String {
         startLog()
-        // The prompt is now the last message in our state
-        val prompt = _messages.value.lastOrNull { it.sender == Sender.USER }?.text ?: ""
-        log.debug(prompt)
+        addMessage("...", Sender.AGENT)
+        onStateUpdate?.invoke(AgentState.Processing("Initializing..."))
 
-        // Add a placeholder message for the agent's response
-        addMessage("", Sender.AGENT)
-
-        onStateUpdate?.invoke(AgentState.Processing("Initializing Agent Workflow..."))
-        val currentMessages = _messages.value.dropLast(1)
-        val formattedHistory = chatHistory?.takeIf { it.isNotEmpty() }?.let {
-            val historyLog = it.joinToString("\n") { msg ->
-                "${msg.sender}: ${msg.text}"
-            }
-            "\n[START OF PREVIOUS CONVERSATION]\n$historyLog\n[END OF PREVIOUS CONVERSATION]\n\n"
-        } ?: ""
-
-
-        val header = buildSystemPrompt()
-
-        val augmentedPrompt =
-            createAugmentedPrompt(prompt, header, globalStaticExamples, formattedHistory)
-
-        val history = mutableListOf(
-            Content.builder().role("user").parts(Part.builder().text(augmentedPrompt).build())
-                .build()
-        )
-        logTurn("user", history.last().parts().get())
+        val initialContent = buildInitialContent()
+        val history = mutableListOf(initialContent)
 
         try {
             for (step in 0 until maxSteps) {
                 runnerScope.ensureActive()
+                onStateUpdate?.invoke(AgentState.Processing("Step ${step + 1}..."))
 
-                val message = "Orchestrator: Step ${step + 1}..."
-                log.info(message)
-                onStateUpdate?.invoke(AgentState.Processing(message))
-                updateLastMessage("Planning...")
-                val plan = planner.plan(history)
-                if (plan.parts().getOrNull().isNullOrEmpty()) {
-
-                    log.warn("Planner returned an empty response, possibly due to safety filters. Halting execution.")
-                    val finalText =
-                        "I am unable to process this request. Please rephrase your prompt or check the content for any potential policy violations."
-                    updateLastMessage(finalText)
-                    logFinalText(finalText)
-                    onStateUpdate?.invoke(AgentState.Idle)
-                    return finalText
-                }
-
-                history.add(plan)
-                logTurn("model", plan.parts().get())
-
+                val plan = processPlannerStep(history)
                 val functionCalls = plan.parts().get().mapNotNull { it.functionCall().getOrNull() }
 
                 if (functionCalls.isEmpty()) {
-                    log.info("Orchestrator: Plan is a final answer. Run complete.")
                     val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
-                    logFinalText(finalText)
                     updateLastMessage(finalText)
                     return finalText
                 }
 
-                // Give feedback about the tool call
-                val toolCallSummary =
-                    functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
-                updateLastMessage(toolCallSummary)
-
-                val toolResultsParts = executor.execute(functionCalls)
+                val toolResultsParts = processToolExecutionStep(functionCalls)
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
                 logTurn("tool", toolResultsParts)
 
-                val lastToolName = functionCalls.lastOrNull()?.name()?.getOrNull()
-                if (lastToolName == "run_app") {
-                    val runResultJson =
-                        toolResultsParts.first().functionResponse().get().response().get()
-                    val successMessage = runResultJson["message"] as? String ?: ""
-
-                    if (successMessage.contains("App built and launched successfully")) {
-                        log.info("Orchestrator: App run was successful. Concluding workflow.")
-                        val finalText = "The application was successfully built and launched."
-                        logFinalText(finalText)
-                        return finalText
-                    }
-                }
-
-                val critiqueResult = critic.reviewAndSummarize(history)
-
-                if (critiqueResult != "OK") {
-                    history.add(
-                        Content.builder().role("user")
-                            .parts(Part.builder().text(critiqueResult).build()).build()
-                    )
-                    logTurn("system_critic", history.last().parts().get())
-                }
+                processCriticStep(history)
             }
-            throw RuntimeException("Agentic run exceeded max_steps ($maxSteps)")
+            throw RuntimeException("Exceeded max steps")
         } catch (err: Exception) {
             if (err is CancellationException) {
                 log.warn("Agentic run was cancelled during execution.")
@@ -321,6 +251,51 @@ class AgenticRunner(
             return "Agentic run failed: ${err.message}"
         } finally {
             writeLog()
+        }
+    }
+
+    // --- Helper methods for the run loop ---
+
+    private fun buildInitialContent(): Content {
+        val prompt = _messages.value.lastOrNull { it.sender == Sender.USER }?.text ?: ""
+        val currentMessages = _messages.value.dropLast(1) // Exclude placeholder
+        val formattedHistory = currentMessages.takeIf { it.isNotEmpty() }?.let {
+            val historyLog = it.joinToString("\n") { msg ->
+                "${msg.sender}: ${msg.text}"
+            }
+            "\n[START OF PREVIOUS CONVERSATION]\n$historyLog\n[END OF PREVIOUS CONVERSATION]\n\n"
+        } ?: ""
+        val header = buildSystemPrompt()
+        val augmentedPrompt =
+            createAugmentedPrompt(prompt, header, globalStaticExamples, formattedHistory)
+        return Content.builder().role("user").parts(Part.builder().text(augmentedPrompt).build())
+            .build()
+    }
+
+    private fun processPlannerStep(history: MutableList<Content>): Content {
+        updateLastMessage("Planning...")
+        val plan = planner.plan(history)
+        history.add(plan)
+        logTurn("model", plan.parts().get())
+        return plan
+    }
+
+    private suspend fun processToolExecutionStep(functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
+        val toolCallSummary =
+            functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
+        updateLastMessage(toolCallSummary)
+        return executor.execute(functionCalls)
+    }
+
+    private suspend fun processCriticStep(history: MutableList<Content>) {
+        updateLastMessage("Reviewing results...")
+        val critiqueResult = critic.reviewAndSummarize(history)
+        if (critiqueResult != "OK") {
+            history.add(
+                Content.builder().role("user")
+                    .parts(Part.builder().text(critiqueResult).build()).build()
+            )
+            logTurn("system_critic", history.last().parts().get())
         }
     }
 
@@ -374,15 +349,6 @@ class AgenticRunner(
             put("type", "unknown")
             put("content", part.toString())
         }
-    }
-
-    private fun logFinalText(text: String) {
-        val logEntry = buildJsonObject {
-            put("step", logEntries.size + 1)
-            put("turn", "system")
-            put("final_text", text)
-        }
-        logEntries.add(logEntry)
     }
 
     private fun writeLog() {
@@ -452,14 +418,6 @@ class AgenticRunner(
         }
     }
 
-    private fun appendToLastMessage(chunk: String) {
-        _messages.update { currentList ->
-            if (currentList.isEmpty()) return@update currentList
-            val lastMessage = currentList.last()
-            val updatedMessage = lastMessage.copy(text = lastMessage.text + chunk)
-            currentList.dropLast(1) + updatedMessage
-        }
-    }
 }
 
 /**
