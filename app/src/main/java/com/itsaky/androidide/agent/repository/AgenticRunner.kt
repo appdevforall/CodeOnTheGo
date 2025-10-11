@@ -7,8 +7,8 @@ import com.google.genai.types.Part
 import com.google.genai.types.Tool
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
-import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +20,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -78,11 +79,7 @@ class AgenticRunner(
     private var executor: Executor = Executor()
 
 
-    override var onToolCall: ((ToolCall) -> Unit)? = null
-    override var onToolMessage: ((String) -> Unit)? = null
     override var onStateUpdate: ((AgentState) -> Unit)? = null
-    override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
-    override var onProgressUpdate: ((message: ChatMessage) -> Unit)? = null
 
 
     private val toolTracker = ToolExecutionTracker()
@@ -195,12 +192,18 @@ class AgenticRunner(
         prompt: String,
         history: List<ChatMessage>
     ): AgentResponse {
+        // 1. Load the history from the current session
+        loadHistory(history)
+
+        // 2. Add the user's new message to the flow so it appears instantly
+        addMessage(prompt, Sender.USER)
         val finalMessage = try {
             runnerScope.async {
                 run(prompt, history)
             }.await()
         } catch (e: CancellationException) {
             log.warn("generateASimpleResponse caught cancellation.")
+            updateLastMessage("Operation cancelled by user.")
             "Operation cancelled by user."
         }
 
@@ -213,9 +216,15 @@ class AgenticRunner(
         chatHistory: List<ChatMessage>? = null,
     ): String {
         startLog()
+        // The prompt is now the last message in our state
+        val prompt = _messages.value.lastOrNull { it.sender == Sender.USER }?.text ?: ""
         log.debug(prompt)
-        onStateUpdate?.invoke(AgentState.Processing("Initializing Agent Workflow..."))
 
+        // Add a placeholder message for the agent's response
+        addMessage("", Sender.AGENT)
+
+        onStateUpdate?.invoke(AgentState.Processing("Initializing Agent Workflow..."))
+        val currentMessages = _messages.value.dropLast(1)
         val formattedHistory = chatHistory?.takeIf { it.isNotEmpty() }?.let {
             val historyLog = it.joinToString("\n") { msg ->
                 "${msg.sender}: ${msg.text}"
@@ -242,13 +251,14 @@ class AgenticRunner(
                 val message = "Orchestrator: Step ${step + 1}..."
                 log.info(message)
                 onStateUpdate?.invoke(AgentState.Processing(message))
-
+                updateLastMessage("Planning...")
                 val plan = planner.plan(history)
                 if (plan.parts().getOrNull().isNullOrEmpty()) {
 
                     log.warn("Planner returned an empty response, possibly due to safety filters. Halting execution.")
                     val finalText =
                         "I am unable to process this request. Please rephrase your prompt or check the content for any potential policy violations."
+                    updateLastMessage(finalText)
                     logFinalText(finalText)
                     onStateUpdate?.invoke(AgentState.Idle)
                     return finalText
@@ -263,8 +273,14 @@ class AgenticRunner(
                     log.info("Orchestrator: Plan is a final answer. Run complete.")
                     val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
                     logFinalText(finalText)
+                    updateLastMessage(finalText)
                     return finalText
                 }
+
+                // Give feedback about the tool call
+                val toolCallSummary =
+                    functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
+                updateLastMessage(toolCallSummary)
 
                 val toolResultsParts = executor.execute(functionCalls)
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
@@ -301,6 +317,7 @@ class AgenticRunner(
                 return "Operation cancelled by user."
             }
             log.error("Agentic run failed", err)
+            updateLastMessage("An error occurred: ${err.message}")
             return "Agentic run failed: ${err.message}"
         } finally {
             writeLog()
@@ -417,6 +434,32 @@ class AgenticRunner(
         }
     }
 
+    fun loadHistory(history: List<ChatMessage>) {
+        _messages.value = history
+    }
+
+    private fun addMessage(text: String, sender: Sender) {
+        val message = ChatMessage(text = text, sender = sender)
+        _messages.update { currentList -> currentList + message }
+    }
+
+    private fun updateLastMessage(newText: String) {
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            val updatedMessage = lastMessage.copy(text = newText)
+            currentList.dropLast(1) + updatedMessage
+        }
+    }
+
+    private fun appendToLastMessage(chunk: String) {
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            val updatedMessage = lastMessage.copy(text = lastMessage.text + chunk)
+            currentList.dropLast(1) + updatedMessage
+        }
+    }
 }
 
 /**

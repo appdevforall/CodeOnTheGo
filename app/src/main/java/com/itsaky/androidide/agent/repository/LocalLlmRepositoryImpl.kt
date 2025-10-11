@@ -6,7 +6,6 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
-import com.itsaky.androidide.agent.data.ToolCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,10 +47,6 @@ class LocalLlmRepositoryImpl(
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
-    override var onToolCall: ((ToolCall) -> Unit)? = null
-    override var onToolMessage: ((String) -> Unit)? = null
-    override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
-    override var onProgressUpdate: ((message: ChatMessage) -> Unit)? = null
     private val messageIdCounter = AtomicLong(0)
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(
