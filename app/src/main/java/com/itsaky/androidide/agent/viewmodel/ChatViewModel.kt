@@ -102,7 +102,7 @@ class ChatViewModel : ViewModel() {
     }
 
 
-    private suspend fun getOrCreateRepository(context: Context): GeminiRepository? {
+    private fun getOrCreateRepository(context: Context): GeminiRepository? {
         val prefs = BaseApplication.getBaseInstance().prefManager
         val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
         val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
@@ -142,6 +142,11 @@ class ChatViewModel : ViewModel() {
                 }
             }
         }
+        _currentSession.value?.messages?.let { history ->
+            (agentRepository as? LocalLlmRepositoryImpl)?.loadHistory(history)
+            // You will need a similar `loadHistory` for AgenticRunner too
+        }
+
         return agentRepository
     }
 
@@ -330,6 +335,7 @@ class ChatViewModel : ViewModel() {
         val session = _sessions.value?.find { it.id == sessionId }
         if (session != null) {
             _currentSession.value = session
+            (agentRepository as? LocalLlmRepositoryImpl)?.loadHistory(session.messages)
         }
     }
 

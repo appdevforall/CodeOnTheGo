@@ -109,6 +109,7 @@ class LocalLlmRepositoryImpl(
                 report = ""
             )
         }
+        loadHistory(history)
         addMessage(prompt, Sender.USER)
         val placeholder = ""
         addMessage(placeholder, Sender.AGENT)
@@ -372,5 +373,8 @@ Answer:
                 currentList
             }
         }
+    }
+    fun loadHistory(history: List<ChatMessage>) {
+        _messages.value = history
     }
 }
