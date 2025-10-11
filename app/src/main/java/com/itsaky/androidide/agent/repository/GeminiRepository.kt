@@ -10,7 +10,7 @@ interface GeminiRepository {
     val messages: StateFlow<List<ChatMessage>>
 
     fun getPartialReport(): String
-    suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse
+    suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>)
     suspend fun generateCode(
         prompt: String,
         fileContent: String,

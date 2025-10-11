@@ -229,7 +229,7 @@ class ChatViewModel : ViewModel() {
 
                 resetStepTimer()
 
-                val agentResponse = withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     val history = _currentSession.value?.messages?.dropLast(1) ?: emptyList()
                     log.debug(
                         "--- AGENT REQUEST ---\nPrompt: {}\nHistory Messages: {}",
@@ -239,17 +239,9 @@ class ChatViewModel : ViewModel() {
                     repository.generateASimpleResponse(prompt, history)
                 }
 
-                log.debug(
-                    "--- AGENT RESPONSE ---\nText: {}\nReport: {}",
-                    agentResponse.text,
-                    agentResponse.report
-                )
 
                 log.info("Displaying final agent response to user.")
 
-                if (agentResponse.report.isNotBlank()) {
-                    log.info("Displaying execution report.")
-                }
             } catch (e: Exception) {
                 when (e) {
                     is CancellationException -> {

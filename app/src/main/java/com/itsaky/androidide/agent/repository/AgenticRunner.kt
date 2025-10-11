@@ -191,7 +191,7 @@ class AgenticRunner(
     override suspend fun generateASimpleResponse(
         prompt: String,
         history: List<ChatMessage>
-    ): AgentResponse {
+    ) {
         // 1. Load the history from the current session
         loadHistory(history)
 
@@ -209,7 +209,6 @@ class AgenticRunner(
         }
 
         onStateUpdate?.invoke(AgentState.Idle)
-        return AgentResponse(text = finalMessage, report = toolTracker.generatePartialReport())
     }
 
     private suspend fun run(): String {
@@ -231,6 +230,7 @@ class AgenticRunner(
                 if (functionCalls.isEmpty()) {
                     val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
                     updateLastMessage(finalText)
+                    logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
                     return finalText
                 }
 

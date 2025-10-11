@@ -97,12 +97,9 @@ class LocalLlmRepositoryImpl(
     override suspend fun generateASimpleResponse(
         prompt: String,
         history: List<ChatMessage>
-    ): AgentResponse {
+    ) {
         if (!engine.isModelLoaded) {
-            return AgentResponse(
-                text = "No local model is currently loaded. Please select one in AI Settings.",
-                report = ""
-            )
+            return
         }
         loadHistory(history)
         addMessage(prompt, Sender.USER)
@@ -110,7 +107,6 @@ class LocalLlmRepositoryImpl(
         addMessage(placeholder, Sender.AGENT)
 
         runAgentLoop()
-        return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
     }
 
     @OptIn(InternalSerializationApi::class)
