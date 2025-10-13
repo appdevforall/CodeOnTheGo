@@ -159,6 +159,13 @@ class ChatViewModel : ViewModel() {
         val currentModelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
         val backend = AiBackend.valueOf(currentBackendName)
 
+        val configChanged =
+            currentBackendName != lastKnownBackendName || currentModelPath != lastKnownModelPath
+        if (configChanged) {
+            agentRepository?.stop()
+            agentRepository = null
+        }
+
         val displayText = buildBackendDisplayText(backend, currentModelPath, context)
         _backendStatus.value = BackendStatus(displayText)
 
