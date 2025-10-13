@@ -86,6 +86,7 @@ class ChatViewModel : ViewModel() {
     private var agentJob: Job? = null
     private var saveJob: Job? = null
     private var timerJob: Job? = null
+    private var repoMessagesJob: Job? = null
     private var operationStartTime: Long = 0
     private var stepStartTime: Long = 0
     private val chatStorageManager: ChatStorageManager
@@ -150,6 +151,7 @@ class ChatViewModel : ViewModel() {
             repo.loadHistory(currentHistory)
         }
 
+        observeRepositoryMessages(repo)
         return agentRepository
     }
 
@@ -164,6 +166,7 @@ class ChatViewModel : ViewModel() {
         if (configChanged) {
             agentRepository?.stop()
             agentRepository = null
+            observeRepositoryMessages(null)
         }
 
         val displayText = buildBackendDisplayText(backend, currentModelPath, context)
@@ -359,6 +362,7 @@ class ChatViewModel : ViewModel() {
         _sessions.postValue(_sessions.value)
         _currentSession.value = newSession
         agentRepository?.loadHistory(newSession.messages)
+        observeRepositoryMessages(agentRepository)
         scheduleSaveCurrentSession()
     }
 
@@ -369,6 +373,7 @@ class ChatViewModel : ViewModel() {
         if (session != null) {
             _currentSession.value = session
             agentRepository?.loadHistory(session.messages)
+            observeRepositoryMessages(agentRepository)
         }
     }
 
@@ -416,5 +421,24 @@ class ChatViewModel : ViewModel() {
         stepStartTime = System.currentTimeMillis()
         // Reset to 0 immediately for a responsive UI
         _stepElapsedTime.value = 0L
+    }
+
+    private fun observeRepositoryMessages(repo: GeminiRepository?) {
+        repoMessagesJob?.cancel()
+        if (repo == null) {
+            return
+        }
+        repoMessagesJob = viewModelScope.launch {
+            repo.messages.collect { messages ->
+                val session = _currentSession.value ?: return@collect
+                session.messages.apply {
+                    clear()
+                    addAll(messages)
+                }
+                _currentSession.postValue(session)
+                _sessions.postValue(_sessions.value)
+                scheduleSaveCurrentSession()
+            }
+        }
     }
 }

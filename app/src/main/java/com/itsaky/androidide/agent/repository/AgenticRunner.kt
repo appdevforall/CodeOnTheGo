@@ -1,6 +1,5 @@
 package com.itsaky.androidide.agent.repository
 
-// ✨ 1. Import necessary coroutine classes
 import android.content.Context
 import com.google.genai.types.Content
 import com.google.genai.types.Part
