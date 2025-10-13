@@ -445,6 +445,10 @@ class ChatFragment :
                     context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                 imm?.showSoftInput(binding.promptInputEdittext, InputMethodManager.SHOW_IMPLICIT)
             }
+
+            ChatAdapter.DiffCallback.ACTION_OPEN_SETTINGS -> {
+                findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
+            }
         }
     }
 }

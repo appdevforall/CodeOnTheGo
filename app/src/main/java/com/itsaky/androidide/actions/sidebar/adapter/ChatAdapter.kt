@@ -51,9 +51,13 @@ class ChatAdapter(
         MessageViewHolder(binding.root)
 
     override fun getItemViewType(position: Int): Int {
-        return when (getItem(position).sender) {
-            Sender.SYSTEM -> VIEW_TYPE_SYSTEM
-            else -> VIEW_TYPE_DEFAULT
+        val message = getItem(position)
+        return if (message.sender == Sender.SYSTEM && message.status == MessageStatus.ERROR) {
+            VIEW_TYPE_DEFAULT
+        } else if (message.sender == Sender.SYSTEM) {
+            VIEW_TYPE_SYSTEM
+        } else {
+            VIEW_TYPE_DEFAULT
         }
     }
 
@@ -125,8 +129,20 @@ class ChatAdapter(
                 holder.binding.messageContent.visibility = View.VISIBLE
                 holder.binding.btnRetry.visibility = View.VISIBLE
                 holder.binding.messageContent.text = message.text
-                holder.binding.btnRetry.setOnClickListener {
-                    onMessageAction(DiffCallback.ACTION_RETRY, message)
+                if (message.sender == Sender.SYSTEM) {
+                    holder.binding.btnRetry.text =
+                        holder.itemView.context.getString(R.string.open_ai_settings)
+                    holder.binding.btnRetry.setIconResource(R.drawable.ic_settings)
+                    holder.binding.btnRetry.setOnClickListener {
+                        onMessageAction(DiffCallback.ACTION_OPEN_SETTINGS, message)
+                    }
+                } else {
+                    holder.binding.btnRetry.text =
+                        holder.itemView.context.getString(R.string.retry)
+                    holder.binding.btnRetry.setIconResource(R.drawable.ic_refresh)
+                    holder.binding.btnRetry.setOnClickListener {
+                        onMessageAction(DiffCallback.ACTION_RETRY, message)
+                    }
                 }
                 updateMessageMetadata(holder.binding, message)
             }
@@ -263,6 +279,7 @@ class ChatAdapter(
     object DiffCallback : DiffUtil.ItemCallback<ChatMessage>() {
         const val ACTION_EDIT = "edit"
         const val ACTION_RETRY = "retry"
+        const val ACTION_OPEN_SETTINGS = "open_settings"
         override fun areItemsTheSame(oldItem: ChatMessage, newItem: ChatMessage): Boolean {
             return oldItem.id == newItem.id
         }
