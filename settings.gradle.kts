@@ -151,6 +151,7 @@ include(
 	":subprojects:libjdwp",
 	":subprojects:projects",
 	":subprojects:project-models",
+	":subprojects:project-serial",
 	":subprojects:shizuku-aidl",
 	":subprojects:shizuku-api",
 	":subprojects:shizuku-common",

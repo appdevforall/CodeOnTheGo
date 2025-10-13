@@ -1,5 +1,3 @@
-import com.google.protobuf.gradle.id
-
 plugins {
 	id("java-library")
 	alias(libs.plugins.google.protobuf)

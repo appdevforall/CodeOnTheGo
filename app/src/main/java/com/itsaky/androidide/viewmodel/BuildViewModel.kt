@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
+import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +24,7 @@ class BuildViewModel : ViewModel() {
     private val _buildState = MutableStateFlow<BuildState>(BuildState.Idle)
     val buildState: StateFlow<BuildState> = _buildState
 
-    fun runQuickBuild(module: AndroidModule, variant: BasicAndroidVariantMetadata, launchInDebugMode: Boolean) {
+    fun runQuickBuild(module: AndroidModule, variant: AndroidModels.AndroidVariant, launchInDebugMode: Boolean) {
         if (_buildState.value is BuildState.InProgress) {
             log.warn("Build is already in progress. Ignoring new request.")
             return
@@ -47,7 +49,6 @@ class BuildViewModel : ViewModel() {
                 }
 
                 val outputListingFile = variant.mainArtifact.assembleTaskOutputListingFile
-                    ?: throw RuntimeException("No output listing file found in project model.")
 
                 val apkFile = ApkMetadata.findApkFile(outputListingFile)
                     ?: throw RuntimeException("No APK found in output listing file.")

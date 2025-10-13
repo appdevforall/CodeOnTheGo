@@ -6,6 +6,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.openApplicationModuleChooser
+import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
@@ -40,7 +41,7 @@ abstract class AbstractModuleAssemblerAction(
     private fun onModuleSelected(
         data: ActionData,
         module: AndroidModule,
-        variant: BasicAndroidVariantMetadata
+        variant: AndroidModels.AndroidVariant
     ) {
         val activity = data.requireActivity()
         val buildViewModel: BuildViewModel by activity.viewModels()

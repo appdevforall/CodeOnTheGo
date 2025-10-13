@@ -37,6 +37,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.resDirs
+import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.IAndroidProject
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
@@ -204,6 +205,26 @@ class ProjectManagerImpl : IProjectManager, EventReceiver {
 			return module.getResourceDirectories().find { file.path.startsWith(it.path) } != null
 		}
 		return true
+	}
+
+	override suspend fun writeCache(targetFile: File) {
+		val gradleBuild = this.gradleBuild ?: return
+		ProtoProject.writeGradleBuild(gradleBuild, targetFile)
+	}
+
+	/**
+	 * Read the Gradle build model from the currently opened project directory.
+	 *
+	 * @return The Gradle build model result.
+	 */
+	suspend fun readGradleBuild(): Result<GradleModels.GradleBuild> {
+		val projectManager = IProjectManager.getInstance()
+		val projectDir = projectManager.projectDir
+		if (!projectDir.exists()) {
+			return Result.failure(IllegalStateException("Project directory does not exist: ${projectDir.absolutePath}"))
+		}
+
+		return ProtoProject.readGradleBuild(projectDir)
 	}
 
 	override fun destroy() {

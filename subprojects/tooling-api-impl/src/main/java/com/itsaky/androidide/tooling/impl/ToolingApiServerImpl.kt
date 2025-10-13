@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.tooling.impl
 
+import com.itsaky.androidide.projects.models.projectDir
+import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
@@ -46,6 +48,7 @@ import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
 import com.itsaky.androidide.tooling.impl.sync.RootProjectModelBuilderParams
 import com.itsaky.androidide.tooling.impl.util.configureFrom
+import com.itsaky.androidide.utils.SharedEnvironment
 import com.itsaky.androidide.utils.StopWatch
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.BuildException
@@ -100,17 +103,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 		get() = connector != null || connection != null
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(ToolingApiServerImpl::class.java)
-
-		/**
-		 * Time duration for which the the Tooling API server waits after calling
-		 * [DefaultGradleConnector.close] and before exiting the server's process.
-		 *
-		 * This delay should be long enough to let the tooling API stop the daemon but short enough so
-		 * that the server's process is not kept alive for longer duration.
-		 */
-		const val DELAY_BEFORE_EXIT_MS = 1000L
 	}
 
 	override fun metadata(): CompletableFuture<ToolingServerMetadata> {
@@ -137,7 +130,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 
 				if (failureReason != null) {
 					log.error("Cannot initialize project: {}", failureReason)
-					return@runBuild InitializeResult(false, failureReason)
+					return@runBuild InitializeResult.Failure(failureReason)
 				}
 
 				val stopWatch = StopWatch("Connection to project")
@@ -179,7 +172,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 
 				this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
 
-				val project = try {
+				val cacheFile = try {
 					val modelBuilderParams = RootProjectModelBuilderParams(
 						connection,
 						this.buildCancellationToken!!.token(),
@@ -187,8 +180,7 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 						params.jvmArgs
 					)
 
-					val impl = RootModelBuilder.build(params, modelBuilderParams)
-					impl
+					RootModelBuilder.build(params, modelBuilderParams)
 				} catch (err: Throwable) {
 					throw err
 				}
@@ -196,15 +188,14 @@ internal class ToolingApiServerImpl() : IToolingApiServer {
 				stopWatch.lapFromLast("Project read successful")
 				stopWatch.log()
 
-//        this.project.setFrom(project)
 				this.isInitialized = true
 
 				notifyBuildSuccess(emptyList())
-				return@runBuild InitializeResult(true)
+				return@runBuild InitializeResult.Success(cacheFile)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
 				notifyBuildFailure(emptyList())
-				return@runBuild InitializeResult(false, getTaskFailureType(err))
+				return@runBuild InitializeResult.Failure(getTaskFailureType(err))
 			}
 		}
 	}
