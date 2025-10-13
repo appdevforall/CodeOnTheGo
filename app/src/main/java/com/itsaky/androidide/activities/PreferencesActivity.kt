@@ -17,15 +17,19 @@
 package com.itsaky.androidide.activities
 
 import android.os.Bundle
+import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.Insets
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
 import com.itsaky.androidide.fragments.IDEPreferencesFragment
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.preferences.addRootPreferences
-import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
 class PreferencesActivity : EdgeToEdgeIDEActivity() {
@@ -33,12 +37,22 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
   private var _binding: ActivityPreferencesBinding? = null
   private val binding: ActivityPreferencesBinding
     get() = checkNotNull(_binding) { "Activity has been destroyed" }
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
   private val rootFragment by lazy {
     IDEPreferencesFragment()
   }
 
-    private var feedbackButtonManager: FeedbackButtonManager? = null
+  private val gestureDetector by lazy {
+    GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+      override fun onLongPress(e: MotionEvent) {
+        binding.root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        val currentFragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as? IDEPreferencesFragment
+        val tooltipTag = currentFragment?.getCurrentScreenTooltip() ?: ""
+        TooltipManager.showTooltip(this@PreferencesActivity, binding.root, tooltipTag)
+      }
+    })
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -106,6 +120,11 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
   override fun onDestroy() {
     super.onDestroy()
     _binding = null
+  }
+
+  override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+    gestureDetector.onTouchEvent(ev)
+    return super.dispatchTouchEvent(ev)
   }
 
     override fun onResume() {
