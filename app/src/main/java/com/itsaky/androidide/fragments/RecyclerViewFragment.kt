@@ -17,12 +17,16 @@
 
 package com.itsaky.androidide.fragments
 
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.LayoutManager
 import com.itsaky.androidide.databinding.FragmentRecyclerviewBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
 
 /**
  * A fragment which shows a [RecyclerView].
@@ -31,9 +35,35 @@ import com.itsaky.androidide.databinding.FragmentRecyclerviewBinding
  */
 abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
   EmptyStateFragment<FragmentRecyclerviewBinding>(FragmentRecyclerviewBinding::inflate) {
+  protected abstract val fragmentTooltipTag: String?
 
   private var unsavedAdapter: A? = null
 
+  private lateinit var gestureDetector: GestureDetector
+
+  private val gestureListener =
+    object : GestureDetector.SimpleOnGestureListener() {
+      override fun onLongPress(e: MotionEvent) {
+        showFragmentTooltip()
+      }
+    }
+
+  private val touchListener =
+    object : RecyclerView.OnItemTouchListener {
+      override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+        // Pass the event to our gesture detector
+        gestureDetector.onTouchEvent(e)
+        // Always return false so we don't consume the event
+        return false
+      }
+
+      override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+      override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+    }
+
+  override fun onFragmentLongPressed() {
+    showFragmentTooltip()
+  }
   /**
    * Creates the adapter for the [RecyclerView].
    */
@@ -56,9 +86,19 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
     }
   }
 
+  @SuppressLint("ClickableViewAccessibility")
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
+
+    gestureDetector = GestureDetector(requireContext(), gestureListener)
+    emptyStateBinding?.root?.setOnTouchListener { _, event ->
+      gestureDetector.onTouchEvent(event)
+      false
+    }
+
     onSetupRecyclerView()
+
+    binding.root.addOnItemTouchListener(touchListener)
 
     unsavedAdapter = null
 
@@ -76,6 +116,17 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
   fun setAdapter(adapter: A) {
     _binding?.root?.let { list -> list.adapter = adapter } ?: run { unsavedAdapter = adapter }
     checkIsEmpty()
+  }
+
+  private fun showFragmentTooltip() {
+    val workingContext = context ?: return
+    val anchorView = this@RecyclerViewFragment.view ?: return
+    val tooltipTag = fragmentTooltipTag ?: return
+      TooltipManager.showTooltip(
+          context = workingContext,
+          anchorView = anchorView,
+          tag = tooltipTag,
+      )
   }
 
   private fun checkIsEmpty() {

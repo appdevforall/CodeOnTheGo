@@ -21,40 +21,36 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
-import android.util.Log
-import androidx.activity.result.contract.ActivityResultContracts
+import android.util.TypedValue
+import android.view.View
+import android.view.ViewTreeObserver
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
-import org.adfa.constants.ANDROID_SDK_ZIP
-import org.adfa.constants.DESTINATION_ANDROID_SDK
-import org.adfa.constants.HOME_PATH
-import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import org.adfa.constants.LOCAL_SOURCE_AGP_8_0_0_CACHES
-import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
-import org.adfa.constants.LOCAL_SOURCE_ANDROID_SDK
-import org.adfa.constants.LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME
-import org.adfa.constants.MANIFEST_FILE_NAME
-import org.adfa.constants.TERMUX_DEBS_PATH
-import com.blankj.utilcode.util.ResourceUtils
-import com.blankj.utilcode.util.ZipUtils
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
+import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.fragments.onboarding.GreetingFragment
 import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
-import com.itsaky.androidide.fragments.onboarding.StatisticsFragment
-import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
-import com.itsaky.androidide.tasks.launchAsyncWithProgress
+import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.isAtLeastV
+import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.utils.withStopWatch
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -63,291 +59,263 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.IOException
+import com.itsaky.androidide.FeedbackButtonManager
+import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
+	private val activityScope =
+		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
-    private val terminalActivityCallback = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        Log.d(TAG, "TerminalActivity: resultCode=${it.resultCode}")
-        if (!isFinishing) {
-            reloadJdkDistInfo {
-                tryNavigateToMainIfSetupIsCompleted()
-            }
-        }
-    }
+	private var listJdkInstallationsJob: Job? = null
+    private lateinit var feedbackButton: FloatingActionButton
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    private val activityScope =
-        CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
+	companion object {
+		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
+		private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
+			"ide.archConfig.experimentalWarning.isShown"
+	}
 
-    private var listJdkInstallationsJob: Job? = null
+	@SuppressLint("SourceLockedOrientationActivity")
+	override fun onCreate(savedInstanceState: Bundle?) {
+		IThemeManager.getInstance().applyTheme(this)
+		setOrientationFunction {
+			OrientationUtilities.setOrientation {
+				requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+			}
+		}
 
-    companion object {
+		super.onCreate(savedInstanceState)
 
-        private const val TAG = "OnboardingActivity"
-        private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
-            "ide.archConfig.experimentalWarning.isShown"
-    }
+		WindowCompat.getInsetsController(this.window, this.window.decorView).apply {
+			isAppearanceLightStatusBars = !isSystemInDarkMode()
+			isAppearanceLightNavigationBars = !isSystemInDarkMode()
+		}
 
-    @SuppressLint("SourceLockedOrientationActivity")
-    override fun onCreate(savedInstanceState: Bundle?) {
-        IThemeManager.getInstance().applyTheme(this)
-        setOrientationFunction {
-            OrientationUtilities.setOrientation {
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            }
-        }
-        super.onCreate(savedInstanceState)
+		if (isAtLeastV()) {
+			ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+				view.setBackgroundColor(resolveAttr(R.attr.colorSurface))
+				insets
+			}
+		} else {
+			@Suppress("DEPRECATION")
+			window.statusBarColor = resolveAttr(R.attr.colorSurface)
+		}
 
-        if (tryNavigateToMainIfSetupIsCompleted()) {
-            return
-        }
+		if (tryNavigateToMainIfSetupIsCompleted()) {
+			return
+		}
 
-        setSwipeLock(true)
-        setTransformer(AppIntroPageTransformerType.Fade)
-        setProgressIndicator()
-        showStatusBar(true)
-        isIndicatorEnabled = true
-        isWizardMode = true
+		setSwipeLock(true)
+		setTransformer(AppIntroPageTransformerType.Fade)
+		setProgressIndicator()
+		showStatusBar(true)
+        setupFeedbackButton()
+		isIndicatorEnabled = true
+		isWizardMode = true
 
-        addSlide(GreetingFragment())
+		addSlide(GreetingFragment())
 
-        if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
-            val errorMessage = getString(
-                string.bootstrap_error_not_primary_user_message,
-                MarkdownUtils.getMarkdownCodeForString(
-                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    false
-                )
-            )
-            addSlide(
-                OnboardingInfoFragment.newInstance(
-                    getString(string.title_unsupported_user),
-                    errorMessage,
-                    R.drawable.ic_alert,
-                    ContextCompat.getColor(this, R.color.color_error)
-                )
-            )
-            return
-        }
+		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
+			val errorMessage =
+				getString(
+					string.bootstrap_error_not_primary_user_message,
+					MarkdownUtils.getMarkdownCodeForString(
+						TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+						false,
+					),
+				)
+			addSlide(
+				OnboardingInfoFragment.newInstance(
+					getString(string.title_unsupported_user),
+					errorMessage,
+					R.drawable.ic_alert,
+					ContextCompat.getColor(this, R.color.color_error),
+				),
+			)
+			return
+		}
 
-        if (isInstalledOnSdCard()) {
-            val errorMessage = getString(
-                string.bootstrap_error_installed_on_portable_sd,
-                MarkdownUtils.getMarkdownCodeForString(
-                    TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                    false
-                )
-            )
-            addSlide(
-                OnboardingInfoFragment.newInstance(
-                    getString(string.title_install_location_error),
-                    errorMessage,
-                    R.drawable.ic_alert,
-                    ContextCompat.getColor(this, R.color.color_error)
-                )
-            )
-            return
-        }
+		if (isInstalledOnSdCard()) {
+			val errorMessage =
+				getString(
+					string.bootstrap_error_installed_on_portable_sd,
+					MarkdownUtils.getMarkdownCodeForString(
+						TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+						false,
+					),
+				)
+			addSlide(
+				OnboardingInfoFragment.newInstance(
+					getString(string.title_install_location_error),
+					errorMessage,
+					R.drawable.ic_alert,
+					ContextCompat.getColor(this, R.color.color_error),
+				),
+			)
+			return
+		}
 
-        if (!checkDeviceSupported()) {
-            return
-        }
+		if (!checkDeviceSupported()) {
+			return
+		}
 
-        /******** TODO JMT deleted for offline mode
-        if (!StatPreferences.statConsentDialogShown) {
-        addSlide(StatisticsFragment.newInstance(this))
-        StatPreferences.statConsentDialogShown = true
-        }
-         **********/
+		if (!PermissionsFragment.areAllPermissionsGranted(this)) {
+			addSlide(PermissionsFragment.newInstance(this))
+		}
 
-        if (!PermissionsFragment.areAllPermissionsGranted(this)) {
-            addSlide(PermissionsFragment.newInstance(this))
-        }
+		if (!checkToolsIsInstalled()) {
+			addSlide(IdeSetupConfigurationFragment.newInstance(this))
+		}
+	}
 
-        if (!checkToolsIsInstalled()) {
-            addSlide(IdeSetupConfigurationFragment.newInstance(this))
-        }
-    }
+    private fun setupFeedbackButton() {
+        val contentRootView = findViewById<View>(android.R.id.content)
+        contentRootView.viewTreeObserver.addOnGlobalLayoutListener(object :
+            ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                contentRootView.viewTreeObserver.removeOnGlobalLayoutListener(this)
 
-    override fun onResume() {
-        super.onResume()
-        reloadJdkDistInfo {
-            tryNavigateToMainIfSetupIsCompleted()
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        activityScope.cancel("Activity is being destroyed")
-    }
-
-    override fun onNextPressed(currentFragment: Fragment?) {
-        (currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
-    }
-
-    override fun onDonePressed(currentFragment: Fragment?) {
-        (currentFragment as? StatisticsFragment?)?.updateStatOptInStatus()
-
-        if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
-            finishAffinity()
-            return
-        }
-
-        if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
-            activityScope.launchAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
-                runOnUiThread {
-                    flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
-                }
-                copyTermuxDebsAndManifest()
-                copyAndroidSDK()
-                copyMavenLocalRepoFiles()
-
-                runOnUiThread {
-                    val intent = Intent(this@OnboardingActivity, TerminalActivity::class.java)
-                    if (currentFragment.isAutoInstall()) {
-                        intent.putExtra(TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP, true)
-                        intent.putExtra(
-                            TerminalActivity.EXTRA_ONBOARDING_RUN_IDESETUP_ARGS,
-                            currentFragment.buildIdeSetupArguments()
+                val appIntroContainer: ConstraintLayout? = findViewById(R.id.background)
+                if (appIntroContainer != null) {
+                    feedbackButton = FloatingActionButton(this@OnboardingActivity).apply {
+                        id = R.id.fab_feedback
+                        setImageResource(R.drawable.baseline_feedback_64)
+                        contentDescription = getString(string.send_feedback)
+                        val layoutParams = ConstraintLayout.LayoutParams(
+                            ConstraintLayout.LayoutParams.WRAP_CONTENT,
+                            ConstraintLayout.LayoutParams.WRAP_CONTENT
                         )
+
+                        layoutParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                        layoutParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                        val marginInPx = TypedValue.applyDimension(
+                            TypedValue.COMPLEX_UNIT_DIP,
+                            16f,
+                            resources.displayMetrics
+                        ).toInt()
+                        layoutParams.setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
+                        this.layoutParams = layoutParams
                     }
-                    terminalActivityCallback.launch(intent)
+
+                    appIntroContainer.addView(feedbackButton)
+                    feedbackButtonManager = FeedbackButtonManager(
+                        activity = this@OnboardingActivity,
+                        feedbackFab = feedbackButton
+                    )
+                    feedbackButtonManager?.setupDraggableFab()
+                } else {
+                    logger.error("Could not find AppIntro2 container to add FAB.")
                 }
             }
-            return
-        }
-
-        tryNavigateToMainIfSetupIsCompleted()
+        })
     }
 
-    private fun copyTermuxDebsAndManifest() {
-        val outputDirectory = File(application.dataDir.path + File.separator + TERMUX_DEBS_PATH)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
+	override fun onResume() {
+		super.onResume()
+		activityScope.launch {
+			reloadJdkDistInfo {
+				tryNavigateToMainIfSetupIsCompleted()
+			}
+		}
+        feedbackButtonManager?.loadFabPosition()
+	}
 
-        try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_TERMUX_LIB_FOLDER_NAME),
-                outputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
-        }
+	override fun onDestroy() {
+		super.onDestroy()
+		activityScope.cancel("Activity is being destroyed")
+	}
 
-        try {
-            val manifestOutputDirectory =
-                File(application.filesDir.path + File.separator + HOME_PATH).resolve(
-                    MANIFEST_FILE_NAME
-                )
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(MANIFEST_FILE_NAME),
-                manifestOutputDirectory.path
-            )
-        } catch (e: IOException) {
-            println("Termux manifest copy failed + ${e.message}")
-        }
-    }
+	override fun onDonePressed(currentFragment: Fragment?) {
+		if (!IDEBuildConfigProvider.getInstance().supportsCpuAbi()) {
+			finishAffinity()
+			return
+		}
 
-    private fun copyAndroidSDK() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK)
-        val zipFile =
-            File(application.filesDir.path + File.separator + DESTINATION_ANDROID_SDK + File.separator + ANDROID_SDK_ZIP)
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
+		if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
+			activityScope.launch {
+				doAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
+					runOnUiThread {
+						flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
+					}
 
-        try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_ANDROID_SDK),
-                outputDirectory.path
-            )
-            ZipUtils.unzipFile(zipFile, outputDirectory)
-            zipFile.delete()
-        } catch (e: IOException) {
-            println("Termux caches copy failed + ${e.message}")
-        }
-    }
+					val result =
+						withStopWatch("Assets installation") {
+							AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
+								logger.debug("Assets installation progress: {}", progress.message)
+							}
+						}
 
-    private fun copyMavenLocalRepoFiles() {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + LOCAL_MAVEN_CACHES_DEST)
-        val mavenZipFile =
-            File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
+					logger.info("Assets installation result: {}", result)
 
-        try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(LOCAL_SOURCE_AGP_8_0_0_CACHES),
-                outputDirectory.path
-            )
+					withContext(Dispatchers.Main) {
+						reloadJdkDistInfo {
+							tryNavigateToMainIfSetupIsCompleted()
+						}
+					}
+				}
+			}
+			return
+		}
 
-            ZipUtils.unzipFile(mavenZipFile, outputDirectory)
-            mavenZipFile.delete()
-        } catch (e: IOException) {
-            println("Android Gradle caches copy failed + ${e.message}")
-        }
-    }
+		tryNavigateToMainIfSetupIsCompleted()
+	}
 
-    private fun checkToolsIsInstalled(): Boolean {
-        return IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty()
-                && Environment.ANDROID_HOME.exists()
-    }
+	private fun checkToolsIsInstalled(): Boolean =
+		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
+			Environment.ANDROID_HOME.exists()
 
-    private fun isSetupCompleted(): Boolean {
-        return checkToolsIsInstalled()
-                /* JMT && StatPreferences.statConsentDialogShown */
-                && PermissionsFragment.areAllPermissionsGranted(this)
-    }
+	private fun isSetupCompleted(): Boolean =
+		checkToolsIsInstalled() &&
+			PermissionsFragment.areAllPermissionsGranted(this)
 
-    private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
-        if (isSetupCompleted()) {
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
-            return true
-        }
+	private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
+		if (isSetupCompleted()) {
+			startActivity(Intent(this, MainActivity::class.java))
+			finish()
+			return true
+		}
 
-        return false
-    }
+		return false
+	}
 
-    private inline fun reloadJdkDistInfo(crossinline distConsumer: (List<JdkDistribution>) -> Unit) {
-        listJdkInstallationsJob?.cancel("Reloading JDK distributions")
+	private suspend fun reloadJdkDistInfo(distConsumer: (List<JdkDistribution>) -> Unit) {
+		listJdkInstallationsJob?.cancel("Reloading JDK distributions")
 
-        listJdkInstallationsJob = activityScope.launchAsyncWithProgress(Dispatchers.Default,
-            configureFlashbar = { builder, _ ->
-                builder.message(string.please_wait)
-            }) { _, _ ->
-            val distributionProvider = IJdkDistributionProvider.getInstance()
-            distributionProvider.loadDistributions()
-            withContext(Dispatchers.Main) {
-                distConsumer(distributionProvider.installedDistributions)
-            }
-        }.also {
-            it?.invokeOnCompletion {
-                listJdkInstallationsJob = null
-            }
-        }
-    }
+		listJdkInstallationsJob =
+			doAsyncWithProgress(
+				Dispatchers.Default,
+				configureFlashbar = { builder, _ ->
+					builder.message(string.please_wait)
+				},
+			) { _, _ ->
+				val distributionProvider = IJdkDistributionProvider.getInstance()
+				distributionProvider.loadDistributions()
+				withContext(Dispatchers.Main) {
+					distConsumer(distributionProvider.installedDistributions)
+				}
+			}.also {
+				it?.invokeOnCompletion {
+					listJdkInstallationsJob = null
+				}
+			}
+	}
 
-    private fun isInstalledOnSdCard(): Boolean {
-        // noinspection SdCardPath
-        return PackageUtils.isAppInstalledOnExternalStorage(this) &&
-                TermuxConstants.TERMUX_FILES_DIR_PATH != filesDir.absolutePath
-            .replace("^/data/user/0/".toRegex(), "/data/data/")
-    }
+	private fun isInstalledOnSdCard(): Boolean {
+		// noinspection SdCardPath
+		return PackageUtils.isAppInstalledOnExternalStorage(this) &&
+			TermuxConstants.TERMUX_FILES_DIR_PATH !=
+			filesDir.absolutePath
+				.replace("^/data/user/0/".toRegex(), "/data/data/")
+	}
 
-    private fun checkDeviceSupported(): Boolean {
-        val configProvider = IDEBuildConfigProvider.getInstance()
+	private fun checkDeviceSupported(): Boolean {
+		val configProvider = IDEBuildConfigProvider.getInstance()
 
-        if (!configProvider.supportsCpuAbi()) {
-            //TODO JMT figure out how to build v8a and/or x64_86
+		if (!configProvider.supportsCpuAbi()) {
+			// TODO JMT figure out how to build v8a and/or x64_86
 //            addSlide(
 //                OnboardingInfoFragment.newInstance(
 //                    getString(string.title_unsupported_device),
@@ -361,14 +329,14 @@ class OnboardingActivity : AppIntro2() {
 //                )
 //            )
 //            return false
-            return true
-        }
+			return true
+		}
 
-        if (configProvider.cpuArch != configProvider.deviceArch) {
-            // IDE's build flavor is NOT the primary arch of the device
-            // warn the user
-            if (!archConfigExperimentalWarningIsShown()) {
-                //TODO JMT get build to support v8a and/or x86_64
+		if (configProvider.cpuArch != configProvider.deviceArch) {
+			// IDE's build flavor is NOT the primary arch of the device
+			// warn the user
+			if (!archConfigExperimentalWarningIsShown()) {
+				// TODO JMT get build to support v8a and/or x86_64
 //                addSlide(
 //                    OnboardingInfoFragment.newInstance(
 //                        getString(string.title_experiment_flavor),
@@ -381,13 +349,12 @@ class OnboardingActivity : AppIntro2() {
 //                        ContextCompat.getColor(this, R.color.color_warning)
 //                    )
 //                )
-                prefManager.putBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, true)
-            }
-        }
+				prefManager.putBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, true)
+			}
+		}
 
-        return true
-    }
+		return true
+	}
 
-    private fun archConfigExperimentalWarningIsShown() =
-        prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
+	private fun archConfigExperimentalWarningIsShown() = prefManager.getBoolean(KEY_ARCHCONFIG_WARNING_IS_SHOWN, false)
 }

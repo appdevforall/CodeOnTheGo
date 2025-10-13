@@ -92,6 +92,9 @@ abstract class ActionsRegistry {
   /** Clear all the registered actions. */
   abstract fun clearActions(location: ActionItem.Location)
 
+  /** Clear all actions at the given location except those matching the predicate. */
+  abstract fun clearActionsExceptWhere(location: ActionItem.Location, predicate: (ActionItem) -> Boolean)
+
   /**
    * Register a listener that will be called when any action is executed. The callbacks are called
    * irrespective of the action's execution result.

@@ -21,14 +21,15 @@ import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.FilterConfiguration
+import com.android.build.api.variant.Variant
 import com.android.build.api.variant.impl.getFilter
+import com.android.build.gradle.AppExtension
 import com.android.build.gradle.BaseExtension
 import com.itsaky.androidide.build.config.BuildConfig
-import com.itsaky.androidide.build.config.FDroidConfig
-import com.itsaky.androidide.build.config.isFDroidBuild
 import com.itsaky.androidide.build.config.projectVersionCode
 import com.itsaky.androidide.build.config.simpleVersionName
 import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.artifacts.MinimalExternalModuleDependency
 import org.gradle.api.provider.Provider
@@ -44,212 +45,246 @@ import java.util.Date
  * For example, if the base version code of the IDE is 270 (for v2.7.0), then for arm64-v8a
  * flavor, the version code will be `100 * 270 + 1` i.e. `27001`
  */
-internal val flavorsAbis = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
-private val disableCoreLibDesugaringForModules = arrayOf(":logsender", ":logger")
+internal val flavorsAbis = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2)
+private val disableCoreLibDesugaringForModules =
+	arrayOf(
+		":logsender",
+		":logger",
+	)
 
-fun Project.configureAndroidModule(
-    coreLibDesugDep: Provider<MinimalExternalModuleDependency>
-) {
-    assert(
-        plugins.hasPlugin("com.android.application") || plugins.hasPlugin("com.android.library")
-    ) {
-        "${javaClass.simpleName} can only be applied to Android projects"
-    }
+/**
+ * The name of the build type used for automated testing.
+ */
+private const val INSTRUMENTATION_BUILD_TYPE = "instrumentation"
 
-    val androidJar = extensions.getByType(AndroidComponentsExtension::class.java)
-        .getAndroidJar(assertExists = true)
-    val frameworkStubsJar = findProject(":subprojects:framework-stubs")!!.file("libs/android.jar")
-        .also { it.parentFile.mkdirs() }
+/**
+ * Whether the given variant has bundled assets or not.
+ *
+ * This is `true` for non-debug builds and for [INSTRUMENTATION_BUILD_TYPE] builds. When updating this
+ * value, please update the corresponding value in `AssetsInstaller.kt` in `:app` module.
+ */
+internal fun hasBundledAssets(variant: Variant): Boolean = !variant.debuggable || variant.buildType == INSTRUMENTATION_BUILD_TYPE
 
-    if (!(frameworkStubsJar.exists() && frameworkStubsJar.isFile)) {
-        androidJar.copyTo(frameworkStubsJar)
-    }
+fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModuleDependency>) {
+	var isAppModule = plugins.hasPlugin("com.android.application")
+	assert(
+		isAppModule || plugins.hasPlugin("com.android.library"),
+	) {
+		"${javaClass.simpleName} can only be applied to Android projects"
+	}
 
-    extensions.getByType(CommonExtension::class.java).run {
-        lint {
-            checkDependencies = true
-        }
+	val androidJar =
+		extensions
+			.getByType(AndroidComponentsExtension::class.java)
+			.getAndroidJar(assertExists = true)
 
-        packaging {
-            resources {
-                excludes.addAll(
-                    arrayOf(
-                        "META-INF/CHANGES",
-                        "META-INF/README.md",
-                        "META-INF/LICENSE-notice.md",
-                        "com/sun/jna/**"
-                    )
-                )
-                pickFirsts.addAll(
-                    arrayOf(
-                        "META-INF/eclipse.inf",
-                        "META-INF/LICENSE.md",
-                        "META-INF/AL2.0",
-                        "META-INF/LGPL2.1",
-                        "META-INF/INDEX.LIST",
-                        "about_files/LICENSE-2.0.txt",
-                        "plugin.xml",
-                        "plugin.properties",
-                        "about.mappings",
-                        "about.properties",
-                        "about.ini",
-                        "modeling32.png"
-                    )
-                )
-            }
-        }
-    }
+	findProject(":subprojects:framework-stubs")
+		?.file("libs/android.jar")
+		.also { it?.parentFile?.mkdirs() }
+		?.also { frameworkStubsJar ->
+			if (!(frameworkStubsJar.exists() && frameworkStubsJar.isFile)) {
+				androidJar.copyTo(frameworkStubsJar)
+			}
+		}
 
-    extensions.getByType(BaseExtension::class.java).run {
-        compileSdkVersion(BuildConfig.compileSdk)
+	extensions.getByType(CommonExtension::class.java).run {
+		lint {
+			checkDependencies = true
+		}
 
-        defaultConfig {
-            minSdk = BuildConfig.minSdk
-            targetSdk = BuildConfig.targetSdk
-            versionCode = projectVersionCode
-            versionName = rootProject.simpleVersionName
+		packaging {
+			resources {
+				excludes.addAll(
+					arrayOf(
+						"META-INF/CHANGES",
+						"META-INF/README.md",
+						"META-INF/LICENSE-notice.md",
+						"com/sun/jna/**",
+					),
+				)
+				pickFirsts.addAll(
+					arrayOf(
+						"META-INF/eclipse.inf",
+						"META-INF/LICENSE.md",
+						"META-INF/AL2.0",
+						"META-INF/LGPL2.1",
+						"META-INF/INDEX.LIST",
+						"META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+						"about_files/LICENSE-2.0.txt",
+						"plugin.xml",
+						"plugin.properties",
+						"about.mappings",
+						"about.properties",
+						"about.ini",
+						"modeling32.png",
+					),
+				)
+			}
+		}
+	}
 
-            // required
-            multiDexEnabled = true
+	extensions.getByType(BaseExtension::class.java).run {
+		compileSdkVersion(BuildConfig.COMPILE_SDK)
 
-            testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        }
+		defaultConfig {
+			minSdk = BuildConfig.MIN_SDK
+			targetSdk = BuildConfig.TARGET_SDK
+			versionCode = projectVersionCode
+			versionName = rootProject.simpleVersionName
 
-        compileOptions {
-            sourceCompatibility = BuildConfig.javaVersion
-            targetCompatibility = BuildConfig.javaVersion
-        }
+			// required
+			multiDexEnabled = true
 
-        configureCoreLibDesugaring(this, coreLibDesugDep)
+			testInstrumentationRunner = "com.itsaky.androidide.testing.android.TestInstrumentationRunner"
+			testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+			testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+		}
 
-        if (":app" == project.path) {
-            packagingOptions {
-                jniLibs {
-                    useLegacyPackaging = true
-                }
-            }
+		compileOptions {
+			sourceCompatibility = BuildConfig.JAVA_VERSION
+			targetCompatibility = BuildConfig.JAVA_VERSION
+		}
 
-            flavorsAbis.forEach { (abi, _) ->
-                // the common defaultConfig, not the flavor-specific
-                defaultConfig.buildConfigField(
-                    "String",
-                    "ABI_${abi.replace('-', '_').uppercase()}",
-                    "\"${abi}\""
-                )
-            }
+		configureCoreLibDesugaring(this, coreLibDesugDep)
 
-//            splits {
-//                abi {
-//                    reset()
-//                    isEnable = true
-//                    isUniversalApk = false
-//                    if (isFDroidBuild) {
-//                        include(FDroidConfig.fDroidBuildArch!!)
-//                    } else {
-//                        include(*flavorsAbis.keys.toTypedArray())
-//                    }
-//                }
-//            }
+		// we need to migrate :subprojects:aaptcompiler to use protobuf-lite
+		// to be able to remove dependency on protobuf-java
+// 		configurations.all {
+// 			// protobuf-java and protobuf-lite have conflicts
+// 			// since protobuf-lite is optimized for Android, we
+// 			// drop protobuf-java in favor of protobuf-lite
+// 			exclude(group = "com.google.protobuf", module = "protobuf-java")
+// 		}
 
-            extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
-                onVariants { variant ->
-                    variant.outputs.forEach { output ->
+		if (":app" == project.path) {
+			packagingOptions {
+				jniLibs {
+					useLegacyPackaging = true
+				}
+			}
 
-                        // version code increment
-                        val verCodeIncr = flavorsAbis[output.getFilter(
-                            FilterConfiguration.FilterType.ABI
-                        )?.identifier]
-                            ?: 10000
+			flavorsAbis.forEach { (abi, _) ->
+				// the common defaultConfig, not the flavor-specific
+				defaultConfig.buildConfigField(
+					"String",
+					"ABI_${abi.replace('-', '_').uppercase()}",
+					"\"${abi}\"",
+				)
+			}
 
-                        output.versionCode.set(100 * projectVersionCode + verCodeIncr)
-                    }
-                }
-            }
+			extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
+				onVariants { variant ->
+					variant.outputs.forEach { output ->
+						// version code increment
+                        // NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
+                        // val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
+						// val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 1
+                        val verCodeIncrement = when {
+                            variant.name.contains("v8", ignoreCase = true) -> flavorsAbis["arm64-v8a"]
+                            variant.name.contains("v7", ignoreCase = true) -> flavorsAbis["armeabi-v7a"]
+                            else -> 1
+                        } ?: 1
 
-            extensions.getByType(com.android.build.gradle.AppExtension::class.java).apply {
-                applicationVariants.all {
-                    outputs.all {
-                        val flavorName = productFlavors.firstOrNull()?.name ?: "default"
-                        val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
-                        val buildTypeName = if(name.contains("dev") || name.contains("debug")) "debug" else "release" // This is the variant's build type (e.g., "debug" or "release")
-                        val newApkName = "CodeOnTheGo-${flavorName}-${buildTypeName}${date}.apk"
+						output.versionCode.set(10 * projectVersionCode + verCodeIncrement)
+					}
 
-                        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
-                    }
-                }
-            }
+					if (hasBundledAssets(variant)) {
+						// include bundled assets in the APK
+						val assetsDir = rootProject.file("assets/release")
+						variant.sources.assets?.apply {
+							val commonAssets = assetsDir.resolve("common")
+							val flavorAssets = assetsDir.resolve(variant.flavorName!!)
 
-        } else {
-            defaultConfig {
-                ndk {
-                    abiFilters.clear()
-                    abiFilters += flavorsAbis.keys
-                }
-            }
-        }
+							if (!commonAssets.isDirectory) {
+								throw GradleException("${commonAssets.absolutePath} does not exist or is not a directory")
+							}
 
-        flavorDimensions("abi")
+							if (!flavorAssets.isDirectory) {
+								throw GradleException("${flavorAssets.absolutePath} does not exist or is not a directory")
+							}
 
-        productFlavors {
+							addStaticSourceDirectory(commonAssets.absolutePath)
+							addStaticSourceDirectory(flavorAssets.absolutePath)
+						}
+					}
+				}
+			}
 
-            create("v7") {
-                dimension = "abi"
-                ndk {
-                    abiFilters += "armeabi-v7a"
-                }
-            }
+			extensions.getByType(AppExtension::class.java).apply {
+				applicationVariants.all {
+					outputs.all {
+						val flavorName = productFlavors.firstOrNull()?.name ?: "default"
+						val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
+						val buildTypeName = buildType.name
+						val newApkName = "CodeOnTheGo-$flavorName-${buildTypeName}$date.apk"
 
-            create("v8") {
-                dimension = "abi"
-                ndk {
-                    abiFilters += "arm64-v8a"
-                }
-            }
+						(this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
+					}
+				}
+			}
+		} else {
+			defaultConfig {
+				ndk {
+					abiFilters.clear()
+					abiFilters += flavorsAbis.keys
+				}
+			}
+		}
 
-            // NOTE: disable x86_64 builds for now
-            //create("x86") {
-            //    dimension = "abi"
-            //    ndk {
-            //        abiFilters += "x86_64"
-            //    }
-            //}
-        }
+		flavorDimensions("abi")
 
-        buildTypes.getByName("debug") { isMinifyEnabled = false }
-        buildTypes.getByName("release") {
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
+		productFlavors {
+			create("v7") {
+				dimension = "abi"
 
-        // development build type
-        // similar to 'release', but disables proguard/r8
-        // this build type can be used to gain release-like performance at runtime
-        // the build are faster for this build type as compared to 'release'
-        buildTypes.register("dev") {
-            initWith(buildTypes.getByName("release"))
+				ndk.abiFilters.clear()
+				ndk.abiFilters += "armeabi-v7a"
+			}
 
-            isMinifyEnabled = false
-        }
+			create("v8") {
+				dimension = "abi"
 
-        testOptions { unitTests.isIncludeAndroidResources = true }
+				ndk.abiFilters.clear()
+				ndk.abiFilters += "arm64-v8a"
+			}
+		}
 
-        buildFeatures.viewBinding = true
-        buildFeatures.buildConfig = true
-    }
+		buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
+			initWith(buildTypes.getByName("debug"))
+			matchingFallbacks += "debug"
+		}
+
+		buildTypes.getByName("debug") {
+			isMinifyEnabled = false
+		}
+
+		buildTypes.getByName("release") {
+			isMinifyEnabled = isAppModule
+			isShrinkResources = isAppModule
+
+			proguardFiles(
+				getDefaultProguardFile("proguard-android-optimize.txt"),
+				"proguard-rules.pro",
+			)
+			consumerProguardFiles("consumer-rules.pro")
+		}
+
+		testOptions { unitTests.isIncludeAndroidResources = true }
+
+		buildFeatures.viewBinding = true
+		buildFeatures.buildConfig = true
+	}
 }
 
 private fun Project.configureCoreLibDesugaring(
-    baseExtension: BaseExtension,
-    coreLibDesugDep: Provider<MinimalExternalModuleDependency>
+	baseExtension: BaseExtension,
+	coreLibDesugDep: Provider<MinimalExternalModuleDependency>,
 ) {
-    val coreLibDesugaringEnabled = project.path !in disableCoreLibDesugaringForModules
+	val coreLibDesugaringEnabled = project.path !in disableCoreLibDesugaringForModules
 
-    baseExtension.compileOptions.isCoreLibraryDesugaringEnabled = coreLibDesugaringEnabled
+	baseExtension.compileOptions.isCoreLibraryDesugaringEnabled = coreLibDesugaringEnabled
 
-    if (coreLibDesugaringEnabled) {
-        project.dependencies.add("coreLibraryDesugaring", coreLibDesugDep)
-    }
+	if (coreLibDesugaringEnabled) {
+		project.dependencies.add("coreLibraryDesugaring", coreLibDesugDep)
+	}
 }

@@ -1,0 +1,5 @@
+[*.{kt,kts}]
+
+# Enable IntelliJ formatter tags to allow enabling/disabling ktlint for a
+# specific part of code.
+ij_formatter_tags_enabled = true

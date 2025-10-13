@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.composeActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.ProjectVersionData
 import com.itsaky.androidide.templates.base.composeDependencies
@@ -28,58 +29,59 @@ import com.itsaky.androidide.templates.impl.base.writeMainActivity
 import com.itsaky.androidide.templates.impl.baseProjectImpl
 import com.itsaky.androidide.templates.projectLanguageParameter
 
-private const val composeKotlinVersion = "1.7.20"
+private const val composeKotlinVersion = "1.9.22"
 
 private fun composeLanguageParameter() = projectLanguageParameter {
-    default = Kotlin
-    filter = { it == Kotlin }
+	default = Kotlin
+	filter = { it == Kotlin }
 }
 
 // Compose template is available only in Kotlin
 fun composeActivityProject() =
-    baseProjectImpl(
-        language = composeLanguageParameter(),
-        projectVersionData = ProjectVersionData(kotlin = composeKotlinVersion),
-        isToml = true
-    ) {
+	baseProjectImpl(
+		language = composeLanguageParameter(),
+		projectVersionData = ProjectVersionData(kotlin = composeKotlinVersion),
+		isToml = true
+	) {
 
-        templateName = R.string.template_compose
-        thumb = R.drawable.template_compose_empty_activity
+		templateName = R.string.template_compose
+		thumb = R.drawable.template_compose_empty_activity
+		tooltipTag = TooltipTag.TEMPLATE_COMPOSE_ACTIVITY
 
-        defaultAppModule(addAndroidX = false) {
+		defaultAppModule(addAndroidX = false) {
 
-            isComposeModule = true
+			isComposeModule = true
 
-            recipe = createRecipe {
+			recipe = createRecipe {
 
-                require(data.language == Kotlin) { "Compose activity requires Kotlin language" }
+				require(data.language == Kotlin) { "Compose activity requires Kotlin language" }
 
-                composeDependencies()
+				composeDependencies()
 
-                res {
-                    writeXmlResource("themes", VALUES, source = ::composeThemesXml)
-                }
+				res {
+					writeXmlResource("themes", VALUES, source = ::composeThemesXml)
+				}
 
-                sources {
-                    writeMainActivity(this, ktSrc = ::composeActivitySrc,
-                        javaSrc = { "" })
-                    writeKtSrc(
-                        "${data.packageName}.ui.theme", "Color",
-                        source = ::themeColorSrc
-                    )
-                    writeKtSrc(
-                        "${data.packageName}.ui.theme", "Theme",
-                        source = ::themeThemeSrc
-                    )
-                    writeKtSrc(
-                        "${data.packageName}.ui.theme", "Type",
-                        source = ::themeTypeSrc
-                    )
-                }
-            }
+				sources {
+					writeMainActivity(this, ktSrc = ::composeActivitySrc,
+						javaSrc = { "" })
+					writeKtSrc(
+						"${data.packageName}.ui.theme", "Color",
+						source = ::themeColorSrc
+					)
+					writeKtSrc(
+						"${data.packageName}.ui.theme", "Theme",
+						source = ::themeThemeSrc
+					)
+					writeKtSrc(
+						"${data.packageName}.ui.theme", "Type",
+						source = ::themeTypeSrc
+					)
+				}
+			}
 
-            commonPostRecipe {
+			commonPostRecipe {
 
-            }
-        }
-    }
+			}
+		}
+	}

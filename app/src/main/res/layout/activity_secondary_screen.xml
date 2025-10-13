@@ -32,7 +32,7 @@
       android:paddingStart="5dp"
       android:layout_margin="10dp"
       android:background="@color/white"
-      android:text="File"
+      android:text="@string/file"
       android:drawableEnd="@android:drawable/ic_media_play"
       android:drawableTint="@android:color/darker_gray"
       android:textColor="@color/black" />
@@ -47,7 +47,7 @@
       android:background="@color/white"
       android:drawableEnd="@android:drawable/ic_media_play"
       android:drawableTint="@android:color/darker_gray"
-      android:text="Run"
+      android:text="@string/run"
       android:textColor="@color/black" />
     <Button
       style="@style/Widget.AppCompat.Button.Small"
@@ -60,7 +60,7 @@
       android:background="@color/white"
       android:drawableEnd="@android:drawable/ic_media_play"
       android:drawableTint="@android:color/darker_gray"
-      android:text="Halt"
+      android:text="@string/halt"
       android:textColor="@color/black" />
     <Button
       style="@style/Widget.AppCompat.Button.Small"
@@ -73,7 +73,7 @@
       android:background="@color/white"
       android:drawableEnd="@android:drawable/ic_media_play"
       android:drawableTint="@android:color/darker_gray"
-      android:text="Breakpoint"
+      android:text="@string/breakpoint"
       android:textColor="@color/black" />
     <Button
       style="@style/Widget.AppCompat.Button.Small"
@@ -86,7 +86,7 @@
       android:drawableEnd="@android:drawable/ic_media_play"
       android:drawableTint="@android:color/darker_gray"
       android:background="@color/white"
-      android:text="Help"
+      android:text="@string/help"
       android:textColor="@color/black" />
     <Button
       style="@style/Widget.AppCompat.Button.Small"
@@ -99,7 +99,7 @@
       android:background="@color/white"
       android:drawableEnd="@android:drawable/ic_media_play"
       android:drawableTint="@android:color/darker_gray"
-      android:text="About"
+      android:text="@string/about"
       android:textColor="@color/black" />
   </LinearLayout>
 

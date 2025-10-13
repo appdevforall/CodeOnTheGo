@@ -25,7 +25,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.lsp.models.SignatureHelp;
 import com.itsaky.androidide.lsp.models.SignatureInformation;
-import com.itsaky.androidide.utils.ResourceUtilsKt;
+import com.itsaky.androidide.utils.ContextUtilsKt;
 import io.github.rosemoe.sora.event.SelectionChangeEvent;
 import io.github.rosemoe.sora.widget.base.EditorPopupWindow;
 import org.slf4j.Logger;
@@ -132,7 +132,7 @@ public class SignatureHelpWindow extends BaseEditorWindow {
     String name = signature.getLabel();
     name = name.substring(0, name.indexOf("("));
 
-    final var foreground = ResourceUtilsKt.resolveAttr(getEditor().getContext(),
+    final var foreground = ContextUtilsKt.resolveAttr(getEditor().getContext(),
         attr.colorOnSecondaryContainer);
     final var paramSelected = 0xffff6060;
     final var operators = 0xff4fc3f7;

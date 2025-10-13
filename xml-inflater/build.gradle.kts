@@ -18,28 +18,28 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  id("kotlin-android")
-  id("kotlin-parcelize")
-  id("com.google.devtools.ksp") version libs.versions.ksp
+	id("com.android.library")
+	id("kotlin-android")
+	id("kotlin-parcelize")
+	id("com.google.devtools.ksp") version libs.versions.ksp
 }
 
-android { namespace = "${BuildConfig.packageName}.inflater" }
+android { namespace = "${BuildConfig.PACKAGE_NAME}.inflater" }
 
 dependencies {
-  ksp(projects.annotationProcessorsKsp)
+	ksp(projects.annotationProcessorsKsp)
 
-  implementation(libs.androidx.appcompat)
-  implementation(libs.common.kotlin)
-  implementation(libs.common.utilcode)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.common.kotlin)
+	implementation(libs.common.utilcode)
 
-  implementation(projects.annotations)
-  implementation(projects.common)
-  implementation(projects.subprojects.aaptcompiler)
-  implementation(projects.subprojects.projects)
-  implementation(projects.subprojects.xmlUtils)
-  implementation(projects.resources)
+	implementation(projects.annotations)
+	implementation(projects.common)
+	implementation(projects.subprojects.aaptcompiler)
+	implementation(projects.subprojects.projects)
+	implementation(projects.subprojects.xmlUtils)
+	implementation(projects.resources)
 
-  testImplementation(projects.subprojects.projects)
-  testImplementation(projects.testing.tooling)
+	testImplementation(projects.subprojects.projects)
+	testImplementation(projects.testing.tooling)
 }

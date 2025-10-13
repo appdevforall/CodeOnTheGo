@@ -16,102 +16,102 @@
   -->
 
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:app="http://schemas.android.com/apk/res-auto"
-  xmlns:tools="http://schemas.android.com/tools"
-  android:layout_width="match_parent"
-  android:layout_height="wrap_content"
-  android:background="?attr/colorSurface">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/colorSurface">
 
   <View
-    android:id="@+id/top_border"
-    android:layout_width="0dp"
-    android:layout_height="0.5dp"
-    android:background="?attr/colorOutline"
-    app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toTopOf="parent" />
+      android:id="@+id/top_border"
+      android:layout_width="0dp"
+      android:layout_height="0.5dp"
+      android:background="?attr/colorOutline"
+      app:layout_constraintEnd_toEndOf="parent"
+      app:layout_constraintStart_toStartOf="parent"
+      app:layout_constraintTop_toTopOf="parent" />
 
   <EditText
-    android:id="@+id/search_input"
-    android:layout_width="0dp"
-    android:layout_height="40dp"
-    android:layout_marginStart="8dp"
-    android:layout_marginTop="8dp"
-    android:layout_marginEnd="8dp"
-    android:hint="@string/text_to_search"
-    android:imeOptions="actionNext"
-    android:importantForAutofill="no"
-    android:inputType="text"
-    android:maxLines="1"
-    app:layout_constraintEnd_toStartOf="@id/more_options"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@id/top_border"
-    tools:text="AndroidIDE" />
+      android:id="@+id/search_input"
+      android:layout_width="0dp"
+      android:layout_height="40dp"
+      android:layout_marginStart="8dp"
+      android:layout_marginTop="8dp"
+      android:layout_marginEnd="8dp"
+      android:hint="@string/text_to_search"
+      android:imeOptions="actionNext"
+      android:importantForAutofill="no"
+      android:inputType="text"
+      android:maxLines="1"
+      app:layout_constraintEnd_toStartOf="@id/more_options"
+      app:layout_constraintStart_toStartOf="parent"
+      app:layout_constraintTop_toBottomOf="@id/top_border"
+      tools:text="AndroidIDE" />
 
   <androidx.appcompat.widget.AppCompatImageButton
-    android:id="@+id/more_options"
-    android:layout_width="wrap_content"
-    android:layout_height="0dp"
-    android:layout_marginEnd="8dp"
-    android:background="@android:color/transparent"
-    android:src="@drawable/ic_more_vert_black_20dp"
-    android:tint="?attr/colorPrimary"
-    app:layout_constraintBottom_toBottomOf="@id/search_input"
-    app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintStart_toEndOf="@id/search_input"
-    app:layout_constraintTop_toTopOf="@id/search_input" />
+      android:id="@+id/more_options"
+      android:layout_width="wrap_content"
+      android:layout_height="0dp"
+      android:layout_marginEnd="8dp"
+      android:background="@android:color/transparent"
+      android:src="@drawable/ic_more_vert_black_20dp"
+      android:tint="?attr/colorPrimary"
+      app:layout_constraintBottom_toBottomOf="@id/search_input"
+      app:layout_constraintEnd_toEndOf="parent"
+      app:layout_constraintStart_toEndOf="@id/search_input"
+      app:layout_constraintTop_toTopOf="@id/search_input" />
 
 
   <com.google.android.material.button.MaterialButton
-    android:id="@+id/prev"
-    style="@style/Widget.Material3.Button.TextButton"
-    android:layout_width="0dp"
-    android:layout_height="40dp"
-    android:text="@string/previous"
-    android:textAllCaps="true"
-    app:layout_constraintEnd_toStartOf="@+id/next"
-    app:layout_constraintHorizontal_weight="0.25"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      android:id="@+id/prev"
+      style="@style/Widget.Material3.Button.TextButton"
+      android:layout_width="0dp"
+      android:layout_height="40dp"
+      android:text="@string/previous"
+      android:textAllCaps="true"
+      app:layout_constraintEnd_toStartOf="@+id/next"
+      app:layout_constraintHorizontal_weight="0.25"
+      app:layout_constraintStart_toStartOf="parent"
+      app:layout_constraintTop_toBottomOf="@+id/search_input" />
 
 
   <com.google.android.material.button.MaterialButton
-    android:id="@+id/next"
-    style="@style/Widget.Material3.Button.TextButton"
-    android:layout_width="0dp"
-    android:layout_height="40dp"
-    android:text="@string/next"
-    android:textAllCaps="true"
-    app:layout_constraintEnd_toStartOf="@+id/replace"
-    app:layout_constraintHorizontal_bias="0.5"
-    app:layout_constraintHorizontal_weight="0.25"
-    app:layout_constraintStart_toEndOf="@+id/prev"
-    app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      android:id="@+id/next"
+      style="@style/Widget.Material3.Button.TextButton"
+      android:layout_width="0dp"
+      android:layout_height="40dp"
+      android:text="@string/next"
+      android:textAllCaps="true"
+      app:layout_constraintEnd_toStartOf="@+id/replace"
+      app:layout_constraintHorizontal_bias="0.5"
+      app:layout_constraintHorizontal_weight="0.25"
+      app:layout_constraintStart_toEndOf="@+id/prev"
+      app:layout_constraintTop_toBottomOf="@+id/search_input" />
 
   <com.google.android.material.button.MaterialButton
-    android:id="@+id/replace"
-    style="@style/Widget.Material3.Button.TextButton"
-    android:layout_width="0dp"
-    android:layout_height="40dp"
-    android:text="@string/replace"
-    android:textAllCaps="true"
-    app:layout_constraintEnd_toStartOf="@+id/close"
-    app:layout_constraintHorizontal_bias="0.5"
-    app:layout_constraintHorizontal_weight="0.25"
-    app:layout_constraintStart_toEndOf="@+id/next"
-    app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      android:id="@+id/replace"
+      style="@style/Widget.Material3.Button.TextButton"
+      android:layout_width="0dp"
+      android:layout_height="40dp"
+      android:text="@string/replace"
+      android:textAllCaps="true"
+      app:layout_constraintEnd_toStartOf="@+id/close"
+      app:layout_constraintHorizontal_bias="0.5"
+      app:layout_constraintHorizontal_weight="0.25"
+      app:layout_constraintStart_toEndOf="@+id/next"
+      app:layout_constraintTop_toBottomOf="@+id/search_input" />
 
   <com.google.android.material.button.MaterialButton
-    android:id="@+id/close"
-    style="@style/Widget.Material3.Button.TextButton"
-    android:layout_width="0dp"
-    android:layout_height="40dp"
-    android:text="@string/btn_close"
-    android:textAllCaps="true"
-    app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintHorizontal_bias="0.5"
-    app:layout_constraintHorizontal_weight="0.25"
-    app:layout_constraintStart_toEndOf="@+id/replace"
-    app:layout_constraintTop_toBottomOf="@+id/search_input" />
+      android:id="@+id/close"
+      style="@style/Widget.Material3.Button.TextButton"
+      android:layout_width="0dp"
+      android:layout_height="40dp"
+      android:text="@string/btn_close"
+      android:textAllCaps="true"
+      app:layout_constraintEnd_toEndOf="parent"
+      app:layout_constraintHorizontal_bias="0.5"
+      app:layout_constraintHorizontal_weight="0.25"
+      app:layout_constraintStart_toEndOf="@+id/replace"
+      app:layout_constraintTop_toBottomOf="@+id/search_input" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

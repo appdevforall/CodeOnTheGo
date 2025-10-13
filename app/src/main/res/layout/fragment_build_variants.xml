@@ -32,41 +32,45 @@
     android:fadingEdgeLength="16dp"
     android:orientation="vertical"
     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-    app:layout_constraintBottom_toTopOf="@id/apply"
+    app:layout_constraintBottom_toTopOf="@id/btn_apply"
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent"
     tools:listitem="@layout/layout_build_variant_item" />
 
   <com.google.android.material.button.MaterialButton
-    android:id="@+id/discard"
+    android:id="@+id/btn_cancel"
     style="@style/Widget.Material3.Button.OutlinedButton.Icon"
-    android:layout_width="0dp"
+    android:layout_width="wrap_content"
+    android:minWidth="80dp"
     android:layout_height="wrap_content"
     android:layout_marginStart="16dp"
     android:layout_marginEnd="8dp"
     android:maxLines="1"
-    android:text="@string/title_discard"
+    android:ellipsize="none"
+    android:text="@string/build_variants_cancel"
     app:icon="@drawable/ic_close"
     app:iconGravity="textStart"
-    app:layout_constraintBottom_toBottomOf="@id/apply"
-    app:layout_constraintEnd_toStartOf="@id/apply"
+    app:layout_constraintBottom_toBottomOf="@id/btn_apply"
+    app:layout_constraintEnd_toStartOf="@id/btn_apply"
     app:layout_constraintStart_toStartOf="parent" />
 
   <com.google.android.material.button.MaterialButton
-    android:id="@+id/apply"
+    android:id="@+id/btn_apply"
     style="@style/Widget.Material3.Button.Icon"
-    android:layout_width="0dp"
+    android:layout_width="wrap_content"
+    android:minWidth="80dp"
     android:layout_height="wrap_content"
     android:layout_marginBottom="16dp"
     android:layout_marginStart="8dp"
     android:layout_marginEnd="16dp"
     android:maxLines="1"
-    android:text="@string/title_apply"
+    android:ellipsize="none"
+    android:text="@string/build_variants_apply"
     app:icon="@drawable/ic_ok"
     app:iconGravity="textStart"
     app:layout_constraintBottom_toBottomOf="parent"
     app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintStart_toEndOf="@id/discard" />
+    app:layout_constraintStart_toEndOf="@id/btn_cancel" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

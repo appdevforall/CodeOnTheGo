@@ -18,24 +18,31 @@
 
 package com.itsaky.androidide.app
 
+
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
-import android.net.Uri
 import android.os.StrictMode
+import android.util.Log
 import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
-import androidx.lifecycle.Observer
-import androidx.work.Operation
-import androidx.work.WorkManager
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
+import com.itsaky.androidide.agent.GeminiMacroProcessor
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.di.coreModule
+import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -43,14 +50,11 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.idetooltips.IDETooltipDao
-import com.itsaky.androidide.idetooltips.IDETooltipDatabase
-import com.itsaky.androidide.localHTTPServer.LocalServerUtil
+import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
-import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
-import com.itsaky.androidide.stats.StatUploadWorker
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.ui.themes.IDETheme
@@ -58,35 +62,105 @@ import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.isAtLeastR
+import com.itsaky.androidide.utils.isTestMode
 import com.termux.app.TermuxApplication
 import com.termux.shared.reflection.ReflectionUtils
+import com.topjohnwu.superuser.Shell
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
-import kotlinx.coroutines.CoroutineScope
+import io.sentry.Sentry
+import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.android.ext.android.getKoin
+import org.koin.android.ext.android.inject
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import org.slf4j.LoggerFactory
 import java.lang.Thread.UncaughtExceptionHandler
 import kotlin.system.exitProcess
 
-class IDEApplication : TermuxApplication() {
+const val EXIT_CODE_CRASH = 1
 
+class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
     private var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
     private var ideLogcatReader: IDELogcatReader? = null
-    private var localServerUtil: LocalServerUtil? = null
+    private var pluginManager: PluginManager? = null
+    private var currentActivity: android.app.Activity? = null
+    private val crashEventSubscriber = CrashEventSubscriber()
+    private val analyticsManager: IAnalyticsManager by inject()
 
-    private val applicationScope = CoroutineScope(SupervisorJob())
+    companion object {
+        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
 
-    init {
-        if (!VMUtils.isJvm()) {
-            TreeSitter.loadLibrary()
+        @JvmStatic
+        lateinit var instance: IDEApplication
+            private set
+
+        init {
+            Shell.setDefaultBuilder(
+                Shell.Builder
+                    .create()
+                    .setFlags(Shell.FLAG_REDIRECT_STDERR),
+            )
+            HiddenApiBypass.setHiddenApiExemptions("")
+            if (!VMUtils.isJvm() && !isTestMode()) {
+                try {
+                    if (isAtLeastR()) {
+                        System.loadLibrary("adb")
+                    }
+
+                    TreeSitter.loadLibrary()
+                } catch (e: UnsatisfiedLinkError) {
+                    log.warn("Failed to load native libraries", e)
+                }
+            }
+
+            RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
         }
 
-        RecyclableObjectPool.DEBUG = BuildConfig.DEBUG
+        @JvmStatic
+        fun getPluginManager(): PluginManager? {
+            return instance.pluginManager
+        }
+    }
+
+    /**
+     * Sets up the plugin service providers to integrate with AndroidIDE's actual systems.
+     */
+    private fun setupPluginServices() {
+        pluginManager?.let { manager ->
+            manager.setActivityProvider(object : PluginManager.ActivityProvider {
+                override fun getCurrentActivity(): android.app.Activity? {
+                    return getCurrentActiveActivity()
+                }
+            })
+
+            log.info("Plugin services configured successfully")
+        }
+    }
+
+    /**
+     * Gets the current active activity from AndroidIDE.
+     * This method should return the currently visible activity.
+     */
+    private fun getCurrentActiveActivity(): android.app.Activity? {
+        return currentActivity
+    }
+
+    /**
+     * Called by activities when they become active/visible.
+     * This is used for plugin UI service integration.
+     */
+    fun setCurrentActivity(activity: android.app.Activity?) {
+        this.currentActivity = activity
+        log.debug("Current activity set to: ${activity?.javaClass?.simpleName}")
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -95,12 +169,22 @@ class IDEApplication : TermuxApplication() {
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
-        super.onCreate()
+        super<TermuxApplication>.onCreate()
+
+        initializePluginSystem()
+
+        startKoin {
+            androidContext(this@IDEApplication)
+            modules(coreModule, pluginModule)
+        }
+
+        SentryAndroid.init(this)
+        ShizukuSettings.initialize(this)
 
         if (BuildConfig.DEBUG) {
             val builder = StrictMode.VmPolicy.Builder()
             StrictMode.setVmPolicy(builder.build())
-            //TODO JMT
+            // TODO JMT
 //            StrictMode.setVmPolicy(
 //                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).penaltyLog().detectAll()
 //                    .build()
@@ -110,17 +194,19 @@ class IDEApplication : TermuxApplication() {
             }
 
             checkForSecondDisplay()
-
-            //Start the local HTTP server for CoGo tooltips
-            val localServerUtil = LocalServerUtil()
-            localServerUtil.startServer(6174)
         }
 
-        EventBus.builder().addIndex(AppEventsIndex()).addIndex(EditorEventsIndex())
-            .addIndex(ProjectsApiEventsIndex()).addIndex(LspApiEventsIndex())
-            .addIndex(LspJavaEventsIndex()).installDefaultEventBus(true)
+        EventBus
+            .builder()
+            .addIndex(AppEventsIndex())
+            .addIndex(EditorEventsIndex())
+            .addIndex(ProjectsApiEventsIndex())
+            .addIndex(LspApiEventsIndex())
+            .addIndex(LspJavaEventsIndex())
+            .installDefaultEventBus(true)
 
         EventBus.getDefault().register(this)
+        EventBus.getDefault().register(crashEventSubscriber)
 
         AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
 
@@ -135,19 +221,80 @@ class IDEApplication : TermuxApplication() {
             IDEColorSchemeProvider.init()
         }
 
-        idetooltipDao = IDETooltipDatabase.getDatabase(this).idetooltipDao()
+        initializeAnalytics()
+    }
 
-        //Trigger a lightweight database access to force initialization
-        applicationScope.launch {
-            idetooltipDao.getCount()
+    private fun initializeAnalytics() {
+        try {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+            analyticsManager.initialize()
+            log.info("Firebase Analytics initialized successfully")
+        } catch (e: Exception) {
+            log.error("Failed to initialize Firebase Analytics", e)
         }
     }
 
-    private fun handleCrash(thread: Thread, th: Throwable) {
+    override fun onStart(owner: LifecycleOwner) {
+        super.onStart(owner)
+        analyticsManager.startSession()
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        super.onStop(owner)
+        analyticsManager.endSession()
+    }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun initializePluginSystem() {
+        try {
+            log.info("Initializing plugin system...")
+
+            // Create a plugin logger adapter
+            val pluginLogger = object : com.itsaky.androidide.plugins.PluginLogger {
+                override val pluginId = "system"
+                override fun debug(message: String) = log.debug(message)
+                override fun debug(message: String, error: Throwable) = log.debug(message, error)
+                override fun info(message: String) = log.info(message)
+                override fun info(message: String, error: Throwable) = log.info(message, error)
+                override fun warn(message: String) = log.warn(message)
+                override fun warn(message: String, error: Throwable) = log.warn(message, error)
+                override fun error(message: String) = log.error(message)
+                override fun error(message: String, error: Throwable) = log.error(message, error)
+            }
+
+            pluginManager = PluginManager.getInstance(
+                context = this,
+                eventBus = EventBus.getDefault(),
+                logger = pluginLogger
+            )
+
+            // Set up plugin service providers
+            setupPluginServices()
+
+            // Load plugins asynchronously
+            GlobalScope.launch {
+                try {
+                    pluginManager?.loadPlugins()
+                    log.info("Plugin system initialized successfully")
+                } catch (e: Exception) {
+                    log.error("Failed to load plugins", e)
+                }
+            }
+        } catch (e: Exception) {
+            log.error("Failed to initialize plugin system", e)
+        }
+    }
+
+    private fun handleCrash(
+        thread: Thread,
+        th: Throwable,
+    ) {
+        Log.d("CrashHandlerAstytooo", th.toString())
         writeException(th)
 
+        Sentry.captureException(th)
+
         try {
-            localServerUtil!!.stopServer()
             val intent = Intent()
             intent.action = CrashHandlerActivity.REPORT_ACTION
             intent.putExtra(CrashHandlerActivity.TRACE_KEY, getFullStackTrace(th))
@@ -157,7 +304,7 @@ class IDEApplication : TermuxApplication() {
                 uncaughtExceptionHandler!!.uncaughtException(thread, th)
             }
 
-            exitProcess(1)
+            exitProcess(EXIT_CODE_CRASH)
         } catch (error: Throwable) {
             log.error("Unable to show crash handler activity", error)
         }
@@ -167,9 +314,9 @@ class IDEApplication : TermuxApplication() {
         val intent = Intent(Intent.ACTION_VIEW)
         var version = BuildInfo.VERSION_NAME_SIMPLE
         if (!version.startsWith('v')) {
-            version = "v${version}"
+            version = "v$version"
         }
-        intent.data = Uri.parse("${BuildInfo.REPO_URL}/releases/tag/${version}")
+        intent.data = "${BuildInfo.REPO_URL}/releases/tag/$version".toUri()
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             startActivity(intent)
@@ -177,37 +324,6 @@ class IDEApplication : TermuxApplication() {
             log.error("Unable to start activity to show changelog", th)
             flashError("Unable to start activity")
         }
-    }
-
-    fun reportStatsIfNecessary() {
-
-//        if (!StatPreferences.statOptIn) {
-//            log.info("Stat collection is disabled.")
-//            return
-//        }
-//
-//        val constraints =
-//            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-//        val request =
-//            PeriodicWorkRequestBuilder<StatUploadWorker>(Duration.ofHours(24)).setInputData(
-//                AndroidIDEStats.statData.toInputData()
-//            ).setConstraints(constraints)
-//                .addTag(StatUploadWorker.WORKER_WORK_NAME).build()
-//
-//        val workManager = WorkManager.getInstance(this)
-//
-//        log.info("reportStatsIfNecessary: Enqueuing StatUploadWorker...")
-//        val operation = workManager.enqueueUniquePeriodicWork(
-//            StatUploadWorker.WORKER_WORK_NAME,
-//            ExistingPeriodicWorkPolicy.UPDATE, request
-//        )
-//
-//        operation.state.observeForever(object : Observer<Operation.State> {
-//            override fun onChanged(value: Operation.State) {
-//                operation.state.removeObserver(this)
-//                log.debug("reportStatsIfNecessary: WorkManager enqueue result: {}", value)
-//            }
-//        })
     }
 
     private fun startLogcatReader() {
@@ -229,13 +345,7 @@ class IDEApplication : TermuxApplication() {
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onPrefChanged(event: PreferenceChangeEvent) {
         val enabled = event.value as? Boolean?
-        if (event.key == StatPreferences.STAT_OPT_IN) {
-            if (enabled == true) {
-                reportStatsIfNecessary()
-            } else {
-                cancelStatUploadWorker()
-            }
-        } else if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
+        if (event.key == DevOpsPreferences.KEY_DEVOPTS_DEBUGGING_DUMPLOGS) {
             if (enabled == true) {
                 startLogcatReader()
             } else {
@@ -244,27 +354,15 @@ class IDEApplication : TermuxApplication() {
         } else if (event.key == GeneralPreferences.UI_MODE && GeneralPreferences.uiMode != AppCompatDelegate.getDefaultNightMode()) {
             AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
         } else if (event.key == GeneralPreferences.SELECTED_LOCALE) {
-
             // Use empty locale list if the locale has been reset to 'System Default'
             val selectedLocale = GeneralPreferences.selectedLocale
-            val localeListCompat = selectedLocale?.let {
-                LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
-            } ?: LocaleListCompat.getEmptyLocaleList()
+            val localeListCompat =
+                selectedLocale?.let {
+                    LocaleListCompat.create(LocaleProvider.getLocale(selectedLocale))
+                } ?: LocaleListCompat.getEmptyLocaleList()
 
             AppCompatDelegate.setApplicationLocales(localeListCompat)
         }
-    }
-
-    private fun cancelStatUploadWorker() {
-        log.info("Opted-out of stat collection. Cancelling StatUploadWorker if enqueued...")
-        val operation = WorkManager.getInstance(this)
-            .cancelUniqueWork(StatUploadWorker.WORKER_WORK_NAME)
-        operation.state.observeForever(object : Observer<Operation.State> {
-            override fun onChanged(value: Operation.State) {
-                operation.state.removeObserver(this)
-                log.info("StatUploadWorker: Cancellation result state: {}", value)
-            }
-        })
     }
 
     private fun checkForSecondDisplay() {
@@ -282,17 +380,4 @@ class IDEApplication : TermuxApplication() {
             presentation.show()
         }
     }
-
-    companion object {
-
-        private val log = LoggerFactory.getLogger(IDEApplication::class.java)
-
-        @JvmStatic
-        lateinit var instance: IDEApplication
-            private set
-
-        lateinit var idetooltipDao: IDETooltipDao
-            private set
-    }
-
 }

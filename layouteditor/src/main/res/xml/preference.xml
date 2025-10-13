@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto">
+
+  <PreferenceCategory app:title="@string/ui">
+    <Preference
+      app:icon="@drawable/palette"
+      app:key="app_theme"
+      app:summary="@string/summary_choose_theme"
+      app:title="@string/choose_theme" />
+
+    <SwitchPreferenceCompat
+      android:defaultValue="false"
+      app:icon="@drawable/theme_light_dark"
+      app:key="dynamic_colors"
+      app:summary="@string/summary_dynamic_colors"
+      app:title="@string/dynamic_colors" />
+  </PreferenceCategory>
+
+  <PreferenceCategory app:title="@string/common">
+    <SwitchPreferenceCompat
+      android:defaultValue="false"
+      app:icon="@drawable/vibrate"
+      app:key="vibration"
+      app:summary="@string/summary_enable_vibration"
+      app:title="@string/enable_vibration" />
+
+    <SwitchPreferenceCompat
+      android:defaultValue="true"
+      app:icon="@drawable/dots_square"
+      app:key="toggle_stroke"
+      app:summary="@string/summary_show_stroke"
+      app:title="@string/show_stroke" />
+  </PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

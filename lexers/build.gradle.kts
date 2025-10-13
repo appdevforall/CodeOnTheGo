@@ -15,28 +15,28 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import com.itsaky.androidide.plugins.LexerGeneratorPlugin
 import com.itsaky.androidide.build.config.BuildConfig
+import com.itsaky.androidide.plugins.LexerGeneratorPlugin
 
 plugins {
-  id("java-library")
-  kotlin("jvm")
+	id("java-library")
+	kotlin("jvm")
 }
 
 apply {
-  plugin(LexerGeneratorPlugin::class.java)
+	plugin(LexerGeneratorPlugin::class.java)
 }
 
 java {
-  sourceCompatibility = BuildConfig.javaVersion
-  targetCompatibility = BuildConfig.javaVersion
+	sourceCompatibility = BuildConfig.JAVA_VERSION
+	targetCompatibility = BuildConfig.JAVA_VERSION
 }
 
 dependencies {
-  api(libs.common.antlr4.runtime)
-  
-  implementation(libs.common.jkotlin)
+	api(libs.common.antlr4.runtime)
 
-  testImplementation(libs.tests.junit)
-  testImplementation(libs.tests.google.truth)
+	implementation(libs.common.jkotlin)
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }

@@ -17,15 +17,13 @@
 
 package com.itsaky.androidide.templates.base.root
 
-import org.adfa.constants.GRADLE_WRAPPER_PATH_SUFFIX
 import com.itsaky.androidide.templates.base.ProjectTemplateBuilder
 import java.io.File
 
 internal fun ProjectTemplateBuilder.gradleWrapperProps() {
     val name = "gradle-wrapper.properties"
-    val wrapperPropsFile = File(data.projectDir, GRADLE_WRAPPER_PATH_SUFFIX + name)
+    val wrapperPropsFile = File(data.projectDir, "gradle/wrapper/${name}")
     wrapperPropsFile.parentFile!!.mkdirs()
-
-    executor.save(gradleWrapperPropsSrc(data.useToml), wrapperPropsFile)
+    executor.save(gradleWrapperPropsSrc(), wrapperPropsFile)
 }
 

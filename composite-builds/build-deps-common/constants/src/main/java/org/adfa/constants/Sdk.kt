@@ -35,18 +35,18 @@ enum class Sdk(val codename: String, val version: String, val api: Int) {
     Lollipop("Lollipop", "5.0", 21),
     LollipopMR1("Lollipop", "5.1", 22),
     Marshmallow("Marshmallow", "6.0", 23),
-    Naughat("Naughat", "7.0", 24),
-    NaughtMR1("Naughat", "7.1", 25),
+    Nougat("Nougat", "7.0", 24),
+    NougatMR1("Nougat", "7.1", 25),
     Oreo("Oreo", "8.0", 26),
     OreoMR1("Oreo", "8.1", 27),
     Pie("Pie", "9.0", 28),
     QuinceTart("Q", "10", 29),
     RedVelvetCake("R", "11", 30),
-    SnowCone("SnowCone", "12", 31),
-    SnowCodeV2("SnowCone", "12L", 32),
+    SnowCone("Snow Cone", "12", 31),
+    SnowConeV2("Snow Cone", "12L", 32),
     Tiramisu("Tiramisu", "13", 33),
-    UpsideDownCake("UpsideDownCake", "14", 34),
-    VanollaIceCream("VanollaIceCream", "15", 35);
+    UpsideDownCake("Upside Down Cake", "14", 34),
+    VanillaIceCream("Vanilla Ice Cream", "15", 35);
 
     /**
      * Get the display name for this Sdk version.

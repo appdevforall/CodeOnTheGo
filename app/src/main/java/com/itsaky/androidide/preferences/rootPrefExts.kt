@@ -18,6 +18,7 @@
 package com.itsaky.androidide.preferences
 
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.parcelize.Parcelize
 
 internal fun IDEPreferences.addRootPreferences() {
@@ -40,6 +41,11 @@ class ConfigurationPreferences(
     addPreference(EditorPreferencesScreen())
     addPreference(BuildAndRunPreferences())
     addPreference(TermuxPreferences())
+
+    // Only show Plugin Manager when experimental features are enabled
+    if (FeatureFlags.isExperimentsEnabled()) {
+      addPreference(PluginManagerEntry())
+    }
   }
 }
 

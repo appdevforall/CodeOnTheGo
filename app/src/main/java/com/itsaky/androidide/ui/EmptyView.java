@@ -30,7 +30,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import com.itsaky.androidide.R;
-import com.itsaky.androidide.utils.ResourceUtilsKt;
+import com.itsaky.androidide.utils.ContextUtilsKt;
 
 public class EmptyView extends RelativeLayout {
 
@@ -63,7 +63,7 @@ public class EmptyView extends RelativeLayout {
     TextView text = new TextView(getContext());
     text.setId(MESSAGE_TEXTVIEW);
     text.setText(getMessage());
-    text.setTextColor(ResourceUtilsKt.resolveAttr(getContext(), R.attr.colorSecondaryVariant));
+    text.setTextColor(ContextUtilsKt.resolveAttr(getContext(), R.attr.colorSecondaryVariant));
     text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
     text.setGravity(Gravity.CENTER);
 

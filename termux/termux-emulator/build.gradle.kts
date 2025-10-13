@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.termux.emulator"
-    ndkVersion = BuildConfig.ndkVersion
+    ndkVersion = BuildConfig.NDK_VERSION
 
     defaultConfig {
         externalNativeBuild {

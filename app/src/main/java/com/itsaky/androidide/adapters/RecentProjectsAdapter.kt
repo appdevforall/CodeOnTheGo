@@ -10,7 +10,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.AnimationUtils
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.widget.PopupMenu
+import android.widget.PopupWindow
 import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.blankj.utilcode.util.FileUtils
@@ -18,14 +18,22 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT
+import com.itsaky.androidide.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_RENAME
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.FlashType
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsvks.layouteditor.ProjectFile
-import com.itsvks.layouteditor.databinding.TextinputlayoutBinding
-import com.itsvks.layouteditor.utils.FileUtil
+import org.appdevforall.codeonthego.layouteditor.ProjectFile
+import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
+import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -33,7 +41,7 @@ import java.util.Locale
 class RecentProjectsAdapter(
     private var projects: List<ProjectFile>,
     private val onProjectClick: (File) -> Unit,
-    private val onOpenFileFromFolderClick: () -> Unit,
+    private val onOpenFileFromFolderClick: (Boolean) -> Unit,
     private val onRemoveProjectClick: (ProjectFile) -> Unit,
     private val onFileRenamed: (RenamedFile) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -99,6 +107,17 @@ class RecentProjectsAdapter(
             binding.root.setOnClickListener {
                 onProjectClick(File(project.path))
             }
+            binding.root.setOnLongClickListener {
+                if (position < projects.size) {
+                    TooltipManager.showTooltip(
+                        binding.root.context,
+                        binding.root,
+                        PROJECT_RECENT_TOP
+                    )
+                }
+
+                true
+            }
             binding.menu.setOnClickListener {
                 showPopupMenu(it, adapterPosition)
             }
@@ -127,35 +146,70 @@ class RecentProjectsAdapter(
     inner class OpenFolderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         fun bind() {
             itemView.visibility = if (projects.isEmpty()) View.GONE else View.VISIBLE
-            itemView.setOnClickListener { onOpenFileFromFolderClick() }
+            itemView.setOnClickListener { onOpenFileFromFolderClick(false) }
+            itemView.setOnLongClickListener {
+                TooltipManager.showTooltip(
+                    context = itemView.context,
+                    anchorView = itemView,
+                    tag = PROJECT_OPEN_FOLDER
+                )
+                true
+            }
         }
     }
 
     private fun showPopupMenu(view: View, position: Int) {
-        PopupMenu(view.context, view).apply {
-            inflate(R.menu.menu_recent_projects)
-            setOnMenuItemClickListener { item ->
-                when (item.itemId) {
-                    R.id.menu_delete -> {
-                        showDeleteDialog(view.context, position)
-                        true
-                    }
+        val inflater = LayoutInflater.from(view.context)
+        val popupView = inflater.inflate(R.layout.custom_popup_menu, null)
 
-                    R.id.menu_rename -> {
-                        promptRenameProject(view, position)
-                        true
-                    }
-
-                    else -> false
-                }
-            }
-            show()
+        val popupWindow = PopupWindow(
+            popupView,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        ).apply {
+            elevation = 4f
         }
+
+        val renameItem = popupView.findViewById<View>(R.id.menu_rename)
+        val deleteItem = popupView.findViewById<View>(R.id.menu_delete)
+
+        renameItem.setOnClickListener {
+            promptRenameProject(view, position)
+            popupWindow.dismiss()
+        }
+
+        renameItem.setOnLongClickListener {
+            popupWindow.dismiss()
+            TooltipManager.showTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = PROJECT_RECENT_RENAME
+            )
+            true
+        }
+
+        deleteItem.setOnClickListener {
+            showDeleteDialog(view.context, position)
+            popupWindow.dismiss()
+        }
+
+        deleteItem.setOnLongClickListener {
+            popupWindow.dismiss()
+            TooltipManager.showTooltip(
+                context = view.context,
+                anchorView = view,
+                tag = DELETE_PROJECT
+            )
+            true
+        }
+
+        popupWindow.showAsDropDown(view, 0, 0)
     }
 
     private fun showDeleteDialog(context: Context, position: Int) {
         val project = projects[position]
-        MaterialAlertDialogBuilder(context)
+        val dialog = MaterialAlertDialogBuilder(context)
             .setTitle(R.string.delete_project)
             .setMessage(R.string.msg_delete_project)
             .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
@@ -168,7 +222,23 @@ class RecentProjectsAdapter(
                     }
                 }
             }
-            .show()
+            .create()
+
+
+        val contentView = dialog.window?.decorView
+
+        dialog.setOnShowListener {
+            contentView?.applyLongPressRecursively {
+                TooltipManager.showTooltip(
+                    context = context,
+                    anchorView = contentView,
+                    tag = DELETE_PROJECT_DIALOG
+                )
+                true
+            }
+        }
+
+        dialog.show()
     }
 
     private fun promptRenameProject(view: View, position: Int) {
@@ -199,6 +269,20 @@ class RecentProjectsAdapter(
 
         val dialog = builder.create()
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+
+        val contentView = dialog.window?.decorView
+
+        dialog.setOnShowListener {
+            contentView?.applyLongPressRecursively {
+                TooltipManager.showTooltip(
+                    context = context,
+                    anchorView = contentView,
+                    tag = PROJECT_RENAME_DIALOG
+                )
+                true
+            }
+        }
+
         dialog.show()
 
         binding.textinputEdittext.addTextChangedListener(object : TextWatcher {

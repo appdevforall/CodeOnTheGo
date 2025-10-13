@@ -20,6 +20,8 @@ package com.itsaky.androidide.handlers
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.projects.builder.BuildResult
+import com.itsaky.androidide.projects.builder.LaunchResult
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
@@ -36,6 +38,8 @@ import java.lang.ref.WeakReference
  * @author Akash Yadav
  */
 class EditorBuildEventListener : GradleBuildService.EventListener {
+
+  private var lastStatusLine: String = ""
 
   private var enabled = true
   private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
@@ -83,14 +87,31 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   }
 
   override fun onBuildSuccessful(tasks: List<String?>) {
-    checkActivity("onBuildSuccessful") ?: return
+    val act = checkActivity("onBuildSuccessful") ?: return
 
     analyzeCurrentFile()
 
     GeneralPreferences.isFirstBuild = false
-    activity.editorViewModel.isBuildInProgress = false
+    act.editorViewModel.isBuildInProgress = false
+    act.flashSuccess(R.string.build_status_sucess)
 
-    activity.flashSuccess(R.string.build_status_sucess)
+    val message =
+      if (lastStatusLine.contains("BUILD SUCCESSFUL")) lastStatusLine else "Build completed successfully."
+
+    // Create a simulated LaunchResult because the build succeeded.
+    // We assume the action that triggered this was a "build and run".
+    val launchResult = LaunchResult(isSuccess = true, message = "Launch command issued.")
+
+    // Pass the new launchResult to the BuildResult constructor
+    act.notifyBuildResult(
+      BuildResult(
+        isSuccess = true,
+        message = message,
+        launchResult = launchResult
+      )
+    )
+
+    lastStatusLine = ""
   }
 
   override fun onProgressEvent(event: ProgressEvent) {
@@ -102,23 +123,28 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
   }
 
   override fun onBuildFailed(tasks: List<String?>) {
-    checkActivity("onBuildFailed") ?: return
-
+    val act = checkActivity("onBuildFailed") ?: return
     analyzeCurrentFile()
-
     GeneralPreferences.isFirstBuild = false
-    activity.editorViewModel.isBuildInProgress = false
+    act.editorViewModel.isBuildInProgress = false
+    act.flashError(R.string.build_status_failed)
 
-    activity.flashError(R.string.build_status_failed)
+    val message =
+      if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
+
+    act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))
+
+    lastStatusLine = ""
   }
 
   override fun onOutput(line: String?) {
-    checkActivity("onOutput") ?: return
-
-    line?.let { activity.appendBuildOutput(it) }
-    // TODO This can be handled better when ProgressEvents are received from Tooling API server
-    if (line!!.contains("BUILD SUCCESSFUL") || line.contains("BUILD FAILED")) {
-      activity.setStatus(line)
+    val act = checkActivity("onOutput") ?: return
+    line?.let {
+      act.appendBuildOutput(it)
+      if (it.contains("BUILD SUCCESSFUL") || it.contains("BUILD FAILED")) {
+        act.setStatus(it)
+        lastStatusLine = it
+      }
     }
   }
 

@@ -20,6 +20,7 @@ package com.itsaky.androidide.lsp.java.actions.diagnostics
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.R
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
@@ -45,6 +46,7 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
   override val titleTextRes: Int = R.string.title_fix_imports
   override val id: String = "ide.editor.lsp.java.diagnostics.autoFixImports"
   override var label: String = ""
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
   companion object {
 

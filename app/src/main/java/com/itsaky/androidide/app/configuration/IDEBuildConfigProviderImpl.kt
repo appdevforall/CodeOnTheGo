@@ -20,7 +20,7 @@ package com.itsaky.androidide.app.configuration
 import android.os.Build
 import com.google.auto.service.AutoService
 import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.app.BaseApplication
 
 /**
  * @author Akash Yadav
@@ -30,7 +30,7 @@ import com.itsaky.androidide.app.IDEApplication
 open class IDEBuildConfigProviderImpl : IDEBuildConfigProvider {
 
   override val cpuAbiName: String by lazy {
-    val applicationInfo = IDEApplication.instance.applicationInfo!!
+    val applicationInfo = BaseApplication.getBaseInstance().applicationInfo!!
 
     // transform to valid ABI names
     return@lazy when (val abi = applicationInfo.nativeLibraryDir!!.substringAfterLast('/')) {
@@ -47,6 +47,6 @@ open class IDEBuildConfigProviderImpl : IDEBuildConfigProvider {
     get() = CpuArch.forAbi(Build.SUPPORTED_ABIS[0])!!
 
   override val supportedAbis: Array<String> by lazy {
-    arrayOf(BuildConfig.ABI_ARM64_V8A, BuildConfig.ABI_ARMEABI_V7A, BuildConfig.ABI_X86_64)
+    arrayOf(BuildConfig.ABI_ARM64_V8A, BuildConfig.ABI_ARMEABI_V7A)
   }
 }

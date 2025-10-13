@@ -1,0 +1,20 @@
+{
+  "id": "com.example.helloworld",
+  "name": "Hello World Plugin",
+  "version": "1.0.0",
+  "description": "A simple hello world plugin that demonstrates AndroidIDE plugin capabilities",
+  "author": "AndroidIDE Team",
+  "main_class": "com.example.sampleplugin.HelloWorldPlugin",
+  "min_ide_version": "2.1.0",
+  "permissions": [
+    "IDE_SETTINGS",
+    "FILESYSTEM_READ"
+  ],
+  "extensions": [
+    {
+      "type": "ui",
+      "class": "com.example.sampleplugin.HelloWorldPlugin",
+      "priority": 0
+    }
+  ]
+}

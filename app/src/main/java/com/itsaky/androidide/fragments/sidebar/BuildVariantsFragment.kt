@@ -65,11 +65,11 @@ class BuildVariantsFragment :
       updateButtonStates(variantsViewModel.updatedBuildVariants)
     }
 
-    binding.apply.setOnClickListener {
+    binding.btnApply.setOnClickListener {
       (activity as? ProjectHandlerActivity?)?.initializeProject()
     }
 
-    binding.discard.setOnClickListener {
+    binding.btnCancel.setOnClickListener {
       variantsViewModel.resetUpdatedSelections()
       populateRecyclerView()
     }
@@ -90,8 +90,8 @@ class BuildVariantsFragment :
       val isBuilding = editorViewModel.let { it.isBuildInProgress || it.isInitializing }
       val isEnabled = updatedVariants?.isNotEmpty() == true && !isBuilding
 
-      apply.isEnabled = isEnabled
-      discard.isEnabled = isEnabled
+      btnApply.isEnabled = isEnabled
+      btnCancel.isEnabled = isEnabled
     }
   }
 
@@ -105,5 +105,9 @@ class BuildVariantsFragment :
 
   private fun checkIsEmpty() {
     emptyStateViewModel.isEmpty.value = _binding?.variantsList?.adapter?.itemCount == 0
+  }
+
+  override fun onFragmentLongPressed() {
+    //TODO be defined
   }
 }

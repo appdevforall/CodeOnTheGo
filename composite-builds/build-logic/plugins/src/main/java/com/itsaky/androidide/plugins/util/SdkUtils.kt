@@ -17,26 +17,28 @@
 
 package com.itsaky.androidide.plugins.util
 
-import com.itsaky.androidide.build.config.BuildConfig
 import com.android.build.api.variant.AndroidComponentsExtension
+import com.itsaky.androidide.build.config.BuildConfig
 import java.io.File
 
 /**
  * @author Akash Yadav
  */
 object SdkUtils {
+	fun AndroidComponentsExtension<*, *, *>.getAndroidJar(assertExists: Boolean = true): File {
+		val sdkDirectory = sdkComponents.sdkDirectory
+		val androidJar =
+			File(
+				sdkDirectory.get().asFile,
+				"platforms/android-${BuildConfig.COMPILE_SDK}/android.jar",
+			)
 
-  fun AndroidComponentsExtension<*, *, *>.getAndroidJar(assertExists: Boolean = true): File {
-    val sdkDirectory = sdkComponents.sdkDirectory
-    val androidJar = File(sdkDirectory.get().asFile,
-      "platforms/android-${BuildConfig.compileSdk}/android.jar")
+		if (assertExists) {
+			check(androidJar.exists() && androidJar.isFile) {
+				"$androidJar does not exist or is not a file."
+			}
+		}
 
-    if (assertExists) {
-      check(androidJar.exists() && androidJar.isFile) {
-        "$androidJar does not exist or is not a file."
-      }
-    }
-
-    return androidJar
-  }
+		return androidJar
+	}
 }

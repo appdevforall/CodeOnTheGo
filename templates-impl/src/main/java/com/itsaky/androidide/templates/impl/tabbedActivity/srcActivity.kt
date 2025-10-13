@@ -25,7 +25,8 @@ package ${data.packageName}
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import androidx.viewpager.widget.ViewPager
+import androidx.viewpager2.widget.ViewPager2
+import com.google.android.material.tabs.TabLayoutMediator;
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
@@ -45,12 +46,16 @@ class MainActivity : AppCompatActivity() {
         
         setSupportActionBar(binding.toolbar)
 
-        val sectionsPagerAdapter = SectionsPagerAdapter(this, supportFragmentManager)
-        val viewPager: ViewPager = binding.viewPager
+        val sectionsPagerAdapter = SectionsPagerAdapter(this)
+        val viewPager: ViewPager2 = binding.viewPager
         val tabs: TabLayout = binding.tabs
         
         viewPager.adapter = sectionsPagerAdapter
-        tabs.setupWithViewPager(viewPager)
+        
+        TabLayoutMediator(tabs, viewPager) { tab, position ->
+            tab.text = sectionsPagerAdapter.getPageTitle(position)
+        }.attach()
+
 
         binding.fab.setOnClickListener { view ->
             Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
@@ -66,8 +71,9 @@ package ${data.packageName};
 import android.os.Bundle;
 
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.tabs.TabLayoutMediator;
 
-import androidx.viewpager.widget.ViewPager;
+import androidx.viewpager2.widget.ViewPager2;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.view.Menu;
@@ -90,9 +96,13 @@ public class MainActivity extends AppCompatActivity {
         
         setSupportActionBar(binding.toolbar);
 
-        SectionsPagerAdapter sectionsPagerAdapter = new SectionsPagerAdapter(this, getSupportFragmentManager());
-        binding.viewPager.setAdapter(sectionsPagerAdapter);
-        binding.tabs.setupWithViewPager(binding.viewPager);
+        SectionsPagerAdapter sectionsPagerAdapter = new SectionsPagerAdapter(this);
+        ViewPager2 viewPager = binding.viewPager;
+        viewPager.setAdapter(sectionsPagerAdapter);
+        
+        new TabLayoutMediator(binding.tabs, viewPager,
+            (tab, position) -> tab.setText(sectionsPagerAdapter.getPageTitle(position))
+        ).attach();
 
         binding.fab.setOnClickListener(new View.OnClickListener() {
             @Override

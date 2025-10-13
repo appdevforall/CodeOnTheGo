@@ -18,28 +18,28 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
-    id("kotlin-kapt")
+	id("com.android.library")
+	id("kotlin-android")
+	id("kotlin-kapt")
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.xml"
+	namespace = "${BuildConfig.PACKAGE_NAME}.xml"
 }
 
 dependencies {
-    kapt(libs.google.auto.service)
+	kapt(libs.google.auto.service)
 
-    implementation(libs.common.kotlin)
-    implementation(libs.google.auto.service.annotations)
-    implementation(projects.common)
-    implementation(projects.logger)
-    implementation(libs.composite.jdt)
-    
-    api(projects.lookup)
-    api(projects.subprojects.aaptcompiler)
-    
-    testImplementation(libs.tests.junit)
-    testImplementation(libs.tests.robolectric)
-    testImplementation(libs.tests.google.truth)
+	implementation(libs.common.kotlin)
+	implementation(libs.google.auto.service.annotations)
+	implementation(projects.common)
+	implementation(projects.logger)
+	implementation(libs.composite.jdt)
+
+	api(projects.lookup)
+	api(projects.subprojects.aaptcompiler)
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.google.truth)
 }

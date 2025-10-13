@@ -17,10 +17,12 @@
 
 package com.itsaky.androidide.projects.builder
 
+import com.android.utils.cxx.os.exe
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lookup.Lookup.Key
 import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
@@ -70,14 +72,24 @@ interface BuildService {
   fun initializeProject(params: InitializeProjectParams): CompletableFuture<InitializeResult>
 
   /**
+   * @see executeTasks
+   */
+  fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult> = executeTasks(tasks.toList())
+
+  /**
+   * @see executeTasks
+   */
+  fun executeTasks(tasks: List<String>): CompletableFuture<TaskExecutionResult> = executeTasks(TaskExecutionMessage(tasks))
+
+  /**
    * Execute the given tasks.
    *
-   * @param tasks The tasks to execute. If the fully qualified path of the task is not specified,
+   * @param message The tasks to execute. If the fully qualified path of the task is not specified,
    *   then it will be executed in the root project directory.
    * @return A [CompletableFuture] which returns a list of [TaskExecutionResult]. The result
    *   contains a list of tasks that were executed and the result of the whole execution.
    */
-  fun executeTasks(vararg tasks: String): CompletableFuture<TaskExecutionResult>
+  fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult>
 
   /** Cancel any running build. */
   fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult>

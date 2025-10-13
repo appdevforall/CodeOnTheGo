@@ -59,7 +59,10 @@
 
     "log.verbose.text": "#0288d1",
     "log.verbose.pr.fg" : "#000000",
-    "log.verbose.pr.bg" : "#ffffff"
+    "log.verbose.pr.bg" : "#ffffff",
+
+    "breakpoint.line.indicator": "#f77b72",
+    "breakpoint.line.bg": "#f77b72"
   },
   "editor": "@editor.json",
   "languages": [

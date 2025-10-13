@@ -29,59 +29,57 @@ import java.io.File
  * @author Akash Yadav
  */
 class LexerGeneratorPlugin : Plugin<Project> {
+	companion object {
+		const val LEXER_BASE_PACKAGE = "${BuildConfig.PACKAGE_NAME}.lexers"
+		const val EXT_G4 = "g4"
+	}
 
-  companion object {
+	override fun apply(target: Project) {
+		val grammarDir = target.file("src/main/antlr")
+		if (!grammarDir.exists()) {
+			target.logger.warn(
+				"${LexerGeneratorPlugin::class.simpleName} has been applied to project '${target.path}' but antlr grammars directory was not found.",
+			)
+			return
+		}
 
-    const val LEXER_BASE_PACKAGE = "${BuildConfig.packageName}.lexers"
-    const val EXT_G4 = "g4"
-  }
+		grammarDir.listFiles()?.filter { it.isDirectory }?.forEach { target.generateGrammar(it) }
+			?: run {
+				target.logger.error("Failed to list files in $grammarDir")
+				return
+			}
+	}
 
-  override fun apply(target: Project) {
-    val grammarDir = target.file("src/main/antlr")
-    if (!grammarDir.exists()) {
-      target.logger.warn(
-        "${LexerGeneratorPlugin::class.simpleName} has been applied to project '${target.path}' but antlr grammars directory was not found."
-      )
-      return
-    }
+	private fun Project.generateGrammar(grammarDir: File) {
+		val pck = "${LEXER_BASE_PACKAGE}.${grammarDir.name}"
+		val files =
+			grammarDir
+				.listFiles()
+				?.filter { it.isFile && it.extension == EXT_G4 }
+				?.map { it.absolutePath }
+				?: run {
+					logger.error("Failed to list grammar files in directory $grammarDir")
+					return
+				}
 
-    grammarDir.listFiles()?.filter { it.isDirectory }?.forEach { target.generateGrammar(it) }
-      ?: run {
-        target.logger.error("Failed to list files in $grammarDir")
-        return
-      }
-  }
+		val outDir = file("src/main/java/${pck.replace('.', '/')}")
+		if (!outDir.exists() && !outDir.mkdirs()) {
+			logger.error("Failed to create directory $outDir")
+			return
+		}
 
-  private fun Project.generateGrammar(grammarDir: File) {
-    val pck = "${LEXER_BASE_PACKAGE}.${grammarDir.name}"
-    val files =
-      grammarDir
-        .listFiles()
-        ?.filter { it.isFile && it.extension == EXT_G4 }
-        ?.map { it.absolutePath }
-        ?: run {
-          logger.error("Failed to list grammar files in directory $grammarDir")
-          return
-        }
+		val options =
+			mutableListOf(
+				"-o",
+				outDir.absolutePath,
+				"-package",
+				pck,
+				"-listener",
+				"-visitor",
+				"-Xexact-output-dir",
+			)
+		options.addAll(files)
 
-    val outDir = file("src/main/java/${pck.replace('.', '/')}")
-    if (!outDir.exists() && !outDir.mkdirs()) {
-      logger.error("Failed to create directory $outDir")
-      return
-    }
-
-    val options =
-      mutableListOf(
-        "-o",
-        outDir.absolutePath,
-        "-package",
-        pck,
-        "-listener",
-        "-visitor",
-        "-Xexact-output-dir"
-      )
-    options.addAll(files)
-
-    Tool(options.toTypedArray()).processGrammarsOnCommandLine()
-  }
+		Tool(options.toTypedArray()).processGrammarsOnCommandLine()
+	}
 }

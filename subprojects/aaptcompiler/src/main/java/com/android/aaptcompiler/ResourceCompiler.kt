@@ -243,7 +243,7 @@ private fun compileTable(
                 group.getStyleable(entry).entries.forEach {
                   val childPackage = if (!it.name.pck.isNullOrEmpty()) "_${it.name.pck}" else ""
                   // styleables and their children are always public
-                  builder.appendln(
+                  builder.appendLine(
                     "public int styleable ${entry.key}${childPackage}_${it.name.entry}"
                   )
                 }

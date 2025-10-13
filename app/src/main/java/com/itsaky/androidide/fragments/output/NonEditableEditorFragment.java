@@ -26,72 +26,74 @@ import com.itsaky.androidide.databinding.FragmentNonEditableEditorBinding;
 import com.itsaky.androidide.editor.ui.IDEEditor;
 import com.itsaky.androidide.fragments.EmptyStateFragment;
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE;
+import com.itsaky.androidide.utils.BuildInfoUtils;
 import com.itsaky.androidide.utils.TypefaceUtilsKt;
 import io.github.rosemoe.sora.lang.EmptyLanguage;
 
 public abstract class NonEditableEditorFragment extends
-    EmptyStateFragment<FragmentNonEditableEditorBinding>
-    implements ShareableOutputFragment {
+		EmptyStateFragment<FragmentNonEditableEditorBinding>
+		implements ShareableOutputFragment {
 
-  public NonEditableEditorFragment() {
-    super(R.layout.fragment_non_editable_editor, FragmentNonEditableEditorBinding::bind);
-  }
+	public NonEditableEditorFragment() {
+		super(R.layout.fragment_non_editable_editor, FragmentNonEditableEditorBinding::bind);
+	}
 
-  @Override
-  public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-    super.onViewCreated(view, savedInstanceState);
-    getEmptyStateViewModel().getEmptyMessage().setValue(createEmptyStateMessage());
-    final var editor = getBinding().getRoot();
-    editor.setEditable(false);
-    editor.setDividerWidth(0);
-    editor.setEditorLanguage(new EmptyLanguage());
-    editor.setWordwrap(false);
-    editor.setUndoEnabled(false);
-    editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
-    editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());
-    editor.setTextSize(12);
-    editor.setColorScheme(SchemeAndroidIDE.newInstance(requireContext()));
-  }
+	@Override
+	public void clearOutput() {
+		final var editor = getEditor();
+		if (editor == null) {
+			return;
+		}
 
-  private CharSequence createEmptyStateMessage() {
-    return null;
-  }
+		// Editing CodeEditor's content is a synchronized operation
+		editor.getText().delete(0, editor.getText().length());
+		getEmptyStateViewModel().isEmpty().setValue(true);
+	}
 
-  @NonNull
-  @Override
-  public String getContent() {
-    final var editor = getEditor();
-    if (editor == null) {
-      return "";
-    }
+	@Nullable
+	public IDEEditor getEditor() {
+		final var binding = get_binding();
+		if (binding == null) {
+			return null;
+		}
+		return binding.editor;
+	}
 
-    return editor.getText().toString();
-  }
+	@NonNull
+	@Override
+	public String getShareableContent() {
+		final var editor = getEditor();
+		if (editor == null) {
+			return "";
+		}
 
-  @Nullable
-  public IDEEditor getEditor() {
-    final var binding = get_binding();
-    if (binding == null) {
-      return null;
-    }
-    return binding.editor;
-  }
+		final var editorText = editor.getText().toString();
+		return BuildInfoUtils.BASIC_INFO + System.lineSeparator() + editorText;
+	}
 
-  @NonNull
-  @Override
-  public String getFilename() {
-    return "build_output";
-  }
+	@NonNull
+	@Override
+	public String getShareableFilename() {
+		return "build_output";
+	}
 
-  @Override
-  public void clearOutput() {
-    final var editor = getEditor();
-    if (editor == null) {
-      return;
-    }
+	@Override
+	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+		super.onViewCreated(view, savedInstanceState);
+		getEmptyStateViewModel().getEmptyMessage().setValue(createEmptyStateMessage());
+		final var editor = getBinding().getRoot();
+		editor.setEditable(false);
+		editor.setDividerWidth(0);
+		editor.setEditorLanguage(new EmptyLanguage());
+		editor.setWordwrap(false);
+		editor.setUndoEnabled(false);
+		editor.setTypefaceLineNumber(TypefaceUtilsKt.jetbrainsMono());
+		editor.setTypefaceText(TypefaceUtilsKt.jetbrainsMono());
+		editor.setTextSize(12);
+		editor.setColorScheme(SchemeAndroidIDE.newInstance(requireContext()));
+	}
 
-    // Editing CodeEditor's content is a synchronized operation
-    editor.getText().delete(0, editor.getText().length());
-    getEmptyStateViewModel().isEmpty().setValue(true);
-  }
+	private CharSequence createEmptyStateMessage() {
+		return null;
+	}
 }

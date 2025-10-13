@@ -17,23 +17,10 @@
 
 package com.itsaky.androidide.utils
 
-import android.app.Dialog
 import android.content.Context
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.TextPaint
-import android.text.method.LinkMovementMethod
-import android.text.style.ClickableSpan
-import android.util.TypedValue
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import androidx.annotation.IdRes
-import androidx.core.content.ContextCompat
 import androidx.core.view.forEach
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
@@ -47,7 +34,6 @@ import androidx.navigation.navOptions
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
-import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
@@ -56,15 +42,16 @@ import com.itsaky.androidide.actions.SidebarActionItem
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
-import com.itsaky.androidide.actions.sidebar.EmailSidebarAction
 import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
 import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
-import com.itsaky.androidide.databinding.ContactDialogBinding
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.plugins.extensions.UIExtension
+import com.itsaky.androidide.actions.PluginSidebarActionItem
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import java.lang.ref.WeakReference
-import androidx.core.net.toUri
 
 /**
  * Sets up the actions that are shown in the
@@ -73,9 +60,11 @@ import androidx.core.net.toUri
  * @author Akash Yadav
  */
 
-internal object EditorSidebarActions {
-    val tooltipTags = mutableListOf<String>()
+object ContactDetails {
+    const val EMAIL_SUPPORT = "feedback@appdevforall.org"
+}
 
+internal object EditorSidebarActions {
     @JvmStatic
     fun registerActions(context: Context) {
         val registry = ActionsRegistry.getInstance()
@@ -88,7 +77,9 @@ internal object EditorSidebarActions {
         registry.registerAction(PreferencesSidebarAction(context, ++order))
         registry.registerAction(CloseProjectSidebarAction(context, ++order))
         registry.registerAction(HelpSideBarAction(context, ++order))
-        registry.registerAction(EmailSidebarAction(context, ++order))
+
+        // Register plugin sidebar items
+        registerPluginSidebarActions(context, registry, ++order)
     }
 
     @JvmStatic
@@ -111,9 +102,7 @@ internal object EditorSidebarActions {
 
         rail.menu.clear()
 
-        val data = ActionData()
-        data.put(Context::class.java, context)
-
+        val data = ActionData.create(context)
         val titleRef = WeakReference(binding.title)
         val params = FillMenuParams(
             data,
@@ -152,9 +141,8 @@ internal object EditorSidebarActions {
             val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
 
             if (view != null && action != null) {
-                val tag = action.tooltipTag()
-                sidebarFragment.setupTooltip(view, "ide", tag)
-                tooltipTags += tag
+                val tag = action.retrieveTooltipTag(false)
+                sidebarFragment.setupTooltip(view, tag)
             }
         }
 
@@ -233,79 +221,30 @@ internal object EditorSidebarActions {
         }
     }
 
-    fun showContactDialog(context: Context) {
-        val dialog = Dialog(context)
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+    /**
+     * Register plugin UI contributions to the sidebar.
+     *
+     * @param context The application context
+     * @param registry The actions registry
+     * @param startOrder The starting order for plugin actions
+     */
+    @JvmStatic
+    private fun registerPluginSidebarActions(context: Context, registry: ActionsRegistry, startOrder: Int) {
+        var order = startOrder
 
-        // Inflate the custom layout using view binding
-        val binding = ContactDialogBinding.inflate(LayoutInflater.from(context))
-        dialog.setContentView(binding.root)
+        val pluginManager = PluginManager.getInstance() ?: return
 
-        // Calculate the desired external padding in pixels (32dp each side)
-        val metrics = context.resources.displayMetrics
-        val externalPadding = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, 16f, metrics
-        ).toInt()
-        val dialogWidth = metrics.widthPixels - 2 * externalPadding
+        pluginManager.getAllPluginInstances()
+            .filterIsInstance<UIExtension>()
+            .forEach { plugin ->
+                try {
+                    plugin.getSideMenuItems().forEach { navItem ->
+                        val action = PluginSidebarActionItem(context, navItem, order++)
+                        registry.registerAction(action)
+                    }
+                } catch (e: Exception) {
 
-        // Set the dialog's dimensions: custom width to create padding on each side
-        dialog.window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-
-        val feedbackEmail = context.getString(R.string.feedback_email)
-
-        // Prepare the email intent for reuse
-        val emailIntent: () -> Unit = {
-            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                data = "mailto:$feedbackEmail?subject=Feedback about Code on the Go".toUri()
-            }
-            context.startActivity(intent)
-        }
-
-        // Apply a clickable span on tvDescription to remove underline and set blue color.
-        val email = feedbackEmail
-        val text = binding.tvDescription.text.toString()
-        val start = text.indexOf(email)
-        if (start >= 0) {
-            val spannable = SpannableString(text)
-            val clickableSpan = object : ClickableSpan() {
-                override fun onClick(widget: View) {
-                    emailIntent()
-                }
-
-                override fun updateDrawState(ds: TextPaint) {
-                    ds.color = ContextCompat.getColor(context, R.color.primary_blue)
-                    ds.isUnderlineText = false // Remove underline
                 }
             }
-            spannable.setSpan(
-                clickableSpan,
-                start,
-                start + email.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            binding.tvDescription.text = spannable
-            binding.tvDescription.movementMethod = LinkMovementMethod.getInstance()
-        }
-
-        // Set the whole dialog clickable (except the Close button) to open the email.
-        binding.root.setOnClickListener {
-            emailIntent()
-        }
-
-        // When the send email button is clicked:
-        binding.btnSendEmail.setOnClickListener {
-            emailIntent()
-        }
-        // Close button action: dismiss the dialog.
-        binding.btnClose.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.show()
-    }
-
-    fun SidebarActionItem.tooltipTag(): String {
-        return "ide.sidebar.${label.lowercase().replace("[^a-z0-9]+".toRegex(), "_")}.longpress"
     }
 }

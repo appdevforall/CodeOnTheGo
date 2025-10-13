@@ -18,6 +18,7 @@
 package com.itsaky.androidide.tooling.impl.sync
 
 import com.android.builder.model.v2.models.Versions
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import org.gradle.tooling.BuildController
 import org.gradle.tooling.CancellationToken
 import org.gradle.tooling.ProjectConnection
@@ -30,10 +31,17 @@ import org.gradle.tooling.model.idea.IdeaProject
  * @property projectConnection The project connection
  * @property cancellationToken The cancellation token.
  */
-data class RootProjectModelBuilderParams(
+class RootProjectModelBuilderParams(
   val projectConnection: ProjectConnection,
-  val cancellationToken: CancellationToken?
-)
+  val cancellationToken: CancellationToken?,
+  gradleArgs: List<String>,
+  jvmArgs: List<String>,
+): GradleBuildParams(gradleArgs, jvmArgs) {
+  operator fun component1() = projectConnection
+  operator fun component2() = cancellationToken
+  operator fun component3() = gradleArgs
+  operator fun component4() = jvmArgs
+}
 
 /**
  * Parameters for building model for an Android project.

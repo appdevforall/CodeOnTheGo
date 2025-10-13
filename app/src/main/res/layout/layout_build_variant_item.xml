@@ -40,7 +40,8 @@
   <com.google.android.material.textfield.TextInputLayout
     android:id="@+id/variant_name_layout"
     style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu"
-    android:layout_width="0dp"
+    android:layout_width="wrap_content"
+    android:minWidth="120dp"
     android:layout_height="wrap_content"
     app:boxStrokeWidth="0dp"
     app:boxStrokeColor="@android:color/transparent"
@@ -53,7 +54,9 @@
       android:id="@+id/variant_name"
       android:layout_width="match_parent"
       android:layout_height="match_parent"
-      android:inputType="none" />
+      android:inputType="none"
+      android:maxLines="1"
+      android:ellipsize="none" />
 
   </com.google.android.material.textfield.TextInputLayout>
 

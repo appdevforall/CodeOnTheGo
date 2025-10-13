@@ -50,5 +50,6 @@ class DefaultAndroidArtifact : AndroidArtifact, Serializable {
   override var privacySandboxSdkInfo: PrivacySandboxSdkInfo? = null
   override var desugaredMethodsFiles: Collection<File> = emptyList()
   override val generatedClassPaths: Map<String, File> = emptyMap()
+  override val generatedAssetsFolders: Collection<File> = emptyList()
   override val bytecodeTransformations: Collection<BytecodeTransformation> = emptyList()
 }

@@ -64,26 +64,4 @@ class TemplateRecipeExecutor : RecipeExecutor {
     override fun copyAssetsRecursively(path: String, destDir: File) {
         ResourceUtils.copyFileFromAssets(path, destDir.absolutePath)
     }
-
-    override fun updateCaches(sourcePath: String) {
-        val outputDirectory =
-            File(application.filesDir.path + File.separator + LOCAL_MAVEN_CACHES_DEST)
-        val mavenZipFile = File("$outputDirectory${File.separator}$LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME")
-        if (!outputDirectory.exists()) {
-            outputDirectory.mkdirs()
-        }
-
-        try {
-            ResourceUtils.copyFileFromAssets(
-                ToolsManager.getCommonAsset(sourcePath),
-                outputDirectory.path
-            )
-
-            ZipUtils.unzipFile(mavenZipFile, outputDirectory)
-            mavenZipFile.delete()
-        } catch (e: IOException) {
-            println("Android Gradle caches copy failed + ${e.message}")
-        }
-    }
-
 }

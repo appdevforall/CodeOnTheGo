@@ -23,6 +23,7 @@ import android.widget.LinearLayout
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateWidgetlistItemBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.templates.ITemplateWidgetViewProvider
 import com.itsaky.androidide.templates.Widget
 
@@ -31,33 +32,50 @@ import com.itsaky.androidide.templates.Widget
  *
  * @author Akash Yadav
  */
-class TemplateWidgetsListAdapter(private val widgets: List<Widget<*>>) :
-  RecyclerView.Adapter<WidgetViewHolder>() {
+class TemplateWidgetsListAdapter(
+	private val widgets: List<Widget<*>>,
+) : RecyclerView.Adapter<WidgetViewHolder>() {
+	class WidgetViewHolder(
+		internal val binding: LayoutTemplateWidgetlistItemBinding,
+	) : RecyclerView.ViewHolder(binding.root)
 
-  class WidgetViewHolder(
-    internal val binding: LayoutTemplateWidgetlistItemBinding
-  ) : RecyclerView.ViewHolder(binding.root)
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): WidgetViewHolder =
+		WidgetViewHolder(
+			LayoutTemplateWidgetlistItemBinding.inflate(
+				LayoutInflater.from(parent.context),
+				parent,
+				false,
+			),
+		)
 
-  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int
-  ): WidgetViewHolder {
-    return WidgetViewHolder(LayoutTemplateWidgetlistItemBinding.inflate(
-      LayoutInflater.from(parent.context), parent, false))
-  }
+	override fun getItemCount(): Int = widgets.size
 
-  override fun getItemCount(): Int {
-    return widgets.size
-  }
-
-  override fun onBindViewHolder(holder: WidgetViewHolder, position: Int) {
-    holder.binding.apply {
-      val viewProvider = ITemplateWidgetViewProvider.getInstance()
-      val widget = widgets[position]
-      val view = viewProvider.createView(root.context, widget)
-
-      root.removeAllViews()
-      root.addView(view,
-        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-          ViewGroup.LayoutParams.WRAP_CONTENT))
-    }
-  }
+	override fun onBindViewHolder(
+		holder: WidgetViewHolder,
+		position: Int,
+	) {
+		holder.binding.apply {
+			val viewProvider = ITemplateWidgetViewProvider.getInstance()
+			val widget = widgets[position]
+			val view = viewProvider.createView(root.context, widget)
+			viewProvider.applyCallTooltip { tooltipTag ->
+                TooltipManager.showTooltip(
+                    context = root.context,
+                    anchorView = root,
+                    tag = tooltipTag,
+                )
+			}
+			root.removeAllViews()
+			root.addView(
+				view,
+				LinearLayout.LayoutParams(
+					ViewGroup.LayoutParams.MATCH_PARENT,
+					ViewGroup.LayoutParams.WRAP_CONTENT,
+				),
+			)
+		}
+	}
 }

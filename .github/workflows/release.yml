@@ -1,0 +1,362 @@
+name: Build and upload release version to Firebase App Distribution
+
+permissions:
+  id-token: write
+  contents: write
+  actions: write
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
+  workflow_dispatch: #
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+  IDE_SIGNING_AUTH_PASS: ${{ secrets.IDE_SIGNING_AUTH_PASS }}
+  IDE_SIGNING_AUTH_USER: ${{ secrets.IDE_SIGNING_AUTH_USER }}
+  IDE_SIGNING_KEY_PASS: ${{ secrets.IDE_SIGNING_KEY_PASS }}
+  IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+  IDE_SIGNING_URL: ${{ secrets.IDE_SIGNING_URL }}
+  IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MVN_USERNAME }}
+  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MVN_PASSWORD }}
+  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MVN_SIGNING_KEY }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MVN_SIGNING_KEY_ID }}
+  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
+  FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
+  SENTRY_DSN_RELEASE: ${{ secrets.SENTRY_DSN_RELEASE }}
+
+jobs:
+  build_apk:
+    name: Build Release APK
+    runs-on: self-hosted
+    timeout-minutes: 60
+
+    steps:
+
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "ADFA"
+          git config user.email "dev-team@appdevforall.org"
+
+      - name: Merge stage to main
+        run: |
+          git fetch origin stage
+          git checkout main
+          
+          # Attempt merge - if it fails due to conflicts, send notification and stop workflow
+          if ! git merge origin/stage --no-ff -m "Daily merge from stage to main"; then
+            echo "Merge failed due to conflicts. Sending notification and stopping workflow."
+            
+            # Get conflicted files for notification
+            CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+            
+            # Reset to clean state
+            git merge --abort
+            
+            # Send Slack notification
+            jq -n \
+              --arg conflicted_files "$CONFLICTED_FILES" \
+              '{
+                blocks: [
+                  {
+                    type: "header",
+                    text: {
+                      type: "plain_text",
+                      text: ":warning: Daily Merge Failed - Conflicts Detected",
+                      emoji: true
+                    }
+                  },
+                  {
+                    type: "section",
+                    text: {
+                      type: "mrkdwn",
+                      text: "@here The daily merge from `stage` to `main` failed due to merge conflicts."
+                    }
+                  },
+                  {
+                    type: "section",
+                    text: {
+                      type: "mrkdwn",
+                      text: "*Conflicted Files:*\n```\($conflicted_files)```"
+                    }
+                  },
+                  {
+                    type: "section",
+                    text: {
+                      type: "mrkdwn",
+                      text: "*Action Required:*\n1. Review the conflicts manually\n2. Resolve conflicts in the affected files\n3. Push the resolved changes to `stage`\n4. The next daily build will attempt the merge again"
+                    }
+                  },
+                  {
+                    type: "actions",
+                    elements: [
+                      {
+                        type: "button",
+                        text: {
+                          type: "plain_text",
+                          text: "View Repository",
+                          emoji: true
+                        },
+                        url: "https://github.com/${{ github.repository }}",
+                        action_id: "view-repo"
+                      }
+                    ]
+                  },
+                  {
+                    type: "divider"
+                  },
+                  {
+                    type: "context",
+                    elements: [
+                      {
+                        type: "mrkdwn",
+                        text: "Failed merge attempt from `stage` to `main` branch"
+                      }
+                    ]
+                  }
+                ]
+              }' > conflict_payload.json
+            
+            curl -X POST -H "Content-type: application/json" --data @conflict_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+            rm -f conflict_payload.json
+            
+            echo "Merge conflicts detected in files: $CONFLICTED_FILES"
+            exit 1
+          fi
+          
+          # If merge succeeds, push to main
+          git push origin main
+          echo "Merge completed successfully"
+
+      - name: Set branch to main for build
+        id: determine_branch
+        run: |
+          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull
+
+      - name: Initialize submodules
+        run: |
+          git submodule init
+          git submodule update --remote
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Assemble Release APK
+        run: |
+          flox activate -d flox/base -- ./gradlew :app:assembleV8Release --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
+            -Dandroid.aapt2.daemonHeapSize=4096M \
+            -Dorg.gradle.workers.max=1 \
+            -Dorg.gradle.parallel=false
+
+      - name: Find APK file
+        id: find_apk
+        run: |
+          apk_path=$(find app/build/outputs/apk/ -path "*v8*/release/*.apk" | head -n 1)
+          echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
+
+      - name: Set branch name and build type
+        run: |
+          BRANCH_NAME=${{ steps.determine_branch.outputs.BRANCH_TO_CHECKOUT }}
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          
+          BUILD_TYPE="RELEASE"
+          echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
+
+      - name: Get Commit Information
+        id: commit_info
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r' | sed 's/[*]/•/g')
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to Google Cloud via Workload Identity
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
+
+      - name: Verify APK exists
+        run: |
+          if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
+            echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
+            exit 1
+          fi
+          ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
+
+      - name: Deploy to Firebase App Distribution
+        id: firebase_upload
+        env:
+          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          BUILD_TYPE: ${{ env.BUILD_TYPE }}
+          COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
+        run: |
+          echo "Starting Firebase deployment..."
+          echo "APK Path: $APK_PATH"
+          echo "Firebase App ID: $FIREBASE_APP_ID"
+
+          # Check if Firebase CLI is authenticated
+          echo "Checking Firebase authentication..."
+          firebase projects:list || {
+            echo "ERROR: Firebase authentication failed"
+            exit 1
+          }
+
+          RELEASE_NOTES_FILE=$(mktemp)
+          cat > "$RELEASE_NOTES_FILE" << EOF
+          Build Type: $BUILD_TYPE
+          Commit: $COMMIT_MSG
+          EOF
+          
+          echo "Running Firebase distribution command..."
+          set +e  # Disable exit on error temporarily
+          output=$(firebase appdistribution:distribute "$APK_PATH" \
+            --app "$FIREBASE_APP_ID" \
+            --groups "testers" \
+            --release-notes-file "$RELEASE_NOTES_FILE" 2>&1)
+          exit_code=$?
+          set -e  # Re-enable exit on error
+          
+          echo "Firebase command exit code: $exit_code"
+          echo "Firebase command output:"
+          echo "$output"
+          
+          if [ $exit_code -ne 0 ]; then
+            echo "ERROR: Firebase deployment failed with exit code $exit_code"
+            exit 1
+          fi
+
+          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
+
+          if [ -z "$FIREBASE_URL" ]; then
+            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
+          fi
+
+          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Send Rich Slack Notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
+          COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
+          FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
+        run: |          
+          BRANCH_NAME="${{ env.BRANCH_NAME }}"
+          BUILD_TYPE="${{ env.BUILD_TYPE }}"
+          
+          jq -n \
+            --arg commit_msg "$COMMIT_MSG" \
+            --arg build_type "$BUILD_TYPE" \
+            --arg commit_author "$COMMIT_AUTHOR" \
+            --arg firebase_url "$FIREBASE_CONSOLE_URL" \
+            --arg branch_name "$BRANCH_NAME" \
+            '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":rocket: [Release] New Build Available",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "@here Please review and test this build."
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Build Type:* \($build_type)"
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Commit:* \($commit_msg)"
+                  }
+                },
+
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Author:* @\($commit_author)"
+                  }
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: "View on Firebase",
+                        emoji: true
+                      },
+                      url: $firebase_url,
+                      action_id: "firebase-console"
+                    }
+                  ]
+                },
+                {
+                  type: "divider"
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: "Deployed from branch `\($branch_name)`"
+                    }
+                  ]
+                }
+              ]
+            }' > payload.json
+          
+          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+
+          rm -f payload.json

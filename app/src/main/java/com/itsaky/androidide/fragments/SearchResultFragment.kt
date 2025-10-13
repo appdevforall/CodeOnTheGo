@@ -18,8 +18,10 @@ package com.itsaky.androidide.fragments
 
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.adapters.SearchListAdapter
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
+  override val fragmentTooltipTag: String? = TooltipTag.PROJECT_SEARCH_RESULTS
 
   override fun onCreateAdapter(): RecyclerView.Adapter<*> {
     val noOp: (Any) -> Unit = {}

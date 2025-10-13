@@ -32,6 +32,7 @@ android {
 }
 
 dependencies {
+    api(platform(libs.sora.bom))
     api(libs.common.editor)
     api(libs.common.kotlin.coroutines.android)
     api(libs.androidide.ts) {

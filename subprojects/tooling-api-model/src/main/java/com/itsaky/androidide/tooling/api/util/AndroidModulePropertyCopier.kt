@@ -77,12 +77,14 @@ object AndroidModulePropertyCopier {
         codename = version.codename
       }
 
-  fun copy(javaCompileOptions: JavaCompileOptions): DefaultJavaCompileOptions {
+  fun copy(javaCompileOptions: JavaCompileOptions?): DefaultJavaCompileOptions {
     return DefaultJavaCompileOptions().apply {
-      encoding = javaCompileOptions.encoding
-      isCoreLibraryDesugaringEnabled = javaCompileOptions.isCoreLibraryDesugaringEnabled
-      sourceCompatibility = javaCompileOptions.sourceCompatibility
-      targetCompatibility = javaCompileOptions.targetCompatibility
+        if (javaCompileOptions != null) {
+          encoding = javaCompileOptions.encoding
+          isCoreLibraryDesugaringEnabled = javaCompileOptions.isCoreLibraryDesugaringEnabled
+          sourceCompatibility = javaCompileOptions.sourceCompatibility
+          targetCompatibility = javaCompileOptions.targetCompatibility
+        }
     }
   }
 

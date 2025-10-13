@@ -179,9 +179,8 @@
   <string name="title_generating_xml">Generarea codului XML</string>
   <string name="msg_swipe_up">Trageți cu degetul în sus pentru jurnale și multe altele.</string>
   <string name="msg_ide_crashed">Code on the Go s-a oprit</string>
-  <string name="msg_report_crash">Vă rugăm să deschideți o problemă pe github cu următorul stacktrace :</string>
-  <string name="msg_crash_report_hint">Faceți clic pe butonul de mai jos pentru a copia jurnalul și a deschide pagina de probleme.</string>
-  <string name="msg_copy_report_action">Copiere și raportarea</string>
+  <string name="msg_crash_info">Vă rugăm să deschideți o problemă pe github cu următorul stacktrace :</string>
+  <string name="msg_close_crash_page">Faceți clic pe butonul de mai jos pentru a copia jurnalul și a deschide pagina de probleme.</string>
   <string name="title_translations">Traduceri</string>
   <string name="action_expand_selection">Extinderea selecției</string>
   <string name="idepref_java_matchLower_title">Match completions in lower case</string>
@@ -390,11 +389,6 @@
   <string name="msg_invalid_project_details">Invalid project details</string>
   <string name="msg_use_kts">Use Kotlin Script (.kts) for Gradle build files</string>
   <string name="title_privacy">Privacy</string>
-  <string name="title_androidide_statistics">Code on the Go Statistics</string>
-  <string name="msg_androidide_statistics">Help us improve Code on the Go by providing anonymous statistics. We collect basic information about your device for user base statistics only. The exact data that is shared can be viewed in preferences. Your data is secure and not shared with third-party services. You can opt-out anytime in preferences.</string>
-  <string name="summary_anonymous_usage_stats">Anonymous usage stats</string>
-  <string name="idepref_stats_optIn_title">Stats collection</string>
-  <string name="idepref_stats_optIn_summary">Allow installation metrics and device statistics to be collected (fully anonymous).</string>
   <string name="title_unique_id">Unique ID</string>
   <string name="title_device">Device</string>
   <string name="title_app_version">App version</string>
@@ -417,8 +411,8 @@
   <string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
   <string name="title_build_variants">Build variants</string>
-  <string name="title_apply">Apply</string>
-  <string name="title_discard">Discard</string>
+  <string name="build_variants_apply">Apply</string>
+  <string name="build_variants_cancel">Discard</string>
   <string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
   <string name="title_choose_application">Choose application</string>
   <string name="err_selected_variant_not_found">Selected build variant not found</string>

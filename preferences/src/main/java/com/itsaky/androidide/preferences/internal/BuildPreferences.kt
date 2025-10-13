@@ -17,6 +17,10 @@
 
 package com.itsaky.androidide.preferences.internal
 
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTIONS_DIR
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
+
 /**
  * @author Akash Yadav
  */
@@ -58,7 +62,7 @@ object BuildPreferences {
 
   /** Switch for Gradle `--build-cache` option. */
   var isBuildCacheEnabled: Boolean
-    get() = prefManager.getBoolean(BUILD_CACHE)
+    get() = prefManager.getBoolean(BUILD_CACHE, true)
     set(enabled) {
       prefManager.putBoolean(BUILD_CACHE, enabled)
     }
@@ -79,14 +83,14 @@ object BuildPreferences {
 
   /** Switch for Gradle `--info` option. */
   var isInfoEnabled: Boolean
-    get() = prefManager.getBoolean(INFO, GeneralPreferences.isFirstBuild)
+    get() = prefManager.getBoolean(INFO, false)
     set(enabled) {
       prefManager.putBoolean(INFO, enabled)
     }
 
   /** Custom Gradle installation directory path. */
   var gradleInstallationDir: String
-    get() = prefManager.getString(CUSTOM_GRADLE_INSTALLATION, "")
+    get() = prefManager.getString(CUSTOM_GRADLE_INSTALLATION, "${GRADLE_DISTRIBUTIONS_DIR}/${GRADLE_DISTRIBUTION_NAME}")
     set(value) {
       prefManager.putString(CUSTOM_GRADLE_INSTALLATION, value)
     }

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawer"
+    android:layout_height="match_parent"
+    android:layout_width="match_parent">
+    
+    <androidx.appcompat.widget.FitWindowsFrameLayout
+        android:background="?android:attr/colorBackground"
+        android:id="@+id/content"
+        android:layout_height="match_parent"
+        android:layout_width="match_parent">
+        
+        <androidx.appcompat.widget.FitWindowsLinearLayout
+            android:background="?android:attr/colorBackground"
+            android:layout_height="match_parent"
+            android:layout_width="match_parent"
+            android:orientation="vertical">
+            
+            <com.google.android.material.appbar.AppBarLayout
+                android:fitsSystemWindows="true"
+                android:layout_height="wrap_content"
+                android:layout_width="match_parent">
+                
+                <com.google.android.material.appbar.MaterialToolbar
+                    android:id="@+id/topAppBar"
+                    android:layout_height="?attr/actionBarSize"
+                    android:layout_width="match_parent"/>
+                
+            
+            </com.google.android.material.appbar.AppBarLayout>
+            
+            <androidx.appcompat.widget.FitWindowsFrameLayout
+                android:id="@+id/main_fragment"
+                android:layout_height="match_parent"
+                android:layout_width="match_parent"
+                app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+            
+        
+        </androidx.appcompat.widget.FitWindowsLinearLayout>
+        
+    
+    </androidx.appcompat.widget.FitWindowsFrameLayout>
+    
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/navigation_view"
+        android:layout_gravity="start"
+        android:layout_height="match_parent"
+        android:layout_width="300dp"
+        app:headerLayout="@layout/menu_header"
+        app:menu="@menu/menu_home"/>
+
+</androidx.drawerlayout.widget.DrawerLayout>

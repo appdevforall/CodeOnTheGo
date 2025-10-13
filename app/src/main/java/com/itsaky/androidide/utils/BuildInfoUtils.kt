@@ -33,49 +33,50 @@ import com.termux.shared.termux.TermuxUtils
  * @author Akash Yadav
  */
 object BuildInfoUtils {
+	const val BASIC_INFO = BasicBuildInfo.BASIC_INFO
 
-  private val BUILD_INFO_HEADER by lazy {
-    val map = mapOf(
-      "Version" to "v${BuildInfo.VERSION_NAME_SIMPLE} (${AppUtils.getAppVersionCode()})",
-      "CI Build" to BuildInfo.CI_BUILD,
-      "Branch" to BuildInfo.CI_GIT_BRANCH,
-      "Commit" to BuildInfo.CI_GIT_COMMIT_HASH,
-      "Variant" to "${IDEBuildConfigProvider.getInstance().cpuAbiName} (${BuildConfig.BUILD_TYPE})",
-      "Build type" to getBuildType(),
-      "F-Droid Build" to BuildInfo.FDROID_BUILD,
-      "F-Droid Version" to BuildInfo.FDROID_BUILD_VERSION_NAME,
-      "F-Droid Version code" to BuildInfo.FDROID_BUILD_VERSION_CODE,
-      "SDK Version" to Build.VERSION.SDK_INT,
-      "Supported ABIs" to "[${Build.SUPPORTED_ABIS.joinToString(separator = ", ")}]",
-      "Manufacturer" to DeviceUtils.getManufacturer(),
-      "Device" to DeviceUtils.getModel(),
-    )
-    map.entries.joinToString(separator = System.lineSeparator()) { "${it.key} : ${it.value}" }.trim()
-  }
+	private val BUILD_INFO_HEADER by lazy {
+		val map =
+			mapOf(
+				"Version" to "v${BuildInfo.VERSION_NAME_SIMPLE} (${AppUtils.getAppVersionCode()})",
+				"CI Build" to BuildInfo.CI_BUILD,
+				"Branch" to BuildInfo.CI_GIT_BRANCH,
+				"Commit" to BuildInfo.CI_GIT_COMMIT_HASH,
+				"Variant" to "${IDEBuildConfigProvider.getInstance().cpuAbiName} (${BuildConfig.BUILD_TYPE})",
+				"Build type" to getBuildType(),
+				"F-Droid Build" to BuildInfo.FDROID_BUILD,
+				"F-Droid Version" to BuildInfo.FDROID_BUILD_VERSION_NAME,
+				"F-Droid Version code" to BuildInfo.FDROID_BUILD_VERSION_CODE,
+				"SDK Version" to Build.VERSION.SDK_INT,
+				"Supported ABIs" to "[${Build.SUPPORTED_ABIS.joinToString(separator = ", ")}]",
+				"Manufacturer" to DeviceUtils.getManufacturer(),
+				"Device" to DeviceUtils.getModel(),
+			)
+		map.entries.joinToString(separator = System.lineSeparator()) { "${it.key} : ${it.value}" }.trim()
+	}
 
-  @JvmStatic
-  fun getBuildInfoHeader(): String {
-    return BUILD_INFO_HEADER
-  }
+	@JvmStatic
+	fun getBuildInfoHeader(): String = BUILD_INFO_HEADER
 
-  private fun getBuildType() = getBuildType(IDEApplication.instance)
+	private fun getBuildType() = getBuildType(IDEApplication.instance)
 
-  fun getBuildType(context: Context) = if (isOfficialBuild(context)) "OFFICIAL" else "UNOFFICIAL"
+	fun getBuildType(context: Context) = if (isOfficialBuild(context)) "OFFICIAL" else "UNOFFICIAL"
 
-  /**
-   * Whether the AndroidIDE build is official or not. This checks the signature digest of the
-   * APK against the signature digest of the official signing key.
-   */
-  @JvmStatic
-  fun isOfficialBuild(context: Context): Boolean {
-    val sha256DigestForPackage = PackageUtils.getSigningCertificateSHA256DigestForPackage(
-      context,
-      TermuxConstants.TERMUX_PACKAGE_NAME
-    )
+	/**
+	 * Whether the AndroidIDE build is official or not. This checks the signature digest of the
+	 * APK against the signature digest of the official signing key.
+	 */
+	@JvmStatic
+	fun isOfficialBuild(context: Context): Boolean {
+		val sha256DigestForPackage =
+			PackageUtils.getSigningCertificateSHA256DigestForPackage(
+				context,
+				TermuxConstants.TERMUX_PACKAGE_NAME,
+			)
 
-    val signer = TermuxUtils.getAPKRelease(sha256DigestForPackage)
+		val signer = TermuxUtils.getAPKRelease(sha256DigestForPackage)
 
-    return TermuxConstants.APK_RELEASE_ANDROIDIDE == signer
-        || TermuxConstants.APK_RELEASE_FDROID == signer
-  }
+		return TermuxConstants.APK_RELEASE_ANDROIDIDE == signer ||
+			TermuxConstants.APK_RELEASE_FDROID == signer
+	}
 }

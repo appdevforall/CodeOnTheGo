@@ -91,14 +91,10 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
       meteredConnection.root.setText(R.string.msg_connected_to_metered_connection)
       backgroundDataRestricted.root.setText(R.string.msg_disable_background_data_restriction)
 
-      autoInstallSwitch.setOnCheckedChangeListener { button, isChecked ->
-        button.setText(
-          if (isChecked) R.string.action_auto_install else R.string.action_manual_install)
-        sdkVersionLayout.isEnabled = isChecked
-        jdkVersionLayout.isEnabled = isChecked
-        installGit.isEnabled = isChecked
-        installOpenssh.isEnabled = isChecked
-      }
+      sdkVersionLayout.isEnabled = true
+      jdkVersionLayout.isEnabled = true
+      installGit.isEnabled = true
+      installOpenssh.isEnabled = true
 
       val sdkVersions = SdkVersion.entries.map { "SDK ${it.version}" }.reversed()
       sdkVersion.setText(sdkVersions[0])
@@ -119,8 +115,6 @@ class IdeSetupConfigurationFragment : OnboardingFragment(), SlidePolicy {
 
     updateConnectionStatus()
   }
-
-  fun isAutoInstall(): Boolean = content.autoInstallSwitch.isChecked
 
   fun buildIdeSetupArguments(): Array<String> {
     val args = mutableListOf<String>()

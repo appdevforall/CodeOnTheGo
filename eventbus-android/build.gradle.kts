@@ -18,14 +18,14 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+	id("com.android.library")
+	id("org.jetbrains.kotlin.android")
 }
 
 android {
-    namespace = "${BuildConfig.packageName}.eventbus.android"
+	namespace = "${BuildConfig.PACKAGE_NAME}.eventbus.android"
 }
 
 dependencies {
-    api(projects.eventbus)
+	api(projects.eventbus)
 }

@@ -43,6 +43,7 @@ import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
 import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.FeedbackButtonManager
 
 class AboutActivity : EdgeToEdgeIDEActivity() {
 
@@ -57,6 +58,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     return _binding!!.root
   }
 
+    private var feedbackButtonManager: FeedbackButtonManager? = null
+
   companion object {
 
     private var id = 0
@@ -64,7 +67,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     private val ACTION_EMAIL = id++
     private val ACTION_TG_CHANNEL = id++
     private val ACTION_TG_GROUP = id++
-    private val ACTION_CONTRIBUTE = id++
     private val ACTION_CONTRIBUTORS = id++
   }
 
@@ -77,6 +79,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       supportActionBar!!.setDisplayHomeAsUpEnabled(true)
       supportActionBar!!.setTitle(R.string.about)
       toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
 
       aboutHeader.apply {
         ideVersion.text = createVersionText()
@@ -118,7 +122,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       ACTION_EMAIL -> app.emailUs()
       ACTION_TG_GROUP -> app.openTelegramGroup()
       ACTION_TG_CHANNEL -> app.openTelegramChannel()
-      ACTION_CONTRIBUTE -> app.openUrl(BaseApplication.CONTRIBUTOR_GUIDE_URL)
       ACTION_CONTRIBUTORS -> startActivity(Intent(this, ContributorsActivity::class.java))
     }
   }
@@ -140,7 +143,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           ACTION_EMAIL,
           R.drawable.ic_email,
           R.string.about_option_email,
-          BaseApplication.EMAIL
+          getString(R.string.adfa_email)
         )
       )
       add(
@@ -149,7 +152,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           ACTION_TG_GROUP,
           R.drawable.ic_telegram,
           R.string.discussions_on_telegram,
-          BaseApplication.TELEGRAM_GROUP_URL
+          getString(R.string.telegram_group_url)
         )
       )
       add(
@@ -158,7 +161,7 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
           ACTION_TG_CHANNEL,
           R.drawable.ic_telegram,
           R.string.official_tg_channel,
-          BaseApplication.TELEGRAM_CHANNEL_URL
+          getString(R.string.telegram_channel_url)
         )
       )
     }
@@ -166,15 +169,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 
   private fun createMiscItems(): List<IconTitleDescriptionItem> {
     return mutableListOf<IconTitleDescriptionItem>().apply {
-      add(
-        SimpleIconTitleDescriptionItem.create(
-          this@AboutActivity,
-          ACTION_CONTRIBUTE,
-          R.drawable.ic_code,
-          R.string.title_contribute,
-          R.string.summary_contribute
-        )
-      )
       add(
         SimpleIconTitleDescriptionItem.create(
           this@AboutActivity,
@@ -272,6 +266,11 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
     )
   }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
 
   override fun onDestroy() {
     super.onDestroy()

@@ -71,7 +71,7 @@
             android:layout_centerHorizontal="true"
             android:gravity="center"
             android:padding="@dimen/cornerLow"
-            android:text="@string/msg_no_recent_projects"
+            android:text="@string/msg_no_projects_to_delete"
             android:textSize="22sp" />
 
         <com.google.android.material.textview.MaterialTextView
@@ -80,7 +80,7 @@
             android:layout_below="@id/tv1"
             android:layout_centerHorizontal="true"
             android:padding="8dp"
-            android:text="@string/msg_create_new" />
+            android:text="@string/msg_create_new_project_instruction" />
 
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"

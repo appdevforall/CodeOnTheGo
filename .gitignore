@@ -105,3 +105,26 @@ sentry.properties
 
 # Generated files for tooling API
 tests/test-home
+/tests/**/.androidide/init/model.jar
+
+/composite-builds/build-deps-common/constants/build/
+/composite-builds/build-deps/build/
+
+/app/google-services.json
+
+# Kotlin build files
+.kotlin/
+
+# Plugin build directories
+/plugin-api/build/
+/plugin-manager/build/
+/sample-plugin/build/
+/keystore-generator-plugin/build/
+/keystore-generator-plugin/.kotlin/
+
+# Plugin build directories
+/plugin-api/build/
+/plugin-manager/build/
+/sample-plugin/build/
+/keystore-generator-plugin/build/
+/keystore-generator-plugin/.kotlin/

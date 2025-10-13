@@ -18,36 +18,36 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  id("com.android.library")
-  id("com.vanniktech.maven.publish.base")
+	id("com.android.library")
+	id("com.vanniktech.maven.publish.base")
 }
 
 description = "LogSender is used to read logs from applications built with AndroidIDE"
 
 android {
-  namespace = "${BuildConfig.packageName}.logsender"
+	namespace = "${BuildConfig.PACKAGE_NAME}.logsender"
 
-  defaultConfig {
-    minSdk = 16
+	defaultConfig {
+		minSdk = BuildConfig.MIN_SDK_FOR_APPS_BUILT_WITH_COGO
 
-    vectorDrawables {
-      useSupportLibrary = true
-    }
-  }
+		vectorDrawables {
+			useSupportLibrary = true
+		}
+	}
 
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
+	compileOptions {
+		sourceCompatibility = JavaVersion.VERSION_1_8
+		targetCompatibility = JavaVersion.VERSION_1_8
+	}
 
-  buildFeatures.apply {
-    aidl = true
-    viewBinding = false
-  }
+	buildFeatures.apply {
+		aidl = true
+		viewBinding = false
+	}
 }
 
 dependencies {
-  testImplementation(libs.tests.junit)
-  testImplementation(libs.tests.robolectric)
-  testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.google.truth)
 }

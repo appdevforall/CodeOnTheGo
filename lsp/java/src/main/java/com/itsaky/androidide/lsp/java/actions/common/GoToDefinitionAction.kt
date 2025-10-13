@@ -20,6 +20,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.editor.api.ILspEditor
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -37,6 +38,7 @@ class GoToDefinitionAction : BaseJavaCodeAction() {
   override val id: String = "ide.editor.lsp.java.gotoDefinition"
   override var label: String = ""
   override var requiresUIThread: Boolean = true
+  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GOTO_DEF
 
   override fun prepare(data: ActionData) {
     super.prepare(data)

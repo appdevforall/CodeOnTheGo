@@ -1,18 +1,17 @@
 package com.itsaky.androidide.viewmodel
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
-import com.itsvks.layouteditor.ProjectFile
+import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.io.File
 import java.util.Date
 
 class RecentProjectsViewModel(application: Application) : AndroidViewModel(application) {
@@ -55,6 +54,8 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         }
 
 
+	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
+
     fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
         recentProjectDao.deleteByName(name)
         // Update the LiveData by removing the deleted project
@@ -64,6 +65,9 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
         }
         loadProjects()
     }
+
+	fun updateProject(renamedFile: RecentProjectsAdapter.RenamedFile) =
+		updateProject(renamedFile.oldName, renamedFile.newName, renamedFile.newPath)
 
     fun updateProject(oldName: String, newName: String, location: String) =
         viewModelScope.launch(Dispatchers.IO) {

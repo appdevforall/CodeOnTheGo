@@ -16,13 +16,14 @@
   -->
 
 <androidx.recyclerview.widget.RecyclerView xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:app="http://schemas.android.com/apk/res-auto"
-  xmlns:tools="http://schemas.android.com/tools"
-  android:id="@+id/onboarding_items"
-  android:layout_width="match_parent"
-  android:layout_height="match_parent"
-  android:fadingEdge="vertical"
-  android:fadingEdgeLength="16dp"
-  android:nestedScrollingEnabled="false"
-  app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-  tools:listitem="@layout/layout_onboarding_item" />
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/onboarding_items"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_marginBottom="64dp"
+    android:fadingEdge="vertical"
+    android:fadingEdgeLength="16dp"
+    android:nestedScrollingEnabled="true"
+    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+    tools:listitem="@layout/layout_onboarding_item" />

@@ -32,6 +32,11 @@ public final class LogSenderConfig {
   public static final String PROPERTY_LOGSENDER_ENABLED = "androidide.logsender.isEnabled";
 
   /**
+   * The path to the LogSender AAR file.
+   */
+  public static final String PROPERTY_LOGSENDER_AAR = "androidide.logsender.aar";
+
+  /**
    * Property that is set in tests to indicate that the plugin is being applied in a test
    * environment.
    * <p>

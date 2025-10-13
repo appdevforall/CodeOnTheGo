@@ -22,6 +22,9 @@ import com.itsaky.androidide.builder.model.IJavaCompilerSettings
 import com.itsaky.androidide.tooling.api.IProject
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
+import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.models.AndroidProjectMetadata
 import com.itsaky.androidide.tooling.api.models.AndroidVariantMetadata
 import com.itsaky.androidide.tooling.api.models.BasicAndroidVariantMetadata
@@ -106,6 +109,11 @@ object ToolingApiLauncher {
 
     // some methods return BasicProjectMetadata while some return ProjectMetadata
     // so we need to register type adapter for both of them
+    builder.runtimeTypeAdapter(
+      GradleBuildParams::class.java,
+      InitializeProjectParams::class.java,
+      TaskExecutionMessage::class.java,
+    )
     builder.runtimeTypeAdapter(
       BasicProjectMetadata::class.java,
       ProjectMetadata::class.java,

@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.plugins.tasks
 
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.OutputDirectory
@@ -38,11 +39,6 @@ abstract class GradleWrapperGeneratorTask : DefaultTask() {
    */
   @get:OutputDirectory
   abstract val outputDirectory: DirectoryProperty
-
-  companion object {
-
-    private const val GRADLE_VERSION = "8.0"
-  }
 
   //TODO change gradle version to constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
   @TaskAction
@@ -66,7 +62,7 @@ abstract class GradleWrapperGeneratorTask : DefaultTask() {
     val generator = IDEWrapperGenerator()
     generator.jarFile = File(stagingDir, "gradle/wrapper/gradle-wrapper.jar")
     generator.scriptFile = File(stagingDir, "gradlew")
-    generator.gradleVersion = GRADLE_VERSION
+    generator.gradleVersion = GRADLE_DISTRIBUTION_VERSION
     generator.distributionType = Wrapper.DistributionType.BIN
 
     generator.generate(project)

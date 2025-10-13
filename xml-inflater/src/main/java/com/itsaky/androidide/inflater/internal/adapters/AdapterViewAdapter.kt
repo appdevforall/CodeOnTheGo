@@ -18,6 +18,7 @@ package com.itsaky.androidide.inflater.internal.adapters
 
 import android.R.layout
 import android.content.Context
+import android.widget.Adapter
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import com.itsaky.androidide.inflater.IView
@@ -36,7 +37,7 @@ abstract class AdapterViewAdapter<T : AdapterView<*>> : ViewGroupAdapter<T>() {
 
   override fun applyBasic(view: IView) {
     super.applyBasic(view)
-    (view.view as AdapterView<*>).adapter = newSimpleAdapter(view.view.context)
+    (view.view as AdapterView<Adapter>).adapter = newSimpleAdapter(view.view.context)
     if (view is ViewGroupImpl) {
       view.childrenModifiable = false
     }

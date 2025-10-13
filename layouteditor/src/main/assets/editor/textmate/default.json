@@ -1,0 +1,60 @@
+{
+    "name": "Tomorrow-Night-XML",
+    "author": "Vivek",
+    "version": "1.0",
+    "settings": [
+        {
+            "name": "Tag",
+            "scope": "entity.name.tag",
+            "settings": {
+                "fontStyle": "bold",
+                "foreground": "#F92672"
+            }
+        },
+        {
+            "name": "Attribute names",
+            "scope": "entity.other.attribute-name",
+            "settings": {
+                "foreground": "#A6E22E"
+            }
+        },
+        {
+            "name": "Attribute values",
+            "scope": "string.quoted",
+            "settings": {
+                "fontStyle": "italic",
+                "foreground": "#E6DB74"
+            }
+        },
+        {
+            "name": "Comments",
+            "scope": "comment.block",
+            "settings": {
+                "fontStyle": "italic",
+                "foreground": "#75715E"
+            }
+        },
+        {
+            "name": "CDATA",
+            "scope": "string.unquoted.cdata.xml",
+            "settings": {
+                "foreground": "#66D9EF"
+            }
+        },
+        {
+            "name": "Namespace Tag",
+            "scope": "entity.name.namespace.xml",
+            "settings": {
+                "fontStyle": "bold",
+                "foreground": "#AE81FF"
+            }
+        },
+        {
+            "name": "Default Text",
+            "scope": "text.xml",
+            "settings": {
+                "foreground": "#F8F8F2"
+            }
+        }
+    ]
+}

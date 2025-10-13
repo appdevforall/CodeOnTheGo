@@ -5,13 +5,14 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
-import com.itsvks.layouteditor.ProjectFile
+import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 class DeleteProjectListAdapter(
     private var projects: List<ProjectFile>,
-    private val onSelectionChange: (Boolean) -> Unit
+    private val onSelectionChange: (Boolean) -> Unit,
+    private val onCheckboxLongPress: () -> Boolean
 ) : RecyclerView.Adapter<DeleteProjectListAdapter.ProjectViewHolder>() {
 
     private val selectedProjects = mutableSetOf<ProjectFile>()
@@ -52,6 +53,10 @@ class DeleteProjectListAdapter(
                 )
                 onSelectionChange(selectedProjects.isNotEmpty())
             }
+
+            binding.checkbox.setOnLongClickListener {
+                onCheckboxLongPress()
+            }
         }
     }
 
@@ -75,3 +80,4 @@ class DeleteProjectListAdapter(
         }
     }
 }
+

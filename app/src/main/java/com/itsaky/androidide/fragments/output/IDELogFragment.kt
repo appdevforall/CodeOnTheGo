@@ -23,6 +23,8 @@ import androidx.lifecycle.Lifecycle
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.LoggerContext
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.logging.GlobalBufferAppender
 import com.itsaky.androidide.logging.LifecycleAwareAppender
 import org.slf4j.LoggerFactory
 
@@ -31,33 +33,45 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class IDELogFragment : LogViewFragment() {
+	private val lifecycleAwareAppender = LifecycleAwareAppender(Lifecycle.State.CREATED)
 
-  private val lifecycleAwareAppender = LifecycleAwareAppender(Lifecycle.State.CREATED)
+	override fun isSimpleFormattingEnabled() = true
 
-  override fun isSimpleFormattingEnabled() = true
-  override fun getFilename() = "ide_logs"
+	override fun getShareableFilename() = "ide_logs"
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_idelogs)
+	override val tooltipTag = TooltipTag.PROJECT_IDE_LOGS
 
-    lifecycleAwareAppender.consumer = this::appendLine
-    lifecycleAwareAppender.attachTo(viewLifecycleOwner)
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		emptyStateViewModel.emptyMessage.value = getString(R.string.msg_emptyview_idelogs)
 
-    val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
-    val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
+		// Register with GlobalBufferAppender to receive all logs (including buffered ones)
+		GlobalBufferAppender.registerConsumer(this::appendLine)
 
-    lifecycleAwareAppender.context = loggerContext
-    lifecycleAwareAppender.start()
+		lifecycleAwareAppender.consumer = this::appendLine
+		lifecycleAwareAppender.attachTo(viewLifecycleOwner)
 
-    rootLogger.addAppender(lifecycleAwareAppender)
-  }
+		val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
+		val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
 
-  override fun onDestroy() {
-    super.onDestroy()
-    lifecycleAwareAppender.stop()
+		lifecycleAwareAppender.context = loggerContext
+		lifecycleAwareAppender.start()
 
-    val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
-    logger.detachAppender(lifecycleAwareAppender)
-  }
+		rootLogger.addAppender(lifecycleAwareAppender)
+	}
+
+	override fun onDestroy() {
+		super.onDestroy()
+
+		// Unregister from GlobalBufferAppender
+		GlobalBufferAppender.unregisterConsumer(this::appendLine)
+
+		lifecycleAwareAppender.stop()
+
+		val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
+		logger.detachAppender(lifecycleAwareAppender)
+	}
 }

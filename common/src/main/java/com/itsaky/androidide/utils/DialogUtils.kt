@@ -77,12 +77,12 @@ object DialogUtils {
    */
   @JvmStatic
   @JvmOverloads
-  fun newYesNoDialog(
+  fun showConfirmationDialog(
     context: Context,
     positiveClickListener: OnClickListener? = null,
     negativeClickListener: OnClickListener? = null
   ): MaterialAlertDialogBuilder {
-    return newYesNoDialog(
+      return showConfirmationDialog(
       context,
       context.getString(string.msg_yesno_def_title),
       context.getString(string.msg_yesno_def_message),
@@ -105,7 +105,7 @@ object DialogUtils {
    */
   @JvmStatic
   @JvmOverloads
-  fun newYesNoDialog(
+  fun showConfirmationDialog(
     context: Context,
     title: String,
     message: String? = null,

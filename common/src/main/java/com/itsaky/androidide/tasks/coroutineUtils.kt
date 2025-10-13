@@ -23,8 +23,10 @@ import com.itsaky.androidide.utils.flashProgress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.io.InterruptedIOException
 import kotlin.coroutines.CoroutineContext
@@ -34,14 +36,14 @@ import kotlin.coroutines.EmptyCoroutineContext
  * An [ICancelChecker] which when cancelled, cancels the corresponding [Job].
  */
 class JobCancelChecker @JvmOverloads constructor(
-  var job: Job? = null
+	var job: Job? = null
 ) : ICancelChecker.Default() {
 
-  override fun cancel() {
-    job?.cancel("Cancelled by user")
-    job = null
-    super.cancel()
-  }
+	override fun cancel() {
+		job?.cancel("Cancelled by user")
+		job = null
+		super.cancel()
+	}
 }
 
 /**
@@ -52,7 +54,7 @@ class JobCancelChecker @JvmOverloads constructor(
  * @see cancelIfActive
  */
 fun CoroutineScope.cancelIfActive(message: String, cause: Throwable? = null) =
-  cancelIfActive(CancellationException(message, cause))
+	cancelIfActive(CancellationException(message, cause))
 
 /**
  * Calls [CoroutineScope.cancel] only if a job is active in the scope.
@@ -60,8 +62,8 @@ fun CoroutineScope.cancelIfActive(message: String, cause: Throwable? = null) =
  * @param exception Optional cause of the cancellation.
  */
 fun CoroutineScope.cancelIfActive(exception: CancellationException? = null) {
-  val job = coroutineContext[Job]
-  job?.cancel(exception)
+	val job = coroutineContext[Job]
+	job?.cancel(exception)
 }
 
 /**
@@ -75,29 +77,36 @@ fun CoroutineScope.cancelIfActive(exception: CancellationException? = null) {
  * @param action The action to be executed.
  * @see CoroutineScope.launch
  */
-inline fun CoroutineScope.launchAsyncWithProgress(
-  context: CoroutineContext = EmptyCoroutineContext,
-  start: CoroutineStart = CoroutineStart.DEFAULT,
-  crossinline configureFlashbar: (Flashbar.Builder, ICancelChecker) -> Unit = { _, _ -> },
-  crossinline invokeOnCompletion: (Throwable?) -> Unit = {},
-  crossinline action: suspend CoroutineScope.(flashbar: Flashbar, cancelChecker: ICancelChecker) -> Unit
-): Job? {
+suspend inline fun doAsyncWithProgress(
+	context: CoroutineContext = EmptyCoroutineContext,
+	start: CoroutineStart = CoroutineStart.DEFAULT,
+	crossinline configureFlashbar: (Flashbar.Builder, ICancelChecker) -> Unit = { _, _ -> },
+	crossinline invokeOnCompletion: (Throwable?) -> Unit = {},
+	crossinline action: suspend CoroutineScope.(flashbar: Flashbar, cancelChecker: ICancelChecker) -> Unit
+): Job? = coroutineScope {
+	val cancelChecker = JobCancelChecker()
+	val flashbar = flashProgress {
+		configureFlashbar(this, cancelChecker)
+	}
 
-  val cancelChecker = JobCancelChecker()
+	if (flashbar == null) {
+		return@coroutineScope null
+	}
 
-  return flashProgress({
-    configureFlashbar(this, cancelChecker)
-  }) { flashbar ->
-    return@flashProgress launch(context = context, start = start) {
-      cancelChecker.job = coroutineContext[Job]
-      action(flashbar, cancelChecker)
-    }.also { job ->
-      job.invokeOnCompletion { throwable ->
-        runOnUiThread { flashbar.dismiss() }
-        invokeOnCompletion(throwable)
-      }
-    }
-  }
+	val job = launch(context = context, start = start) {
+		cancelChecker.job = coroutineContext[Job]
+		action(flashbar, cancelChecker)
+	}
+
+	job.invokeOnCompletion { throwable ->
+		launch(context = Dispatchers.Main.immediate) {
+			flashbar.dismiss()
+		}
+
+		invokeOnCompletion(throwable)
+	}
+
+	return@coroutineScope job
 }
 
 /**
@@ -107,14 +116,14 @@ inline fun CoroutineScope.launchAsyncWithProgress(
  * @param action The action to run if this [Throwable] was cancelled or interrupted.
  */
 inline fun Throwable.ifCancelledOrInterrupted(suppress: Boolean = false, action: () -> Unit) {
-  when (this) {
-    is CancellationException,
-    is InterruptedException,
-    is InterruptedIOException -> {
-      action()
-      if (!suppress) {
-        throw this
-      }
-    }
-  }
+	when (this) {
+		is CancellationException,
+		is InterruptedException,
+		is InterruptedIOException -> {
+			action()
+			if (!suppress) {
+				throw this
+			}
+		}
+	}
 }

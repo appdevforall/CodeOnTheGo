@@ -1,0 +1,642 @@
+{
+  "android.view.View": [
+    {
+      "name": "android:id",
+      "methodName": "setId",
+      "className": "ViewCaller",
+      "attributeName": "android:id",
+      "argumentType": "id"
+    },
+    {
+      "name": "android:layout_width",
+      "methodName": "setLayoutWidth",
+      "className": "ViewCaller",
+      "attributeName": "android:layout_width",
+      "argumentType": "size",
+      "canDelete": "false"
+    },
+    {
+      "name": "android:layout_height",
+      "methodName": "setLayoutHeight",
+      "className": "ViewCaller",
+      "attributeName": "android:layout_height",
+      "argumentType": "size",
+      "canDelete": "false"
+    },
+    {
+      "name": "android:alpha",
+      "methodName": "setAlpha",
+      "className": "ViewCaller",
+      "attributeName": "android:alpha",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:background",
+      "methodName": "setBackground",
+      "className": "ViewCaller",
+      "attributeName": "android:background",
+      "argumentType": "color|drawable"
+    },
+    {
+      "name": "android:foreground",
+      "methodName": "setForeground",
+      "className": "ViewCaller",
+      "attributeName": "android:foreground",
+      "argumentType": "color|drawable"
+    },
+    {
+      "name": "android:elevation",
+      "methodName": "setElevation",
+      "className": "ViewCaller",
+      "attributeName": "android:elevation",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:padding",
+      "methodName": "setPadding",
+      "className": "ViewCaller",
+      "attributeName": "android:padding",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:paddingLeft",
+      "methodName": "setPaddingLeft",
+      "className": "ViewCaller",
+      "attributeName": "android:paddingLeft",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:paddingRight",
+      "methodName": "setPaddingRight",
+      "className": "ViewCaller",
+      "attributeName": "android:paddingRight",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:paddingTop",
+      "methodName": "setPaddingTop",
+      "className": "ViewCaller",
+      "attributeName": "android:paddingTop",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:paddingBottom",
+      "methodName": "setPaddingBottom",
+      "className": "ViewCaller",
+      "attributeName": "android:paddingBottom",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:rotation",
+      "methodName": "setRotation",
+      "className": "ViewCaller",
+      "attributeName": "android:rotation",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:rotationX",
+      "methodName": "setRotationX",
+      "className": "ViewCaller",
+      "attributeName": "android:rotationX",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:rotationY",
+      "methodName": "setRotationY",
+      "className": "ViewCaller",
+      "attributeName": "android:rotationY",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:translationX",
+      "methodName": "setTranslationX",
+      "className": "ViewCaller",
+      "attributeName": "android:translationX",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:translationY",
+      "methodName": "setTranslationY",
+      "className": "ViewCaller",
+      "attributeName": "android:translationY",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:translationZ",
+      "methodName": "setTranslationZ",
+      "className": "ViewCaller",
+      "attributeName": "android:translationZ",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "android:scaleX",
+      "methodName": "setScaleX",
+      "className": "ViewCaller",
+      "attributeName": "android:scaleX",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:scaleY",
+      "methodName": "setScaleY",
+      "className": "ViewCaller",
+      "attributeName": "android:scaleY",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:enabled",
+      "methodName": "setEnabled",
+      "className": "ViewCaller",
+      "attributeName": "android:enabled",
+      "argumentType": "boolean"
+    },
+    {
+      "name": "android:visibility",
+      "methodName": "setVisibility",
+      "className": "ViewCaller",
+      "attributeName": "android:visibility",
+      "argumentType": "enum",
+      "arguments": [
+        "visible",
+        "invisible",
+        "gone"
+      ],
+      "defaultValue": "-1"
+    }
+  ],
+  "android.widget.LinearLayout": [
+    {
+      "name": "android:gravity",
+      "methodName": "setGravity",
+      "className": "LinearLayoutCaller",
+      "attributeName": "android:gravity",
+      "argumentType": "flag",
+      "arguments": [
+        "left",
+        "right",
+        "top",
+        "bottom",
+        "center",
+        "center_horizontal",
+        "center_vertical",
+        "fill",
+        "fill_horizontal",
+        "fill_vertical",
+        "clip_horizontal",
+        "clip_vertical",
+        "start",
+        "end"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:orientation",
+      "methodName": "setOrientation",
+      "className": "LinearLayoutCaller",
+      "attributeName": "android:orientation",
+      "argumentType": "enum",
+      "arguments": [
+        "horizontal",
+        "vertical"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:weightSum",
+      "methodName": "setWeightSum",
+      "className": "layouts.LinearLayoutCaller",
+      "attributeName": "android:weightSum",
+      "argumentType": "float"
+    }
+  ],
+  "androidx.cardview.widget.CardView": [
+    {
+      "name": "app:cardElevation",
+      "methodName": "setCardElevation",
+      "className": "CardViewCaller",
+      "attributeName": "app:cardElevation",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "app:cardCornerRadius",
+      "methodName": "setCardCornerRadius",
+      "className": "CardViewCaller",
+      "attributeName": "app:cardCornerRadius",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "app:cardBackgroundColor",
+      "methodName": "setCardBackgroundColor",
+      "className": "CardViewCaller",
+      "attributeName": "app:cardBackgroundColor",
+      "argumentType": "color"
+    },
+    {
+      "name": "app:cardUseCompatPadding",
+      "methodName": "setCardUseCompatPadding",
+      "className": "CardViewCaller",
+      "attributeName": "app:cardUseCompatPadding",
+      "argumentType": "boolean",
+      "defaultValue": "false"
+    }
+  ],
+  "android.widget.TextView": [
+    {
+      "name": "android:text",
+      "methodName": "setText",
+      "className": "text.TextViewCaller",
+      "attributeName": "android:text",
+      "argumentType": "text|string"
+    },
+    {
+      "name": "android:textSize",
+      "methodName": "setTextSize",
+      "className": "text.TextViewCaller",
+      "attributeName": "android:textSize",
+      "argumentType": "dimension",
+      "dimensionUnit": "sp"
+    },
+    {
+      "name": "android:textColor",
+      "methodName": "setTextColor",
+      "className": "text.TextViewCaller",
+      "attributeName": "android:textColor",
+      "argumentType": "color"
+    },
+    {
+      "name": "android:textStyle",
+      "methodName": "setTextStyle",
+      "className": "text.TextViewCaller",
+      "attributeName": "android:textStyle",
+      "argumentType": "enum",
+      "arguments": [
+        "normal",
+        "bold",
+        "italic",
+        "bold|italic"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:gravity",
+      "methodName": "setGravity",
+      "className": "text.TextViewCaller",
+      "attributeName": "android:gravity",
+      "argumentType": "flag",
+      "arguments": [
+        "left",
+        "right",
+        "top",
+        "bottom",
+        "center",
+        "center_horizontal",
+        "center_vertical",
+        "fill",
+        "fill_horizontal",
+        "fill_vertical",
+        "clip_horizontal",
+        "clip_vertical",
+        "start",
+        "end"
+      ],
+      "defaultValue": "-1"
+    }
+  ],
+  "android.widget.CheckedTextView": [
+    {
+      "name": "android:checkMark",
+      "methodName": "setCheckMark",
+      "className": "text.TextViewCaller",
+      "attributeName": "android:checkMark",
+      "argumentType": "drawable"
+    },
+    {
+      "name": "android:checked",
+      "methodName": "setChecked",
+      "className": "text.TextViewCaller",
+      "attributeName": "android:checked",
+      "argumentType": "boolean"
+    }
+  ],
+  "android.widget.AutoCompleteTextView": [
+    {
+      "name": "android:completionHint",
+      "methodName": "setCompletionHint",
+      "className": "text.AutoCompleteTextViewCaller",
+      "attributeName": "android:completionHint",
+      "argumentType": "string|text"
+    },
+    {
+      "name": "android:dropDownHeight",
+      "methodName": "setDropDownHeight",
+      "className": "text.AutoCompleteTextViewCaller",
+      "attributeName": "android:dropDownHeight",
+      "argumentType": "size"
+    },
+    {
+      "name": "android:dropDownHorizontalOffset",
+      "methodName": "setDropDownHorizontalOffset",
+      "className": "text.AutoCompleteTextViewCaller",
+      "attributeName": "android:dropDownHorizontalOffset",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:dropDownVerticalOffset",
+      "methodName": "setDropDownVerticalOffset",
+      "className": "text.AutoCompleteTextViewCaller",
+      "attributeName": "android:dropDownVerticalOffset",
+      "argumentType": "float"
+    },
+    {
+      "name": "android:dropDownWidth",
+      "methodName": "setDropDownWidth",
+      "className": "text.AutoCompleteTextViewCaller",
+      "attributeName": "android:dropDownWidth",
+      "argumentType": "size"
+    },
+    {
+      "name": "android:popupBackground",
+      "methodName": "setDropDownBackgroundResource",
+      "className": "text.AutoCompleteTextViewCaller",
+      "attributeName": "android:popupBackground",
+      "argumentType": "color"
+    },
+    {
+      "name": "android:completionThreshold",
+      "methodName": "setThreshold",
+      "className": "text.AutoCompleteTextViewCaller",
+      "attributeName": "android:completionThreshold",
+      "argumentType": "int"
+    }
+  ],
+  "android.widget.EditText": [
+    {
+      "name": "android:hint",
+      "methodName": "setHint",
+      "className": "text.EditTextCaller",
+      "attributeName": "android:hint",
+      "argumentType": "text|string"
+    },
+    {
+      "name": "android:inputType",
+      "methodName": "setInputType",
+      "className": "text.EditTextCaller",
+      "attributeName": "android:inputType",
+      "argumentType": "flag",
+      "arguments": [
+        "date",
+        "datetime",
+        "none",
+        "number",
+        "numberDecimal",
+        "numberSigned",
+        "numberPassword",
+        "phone",
+        "text",
+        "textAutoComplete",
+        "textAutoCorrect",
+        "textCapCharacters",
+        "textCapSentences",
+        "textCapWords",
+        "textEmailAddress",
+        "textEmailSubject",
+        "textEnableTextConversionSuggestions",
+        "textFilter",
+        "textImeMultiLine",
+        "textLongMessage",
+        "textMultiLine",
+        "textNoSuggestions",
+        "textPassword",
+        "textPersonName",
+        "textPhonetic",
+        "textPostalAddress",
+        "textShortMessage",
+        "textUri",
+        "textVisiblePassword",
+        "textWebEditText",
+        "textWebEmailAddress",
+        "textWebPassword",
+        "time"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:textColorHint",
+      "methodName": "setHintTextColor",
+      "className": "text.EditTextCaller",
+      "attributeName": "android:textColorHint",
+      "argumentType": "color"
+    },
+    {
+      "name": "android:singleLine",
+      "methodName": "setSingleLine",
+      "className": "text.EditTextCaller",
+      "attributeName": "android:singleLine",
+      "argumentType": "boolean"
+    }
+  ],
+  "android.widget.ImageView": [
+    {
+      "name": "android:src",
+      "methodName": "setImage",
+      "className": "ImageViewCaller",
+      "attributeName": "android:src",
+      "argumentType": "drawable"
+    },
+    {
+      "name": "android:scaleType",
+      "methodName": "setScaleType",
+      "className": "ImageViewCaller",
+      "attributeName": "android:scaleType",
+      "argumentType": "enum",
+      "arguments": [
+        "fitXY",
+        "fitStart",
+        "fitCenter",
+        "fitEnd",
+        "center",
+        "centerCrop",
+        "centerInside"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:tint",
+      "methodName": "setTint",
+      "className": "ImageViewCaller",
+      "attributeName": "android:tint",
+      "argumentType": "color"
+    }
+  ],
+  "androidx.appcompat.widget.AppCompatImageView": [
+    {
+      "name": "android:src",
+      "methodName": "setImage",
+      "className": "ImageViewCaller",
+      "attributeName": "android:src",
+      "argumentType": "drawable"
+    },
+    {
+      "name": "app:srcCompat",
+      "methodName": "setImage",
+      "className": "ImageViewCaller",
+      "attributeName": "app:srcCompat",
+      "argumentType": "drawable"
+    },
+    {
+      "name": "android:scaleType",
+      "methodName": "setScaleType",
+      "className": "ImageViewCaller",
+      "attributeName": "android:scaleType",
+      "argumentType": "enum",
+      "arguments": [
+        "fitXY",
+        "fitStart",
+        "fitCenter",
+        "fitEnd",
+        "center",
+        "centerCrop",
+        "centerInside"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:tint",
+      "methodName": "setTint",
+      "className": "ImageViewCaller",
+      "attributeName": "android:tint",
+      "argumentType": "color"
+    }
+  ],
+  "com.google.android.material.floatingactionbutton.FloatingActionButton": [
+    {
+      "name": "app:background",
+      "methodName": "setBackgroundColor",
+      "className": "FABCaller",
+      "attributeName": "app:background",
+      "argumentType": "color"
+    },
+    {
+      "name": "app:fabSize",
+      "methodName": "setSize",
+      "className": "FABCaller",
+      "attributeName": "app:fabSize",
+      "argumentType": "enum",
+      "arguments": [
+        "auto",
+        "mini",
+        "normal"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "app:fabCustomSize",
+      "methodName": "setCustomSize",
+      "className": "FABCaller",
+      "attributeName": "app:fabCustomSize",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    },
+    {
+      "name": "app:elevation",
+      "methodName": "setCompatElevation",
+      "className": "FABCaller",
+      "attributeName": "app:elevation",
+      "argumentType": "dimension",
+      "dimensionUnit": "dp"
+    }
+  ],
+  "android.widget.Switch": [
+    {
+      "name": "android:checked",
+      "methodName": "setChecked",
+      "className": "SwitchCaller",
+      "attributeName": "android:checked",
+      "argumentType": "boolean"
+    }
+  ],
+  "androidx.appcompat.widget.SwitchCompat": [
+    {
+      "name": "android:checked",
+      "methodName": "setChecked",
+      "className": "SwitchCaller",
+      "attributeName": "android:checked",
+      "argumentType": "boolean"
+    }
+  ],
+  "android.widget.ProgressBar": [
+    {
+      "name": "android:progress",
+      "methodName": "setProgress",
+      "className": "ProgressBarCaller",
+      "attributeName": "android:progress",
+      "argumentType": "int"
+    },
+    {
+      "name": "android:max",
+      "methodName": "setMax",
+      "className": "ProgressBarCaller",
+      "attributeName": "android:max",
+      "argumentType": "int"
+    },
+    {
+      "name": "android:indeterminate",
+      "methodName": "setIndeterminate",
+      "className": "ProgressBarCaller",
+      "attributeName": "android:indeterminate",
+      "argumentType": "boolean"
+    }
+  ],
+  "android.widget.ScrollView": [
+    {
+      "name": "android:fillViewport",
+      "methodName": "setFillViewport",
+      "className": "containers.ScrollViewCaller",
+      "attributeName": "android:fillViewport",
+      "argumentType": "boolean"
+    }
+  ],
+  "android.widget.FrameLayout": [
+    {
+      "name": "android:foregroundGravity",
+      "methodName": "setForegroundGravity",
+      "className": "layouts.FrameLayoutCaller",
+      "attributeName": "android:foregroundGravity",
+      "argumentType": "flag",
+      "arguments": [
+        "left",
+        "right",
+        "top",
+        "bottom",
+        "center",
+        "center_horizontal",
+        "center_vertical",
+        "fill",
+        "fill_horizontal",
+        "fill_vertical",
+        "clip_horizontal",
+        "clip_vertical",
+        "start",
+        "end"
+      ],
+      "defaultValue": "-1"
+    },
+    {
+      "name": "android:measureAllChildren",
+      "methodName": "setMeasureAllChildren",
+      "className": "layouts.FrameLayoutCaller",
+      "attributeName": "android:measureAllChildren",
+      "argumentType": "boolean"
+    }
+  ]
+}

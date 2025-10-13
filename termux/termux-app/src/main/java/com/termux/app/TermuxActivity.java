@@ -58,6 +58,7 @@ import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 import com.termux.view.TerminalView;
 import com.termux.view.TerminalViewClient;
+import com.itsaky.androidide.FeedbackButtonManager;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -165,6 +166,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
     protected float mTerminalToolbarDefaultHeight;
 
+    private FeedbackButtonManager feedbackButtonManager;
 
     protected static final int CONTEXT_MENU_SELECT_URL_ID = 0;
     protected static final int CONTEXT_MENU_SHARE_TRANSCRIPT_ID = 1;
@@ -245,6 +247,9 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
         FileReceiverActivity.updateFileReceiverActivityComponentsState(this);
 
+        feedbackButtonManager = new FeedbackButtonManager(this, findViewById(R.id.fab_feedback));
+        feedbackButtonManager.setupDraggableFab();
+
         try {
             // Start the {@link TermuxService} and make it run regardless of who is bound to it
             Intent serviceIntent = new Intent(this, TermuxService.class);
@@ -309,6 +314,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
         TermuxCrashUtils.notifyAppCrashFromCrashLogFile(this, LOG_TAG);
 
         mIsOnResumeAfterOnCreate = false;
+        feedbackButtonManager.loadFabPosition();
     }
 
     @Override

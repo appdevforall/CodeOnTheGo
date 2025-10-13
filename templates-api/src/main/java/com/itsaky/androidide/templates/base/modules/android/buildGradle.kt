@@ -22,6 +22,9 @@ import com.itsaky.androidide.templates.ModuleType
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.ModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.modules.dependencies
+import com.itsaky.androidide.utils.Environment
+import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
+import org.adfa.constants.KOTLIN_VERSION
 
 private const val compose_kotlinCompilerExtensionVersion = "1.5.10"
 
@@ -45,25 +48,53 @@ private fun AndroidModuleTemplateBuilder.buildGradleSrcKts(
     isComposeModule: Boolean
 ): String {
     return """
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     ${androidPlugin(isComposeModule)}
     ${ktPlugin(isComposeModule)}
 }
 
+val keystorePropsFile = rootProject.file("${Environment.KEYSTORE_PROPERTIES_NAME}")
+val keystoreProps = Properties()
+
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(FileInputStream(keystorePropsFile))
+}
+
+val hasValidSigningProps = keystorePropsFile.exists().also { exists ->
+    if (exists) {
+        FileInputStream(keystorePropsFile).use { keystoreProps.load(it) }
+    }
+}.let {
+    listOf("${Environment.KEYSTORE_PROP_STOREFILE}", "${Environment.KEYSTORE_PROP_STOREPWD}", 
+            "${Environment.KEYSTORE_PROP_KEYALIAS}", "${Environment.KEYSTORE_PROP_KEYPWD}").all { key ->
+        keystoreProps[key] != null
+    }
+}
+
+
 android {
     namespace = "${data.packageName}"
     compileSdk = ${if (isComposeModule) data.versions.composeSdk.api else data.versions.targetSdk.api}
-    // currently this is hardcodede to make it work but we should probably make it dependant on the
-    // onboarding choice.
-    
-    buildToolsVersion = "34.0.4" 
     
     // disable linter
-    lintOptions {
-        isCheckReleaseBuilds = false
+    lint {
+        checkReleaseBuilds = false
     }
-    
-    
+        
+    signingConfigs {
+        if (hasValidSigningProps) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps["${Environment.KEYSTORE_PROP_STOREFILE}"] as String)
+                storePassword = keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"] as String
+                keyAlias = keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"] as String
+                keyPassword = keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"] as String
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "${data.packageName}"
         minSdk = ${data.versions.minSdk.api}
@@ -83,6 +114,9 @@ android {
 
     buildTypes {
         release {
+            if (hasValidSigningProps) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -94,6 +128,11 @@ android {
     }
     ${composeConfigKts()}
 }
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:deprecation")
+}
+
 ${ktJvmTarget()}
 ${dependencies()}
 """
@@ -103,23 +142,50 @@ private fun AndroidModuleTemplateBuilder.buildGradleSrcGroovy(
     isComposeModule: Boolean
 ): String {
     return """
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id '$androidPlugin'
     ${ktPlugin(isComposeModule)}
 }
 
+def keystorePropsFile = rootProject.file("${Environment.KEYSTORE_PROPERTIES_NAME}")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+def hasValidSigningProps = false
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+
+    def requiredKeys = ["${Environment.KEYSTORE_PROP_STOREFILE}", "${Environment.KEYSTORE_PROP_STOREPWD}", 
+                        "${Environment.KEYSTORE_PROP_KEYALIAS}", "${Environment.KEYSTORE_PROP_KEYPWD}"]
+    hasValidSigningProps = requiredKeys.every { key -> keystoreProps[key] }
+}
+
+
 android {
     namespace '${data.packageName}'
     compileSdk ${data.versions.compileSdk.api}
-    // currently this is hardcodede to make it work but we should probably make it dependant on the
-    // onboarding choice.
-    buildToolsVersion = "34.0.4"
     
     // disable linter
-    lintOptions {
-        checkReleaseBuilds  false
+    lint {
+        checkReleaseBuilds =  false
     }
-    
+
+    if (hasValidSigningProps) {
+        signingConfigs {
+            release {
+                storeFile = rootProject.file((String) keystoreProps["${Environment.KEYSTORE_PROP_STOREFILE}"])
+                storePassword keystoreProps["${Environment.KEYSTORE_PROP_STOREPWD}"]
+                keyAlias keystoreProps["${Environment.KEYSTORE_PROP_KEYALIAS}"]
+                keyPassword keystoreProps["${Environment.KEYSTORE_PROP_KEYPWD}"]
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "${data.packageName}"
         minSdk ${data.versions.minSdk.api}
@@ -134,6 +200,9 @@ android {
 
     buildTypes {
         release {
+            if (hasValidSigningProps) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -150,6 +219,9 @@ android {
     }
     ${composeConfigGroovy()}
 }
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
+}
 ${ktJvmTarget()}
 ${dependencies()}
 """
@@ -159,7 +231,7 @@ fun composeConfigGroovy(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion '$compose_kotlinCompilerExtensionVersion'
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
@@ -215,7 +287,7 @@ fun composeConfigKts(): String = """
     composeOptions {
         kotlinCompilerExtensionVersion = "$compose_kotlinCompilerExtensionVersion"
     }
-    packagingOptions {
+    packaging {
         resources {
             resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
             resources.excludes.add("META-INF/kotlinx_coroutines_core.version")
@@ -304,18 +376,20 @@ private fun AndroidModuleTemplateBuilder.ktPlugin(isToml: Boolean = false): Stri
     return if (data.useKts) ktPluginKts(isToml) else ktPluginGroovy()
 }
 
-private fun androidPluginKts(isToml: Boolean): String {
-    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "8.0.0" """
+private fun AndroidModuleTemplateBuilder.androidPluginKts(isToml: Boolean): String {
+    return if (isToml) """alias(libs.plugins.android.application)""" else """id("com.android.application") version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
-private fun androidPluginGroovy(): String {
-    return """id "com.android.application" version "8.0.0" """
+private fun AndroidModuleTemplateBuilder. androidPluginGroovy(): String {
+    return """id "com.android.application" version "$ANDROID_GRADLE_PLUGIN_VERSION" """
 }
 
 private fun ktPluginKts(isToml: Boolean): String {
-    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "1.9.22" """
+    return if (isToml) """alias(libs.plugins.jetbrains.kotlin.android)""" else """kotlin("android") version "$KOTLIN_VERSION" """
 }
 
 private fun ktPluginGroovy(): String {
-    return "id 'org.jetbrains.kotlin.android' version '1.9.22'"
+    // TODO: The version name must be fetched from ProjectVersionData instance and must not be
+    //       hardcoded like this
+    return "id 'org.jetbrains.kotlin.android' version '${KOTLIN_VERSION}'"
 }

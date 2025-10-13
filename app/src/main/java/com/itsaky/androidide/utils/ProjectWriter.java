@@ -87,15 +87,38 @@ public class ProjectWriter {
   }
 
   public static String getPackageName(File parentPath) {
+    // Returns the package name or the closest internal and if none is found, returns null
     Matcher pkgMatcher = Pattern.compile(SOURCE_PATH_REGEX).matcher(parentPath.getAbsolutePath());
+
     if (pkgMatcher.find()) {
       int end = pkgMatcher.end();
       if (end <= 0) return "";
-      String name = parentPath.getAbsolutePath().substring(pkgMatcher.end());
-      if (name.startsWith(File.separator)) name = name.substring(1);
-      return name.replace(File.separator, ".");
+
+      String name = parentPath.getAbsolutePath().substring(end);
+      if (name.startsWith(File.separator)) {
+        name = name.substring(1);
+      }
+
+      if (!name.isEmpty()) {
+        return name.replace(File.separator, ".");
+      }
+
+      File[] files = parentPath.listFiles();
+      if (files != null) {
+        for (File file : files) {
+          if (file.isDirectory() && isValidPackageName(file.getName())) {
+            return file.getName();
+          }
+        }
+      }
+      return "";
     }
+
     return null;
+  }
+
+  private static boolean isValidPackageName(String name) {
+    return name.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
   }
 
   public static String createJavaClass(String packageName, String className) {
@@ -110,7 +133,7 @@ public class ProjectWriter {
     return ClassBuilder.createEnum(packageName, className);
   }
 
-  public static String createActivity(String packageName, String className) {
-    return ClassBuilder.createActivity(packageName, className);
+  public static String createActivity(String packageName, String className, boolean appCompatActivity) {
+    return ClassBuilder.createActivity(packageName, className, appCompatActivity);
   }
 }
