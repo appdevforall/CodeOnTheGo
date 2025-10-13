@@ -370,3 +370,9 @@ jobs:
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
 
           rm -f payload.json
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          echo "google-services.json cleaned up successfully"
