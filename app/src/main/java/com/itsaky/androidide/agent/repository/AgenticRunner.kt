@@ -14,6 +14,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
@@ -51,8 +52,8 @@ class AgenticRunner(
     )
     override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    private val runnerJob = Job()
-    private val runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
+    private var runnerJob: Job = SupervisorJob()
+    private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
 
     private val plannerClient: GeminiClient by lazy {
         // Fetch the key when the client is first needed
@@ -91,7 +92,9 @@ class AgenticRunner(
      */
     override fun stop() {
         log.info("Stop requested for AgenticRunner. Cancelling job.")
-        runnerJob.cancel("User requested to stop the agent.")
+        runnerScope.cancel("User requested to stop the agent.")
+        runnerJob = SupervisorJob()
+        runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
     }
 
     override fun getPartialReport(): String {
