@@ -25,6 +25,8 @@ import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.ACTION_EDIT
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.ChatSession
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
@@ -66,6 +68,7 @@ class ChatFragment :
     private val selectedImageUris = mutableListOf<Uri>()
     private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
     private lateinit var markwon: Markwon
+    private var lastRenderedMessages: List<ChatMessage> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,12 +111,17 @@ class ChatFragment :
         chatViewModel.backendStatus.observe(viewLifecycleOwner) { status ->
             binding.backendStatusText.text = status.displayText
         }
+        chatViewModel.currentSession.observe(viewLifecycleOwner) { session ->
+            updateToolbarForSession(session)
+        }
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 chatViewModel.chatMessages.collect { messages ->
+                    lastRenderedMessages = messages
                     chatAdapter.submitList(messages)
                     updateUIState(messages)
+                    updateToolbarForMessages(messages)
                     if (messages.isNotEmpty()) {
                         binding.chatRecyclerView.scrollToPosition(messages.size - 1)
                     }
@@ -330,7 +338,60 @@ class ChatFragment :
     private fun updateUIState(messages: List<ChatMessage>) {
         val hasMessages = messages.isNotEmpty()
         binding.emptyChatView.isVisible = !hasMessages
+        if (!hasMessages) {
+            val sessionTitle = chatViewModel.currentSession.value?.title
+            binding.emptyChatView.text =
+                sessionTitle?.takeIf { it.isNotBlank() } ?: getString(R.string.new_chat)
+        }
         binding.chatRecyclerView.isVisible = hasMessages
+    }
+
+    private fun updateToolbarForSession(session: ChatSession?) {
+        updateToolbar(
+            sessionTitle = session?.title,
+            messages = lastRenderedMessages
+        )
+    }
+
+    private fun updateToolbarForMessages(messages: List<ChatMessage>) {
+        updateToolbar(
+            sessionTitle = chatViewModel.currentSession.value?.title,
+            messages = messages
+        )
+    }
+
+    private fun updateToolbar(sessionTitle: String?, messages: List<ChatMessage>) {
+        val title = when {
+            messages.isNotEmpty() -> {
+                val firstUserMessage = messages.firstOrNull { it.sender == Sender.USER }?.text
+                val fallback = firstUserMessage ?: messages.first().text
+                formatChatTitle(fallback)
+            }
+
+            !sessionTitle.isNullOrBlank() -> formatChatTitle(sessionTitle)
+
+            else -> getString(R.string.new_chat)
+        }
+        binding.chatToolbar.title = title
+
+        val menuItem = binding.chatToolbar.menu.findItem(R.id.menu_new_chat)
+        val isNewChatDisplayed = messages.isEmpty()
+        menuItem?.isEnabled = !isNewChatDisplayed
+        val alpha = if (!isNewChatDisplayed) 255 else (255 * 0.4f).toInt()
+        menuItem?.icon?.mutate()?.alpha = alpha
+    }
+
+    private fun formatChatTitle(rawTitle: String?): String {
+        if (rawTitle.isNullOrBlank()) {
+            return getString(R.string.new_chat)
+        }
+        val trimmed = rawTitle.trim()
+        val maxLength = 48
+        return if (trimmed.length <= maxLength) {
+            trimmed
+        } else {
+            trimmed.take(maxLength - 3).trimEnd() + "..."
+        }
     }
 
 
