@@ -7,7 +7,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.activityViewModels
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.itsaky.androidide.R
@@ -50,7 +49,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
-import com.itsaky.androidide.FeedbackButtonManager
 import org.eclipse.jgit.api.CloneCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.ProgressMonitor
@@ -155,11 +153,6 @@ class MainFragment : BaseFragment() {
             TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
-
-        FeedbackButtonManager(
-            activity = requireActivity() as AppCompatActivity,
-            feedbackFab = binding?.floatingActionButton,
-        ).setupDraggableFab()
     }
 
     private fun performOptionsMenuClick(action: MainScreenAction) {
