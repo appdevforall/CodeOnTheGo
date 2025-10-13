@@ -24,6 +24,7 @@ class FeedbackButtonManager(
         const val KEY_FAB_Y = "fab_y"
 	}
 
+	// This function is called in the onCreate method of the activity that contains the FAB
 	fun setupDraggableFab() {
         if (feedbackFab != null) {
             loadFabPosition()
@@ -131,7 +132,8 @@ class FeedbackButtonManager(
 		}
 	}
 
-	private fun loadFabPosition() {
+    // Called in onResume for returning activities to reload FAB position
+    fun loadFabPosition() {
         if (feedbackFab != null) {
             val prefs =
                 activity.applicationContext.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)
