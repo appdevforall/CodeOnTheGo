@@ -26,6 +26,9 @@ env:
   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MVN_SIGNING_KEY_PASSWORD }}
   FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
   SENTRY_DSN_RELEASE: ${{ secrets.SENTRY_DSN_RELEASE }}
+  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
   build_apk:
@@ -172,6 +175,13 @@ jobs:
       - name: Install Flox
         if: env.nix_installed == 'false'
         uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "google-services.json created successfully"
 
       - name: Assemble Release APK
         run: |
@@ -360,3 +370,9 @@ jobs:
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
 
           rm -f payload.json
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          echo "google-services.json cleaned up successfully"
