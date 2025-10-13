@@ -23,6 +23,7 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.Insets
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
@@ -36,6 +37,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
   private var _binding: ActivityPreferencesBinding? = null
   private val binding: ActivityPreferencesBinding
     get() = checkNotNull(_binding) { "Activity has been destroyed" }
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
   private val rootFragment by lazy {
     IDEPreferencesFragment()
@@ -60,6 +62,12 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
     supportActionBar!!.setDisplayHomeAsUpEnabled(true)
 
     binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+
+      feedbackButtonManager = FeedbackButtonManager(
+          activity = this,
+          feedbackFab = binding.fabFeedback,
+      )
+      feedbackButtonManager?.setupDraggableFab()
 
     if (savedInstanceState != null) {
       return
@@ -118,4 +126,9 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
     gestureDetector.onTouchEvent(ev)
     return super.dispatchTouchEvent(ev)
   }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
 }
