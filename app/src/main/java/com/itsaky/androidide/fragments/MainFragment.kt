@@ -170,6 +170,7 @@ class MainFragment : BaseFragment() {
             TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
+        binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
 
         setupDraggableFab()
     }
