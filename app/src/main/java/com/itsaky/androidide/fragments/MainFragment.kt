@@ -1,25 +1,15 @@
 package com.itsaky.androidide.fragments
 
-import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.view.GestureDetector
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.activity.result.ActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.activityViewModels
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
-import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.activities.PreferencesActivity
 import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.activities.editor.HelpActivity
@@ -29,7 +19,6 @@ import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
 import com.itsaky.androidide.databinding.FragmentMainBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.FEEDBACK
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_HELP
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_PROJECT_DELETE
@@ -49,7 +38,7 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeedbackManager
+import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -83,18 +72,7 @@ class MainFragment : BaseFragment() {
         private val log = LoggerFactory.getLogger(MainFragment::class.java)
         const val KEY_TOOLTIP_URL = "tooltip_url"
 
-        private const val FAB_PREFS = "FabPrefs"
-        private const val KEY_FAB_X = "fab_x"
-        private const val KEY_FAB_Y = "fab_y"
     }
-
-    private val shareActivityResultLauncher =
-        registerForActivityResult<Intent, ActivityResult>(
-            ActivityResultContracts.StartActivityForResult(),
-        ) {
-            // ACTION_SEND always returns RESULT_CANCELLED, ignore it
-            // There are no request codes
-        }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -171,129 +149,6 @@ class MainFragment : BaseFragment() {
             true
         }
         binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
-
-        setupDraggableFab()
-    }
-
-    private fun setupDraggableFab() {
-        val fab = binding?.floatingActionButton ?: return
-
-        loadFabPosition(fab)
-
-        var initialX = 0f
-        var initialY = 0f
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-        var isDragging = false
-        var isLongPressed = false
-
-        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
-            override fun onLongPress(e: MotionEvent) {
-                if (!isDragging) {
-                    isLongPressed = true
-                    TooltipManager.showTooltip(requireContext(), fab, FEEDBACK)
-                }
-            }
-        })
-
-        @SuppressLint("ClickableViewAccessibility")
-        fab.setOnTouchListener { v, event ->
-            val parentView = v.parent as? ViewGroup ?: return@setOnTouchListener false
-            
-            gestureDetector.onTouchEvent(event)
-
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = v.x
-                    initialY = v.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    isDragging = false
-                    isLongPressed = false
-                    true
-                }
-
-                MotionEvent.ACTION_MOVE -> {
-                    val dX = event.rawX - initialTouchX
-                    val dY = event.rawY - initialTouchY
-
-                    if (!isDragging &&
-                        kotlin.math.sqrt((dX * dX + dY * dY).toDouble()) >
-                        ViewConfiguration
-                            .get(
-                                v.context,
-                            ).scaledTouchSlop
-                    ) {
-                        isDragging = true
-                    }
-
-                    if (isDragging) {
-                        v.x = (initialX + dX).coerceIn(0f, (parentView.width - v.width).toFloat())
-                        v.y = (initialY + dY).coerceIn(0f, (parentView.height - v.height).toFloat())
-                    }
-                    true
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    if (isDragging) {
-                        // This is the new snap-to-edge logic
-                        val middle = parentView.width / 2
-                        val targetX =
-                            if ((v.x + v.width / 2) < middle) {
-                                0f // Snap to left edge
-                            } else {
-                                (parentView.width - v.width).toFloat() // Snap to right edge
-                            }
-
-                        // Animate to the target edge after a short delay
-                        v.postDelayed({
-                            v
-                                .animate()
-                                .x(targetX)
-                                .setDuration(200)
-                                .withEndAction {
-                                    // Save the final position AFTER the animation completes
-                                    saveFabPosition(targetX, v.y)
-                                }.start()
-                        }, 500) // 500ms delay before snapping
-                    } else if (!isLongPressed) {
-                        v.performClick()
-                    }
-                    true
-                }
-
-                else -> false
-            }
-        }
-
-        fab.setOnClickListener {
-            performFeedbackAction()
-        }
-    }
-
-    private fun saveFabPosition(
-        x: Float,
-        y: Float,
-    ) {
-        activity?.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
-            putFloat(KEY_FAB_X, x)
-            putFloat(KEY_FAB_Y, y)
-            apply()
-        }
-    }
-
-    private fun loadFabPosition(fab: FloatingActionButton) {
-        val prefs = activity?.getSharedPreferences(FAB_PREFS, Context.MODE_PRIVATE) ?: return
-
-        val x = prefs.getFloat(KEY_FAB_X, -1f)
-        val y = prefs.getFloat(KEY_FAB_Y, -1f)
-
-        if (x != -1f && y != -1f) {
-            fab.post {
-                fab.x = x
-                fab.y = y
-            }
-        }
     }
 
     private fun performOptionsMenuClick(action: MainScreenAction) {
@@ -326,29 +181,9 @@ class MainFragment : BaseFragment() {
         }
     }
 
-    private fun performFeedbackAction() {
-        context?.let { ctx ->
-            FeedbackManager.showFeedbackDialog(
-                context = ctx,
-                currentScreen = getCurrentScreenName(),
-                shareActivityResultLauncher = shareActivityResultLauncher,
-                appVersion = BuildConfig.VERSION_NAME,
-            )
-        }
-    }
-
-    private fun getCurrentScreenName(): String {
-        val activity = requireActivity()
-        return activity.javaClass.simpleName.replace("Activity", "")
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
         binding = null
-    }
-
-    private fun pickDirectory() {
-        pickDirectory(this::openProject)
     }
 
     private fun pickDirectoryForDeletion() {
@@ -361,10 +196,6 @@ class MainFragment : BaseFragment() {
 
     private fun showViewSavedProjects() {
         viewModel.setScreen(MainViewModel.SCREEN_SAVED_PROJECTS)
-    }
-
-    fun openProject(root: File) {
-        (requireActivity() as MainActivity).openProject(root)
     }
 
     private fun cloneGitRepo() {
