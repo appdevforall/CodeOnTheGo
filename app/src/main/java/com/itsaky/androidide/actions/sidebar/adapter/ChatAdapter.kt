@@ -19,6 +19,9 @@ import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
 import com.itsaky.androidide.databinding.ListItemChatSystemMessageBinding
 import io.noties.markwon.Markwon
+import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class ChatAdapter(
@@ -26,6 +29,9 @@ class ChatAdapter(
     private val onMessageAction: (action: String, message: ChatMessage) -> Unit
 ) :
     ListAdapter<ChatMessage, RecyclerView.ViewHolder>(DiffCallback) {
+
+    private val timeFormatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+    private val decimalSecondsFormatter = DecimalFormat("0.0")
 
     private val expandedMessageIds = mutableSetOf<String>()
 
@@ -105,12 +111,14 @@ class ChatAdapter(
                 holder.binding.loadingIndicator.visibility = View.VISIBLE
                 holder.binding.messageContent.visibility = View.GONE
                 holder.binding.btnRetry.visibility = View.GONE
+                holder.binding.messageMetadataContainer.visibility = View.GONE
             }
             MessageStatus.SENT, MessageStatus.COMPLETED -> {
                 holder.binding.loadingIndicator.visibility = View.GONE
                 holder.binding.messageContent.visibility = View.VISIBLE
                 holder.binding.btnRetry.visibility = View.GONE
                 markwon.setMarkdown(holder.binding.messageContent, message.text)
+                updateMessageMetadata(holder.binding, message)
             }
             MessageStatus.ERROR -> {
                 holder.binding.loadingIndicator.visibility = View.GONE
@@ -120,6 +128,7 @@ class ChatAdapter(
                 holder.binding.btnRetry.setOnClickListener {
                     onMessageAction(DiffCallback.ACTION_RETRY, message)
                 }
+                updateMessageMetadata(holder.binding, message)
             }
         }
     }
@@ -168,6 +177,56 @@ class ChatAdapter(
             .replace(Regex("\\s+"), " ") // Collapse all whitespace and newlines into a single space
             .trim()
         return "Log: $cleanedText" // Prepend a label for context
+    }
+
+    private fun updateMessageMetadata(
+        binding: ListItemChatMessageBinding,
+        message: ChatMessage
+    ) {
+        val timestampText = formatTimestamp(message.timestamp)
+        val durationText = formatDuration(message.durationMs)
+
+        val hasTimestamp = timestampText != null
+        val hasDuration = durationText != null
+
+        if (!hasTimestamp && !hasDuration) {
+            binding.messageMetadataContainer.visibility = View.GONE
+            return
+        }
+
+        binding.messageMetadataContainer.visibility = View.VISIBLE
+
+        if (hasTimestamp) {
+            binding.messageTimestamp.text = timestampText
+            binding.messageTimestamp.visibility = View.VISIBLE
+        } else {
+            binding.messageTimestamp.visibility = View.GONE
+        }
+
+        if (hasDuration) {
+            binding.messageDuration.text = durationText
+            binding.messageDuration.visibility = View.VISIBLE
+        } else {
+            binding.messageDuration.visibility = View.GONE
+        }
+    }
+
+    private fun formatTimestamp(timestamp: Long): String? {
+        if (timestamp <= 0L) return null
+        return synchronized(timeFormatter) {
+            timeFormatter.format(Date(timestamp))
+        }
+    }
+
+    private fun formatDuration(durationMs: Long?): String? {
+        if (durationMs == null || durationMs <= 0) return null
+        val seconds = durationMs / 1000.0
+        return if (seconds < 60) {
+            "took ${decimalSecondsFormatter.format(seconds)}s"
+        } else {
+            val minutes = seconds / 60.0
+            "took ${decimalSecondsFormatter.format(minutes)}m"
+        }
     }
 
 

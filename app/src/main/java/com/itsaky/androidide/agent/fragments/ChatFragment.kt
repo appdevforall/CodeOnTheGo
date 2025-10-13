@@ -208,7 +208,8 @@ class ChatFragment :
 
     private fun setupListeners() {
         binding.promptInputEdittext.doAfterTextChanged { text ->
-            if (chatViewModel.agentState.value is AgentState.Idle) {
+            val currentState = chatViewModel.agentState.value
+            if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
                 binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
             }
         }

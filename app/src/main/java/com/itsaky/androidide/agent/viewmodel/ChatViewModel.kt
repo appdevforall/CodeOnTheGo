@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
+import com.itsaky.androidide.agent.MessageStatus
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
@@ -185,9 +187,14 @@ class ChatViewModel : ViewModel() {
     }
 
     fun sendMessage(fullPrompt: String, originalUserText: String, context: Context) {
-        if (_agentState.value !is AgentState.Idle) {
-            log.warn("sendMessage called while agent was not idle. Ignoring.")
+        val currentState = _agentState.value
+        if (currentState is AgentState.Processing || currentState is AgentState.Cancelling) {
+            log.warn("sendMessage called while agent was busy. Ignoring.")
             return
+        }
+
+        if (currentState is AgentState.Error) {
+            _agentState.value = AgentState.Idle
         }
 
         _agentState.value = AgentState.Processing("Thinking...")
@@ -224,7 +231,14 @@ class ChatViewModel : ViewModel() {
                 val repository = getOrCreateRepository(context)
                 if (repository == null) {
                     log.error("Aborting workflow: AI repository failed to initialize.")
-                    _agentState.value = AgentState.Idle
+                    val backendName = lastKnownBackendName
+                    if (backendName == AiBackend.LOCAL_LLM.name) {
+                        postSystemError(
+                            "Local model is not loaded. Open AI Settings, pick a model, and try again."
+                        )
+                    } else {
+                        postSystemError("The AI backend is not ready. Please review your AI settings.")
+                    }
                     return@launch
                 }
 
@@ -251,6 +265,7 @@ class ChatViewModel : ViewModel() {
 
                     else -> {
                         log.error("An unexpected error occurred during agent workflow.", e)
+                        postSystemError(e.message ?: "Unexpected error during agent workflow.")
                     }
                 }
             } finally {
@@ -261,7 +276,9 @@ class ChatViewModel : ViewModel() {
                 } else {
                     log.info("Workflow finished.")
                 }
-                _agentState.value = AgentState.Idle
+                if (_agentState.value !is AgentState.Error) {
+                    _agentState.value = AgentState.Idle
+                }
                 stopTimer()
             }
         }
@@ -304,6 +321,20 @@ class ChatViewModel : ViewModel() {
         val session = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
         _currentSession.value = session
         agentRepository?.loadHistory(session.messages)
+    }
+
+    private fun postSystemError(message: String) {
+        val session = _currentSession.value ?: return
+        val errorMessage = ChatMessage(
+            text = message,
+            sender = Sender.SYSTEM,
+            status = MessageStatus.ERROR
+        )
+        session.messages.add(errorMessage)
+        _sessions.value = _sessions.value
+        agentRepository?.loadHistory(session.messages)
+        scheduleSaveCurrentSession()
+        _agentState.value = AgentState.Error(message)
     }
 
     fun saveAllSessionsAndState(prefs: SharedPreferences) {
