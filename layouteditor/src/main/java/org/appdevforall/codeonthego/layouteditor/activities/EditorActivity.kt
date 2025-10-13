@@ -35,6 +35,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.FeedbackButtonManager
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -76,6 +77,7 @@ class EditorActivity : BaseActivity() {
 
     private lateinit var projectManager: ProjectManager
     private lateinit var project: ProjectFile
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
     private var undoRedo: UndoRedoManager? = null
     private var fileCreator: FileCreator? = null
@@ -126,7 +128,7 @@ class EditorActivity : BaseActivity() {
         defineXmlPicker()
         setupDrawerLayout()
         setupStructureView()
-
+        setupFeedbackButton()
         setupDrawerNavigationRail()
         setToolbarButtonOnClickListener(binding)
 
@@ -152,7 +154,6 @@ class EditorActivity : BaseActivity() {
                 this
             )
         )
-
     }
 
     private fun defineXmlPicker() {
@@ -545,6 +546,7 @@ class EditorActivity : BaseActivity() {
             DrawableManager.loadFromFiles(it)
         }
         if (undoRedo != null) undoRedo!!.updateButtons()
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onDestroy() {
@@ -917,6 +919,11 @@ class EditorActivity : BaseActivity() {
             }
             .setCancelable(false)
             .show()
+    }
+
+    private fun setupFeedbackButton(){
+        feedbackButtonManager = FeedbackButtonManager(this, binding.fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
     }
 
     companion object {
