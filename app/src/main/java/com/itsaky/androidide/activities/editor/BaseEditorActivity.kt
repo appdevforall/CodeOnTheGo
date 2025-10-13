@@ -136,6 +136,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.itsaky.androidide.FeedbackButtonManager
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -166,6 +167,7 @@ abstract class BaseEditorActivity :
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
     var isDestroying = false
         protected set
@@ -205,6 +207,9 @@ abstract class BaseEditorActivity :
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
+				if (binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START)) {
+					binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
 //				if (binding.root.isDrawerOpen(GravityCompat.START)) {
 //					binding.root.closeDrawer(GravityCompat.START)
                 if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
@@ -216,6 +221,7 @@ abstract class BaseEditorActivity :
 				}
 			}
 		}
+        }
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
@@ -559,6 +565,10 @@ abstract class BaseEditorActivity :
             true
         }
 
+        feedbackButtonManager =
+            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
+
         setupMemUsageChart()
         watchMemory()
         observeFileOperations()
@@ -873,6 +883,7 @@ abstract class BaseEditorActivity :
 
         // Set this activity as current for plugin services
         IDEApplication.instance.setCurrentActivity(this)
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onStop() {
