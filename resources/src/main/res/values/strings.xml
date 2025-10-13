@@ -905,6 +905,9 @@
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
 
+    <string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
+    <string name="pixel_copy_failed">PixelCopy failed</string>
+    <string name="failed_to_capture_or_save_screenshot">Failed to capture or save screenshot</string>
     <string name="back_to_cogo">Back to Code on the Go</string>
 
 </resources>
