@@ -30,6 +30,7 @@ import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
@@ -49,6 +50,7 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import org.appdevforall.localwebserver.WebServer
 import org.appdevforall.localwebserver.ServerConfig
 import com.itsaky.androidide.utils.Environment
+import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 
 import com.itsaky.androidide.utils.FileDeleteUtils
@@ -67,6 +69,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
     private val viewModel by viewModels<MainViewModel>()
     private var _binding: ActivityMainBinding? = null
+    private val analyticsManager: IAnalyticsManager by inject()
 
     companion object {
         private var instance: MainActivity? = null
@@ -257,9 +260,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     internal fun openProject(root: File) {
         ProjectManagerImpl.getInstance().projectPath = root.absolutePath
 
+        // Track project open in Firebase Analytics
+        analyticsManager.trackProjectOpened(root.absolutePath)
+
+        if (isFinishing) {
+            return
+        }
+
         val intent = Intent(this, EditorActivityKt::class.java).apply {
             putExtra("PROJECT_PATH", root.absolutePath)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
 
         startActivity(intent)

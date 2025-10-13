@@ -86,6 +86,25 @@ public final class Environment {
 
 	public static File GRADLE_GEN_JARS;
 
+	public static File KEYSTORE_DIR;
+	public static File KEYSTORE_RELEASE;
+	public static File KEYSTORE_PROPERTIES ;
+	public static String KEYSTORE_RELEASE_NAME = "release.keystore";
+	public static String KEYSTORE_PROPERTIES_NAME = "release.properties";
+	public static String KEYSTORE_PROP_STOREFILE = "storeFile";
+	public static String KEYSTORE_PROP_STOREPWD = "storePassword";
+	public static String KEYSTORE_PROP_KEYALIAS = "keyAlias";
+	public static String KEYSTORE_PROP_KEYPWD = "keyPassword";
+	public static final Integer KEYSTORE_PWD_LEN = 8;
+	public static final Integer KEYSTORE_ALIAS_LEN = 14;
+	public static final Integer KEYSTORE_KEY_SIZE = 2048;
+	public static final long KEYSTORE_EXPIRY_5YRS = 365L * 5 * 24 * 60 * 60 * 1000;
+	public static final String[] KEYSTORE_EU_COUNTRY_CODES = {
+			"AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
+			"DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
+			"PL", "PT", "RO", "SK", "SI", "ES", "SE"
+	};
+
 	public static String getArchitecture() {
 		return IDEBuildConfigProvider.getInstance().getCpuAbiName();
 	}
@@ -116,7 +135,6 @@ public final class Environment {
 				"tooling-api-all.jar");
 		COGO_PLUGIN_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "plugin")),
 				"cogo-plugin.jar");
-		AAPT2 = new File(ANDROIDIDE_HOME, "aapt2");
 		ANDROIDIDE_UI = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "ui"));
 
 		INIT_SCRIPT = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
@@ -124,6 +142,8 @@ public final class Environment {
 
 		ANDROID_HOME = new File(DEFAULT_ANDROID_HOME);
 		JAVA_HOME = new File(DEFAULT_JAVA_HOME);
+
+		AAPT2 = new File(ANDROID_HOME, "build-tools/35.0.0/aapt2");
 
 		JAVA = new File(JAVA_HOME, "bin/java");
 		BASH_SHELL = new File(BIN_DIR, "bash");
@@ -141,6 +161,10 @@ public final class Environment {
 
 		GRADLE_GEN_JARS = mkdirIfNotExits(new File(GRADLE_CACHE_DIR, "caches/" +
 				GRADLE_DISTRIBUTION_VERSION + "/generated-gradle-jars"));
+
+		KEYSTORE_DIR = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "keystore"));
+		KEYSTORE_RELEASE = new File(KEYSTORE_DIR, KEYSTORE_RELEASE_NAME);
+		KEYSTORE_PROPERTIES = new File(KEYSTORE_DIR, KEYSTORE_PROPERTIES_NAME);
 	}
 
 	public static File mkdirIfNotExits(File in) {

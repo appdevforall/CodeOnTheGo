@@ -20,7 +20,6 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
 import androidx.activity.viewModels
@@ -70,12 +69,8 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_FOUND
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
-import com.itsaky.androidide.ui.CodeEditorView
-import com.itsaky.androidide.utils.ApkInstaller
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
-import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
-import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -91,9 +86,7 @@ import com.itsaky.androidide.viewmodel.ProjectViewModel
 import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.HELP_PAGE_URL
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
@@ -164,7 +157,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
     }
 
-    abstract fun doCloseAll(runAfter: () -> Unit)
+    abstract fun doCloseAll()
 
     abstract fun saveOpenedFiles()
 
@@ -172,10 +165,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         if (mSearchingProgress?.isShowing == true) {
             mSearchingProgress!!.dismiss()
         }
-    }
-
-    override fun doConfirmProjectClose() {
-        confirmProjectClose()
     }
 
     override fun doOpenHelp() {
@@ -211,12 +200,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         observeStates()
         startServices()
-
-        binding.endNav.visibility = if (isExperimentsEnabled()) {
-            View.VISIBLE
-        } else {
-            View.GONE
-        }
     }
 
     private fun observeStates() {
@@ -274,9 +257,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             is BuildState.AwaitingInstall -> {
-                // ✅ The ViewModel has told us it's time to install!
-                installApk(state.apkFile)
-                // Tell the ViewModel we've handled the install event.
+                installApk(state)
                 buildViewModel.installationAttempted()
             }
         }
@@ -284,19 +265,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         invalidateOptionsMenu()
     }
 
-    private fun installApk(apk: File) {
-        log.debug("Installing APK: {}", apk)
-
-        if (!apk.exists()) {
-            log.error("APK file does not exist!")
-            return
-        }
-
-        ApkInstaller.installApk(
-            this,
-            InstallationResultHandler.createEditorActivitySender(this) { Intent() },
-            apk,
-            installationSessionCallback()
+    private fun installApk(state: BuildState.AwaitingInstall) {
+		apkInstallationViewModel.installApk(
+			context = this,
+			apk = state.apkFile,
+			launchInDebugMode = state.launchInDebugMode,
         )
     }
 
@@ -330,7 +303,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             this.initializingFuture?.cancel(true)
             this.initializingFuture = null
 
-            closeProject(false)
+            doCloseAll()
         }
 
         if (IDELanguageClientImpl.isInitialized()) {
@@ -877,60 +850,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         }
     }
 
-    private fun closeProject(manualFinish: Boolean) {
-        if (manualFinish) {
-            // if the user is manually closing the project,
-            // save the opened files cache
-            // this is needed because in this case, the opened files cache will be empty
-            // when onPause will be called.
-            saveOpenedFiles()
-
-            // reset the lastOpenedProject if the user explicitly chose to close the project
-            GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
-        }
-
-        // Make sure we close files
-        // This will make sure that file contents are not erased.
-        doCloseAll {
-            if (manualFinish) {
-                finish()
-            }
-        }
-    }
-
     private fun openHelpActivity() {
         val intent = Intent(this, HelpActivity::class.java)
-        intent.putExtra(CONTENT_KEY, HELP_PAGE_URL)
+        intent.putExtra(CONTENT_KEY, getString(string.docs_url))
         startActivity(intent)
-    }
-
-    private fun confirmProjectClose() {
-        val builder = newMaterialDialogBuilder(this)
-        builder.setTitle(string.title_confirm_project_close)
-        builder.setMessage(string.msg_confirm_project_close)
-
-        builder.setNegativeButton(string.cancel_project_text, null)
-
-        builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
-            dialog.dismiss()
-
-            editorActivityScope.launch {
-                for (i in 0 until editorViewModel.getOpenedFileCount()) {
-                    (content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
-                }
-
-                withContext(Dispatchers.Main) {
-                    closeProject(true)
-                }
-            }
-        }
-
-        builder.setPositiveButton(string.save_close_project) { dialog, _ ->
-            dialog.dismiss()
-            closeProject(true)
-        }
-
-        builder.show()
     }
 
     private fun initLspClient() {

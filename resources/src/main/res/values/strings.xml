@@ -26,7 +26,7 @@
 
     <!-- Git -->
     <string name="commit_message">Commit message</string>
-    <string name="commit_changes">Commit Changes</string>
+    <string name="commit_changes">Commit changes</string>
     <string name="title_commit">Commit</string>
     <string name="empty_commit">Commit message can not be empty</string>
     <string name="set_user_and_password">Please set Username and Email in settings</string>
@@ -49,18 +49,18 @@
     <string name="msg_no_references">No references found</string>
     <string name="view_diags">Diagnostics</string>
     <string name="title_installation_failed">Installation failed</string>
-    <string name="msg_picked_isnt_dir">Picked file is not a directory!</string>
-    <string name="please_wait">Please wait for a moment…</string>
+    <string name="msg_picked_isnt_dir">The picked file is not a directory!</string>
+    <string name="please_wait">Please wait for a moment.</string>
 
     <!-- Project Builder -->
-    <string name="title_unsupported_device">Device Not Supported</string>
+    <string name="title_unsupported_device">This device is not supported</string>
     <string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code On The Go.</string>
     <string name="title_clear_output">Clear output</string>
     <string name="build_output">Build output</string>
     <string name="quick_run_debug">Quick run</string>
-    <string name="msg_sync_needed">Gradle files have changed. Please rebuild your project to sync dependencies and configurations.</string>
+    <string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
     <string name="preparing">Preparing</string>
-    <string name="preparing_first">Preparing. First build may take up to 10–15 minutes!</string>
+    <string name="preparing_first">Initializing a project may take a few moments.</string>
     <string name="msg_installing_gradlew">Gradle Wrapper is not available!\nInstalling default one. Gradle v7.4 will be downloaded if necessary.</string>
     <string name="run">Run</string>
     <string name="gradle" translatable="false">Gradle</string>
@@ -68,14 +68,14 @@
 
 
     <!-- Project -->
-    <string name="title_first_build">Setting up your new project</string>
-    <string name="msg_first_build">Code on the Go is setting up your new project\'s files and directories. Please be patient!\n\nWhen setup is finished, \"Project Initialized\" will be displayed at the bottom of the screen.</string>
+    <string name="title_first_build">Setting up your project</string>
+    <string name="msg_first_build">Code on the Go is initializing your project. Please be patient!\n\nWhen setup is finished, \"Project initialized\" will be displayed at the bottom of the screen.</string>
     <string name="create_project">Create a new project</string>
     <string name="minimum_sdk">Minimum SDK</string>
     <string name="new_project">New project</string>
     <string name="package_name">Package name</string>
     <string name="project_app_name">App name</string>
-    <string name="msg_create_new_project_greeting">Learn about <b>Code on the Go</b> here!</string>
+    <string name="msg_create_new_project_greeting">Read the Quick Start guide</string>
     <string name="title_confirm_open_project">Open last project?</string>
     <string name="msg_confirm_open_project">Do you want to open the last opened project? Opened project was:\n%s</string>
     <string name="title_close_project">Close this project</string>
@@ -83,7 +83,7 @@
     <string name="msg_create_new_project">Create new project</string>
     <string name="msg_open_existing_project">Open a saved project</string>
     <string name="msg_delete_existing_project">Delete a saved project</string>
-    <string name="msg_delete_existing_project_failed">Failed to delete existing project </string>
+    <string name="msg_delete_existing_project_failed">Failed to delete existing project</string>
     <string name="title_confirm_project_close">Close project</string>
     <string name="cancel_project_text">Cancel</string>
     <string name="close_without_saving">Close without saving files</string>
@@ -111,23 +111,23 @@
     <string name="msg_find_project_filter">Separated by \'|\'</string>
     <string name="msg_empty_search_query">Please enter text</string>
     <string name="msg_select_search_modules">Select modules to search</string>
-    <string name="msg_searching_project">Finding in project, please wait…</string>
+    <string name="msg_searching_project">Searching the project…</string>
     <string name="view_search_results">Search results</string>
     <string name="project_created_successfully">Project created successfully!</string>
     <string name="project_creation_failed">Failed to create project</string>
-    <string name="msg_folder_creation_failed">Failed to create folder!</string>
-    <string name="msg_file_creation_failed">Failed to create file!</string>
-    <string name="msg_layout_file_creation_failed">Failed to create layout file!</string>
-    <string name="msg_folder_created">Folder created successfully!</string>
-    <string name="msg_file_created">File created successfully!</string>
-    <string name="msg_folder_exists">Folder already exists!</string>
-    <string name="msg_file_exists">File already exists!</string>
-    <string name="msg_layout_file_exists">Layout file already exists!</string>
-    <string name="msg_invalid_name">Invalid Name!</string>
+    <string name="msg_folder_creation_failed">Failed to create folder</string>
+    <string name="msg_file_creation_failed">Failed to create file</string>
+    <string name="msg_layout_file_creation_failed">Failed to create layout file</string>
+    <string name="msg_folder_created">Folder created successfully</string>
+    <string name="msg_file_created">File created successfully</string>
+    <string name="msg_folder_exists">Folder already exists</string>
+    <string name="msg_file_exists">File already exists</string>
+    <string name="msg_layout_file_exists">Layout file already exists</string>
+    <string name="msg_invalid_name">Invalid name</string>
     <string name="text_create">Create</string>
     <string name="msg_can_contain_slashes">If the file path includes a folder separator (\'/\'), any missing parent folders will be created automatically.</string>
-    <string name="folder_name">Folder Name</string>
-    <string name="file_name">File Name</string>
+    <string name="folder_name">Folder name</string>
+    <string name="file_name">File name</string>
     <string name="new_name">New name</string>
     <string name="new_file">New file</string>
     <string name="create_auto_layout">Create layout file</string>
@@ -138,17 +138,17 @@
     <string name="msg_confirm_delete">Are you sure you want to delete:\n%s?</string>
     <string name="copied">Copied successfully!</string>
     <string name="msg_rename_file">Enter new name for file/folder.</string>
-    <string name="renamed">Renamed successfully!</string>
-    <string name="rename_failed">Unable to rename file!</string>
-    <string name="deleted">Deleted successfully!</string>
-    <string name="delete_failed">Unable to delete file!</string>
+    <string name="renamed">Renamed successfully</string>
+    <string name="rename_failed">Unable to rename file</string>
+    <string name="deleted">Deleted successfully</string>
+    <string name="delete_failed">Unable to delete file</string>
     <string name="copy_path">Copy path</string>
     <string name="rename_file">Rename</string>
     <string name="delete_file">Delete</string>
     <string name="action_closeAll">Close all</string>
     <string name="action_closeOthers">Close others</string>
     <string name="action_closeThis">Close this</string>
-    <string name="all_saved">All files saved!</string>
+    <string name="all_saved">All files saved</string>
     <string name="save_failed">Failed to save files</string>
     <string name="msg_newfile_dest">Destination: %s/</string>
     <string name="restype_drawable">Drawable</string>
@@ -159,7 +159,7 @@
     <string name="classtype_activity">Activity</string>
     <string name="title_interface">Interface</string>
     <string name="classtype_enum">Enum</string>
-    <string name="msg_failed_list_files">Failed to list project files!</string>
+    <string name="msg_failed_list_files">Failed to list project files</string>
 
     <!-- Code Editor -->
     <string name="open_with">Open with...</string>
@@ -187,7 +187,7 @@
     <string name="title_open_projects">Open last project</string>
     <string name="msg_open_projects">When enabled, restarting Code on the Go will automatically open the last project that was open.</string>
     <string name="title_confirm_project_open">Confirm project opening</string>
-    <string name="msg_confirm_project_open">Ask before opening last opened project.</string>
+    <string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
     <string name="title_default_shell">Use system shell in terminal</string>
     <string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
     <string name="title_general">General</string>
@@ -208,7 +208,7 @@
     <string name="msg_empty_ui_layout">No views have been added. Click to add.</string>
     <string name="msg_generate_xml_failed">Failed to generate XML code</string>
     <string name="title_generating_xml">Generating XML code</string>
-    <string name="msg_swipe_up">Swipe up or click for build output, logs and more.</string>
+    <string name="msg_swipe_up">Swipe up to display logs, diagnostics, debug info, and more</string>
 
     <!-- Crash Screen -->
     <string name="msg_ide_crashed">Code on the Go crashed</string>
@@ -269,7 +269,7 @@
 
     <string name="build_status_idle">No builds in progress</string>
     <string name="build_status_in_progress">Build in progress…</string>
-    <string name="build_status_failed">Build failed. See build output for more details.</string>
+    <string name="build_status_failed">Build failed. See the build output panel for more details.</string>
     <string name="build_status_sucess">Build successful</string>
     <string name="msg_output_text_extraction_failed">Failed to get text from editor</string>
     <string name="err_invalid_data_by_intent">Intent returned invalid data</string>
@@ -277,26 +277,10 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-    <string name="msg_drawer_for_files">
-  • <b>To view the file tree, build tools, and preferences:</b>\n
-     - Tap the menu icon at the upper left\n
-     - Tap the left side of the page\n
-     - Swipe from the left side to the right
-  </string>
-    <string name="msg_swipe_for_output">
-  • <b>To view build output, logs, diagnostics, and more:</b>\n
-     - Tap the bottom of the page\n
-     - Swipe upward from the bottom
-  </string>
-    <string name="msg_help_hint">
-  • <b>Help at any time:</b>\n
-     - Long-press any item to learn about it\n
-     - In the text editor, long-press shows options.\n
-     - Tap <b>?</b> for help.
-  </string>
-    <string name="msg_long_press_help">
-    To view help at any time, long-press the item you want to learn about. In the text editor, the long press will display a list of options.\nClick the ? icon on the left to view help.
-  </string>
+     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
+    <string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
+    <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="idepref_editor_useSoftTabs_title">Use soft tab</string>
     <string name="idepref_editor_useSoftTabs_summary">Choose whether the tab key inserts spaces instead of the tab character.</string>
     <string name="btn_donate">Donate</string>
@@ -542,6 +526,12 @@
     <string name="msg_invalid_project_details">Invalid project details</string>
     <string name="msg_use_kts">Use Kotlin Script (.kts) for Gradle build files</string>
     <string name="title_privacy">Privacy</string>
+
+    <string name="privacy_disclosure_title">Privacy &amp; Analytics</string>
+    <string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and Sentry to help us improve the app experience.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is being used. This includes information about app features, performance metrics, and crash reports.\n\nSentry helps us track and fix errors to provide you with a more stable experience.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy to ensure your privacy is protected.</string>
+    <string name="privacy_disclosure_accept">I Understand</string>
+    <string name="privacy_disclosure_learn_more">Learn More</string>
+
     <string name="title_unique_id">Unique ID</string>
     <string name="title_device">Device</string>
     <string name="title_app_version">App version</string>
@@ -584,7 +574,7 @@
     <string name="title_experiment_flavor">Experimental</string>
     <string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
     <string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
-    <string name="idepref_editor_pinLineNumbers_summary">Whether the editor should pin line number panel when scrolled horizontally.</string>
+    <string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
     <string name="theme_blue_wave">Blue Wave</string>
     <string name="theme_sunny_glow">Sunny Glow</string>
     <string name="theme_material_you">Material You</string>
@@ -606,8 +596,6 @@
     <string name="permission_title_install_packages">Install packages</string>
     <string name="permission_desc_install_packages">Allow Code on the Go to install apps that you build.</string>
     <string name="permission_title_overlay_window">Overlay window</string>
-    <string name="permission_title_accessibility">Accessibility</string>
-    <string name="permission_desc_accessibility">Allow Code on the Go to utilize accessibility services to detect foreground applications.</string>
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
     <string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications</string>
@@ -644,8 +632,6 @@
 	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
 
 	<string name="debugger_title">Debugger</string>
-	<string name="debugger_foreground_detection_service_description">Code on the Go uses accessibility services to detect foreground applications for automatically
-		show/hide the debugger overlay window.</string>
 	<string name="debugger_starting">Starting debugger…</string>
 	<string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
 	<string name="debugger_started">Debugger started</string>
@@ -707,8 +693,8 @@
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
-	<string name="project_directory_invalid">%s is not a valid Android project folder, please open another folder instead</string>
-	<string name="find_saved_project">Find a saved project</string>
+	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
+	<string name="open_from_folder">Open from folder</string>
 	<string name="msg_delete_selected_project">Are you sure want to delete the selected project(s)? This action cannot be undone.</string>
 	<string name="feedback_email">feedback@appdevforall.org</string>
 	<string name="no_email_apps">No email apps found</string>
@@ -735,7 +721,26 @@
 	<string name="project_name">Project name</string>
 	<string name="project_options">Project Options</string>
 
-	<!-- Message shown when the bootstrap installer is extract a file from the zip -->
+	<!-- Plugin System -->
+  <string name="plugin_manager">Plugin Manager</string>
+  <string name="plugin_manager_title">Plugin Manager</string>
+  <string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+  <string name="plugins">Plugins</string>
+  <string name="no_plugins_installed">No plugins installed</string>
+  <string name="install_plugin">Install Plugin</string>
+  <string name="plugin_installed">Plugin installed successfully</string>
+  <string name="plugin_install_failed">Failed to install plugin</string>
+  <string name="plugin_enabled">Plugin enabled</string>
+  <string name="plugin_disabled">Plugin disabled</string>
+  <string name="plugin_uninstalled">Plugin uninstalled</string>
+  <string name="enable_plugin">Enable</string>
+  <string name="disable_plugin">Disable</string>
+  <string name="uninstall_plugin">Uninstall</string>
+  <string name="plugin_details">Plugin Details</string>
+  <string name="plugin_permissions">Permissions</string>
+  <string name="plugin_dependencies">Dependencies</string>
+
+  <!-- Message shown when the bootstrap installer is extract a file from the zip -->
 	<!-- The first parameter is the name of the zip entry -->
 	<string name="bootstrap_installer_unzipping">Unzipping %1$s</string>
 
@@ -769,6 +774,7 @@
 		]]></string>
 
     <string name="info_icon_content_description">Info icon</string>
+    <string name="feedback_button_description">Send feedback about this tooltip</string>
     <string name="unknown_error">"An unknown error occurred."</string>
     <string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
     <string name="error_build_service_not_found">Build service not found.</string>
@@ -821,10 +827,10 @@
 	<!-- Instructional text specific to MIUI users, advising them to change notification style for successful pairing. -->
 	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" -
 		\"Notification shade\" in system settings.</string>
-	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not able to enter paring code from the notification.</string>
+	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not be able to enter pairing code from the notification.</string>
 
 	<!-- Instructional text explaining that the app needs local network access for wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access local network. It is controlled by the network permission.</string>
+	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access the local network. It is controlled by the network permission.</string>
 
 	<!-- Instructional text for users on systems (like MIUI) that restrict background network access, advising to disable
 		battery optimization. -->
@@ -840,15 +846,14 @@
 	<string name="adb_pairing_tutorial_content_enter_pairing_code">Enter the code in the notification to complete pairing.</string>
 
 	<!-- Instructional text clarifying how to correctly access the wireless debugging settings. -->
-	<string name="adb_pairing_tutorial_content_left_is_clickable">Please note, left part of the \"Wireless debugging\" option is clickable, tapping it will open a
-		new page. Only turing on the switch on the right is incorrect.</string>
+	<string name="adb_pairing_tutorial_content_left_is_clickable">In addition to enabling wireless debugging, you must tap the text \"Wireless debugging\" to issue additional pairing commands.</string>
 
 	<!-- Instructional text indicating the final step after successful pairing. -->
 	<string name="adb_pairing_tutorial_content_finish">Back to Code on the Go and the Shizuku service will start automatically.</string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
-	<string name="adb_pair_required">Please go through the pairing step first.</string>
+	<string name="adb_pair_required">Please enable wireless debugging and pair the device with the service.</string>
 
 	<!-- Status message indicating that the application is searching for the ADB connection port. Placeholder %1$d represents
 		the number of times the IDE has tried to find the port. Placeholder %2$d represents the maximum number of attempts to find
@@ -860,7 +865,7 @@
 	<string name="adb_connection_connecting">Connecting to ADB daemon on port: %1$d…</string>
 
 	<!-- Status message indicating a successful connection to the ADB daemon. -->
-	<string name="adb_connection_succeeded">Successfully connected to ADB daemon!</string>
+	<string name="adb_connection_succeeded">Successfully connected to ADB daemon</string>
 
 	<!-- Status message indicating a failed connection to the ADB daemon. The %1$s is a placeholder for the error reason. -->
 	<string name="adb_connection_failed">Connection to ADB daemon failed: %1$s</string>
@@ -887,6 +892,19 @@
     <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
+    <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+    <!--  AI Agent-->
+    <string name="ai_setting_saved">💾 Saved: %1$s</string>
+    <string name="ai_setting_no_model_is_currently_loaded">🤷‍♀️ No model is currently loaded</string>
+    <string name="ai_setting_loading_model_please_wait">🔄 Loading model, please wait…</string>
+    <string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
+    <string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
+
+<!--  Plugins-->
+  <string name="title_plugin_manager">Plugin Manager</string>
+
+    <string name="back_to_cogo">Back to Code on the Go</string>
+
 </resources>

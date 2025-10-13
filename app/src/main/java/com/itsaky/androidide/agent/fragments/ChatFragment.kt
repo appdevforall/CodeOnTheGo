@@ -1,6 +1,5 @@
 package com.itsaky.androidide.agent.fragments
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -8,7 +7,6 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.ArrayAdapter
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
@@ -23,15 +21,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
-import com.itsaky.androidide.agent.repository.AiBackend
-import com.itsaky.androidide.agent.repository.GeminiRepository
-import com.itsaky.androidide.agent.repository.SwitchableGeminiRepository
+import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.ACTION_EDIT
+import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
-import com.itsaky.androidide.models.AgentState
-import com.itsaky.androidide.models.ChatMessage
 import com.itsaky.androidide.utils.flashInfo
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
@@ -40,9 +36,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
-import org.koin.mp.KoinPlatform.getKoin
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
@@ -86,23 +79,12 @@ class ChatFragment :
                     flashInfo("${uris.size} images selected.")
                 }
             }
-
-        val repo = getKoin().get<GeminiRepository>() // Get the Switchable repository
-        if (repo is SwitchableGeminiRepository) {
-            repo.setActiveBackend(AiBackend.GEMINI)
-//            val modelLoaded = repo.loadLocalModel("models/your-chosen-model.gguf")
-//            if (modelLoaded) {
-//                // Success!
-//            } else {
-//                // Show an error
-//            }
-        }
     }
 
     override fun onResume() {
         super.onResume()
-        // Attach the listener to the top-level window view
         activity?.window?.decorView?.setOnApplyWindowInsetsListener(insetsListener)
+        chatViewModel.checkBackendStatusOnResume(requireContext())
     }
 
     override fun onFragmentLongPressed() {
@@ -121,6 +103,9 @@ class ChatFragment :
         setupUI()
         setupListeners()
         setupStateObservers()
+        chatViewModel.backendStatus.observe(viewLifecycleOwner) { status ->
+            binding.backendStatusText.text = status.displayText
+        }
         chatViewModel.currentSession.observe(viewLifecycleOwner, Observer { session ->
             session?.let {
                 chatAdapter.submitList(it.messages.toList())
@@ -159,10 +144,14 @@ class ChatFragment :
 
         viewLifecycleOwner.lifecycleScope.launch {
             if (selectedContext.isEmpty()) {
-                chatViewModel.sendMessage(inputText)
+                chatViewModel.sendMessage(inputText, inputText, requireContext())
             } else {
                 val masterPrompt = buildMasterPrompt(inputText)
-                chatViewModel.sendMessage(fullPrompt = masterPrompt, originalUserText = inputText)
+                chatViewModel.sendMessage(
+                    fullPrompt = masterPrompt,
+                    originalUserText = inputText,
+                    requireContext()
+                )
             }
         }
     }
@@ -210,15 +199,13 @@ class ChatFragment :
         binding.chatRecyclerView.layoutManager = LinearLayoutManager(requireContext()).apply {
             stackFromEnd = true
         }
-        val modes = arrayOf("Agent", "Ask", "Manual")
-        val adapter =
-            ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, modes)
-        binding.agentModeAutocomplete.setAdapter(adapter)
     }
 
     private fun setupListeners() {
         binding.promptInputEdittext.doAfterTextChanged { text ->
-            binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
+            if (chatViewModel.agentState.value is AgentState.Idle) {
+                binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
+            }
         }
         binding.btnSendPrompt.setOnClickListener {
             handleSendMessage()
@@ -255,10 +242,12 @@ class ChatFragment :
                     findNavController().navigate(R.id.action_chatFragment_to_chatHistoryFragment)
                     true
                 }
+
                 R.id.menu_ai_settings -> {
                     findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
                     true
                 }
+
                 else -> false
             }
         }
@@ -271,10 +260,8 @@ class ChatFragment :
         }
     }
 
-    @SuppressLint("SetTextI18n")
     private fun setupStateObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
-            // Combine all three state flows. This block will run if any of them emit a new value.
             chatViewModel.agentState.combine(chatViewModel.stepElapsedTime) { state, stepTime ->
                 state to stepTime
             }.combine(chatViewModel.totalElapsedTime) { (state, stepTime), totalTime ->
@@ -283,41 +270,54 @@ class ChatFragment :
                 when (state) {
                     is AgentState.Idle -> {
                         binding.agentStatusContainer.isVisible = false
-                        binding.promptInputLayout.isEnabled = true
-                        binding.btnSendPrompt.visibility = View.VISIBLE
-                        binding.btnStopGeneration.visibility = View.GONE
+
+                        binding.btnStopGeneration.isVisible = false
+                        binding.btnSendPrompt.isVisible = true
+
+                        binding.btnSendPrompt.isEnabled =
+                            binding.promptInputEdittext.text?.isNotBlank() == true
                     }
+
                     is AgentState.Processing -> {
-                        val timeString = "(${formatTime(stepTime)} of ${formatTime(totalTime)})"
+                        val stepTimeFormatted = chatViewModel.formatTime(stepTime)
+                        val totalTimeFormatted = chatViewModel.formatTime(totalTime)
+                        val timeString = "($stepTimeFormatted of $totalTimeFormatted)"
+
                         binding.agentStatusMessage.text = state.message
                         binding.agentStatusTimer.text = timeString
+                        binding.agentStatusTimer.isVisible = true
                         binding.agentStatusContainer.isVisible = true
 
-                        binding.promptInputLayout.isEnabled = false
-                        binding.btnSendPrompt.visibility = View.GONE
-                        binding.btnStopGeneration.visibility = View.VISIBLE
+                        binding.btnStopGeneration.isVisible = true
+                        binding.btnSendPrompt.isVisible = false
+
+                        binding.btnStopGeneration.isEnabled = true
+                    }
+
+                    is AgentState.Cancelling -> {
+                        binding.agentStatusMessage.text = "Stopping..."
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+
+                        binding.btnStopGeneration.isVisible = true
+                        binding.btnSendPrompt.isVisible = false
+
+                        binding.btnStopGeneration.isEnabled = false
+                    }
+
+                    is AgentState.Error -> {
+                        binding.agentStatusMessage.text = state.message
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+
+                        binding.btnStopGeneration.isVisible = false
+                        binding.btnSendPrompt.isVisible = true
+
+                        binding.btnSendPrompt.isEnabled =
+                            binding.promptInputEdittext.text?.isNotBlank() == true
                     }
                 }
             }
-        }
-    }
-
-    /**
-     * Formats milliseconds into a string like "1m 2.3s" or "5.4s".
-     */
-    private fun formatTime(millis: Long): String {
-        if (millis < 0) return ""
-
-        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.MINUTES.toSeconds(minutes)
-        val remainingMillis = millis % 1000
-
-        val totalSeconds = seconds + (remainingMillis / 1000.0)
-
-        return if (minutes > 0) {
-            String.format(Locale.US, "%dm %.1fs", minutes, totalSeconds)
-        } else {
-            String.format(Locale.US, "%.1fs", totalSeconds)
         }
     }
 
@@ -365,7 +365,7 @@ class ChatFragment :
 
     private fun handleMessageAction(action: String, message: ChatMessage) {
         when (action) {
-            ChatAdapter.ACTION_EDIT -> {
+            ACTION_EDIT -> {
                 // Set the selected message's text into the input field
                 binding.promptInputEdittext.setText(message.text)
 
