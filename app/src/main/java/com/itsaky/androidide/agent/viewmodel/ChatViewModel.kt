@@ -142,9 +142,10 @@ class ChatViewModel : ViewModel() {
                 }
             }
         }
-        _currentSession.value?.messages?.let { history ->
-            (agentRepository as? LocalLlmRepositoryImpl)?.loadHistory(history)
-            // You will need a similar `loadHistory` for AgenticRunner too
+        val repo = agentRepository
+        val currentHistory = _currentSession.value?.messages
+        if (repo != null && currentHistory != null) {
+            repo.loadHistory(currentHistory)
         }
 
         return agentRepository
@@ -302,6 +303,7 @@ class ChatViewModel : ViewModel() {
         val currentId = prefs.getString(CURRENT_CHAT_ID_PREF_KEY, null)
         val session = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
         _currentSession.value = session
+        agentRepository?.loadHistory(session.messages)
     }
 
     fun saveAllSessionsAndState(prefs: SharedPreferences) {
@@ -318,6 +320,7 @@ class ChatViewModel : ViewModel() {
         _sessions.value?.add(0, newSession)
         _sessions.postValue(_sessions.value)
         _currentSession.value = newSession
+        agentRepository?.loadHistory(newSession.messages)
         scheduleSaveCurrentSession()
     }
 
@@ -327,7 +330,7 @@ class ChatViewModel : ViewModel() {
         val session = _sessions.value?.find { it.id == sessionId }
         if (session != null) {
             _currentSession.value = session
-            (agentRepository as? LocalLlmRepositoryImpl)?.loadHistory(session.messages)
+            agentRepository?.loadHistory(session.messages)
         }
     }
 

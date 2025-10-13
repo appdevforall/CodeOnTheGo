@@ -365,7 +365,7 @@ Answer:
             }
         }
     }
-    fun loadHistory(history: List<ChatMessage>) {
+    override fun loadHistory(history: List<ChatMessage>) {
         _messages.value = history
     }
 }

@@ -9,6 +9,12 @@ interface GeminiRepository {
 
     val messages: StateFlow<List<ChatMessage>>
 
+    /**
+     * Replace the in-memory history with the provided messages so observers immediately reflect the
+     * selected chat session.
+     */
+    fun loadHistory(history: List<ChatMessage>)
+
     fun getPartialReport(): String
     suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>)
     suspend fun generateCode(
