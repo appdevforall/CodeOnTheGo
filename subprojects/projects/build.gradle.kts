@@ -18,13 +18,13 @@ kapt {
 }
 
 dependencies {
-
 	kapt(projects.annotationProcessors)
 	kapt(libs.google.auto.service)
 
 	api(projects.eventbus)
 	api(projects.eventbusEvents)
 	api(projects.subprojects.projectModels)
+	api(projects.subprojects.projectSerial)
 	api(projects.subprojects.toolingApi)
 
 	implementation(projects.common)

@@ -15,6 +15,9 @@ val AndroidModels.AndroidArtifactOrBuilder.generatedSourceFolders: List<File>
 val AndroidModels.AndroidArtifactOrBuilder.classJars: List<File>
 	get() = classJarPathsList.map { File(it) }
 
+val AndroidModels.AndroidArtifactOrBuilder.assembleTaskOutputListingFile: File
+	get() = File(assembleTaskOutputListingFilePath)
+
 val AndroidModels.SourceProviderOrBuilder.resDirs: List<File>
 	get() = resDirsList.map { File(it) }
 

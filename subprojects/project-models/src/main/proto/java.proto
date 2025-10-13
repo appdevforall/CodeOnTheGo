@@ -70,5 +70,5 @@ message JavaProject {
   repeated JavaDependency dependency = 2;
 
   // The Java compiler settings for this project.
-  JavaCompilerSettings compilerSettings = 3;
+  JavaCompilerSettings javaCompilerSettings = 3;
 }

@@ -2,14 +2,19 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
+import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,9 +46,10 @@ class ProjectViewModel : ViewModel() {
         val manager = ProjectManagerImpl.getInstance()
 
         // Check for a valid cached result before starting a new initialization
-        if (manager.projectInitialized && manager.cachedInitResult != null) {
+		val cachedResult = manager.cachedInitResult
+        if (manager.projectInitialized && cachedResult is InitializeResult.Success) {
             log.debug("Project already initialized. Using cached result.")
-            _initState.value = TaskState.Success(manager.cachedInitResult!!)
+            _initState.value = TaskState.Success(cachedResult)
             return
         }
 
@@ -73,11 +79,19 @@ class ProjectViewModel : ViewModel() {
                 val result = buildService.initializeProject(params).await()
 
                 if (result == null || !result.isSuccessful) {
-                    throw InitializeException(result)
+                    throw InitializeException(result as InitializeResult.Failure)
                 }
 
+				result as InitializeResult.Success
+
+				val gradleBuildResult = ProtoProject.readGradleBuild(result.cacheFile)
+				if (gradleBuildResult.isFailure) {
+					log.error("Failed to read project cache", gradleBuildResult.exceptionOrNull())
+					throw InitializeException(InitializeResult.Failure(CACHE_READ_ERROR))
+				}
+
                 manager.cachedInitResult = result
-                manager.setup() // I/O operation
+                manager.setup(gradleBuildResult.getOrThrow()) // I/O operation
                 manager.notifyProjectUpdate()
 
                 _initState.value = TaskState.Success(result)
@@ -120,6 +134,6 @@ class ProjectViewModel : ViewModel() {
     }
 
     /** Custom exception to wrap the InitializeResult on failure. */
-    private class InitializeException(val result: InitializeResult?) :
+    private class InitializeException(val result: InitializeResult.Failure?) :
         RuntimeException("Project initialization failed.")
 }

@@ -26,7 +26,7 @@ import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
  * @param <R> The type of model that is built.
  * @author Akash Yadav
  */
-interface IModelBuilder<P, R: MessageLiteOrBuilder> {
+interface IModelBuilder<P, R> {
 
   /**
    * Builds the model.

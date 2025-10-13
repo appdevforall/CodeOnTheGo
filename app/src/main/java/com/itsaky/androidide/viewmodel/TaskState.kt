@@ -14,7 +14,7 @@ sealed class TaskState {
     object InProgress : TaskState()
 
     /** The task completed successfully. */
-    data class Success(val result: InitializeResult) : TaskState()
+    data class Success(val result: InitializeResult.Success) : TaskState()
 
     /** The task failed. */
     data class Error(val failure: TaskExecutionResult.Failure?, val throwable: Throwable?) :

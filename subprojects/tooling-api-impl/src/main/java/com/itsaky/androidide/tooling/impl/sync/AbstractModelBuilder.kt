@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * @author Akash Yadav
  */
-abstract class AbstractModelBuilder<P, R: MessageLiteOrBuilder>() : IModelBuilder<P, R> {
+abstract class AbstractModelBuilder<P, R>() : IModelBuilder<P, R> {
 
   companion object {
 

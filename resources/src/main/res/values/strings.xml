@@ -891,5 +891,6 @@
 
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
+	<string name="msg_project_cache_read_failure">Failed to read project cache</string>
 
 </resources>

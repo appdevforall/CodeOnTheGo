@@ -60,10 +60,6 @@ project.tasks.getByName<ShadowJar>("shadowJar") {
 	entryCompression = ZipEntryCompression.STORED
 }
 
-configurations.all {
-	exclude(group = "com.google.protobuf", module = "protobuf-java")
-}
-
 dependencies {
 	kapt(libs.google.auto.service)
 
@@ -72,6 +68,7 @@ dependencies {
 	implementation(projects.buildInfo)
 	implementation(projects.shared)
 	implementation(projects.subprojects.projectModels)
+	implementation(projects.subprojects.projectSerial)
 
 	implementation(libs.common.jkotlin)
 	implementation(libs.google.auto.service.annotations)

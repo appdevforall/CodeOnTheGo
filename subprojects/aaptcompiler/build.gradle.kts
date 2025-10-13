@@ -15,7 +15,6 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import com.google.protobuf.gradle.id
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
@@ -42,7 +41,6 @@ dependencies {
 
 	api(libs.aapt2.annotations)
 	api(libs.aapt2.common)
-	api(libs.google.protobuf.java)
 	api(libs.composite.layoutlibApi)
 	
 	api(projects.subprojects.aapt2Proto)
