@@ -668,19 +668,7 @@
 	<string name="actions">Actions</string>
 	<string name="help">Help</string>
 	<string name="code"></string>
-
-	<string name="email_feedback_warning_prompt">
-		Sending feedback will create and send a private email to feedback@appdevforall.org, if you feel that this would
-		be an unsafe action, then click
-		<b>
-			<i>Cancel</i>
-		</b>
-		, otherwise click
-		<b>
-			<i>OK</i>
-		</b>
-		to proceed
-	</string>
+	<string name="email_feedback_warning_prompt">To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
 	<string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were
 		taking and in what screen.\n\nThank You.\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
