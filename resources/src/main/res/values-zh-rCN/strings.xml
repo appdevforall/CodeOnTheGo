@@ -178,9 +178,8 @@
   <string name="title_generating_xml">生成 XML 代码</string>
   <string name="msg_swipe_up">上滑可查看构建输出、日志等。</string>
   <string name="msg_ide_crashed">Code on the Go 崩溃了</string>
-  <string name="msg_report_crash">请使用以下堆栈跟踪在 Github 上打开一个 issue：</string>
-  <string name="msg_crash_report_hint">单击下面的按钮以复制日志和打开 issues 页面。</string>
-  <string name="msg_copy_report_action">复制并报告</string>
+  <string name="msg_crash_info">请使用以下堆栈跟踪在 Github 上打开一个 issue：</string>
+  <string name="msg_close_crash_page">单击下面的按钮以复制日志和打开 issues 页面。</string>
   <string name="title_translations">翻译</string>
   <string name="action_expand_selection">扩选</string>
   <string name="idepref_java_matchLower_title">代码补全匹配小写字母</string>
@@ -389,11 +388,6 @@
   <string name="msg_invalid_project_details">项目信息无效</string>
   <string name="msg_use_kts">将 Kotlin 脚本 (.kts) 用于 Gradle build 文件</string>
   <string name="title_privacy">隐私</string>
-  <string name="title_androidide_statistics">Code on the Go 统计</string>
-  <string name="msg_androidide_statistics">通过提供匿名统计信息帮助我们改进 Code on the Go。 我们收集有关您设备的基本信息仅用于用户群统计。 可以在首选项中查看共享的确切数据。 您的数据是安全的，不会与第三方服务共享。 您可以随时在首选项中选择退出。</string>
-  <string name="summary_anonymous_usage_stats">匿名使用统计</string>
-  <string name="idepref_stats_optIn_title">统计数据收集</string>
-  <string name="idepref_stats_optIn_summary">允许收集安装指标和设备统计信息（完全匿名）。</string>
   <string name="title_unique_id">唯一身份</string>
   <string name="title_device">设备</string>
   <string name="title_app_version">应用版本</string>
@@ -416,8 +410,8 @@
   <string name="idepref_devOptions_enableLogsender_title">启用 LogSender</string>
   <string name="idepref_devOptions_enableLogsender_summary">禁用后，应用的日志将不会显示在 Code on the Go 中</string>
   <string name="title_build_variants">构建变体</string>
-  <string name="title_apply">应用</string>
-  <string name="title_discard">放弃</string>
+  <string name="build_variants_apply">应用</string>
+  <string name="build_variants_cancel">放弃</string>
   <string name="msg_build_variants_fetch_failed">无法获取构建变体</string>
   <string name="title_choose_application">选择应用项</string>
   <string name="err_selected_variant_not_found">找不到选定的构建变体</string>

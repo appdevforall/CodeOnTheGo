@@ -25,6 +25,7 @@ package com.itsaky.androidide.buildinfo;
 public class BuildInfo {
 
   // ---------- Basic info -----------------
+  public static final String INTERNAL_NAME = "@@INTERNAL_NAME@@";
   public static final String PACKAGE_NAME = "@@PACKAGE_NAME@@";
 
   // ---------- Tooling version info --------------

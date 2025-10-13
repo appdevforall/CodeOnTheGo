@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.templates.impl.tabbedActivity
 
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.base.AndroidModuleTemplateBuilder
 import com.itsaky.androidide.templates.base.models.Dependency
@@ -29,62 +30,67 @@ import com.itsaky.androidide.templates.impl.baseProjectImpl
 import com.itsaky.androidide.templates.impl.templateAsset
 
 fun tabbedActivityProject() = baseProjectImpl {
-  templateName = R.string.template_tabs
-  thumb = R.drawable.template_blank_activity_tabs
-  defaultAppModule {
-    recipe = createRecipe {
-      sources {
-        writeMainActivity(this, ktSrc = ::tabbedActivitySrcKt,
-          javaSrc = ::tabbedActivitySrcJava)
-      }
+templateName = R.string.template_tabs
+thumb = R.drawable.template_blank_activity_tabs
+tooltipTag = TooltipTag.TEMPLATE_TABBED_ACTIVITY
+defaultAppModule {
+	recipe = createRecipe {
+	sources {
+		writeMainActivity(this, ktSrc = ::tabbedActivitySrcKt,
+		javaSrc = ::tabbedActivitySrcJava)
+	}
 
-      res {
-        copyAssetsRecursively(templateAsset("tabbed", "res"), mainResDir())
+	res {
+		copyAssetsRecursively(templateAsset("tabbed", "res"), mainResDir())
 
-        putStringRes("tab_text_1", "Tab 1")
-        putStringRes("tab_text_2", "Tab 2")
-        putStringRes("tab_text_3", "Tab 3")
+		putStringRes("tab_text_1", "Tab 1")
+		putStringRes("tab_text_2", "Tab 2")
+		putStringRes("tab_text_3", "Tab 3")
 
-        emptyThemesAndColors()
-      }
+		emptyThemesAndColors()
+	}
 
-      if (data.language == Language.Kotlin) {
-        tabbedActivityProjectKt()
-      } else {
-        tabbedActivityProjectJava()
-      }
-    }
-  }
+	if (data.language == Language.Kotlin) {
+		tabbedActivityProjectKt()
+	} else {
+		tabbedActivityProjectJava()
+	}
+	}
+}
 }
 
 fun AndroidModuleTemplateBuilder.tabbedActivityProjectKt() {
-  executor.apply {
-    addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
-    addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
+executor.apply {
+	addDependency(Dependency.AndroidX.LifeCycle_LiveData_Ktx)
+	addDependency(Dependency.AndroidX.LifeCycle_ViewModel_Ktx)
+	addDependency(Dependency.AndroidX.ViewPager2)
+	addDependency(Dependency.Google.Material)
 
-    sources {
-      writeKtSrc("${data.packageName}.ui.main", "SectionsPagerAdapter",
-        source = ::tabbedPagerAdapterSrcKt)
-      writeKtSrc("${data.packageName}.ui.main", "PageViewModel",
-        source = ::tabbedPageViewModelSrcKt)
-      writeKtSrc("${data.packageName}.ui.main", "PlaceholderFragment",
-        source = ::tabbedPlaceholderFragmentSrcKt)
-    }
-  }
+	sources {
+	writeKtSrc("${data.packageName}.ui.main", "SectionsPagerAdapter",
+		source = ::tabbedPagerAdapterSrcKt)
+	writeKtSrc("${data.packageName}.ui.main", "PageViewModel",
+		source = ::tabbedPageViewModelSrcKt)
+	writeKtSrc("${data.packageName}.ui.main", "PlaceholderFragment",
+		source = ::tabbedPlaceholderFragmentSrcKt)
+	}
+}
 }
 
 fun AndroidModuleTemplateBuilder.tabbedActivityProjectJava() {
-  executor.apply {
-    addDependency(Dependency.AndroidX.LifeCycle_LiveData)
-    addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
+executor.apply {
+	addDependency(Dependency.AndroidX.LifeCycle_LiveData)
+	addDependency(Dependency.AndroidX.LifeCycle_ViewModel)
+	addDependency(Dependency.AndroidX.ViewPager2)
+	addDependency(Dependency.Google.Material)
 
-    sources {
-      writeJavaSrc("${data.packageName}.ui.main", "SectionsPagerAdapter",
-        source = ::tabbedPagerAdapterSrcJava)
-      writeJavaSrc("${data.packageName}.ui.main", "PageViewModel",
-        source = ::tabbedPageViewModelSrcJava)
-      writeJavaSrc("${data.packageName}.ui.main", "PlaceholderFragment",
-        source = ::tabbedPlaceholderFragmentSrcJava)
-    }
-  }
+	sources {
+	writeJavaSrc("${data.packageName}.ui.main", "SectionsPagerAdapter",
+		source = ::tabbedPagerAdapterSrcJava)
+	writeJavaSrc("${data.packageName}.ui.main", "PageViewModel",
+		source = ::tabbedPageViewModelSrcJava)
+	writeJavaSrc("${data.packageName}.ui.main", "PlaceholderFragment",
+		source = ::tabbedPlaceholderFragmentSrcJava)
+	}
+}
 }

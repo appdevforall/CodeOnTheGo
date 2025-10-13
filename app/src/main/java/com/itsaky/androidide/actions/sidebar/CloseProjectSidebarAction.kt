@@ -23,6 +23,7 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.activities.editor.BaseEditorActivity
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import kotlin.reflect.KClass
 
@@ -47,4 +48,5 @@ class CloseProjectSidebarAction(context: Context, override val order: Int) :
     context.doConfirmProjectClose()
     return true
   }
+  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.CLOSE_PROJECT_SIDEBAR
 }

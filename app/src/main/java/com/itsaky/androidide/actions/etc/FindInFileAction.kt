@@ -20,16 +20,23 @@ package com.itsaky.androidide.actions.etc
 import android.content.Context
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.actions.ActionData
+import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
 class FindInFileAction() : EditorRelatedAction() {
 
-  override val id: String = "ide.editor.find.inFile"
+  override val id: String = ID
   override var requiresUIThread: Boolean = true
-
+  override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
   override var order: Int = 0
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
+
+  companion object{
+    const val ID = "ide.editor.find.inFile"
+  }
 
   constructor(context: Context, order: Int) : this() {
     this.label = context.getString(R.string.menu_find_file)

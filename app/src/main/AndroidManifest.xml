@@ -11,6 +11,14 @@
         android:protectionLevel="normal"
         tools:ignore="ManifestOrder" />
 
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
     <uses-permission android:name="com.itsaky.androidide.permission.BIND_LOG_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -20,38 +28,44 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.ENFORCE_UPDATE_OWNERSHIP" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-  <application
-    android:allowBackup="false"
-    android:allowNativeHeapPointerTagging="false"
-    android:enableOnBackInvokedCallback="true"
-    android:extractNativeLibs="true"
-    android:hardwareAccelerated="true"
-    android:icon="@drawable/ic_launcher"
-    android:label="@string/app_name"
-    android:largeHeap="true"
-    android:usesCleartextTraffic="true"
-    android:name=".app.IDEApplication"
-    android:preserveLegacyExternalStorage="true"
-    android:requestLegacyExternalStorage="true"
-    android:resizeableActivity="false"
-    android:supportsRtl="true"
-    android:theme="@style/Theme.AndroidIDE"
-    tools:ignore="DiscouragedApi,MediaCapabilities,UnusedAttribute"
-    tools:replace="android:icon,android:name,android:allowBackup, android:supportsRtl, android:theme">
-    <activity
-      android:exported="true"
-      android:name=".activities.CrashHandlerActivity"
-      android:windowSoftInputMode="stateAlwaysHidden">
-      <intent-filter>
-        <action android:name="com.itsaky.androidide.REPORT_CRASH" />
-        <category android:name="android.intent.category.DEFAULT" />
-      </intent-filter>
-    </activity>
+    <application
+        android:name=".app.IDEApplication"
+        android:allowBackup="false"
+        android:allowNativeHeapPointerTagging="false"
+        android:enableOnBackInvokedCallback="true"
+        android:extractNativeLibs="true"
+        android:hardwareAccelerated="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:largeHeap="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:preserveLegacyExternalStorage="true"
+        android:requestLegacyExternalStorage="true"
+        android:resizeableActivity="true"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AndroidIDE"
+        android:usesCleartextTraffic="true"
+        tools:ignore="DiscouragedApi,MediaCapabilities,UnusedAttribute"
+        tools:replace="android:icon,android:name,android:allowBackup, android:supportsRtl, android:theme">
+        <activity
+            android:name=".activities.CrashHandlerActivity"
+            android:exported="true"
+            android:windowSoftInputMode="stateAlwaysHidden">
+            <intent-filter>
+                <action android:name="com.itsaky.androidide.REPORT_CRASH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".activities.SplashActivity"
@@ -74,6 +88,7 @@
             android:configChanges="orientation|screenSize|uiMode"
             android:launchMode="singleTop" />
         <activity android:name=".activities.PreferencesActivity" />
+        <activity android:name=".activities.PluginManagerActivity" />
         <activity android:name=".activities.AboutActivity" />
         <activity android:name=".activities.editor.FAQActivity" />
         <activity android:name=".activities.editor.HelpActivity" />
@@ -82,20 +97,48 @@
             android:name=".activities.TerminalActivity"
             android:windowSoftInputMode="adjustResize" />
 
-        <!--    &lt;!&ndash; Required: set your sentry.io project identifier (DSN) &ndash;&gt;-->
-        <!--    <meta-data android:name="io.sentry.dsn" android:value="https://e27b85ad9ff58221029395291bf1617c@o4508003514712064.ingest.us.sentry.io/4508003516940288" />-->
-
-        <!--    &lt;!&ndash; enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) &ndash;&gt;-->
-        <!--    <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />-->
-        <!--    &lt;!&ndash; enable screenshot for crashes &ndash;&gt;-->
-        <!--    <meta-data android:name="io.sentry.attach-screenshot" android:value="true" />-->
-        <!--    &lt;!&ndash; enable view hierarchy for crashes &ndash;&gt;-->
-        <!--    <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />-->
-
-        <!--    &lt;!&ndash; enable the performance API by setting a sample-rate, adjust in production env &ndash;&gt;-->
-        <!--    <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />-->
-        <!--    &lt;!&ndash; enable profiling when starting transactions, adjust in production env &ndash;&gt;-->
-        <!--    <meta-data android:name="io.sentry.traces.profiling.sample-rate" android:value="1.0" />-->
+        <!-- Required: set your sentry.io project identifier (DSN) -->
+        <meta-data
+            android:name="io.sentry.dsn"
+            android:value="${sentryDsn}" />
+        <!-- enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) -->
+        <meta-data
+            android:name="io.sentry.traces.user-interaction.enable"
+            android:value="true" />
+        <!-- enable screenshot for crashes -->
+        <meta-data
+            android:name="io.sentry.attach-screenshot"
+            android:value="true" />
+        <!-- enable view hierarchy for crashes -->
+        <meta-data
+            android:name="io.sentry.attach-view-hierarchy"
+            android:value="true" />
+        <!-- enable the performance API by setting a sample-rate, adjust in production env -->
+        <meta-data
+            android:name="io.sentry.traces.sample-rate"
+            android:value="1.0" />
+        <!-- enable profiling when starting transactions, adjust in production env -->
+        <meta-data
+            android:name="io.sentry.traces.profiling.sample-rate"
+            android:value="1.0" />
+        <meta-data
+            android:name="io.sentry.send-default-pii"
+            android:value="true" />
+        <!-- Enable profiling on app start -->
+        <meta-data
+            android:name="io.sentry.traces.profiling.start-on-app-start"
+            android:value="true" />
+        <!-- Enable logs to be sent to Sentry -->
+        <meta-data
+            android:name="io.sentry.logs.enabled"
+            android:value="true" />
+        <!-- Record session replays for 100% of errors and 10% of sessions -->
+        <meta-data
+            android:name="io.sentry.session-replay.on-error-sample-rate"
+            android:value="1.0" />
+        <meta-data
+            android:name="io.sentry.session-replay.session-sample-rate"
+            android:value="0.1" />
 
         <provider
             android:name=".provider.IDEDocumentsProvider"
@@ -128,8 +171,31 @@
             </intent-filter>
         </receiver>
 
+        <!--
+         Receiver used to receive broadcasts when foreground application changes
+         This receiver *must* have permissions that are not usually granted to
+         normal Android applications so that only the `shell` user can send
+         broadcasts to this receiver.
+         -->
+        <receiver
+            android:name=".services.debug.ForegroundAppReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+            android:multiprocess="false"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <!-- Must be the same as the one defined in ShizukuServerConstants.java -->
+                <action android:name="com.itsaky.androidide.shizuku.ACTION_FOREGROUND_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".services.builder.GradleBuildService"
+            android:exported="false" />
+
+        <service
+            android:name=".services.debug.DebuggerService"
             android:exported="false" />
 
         <service

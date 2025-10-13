@@ -29,12 +29,17 @@ import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.databinding.LayoutCodeEditorBinding
+import com.itsaky.androidide.editor.events.FileUpdateEvent
+import com.itsaky.androidide.editor.events.LanguageUpdateEvent
+import com.itsaky.androidide.editor.language.IDELanguage
 import com.itsaky.androidide.editor.ui.EditorSearchLayout
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.editor.ui.IDEEditor.Companion.createInputTypeFlags
 import com.itsaky.androidide.editor.utils.ContentReadWrite.readContent
 import com.itsaky.androidide.editor.utils.ContentReadWrite.writeTo
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.lsp.BreakpointHandler
+import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
@@ -46,10 +51,16 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.customOrJBMono
+import io.github.rosemoe.sora.event.ClickEvent
+import io.github.rosemoe.sora.event.InterceptTarget
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.LineSeparator
+import io.github.rosemoe.sora.util.IntPair
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.DirectAccessProps
+import io.github.rosemoe.sora.widget.REGION_LINE_NUMBER
 import io.github.rosemoe.sora.widget.component.Magnifier
+import io.github.rosemoe.sora.widget.resolveTouchRegion
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -75,7 +86,7 @@ class CodeEditorView(
   context: Context,
   file: File,
   selection: Range
-) : LinearLayoutCompat(context), Closeable {
+) : LinearLayoutCompat(context), BreakpointHandler.EventListener, Closeable {
 
   private var _binding: LayoutCodeEditorBinding? = null
   private var _searchLayout: EditorSearchLayout? = null
@@ -124,18 +135,57 @@ class CodeEditorView(
   }
 
   init {
+    val debugClient = IDEDebugClientImpl.requireInstance()
+    debugClient.breakpoints.addListener(this)
+
     _binding = LayoutCodeEditorBinding.inflate(LayoutInflater.from(context))
 
     binding.editor.apply {
       isHighlightCurrentBlock = true
-      props.autoCompletionOnComposing = true
       dividerWidth = SizeUtils.dp2px(2f).toFloat()
       colorScheme = SchemeAndroidIDE.newInstance(context)
       lineSeparator = LineSeparator.LF
+
+      props.apply {
+        autoCompletionOnComposing = true
+        drawCustomLineBgOnCurrentLine = true
+        cursorLineBgOverlapBehavior = DirectAccessProps.CURSOR_LINE_BG_OVERLAP_MIXED
+      }
+
+      subscribeEvent(ClickEvent::class.java) { event, _ ->
+        // if the editor is not backed by a file, then there's no point in adding a breakpoint
+        val editorFile = this.file ?: return@subscribeEvent
+        val region = IntPair.getFirst(resolveTouchRegion(event.causingEvent))
+        if (region == REGION_LINE_NUMBER) {
+          val language = editorLanguage as? IDELanguage? ?: return@subscribeEvent
+          val server = languageServer ?: return@subscribeEvent
+          if (server.debugAdapter != null) {
+            event.intercept(InterceptTarget.TARGET_EDITOR)
+
+            // If we already have a breakpoint added, we won't have received this event
+            // this is because the click is consumed by the SideIconClickEvent for the breakpoint would have consumed this event
+            // as a result, it's safe to assume that there aren't any breakpoints on this line
+            debugClient.toggleBreakpoint(editorFile, event.line)
+            language.toggleBreakpoint(event.line)
+            postInvalidate()
+          }
+        }
+      }
+
+      subscribeEvent(LanguageUpdateEvent::class.java) { _, _ ->
+        this.file?.also { file ->
+          resetBreakpointsInFile(file)
+        }
+      }
+
+      subscribeEvent(FileUpdateEvent::class.java) { _, _ ->
+        this.file?.also { file ->
+          resetBreakpointsInFile(file)
+        }
+      }
     }
 
     _searchLayout = EditorSearchLayout(context, binding.editor)
-
     orientation = VERTICAL
 
     removeAllViews()
@@ -143,6 +193,44 @@ class CodeEditorView(
     addView(searchLayout, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
     readFileAndApplySelection(file, selection)
+  }
+
+  override fun onHighlightLine(file: String, line: Int) {
+    if (file != this.file?.canonicalPath) {
+      return
+    }
+
+    (editor?.editorLanguage as? IDELanguage?)?.apply {
+      unhighlightLines()
+      highlightLine(line)
+    }
+  }
+
+  override fun onUnhighlight() {
+    (editor?.editorLanguage as? IDELanguage?)?.apply {
+      unhighlightLines()
+    }
+  }
+
+  private fun resetBreakpointsInFile(file: File) {
+    val handler = IDEDebugClientImpl.requireInstance().breakpoints
+
+    codeEditorScope.launch {
+      val breakpoints = handler.positionalBreakpointsInFile()
+
+      val highlightedLine = handler.highlightedLocation?.takeIf { it.first == file.canonicalPath }?.second
+      editor?.apply {
+        (editorLanguage as? IDELanguage?)?.apply {
+          removeAllBreakpoints()
+          addBreakpoints(breakpoints.map { it.line })
+          unhighlightLines()
+          if (highlightedLine != null) {
+            highlightLine(highlightedLine)
+          }
+        }
+      }
+    }
+
   }
 
   /**
@@ -488,6 +576,7 @@ class CodeEditorView(
 
   override fun close() {
     codeEditorScope.cancelIfActive("Cancellation was requested")
+    IDEDebugClientImpl.getInstance()?.breakpoints?.removeListener(this)
     _binding?.editor?.apply {
       notifyClose()
       release()

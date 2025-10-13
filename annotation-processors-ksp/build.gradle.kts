@@ -15,38 +15,25 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-  kotlin("jvm")
+	id("java-library")
+	kotlin("jvm")
 }
 
-group = "${BuildConfig.packageName}.annotations"
+group = "${BuildConfig.PACKAGE_NAME}.annotations"
 
 dependencies {
-  implementation(kotlin("stdlib"))
-  
-  implementation(projects.annotations)
-  
-  implementation(libs.androidx.annotation)
-  implementation(libs.common.javapoet)
-  implementation(libs.common.ksp)
+	implementation(kotlin("stdlib"))
+
+	implementation(projects.annotations)
+
+	implementation(libs.androidx.annotation)
+	implementation(libs.common.javapoet)
+	implementation(libs.common.ksp)
 }
 
 sourceSets.main {
-  java.srcDirs("src/main/kotlin")
-}
-
-tasks.withType<KotlinCompile> {
-  kotlinOptions.jvmTarget = "17"
-}
-
-kotlin {
-  jvmToolchain(17)
-}
-
-java {
-  sourceCompatibility = JavaVersion.VERSION_17
-  targetCompatibility = JavaVersion.VERSION_17
+	java.srcDirs("src/main/kotlin")
 }

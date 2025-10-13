@@ -17,26 +17,25 @@
 
 package com.itsaky.androidide.activities.editor
 
-import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
-import android.view.Menu
-import android.view.MenuItem
+import android.util.Log
+import android.view.View
 import android.view.ViewGroup.LayoutParams
-import androidx.annotation.DrawableRes
-import androidx.appcompat.view.menu.MenuBuilder
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
-import org.adfa.constants.CONTENT_KEY
 import com.blankj.utilcode.util.ImageUtils
+import com.google.android.material.tabs.TabLayout
+import com.google.gson.Gson
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
-import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
+import com.itsaky.androidide.api.ActionContextProvider
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
@@ -48,7 +47,8 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
-import com.itsaky.androidide.idetooltips.IDETooltipItem
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
@@ -56,20 +56,30 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SaveResult
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.ui.CodeEditorView
-import com.itsaky.androidide.utils.DialogUtils.newYesNoDialog
+import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.flashSuccess
-import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.collections.set
+import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
+import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
+import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.function.Consumer
+
 
 /**
  * Base class for EditorActivity. Handles logic for working with file editors.
@@ -78,498 +88,613 @@ import org.greenrobot.eventbus.ThreadMode
  */
 open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
 
-  protected val isOpenedFilesSaved = AtomicBoolean(false)
+    private val singleBuildListeners = CopyOnWriteArrayList<Consumer<BuildResult>>()
 
-  override fun doOpenFile(file: File, selection: Range?) {
-    openFileAndSelect(file, selection)
-  }
-
-  override fun doCloseAll(runAfter: () -> Unit) {
-    closeAll(runAfter)
-  }
-
-  override fun provideCurrentEditor(): CodeEditorView? {
-    return getCurrentEditor()
-  }
-
-  override fun provideEditorAt(index: Int): CodeEditorView? {
-    return getEditorAtIndex(index)
-  }
-
-  override fun preDestroy() {
-    super.preDestroy()
-    TSLanguageRegistry.instance.destroy()
-    editorViewModel.removeAllFiles()
-  }
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    mBuildEventListener.setActivity(this)
-    super.onCreate(savedInstanceState)
-
-    editorViewModel._displayedFile.observe(
-      this) { this.content.editorContainer.displayedChild = it }
-    editorViewModel._startDrawerOpened.observe(this) { opened ->
-      this.binding.editorDrawerLayout.apply {
-        if (opened) openDrawer(GravityCompat.START) else closeDrawer(GravityCompat.START)
-      }
+    companion object {
+        const val PREF_KEY_OPEN_FILES_CACHE = "open_files_cache_v1"
     }
 
-    editorViewModel._filesModified.observe(this) { invalidateOptionsMenu() }
-    editorViewModel._filesSaving.observe(this) { invalidateOptionsMenu() }
+    protected val isOpenedFilesSaved = AtomicBoolean(false)
 
-    editorViewModel.observeFiles(this) {
-      // rewrite the cached files index if there are any opened files
-      val currentFile =
-        getCurrentEditor()?.editor?.file?.absolutePath
-          ?: run {
-            editorViewModel.writeOpenedFiles(null)
-            editorViewModel.openedFilesCache = null
-            return@observeFiles
-          }
-      getOpenedFiles().also {
-        val cache = OpenedFilesCache(currentFile, it)
-        editorViewModel.writeOpenedFiles(cache)
-        editorViewModel.openedFilesCache = cache
-      }
+    private val fileTimestamps = mutableMapOf<String, Long>()
+
+    private val pluginTabIndices = mutableMapOf<String, Int>()
+    private val tabIndexToPluginId = mutableMapOf<Int, String>()
+
+    private fun getTabPositionForFileIndex(fileIndex: Int): Int {
+        if (fileIndex < 0) return -1
+        var tabPos = 0
+        var fileCount = 0
+        while (tabPos < content.tabs.tabCount) {
+            if (!isPluginTab(tabPos)) {
+                if (fileCount == fileIndex) return tabPos
+                fileCount++
+            }
+            tabPos++
+        }
+        return -1
     }
 
-    executeAsync {
-      TSLanguageRegistry.instance.register(JavaLanguage.TS_TYPE, JavaLanguage.FACTORY)
-      TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KT, KotlinLanguage.FACTORY)
-      TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KTS, KotlinLanguage.FACTORY)
-      TSLanguageRegistry.instance.register(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
-      TSLanguageRegistry.instance.register(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
-      TSLanguageRegistry.instance.register(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
-      IDEColorSchemeProvider.initIfNeeded()
-    }
-  }
-
-  override fun onPause() {
-    super.onPause()
-
-    // if the user manually closes the project, this will be true
-    // in this case, don't overwrite the already saved cache
-    if (!isOpenedFilesSaved.get()) {
-      saveOpenedFiles()
-    }
-  }
-
-  override fun onResume() {
-    super.onResume()
-    isOpenedFilesSaved.set(false)
-  }
-
-  override fun saveOpenedFiles() {
-    writeOpenedFilesCache(getOpenedFiles(), getCurrentEditor()?.editor?.file)
-  }
-
-  private fun writeOpenedFilesCache(openedFiles: List<OpenedFile>, selectedFile: File?) {
-    if (selectedFile == null || openedFiles.isEmpty()) {
-      editorViewModel.writeOpenedFiles(null)
-      editorViewModel.openedFilesCache = null
-      log.debug("[onPause] No opened files. Opened files cache reset to null.")
-      isOpenedFilesSaved.set(true)
-      return
+    override fun doOpenFile(file: File, selection: Range?) {
+        openFileAndSelect(file, selection)
     }
 
-    val cache = OpenedFilesCache(selectedFile = selectedFile.absolutePath, allFiles = openedFiles)
-
-    editorViewModel.writeOpenedFiles(cache)
-    editorViewModel.openedFilesCache = if (!isDestroying) cache else null
-    log.debug("[onPause] Opened files cache reset to {}", editorViewModel.openedFilesCache)
-    isOpenedFilesSaved.set(true)
-  }
-
-  override fun onStart() {
-    super.onStart()
-
-    try {
-      editorViewModel.getOrReadOpenedFilesCache(this::onReadOpenedFilesCache)
-      editorViewModel.openedFilesCache = null
-    } catch (err: Throwable) {
-      log.error("Failed to reopen recently opened files", err)
-    }
-  }
-
-  private fun onReadOpenedFilesCache(cache: OpenedFilesCache?) {
-    cache ?: return
-    cache.allFiles.forEach { file ->
-      openFile(File(file.filePath), file.selection)
-    }
-    openFile(File(cache.selectedFile))
-  }
-
-  override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-    prepareOptionsMenu(menu)
-    return true
-  }
-
-  @SuppressLint("RestrictedApi")
-  override fun onCreateOptionsMenu(menu: Menu): Boolean {
-    if (menu is MenuBuilder) {
-      menu.setOptionalIconsVisible(true)
+    override fun doCloseAll() {
+        closeAll {}
     }
 
-    val data = createToolbarActionData()
-    getInstance().fillMenu(FillMenuParams(data, EDITOR_TOOLBAR, menu))
-    return true
-  }
+    override fun provideCurrentEditor(): CodeEditorView? {
+        return getCurrentEditor()
+    }
 
-  open fun prepareOptionsMenu(menu: Menu) {
-    val data = createToolbarActionData()
-    val actions = getInstance().getActions(EDITOR_TOOLBAR)
-    actions.forEach { (_, action) ->
-      menu.findItem(action.itemId)?.let { item ->
-        action.prepare(data)
+    override fun provideEditorAt(index: Int): CodeEditorView? {
+        return getEditorAtIndex(index)
+    }
 
-        item.isVisible = action.visible
-        item.isEnabled = action.enabled
-        item.title = action.label
+    override fun preDestroy() {
+        super.preDestroy()
+        TSLanguageRegistry.instance.destroy()
+        editorViewModel.removeAllFiles()
+    }
 
-        item.icon = action.icon?.apply {
-          colorFilter = action.createColorFilter(data)
-          alpha = if (action.enabled) 255 else 76
+    override fun onCreate(savedInstanceState: Bundle?) {
+        mBuildEventListener.setActivity(this)
+        super.onCreate(savedInstanceState)
+
+        editorViewModel._displayedFile.observe(
+            this
+        ) { fileIndex ->
+            val tabPosition = getTabPositionForFileIndex(fileIndex)
+            if (tabPosition >= 0) {
+                this.content.editorContainer.displayedChild = tabPosition
+            }
+        }
+        editorViewModel._startDrawerOpened.observe(this) { opened ->
+            this.binding.editorDrawerLayout.apply {
+                if (opened) openDrawer(GravityCompat.START) else closeDrawer(GravityCompat.START)
+            }
         }
 
-        var showAsAction = action.getShowAsActionFlags(data)
-        if (showAsAction == -1) {
-          showAsAction = if (action.icon != null) {
-            MenuItem.SHOW_AS_ACTION_IF_ROOM
-          } else {
-            MenuItem.SHOW_AS_ACTION_NEVER
-          }
+        editorViewModel._filesModified.observe(this) { invalidateOptionsMenu() }
+        editorViewModel._filesSaving.observe(this) { invalidateOptionsMenu() }
+
+        editorViewModel.observeFiles(this) {
+            // rewrite the cached files index if there are any opened files
+            val currentFile =
+                getCurrentEditor()?.editor?.file?.absolutePath
+                    ?: run {
+                        editorViewModel.writeOpenedFiles(null)
+                        editorViewModel.openedFilesCache = null
+                        return@observeFiles
+                    }
+            getOpenedFiles().also {
+                val cache = OpenedFilesCache(currentFile, it)
+                editorViewModel.writeOpenedFiles(cache)
+                editorViewModel.openedFilesCache = cache
+            }
         }
 
-        if (!action.enabled) {
-          showAsAction = MenuItem.SHOW_AS_ACTION_NEVER
+        executeAsync {
+            TSLanguageRegistry.instance.register(JavaLanguage.TS_TYPE, JavaLanguage.FACTORY)
+            TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KT, KotlinLanguage.FACTORY)
+            TSLanguageRegistry.instance.register(KotlinLanguage.TS_TYPE_KTS, KotlinLanguage.FACTORY)
+            TSLanguageRegistry.instance.register(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
+            TSLanguageRegistry.instance.register(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
+            TSLanguageRegistry.instance.register(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
+            IDEColorSchemeProvider.initIfNeeded()
         }
 
-        item.setShowAsAction(showAsAction)
-
-        action.createActionView(data)?.let { item.actionView = it }
-      }
-    }
-    content.editorToolbar.updateMenuDisplay()
-  }
-
-  private fun createToolbarActionData(): ActionData {
-    val data = ActionData()
-    val currentEditor = getCurrentEditor()
-
-    data.put(Context::class.java, this)
-    data.put(CodeEditorView::class.java, currentEditor)
-
-    if (currentEditor != null) {
-      data.put(IDEEditor::class.java, currentEditor.editor)
-      data.put(File::class.java, currentEditor.file)
-    }
-    return data
-  }
-
-  override fun getCurrentEditor(): CodeEditorView? {
-    return if (editorViewModel.getCurrentFileIndex() != -1) {
-      getEditorAtIndex(editorViewModel.getCurrentFileIndex())
-    } else null
-  }
-
-  override fun getEditorAtIndex(index: Int): CodeEditorView? {
-    return _binding?.content?.editorContainer?.getChildAt(index) as CodeEditorView?
-  }
-
-  override fun openFileAndSelect(file: File, selection: Range?) {
-    openFile(file, selection)
-
-    getEditorForFile(file)?.editor?.also { editor ->
-      editor.postInLifecycle {
-        if (selection == null) {
-          editor.setSelection(0, 0)
-          return@postInLifecycle
+        optionsMenuInvalidator = Runnable {
+            prepareOptionsMenu()
         }
 
-        editor.validateRange(selection)
-        editor.setSelection(selection)
-      }
-    }
-  }
-
-  override fun openFile(file: File, selection: Range?): CodeEditorView? {
-    val range = selection ?: Range.NONE
-    if (ImageUtils.isImage(file)) {
-      openImage(this, file)
-      return null
+        loadPluginTabs()
     }
 
-    val index = openFileAndGetIndex(file, range)
-    val tab = content.tabs.getTabAt(index)
-    if (tab != null && index >= 0 && !tab.isSelected) {
-      tab.select()
+    override fun onPause() {
+        super.onPause()
+        // Record timestamps for all currently open files before saving the cache
+        editorViewModel.getOpenedFiles().forEach { file ->
+            // Note: Using the file's absolutePath as the key
+            fileTimestamps[file.absolutePath] = file.lastModified()
+        }
+        ActionContextProvider.clearActivity()
+        if (!isOpenedFilesSaved.get()) {
+            saveOpenedFiles()
+        }
     }
 
-    editorViewModel.startDrawerOpened = false
-    editorViewModel.displayedFileIndex = index
-
-    return try {
-      getEditorAtIndex(index)
-    } catch (th: Throwable) {
-      log.error("Unable to get editor fragment at opened file index {}", index, th)
-      null
-    }
-  }
-
-  override fun openFileAndGetIndex(file: File, selection: Range?): Int {
-    val openedFileIndex = findIndexOfEditorByFile(file)
-    if (openedFileIndex != -1) {
-      return openedFileIndex
+    override fun onResume() {
+        super.onResume()
+        ActionContextProvider.setActivity(this)
+        isOpenedFilesSaved.set(false)
+        checkForExternalFileChanges()
+        // Invalidate the options menu to reflect any changes
+        invalidateOptionsMenu()
     }
 
-    if (!file.exists()) {
-      return -1
+    private fun checkForExternalFileChanges() {
+        // Get the list of files currently managed by the ViewModel
+        val openFiles = editorViewModel.getOpenedFiles()
+        if (openFiles.isEmpty() || fileTimestamps.isEmpty()) return
+
+        // Check each open file
+        openFiles.forEach { file ->
+            val lastKnownTimestamp = fileTimestamps[file.absolutePath] ?: return@forEach
+            val currentTimestamp = file.lastModified()
+            val editorView = getEditorForFile(file)
+
+            // If the file on disk is newer AND the editor for it exists AND has no unsaved changes...
+            if (currentTimestamp > lastKnownTimestamp && editorView != null && !editorView.isModified) {
+                val newContent = file.readText()
+                editorView.editor?.post {
+                    editorView.editor?.setText(newContent)
+                    editorView.markAsSaved()
+                    updateTabs()
+                }
+            }
+        }
     }
 
-    val position = editorViewModel.getOpenedFileCount()
-
-    log.info("Opening file at index {} file:{}", position, file)
-
-    val editor = CodeEditorView(this, file, selection!!)
-    editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-
-    content.editorContainer.addView(editor)
-    content.tabs.addTab(content.tabs.newTab())
-
-    editorViewModel.addFile(file)
-    editorViewModel.setCurrentFile(position, file)
-
-    updateTabs()
-
-    return position
-  }
-
-  override fun getEditorForFile(file: File): CodeEditorView? {
-    for (i in 0 until editorViewModel.getOpenedFileCount()) {
-      val editor = content.editorContainer.getChildAt(i) as? CodeEditorView
-      if (file == editor?.file) return editor
-    }
-    return null
-  }
-
-  override fun findIndexOfEditorByFile(file: File?): Int {
-    if (file == null) {
-      log.error("Cannot find index of a null file.")
-      return -1
+    override fun saveOpenedFiles() {
+        writeOpenedFilesCache(getOpenedFiles(), getCurrentEditor()?.editor?.file)
     }
 
-    for (i in 0 until editorViewModel.getOpenedFileCount()) {
-      val opened: File = editorViewModel.getOpenedFile(i)
-      if (opened == file) {
-        return i
-      }
-    }
+    private fun writeOpenedFilesCache(openedFiles: List<OpenedFile>, selectedFile: File?) {
+        val prefs = (application as BaseApplication).prefManager
 
-    return -1
-  }
-
-  override fun saveAllAsync(
-    notify: Boolean,
-    requestSync: Boolean,
-    processResources: Boolean,
-    progressConsumer: ((Int, Int) -> Unit)?,
-    runAfter: (() -> Unit)?
-  ) {
-    editorActivityScope.launch {
-      saveAll(notify, requestSync, processResources, progressConsumer)
-      runAfter?.invoke()
-    }
-  }
-
-  override suspend fun saveAll(
-    notify: Boolean,
-    requestSync: Boolean,
-    processResources: Boolean,
-    progressConsumer: ((Int, Int) -> Unit)?
-  ): Boolean {
-    val result = saveAllResult(progressConsumer)
-
-    // don't bother to switch the context if we don't need to
-    if (notify || (result.gradleSaved && requestSync)) {
-      withContext(Dispatchers.Main) {
-        if (notify) {
-          flashSuccess(string.all_saved)
+        if (selectedFile == null || openedFiles.isEmpty()) {
+            // If there are no files, clear the saved preference
+            prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
+            log.debug("[onPause] No opened files. Session cache cleared.")
+            isOpenedFilesSaved.set(true)
+            return
         }
 
-        if (result.gradleSaved && requestSync) {
-          editorViewModel.isSyncNeeded = true
+        val cache =
+            OpenedFilesCache(selectedFile = selectedFile.absolutePath, allFiles = openedFiles)
+
+        val jsonCache = Gson().toJson(cache)
+        prefs.putString(PREF_KEY_OPEN_FILES_CACHE, jsonCache)
+
+        log.debug("[onPause] Editor session saved to SharedPreferences.")
+        isOpenedFilesSaved.set(true)
+    }
+
+    override fun onStart() {
+        super.onStart()
+
+        try {
+            val prefs = (application as BaseApplication).prefManager
+            val jsonCache = prefs.getString(PREF_KEY_OPEN_FILES_CACHE, null)
+            if (jsonCache != null) {
+                val cache = Gson().fromJson(jsonCache, OpenedFilesCache::class.java)
+                onReadOpenedFilesCache(cache)
+
+                // Clear the preference so it's only loaded once on startup
+                prefs.putString(PREF_KEY_OPEN_FILES_CACHE, null)
+            }
+        } catch (err: Throwable) {
+            log.error("Failed to reopen recently opened files", err)
         }
-      }
     }
 
-    if (processResources) {
-      ProjectManagerImpl.getInstance().generateSources()
+    private fun onReadOpenedFilesCache(cache: OpenedFilesCache?) {
+        cache ?: return
+
+        val existingFiles = cache.allFiles.filter { File(it.filePath).exists() }
+        val selectedFileExists = File(cache.selectedFile).exists()
+
+        if (existingFiles.isEmpty()) return
+
+        existingFiles.forEach { file ->
+            openFile(File(file.filePath), file.selection)
+        }
+
+        if (selectedFileExists) {
+            openFile(File(cache.selectedFile))
+        }
     }
 
-    return result.gradleSaved
-  }
+    fun prepareOptionsMenu() {
+        val registry = getInstance() as DefaultActionsRegistry
+        val data = createToolbarActionData()
+        content.customToolbar.clearMenu()
 
-  override suspend fun saveAllResult(progressConsumer: ((Int, Int) -> Unit)?): SaveResult {
-    return performFileSave {
-      val result = SaveResult()
-      for (i in 0 until editorViewModel.getOpenedFileCount()) {
-        saveResultInternal(i, result)
-        progressConsumer?.invoke(i + 1, editorViewModel.getOpenedFileCount())
-      }
+        val actions = getInstance().getActions(EDITOR_TOOLBAR)
+        actions.onEachIndexed { index, entry ->
+            val action = entry.value
+            val isLast = index == actions.size - 1
 
-      return@performFileSave result
-    }
-  }
+            action.prepare(data)
 
-  override suspend fun saveResult(index: Int, result: SaveResult) {
-    performFileSave {
-      saveResultInternal(index, result)
-    }
-  }
+            action.icon?.apply {
+                colorFilter = action.createColorFilter(data)
+                alpha = if (action.enabled) 255 else 76
+            }
 
-  private suspend fun saveResultInternal(
-    index: Int,
-    result: SaveResult
-  ) : Boolean {
-    if (index < 0 || index >= editorViewModel.getOpenedFileCount()) {
-      return false
-    }
-
-    val frag = getEditorAtIndex(index) ?: return false
-    val fileName = frag.file?.name ?: return false
-
-    run {
-      // Must be called before frag.save()
-      // Otherwise, it'll always return false
-      val modified = frag.isModified
-      if (!frag.save()) {
-        return false
-      }
-
-      val isGradle = fileName.endsWith(".gradle") || fileName.endsWith(".gradle.kts")
-      val isXml: Boolean = fileName.endsWith(".xml")
-      if (!result.gradleSaved) {
-        result.gradleSaved = modified && isGradle
-      }
-
-      if (!result.xmlSaved) {
-        result.xmlSaved = modified && isXml
-      }
+            content.customToolbar.addMenuItem(
+                icon = action.icon,
+                hint = action.label,
+                onClick = { if (action.enabled) registry.executeAction(action, data) },
+                onLongClick = {
+                    TooltipManager.showTooltip(
+                        context = this,
+                        anchorView = content.customToolbar,
+                        tag = action.retrieveTooltipTag(false),
+                    )
+                },
+                shouldAddMargin = !isLast
+            )
+        }
     }
 
-    val hasUnsaved = hasUnsavedFiles()
+    private fun createToolbarActionData(): ActionData {
+        val data = ActionData.create(this)
+        val currentEditor = getCurrentEditor()
 
-    withContext(Dispatchers.Main) {
+        data.put(CodeEditorView::class.java, currentEditor)
 
-      editorViewModel.areFilesModified = hasUnsaved
-
-      // set tab as unmodified
-      val tab = content.tabs.getTabAt(index) ?: return@withContext
-      if (tab.text!!.startsWith('*')) {
-        tab.text = tab.text!!.substring(startIndex = 1)
-      }
+        if (currentEditor != null) {
+            data.put(IDEEditor::class.java, currentEditor.editor)
+            data.put(File::class.java, currentEditor.file)
+        }
+        return data
     }
 
-    return true
-  }
-
-  private fun hasUnsavedFiles() = editorViewModel.getOpenedFiles().any { file ->
-    getEditorForFile(file)?.isModified == true
-  }
-
-  private suspend inline fun <T : Any?> performFileSave(crossinline action: suspend () -> T) : T {
-    setFilesSaving(true)
-    try {
-      return action()
-    } finally {
-      setFilesSaving(false)
-    }
-  }
-
-  private suspend fun setFilesSaving(saving: Boolean) {
-    withContext(Dispatchers.Main.immediate) {
-      editorViewModel.areFilesSaving = saving
-    }
-  }
-
-  override fun areFilesModified(): Boolean {
-    return editorViewModel.areFilesModified
-  }
-
-  override fun areFilesSaving(): Boolean {
-    return editorViewModel.areFilesSaving
-  }
-
-  override fun closeFile(index: Int, runAfter: () -> Unit) {
-    if (index < 0 || index >= editorViewModel.getOpenedFileCount()) {
-      log.error("Invalid file index. Cannot close.")
-      return
+    override fun getCurrentEditor(): CodeEditorView? {
+        return if (editorViewModel.getCurrentFileIndex() != -1) {
+            getEditorAtIndex(editorViewModel.getCurrentFileIndex())
+        } else null
     }
 
-    val opened = editorViewModel.getOpenedFile(index)
-    log.info("Closing file: {}", opened)
-
-    val editor = getEditorAtIndex(index)
-    if (editor?.isModified == true) {
-      log.info("File has been modified: {}", opened)
-      notifyFilesUnsaved(listOf(editor)) {
-        closeFile(index, runAfter)
-      }
-      return
+    override fun getEditorAtIndex(index: Int): CodeEditorView? {
+        val tabPosition = getTabPositionForFileIndex(index)
+        if (tabPosition < 0) return null
+        val child = _binding?.content?.editorContainer?.getChildAt(tabPosition) ?: return null
+        return if (child is CodeEditorView) child else null
     }
 
-    editor?.close() ?: run {
-      log.error("Cannot save file before close. Editor instance is null")
+    override fun openFileAndSelect(file: File, selection: Range?) {
+        openFile(file, selection)
+
+        getEditorForFile(file)?.editor?.also { editor ->
+            editor.postInLifecycle {
+                if (selection == null) {
+                    editor.setSelection(0, 0)
+                    return@postInLifecycle
+                }
+
+                editor.validateRange(selection)
+                editor.setSelection(selection)
+            }
+        }
     }
 
-    editorViewModel.removeFile(index)
-    content.apply {
-      tabs.removeTabAt(index)
-      editorContainer.removeViewAt(index)
+    override fun openFile(file: File, selection: Range?): CodeEditorView? {
+        val range = selection ?: Range.NONE
+        if (ImageUtils.isImage(file)) {
+            openImage(this, file)
+            return null
+        }
+
+        val fileIndex = openFileAndGetIndex(file, range)
+        if (fileIndex < 0) return null
+
+        editorViewModel.startDrawerOpened = false
+        editorViewModel.displayedFileIndex = fileIndex
+
+        val tabPosition = getTabPositionForFileIndex(fileIndex)
+        val tab = content.tabs.getTabAt(tabPosition)
+        if (tab != null && !tab.isSelected) {
+            tab.select()
+        }
+
+        return try {
+            getEditorAtIndex(fileIndex)
+        } catch (th: Throwable) {
+            log.error("Unable to get editor at file index {}", fileIndex, th)
+            null
+        }
     }
 
-    editorViewModel.areFilesModified = hasUnsavedFiles()
+    override fun openFileAndGetIndex(file: File, selection: Range?): Int {
+        val openedFileIndex = findIndexOfEditorByFile(file)
+        if (openedFileIndex != -1) {
+            return openedFileIndex
+        }
 
-    updateTabs()
-    runAfter()
-  }
+        if (!file.exists()) {
+            return -1
+        }
 
-  override fun closeOthers() {
-    if (editorViewModel.getOpenedFileCount() == 0) {
-      return
+        val fileIndex = editorViewModel.getOpenedFileCount()
+        val tabPosition = getNextFileTabPosition()
+
+        log.info("Opening file at file index {} tab position {} file:{}", fileIndex, tabPosition, file)
+
+        val editor = CodeEditorView(this, file, selection!!)
+        editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+
+        if (tabPosition >= content.tabs.tabCount) {
+            content.tabs.addTab(content.tabs.newTab())
+            content.editorContainer.addView(editor)
+        } else {
+            content.tabs.addTab(content.tabs.newTab(), tabPosition)
+            content.editorContainer.addView(editor, tabPosition)
+            shiftPluginIndices(tabPosition, 1)
+        }
+
+        editorViewModel.addFile(file)
+        editorViewModel.setCurrentFile(fileIndex, file)
+
+        updateTabs()
+
+        return fileIndex
     }
 
-    val unsavedFiles =
-      editorViewModel.getOpenedFiles().map(::getEditorForFile)
-        .filter { it != null && it.isModified }
-
-    if (unsavedFiles.isNotEmpty()) {
-      notifyFilesUnsaved(unsavedFiles) { closeOthers() }
-      return
+    private fun getNextFileTabPosition(): Int {
+        var lastFileTabPos = -1
+        for (i in 0 until content.tabs.tabCount) {
+            if (!isPluginTab(i)) {
+                lastFileTabPos = i
+            }
+        }
+        return lastFileTabPos + 1
     }
 
-    val file = editorViewModel.getCurrentFile()
-    var index = 0
+    private fun shiftPluginIndices(fromPosition: Int, delta: Int) {
+        val shifted = mutableMapOf<String, Int>()
+        pluginTabIndices.forEach { (id, index) ->
+            val newIndex = if (index >= fromPosition) index + delta else index
+            if (newIndex >= 0) {
+                shifted[id] = newIndex
+            }
+        }
 
-    // keep closing the file at index 0
-    // if openedFiles[0] == file, then keep closing files at index 1
-    while (editorViewModel.getOpenedFileCount() != 1) {
-      val editor = getEditorAtIndex(index)
+        pluginTabIndices.clear()
+        pluginTabIndices.putAll(shifted)
 
-      if (editor == null) {
-        log.error("Unable to save file at index {}", index)
-        continue
-      }
+        tabIndexToPluginId.clear()
+        shifted.forEach { (id, index) ->
+            tabIndexToPluginId[index] = id
+        }
 
-      // Index of files changes as we keep close files
-      // So we compare the files instead of index
-      if (file != editor.file) {
-        closeFile(index)
-      } else {
-        index = 1
-      }
+        Log.d("EditorHandlerActivity", "Updated plugin indices after shift: $pluginTabIndices")
     }
-  }
+
+
+    override fun getEditorForFile(file: File): CodeEditorView? {
+        for (i in 0 until content.editorContainer.childCount) {
+            val child = content.editorContainer.getChildAt(i)
+            if (child is CodeEditorView && file == child.file) {
+                return child
+            }
+        }
+        return null
+    }
+
+    override fun findIndexOfEditorByFile(file: File?): Int {
+        if (file == null) {
+            log.error("Cannot find index of a null file.")
+            return -1
+        }
+
+        for (i in 0 until editorViewModel.getOpenedFileCount()) {
+            val opened: File = editorViewModel.getOpenedFile(i)
+            if (opened == file) {
+                return i
+            }
+        }
+
+        return -1
+    }
+
+    override fun saveAllAsync(
+        notify: Boolean,
+        requestSync: Boolean,
+        processResources: Boolean,
+        progressConsumer: ((Int, Int) -> Unit)?,
+        runAfter: (() -> Unit)?
+    ) {
+        editorActivityScope.launch {
+            saveAll(notify, requestSync, processResources, progressConsumer)
+            runAfter?.invoke()
+        }
+    }
+
+    override suspend fun saveAll(
+        notify: Boolean,
+        requestSync: Boolean,
+        processResources: Boolean,
+        progressConsumer: ((Int, Int) -> Unit)?
+    ): Boolean {
+        val result = saveAllResult(progressConsumer)
+
+        // don't bother to switch the context if we don't need to
+        if (notify || (result.gradleSaved && requestSync)) {
+            withContext(Dispatchers.Main) {
+                if (notify) {
+                    flashSuccess(string.all_saved)
+                }
+
+                if (result.gradleSaved && requestSync) {
+                    editorViewModel.isSyncNeeded = true
+                }
+            }
+        }
+
+        if (processResources) {
+            ProjectManagerImpl.getInstance().generateSources()
+        }
+
+        return result.gradleSaved
+    }
+
+    override suspend fun saveAllResult(progressConsumer: ((Int, Int) -> Unit)?): SaveResult {
+        return performFileSave {
+            val result = SaveResult()
+            for (i in 0 until editorViewModel.getOpenedFileCount()) {
+                saveResultInternal(i, result)
+                progressConsumer?.invoke(i + 1, editorViewModel.getOpenedFileCount())
+            }
+
+            return@performFileSave result
+        }
+    }
+
+    override suspend fun saveResult(index: Int, result: SaveResult) {
+        performFileSave {
+            saveResultInternal(index, result)
+        }
+    }
+
+    private suspend fun saveResultInternal(
+        index: Int,
+        result: SaveResult
+    ): Boolean {
+        if (index < 0 || index >= editorViewModel.getOpenedFileCount()) {
+            return false
+        }
+
+        val frag = getEditorAtIndex(index) ?: return false
+        val fileName = frag.file?.name ?: return false
+
+        run {
+            // Must be called before frag.save()
+            // Otherwise, it'll always return false
+            val modified = frag.isModified
+            if (!frag.save()) {
+                return false
+            }
+
+            val isGradle = fileName.endsWith(".gradle") || fileName.endsWith(".gradle.kts")
+            val isXml: Boolean = fileName.endsWith(".xml")
+            if (!result.gradleSaved) {
+                result.gradleSaved = modified && isGradle
+            }
+
+            if (!result.xmlSaved) {
+                result.xmlSaved = modified && isXml
+            }
+        }
+
+        val hasUnsaved = hasUnsavedFiles()
+
+        withContext(Dispatchers.Main) {
+
+            editorViewModel.areFilesModified = hasUnsaved
+
+            // set tab as unmodified
+            val tab = content.tabs.getTabAt(index) ?: return@withContext
+            if (tab.text!!.startsWith('*')) {
+                tab.text = tab.text!!.substring(startIndex = 1)
+            }
+        }
+
+        return true
+    }
+
+    private fun hasUnsavedFiles() = editorViewModel.getOpenedFiles().any { file ->
+        getEditorForFile(file)?.isModified == true
+    }
+
+    private suspend inline fun <T : Any?> performFileSave(crossinline action: suspend () -> T): T {
+        setFilesSaving(true)
+        try {
+            return action()
+        } finally {
+            setFilesSaving(false)
+        }
+    }
+
+    private suspend fun setFilesSaving(saving: Boolean) {
+        withContext(Dispatchers.Main.immediate) {
+            editorViewModel.areFilesSaving = saving
+        }
+    }
+
+    override fun areFilesModified(): Boolean {
+        return editorViewModel.areFilesModified
+    }
+
+    override fun areFilesSaving(): Boolean {
+        return editorViewModel.areFilesSaving
+    }
+
+    override fun closeFile(index: Int, runAfter: () -> Unit) {
+        if (index < 0 || index >= editorViewModel.getOpenedFileCount()) {
+            log.error("Invalid file index. Cannot close.")
+            return
+        }
+
+        val opened = editorViewModel.getOpenedFile(index)
+        log.info("Closing file: {}", opened)
+
+        val editor = getEditorAtIndex(index)
+        if (editor?.isModified == true) {
+            log.info("File has been modified: {}", opened)
+            notifyFilesUnsaved(listOf(editor)) {
+                closeFile(index, runAfter)
+            }
+            return
+        }
+
+        editor?.close() ?: run {
+            log.error("Cannot save file before close. Editor instance is null")
+        }
+
+        val tabPosition = getTabPositionForFileIndex(index)
+        editorViewModel.removeFile(index)
+
+        if (tabPosition >= 0) {
+            content.tabs.removeTabAt(tabPosition)
+            content.editorContainer.removeViewAt(tabPosition)
+            shiftPluginIndices(tabPosition + 1, -1)
+        }
+
+        editorViewModel.areFilesModified = hasUnsavedFiles()
+        updateTabs()
+        runAfter()
+    }
+
+
+    override fun closeOthers() {
+        if (editorViewModel.getOpenedFileCount() == 0) {
+            return
+        }
+
+        val unsavedFiles =
+            editorViewModel.getOpenedFiles().map(::getEditorForFile)
+                .filter { it != null && it.isModified }
+
+        if (unsavedFiles.isNotEmpty()) {
+            notifyFilesUnsaved(unsavedFiles) { closeOthers() }
+            return
+        }
+
+        val file = editorViewModel.getCurrentFile()
+        var index = 0
+
+        // keep closing the file at index 0
+        // if openedFiles[0] == file, then keep closing files at index 1
+        while (editorViewModel.getOpenedFileCount() != 1) {
+            val editor = getEditorAtIndex(index)
+
+            if (editor == null) {
+                log.error("Unable to save file at index {}", index)
+                continue
+            }
+
+            // Index of files changes as we keep close files
+            // So we compare the files instead of index
+            if (file != editor.file) {
+                closeFile(index)
+            } else {
+                index = 1
+            }
+        }
+    }
 
     override fun openFAQActivity(htmlData: String) {
         val intent = Intent(this, FAQActivity::class.java)
@@ -577,153 +702,479 @@ open class EditorHandlerActivity : ProjectHandlerActivity(), IEditorHandler {
         startActivity(intent)
     }
 
-    override suspend fun getTooltipData(category: String, tag: String): IDETooltipItem? {
-        return withContext(Dispatchers.IO) {
-          IDEApplication.idetooltipDao.getTooltip(category, tag)
+    override fun closeAll(runAfter: () -> Unit) {
+        val unsavedFiles =
+            editorViewModel.getOpenedFiles().map(this::getEditorForFile)
+                .filter { it != null && it.isModified }
+
+        if (unsavedFiles.isNotEmpty()) {
+            // If there are unsaved files, show the confirmation dialog.
+            notifyFilesUnsaved(unsavedFiles) { closeAll(runAfter) }
+            return
+        }
+
+        // If there are NO unsaved files, just perform the close action directly.
+        // The 'manualFinish' is false because this action doesn't exit the activity by itself.
+        performCloseAllFiles(manualFinish = false)
+        runAfter()
+    }
+
+
+    override fun getOpenedFiles() =
+        editorViewModel.getOpenedFiles().mapNotNull {
+            val editor = getEditorForFile(it)?.editor ?: return@mapNotNull null
+            OpenedFile(it.absolutePath, editor.cursorLSPRange)
+        }
+
+    fun closeCurrentFile() {
+        val tabPosition = content.tabs.selectedTabPosition
+
+        if (isPluginTab(tabPosition)) {
+            closePluginTab(tabPosition)
+            return
+        }
+
+        val fileIndex = getFileIndexForTabPosition(tabPosition)
+        if (fileIndex >= 0) {
+            closeFile(fileIndex) {
+                invalidateOptionsMenu()
+            }
         }
     }
 
-  override fun closeAll(runAfter: () -> Unit) {
-    val count = editorViewModel.getOpenedFileCount()
-    val unsavedFiles =
-      editorViewModel.getOpenedFiles().map(this::getEditorForFile)
-        .filter { it != null && it.isModified }
+    private fun closePluginTab(tabPosition: Int) {
+        val pluginId = tabIndexToPluginId[tabPosition] ?: return
 
-    if (unsavedFiles.isNotEmpty()) {
-      // There are unsaved files
-      notifyFilesUnsaved(unsavedFiles) { closeAll(runAfter) }
-      return
-    }
+        try {
+            val fragment = supportFragmentManager.findFragmentByTag("plugin_tab_$pluginId")
+            if (fragment != null) {
+                supportFragmentManager.beginTransaction()
+                    .remove(fragment)
+                    .commitAllowingStateLoss()
+            }
 
-    // Files were already saved, close all files one by one
-    for (i in 0 until count) {
-      getEditorAtIndex(i)?.close() ?: run {
-        log.error("Unable to close file at index {}", i)
-      }
-    }
+            val tabManager = PluginEditorTabManager.getInstance()
+            tabManager.closeTab(pluginId)
+        } catch (e: Exception) {
+            Log.e("EditorHandlerActivity", "Error cleaning up plugin tab $pluginId", e)
+        }
 
-    editorViewModel.removeAllFiles()
-    content.apply {
-      tabs.removeAllTabs()
-      tabs.requestLayout()
-      editorContainer.removeAllViews()
-    }
+        content.tabs.removeTabAt(tabPosition)
+        content.editorContainer.removeViewAt(tabPosition)
 
-    runAfter()
-  }
+        pluginTabIndices.remove(pluginId)
+        tabIndexToPluginId.remove(tabPosition)
 
-  override fun getOpenedFiles() =
-    editorViewModel.getOpenedFiles().mapNotNull {
-      val editor = getEditorForFile(it)?.editor ?: return@mapNotNull null
-      OpenedFile(it.absolutePath, editor.cursorLSPRange)
-    }
+        shiftPluginIndices(tabPosition + 1, -1)
+        updateTabVisibility()
 
-  fun closeCurrentFile() {
-    content.tabs.selectedTabPosition.let { index ->
-      closeFile(index) {
         invalidateOptionsMenu()
-      }
-    }
-  }
-
-  private fun notifyFilesUnsaved(unsavedEditors: List<CodeEditorView?>, invokeAfter: Runnable) {
-    if (isDestroying) {
-      // Do not show unsaved files dialog if the activity is being destroyed
-      // TODO Use a service to save files and to avoid file content loss
-      for (editor in unsavedEditors) {
-        editor?.markUnmodified()
-      }
-      invokeAfter.run()
-      return
+        Log.d("EditorHandlerActivity", "Successfully closed plugin tab: $pluginId")
     }
 
-    val mapped = unsavedEditors.mapNotNull { it?.file?.absolutePath }
-    val builder =
-      newYesNoDialog(
-        context = this,
-        title = getString(string.title_files_unsaved),
-        message = getString(string.msg_files_unsaved, TextUtils.join("\n", mapped)),
-        positiveClickListener = { dialog, _ ->
-          dialog.dismiss()
-          saveAllAsync(notify = true, runAfter = { runOnUiThread(invokeAfter) })
-        }
-      ) { dialog, _ ->
-        dialog.dismiss()
-        // Mark all the files as saved, then try to close them all
-        for (editor in unsavedEditors) {
-          editor?.markAsSaved()
-        }
-        invokeAfter.run()
-      }
-    builder.show()
-  }
-
-  @Subscribe(threadMode = ThreadMode.MAIN)
-  fun onFileRenamed(event: FileRenameEvent) {
-    val index = findIndexOfEditorByFile(event.file)
-    if (index < 0 || index >= content.tabs.tabCount) {
-      return
-    }
-
-    val editor = getEditorAtIndex(index) ?: return
-    editorViewModel.updateFile(index, event.newFile)
-    editor.updateFile(event.newFile)
-
-    updateTabs()
-  }
-
-  @Subscribe(threadMode = ThreadMode.MAIN)
-  fun onDocumentChange(event: DocumentChangeEvent) {
-    // update content modification status
-    editorViewModel.areFilesModified = true
-
-    val index = findIndexOfEditorByFile(event.file.toFile())
-    if (index == -1) {
-      return
-    }
-
-    val tab = content.tabs.getTabAt(index)!!
-    if (tab.text?.startsWith('*') == true) {
-      return
-    }
-
-    // mark as modified
-    tab.text = "*${tab.text}"
-  }
-
-  private fun updateTabs() {
-    editorActivityScope.launch {
-      val files = editorViewModel.getOpenedFiles()
-      val dupliCount = mutableMapOf<String, Int>()
-      val names = MutableIntObjectMap<Pair<String, @receiver:DrawableRes Int>>()
-      val nameBuilder = UniqueNameBuilder<File>("", File.separator)
-
-      files.forEach {
-        var count = dupliCount[it.name] ?: 0
-        dupliCount[it.name] = ++count
-        nameBuilder.addPath(it, it.path)
-      }
-
-      for (index in 0 until content.tabs.tabCount) {
-        val file = files.getOrNull(index) ?: continue
-        val count = dupliCount[file.name] ?: 0
-
-        val isModified = getEditorAtIndex(index)?.isModified ?: false
-        var name = if (count > 1) nameBuilder.getShortPath(file) else file.name
-        if (isModified) {
-          name = "*${name}"
+    private fun notifyFilesUnsaved(unsavedEditors: List<CodeEditorView?>, invokeAfter: Runnable) {
+        if (isDestroying) {
+            // Do not show unsaved files dialog if the activity is being destroyed
+            // TODO Use a service to save files and to avoid file content loss
+            for (editor in unsavedEditors) {
+                editor?.markUnmodified()
+            }
+            invokeAfter.run()
+            return
         }
 
-        names[index] = name to FileExtension.Factory.forFile(file).icon
-      }
-
-      withContext(Dispatchers.Main) {
-        names.forEach { index, (name, iconId) ->
-          val tab = content.tabs.getTabAt(index) ?: return@forEach
-          tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
-          tab.text = name
-        }
-      }
+        val mapped = unsavedEditors.mapNotNull { it?.file?.absolutePath }
+        val builder =
+            showConfirmationDialog(
+                context = this,
+                title = getString(string.title_files_unsaved),
+                message = getString(string.msg_files_unsaved, TextUtils.join("\n", mapped)),
+                positiveClickListener = { dialog, _ ->
+                    dialog.dismiss()
+                    saveAllAsync(notify = true, runAfter = { runOnUiThread(invokeAfter) })
+                }
+            ) { dialog, _ ->
+                dialog.dismiss()
+                // Mark all the files as saved, then try to close them all
+                for (editor in unsavedEditors) {
+                    editor?.markAsSaved()
+                }
+                invokeAfter.run()
+            }
+        builder.show()
     }
-  }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onFileRenamed(event: FileRenameEvent) {
+        val index = findIndexOfEditorByFile(event.file)
+        if (index < 0 || index >= content.tabs.tabCount) {
+            return
+        }
+
+        val editor = getEditorAtIndex(index) ?: return
+        editorViewModel.updateFile(index, event.newFile)
+        editor.updateFile(event.newFile)
+
+        updateTabs()
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onDocumentChange(event: DocumentChangeEvent) {
+        editorViewModel.areFilesModified = true
+
+        val fileIndex = findIndexOfEditorByFile(event.file.toFile())
+        if (fileIndex == -1) return
+
+        val tabPosition = getTabPositionForFileIndex(fileIndex)
+        if (tabPosition < 0) return
+
+        val tab = content.tabs.getTabAt(tabPosition) ?: return
+        if (tab.text?.startsWith('*') == true) return
+
+        tab.text = "*${tab.text}"
+    }
+
+    private fun updateTabs() {
+        editorActivityScope.launch {
+            val files = editorViewModel.getOpenedFiles()
+            val dupliCount = mutableMapOf<String, Int>()
+            val names = MutableIntObjectMap<Pair<String, Int>>()
+            val nameBuilder = UniqueNameBuilder<File>("", File.separator)
+
+            files.forEach {
+                var count = dupliCount[it.name] ?: 0
+                dupliCount[it.name] = ++count
+                nameBuilder.addPath(it, it.path)
+            }
+
+            for (index in 0 until content.tabs.tabCount) {
+                val file = files.getOrNull(index) ?: continue
+                val count = dupliCount[file.name] ?: 0
+
+                val isModified = getEditorAtIndex(index)?.isModified ?: false
+                var name = if (count > 1) nameBuilder.getShortPath(file) else file.name
+                if (isModified) {
+                    name = "*${name}"
+                }
+
+                names[index] = name to FileExtension.Factory.forFile(file).icon
+            }
+
+            withContext(Dispatchers.Main) {
+                names.forEach { index, (name, iconId) ->
+                    val tab = content.tabs.getTabAt(index) ?: return@forEach
+                    tab.icon = ResourcesCompat.getDrawable(resources, iconId, theme)
+                    tab.text = name
+                    tab.view.setOnLongClickListener {
+                        TooltipManager.showTooltip(
+                            context = this@EditorHandlerActivity,
+                            anchorView = tab.view,
+                            tag = TooltipTag.PROJECT_FILENAME,
+                        )
+                        true
+                    }
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Adds a one-time listener that will be invoked when the current build process finishes.
+     * The listener will be automatically removed after being called.
+     */
+    fun addOneTimeBuildResultListener(listener: Consumer<BuildResult>) {
+        singleBuildListeners.add(listener)
+    }
+
+    /**
+     * Called by [EditorBuildEventListener] to notify all registered listeners of the build result.
+     */
+    fun notifyBuildResult(result: BuildResult) {
+        // Ensure this runs on the main thread if UI updates are needed from listeners
+        runOnUiThread {
+            singleBuildListeners.forEach { it.accept(result) }
+            singleBuildListeners.clear()
+        }
+    }
+
+    fun selectPluginTabById(tabId: String): Boolean {
+        Log.d("EditorHandlerActivity", "selectPluginTabById called with tabId: $tabId")
+        Log.d("EditorHandlerActivity", "Available plugin tab indices: $pluginTabIndices")
+        Log.d("EditorHandlerActivity", "Available plugin tab keys: ${pluginTabIndices.keys.toList()}")
+        Log.d("EditorHandlerActivity", "Total plugin tabs loaded: ${pluginTabIndices.size}")
+
+        // Check if the tab already exists
+        val existingTabIndex = pluginTabIndices[tabId]
+        if (existingTabIndex != null) {
+            Log.d("EditorHandlerActivity", "Plugin tab $tabId already exists at index $existingTabIndex")
+            val tab = content.tabs.getTabAt(existingTabIndex)
+            if (tab != null && !tab.isSelected) {
+                tab.select()
+            }
+            return true
+        }
+
+        // If tab doesn't exist, create it now
+        Log.d("EditorHandlerActivity", "Plugin tab $tabId not found, creating it now...")
+        return createPluginTab(tabId)
+    }
+
+    private fun createPluginTab(tabId: String): Boolean {
+        try {
+            val pluginManager = IDEApplication.getPluginManager() ?: run {
+                Log.w("EditorHandlerActivity", "Plugin manager not available")
+                return false
+            }
+
+            val tabManager = PluginEditorTabManager.getInstance()
+            tabManager.loadPluginTabs(pluginManager)
+
+            val pluginTabs = tabManager.getAllPluginTabs()
+            val pluginTab = pluginTabs.find { it.id == tabId } ?: run {
+                Log.w("EditorHandlerActivity", "Plugin tab $tabId not found in available tabs")
+                return false
+            }
+
+            Log.d("EditorHandlerActivity", "Creating UI tab for plugin: ${pluginTab.id} (${pluginTab.title})")
+
+            runOnUiThread {
+                val tab = content.tabs.newTab()
+                tab.text = pluginTab.title
+
+                val iconRes = pluginTab.icon
+                if (iconRes != null) {
+                    tab.icon = ResourcesCompat.getDrawable(resources, iconRes, theme)
+                }
+
+                val tabIndex = content.tabs.tabCount
+                content.tabs.addTab(tab)
+
+                val containerView = android.widget.FrameLayout(this@EditorHandlerActivity).apply {
+                    id = android.view.View.generateViewId()
+                    layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+                }
+                content.editorContainer.addView(containerView)
+
+                pluginTabIndices[pluginTab.id] = tabIndex
+                tabIndexToPluginId[tabIndex] = pluginTab.id
+
+                Log.d("EditorHandlerActivity", "Plugin tab ${pluginTab.id} created at index $tabIndex")
+
+                // Load the plugin fragment into the container
+                val fragment = tabManager.getOrCreateTabFragment(pluginTab.id)
+                if (fragment != null) {
+                    val fragmentManager = supportFragmentManager
+                    val transaction = fragmentManager.beginTransaction()
+                    transaction.add(containerView.id, fragment, "plugin_tab_${pluginTab.id}")
+                    transaction.commitAllowingStateLoss()
+                    Log.d("EditorHandlerActivity", "Plugin fragment added to container for tab: ${pluginTab.id}")
+                } else {
+                    Log.w("EditorHandlerActivity", "Failed to create fragment for plugin tab: ${pluginTab.id}")
+                }
+
+                tab.select()
+                editorViewModel.displayedFileIndex = -1
+                updateTabVisibility()
+
+                Log.d("EditorHandlerActivity", "Successfully created and selected plugin tab: ${pluginTab.id}")
+            }
+
+            return true
+        } catch (e: Exception) {
+            Log.e("EditorHandlerActivity", "Failed to create plugin tab $tabId", e)
+            return false
+        }
+    }
+
+    fun loadPluginTabs() {
+        try {
+            val pluginManager = IDEApplication.getPluginManager() ?: run {
+                Log.w("EditorHandlerActivity", "Plugin manager not available, skipping plugin tab loading")
+                return
+            }
+
+            val tabManager = PluginEditorTabManager.getInstance()
+            tabManager.loadPluginTabs(pluginManager)
+
+            val pluginTabs = tabManager.getAllPluginTabs()
+
+            if (pluginTabs.isEmpty()) {
+                Log.d("EditorHandlerActivity", "No plugin tabs to load")
+                return
+            }
+        } catch (e: Exception) {
+            Log.e("EditorHandlerActivity", "Failed to load plugin tabs", e)
+        }
+    }
+
+    fun isPluginTab(position: Int): Boolean {
+        if (position < 0 || position >= content.tabs.tabCount) {
+            return false
+        }
+        val result = tabIndexToPluginId.containsKey(position)
+        return result
+    }
+
+    fun getPluginTabId(position: Int): String? {
+        return tabIndexToPluginId[position]
+    }
+
+    private fun canClosePluginTab(position: Int): Boolean {
+        val pluginId = tabIndexToPluginId[position] ?: return false
+        val tabManager = PluginEditorTabManager.getInstance()
+        return tabManager.canCloseTab(pluginId)
+    }
+
+    fun updateTabVisibility() {
+        val hasFiles = editorViewModel.getOpenedFileCount() > 0
+        val hasPluginTabs = pluginTabIndices.isNotEmpty()
+
+        content.apply {
+            if (!hasFiles && !hasPluginTabs) {
+                tabs.visibility = View.GONE
+                viewContainer.displayedChild = 1
+            } else {
+                tabs.visibility = View.VISIBLE
+                viewContainer.displayedChild = 0
+            }
+        }
+    }
+
+    /**
+     * Converts tab position to actual file index, accounting for plugin tabs.
+     * Plugin tabs don't have corresponding file indices.
+     */
+    fun getFileIndexForTabPosition(tabPosition: Int): Int {
+        if (isPluginTab(tabPosition)) {
+            return -1 // Plugin tabs don't have file indices
+        }
+
+        // Count how many plugin tabs come before this position
+        var pluginTabsBefore = 0
+        for (i in 0 until tabPosition) {
+            if (isPluginTab(i)) {
+                pluginTabsBefore++
+            }
+        }
+
+        // The file index is the tab position minus the plugin tabs before it
+        return tabPosition - pluginTabsBefore
+    }
+
+    fun showPluginTabPopup(tab: TabLayout.Tab) {
+        val anchorView = tab.view ?: return
+
+        // Don't show popup if this is the only tab open
+        val totalTabs = content.tabs.tabCount
+        if (totalTabs <= 1) {
+            return
+        }
+
+        // Check if this plugin tab can actually be closed
+        val position = tab.position
+        if (!canClosePluginTab(position)) {
+            return
+        }
+
+        val binding = FileActionPopupWindowBinding.inflate(
+            android.view.LayoutInflater.from(this), null, false
+        )
+
+        val popupWindow = android.widget.PopupWindow(
+            binding.root,
+            LayoutParams.WRAP_CONTENT,
+            LayoutParams.WRAP_CONTENT,
+        ).apply {
+            elevation = 2f
+            isOutsideTouchable = true
+        }
+
+        val closeItem = FileActionPopupWindowItemBinding.inflate(
+            android.view.LayoutInflater.from(this),
+            null,
+            false
+        ).root
+
+        closeItem.apply {
+            text = "Close Tab"
+            setOnClickListener {
+                val position = tab.position
+                if (isPluginTab(position)) {
+                    closePluginTab(position)
+                }
+                popupWindow.dismiss()
+            }
+        }
+
+        binding.root.addView(closeItem)
+        popupWindow.showAsDropDown(anchorView, 0, 0)
+    }
+
+    override fun doConfirmProjectClose() {
+        confirmProjectClose()
+    }
+
+    private fun performCloseAllFiles(manualFinish: Boolean) {
+        // Close all open file editors
+        val fileCount = editorViewModel.getOpenedFileCount()
+        for (i in 0 until fileCount) {
+            getEditorAtIndex(i)?.close()
+        }
+
+        // Close all plugin tabs
+        val pluginTabIds = this.pluginTabIndices.keys.toList()
+        for (pluginId in pluginTabIds) {
+            val tabIndex = this.pluginTabIndices[pluginId]
+            if (tabIndex != null) {
+                this.closePluginTab(tabIndex)
+            }
+        }
+
+        editorViewModel.removeAllFiles()
+        content.apply {
+            tabs.removeAllTabs()
+            editorContainer.removeAllViews()
+        }
+
+        if (manualFinish) {
+            finish()
+        }
+    }
+
+    private fun confirmProjectClose() {
+        val builder = newMaterialDialogBuilder(this)
+        builder.setTitle(string.title_confirm_project_close)
+        builder.setMessage(string.msg_confirm_project_close)
+
+        builder.setNegativeButton(string.cancel_project_text, null)
+
+        // OPTION 1: Close without saving
+        builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
+            dialog.dismiss()
+
+            for (i in 0 until editorViewModel.getOpenedFileCount()) {
+                (content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
+            }
+
+            GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
+
+            performCloseAllFiles(manualFinish = true)
+        }
+
+        // OPTION 2: Save and close
+        builder.setPositiveButton(string.save_close_project) { dialog, _ ->
+            dialog.dismiss()
+
+            saveAllAsync(notify = false) {
+                GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
+
+                runOnUiThread {
+                    performCloseAllFiles(manualFinish = true)
+                }
+            }
+        }
+
+        builder.show()
+    }
 }

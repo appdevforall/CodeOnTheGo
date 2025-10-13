@@ -9,45 +9,46 @@
   android:layout_height="match_parent"
   app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior">
 
-  <com.google.android.material.imageview.ShapeableImageView
-    android:id="@+id/main_image"
-    android:layout_width="50dp"
-    android:layout_height="50dp"
+  <LinearLayout
+    android:id="@+id/headerContainer"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
     android:layout_margin="16dp"
-    android:src="@drawable/ic_launcher_main"
     app:layout_constraintBottom_toBottomOf="parent"
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent"
-    app:layout_constraintVertical_bias="0.15"/>
-<!--    app:shapeAppearance="@style/AppTheme.ShapeAppearance.MainFragment.Logo" />-->
+    app:layout_constraintVertical_bias="0.15">
 
-  <TextView
-    android:id="@+id/getStarted"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginStart="4dp"
-    android:layout_marginTop="8dp"
-    android:layout_marginEnd="4dp"
-    android:layout_marginBottom="4dp"
-    android:text="@string/get_started"
-    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-    android:textStyle="bold"
-    app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@id/main_image" />
+    <com.google.android.material.imageview.ShapeableImageView
+      android:id="@+id/main_image"
+      android:layout_width="50dp"
+      android:layout_height="50dp"
+      android:src="@drawable/ic_launcher_main" />
+<!--      app:shapeAppearance="@style/AppTheme.ShapeAppearance.MainFragment.Logo" />-->
 
-  <TextView
-    android:id="@+id/greetingText"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="16dp"
-    android:text="@string/msg_create_new_project_greeting"
+    <TextView
+      android:id="@+id/getStarted"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="8dp"
+      android:text="@string/get_started"
+      android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+      android:textStyle="bold" />
+
+    <TextView
+      android:id="@+id/greetingText"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="4dp"
+      android:layout_marginBottom="16dp"
+      android:text="@string/msg_create_new_project_greeting"
       android:clickable="true"
-    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-    app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@id/getStarted" />
+      android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
+
+  </LinearLayout>
 
   <androidx.recyclerview.widget.RecyclerView
     android:id="@+id/actions"
@@ -56,23 +57,10 @@
     android:layout_marginTop="16dp"
     android:layout_marginBottom="16dp"
     app:layout_constraintBottom_toBottomOf="parent"
-    app:layout_constraintEnd_toEndOf="@id/greetingText"
-    app:layout_constraintStart_toStartOf="@id/greetingText"
-    app:layout_constraintTop_toBottomOf="@id/greetingText"
+    app:layout_constraintEnd_toEndOf="@id/headerContainer"
+    app:layout_constraintStart_toStartOf="@id/headerContainer"
+    app:layout_constraintTop_toBottomOf="@id/headerContainer"
     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
     tools:listitem="@layout/layout_main_action_item" />
-
-  <com.google.android.material.floatingactionbutton.FloatingActionButton
-    android:id="@+id/floatingActionButton"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_gravity="bottom|start"
-    app:layout_constraintBottom_toBottomOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    android:src="@drawable/baseline_feedback_64"
-    android:scaleType="fitXY"
-    android:clickable="true"
-    android:tooltipText="@string/send_feedback"/>
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>

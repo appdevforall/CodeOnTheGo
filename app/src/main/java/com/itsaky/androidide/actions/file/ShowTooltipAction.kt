@@ -23,8 +23,9 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
-import com.itsaky.androidide.idetooltips.IDETooltipItem
-import com.itsaky.androidide.utils.TooltipUtils
+import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 class ShowTooltipAction(private val context: Context, override val order: Int) :
     EditorRelatedAction() {
@@ -41,29 +42,24 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
         val activity = data.getActivity()
-        val category = when(editor.file!!.extension.toString()) {
-            "java" -> "java"
-            "kt" -> "kotlin"
-            else -> "ide"
+        val category = when (editor.file?.extension) {
+            "java" -> TooltipCategory.CATEGORY_JAVA
+            "kt" -> TooltipCategory.CATEGORY_KOTLIN
+            "xml" -> TooltipCategory.CATEGORY_XML
+            else -> TooltipCategory.CATEGORY_IDE
         }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
-            activity?.getTooltipData(category, word)?.let { tooltipData ->
-                TooltipUtils.showIDETooltip(
-                    context,
-                    editor,
-                    0,
-                    IDETooltipItem(
-                        tooltipCategory = category,
-                        tooltipTag = tooltipData.tooltipTag,
-                        detail = tooltipData.detail,
-                        summary = tooltipData.summary,
-                        buttons = tooltipData.buttons,
-                    ),
-                )
-            }
+            TooltipManager.showTooltip(
+                context = context,
+                anchorView = editor,
+                category = category,
+                tag = word,
+            )
         }
         return true
     }
+
+    override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
 
 }

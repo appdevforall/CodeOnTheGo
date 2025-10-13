@@ -22,23 +22,16 @@ import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutTextSizeSliderBinding
-import com.itsaky.androidide.editor.schemes.IDEColorScheme
-import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.internal.EditorPreferences
-import com.itsaky.androidide.preferences.internal.EditorPreferences.AUTO_SAVE
-import com.itsaky.androidide.preferences.internal.EditorPreferences.COLOR_SCHEME
 import com.itsaky.androidide.preferences.internal.EditorPreferences.COMPLETIONS_MATCH_LOWER
-import com.itsaky.androidide.preferences.internal.EditorPreferences.DEFAULT_COLOR_SCHEME
 import com.itsaky.androidide.preferences.internal.EditorPreferences.DELETE_EMPTY_LINES
 import com.itsaky.androidide.preferences.internal.EditorPreferences.DELETE_TABS_ON_BACKSPACE
-import com.itsaky.androidide.preferences.internal.EditorPreferences.FLAG_PASSWORD
-import com.itsaky.androidide.preferences.internal.EditorPreferences.FONT_LIGATURES
 import com.itsaky.androidide.preferences.internal.EditorPreferences.FONT_SIZE
 import com.itsaky.androidide.preferences.internal.EditorPreferences.PIN_LINE_NUMBERS
 import com.itsaky.androidide.preferences.internal.EditorPreferences.PRINTABLE_CHARS
 import com.itsaky.androidide.preferences.internal.EditorPreferences.STICKY_SCROLL_ENABLED
 import com.itsaky.androidide.preferences.internal.EditorPreferences.TAB_SIZE
-import com.itsaky.androidide.preferences.internal.EditorPreferences.USE_CUSTOM_FONT
 import com.itsaky.androidide.preferences.internal.EditorPreferences.USE_ICU
 import com.itsaky.androidide.preferences.internal.EditorPreferences.USE_MAGNIFER
 import com.itsaky.androidide.preferences.internal.EditorPreferences.USE_SOFT_TAB
@@ -79,7 +72,6 @@ private class CommonConfigurations(
     addPreference(WordWrap())
     addPreference(UseMagnifier())
     addPreference(UseICU())
-    addPreference(AutoSave())
     addPreference(DeleteEmptyLines())
     addPreference(DeleteTabs())
     addPreference(StickyScrollEnabled())
@@ -96,6 +88,7 @@ private class TextSize(
   override val icon: Int? = drawable.ic_text_size,
   override val dialogTitle: Int = string.title_change_text_size,
   override val dialogMessage: Int? = string.msg_editor_font_size,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : DialogPreference() {
 
   override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
@@ -140,6 +133,7 @@ private class TabSize(
   override val title: Int = string.title_tab_size,
   override val summary: Int? = string.msg_tab_size,
   override val icon: Int? = drawable.ic_tab,
+  override val tooltipTag: String = TooltipTag.PREFS_EDITOR,
 ) : SingleChoicePreference() {
 
   @IgnoredOnParcel
@@ -205,14 +199,6 @@ private class UseMagnifier(
 ) : SwitchPreference(setValue = EditorPreferences::useMagnifier::set,
   getValue = EditorPreferences::useMagnifier::get)
 
-@Parcelize
-private class AutoSave(
-  override val key: String = AUTO_SAVE,
-  override val title: Int = string.idepref_editor_autoSave_title,
-  override val summary: Int? = string.idepref_editor_autoSave_summary,
-  override val icon: Int? = drawable.ic_save,
-) : SwitchPreference(setValue = EditorPreferences::autoSave::set,
-  getValue = EditorPreferences::autoSave::get)
 
 @Parcelize
 private class CompletionsMatchLower(

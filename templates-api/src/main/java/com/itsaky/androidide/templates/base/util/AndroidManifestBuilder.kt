@@ -76,6 +76,7 @@ class AndroidManifestBuilder {
     hashMapOf<ConfigurationType, HashSet<IndentedXmlConfigurator>>()
   private val permissions = hashSetOf<Permission>()
   private val activities = hashSetOf<ManifestActivity>()
+  var shouldRemoveInitializationProvider: Boolean = false
 
   /**
    * The name of the string resource to use in the `android:label` attribute of `<application>` tag.
@@ -200,11 +201,13 @@ class AndroidManifestBuilder {
   }
 
   private fun IndentedXmlBuilder.initializationProviderFix() {
-    createElement(TAG_PROVIDER) {
-      androidAttr("name", "androidx.startup.InitializationProvider")
-      androidAttr("authorities", "\${applicationId}.androidx-startup")
-      toolsAttr("node", "remove")
-      closeStartElement()
+    if (shouldRemoveInitializationProvider) {
+      createElement(TAG_PROVIDER) {
+        androidAttr("name", "androidx.startup.InitializationProvider")
+        androidAttr("authorities", "\${applicationId}.androidx-startup")
+        toolsAttr("node", "remove")
+        closeStartElement()
+      }
     }
   }
 

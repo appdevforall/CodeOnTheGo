@@ -1,4 +1,4 @@
-package com.itsaky.androidide.build.config/*
+/*
  *  This file is part of AndroidIDE.
  *
  *  AndroidIDE is free software: you can redistribute it and/or modify
@@ -15,6 +15,8 @@ package com.itsaky.androidide.build.config/*
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+package com.itsaky.androidide.build.config
+
 import org.gradle.api.JavaVersion
 
 /**
@@ -23,21 +25,27 @@ import org.gradle.api.JavaVersion
  * @author Akash Yadav
  */
 object BuildConfig {
+	/** The internal name for the IDE */
+	const val INTERNAL_NAME = "CodeOnTheGo"
 
-  /** AndroidIDE's package name. */
-  const val packageName = "com.itsaky.androidide"
+	/** AndroidIDE's package name. */
+	const val PACKAGE_NAME = "com.itsaky.androidide"
 
-  /** The compile SDK version. */
-  const val compileSdk = 35
+	/** The compile SDK version. */
+	const val COMPILE_SDK = 35
 
-  /** The minimum SDK version. */
-  const val minSdk = 28
+	/** The minimum SDK version. */
+	const val MIN_SDK = 28
 
-  /** The target SDK version. */
-  const val targetSdk = 28
+	/** The minimum SDK version for apps built in CoGo. */
+	const val MIN_SDK_FOR_APPS_BUILT_WITH_COGO = 16
 
-  const val ndkVersion = "26.1.10909125"
+	/** The target SDK version. */
+	const val TARGET_SDK = 28
 
-  /** The source and target Java compatibility. */
-  val javaVersion = JavaVersion.VERSION_17
+	/** The NDK version. */
+	const val NDK_VERSION = "28.1.13356709"
+
+	/** The source and target Java compatibility. */
+	val JAVA_VERSION = JavaVersion.VERSION_17
 }

@@ -18,12 +18,24 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
+import androidx.preference.PreferenceViewHolder
 import com.google.android.material.transition.MaterialSharedAxis
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILD_RUN
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVELOPER
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR_XML
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GENERAL
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GRADLE
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TOP
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
@@ -63,6 +75,8 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
       if (child is IPreferenceScreen) {
         preference.fragment = IDEPreferencesFragment::class.java.name
         preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
+
+
         pref.addPreference(preference)
         continue
       }
@@ -73,7 +87,33 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
         continue
       }
 
+
       pref.addPreference(preference)
+    }
+  }
+
+
+
+  private fun showTooltip(anchorView: View, tooltipTag: String) {
+      TooltipManager.showTooltip(
+          context = requireContext(),
+          anchorView = anchorView,
+          tag = tooltipTag,
+      )
+  }
+
+  fun getCurrentScreenTooltip(): String {
+    val firstChildKey = children.firstOrNull()?.key
+    return when (firstChildKey) {
+      "idepref_configure" -> PREFS_TOP
+      "idepref_general_interface" -> PREFS_GENERAL
+      "idepref_editor_common" -> PREFS_EDITOR
+      "idepref_build_gradle" -> PREFS_GRADLE
+      "idepref_build_gradleCommands" -> PREFS_GRADLE
+      "ide.preferences.terminal.debugging" -> PREFS_TERMUX
+      "ide.prefs.developerOptions.debugging" -> PREFS_DEVELOPER
+      "idepref_xml_trimFinalNewLine" -> PREFS_EDITOR_XML
+      else -> PREFS_TOP
     }
   }
 
@@ -81,3 +121,4 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
     const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
   }
 }
+

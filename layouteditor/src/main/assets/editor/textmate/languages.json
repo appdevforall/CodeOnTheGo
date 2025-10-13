@@ -1,0 +1,10 @@
+{
+  "languages": [
+    {
+      "grammar": "editor/textmate/xml/syntaxes/xml.tmLanguage.json",
+      "name": "xml",
+      "scopeName": "text.xml",
+      "languageConfiguration": "editor/textmate/xml/language-configuration.json"
+    }
+  ]
+}

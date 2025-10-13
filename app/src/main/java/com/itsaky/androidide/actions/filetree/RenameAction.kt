@@ -19,21 +19,17 @@ package com.itsaky.androidide.actions.filetree
 
 import android.content.Context
 import android.view.LayoutInflater
-import com.blankj.utilcode.util.FileUtils
+import androidx.activity.viewModels
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.FileManager
-import com.itsaky.androidide.tasks.launchAsyncWithProgress
 import com.itsaky.androidide.utils.DialogUtils
-import com.itsaky.androidide.utils.FlashType
-import com.itsaky.androidide.utils.flashMessage
-import com.unnamed.b.atv.model.TreeNode
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.itsaky.androidide.utils.showWithLongPressTooltip
+import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -42,75 +38,54 @@ import java.io.File
  *
  * @author Akash Yadav
  */
-class RenameAction(context: Context, override val order: Int) :
-  BaseFileTreeAction(
-    context,
-    labelRes = R.string.rename_file,
-    iconRes = R.drawable.ic_file_rename
-  ) {
+class RenameAction(
+	context: Context,
+	override val order: Int,
+) : BaseFileTreeAction(
+		context,
+		labelRes = R.string.rename_file,
+		iconRes = R.drawable.ic_file_rename,
+	) {
+	override val id: String = "ide.editor.fileTree.rename"
 
-  override val id: String = "ide.editor.fileTree.rename"
+	override suspend fun execAction(data: ActionData) {
+		val context = data.requireActivity()
+		val file = data.requireFile()
+		val lastHeld = data.getTreeNode()
+		val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
+		val builder = DialogUtils.newMaterialDialogBuilder(context)
+		binding.name.editText!!.hint =
+			context.getString(com.itsaky.androidide.resources.R.string.new_name)
+		binding.name.editText!!.setText(file.name)
+		builder.setTitle(com.itsaky.androidide.resources.R.string.rename_file)
+		builder.setMessage(com.itsaky.androidide.resources.R.string.msg_rename_file)
+		builder.setView(binding.root)
+		builder.setNegativeButton(android.R.string.cancel, null)
+		builder.setPositiveButton(com.itsaky.androidide.resources.R.string.rename_file) {
+			dialogInterface,
+			_ ->
+			dialogInterface.dismiss()
+            val fileManagerViewModel: FileManagerViewModel by context.viewModels()
+            val name: String = binding.name.editText?.text.toString().trim()
+            fileManagerViewModel.renameFile(file, name)
+		}
 
-  override suspend fun execAction(data: ActionData) {
-    val context = data.requireActivity()
-    val file = data.requireFile()
-    val lastHeld = data.getTreeNode()
-    val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
-    val builder = DialogUtils.newMaterialDialogBuilder(context)
-    binding.name.editText!!.hint =
-      context.getString(com.itsaky.androidide.resources.R.string.new_name)
-    binding.name.editText!!.setText(file.name)
-    builder.setTitle(com.itsaky.androidide.resources.R.string.rename_file)
-    builder.setMessage(com.itsaky.androidide.resources.R.string.msg_rename_file)
-    builder.setView(binding.root)
-    builder.setNegativeButton(android.R.string.cancel, null)
-    builder.setPositiveButton(com.itsaky.androidide.resources.R.string.rename_file) {
-      dialogInterface,
-      _ ->
-      dialogInterface.dismiss()
-      actionScope.launchAsyncWithProgress(
-          configureFlashbar = { builder, cancelChecker ->
-            builder.message(com.itsaky.androidide.resources.R.string.please_wait)
-          },
-          action = { _, _ ->
-            val name: String = binding.name.editText!!.text.toString().trim()
-            val renamed = name.length in 1..40 && FileUtils.rename(file, name)
+        builder.showWithLongPressTooltip(
+            context = context,
+            tooltipTag = TooltipTag.PROJECT_RENAME_DIALOG
+        )
+	}
 
-            if (renamed) {
-              notifyFileRenamed(file, name, context)
-            }
+    private fun notifyFileRenamed(
+        file: File,
+        name: String,
+        context: Context,
+    ) {
+        val renameEvent = FileRenameEvent(file, File(file.parent, name))
 
-            withContext(Dispatchers.Main) {
-              flashMessage(
-                  if (renamed) com.itsaky.androidide.resources.R.string.renamed
-                  else com.itsaky.androidide.resources.R.string.rename_failed,
-                  if (renamed) FlashType.SUCCESS else FlashType.ERROR)
-              if (!renamed) {
-                return@withContext
-              }
+        // Notify FileManager first
+        FileManager.onFileRenamed(renameEvent)
 
-              if (lastHeld != null) {
-                val parent = lastHeld.parent
-                parent.deleteChild(lastHeld)
-                val node = TreeNode(File(file.parentFile, name))
-                node.viewHolder = FileTreeViewHolder(context)
-                parent.addChild(node)
-                requestExpandNode(parent)
-              } else {
-                requestFileListing()
-              }
-            }
-          })
+        EventBus.getDefault().post(renameEvent.apply { putData(context) })
     }
-    builder.create().show()
-  }
-
-  private fun notifyFileRenamed(file: File, name: String, context: Context) {
-    val renameEvent = FileRenameEvent(file, File(file.parent, name))
-
-    // Notify FileManager first
-    FileManager.onFileRenamed(renameEvent)
-
-    EventBus.getDefault().post(renameEvent.apply { putData(context) })
-  }
 }

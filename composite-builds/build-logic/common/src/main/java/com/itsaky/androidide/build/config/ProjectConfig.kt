@@ -22,17 +22,16 @@ import java.util.Locale
 
 /** @author Akash Yadav */
 object ProjectConfig {
+	const val REPO_HOST = "github.com"
+	const val REPO_OWNER = "appdevforall"
+	const val REPO_NAME = "CodeOnTheGo"
+	const val REPO_URL = "https://$REPO_HOST/$REPO_OWNER/$REPO_NAME"
+	const val SCM_GIT =
+		"scm:git:git://$REPO_HOST/$REPO_OWNER/$REPO_NAME.git"
+	const val SCM_SSH =
+		"scm:git:ssh://git@$REPO_HOST/$REPO_OWNER/$REPO_NAME.git"
 
-    const val REPO_HOST = "github.com"
-    const val REPO_OWNER = "AndroidIDEOfficial"
-    const val REPO_NAME = "AndroidIDE"
-    const val REPO_URL = "https://$REPO_HOST/$REPO_OWNER/$REPO_NAME"
-    const val SCM_GIT =
-        "scm:git:git://$REPO_HOST/$REPO_OWNER/$REPO_NAME.git"
-    const val SCM_SSH =
-        "scm:git:ssh://git@$REPO_HOST/$REPO_OWNER/$REPO_NAME.git"
-
-    const val PROJECT_SITE = "https://m.androidide.com"
+	const val PROJECT_SITE = "https://m.androidide.com"
 }
 
 private var shouldPrintVersionName = true
@@ -41,77 +40,89 @@ private var shouldPrintVersionName = true
  * Whether this build is being executed in the F-Droid build server.
  */
 val Project.isFDroidBuild: Boolean
-    get() {
-        if (!com.itsaky.androidide.build.config.FDroidConfig.hasRead) {
-            com.itsaky.androidide.build.config.FDroidConfig.load(this)
-        }
-        return com.itsaky.androidide.build.config.FDroidConfig.isFDroidBuild
-    }
+	get() {
+		if (!FDroidConfig.hasRead) {
+			FDroidConfig.load(this)
+		}
+		return FDroidConfig.isFDroidBuild
+	}
 
 val Project.simpleVersionName: String
-    get() {
+	get() {
 
-        val version = rootProject.version.toString()
-        // Format: CodeOnTheGo-{debug|release}-MMDD-HHMM
-        val buildType =
-            if (hasProperty("release") && property("release") == "true") "release" else "debug"
-        val calendar = java.util.Calendar.getInstance()
-        val month = calendar.get(java.util.Calendar.MONTH) + 1
-        val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
-        val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
-        val minute = calendar.get(java.util.Calendar.MINUTE)
+		val version = rootProject.version.toString()
+		// Format: CodeOnTheGo-{debug|release}-MMDD-HHMM
+		val buildType =
+			if (project.gradle.startParameter.taskNames.any {
+					it.contains(
+						"debug",
+						true,
+					) ||
+						it.contains("dev", true)
+				}
+			) {
+				"debug"
+			} else {
+				"release"
+			}
 
-        val formattedDate = String.format(Locale.getDefault(), "%02d%02d", month, day)
-        val formattedTime = String.format(Locale.getDefault(), "%02d%02d", hour, minute)
+		val calendar = java.util.Calendar.getInstance()
+		val month = calendar.get(java.util.Calendar.MONTH) + 1
+		val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+		val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+		val minute = calendar.get(java.util.Calendar.MINUTE)
 
-        val simpleVersion = "CodeOnTheGo-$buildType-$formattedDate-$formattedTime"
+		val formattedDate = String.format(Locale.getDefault(), "%02d%02d", month, day)
+		val formattedTime = String.format(Locale.getDefault(), "%02d%02d", hour, minute)
 
-        if (shouldPrintVersionName) {
-            logger.warn("Simple version name is '$simpleVersion' (from version $version)")
-            shouldPrintVersionName = false
-        }
+		val simpleVersion = "CodeOnTheGo-$buildType-$formattedDate-$formattedTime"
 
-        return simpleVersion
-    }
+		if (shouldPrintVersionName) {
+			logger.warn("Simple version name is '$simpleVersion' (from version $version)")
+			shouldPrintVersionName = false
+		}
+
+		return simpleVersion
+	}
 
 private var shouldPrintVersionCode = true
 val Project.projectVersionCode: Int
     get() {
-        val calendar = java.util.Calendar.getInstance()
-        val year = calendar.get(java.util.Calendar.YEAR) % 100 // Just last two digits of year
-        val month = calendar.get(java.util.Calendar.MONTH) + 1
-        val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
-        val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
-        val minute = calendar.get(java.util.Calendar.MINUTE)
+		val calendar = java.util.Calendar.getInstance()
+		val year = calendar.get(java.util.Calendar.YEAR) % 100 // Just last two digits of year
+		val month = calendar.get(java.util.Calendar.MONTH) + 1
+		val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+		val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+		val minute = calendar.get(java.util.Calendar.MINUTE)
 
-        // Format: YYMMDDHHMI (Year + Month + Day + Hour + Minute) - keeps increasing over time
-        val versionCode = year * 10000000 + month * 100000 + day * 1000 + hour * 100 + minute
+		// Format: YYMMDDHH (Year + Month + Day + Hour) - keeps increasing over time
+		val versionCode = year * 1000000 + month * 10000 + day * 100 + hour
 
-        if (shouldPrintVersionCode) {
-            logger.warn("Version code is '$versionCode' (generated from current date/time).")
-            shouldPrintVersionCode = false
-        }
+		if (shouldPrintVersionCode) {
+			logger.warn("Version code is '$versionCode' (generated from current date/time).")
+			shouldPrintVersionCode = false
+		}
 
-        return versionCode
-    }
+		return versionCode
+	}
 
 val Project.publishingVersion: String
-    get() {
+	get() {
 
-        var publishing = simpleVersionName
-        if (isFDroidBuild) {
-            // when building for F-Droid, the release is already published so we should have
-            // the maven dependencies already published
-            // simply return the simple version name here.
-            return publishing
-        }
+		var publishing = simpleVersionName
+		if (isFDroidBuild) {
+			// when building for F-Droid, the release is already published so we should have
+			// the maven dependencies already published
+			// simply return the simple version name here.
+			return publishing
+		}
 
-        if (com.itsaky.androidide.build.config.CI.isCiBuild && com.itsaky.androidide.build.config.CI.branchName != "main") {
-            publishing += "-${com.itsaky.androidide.build.config.CI.commitHash}-SNAPSHOT"
-        }
+		if (CI.isCiBuild && CI.branchName != "main") {
+			publishing += "-${CI.commitHash}-SNAPSHOT"
+		}
 
-        return publishing
-    }
+		return publishing
+	}
 
 /**
  * The version name which is used to download the artifacts at runtime.
@@ -121,12 +132,12 @@ val Project.publishingVersion: String
  * - For local builds: `latest.integration` to make sure that Gradle downloads the latest snapshots.
  */
 val Project.downloadVersion: String
-    get() {
-        return if (com.itsaky.androidide.build.config.CI.isCiBuild || isFDroidBuild) {
-            publishingVersion
-        } else {
-            // sometimes, when working locally, Gradle fails to download the latest snapshot version
-            // this may cause issues while initializing the project in AndroidIDE
-            com.itsaky.androidide.build.config.VersionUtils.getLatestSnapshotVersion("gradle-plugin")
-        }
-    }
+	get() {
+		return if (CI.isCiBuild || isFDroidBuild) {
+			publishingVersion
+		} else {
+			// sometimes, when working locally, Gradle fails to download the latest snapshot version
+			// this may cause issues while initializing the project in AndroidIDE
+			VersionUtils.getLatestSnapshotVersion("gradle-plugin")
+		}
+	}

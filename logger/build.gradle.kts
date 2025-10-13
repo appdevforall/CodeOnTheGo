@@ -18,6 +18,7 @@
 @Suppress("JavaPluginLanguageLevel")
 plugins {
     id("java-library")
+    id("org.jetbrains.kotlin.jvm")
     id("com.vanniktech.maven.publish.base")
 }
 
@@ -30,6 +31,7 @@ dependencies {
     api(libs.logging.logback.classic)
 
     implementation(projects.buildInfo)
+    implementation(libs.google.auto.service)
 
     testImplementation(libs.tests.junit)
     testImplementation(libs.tests.google.truth)
