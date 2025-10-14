@@ -89,6 +89,7 @@ For translations, visit the [Crowdin project page](https://crowdin.com/project/a
 
 ## Thanks to
 
+- [Akash Yadav](https://github.com/itsaky) for [AndroidIDE](https://github.com/AndroidIDEOfficial/AndroidIDE)
 - [Rosemoe](https://github.com/Rosemoe) for [CodeEditor](https://github.com/Rosemoe/sora-editor)
 - [Termux](https://github.com/termux) for [Terminal Emulator](https://github.com/termux/termux-app)
 - [Bogdan Melnychuk](https://github.com/bmelnychuk)
@@ -102,7 +103,7 @@ Thanks to all the developers who have contributed to this project!
 ## Contact Us
 
 - [Website](https://www.appdevforall.org)
-- [Telegram](https://t.me/androidide_discussions)
+- [Telegram](https://t.me/androidide_discussions) CHANGE
 - [Email](mailto:feedback@appdevforall.org)
 
 ## License
@@ -124,6 +125,7 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
 
