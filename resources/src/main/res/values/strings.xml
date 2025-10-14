@@ -650,7 +650,7 @@
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
-	<string name="debugger_state_not_connected">Pairing complete. Not connected to a debuggable application.</string>
+	<string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>
@@ -822,7 +822,8 @@
 	<string name="adb_pairing_action_enable_notifications">Grant notification permission</string>
 
 	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.</string>
+	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.
+        Please allow Code on the Go to show notifications with the \'%1$s\' notification channel.</string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->

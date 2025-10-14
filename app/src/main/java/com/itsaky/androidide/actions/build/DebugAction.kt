@@ -100,7 +100,10 @@ class DebugAction(
 		}
 
 		val ssb = SpannableStringBuilder()
-		ssb.appendHtmlWithLinks(context.getString(R.string.debugger_setup_description_header), launchHelp)
+		ssb.appendHtmlWithLinks(
+			context.getString(R.string.debugger_setup_description_header),
+			launchHelp
+		)
 
 		ssb.append(System.lineSeparator())
 		ssb.append(System.lineSeparator())
@@ -108,7 +111,10 @@ class DebugAction(
 		ssb.appendOrderedList(*context.resources.getStringArray(R.array.debugger_setup_pairing_steps))
 		ssb.append(System.lineSeparator())
 
-		ssb.appendHtmlWithLinks(context.getString(R.string.debugger_setup_description_footer), launchHelp)
+		ssb.appendHtmlWithLinks(
+			context.getString(R.string.debugger_setup_description_footer),
+			launchHelp
+		)
 
 		val text = MaterialTextView(context)
 		text.setPadding(context.resources.getDimensionPixelSize(R.dimen.content_padding_double))
@@ -175,8 +181,13 @@ class DebugAction(
 
 	private fun showNotificationPermissionDialog(context: Context): AlertDialog? =
 		DialogUtils.newMaterialDialogBuilder(context)
-			.setTitle(R.string.permission_title_notifications)
-			.setMessage(R.string.permission_desc_notifications)
+			.setTitle(R.string.adb_pairing_action_enable_notifications)
+			.setMessage(
+				context.getString(
+					R.string.adb_pairing_tutorial_content_notification,
+					context.getString(R.string.notification_channel_adb_pairing)
+				)
+			)
 			.setPositiveButton(R.string.title_grant) { dialog, _ ->
 				val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
 				intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
