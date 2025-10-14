@@ -74,7 +74,6 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
@@ -159,10 +158,12 @@ abstract class BaseEditorActivity :
     DiagnosticClickListener, AgentPanelController {
 
 
-	protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
+	protected var mLifecycleObserver: EditorActivityLifecyclerObserver? = null
 	protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
 	protected var filesTreeFragment: FileTreeFragment? = null
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
+	private var drawerToggle: ActionBarDrawerToggle? = null
+  private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
@@ -351,7 +352,7 @@ abstract class BaseEditorActivity :
 
 	protected var optionsMenuInvalidator: Runnable? = null
 
-	private lateinit var gestureDetector: GestureDetector
+	private var gestureDetector: GestureDetector? = null
     private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
     private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
@@ -399,17 +400,35 @@ abstract class BaseEditorActivity :
 
 	protected open fun preDestroy() {
 		BuildOutputProvider.clearBottomSheet()
-		_binding = null
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
-		optionsMenuInvalidator?.also {
-			ThreadUtils.getMainHandler().removeCallbacks(it)
-		}
+    drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
+    drawerToggle = null
+    bottomSheetCallback = null
 
+    try { onBackPressedCallback.remove() } catch (_: Throwable) {}
+
+    try { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) } catch (_: Throwable) {}
+    optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
 		optionsMenuInvalidator = null
 
 		apkInstallationViewModel.destroy(this)
+    feedbackButtonManager = null
+
+    mLifecycleObserver?.let {
+        try { lifecycle.removeObserver(it) } catch (_: Throwable) {}
+    }
+    mLifecycleObserver = null
+
+    IDEApplication.instance.setCurrentActivity(null)
+
+    diagnosticInfoBinding = null
+    filesTreeFragment = null
+    editorBottomSheet = null
+    gestureDetector = null
+
+    _binding = null
 
 		if (isDestroying) {
 			memoryUsageWatcher.stopWatching(true)
@@ -455,9 +474,8 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		this._binding?.apply {
-			drawerSidebar
-				.getFragment<EditorSidebarFragment>()
-				.onApplyWindowInsets(insets)
+			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
+        ?.onApplyWindowInsets(insets)
 
 			content.apply {
 				editorAppBarLayout.updatePadding(
@@ -526,8 +544,9 @@ abstract class BaseEditorActivity :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mLifecycleObserver = EditorActivityLifecyclerObserver()
 
-		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
+				Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
         this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
@@ -540,13 +559,15 @@ abstract class BaseEditorActivity :
         }
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-        lifecycle.addObserver(mLifecycleObserver)
+        mLifecycleObserver?.let {
+          lifecycle.addObserver(it)
+        }
 
         setupToolbar()
         setupDrawers()
         content.tabs.addOnTabSelectedListener(this)
 
-		setupStateObservers()
+				setupStateObservers()
         setupViews()
         setupResizablePanel()
 
@@ -574,7 +595,6 @@ abstract class BaseEditorActivity :
         observeFileOperations()
 
         setupGestureDetector()
-
     }
 
     private fun setupResizablePanel() {
@@ -746,7 +766,7 @@ abstract class BaseEditorActivity :
                 }
             }
 
-
+            drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
@@ -1295,26 +1315,26 @@ abstract class BaseEditorActivity :
 	private fun setupBottomSheet() {
         editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
         BuildOutputProvider.setBottomSheet(content.bottomSheet)
-        editorBottomSheet?.addBottomSheetCallback(object : BottomSheetCallback() {
-            override fun onStateChanged(bottomSheet: View, newState: Int) {
-				// update the sheet state so that the ViewModel is in sync
-				bottomSheetViewModel.setSheetState(sheetState = newState)
 
+        val cb = object : BottomSheetBehavior.BottomSheetCallback() {
+            override fun onStateChanged(bottomSheet: View, newState: Int) {
+                bottomSheetViewModel.setSheetState(sheetState = newState)
                 if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    val editor = provideCurrentEditor()
-                    editor?.editor?.ensureWindowsDismissed()
+                    provideCurrentEditor()?.editor?.ensureWindowsDismissed()
                 }
             }
-
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
-				content.apply {
+                content.apply {
                     val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
                     this.bottomSheet.onSlide(slideOffset)
                     this.viewContainer.scaleX = editorScale
                     this.viewContainer.scaleY = editorScale
                 }
             }
-        })
+        }
+
+        bottomSheetCallback = cb
+        editorBottomSheet?.addBottomSheetCallback(cb)
 
         val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
@@ -1413,7 +1433,7 @@ abstract class BaseEditorActivity :
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         // Pass the event to our gesture detector first
         if (ev != null) {
-            gestureDetector.onTouchEvent(ev)
+            gestureDetector?.onTouchEvent(ev)
         }
         // Then, let the default dispatching happen
         return super.dispatchTouchEvent(ev)
