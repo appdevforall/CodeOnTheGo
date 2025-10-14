@@ -211,6 +211,7 @@ dependencies {
 	implementation(projects.actions)
 	implementation(projects.buildInfo)
 	implementation(projects.common)
+    implementation(projects.commonUi)
 	implementation(projects.editor)
 	implementation(projects.termux.termuxApp)
 	implementation(projects.termux.termuxView)
@@ -493,9 +494,12 @@ fun signApk(apkFile: File) {
 		signerExec = "apksigner.bat"
 	}
 
-	val signingConfig = android.signingConfigs.getByName("debug") // 🔥 Get existing signing config
+    val signingConfig = android.signingConfigs.findByName("common")
+        ?: android.signingConfigs.getByName("debug")
 
-	val keystorePath = signingConfig.storeFile?.absolutePath ?: error("Keystore not found!")
+    project.logger.lifecycle("Signing Config: ${signingConfig.name}")
+
+    val keystorePath = signingConfig.storeFile?.absolutePath ?: error("Keystore not found!")
 	val keystorePassword = signingConfig.storePassword ?: error("Keystore password missing!")
 	val keyAlias = signingConfig.keyAlias ?: error("Key alias missing!")
 	val keyPassword = signingConfig.keyPassword ?: error("Key password missing!")
