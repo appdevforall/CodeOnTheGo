@@ -60,6 +60,7 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -137,6 +138,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -566,7 +568,11 @@ abstract class BaseEditorActivity :
         }
 
         feedbackButtonManager =
-            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+                getLogContent = { this.getLogContent() }
+            )
         feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
@@ -1426,5 +1432,19 @@ abstract class BaseEditorActivity :
             tag = tag,
         )
     }
-}
 
+    private fun getLogContent(): String? {
+        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_EXPANDED) {
+            val fragment =
+                this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
+                    bottomSheetViewModel.currentTab
+                )
+            return when (fragment) {
+                is ShareableOutputFragment -> fragment.getShareableContent()
+                else -> null
+            }
+        } else {
+            return null
+        }
+    }
+}
