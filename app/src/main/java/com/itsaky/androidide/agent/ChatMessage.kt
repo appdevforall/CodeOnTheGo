@@ -1,4 +1,4 @@
-package com.itsaky.androidide.models
+package com.itsaky.androidide.agent
 
 import java.util.UUID
 
@@ -14,6 +14,6 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 ) {
     enum class Sender {
-        USER, AGENT, SYSTEM, TOOL
+        USER, AGENT, SYSTEM
     }
 }

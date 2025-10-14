@@ -10,6 +10,7 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.slider.Slider
 import kotlin.math.abs
 
 /**
@@ -32,7 +33,15 @@ fun View.applyLongPressRecursively(listener: (View) -> Boolean) {
     isLongClickable = true
     if (this is ViewGroup) {
         for (i in 0 until childCount) {
-            getChildAt(i).applyLongPressRecursively(listener)
+            val currentView = getChildAt(i)
+            if (currentView is Slider) {
+                currentView.setupGestureHandling(
+                    onLongPress = { view -> listener(view) },
+                    onDrag = {}
+                )
+            } else {
+                currentView.applyLongPressRecursively(listener)
+            }
         }
     }
 }

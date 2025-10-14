@@ -28,10 +28,14 @@ object TooltipTag {
     const val PROJECT_RUN_GRADLE_TASKS = "project.run.gradle.tasks"
 
     // General Preferences
+    const val PREFS_TOP = "prefs.top"
     const val PREFS_EDITOR = "prefs.editor"
     const val PREFS_GENERAL = "prefs.general"
     const val PREFS_BUILD_RUN = "prefs.buildrun"
+    const val PREFS_GRADLE = "prefs.gradle"
     const val PREFS_TERMUX = "prefs.termux"
+    const val PREFS_EDITOR_XML = "prefs.editor.xml"
+    const val PREFS_DEVELOPER = "prefs.developer"
     const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
     const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
     const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
@@ -115,7 +119,15 @@ object TooltipTag {
     // Template Details
     const val SETUP_PREVIOUS = "setup.previous"
     const val SETUP_OVERVIEW = "setup.overview"
-    const val SETUP_CREATE_PROJECT = "setup.create.project"
+	const val SETUP_CREATE_PROJECT = "setup.create.project"
+
+    // Debugger
+    const val PROJECT_DEBUGGER_OUTPUT = "project.debugger.output"
+    const val DEBUG_THREAD_SELECTOR = "debug.thread.selector"
+    const val DEBUG_OUTPUT_VARIABLES = "debug.output.variables"
+    const val DEBUG_OUTPUT_CALLSTACK = "debug.output.callstack"
+    const val DEBUG_NOT_CONNECTED = "debug.not.connected"
+    const val DEBUG_THREAD_SELECT_DIALOG = "debug.thread.select.dialog"
     const val EDITOR_CHARACTER_TOOLBAR = "editor.character.toolbar"
 
     const val DIALOG_FIND_IN_PROJECT = "project.find.dialog"

@@ -9,8 +9,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
-import com.itsaky.androidide.adapters.ContextChipAdapter
-import com.itsaky.androidide.adapters.ContextSelectionAdapter
+import com.itsaky.androidide.agent.ContextChipAdapter
+import com.itsaky.androidide.agent.ContextSelectionAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.databinding.FragmentContextSelectionBinding
 import com.itsaky.androidide.models.HeaderItem

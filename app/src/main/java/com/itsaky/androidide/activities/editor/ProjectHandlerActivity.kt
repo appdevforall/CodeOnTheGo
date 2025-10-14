@@ -20,7 +20,6 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
 import androidx.activity.viewModels
@@ -73,7 +72,6 @@ import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
-import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -89,7 +87,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.HELP_PAGE_URL
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
@@ -190,12 +187,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         observeStates()
         startServices()
-
-        binding.endNav.visibility = if (isExperimentsEnabled()) {
-            View.VISIBLE
-        } else {
-            View.GONE
-        }
     }
 
     private fun observeStates() {
@@ -325,9 +316,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     }
 
     fun notifySyncNeeded() {
-        notifySyncNeeded {
-			activityScope.launch { initializeProject() }
-		}
+        notifySyncNeeded { initializeProject() }
     }
 
     private fun notifySyncNeeded(onConfirm: () -> Unit) {
@@ -528,11 +517,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
 			resetMemUsageChart()
 
-			service.metadata().whenComplete { metadata, err ->
-				if (metadata == null || err != null) {
-					log.error("Failed to get tooling server metadata")
-					return@whenComplete
-				}
+                service.metadata().whenComplete { metadata, err ->
+                    if (metadata == null || err != null) {
+                        log.error("Failed to get tooling server metadata")
+                        return@whenComplete
+                    }
 
 				if (pid != metadata.pid) {
 					log.warn(
@@ -789,7 +778,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     private fun openHelpActivity() {
         val intent = Intent(this, HelpActivity::class.java)
-        intent.putExtra(CONTENT_KEY, HELP_PAGE_URL)
+        intent.putExtra(CONTENT_KEY, getString(string.docs_url))
         startActivity(intent)
     }
 

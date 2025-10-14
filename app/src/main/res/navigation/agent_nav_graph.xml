@@ -37,7 +37,7 @@
 
     <fragment
         android:id="@+id/chatHistoryFragment"
-        android:name="com.itsaky.androidide.actions.sidebar.ChatHistoryFragment"
+        android:name="com.itsaky.androidide.agent.fragments.ChatHistoryFragment"
         android:label="Chat History"
         tools:layout="@layout/fragment_context_selection" />
 

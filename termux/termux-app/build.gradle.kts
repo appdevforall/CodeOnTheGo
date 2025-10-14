@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.common.markwon.recycler)
 
     implementation(projects.common)
+    implementation(projects.commonUi)
     implementation(projects.preferences)
     implementation(projects.resources)
     implementation(projects.termux.termuxView)

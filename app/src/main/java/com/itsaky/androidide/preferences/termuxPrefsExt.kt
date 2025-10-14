@@ -23,8 +23,10 @@ import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX
 import com.termux.shared.logger.Logger
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences
+import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import kotlin.reflect.KMutableProperty0
 
@@ -103,6 +105,9 @@ class TermuxDebuggingLogLevelPreference(
   override val title: Int = R.string.log_level_title,
   override val icon: Int? = R.drawable.ic_bug
 ) : SingleChoicePreference() {
+
+  @IgnoredOnParcel
+  override val tooltipTag: String = PREFS_TERMUX
 
   override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
     val logLevels = Logger.getLogLevelsArray()

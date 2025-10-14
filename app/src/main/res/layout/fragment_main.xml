@@ -63,17 +63,4 @@
     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
     tools:listitem="@layout/layout_main_action_item" />
 
-  <com.google.android.material.floatingactionbutton.FloatingActionButton
-    android:id="@+id/floatingActionButton"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_gravity="bottom|start"
-    app:layout_constraintBottom_toBottomOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    android:src="@drawable/baseline_feedback_64"
-    android:scaleType="fitXY"
-    android:clickable="true"
-    android:tooltipText="@string/send_feedback"/>
-
-
 </androidx.constraintlayout.widget.ConstraintLayout>

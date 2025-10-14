@@ -28,6 +28,7 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityContributorsBinding
 import com.itsaky.androidide.utils.getConnectionInfo
 import com.itsaky.androidide.viewmodel.ContributorsViewModel
+import com.itsaky.androidide.FeedbackButtonManager
 
 /**
  * @author Akash Yadav
@@ -41,6 +42,7 @@ class ContributorsActivity : EdgeToEdgeIDEActivity() {
     }
 
   private val viewModel by viewModels<ContributorsViewModel>()
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
   override fun bindLayout(): View {
     _binding = ActivityContributorsBinding.inflate(layoutInflater)
@@ -66,6 +68,12 @@ class ContributorsActivity : EdgeToEdgeIDEActivity() {
 
       noConnection.root.setText(R.string.msg_no_internet)
       loadingProgress.isVisible = false
+
+        feedbackButtonManager = FeedbackButtonManager(
+            activity = this@ContributorsActivity,
+            feedbackFab = fabFeedback,
+        )
+        feedbackButtonManager?.setupDraggableFab()
     }
 
     viewModel._crowdinTranslators.observe(this) { translators ->
@@ -103,6 +111,11 @@ class ContributorsActivity : EdgeToEdgeIDEActivity() {
       )
     }
   }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
 
   override fun onDestroy() {
     super.onDestroy()

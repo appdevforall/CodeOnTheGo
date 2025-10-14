@@ -3,7 +3,6 @@
 package com.itsaky.androidide.activities
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import androidx.core.graphics.Insets
@@ -12,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.PluginListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
@@ -36,6 +36,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         get() = checkNotNull(_binding) { "Activity has been destroyed" }
 
     private lateinit var adapter: PluginListAdapter
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
     // ViewModel injected via Koin
     private val viewModel: PluginManagerViewModel by viewModel()
@@ -61,6 +62,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 
             setupRecyclerView()
             setupFab()
+            setupFeedbackButton()
             observeViewModel()
         } catch (e: Exception) {
             // Log the error and finish the activity if something goes wrong
@@ -68,6 +70,11 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
             flashError("Failed to initialize Plugin Manager: ${e.message}")
             finish()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onDestroy() {
@@ -104,6 +111,15 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
         binding.fabInstallPlugin.setOnClickListener {
             viewModel.onEvent(PluginManagerUiEvent.OpenFilePicker)
         }
+    }
+
+    private fun setupFeedbackButton(){
+        feedbackButtonManager =
+            FeedbackButtonManager(
+                activity = this,
+                feedbackFab = binding.fabFeedback,
+            )
+        feedbackButtonManager?.setupDraggableFab()
     }
 
     private fun observeViewModel() {

@@ -5,9 +5,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
@@ -100,39 +103,43 @@ class VariableListBinder(
 
                     chevron.visibility = if (descriptor.kind == VariableKind.PRIMITIVE) View.INVISIBLE else View.VISIBLE
 
-                    showSetValueDialogOnLongClick(binding, data, descriptor, strValue)
+                    showSetValueDialogOnClick(binding, data, descriptor, strValue)
+
+                    binding.root.setOnLongClickListener {
+                        TooltipManager.showTooltip(context, binding.root, DEBUG_OUTPUT_VARIABLES)
+                        true
+                    }
                 }
             }
         }
     }
 
-    private fun showSetValueDialogOnLongClick(
+    private fun showSetValueDialogOnClick(
         binding: DebuggerVariableItemBinding,
         variable: ResolvableVariable<*>,
         descriptor: VariableDescriptor,
         currentValue: String
     ) {
         val context = binding.root.context
-        binding.root.setOnLongClickListener {
+        binding.root.setOnClickListener {
             if (!descriptor.isMutable) {
                 // variable is immutable
                 flashError(context.getString(R.string.debugger_error_immutable_variable, descriptor.name))
-                return@setOnLongClickListener false
+                return@setOnClickListener
             }
 
             val labelText = binding.label.text?.toString()
 
-            if (labelText.isNullOrBlank()) return@setOnLongClickListener false
+            if (labelText.isNullOrBlank()) return@setOnClickListener
 
             val hasValidValue = currentValue.isNotBlank() &&
                     currentValue != context.getString(R.string.debugger_value_unavailable) &&
                     currentValue != context.getString(R.string.debugger_value_error) &&
                     currentValue != context.getString(R.string.debugger_value_null)
 
-            if (!hasValidValue) return@setOnLongClickListener false
+            if (!hasValidValue) return@setOnClickListener
 
             showSetValueDialog(context, variable, descriptor, currentValue)
-            true
         }
     }
 
