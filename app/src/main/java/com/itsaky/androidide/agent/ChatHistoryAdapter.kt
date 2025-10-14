@@ -1,10 +1,9 @@
-package com.itsaky.androidide.adapters
+package com.itsaky.androidide.agent
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.databinding.ListItemChatHistoryBinding
-import com.itsaky.androidide.models.ChatSession
 
 class ChatHistoryAdapter(
     private val sessions: List<ChatSession>,
