@@ -683,8 +683,8 @@
 	</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
 	<string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were
-        taking and on what screen.\n\nThank You.\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice ID: %3$s</string>
-	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice ID: %3$s</string>
+        taking and on what screen.\n\nThank You.\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
     <string name="send_feedback">Send Feedback</string>
 	<string name="alert_message">Alert!</string>
 	<string name="fab_more">More</string>
