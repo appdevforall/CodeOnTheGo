@@ -893,6 +893,7 @@
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
+    <string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
     <!--  AI Agent-->
