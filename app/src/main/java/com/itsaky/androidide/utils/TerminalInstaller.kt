@@ -37,13 +37,12 @@ import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipFile
-import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
 import java.io.InputStreamReader
+import java.io.IOException
 import java.nio.channels.SeekableByteChannel
 
 
@@ -414,9 +413,29 @@ object TerminalInstaller {
         // Recreate env file since termux prefix was wiped earlier
         TermuxShellEnvironment.writeEnvironmentToFile(context)
 
+        appendVimToPath()
+
         return InstallResult.Success
     }
 
     private fun ensureDirectoryExists(directory: File): Error? =
         FileUtils.createDirectoryFile(directory.absolutePath)
+
+    private fun appendVimToPath() {
+        val bashrcPath = "$TERMUX_PREFIX_DIR_PATH/etc/bash.bashrc"
+        val patch = """
+        # Custom vim setup        
+        export PATH="$TERMUX_PREFIX_DIR_PATH/libexec/vim:${'$'}PATH"
+        alias vi='vim'
+        """.trimIndent()
+
+        try {
+            File(bashrcPath).appendText("\n$patch\n")
+            logger.info("Added vim path to bash.bashrc successfully.")
+        } catch (e: IOException) {
+            logger.error("Failed to add vim path to bash.bashrc: ${e.message}")
+        }
+    }
+
+
 }
