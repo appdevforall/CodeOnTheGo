@@ -15,6 +15,7 @@ android {
 dependencies {
     implementation(projects.vectormaster)
     implementation(projects.common)
+    implementation(projects.commonUi)
     implementation(projects.uidesigner)
     implementation(projects.idetooltips)
 
