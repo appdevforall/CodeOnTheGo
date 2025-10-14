@@ -112,7 +112,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         startWebServer()
 
         openLastProject()
-        setupSecondaryDisplay()
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
@@ -320,18 +319,5 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         ITemplateProvider.getInstance().release()
         super.onDestroy()
         _binding = null
-    }
-
-    private fun setupSecondaryDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-
-        val secondDisplay = displays.firstOrNull { display ->
-            display.displayId != Display.DEFAULT_DISPLAY
-        }
-        secondDisplay?.let {
-            val presentation = SecondaryScreen(this, it)
-            presentation.show()
-        }
     }
 }
