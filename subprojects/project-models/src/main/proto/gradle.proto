@@ -1,0 +1,103 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+option java_outer_classname = "GradleModels";
+
+package com.itsaky.androidide.project;
+
+import "android.proto";
+import "java.proto";
+
+// Severity of a SyncIssue.
+enum SyncIssueSeverity {
+  SeverityWarning = 0;
+  SeverityError = 1;
+}
+
+// A project synchronization issue.
+message SyncIssue {
+
+  // Machine-readable string used by the IDE for known issue types.
+  optional string data = 1;
+
+  // User-readable message for for the issue.
+  string message = 2;
+
+  // User-readable multi-line message for the issue. This is an optional
+  // extension of the message field.
+  repeated string multilineMessage = 3;
+
+  // The type of issue.
+  int32 type = 4;
+
+  // The severity of issue.
+  SyncIssueSeverity severity = 5;
+}
+
+// A Gradle task definition.
+message GradleTask {
+
+  // Display name of the Gradle task.
+  string name = 1;
+
+  // The path of the Gradle task in formation ':project:subproject:task'.
+  string path = 2;
+
+  // Whether this task is public.
+  bool isPublic = 3;
+
+  // The display name of the task.
+  optional string displayName = 4;
+
+  // Description of the Gradle task.
+  optional string description = 5;
+
+  // The group this task belongs to.
+  optional string group = 6;
+
+  // The path of the project this task belongs to.
+  optional string projectPath = 7;
+}
+
+// Gradle project model.
+message GradleProject {
+
+  // The project display name.
+  string name = 1;
+
+  // The project description.
+  optional string description = 2;
+
+  // The gradle project path.
+  string path = 3;
+
+  // The canonical path of the project directory.
+  string projectDirPath = 4;
+
+  // The path of the project's build directory.
+  string buildDirPath = 5;
+
+  // The path of the project's build script file.
+  string buildScriptPath = 6;
+
+  // The Gradle tasks of this project.
+  repeated GradleTask task = 7;
+
+  // The project type.
+  oneof projectInfo {
+    AndroidProject androidProject = 8;
+    JavaProject javaProject = 9;
+  }
+}
+
+// Gradle build model.
+message GradleBuild {
+
+  // The root Gradle project model.
+  GradleProject rootProject = 4;
+
+  // Gradle sub-projects (excluding the root project).
+  repeated GradleProject subProject = 5;
+
+  // Synchronization issues in the project (as reported by AGP).
+  repeated SyncIssue syncIssue = 6;
+}

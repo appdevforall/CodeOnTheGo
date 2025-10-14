@@ -92,7 +92,7 @@ fun processXmlFile(file: File, expectedType: AaptResourceType): Pair<XmlProcesso
     throw InflateException("File is not a layout file.")
   }
 
-  if (IProjectManager.getInstance().rootProject == null) {
+  if (IProjectManager.getInstance().workspace == null) {
     throw InflateException("GradleProject is not initialized!")
   }
 

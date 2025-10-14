@@ -26,7 +26,7 @@ import static com.itsaky.androidide.utils.Environment.JAVA_HOME;
 
 import androidx.annotation.NonNull;
 import androidx.core.util.Pair;
-import com.itsaky.androidide.builder.model.IJavaCompilerSettings;
+
 import com.itsaky.androidide.javac.services.compiler.ReusableBorrow;
 import com.itsaky.androidide.javac.services.partial.DiagnosticListenerImpl;
 import com.itsaky.androidide.lsp.java.models.CompilationRequest;
@@ -34,10 +34,10 @@ import com.itsaky.androidide.lsp.java.visitors.MethodRangeScanner;
 import com.itsaky.androidide.models.Range;
 import com.itsaky.androidide.projects.api.ModuleProject;
 import com.itsaky.androidide.projects.util.StringSearch;
-import com.itsaky.androidide.tooling.api.ProjectType;
 import com.itsaky.androidide.utils.ClassTrie;
 import com.itsaky.androidide.utils.SourceClassTrie;
 import com.itsaky.androidide.utils.StopWatch;
+
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+
 import jdkx.lang.model.SourceVersion;
 import jdkx.tools.Diagnostic;
 import jdkx.tools.JavaFileObject;
@@ -146,7 +147,7 @@ public class CompileBatch implements AutoCloseable {
 
     // This won't be used if the current module is Android module project
     System.setProperty(PROP_ANDROIDIDE_JAVA_HOME, JAVA_HOME.getAbsolutePath());
-    if (this.parent.module != null && this.parent.module.getType() == ProjectType.Android) {
+    if (this.parent.module != null && this.parent.module.hasAndroidProject()) {
       setLatestSourceVersion(SourceVersion.RELEASE_8);
       setLatestSupportedSourceVersion(SourceVersion.RELEASE_11);
       disableModules();
@@ -194,11 +195,11 @@ public class CompileBatch implements AutoCloseable {
       return;
     }
 
-    final IJavaCompilerSettings compilerSettings = module.getCompilerSettings();
+    final var compilerSettings = module.getCompilerSettings();
     options.add("-source");
-    options.add(compilerSettings.getJavaSourceVersion());
+    options.add(compilerSettings.getSourceCompatibility());
     options.add("-target");
-    options.add(compilerSettings.getJavaBytecodeVersion());
+    options.add(compilerSettings.getTargetCompatibility());
   }
 
   @Override

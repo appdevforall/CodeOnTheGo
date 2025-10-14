@@ -54,8 +54,8 @@ class FindInProjectAction() : EditorActivityAction() {
         return
       }
 
-    val project = IProjectManager.getInstance().rootProject
-    if (project == null || project.subProjects.isEmpty()) {
+    val gradleBuild = IProjectManager.getInstance().gradleBuild
+    if (gradleBuild == null || gradleBuild.subProjectCount == 0) {
       markInvisible()
       return
     }

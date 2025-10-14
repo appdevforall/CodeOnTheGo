@@ -42,6 +42,7 @@ plugins {
 	alias(libs.plugins.rikka.autoresconfig) apply false
 	alias(libs.plugins.rikka.materialthemebuilder) apply false
 	alias(libs.plugins.rikka.refine) apply false
+	alias(libs.plugins.google.protobuf) apply false
 	alias(libs.plugins.spotless)
 }
 

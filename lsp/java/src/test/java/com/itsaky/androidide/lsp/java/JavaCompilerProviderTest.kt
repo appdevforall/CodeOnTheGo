@@ -39,7 +39,7 @@ class JavaCompilerProviderTest {
 
   @Test
   fun `test module specific compilers`() {
-    val rootProject = IProjectManager.getInstance().rootProject!!
+    val rootProject = IProjectManager.getInstance().workspace!!
     val appModule = rootProject.findByPath(":app")!! as ModuleProject
     val androidLib = rootProject.findByPath(":android-library")!! as ModuleProject
     val anotherAndroidLib = rootProject.findByPath(":another-android-library")!! as ModuleProject

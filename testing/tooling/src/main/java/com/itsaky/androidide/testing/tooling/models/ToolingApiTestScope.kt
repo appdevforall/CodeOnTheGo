@@ -17,7 +17,7 @@
 
 package com.itsaky.androidide.testing.tooling.models
 
-import com.itsaky.androidide.tooling.api.IProject
+import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import java.util.concurrent.CompletableFuture
@@ -28,9 +28,9 @@ import java.util.concurrent.CompletableFuture
  * @author Akash Yadav
  */
 class ToolingApiTestScope(
-  val server: IToolingApiServer,
-  val project: IProject,
-  val initializeResult: CompletableFuture<InitializeResult>
+	val server: IToolingApiServer,
+	val gradleBuild: GradleModels.GradleBuild,
+	val initializeResult: CompletableFuture<InitializeResult>
 ) {
 
   val result: InitializeResult?

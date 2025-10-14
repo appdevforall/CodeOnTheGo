@@ -29,7 +29,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.blankj.utilcode.util.SizeUtils
-import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.ActionData
@@ -53,22 +52,24 @@ import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.projects.api.GradleProject
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
-import com.itsaky.androidide.tasks.executeAsyncProvideError
-import com.itsaky.androidide.tasks.executeWithProgress
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_FOUND
+import com.itsaky.androidide.tooling.api.messages.result.failure
+import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
+import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.RecursiveFileSearcher
@@ -82,10 +83,9 @@ import com.itsaky.androidide.utils.withIcon
 import com.itsaky.androidide.viewmodel.BuildState
 import com.itsaky.androidide.viewmodel.BuildVariantsViewModel
 import com.itsaky.androidide.viewmodel.BuildViewModel
-import com.itsaky.androidide.viewmodel.ProjectViewModel
-import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -101,11 +101,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     protected var mFindInProjectDialog: AlertDialog? = null
     protected var syncNotificationFlashbar: Flashbar? = null
 
-    protected var isFromSavedInstance = false
-    protected var shouldInitialize = false
-
-    val projectViewModel by viewModels<ProjectViewModel>()
-    private val buildViewModel by viewModels<BuildViewModel>()
+	private val buildViewModel by viewModels<BuildViewModel>()
     protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
 
     val findInProjectDialog: AlertDialog
@@ -174,15 +170,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        savedInstanceState?.let {
-            this.shouldInitialize = it.getBoolean(STATE_KEY_SHOULD_INITIALIZE, true)
-            this.isFromSavedInstance = it.getBoolean(STATE_KEY_FROM_SAVED_INSTANACE, false)
-        }
-            ?: run {
-                this.shouldInitialize = true
-                this.isFromSavedInstance = false
-            }
-
         editorViewModel._isSyncNeeded.observe(this) { isSyncNeeded ->
             if (!isSyncNeeded) {
                 // dismiss if already showing
@@ -206,38 +193,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    projectViewModel.initState.collect { onInitStateChanged(it) }
-                }
-                launch {
                     buildViewModel.buildState.collect { onBuildStateChanged(it) }
                 }
             }
         }
     }
 
-    private fun onInitStateChanged(state: TaskState) {
-        when (state) {
-            is TaskState.Idle -> {
-                editorViewModel.isInitializing = false
-            }
-
-            is TaskState.InProgress -> {
-                preProjectInit()
-            }
-
-            is TaskState.Success -> {
-                onProjectInitialized(state.result)
-                postProjectInit(true, null)
-            }
-
-            is TaskState.Error -> {
-                postProjectInit(false, state.failure)
-            }
-        }
-        invalidateOptionsMenu()
-    }
-
-    private fun onBuildStateChanged(state: BuildState) {
+	private fun onBuildStateChanged(state: BuildState) {
         editorViewModel.isBuildInProgress = (state is BuildState.InProgress)
         when (state) {
             is BuildState.Idle -> {
@@ -412,43 +374,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         initLspClient()
     }
 
-    /**
-     * Initialize (sync) the project.
-     *
-     * @param buildVariantsProvider A function which returns the map of project paths to the selected build variants.
-     *    This function is called asynchronously.
-     */
-    fun initializeProject(buildVariantsProvider: () -> Map<String, String>) {
-        executeWithProgress { progress ->
-            executeAsyncProvideError(buildVariantsProvider::invoke) { result, error ->
-                com.itsaky.androidide.tasks.runOnUiThread {
-                    progress.dismiss()
-                }
-
-                if (result == null || error != null) {
-                    val msg = getString(string.msg_build_variants_fetch_failed)
-                    flashError(msg)
-                    log.error(msg, error)
-                    return@executeAsyncProvideError
-                }
-
-                com.itsaky.androidide.tasks.runOnUiThread {
-                    initializeProject(result)
-                }
-            }
-        }
-    }
-
-    fun initializeProject() {
+	fun initializeProject() {
         val currentVariants = buildVariantsViewModel._buildVariants.value
 
         // no information about the build variants is available
         // use the default variant selections
         if (currentVariants == null) {
-            log.debug(
-                "No variant selection information available. Default build variants will be selected.",
-            )
-            initializeProject(emptyMap())
+            log.debug("No variant selection information available. " +
+					"Default build variants will be selected.")
+            initializeProject(buildVariants = emptyMap())
             return
         }
 
@@ -458,21 +392,20 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         if (buildVariantsViewModel.updatedBuildVariants.isNotEmpty()) {
             val newSelections = currentVariants.toMutableMap()
             newSelections.putAll(buildVariantsViewModel.updatedBuildVariants)
-            initializeProject {
-                newSelections.mapToSelectedVariants().also {
-                    log.debug("Initializing project with new build variant selections: {}", it)
-                }
-            }
+
+			val selectedVariants = newSelections.mapToSelectedVariants()
+			log.debug("Initializing project with new build variant selections: {}", selectedVariants)
+
+			initializeProject(buildVariants = selectedVariants)
             return
         }
 
         // variant selection information is available but no variant selections have been updated
         // the user might be trying to sync the project from options menu
         // initialize the project with the existing selected variants
-        initializeProject {
-            log.debug("Re-initializing project with existing build variant selections")
-            currentVariants.mapToSelectedVariants()
-        }
+		val selectedVariants = currentVariants.mapToSelectedVariants()
+		log.debug("Re-initializing project with existing build variant selections")
+		initializeProject(buildVariants = selectedVariants)
     }
 
     /**
@@ -480,52 +413,44 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
      *
      * @param buildVariants A map of project paths to the selected build variants.
      */
-    fun initializeProject(buildVariants: Map<String, String>) {
+    fun initializeProject(buildVariants: Map<String, String>) = activityScope.launch {
         val manager = ProjectManagerImpl.getInstance()
         val projectDir = File(manager.projectPath)
         if (!projectDir.exists()) {
             log.error("GradleProject directory does not exist. Cannot initialize project")
-            return
+            return@launch
         }
 
-        val initialized = manager.projectInitialized && manager.cachedInitResult != null
-        log.debug("Is project initialized: {}", initialized)
-        // When returning after a configuration change between the initialization process,
-        // we do not want to start another project initialization
-        if (isFromSavedInstance && initialized && !shouldInitialize) {
-            log.debug("Skipping init process because initialized && !wasInitializing")
-            return
-        }
+        val needsSync = manager.isGradleSyncNeeded(projectDir)
 
-        //noinspection ConstantConditions
-        ThreadUtils.runOnUiThread { preProjectInit() }
+		withContext(Dispatchers.Main.immediate) {
+			preProjectInit()
+		}
 
         val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
         if (buildService == null) {
             log.error("No build service found. Cannot initialize project.")
-            return
+            return@launch
         }
 
         if (!buildService.isToolingServerStarted()) {
             flashError(string.msg_tooling_server_unavailable)
-            return
+            return@launch
         }
 
-        this.initializingFuture =
-            if (shouldInitialize || (!isFromSavedInstance && !initialized)) {
-                log.debug("Sending init request to tooling server..")
+        initializingFuture =
+            if (needsSync) {
+                log.debug("Sending init request to tooling server...")
                 buildService.initializeProject(createProjectInitParams(projectDir, buildVariants))
             } else {
-                // The project initialization was in progress before the configuration change
-                // In this case, we should not start another project initialization
                 log.debug("Using cached initialize result as the project is already initialized")
                 CompletableFuture.supplyAsync {
-                    log.warn("GradleProject has already been initialized. Skipping initialization process.")
-                    manager.cachedInitResult
+                    log.warn("Reusing project cache")
+					InitializeResult.Success(ProjectSyncHelper.cacheFileForProject(projectDir))
                 }
             }
 
-        this.initializingFuture!!.whenCompleteAsync { result, error ->
+        initializingFuture!!.whenCompleteAsync { result, error ->
             releaseServerListener()
 
             if (result == null || !result.isSuccessful || error != null) {
@@ -533,13 +458,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                     log.error("An error occurred initializing the project with Tooling API", error)
                 }
 
-                ThreadUtils.runOnUiThread {
-                    postProjectInit(false, result?.failure)
-                }
+                activityScope.launch(context = Dispatchers.Main) {
+					postProjectInit(isSuccessful = false, failure = result?.failure)
+				}
                 return@whenCompleteAsync
             }
 
-            onProjectInitialized(result)
+            onProjectInitialized(result as InitializeResult.Success)
         }
     }
 
@@ -548,9 +473,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         buildVariants: Map<String, String>,
     ): InitializeProjectParams =
         InitializeProjectParams(
-            projectDir.absolutePath,
-            gradleDistributionParams,
-            createAndroidParams(buildVariants),
+			directory = projectDir.absolutePath,
+			gradleDistribution = gradleDistributionParams,
+			androidParams = createAndroidParams(buildVariants),
         )
 
     private fun createAndroidParams(buildVariants: Map<String, String>): AndroidInitializationParams {
@@ -583,10 +508,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, service)
         service.setEventListener(mBuildEventListener)
 
-        if (!service.isToolingServerStarted()) {
-            service.startToolingServer { pid ->
-                memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
-                resetMemUsageChart()
+		if (service.isToolingServerStarted()) {
+			initializeProject()
+			return
+		}
+
+		service.startToolingServer { pid ->
+			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
+			resetMemUsageChart()
 
                 service.metadata().whenComplete { metadata, err ->
                     if (metadata == null || err != null) {
@@ -594,40 +523,38 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                         return@whenComplete
                     }
 
-                    if (pid != metadata.pid) {
-                        log.warn(
-                            "Tooling server pid mismatch. Expected: {}, Actual: {}. Replacing memory watcher...",
-                            pid,
-                            metadata.pid,
-                        )
-                        memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
-                        resetMemUsageChart()
-                    }
-                }
+				if (pid != metadata.pid) {
+					log.warn(
+						"Tooling server pid mismatch. Expected: {}, Actual: {}. Replacing memory watcher...",
+						pid,
+						metadata.pid,
+					)
+					memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
+					resetMemUsageChart()
+				}
+			}
 
-                initializeProject()
-            }
-        } else {
-            initializeProject()
-        }
-    }
+			initializeProject()
+		}
+	}
 
-    protected open fun onProjectInitialized(result: InitializeResult) {
-        val manager = ProjectManagerImpl.getInstance()
-        if (isFromSavedInstance && manager.projectInitialized && result == manager.cachedInitResult) {
-            log.debug("Not setting up project as this a configuration change")
-            return
-        }
-
-        manager.cachedInitResult = result
+    protected open fun onProjectInitialized(result: InitializeResult.Success) {
         editorActivityScope.launch(Dispatchers.IO) {
-            manager.setupProject()
+			val manager = ProjectManagerImpl.getInstance()
+			val gradleBuildResult = manager.readGradleBuild()
+			if (gradleBuildResult.isFailure) {
+				log.error("Failed to read project cache", gradleBuildResult.exceptionOrNull())
+				runOnUiThread { postProjectInit(false, CACHE_READ_ERROR) }
+				return@launch
+			}
+
+            manager.setup(gradleBuildResult.getOrThrow())
             manager.notifyProjectUpdate()
             updateBuildVariants(manager.androidBuildVariants)
 
-            com.itsaky.androidide.tasks.runOnUiThread {
-                postProjectInit(true, null)
-            }
+            withContext(Dispatchers.Main) {
+				postProjectInit(isSuccessful = true, failure = null)
+			}
         }
     }
 
@@ -645,9 +572,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             // Get project name for error message
             val projectName =
                 try {
-                    val project = manager.rootProject
+                    val project = manager.workspace?.rootProject
                     if (project != null) {
-                        project.rootProject.name.takeIf { it.isNotEmpty() }
+                        project.name.takeIf { it.isNotEmpty() }
                             ?: manager.projectDir.name
                     } else {
                         manager.projectDir.name
@@ -669,6 +596,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
                     PROJECT_DIRECTORY_INACCESSIBLE -> string.msg_project_dir_inaccessible
                     PROJECT_NOT_DIRECTORY -> string.msg_file_is_not_dir
                     PROJECT_NOT_FOUND -> string.msg_project_dir_doesnt_exist
+					CACHE_READ_ERROR -> string.msg_project_cache_read_failure
                     else -> null
                 }?.let {
                     "$initFailed: ${getString(it)}"
@@ -677,14 +605,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             flashError(msg ?: initFailed)
 
             editorViewModel.isInitializing = false
-            manager.projectInitialized = false
             return
         }
 
         initialSetup()
         setStatus(getString(string.msg_project_initialized))
         editorViewModel.isInitializing = false
-        manager.projectInitialized = true
 
         if (mFindInProjectDialog?.isShowing == true) {
             mFindInProjectDialog!!.dismiss()
@@ -703,7 +629,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     protected open fun createFindInProjectDialog(): AlertDialog? {
         val manager = ProjectManagerImpl.getInstance()
-        if (manager.rootProject == null) {
+        if (manager.workspace == null) {
             log.warn("No root project model found. Is the project initialized?")
             flashError(getString(string.msg_project_not_initialized))
             return null
@@ -711,12 +637,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         val moduleDirs =
             try {
-                manager.rootProject!!
-                    .subProjects
+                manager.gradleBuild!!
+                    .subProjectList
                     .stream()
-                    .map(GradleProject::projectDir)
+                    .map { project -> project.projectDir }
                     .collect(Collectors.toList())
-            } catch (e: Throwable) {
+            } catch (_: Throwable) {
                 flashError(getString(string.msg_no_modules))
                 emptyList()
             }
@@ -833,19 +759,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         val manager = ProjectManagerImpl.getInstance()
         GeneralPreferences.lastOpenedProject = manager.projectDirPath
         try {
-            val project = manager.rootProject
+            val project = manager.workspace?.rootProject
             if (project == null) {
                 log.warn("GradleProject not initialized. Skipping initial setup...")
                 return
             }
 
-            var projectName = project.rootProject.name
+            var projectName = project.name
             if (projectName.isEmpty()) {
                 projectName = manager.projectDir.name
             }
 
             supportActionBar!!.subtitle = projectName
-        } catch (th: Throwable) {
+        } catch (_: Throwable) {
             // ignored
         }
     }

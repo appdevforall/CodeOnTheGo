@@ -49,10 +49,6 @@ interface IToolingApiServer {
   @JsonRequest
   fun isServerInitialized(): CompletableFuture<Boolean>
 
-  /** Get the root project. */
-  @JsonRequest
-  fun getRootProject(): CompletableFuture<IProject>
-
   /** Execute the tasks specified in the message. */
   @JsonRequest
   fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult>

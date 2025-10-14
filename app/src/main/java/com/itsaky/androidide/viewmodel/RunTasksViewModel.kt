@@ -22,72 +22,72 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import com.itsaky.androidide.models.Checkable
-import com.itsaky.androidide.tooling.api.models.GradleTask
+import com.itsaky.androidide.project.GradleModels
 
 data class HelpNavigationEvent(
-  val url: String,
-  val title: String
+	val url: String,
+	val title: String
 )
 
 /** @author Akash Yadav */
 class RunTasksViewModel : ViewModel() {
-  
-  private val _tasks = MutableLiveData(listOf<Checkable<GradleTask>>())
-  private val _selected = MutableLiveData(mutableSetOf<String>())
-  private val _displayedChild = MutableLiveData(0)
-  private val _query = MutableLiveData("")
-  private val _helpNavigationEvent = MutableLiveData<HelpNavigationEvent?>()
 
-  var tasks: List<Checkable<GradleTask>>
-    get() = _tasks.value!!
-    set(value) {
-      _tasks.value = value
-    }
+	private val _tasks = MutableLiveData(listOf<Checkable<GradleModels.GradleTask>>())
+	private val _selected = MutableLiveData(mutableSetOf<String>())
+	private val _displayedChild = MutableLiveData(0)
+	private val _query = MutableLiveData("")
+	private val _helpNavigationEvent = MutableLiveData<HelpNavigationEvent?>()
 
-  var displayedChild: Int
-    get() = this._displayedChild.value!!
-    set(value) {
-      this._displayedChild.value = value
-    }
+	var tasks: List<Checkable<GradleModels.GradleTask>>
+		get() = _tasks.value!!
+		set(value) {
+			_tasks.value = value
+		}
 
-  var query: String
-    get() = _query.value!!
-    set(value) {
-      _query.value = value
-    }
+	var displayedChild: Int
+		get() = this._displayedChild.value!!
+		set(value) {
+			this._displayedChild.value = value
+		}
 
-  val selected: Set<String>
-    get() = _selected.value!!
+	var query: String
+		get() = _query.value!!
+		set(value) {
+			_query.value = value
+		}
 
-  fun observeDisplayedChild(owner: LifecycleOwner, observer: Observer<Int>) {
-    _displayedChild.observe(owner, observer)
-  }
+	val selected: Set<String>
+		get() = _selected.value!!
 
-  fun observeQuery(owner: LifecycleOwner, observer: Observer<String>) {
-    _query.observe(owner, observer)
-  }
+	fun observeDisplayedChild(owner: LifecycleOwner, observer: Observer<Int>) {
+		_displayedChild.observe(owner, observer)
+	}
 
-  fun select(item: String) {
-    this._selected.value!!.add(item)
-  }
+	fun observeQuery(owner: LifecycleOwner, observer: Observer<String>) {
+		_query.observe(owner, observer)
+	}
 
-  fun deselect(item: String) {
-    this._selected.value!!.remove(item)
-  }
+	fun select(item: String) {
+		this._selected.value!!.add(item)
+	}
 
-  fun getSelectedTaskPaths(): String {
-    return selected.joinToString(separator = "\n")
-  }
+	fun deselect(item: String) {
+		this._selected.value!!.remove(item)
+	}
 
-  fun observeHelpNavigation(owner: LifecycleOwner, observer: Observer<HelpNavigationEvent?>) {
-    _helpNavigationEvent.observe(owner, observer)
-  }
+	fun getSelectedTaskPaths(): String {
+		return selected.joinToString(separator = "\n")
+	}
 
-  fun navigateToHelp(url: String, title: String) {
-    _helpNavigationEvent.value = HelpNavigationEvent(url, title)
-  }
+	fun observeHelpNavigation(owner: LifecycleOwner, observer: Observer<HelpNavigationEvent?>) {
+		_helpNavigationEvent.observe(owner, observer)
+	}
 
-  fun onHelpNavigationHandled() {
-    _helpNavigationEvent.value = null
-  }
+	fun navigateToHelp(url: String, title: String) {
+		_helpNavigationEvent.value = HelpNavigationEvent(url, title)
+	}
+
+	fun onHelpNavigationHandled() {
+		_helpNavigationEvent.value = null
+	}
 }
