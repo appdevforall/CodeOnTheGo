@@ -21,14 +21,16 @@ import com.android.builder.model.v2.ide.SyncIssue
 import com.itsaky.androidide.builder.model.shouldBeIgnored
 import com.itsaky.androidide.project.GradleBuild
 import com.itsaky.androidide.project.GradleModels
+import com.itsaky.androidide.project.ProjectModelInfo
 import com.itsaky.androidide.project.SyncIssue
 import com.itsaky.androidide.projects.models.projectDir
-import com.itsaky.androidide.projects.serial.ProtoProject
 import com.itsaky.androidide.tooling.api.IAndroidProject
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
 import com.itsaky.androidide.tooling.impl.Main
 import com.itsaky.androidide.tooling.impl.util.configureFrom
-import com.itsaky.androidide.utils.SharedEnvironment
+import com.itsaky.androidide.utils.sha256
+import kotlinx.coroutines.runBlocking
 import org.gradle.tooling.ConfigurableLauncher
 import org.gradle.tooling.model.idea.IdeaProject
 import org.slf4j.LoggerFactory
@@ -44,6 +46,8 @@ object RootModelBuilder :
 	AbstractModelBuilder<RootProjectModelBuilderParams, File>(), Serializable {
 
 	private val serialVersionUID = 1L
+
+	private const val PROJECT_SYNC_LOCK_TIMEOUT_MS = 10 * 1000L
 
 	override fun build(
 		initializeParams: InitializeProjectParams,
@@ -155,15 +159,31 @@ object RootModelBuilder :
 			// and hence cannot cross the BuildExecutor boundary. As a result,
 			// we write the model cache file here in the build executor itself.
 
-			val cacheFile =
-				gradleBuild.rootProject.projectDir
-					.resolve(SharedEnvironment.PROJECT_CACHE_DIR_NAME)
-					.resolve(ProtoProject.PROTO_CACHE_FILE_NAME)
+			val projectDir = gradleBuild.rootProject.projectDir
+			val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
+			val syncMetaFile = ProjectSyncHelper.syncMetaFile(projectDir)
 
-			ProtoProject.writeGradleBuildSync(
-				gradleBuild = gradleBuild,
-				targetFile = cacheFile
-			)
+			val success =
+				ProjectSyncHelper.tryUseSyncLock(projectDir, PROJECT_SYNC_LOCK_TIMEOUT_MS) {
+					ProjectSyncHelper.writeGradleBuildSync(
+						gradleBuild = gradleBuild,
+						targetFile = cacheFile
+					)
+
+					runBlocking {
+						syncMetaFile.outputStream().buffered().use { out ->
+							ProjectSyncHelper.createSyncMeta(
+								projectDir = projectDir,
+								includeChecksum = true,
+								projectModelInfo = ProjectModelInfo(
+									cacheFile.absolutePath,
+									cacheFile.sha256()
+								)
+							).writeTo(out)
+							out.flush()
+						}
+					}
+				}
 
 			return@action cacheFile
 		}

@@ -18,12 +18,10 @@
 package com.itsaky.androidide.projects
 
 import androidx.annotation.RestrictTo
-import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
-import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.utils.ServiceLoader
 import java.io.File
@@ -170,11 +168,6 @@ interface IProjectManager {
 	 * @return `true` if the given file is a resource file in any of the Android modules, `false` otherwise.
 	 */
 	fun isAndroidResource(file: File): Boolean
-
-	/**
-	 * Write the project cache to the given file.
-	 */
-	suspend fun writeCache(targetFile: File)
 
 	/**
 	 * Destroy the project manager.
