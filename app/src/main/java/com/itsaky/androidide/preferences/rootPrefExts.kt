@@ -23,9 +23,7 @@ import kotlinx.parcelize.Parcelize
 
 internal fun IDEPreferences.addRootPreferences() {
   addPreference(ConfigurationPreferences())
-  addPreference(GitHubPreferences())
-  addPreference(PrivacyPreferences())
-  addPreference(DeveloperOptionsPreferences())
+  addPreference(DeveloperOptionsScreen())
   addPreference(AboutPreferences())
 }
 
@@ -50,30 +48,6 @@ class ConfigurationPreferences(
 }
 
 @Parcelize
-class PrivacyPreferences(
-  override val key: String = "idepref_privacy",
-  override val title: Int = string.title_privacy,
-  override val children: List<IPreference> = mutableListOf()
-) : IPreferenceGroup() {
-
-  init {
-//    addPreference(StatPreferencesScreen())
-  }
-}
-
-@Parcelize
-class DeveloperOptionsPreferences(
-  override val key: String = "idepref_devOpts",
-  override val title: Int = string.title_developer_options,
-  override val children: List<IPreference> = mutableListOf()
-) : IPreferenceGroup() {
-
-  init {
-    addPreference(DeveloperOptionsScreen())
-  }
-}
-
-@Parcelize
 class AboutPreferences(
   override val key: String = "idepref_category_about",
   override val title: Int = string.about,
@@ -86,14 +60,3 @@ class AboutPreferences(
   }
 }
 
-@Parcelize
-class GitHubPreferences(
-  override val key: String = "idepref_category_github",
-  override val title: Int = string.github,
-  override val children: List<IPreference> = mutableListOf()
-) : IPreferenceGroup() {
-
-  init {
-    //addPreference(GithubPreferences())
-  }
-}
