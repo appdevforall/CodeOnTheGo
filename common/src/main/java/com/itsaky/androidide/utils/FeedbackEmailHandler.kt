@@ -16,7 +16,6 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream
-import java.net.URLConnection
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -97,8 +96,9 @@ class FeedbackEmailHandler(
     fun getLogUri(
         context: Context,
         logContent: String?,
-    ): Uri? =
-        if (!logContent.isNullOrEmpty()) {
+    ): Uri? = when {
+        logContent.isNullOrEmpty() -> null
+        else -> {
             try {
                 val logsDir = File(context.filesDir, LOGS_DIR).apply { mkdirs() }
                 val timestamp =
@@ -114,8 +114,7 @@ class FeedbackEmailHandler(
                 log.error(context.getString(R.string.msg_file_creation_failed), e)
                 null
             }
-        } else {
-            null
+        }
         }
 
     fun prepareEmailIntent(
@@ -129,47 +128,42 @@ class FeedbackEmailHandler(
         screenshotUri?.let { attachmentUris.add(it) }
         logContentUri?.let { attachmentUris.add(it) }
 
-        val hasMultipleAttachments = logContentUri != null
-        val intent = if (hasMultipleAttachments) {
-            getIntentForMultipleAttachments(
-                emailRecipient = emailRecipient,
-                subject = subject,
-                body = body,
-                attachmentUris = attachmentUris
-            )
-        } else {
-            Intent(Intent.ACTION_SEND).apply {
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, body)
-
-                if (screenshotUri != null) {
-                    this.type = "image/jpeg"
-                    putExtra(Intent.EXTRA_STREAM, screenshotUri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                } else {
-                    this.type = "text/plain"
-                }
-            }
-        }
-        return intent
+        val hasMultipleAttachments = logContentUri != null && screenshotUri != null
+        return getIntentBasedOnAttachments(
+            hasMultipleAttachments = hasMultipleAttachments,
+            emailRecipient = emailRecipient,
+            subject = subject,
+            body = body,
+            attachmentUris = attachmentUris
+        )
     }
 
-    fun getIntentForMultipleAttachments(
+    fun getIntentBasedOnAttachments(
+        hasMultipleAttachments: Boolean,
         emailRecipient: String,
         subject: String,
         body: String,
         attachmentUris: MutableList<Uri>
     ): Intent {
-
-        val emailIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
-            putExtra(Intent.EXTRA_SUBJECT, subject)
-            putExtra(Intent.EXTRA_TEXT, body)
-            type = "*/*"
-            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return if (hasMultipleAttachments) {
+            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, body)
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                type = "*/*"
+            }
+        } else {
+            Intent(Intent.ACTION_SEND).apply {
+                putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, body)
+                putExtra(Intent.EXTRA_STREAM, attachmentUris.first())
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                this.type = "image/jpeg"
+            }
         }
-        return emailIntent
     }
+
 }

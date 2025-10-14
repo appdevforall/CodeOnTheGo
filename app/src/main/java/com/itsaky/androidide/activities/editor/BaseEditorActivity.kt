@@ -1434,17 +1434,17 @@ abstract class BaseEditorActivity :
     }
 
     private fun getLogContent(): String? {
-        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_EXPANDED) {
-            val fragment =
-                this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
-                    bottomSheetViewModel.currentTab
-                )
-            return when (fragment) {
-                is ShareableOutputFragment -> fragment.getShareableContent()
-                else -> null
-            }
-        } else {
+        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_COLLAPSED) {
             return null
+        }
+
+        val fragment = this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
+            bottomSheetViewModel.currentTab
+        )
+
+        return when (fragment) {
+            is ShareableOutputFragment -> fragment.getShareableContent()
+            else -> null
         }
     }
 }
