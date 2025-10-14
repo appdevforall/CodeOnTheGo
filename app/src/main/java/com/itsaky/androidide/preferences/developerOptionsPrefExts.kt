@@ -29,7 +29,8 @@ internal class DeveloperOptionsScreen(
   override val children: List<IPreference> = mutableListOf()) : IPreferenceScreen() {
 
   init {
-    addPreference(DebuggingPreferences())
+    addPreference(DumpLogsPreference())
+    addPreference(EnableLogSenderPreference())
   }
 }
 
