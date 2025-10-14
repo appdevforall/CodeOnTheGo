@@ -405,6 +405,7 @@ abstract class BaseEditorActivity :
 
     drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
     drawerToggle = null
+    bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
     bottomSheetCallback = null
 
     try { onBackPressedCallback.remove() } catch (_: Throwable) {}
