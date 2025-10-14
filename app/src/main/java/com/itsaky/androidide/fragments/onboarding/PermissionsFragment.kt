@@ -20,24 +20,19 @@ package com.itsaky.androidide.fragments.onboarding
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.Settings
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
-import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
 import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.models.OnboardingPermissionItem
+import com.itsaky.androidide.utils.PermissionsHelper.getRequiredPermissions
+import com.itsaky.androidide.utils.PermissionsHelper.isPermissionGranted
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
-import com.itsaky.androidide.utils.isAtLeastT
 import org.slf4j.LoggerFactory
 
 /**
@@ -84,102 +79,6 @@ class PermissionsFragment :
 						)
 					}
 			}
-
-		@JvmStatic
-		fun getRequiredPermissions(context: Context): List<OnboardingPermissionItem> {
-			val permissions = mutableListOf<OnboardingPermissionItem>()
-
-			if (isAtLeastT()) {
-				permissions.add(
-					OnboardingPermissionItem(
-						Manifest.permission.POST_NOTIFICATIONS,
-						R.string.permission_title_notifications,
-						R.string.permission_desc_notifications,
-						canPostNotifications(context),
-					),
-				)
-			}
-
-			permissions.add(
-				OnboardingPermissionItem(
-					Manifest.permission_group.STORAGE,
-					R.string.permission_title_storage,
-					R.string.permission_desc_storage,
-					isStoragePermissionGranted(context),
-				),
-			)
-
-			permissions.add(
-				OnboardingPermissionItem(
-					Manifest.permission.REQUEST_INSTALL_PACKAGES,
-					R.string.permission_title_install_packages,
-					R.string.permission_desc_install_packages,
-					canRequestPackageInstalls(context),
-				),
-			)
-
-			permissions.add(
-				OnboardingPermissionItem(
-					Manifest.permission.SYSTEM_ALERT_WINDOW,
-					R.string.permission_title_overlay_window,
-					R.string.permission_desc_overlay_window,
-					canDrawOverlays(context),
-				),
-			)
-
-			return permissions
-		}
-
-		@JvmStatic
-		@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-		fun canPostNotifications(context: Context) = isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
-
-		@JvmStatic
-		fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
-
-		@JvmStatic
-		fun areAllPermissionsGranted(context: Context): Boolean = getRequiredPermissions(context).all { it.isOptional || it.isGranted }
-
-		@JvmStatic
-		fun isStoragePermissionGranted(context: Context): Boolean {
-			if (isAtLeastR()) {
-				return Environment.isExternalStorageManager()
-			}
-
-			return checkSelfPermission(
-				context,
-				Manifest.permission.READ_EXTERNAL_STORAGE,
-			) &&
-				checkSelfPermission(
-					context,
-					Manifest.permission.WRITE_EXTERNAL_STORAGE,
-				)
-		}
-
-		@JvmStatic
-		fun canRequestPackageInstalls(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
-
-		@JvmStatic
-		fun isPermissionGranted(
-			context: Context,
-			permission: String,
-		): Boolean =
-			when (permission) {
-				Manifest.permission_group.STORAGE -> isStoragePermissionGranted(context)
-				Manifest.permission.REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
-				Manifest.permission.SYSTEM_ALERT_WINDOW -> canDrawOverlays(context)
-				else -> checkSelfPermission(context, permission)
-			}
-
-		@JvmStatic
-		fun checkSelfPermission(
-			context: Context,
-			permission: String,
-		): Boolean =
-			ActivityCompat.checkSelfPermission(
-				context,
-				permission,
-			) == PackageManager.PERMISSION_GRANTED
 	}
 
 	override fun createAdapter(): RecyclerView.Adapter<*> =

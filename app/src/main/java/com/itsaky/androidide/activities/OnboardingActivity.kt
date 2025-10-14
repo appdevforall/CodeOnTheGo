@@ -32,6 +32,7 @@ import androidx.fragment.app.Fragment
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
@@ -47,6 +48,7 @@ import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.OrientationUtilities
+import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.resolveAttr
@@ -61,7 +63,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.itsaky.androidide.FeedbackButtonManager
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
@@ -162,7 +163,7 @@ class OnboardingActivity : AppIntro2() {
 			return
 		}
 
-		if (!PermissionsFragment.areAllPermissionsGranted(this)) {
+		if (!PermissionsHelper.areAllPermissionsGranted(this)) {
 			addSlide(PermissionsFragment.newInstance(this))
 		}
 
@@ -269,7 +270,7 @@ class OnboardingActivity : AppIntro2() {
 
 	private fun isSetupCompleted(): Boolean =
 		checkToolsIsInstalled() &&
-			PermissionsFragment.areAllPermissionsGranted(this)
+				PermissionsHelper.areAllPermissionsGranted(this)
 
 	private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
 		if (isSetupCompleted()) {
