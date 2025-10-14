@@ -22,7 +22,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
 import kotlinx.coroutines.CoroutineScope
@@ -400,12 +399,11 @@ object TooltipManager {
 
         val feedbackMetadata = buildTooltipFeedbackMetadata(tooltip)
 
-        FeedbackManager.sendFeedbackWithScreenshot(
+        FeedbackManager.sendTooltipFeedbackWithScreenshot(
             context = context,
             customSubject = "Tooltip Feedback - ${tooltip.tag}",
             metadata = feedbackMetadata,
             includeScreenshot = true,
-            appVersion = BuildInfo.VERSION_NAME_SIMPLE
         )
     }
 
