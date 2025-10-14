@@ -145,23 +145,37 @@ class FeedbackEmailHandler(
         body: String,
         attachmentUris: MutableList<Uri>
     ): Intent {
-        return if (hasMultipleAttachments) {
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, body)
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                type = "*/*"
+        return when {
+            // No screenshot or log file (if either files failed to be created)
+            attachmentUris.isEmpty() -> {
+                Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                    putExtra(Intent.EXTRA_TEXT, body)
+                    type = "*/*"
+                }
             }
-        } else {
-            Intent(Intent.ACTION_SEND).apply {
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
-                putExtra(Intent.EXTRA_SUBJECT, subject)
-                putExtra(Intent.EXTRA_TEXT, body)
-                putExtra(Intent.EXTRA_STREAM, attachmentUris.first())
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                this.type = "image/jpeg"
+            // Both screenshot and log file
+            hasMultipleAttachments -> {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                    putExtra(Intent.EXTRA_TEXT, body)
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    type = "*/*"
+                }
+            }
+            else -> {
+                // Just screenshot
+                Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                    putExtra(Intent.EXTRA_TEXT, body)
+                    putExtra(Intent.EXTRA_STREAM, attachmentUris.first())
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    this.type = "image/jpeg"
+                }
             }
         }
     }
