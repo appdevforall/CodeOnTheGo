@@ -93,28 +93,34 @@ class FeedbackEmailHandler(
 			null
 		}
 
-    fun getLogUri(
+    suspend fun getLogUri(
         context: Context,
         logContent: String?,
-    ): Uri? = when {
-        logContent.isNullOrEmpty() -> null
-        else -> {
-            try {
-                val logsDir = File(context.filesDir, LOGS_DIR).apply { mkdirs() }
-                val timestamp =
-                    SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-                val filename = "Feedback Log ${timestamp}.txt"
-                val logFile = File(logsDir, filename)
-                logFile.writeText(logContent)
+    ): Uri? =
+        withContext(Dispatchers.IO) {
+            when {
+                logContent.isNullOrEmpty() -> null
 
-                val authority = "${context.packageName}.$AUTHORITY_SUFFIX"
-                val uri = FileProvider.getUriForFile(context, authority, logFile)
-                uri
-            } catch (e: Exception) {
-                log.error(context.getString(R.string.msg_file_creation_failed), e)
-                null
+                else -> {
+                    try {
+                        val logsDir = File(context.filesDir, LOGS_DIR).apply { mkdirs() }
+                        val timestamp =
+                            SimpleDateFormat(
+                                "yyyy-MM-dd_HH-mm-ss",
+                                Locale.getDefault()
+                            ).format(Date())
+                        val filename = "Feedback Log ${timestamp}.txt"
+                        val logFile = File(logsDir, filename)
+                        logFile.writeText(logContent)
+                        val authority = "${context.packageName}.$AUTHORITY_SUFFIX"
+                        val uri = FileProvider.getUriForFile(context, authority, logFile)
+                        uri
+                    } catch (e: Exception) {
+                        log.error(context.getString(R.string.msg_file_creation_failed), e)
+                        null
+                    }
+                }
             }
-        }
         }
 
     fun prepareEmailIntent(
