@@ -19,6 +19,7 @@ package org.appdevforall.codeonthego.layouteditor.activities
 
 import android.os.Bundle
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.R
@@ -43,7 +44,7 @@ class HelpActivity : BaseActivity() {
             setContentView(root)
             setSupportActionBar(toolbar)
             supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-            toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+            toolbar.setNavigationOnClickListener { handleBackNavigation() }
 
             val pageTitle = intent.getStringExtra(CONTENT_TITLE_KEY)
             val htmlContent = intent.getStringExtra(CONTENT_KEY)
@@ -61,6 +62,21 @@ class HelpActivity : BaseActivity() {
 
         }
 
+        // Set up back navigation callback for system back button
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleBackNavigation()
+            }
+        })
+    }
+
+
+    private fun handleBackNavigation() {
+        if (binding.webView.canGoBack()) {
+            binding.webView.goBack()
+        } else {
+            finish()
+        }
     }
 
 }

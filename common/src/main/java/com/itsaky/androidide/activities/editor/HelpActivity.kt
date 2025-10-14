@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities.editor
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
@@ -47,7 +48,7 @@ class HelpActivity : BaseIDEActivity() {
         with(binding) {
             setSupportActionBar(toolbar)
             supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-            toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+            toolbar.setNavigationOnClickListener { handleBackNavigation() }
 
             // Set status bar icons to be dark in light mode and light in dark mode
             WindowCompat.getInsetsController(this@HelpActivity.window, this@HelpActivity.window.decorView).apply {
@@ -111,6 +112,22 @@ class HelpActivity : BaseIDEActivity() {
                 android.util.Log.d("HelpActivity", "Loading URL: $url")
                 webView.loadUrl(url)
             }
+        }
+
+        // Set up back navigation callback for system back button
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleBackNavigation()
+            }
+        })
+    }
+
+
+    private fun handleBackNavigation() {
+        if (binding.webView.canGoBack()) {
+            binding.webView.goBack()
+        } else {
+            finish()
         }
     }
 
