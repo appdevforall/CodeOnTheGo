@@ -41,13 +41,6 @@ class IDELogFragment : LogViewFragment() {
 
 	override val tooltipTag = TooltipTag.PROJECT_IDE_LOGS
 
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		if (lifecycleAwareAppender == null) {
-			lifecycleAwareAppender = LifecycleAwareAppender(Lifecycle.State.CREATED)
-    }
-	}
-
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
@@ -58,34 +51,33 @@ class IDELogFragment : LogViewFragment() {
 		// Register with GlobalBufferAppender to receive all logs (including buffered ones)
 		GlobalBufferAppender.registerConsumer(this::appendLine)
 
-		lifecycleAwareAppender?.consumer = this::appendLine
-		lifecycleAwareAppender?.attachTo(viewLifecycleOwner)
-
 		val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
 		val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
 
-		lifecycleAwareAppender?.apply {
-			context = loggerContext
-			start()
-			rootLogger.detachAppender(this)
-			rootLogger.addAppender(this)
-		}
+    val appender = lifecycleAwareAppender ?: LifecycleAwareAppender(Lifecycle.State.CREATED).also {
+        lifecycleAwareAppender = it
+    }
+    appender.consumer = this::appendLine
+    appender.attachTo(viewLifecycleOwner)
+
+    appender.context = loggerContext
+    if (!appender.isStarted) appender.start()
+
+    rootLogger.detachAppender(appender)
+    rootLogger.addAppender(appender)
 	}
 
 	override fun onDestroyView() {
-		super.onDestroyView()
-
 		// Unregister from GlobalBufferAppender
 		GlobalBufferAppender.unregisterConsumer(this::appendLine)
 		val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
-		lifecycleAwareAppender?.let {
-			logger.detachAppender(it)
-			it.stop()
+		lifecycleAwareAppender?.let { appender ->
+			logger.detachAppender(appender)
+			appender.consumer = null
+			if (appender.isStarted) appender.stop()
 		}
-	}
-
-	override fun onDestroy() {
-		super.onDestroy()
 		lifecycleAwareAppender = null
+
+		super.onDestroyView()
 	}
 }
