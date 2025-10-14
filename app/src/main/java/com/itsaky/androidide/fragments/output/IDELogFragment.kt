@@ -33,13 +33,20 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class IDELogFragment : LogViewFragment() {
-	private var lifecycleAwareAppender: LifecycleAwareAppender? = LifecycleAwareAppender(Lifecycle.State.CREATED)
+	private var lifecycleAwareAppender: LifecycleAwareAppender? = null
 
 	override fun isSimpleFormattingEnabled() = true
 
 	override fun getShareableFilename() = "ide_logs"
 
 	override val tooltipTag = TooltipTag.PROJECT_IDE_LOGS
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		if (lifecycleAwareAppender == null) {
+			lifecycleAwareAppender = LifecycleAwareAppender(Lifecycle.State.CREATED)
+    }
+	}
 
 	override fun onViewCreated(
 		view: View,
@@ -57,22 +64,28 @@ class IDELogFragment : LogViewFragment() {
 		val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
 		val rootLogger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
 
-		lifecycleAwareAppender?.context = loggerContext
-		lifecycleAwareAppender?.start()
+		lifecycleAwareAppender?.apply {
+			context = loggerContext
+			start()
+			rootLogger.detachAppender(this)
+			rootLogger.addAppender(this)
+		}
+	}
 
-		rootLogger.addAppender(lifecycleAwareAppender)
+	override fun onDestroyView() {
+		super.onDestroyView()
+
+		// Unregister from GlobalBufferAppender
+		GlobalBufferAppender.unregisterConsumer(this::appendLine)
+		val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
+		lifecycleAwareAppender?.let {
+			logger.detachAppender(it)
+			it.stop()
+		}
 	}
 
 	override fun onDestroy() {
 		super.onDestroy()
-
-		// Unregister from GlobalBufferAppender
-		GlobalBufferAppender.unregisterConsumer(this::appendLine)
-
-		lifecycleAwareAppender?.stop()
-
-		val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as Logger
-		logger.detachAppender(lifecycleAwareAppender)
 		lifecycleAwareAppender = null
 	}
 }
