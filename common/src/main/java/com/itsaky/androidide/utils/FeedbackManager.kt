@@ -40,7 +40,7 @@ object FeedbackManager {
      *
      * @param activity The context from which feedback is being sent
      */
-    fun showFeedbackDialog(activity: AppCompatActivity) {
+    fun showFeedbackDialog(activity: AppCompatActivity, logContent: String?) {
         val builder = DialogUtils.newMaterialDialogBuilder(activity)
 
         builder
@@ -53,7 +53,7 @@ object FeedbackManager {
             ).setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(android.R.string.ok) { dialog, _ ->
                 dialog.dismiss()
-                sendFeedbackWithScreenshot(activity)
+                sendFeedbackWithAttachments(activity, logContent)
             }.show()
     }
 
@@ -270,11 +270,15 @@ object FeedbackManager {
 			else -> "Unknown Screen"
 		}
 
-    private fun sendFeedbackWithScreenshot(activity: AppCompatActivity) {
+    private fun sendFeedbackWithAttachments(
+        activity: AppCompatActivity,
+        logContent: String?
+    ) {
         activity.lifecycleScope.launch {
             val handler = FeedbackEmailHandler(activity)
 
-            val screenshotData = handler.captureAndPrepareScreenshotUri(activity)
+            val screenshotUri = handler.captureAndPrepareScreenshotUri(activity)
+            val logContentUri = handler.getLogUri(activity, logContent)
 
             val feedbackRecipient = activity.getString(R.string.feedback_email)
             val feedbackSubject =
@@ -288,8 +292,8 @@ object FeedbackManager {
 
             val emailIntent =
                 handler.prepareEmailIntent(
-                    screenshotData?.first,
-                    screenshotData?.second,
+                    screenshotUri,
+                    logContentUri,
                     feedbackRecipient,
                     feedbackSubject,
                     feedbackBody,

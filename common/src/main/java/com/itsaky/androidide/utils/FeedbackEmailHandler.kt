@@ -26,19 +26,21 @@ import kotlin.coroutines.suspendCoroutine
 class FeedbackEmailHandler(
 	val context: Context,
 ) {
-	companion object {
+
+    companion object {
+        const val AUTHORITY_SUFFIX = "providers.fileprovider"
         const val SCREENSHOTS_DIR = "feedback_screenshots"
+        const val LOGS_DIR = "feedback_logs"
 		private val log = LoggerFactory.getLogger(FeedbackEmailHandler::class.java)
 	}
 
 	suspend fun captureAndPrepareScreenshotUri(
 		activity: Activity,
-	): Pair<Uri?, String?>? {
+	): Uri? {
 		val rootView = activity.window?.decorView?.rootView ?: return null
 		if (rootView.width <= 0 || rootView.height <= 0 || !rootView.isShown) return null
 
 		val screenshotBitmap = createBitmap(rootView.width, rootView.height)
-        val screenshotName = "feedback_screenshot"
 
 		return try {
 			val saveResultUri =
@@ -59,7 +61,7 @@ class FeedbackEmailHandler(
 						return@withContext null
 					}
 
-					saveBitmapToFileWithProvider(context, bitmapResult, screenshotName)
+					saveBitmapToFileWithProvider(context, bitmapResult)
 				}
 			saveResultUri
 		} catch (e: Exception) {
@@ -71,13 +73,12 @@ class FeedbackEmailHandler(
 	private fun saveBitmapToFileWithProvider(
 		context: Context,
 		bitmap: Bitmap,
-		name: String,
-	): Pair<Uri?, String?>? =
+	): Uri? =
 		try {
 			val screenshotsDir = File(context.filesDir, SCREENSHOTS_DIR).apply { mkdirs() }
 			val timestamp =
 				SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-			val filename = "${timestamp}_$name.jpg"
+			val filename = "Screenshot ${timestamp}.jpg"
 			val screenshotFile = File(screenshotsDir, filename)
 
 			FileOutputStream(screenshotFile).use { out ->
@@ -87,35 +88,88 @@ class FeedbackEmailHandler(
 			val authority =
 				"${context.packageName}.providers.fileprovider"
 			val uri = FileProvider.getUriForFile(context, authority, screenshotFile)
-			val mimeType =
-				URLConnection.guessContentTypeFromName(screenshotFile.name) ?: "image/jpeg"
-			Pair(uri, mimeType)
+			uri
 		} catch (e: Exception) {
 			log.error(context.getString(R.string.failed_to_save_bitmap_to_file), e)
 			null
 		}
 
-	fun prepareEmailIntent(
-		attachmentUri: Uri?,
-		attachmentMimeType: String?,
-		emailRecipient: String,
-		subject: String,
-		body: String,
-	): Intent {
-		val intent =
-			Intent(Intent.ACTION_SEND).apply {
-				putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
-				putExtra(Intent.EXTRA_SUBJECT, subject)
-				putExtra(Intent.EXTRA_TEXT, body)
+    fun getLogUri(
+        context: Context,
+        logContent: String?,
+    ): Uri? =
+        if (!logContent.isNullOrEmpty()) {
+            try {
+                val logsDir = File(context.filesDir, LOGS_DIR).apply { mkdirs() }
+                val timestamp =
+                    SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
+                val filename = "Feedback Log ${timestamp}.txt"
+                val logFile = File(logsDir, filename)
+                logFile.writeText(logContent)
 
-				if (attachmentUri != null && attachmentMimeType != null) {
-					this.type = attachmentMimeType
-					putExtra(Intent.EXTRA_STREAM, attachmentUri)
-					addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-				} else {
-					this.type = "text/plain"
-				}
-			}
-		return intent
-	}
+                val authority = "${context.packageName}.$AUTHORITY_SUFFIX"
+                val uri = FileProvider.getUriForFile(context, authority, logFile)
+                uri
+            } catch (e: Exception) {
+                log.error(context.getString(R.string.msg_file_creation_failed), e)
+                null
+            }
+        } else {
+            null
+        }
+
+    fun prepareEmailIntent(
+        screenshotUri: Uri?,
+        logContentUri: Uri?,
+        emailRecipient: String,
+        subject: String,
+        body: String,
+    ): Intent {
+        val attachmentUris = mutableListOf<Uri>()
+        screenshotUri?.let { attachmentUris.add(it) }
+        logContentUri?.let { attachmentUris.add(it) }
+
+        val hasMultipleAttachments = logContentUri != null
+        val intent = if (hasMultipleAttachments) {
+            getIntentForMultipleAttachments(
+                emailRecipient = emailRecipient,
+                subject = subject,
+                body = body,
+                attachmentUris = attachmentUris
+            )
+        } else {
+            Intent(Intent.ACTION_SEND).apply {
+                putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, body)
+
+                if (screenshotUri != null) {
+                    this.type = "image/jpeg"
+                    putExtra(Intent.EXTRA_STREAM, screenshotUri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } else {
+                    this.type = "text/plain"
+                }
+            }
+        }
+        return intent
+    }
+
+    fun getIntentForMultipleAttachments(
+        emailRecipient: String,
+        subject: String,
+        body: String,
+        attachmentUris: MutableList<Uri>
+    ): Intent {
+
+        val emailIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, body)
+            type = "*/*"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachmentUris))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        return emailIntent
+    }
 }
