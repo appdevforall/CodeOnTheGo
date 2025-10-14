@@ -137,13 +137,8 @@ class MainFragment : BaseFragment() {
             }
 
         binding!!.actions.adapter = MainActionsListAdapter(actions)
-        binding!!.greetingText.setOnClickListener {
-            TooltipUtils.showWebPage(
-                requireContext(),
-                "http://localhost:6174/i/getstarted_top.html",
-            )
-        }
 
+        binding!!.headerContainer?.setOnClickListener { openQuickstartPageAction() }
         binding!!.headerContainer?.setOnLongClickListener {
             TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
@@ -153,6 +148,7 @@ class MainFragment : BaseFragment() {
             TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
+        binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
     }
 
     private fun performOptionsMenuClick(action: MainScreenAction) {
@@ -172,6 +168,16 @@ class MainFragment : BaseFragment() {
             ACTION_DELETE_PROJECT -> MAIN_PROJECT_DELETE
             ACTION_DOCS -> MAIN_HELP
             else -> ""
+        }
+    }
+
+    private fun openQuickstartPageAction() {
+        context?.let { ctx ->
+            val intent = Intent(ctx, HelpActivity::class.java).apply {
+                putExtra(CONTENT_KEY, getString(R.string.quickstart_url))
+                putExtra(CONTENT_TITLE_KEY, R.string.back_to_cogo)
+            }
+           context?.startActivity(intent)
         }
     }
 
