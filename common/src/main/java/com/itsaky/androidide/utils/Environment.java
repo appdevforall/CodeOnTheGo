@@ -152,9 +152,6 @@ public final class Environment {
 		GRADLE_DISTS = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "gradle-dists"));
 		LOCAL_MAVEN_DIR = mkdirIfNotExits(new File(HOME, "maven/localMvnRepository"));
 
-		setExecutable(JAVA);
-		setExecutable(BASH_SHELL);
-
 		System.setProperty("user.home", HOME.getAbsolutePath());
 
 		DOC_DB = BaseApplication.getBaseInstance().getDatabasePath(DATABASE_NAME);
