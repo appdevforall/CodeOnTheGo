@@ -85,8 +85,6 @@ issues using the app, please let us know.
 
 See the [contributing guide](./CONTRIBUTING.md).
 
-For translations, visit the [Crowdin project page](https://crowdin.com/project/androidide).
-
 ## Thanks to
 
 - [Akash Yadav](https://github.com/itsaky) for [AndroidIDE](https://github.com/AndroidIDEOfficial/AndroidIDE)
@@ -125,6 +123,7 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
 
