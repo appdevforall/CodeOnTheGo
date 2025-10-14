@@ -893,6 +893,7 @@
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
+    <string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
     <!--  AI Agent-->
@@ -905,6 +906,9 @@
 <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
 
+    <string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
+    <string name="pixel_copy_failed">PixelCopy failed</string>
+    <string name="failed_to_capture_or_save_screenshot">Failed to capture or save screenshot</string>
     <string name="back_to_cogo">Back to Code on the Go</string>
 
 </resources>
