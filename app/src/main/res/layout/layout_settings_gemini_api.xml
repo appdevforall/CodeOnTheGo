@@ -5,12 +5,22 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
+    <TextView
+        android:id="@+id/gemini_api_key_status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="@string/gemini_api_key_saved_on"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:visibility="gone" />
+
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/gemini_api_key_layout"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Gemini API Key"
+        android:hint="@string/gemini_api_key"
         app:passwordToggleEnabled="true">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -21,12 +31,35 @@
             android:maxLines="1" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <Button
-        android:id="@+id/btn_save_api_key"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="end"
-        android:layout_marginTop="8dp"
-        android:text="Save Key" />
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/btn_clear_api_key"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:text="@string/clear"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btn_edit_api_key"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:text="@string/edit"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btn_save_api_key"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:text="@string/save_key" />
+
+    </RelativeLayout>
 
 </LinearLayout>

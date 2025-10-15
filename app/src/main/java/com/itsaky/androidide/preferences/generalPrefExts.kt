@@ -22,12 +22,11 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GENERAL
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.resources.localization.LocaleProvider
-import com.itsaky.androidide.ui.themes.IDETheme
-import com.itsaky.androidide.ui.themes.IThemeManager
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 
@@ -82,6 +81,9 @@ class UiMode(
   @IgnoredOnParcel
   override val dialogCancellable = true
 
+  @IgnoredOnParcel
+  override val tooltipTag: String = PREFS_GENERAL
+
   override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
     val context = preference.context
     val currentUiMode = GeneralPreferences.uiMode
@@ -114,6 +116,9 @@ class LocaleSelector(
   override val summary: Int? = R.string.idepref_general_localeSelector_summary,
   override val icon: Int? = R.drawable.ic_translate
 ) : SingleChoicePreference() {
+
+  @IgnoredOnParcel
+  override val tooltipTag: String = PREFS_GENERAL
 
   override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
     val context = preference.context

@@ -179,11 +179,16 @@ class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipe
     fun keystore() {
         val storeSrc = Environment.KEYSTORE_RELEASE
         val storeDest = File(data.projectDir, Environment.KEYSTORE_RELEASE_NAME)
-        executor.copy(storeSrc, storeDest)
+        if (storeSrc.exists()) {
+            executor.copy(storeSrc, storeDest)
+        }
+
 
         val propsSrc = Environment.KEYSTORE_PROPERTIES
         val propsDest = File(data.projectDir, Environment.KEYSTORE_PROPERTIES_NAME)
-        executor.copy(propsSrc, propsDest)
+        if (propsSrc.exists()) {
+            executor.copy(propsSrc, propsDest)
+        }
     }
 
 	override fun buildInternal(): ProjectTemplate =
