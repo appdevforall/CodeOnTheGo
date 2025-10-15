@@ -31,7 +31,6 @@ import java.io.File
 import java.util.TreeMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.properties.Delegates
 
 private interface BreakpointEvent {
 	data class DocChange(
@@ -57,7 +56,7 @@ class BreakpointHandler {
 	private val scope = CoroutineScope(newSingleThreadContext("BreakpointHandler"))
 	private val events = Channel<BreakpointEvent>(capacity = Channel.UNLIMITED)
 	private val _highlightedLocation = MutableStateFlow<Pair<String, Int>?>(null)
-	private var onSetBreakpoints: (List<BreakpointDefinition>) -> Unit by Delegates.notNull()
+	private var onSetBreakpoints: ((List<BreakpointDefinition>) -> Unit)? = null
 	private val listeners = CopyOnWriteArrayList<EventListener>()
 
 	private val stateRef = AtomicReference(
@@ -169,7 +168,7 @@ class BreakpointHandler {
 			val loadedBreakpoints = BreakpointRepository.getBreakpointsLocalStored(projectLocation)
 
 			refreshBreakpoints(loadedBreakpoints)
-			onSetBreakpoints(loadedBreakpoints)
+			notifyBreakpointsUpdated(loadedBreakpoints)
 
 			for (event in events) {
 				process(event)
@@ -208,13 +207,8 @@ class BreakpointHandler {
 		for (bp in loadedBreakpoints) {
 			val path = bp.source.path
 			when (bp) {
-				is PositionalBreakpoint -> {
-					newPos.put(path, bp.line, bp)
-				}
-
-				is MethodBreakpoint -> {
-					newMethod.put(path, bp.methodId, bp)
-				}
+				is PositionalBreakpoint -> newPos.put(path, bp.line, bp)
+				is MethodBreakpoint -> newMethod.put(path, bp.methodId, bp)
 			}
 		}
 
@@ -268,7 +262,7 @@ class BreakpointHandler {
 			val localBreakpoints = ArrayList(breakpoints.values)
 			localBreakpoints.forEach { notifyRemoved(path, it.line) }
 
-			onSetBreakpoints(localBreakpoints)
+			notifyBreakpointsUpdated(localBreakpoints)
 			breakpoints.clear()
 
 			stateRef.set(current.copy(positional = ImmutableTable.copyOf(newPos)))
@@ -285,18 +279,18 @@ class BreakpointHandler {
 			val (newLine, newColumn) = computeNewBreakpointPosition(line, column, start, end, ev.changeType)
 
 			if (newLine == line && newColumn == column) {
-				// no change
+				logger.debug("keep breakpoint at line {} in file {}", line, path)
 				updated[line] = bp
 				continue
 			}
 
 			if (newLine == -1 && newColumn == -1) {
-				logger.debug("removing breakpoint at {},{} in file {}", line, column, path)
+				logger.debug("remove breakpoint at {},{} in file {}", line, column, path)
 				notifyRemoved(path, line)
 				continue
 			}
 
-			logger.debug("breakpoint at line {} moved to line {} in file {}", line, newLine, path)
+			logger.debug("move breakpoint at line {} to line {} in file {}", line, newLine, path)
 			updated[newLine] = bp.copy(line = newLine)
 			notifyMoved(path, line, newLine)
 		}
@@ -307,9 +301,9 @@ class BreakpointHandler {
 		}
 
 		stateRef.set(current.copy(positional = ImmutableTable.copyOf(newPos)))
-		val newList = updated.values.toList()
-		// Publish the new breakpoints to the client, if connected
-		onSetBreakpoints(newList)
+		events.trySend(BreakpointEvent.Save)
+
+		notifyBreakpointsUpdated(newBreakpoints = updated.values.toList())
 	}
 
 	private fun onToggle(event: BreakpointEvent.Toggle) {
@@ -338,7 +332,7 @@ class BreakpointHandler {
 		notifyToggled(path, line)
 
 		val fileBreakpoints = newPos.row(path).values
-		onSetBreakpoints(ArrayList(fileBreakpoints))
+		notifyBreakpointsUpdated(ArrayList(fileBreakpoints))
 
 		stateRef.set(current.copy(positional = ImmutableTable.copyOf(newPos)))
 		events.trySend(BreakpointEvent.Save)
@@ -356,6 +350,10 @@ class BreakpointHandler {
 			BreakpointRepository.saveBreakpoints(getProjectLocation(), breakpointsToSave)
 			logger.debug("Breakpoints saved to disk.")
 		}
+	}
+
+	private fun notifyBreakpointsUpdated(newBreakpoints: List<BreakpointDefinition>) {
+		onSetBreakpoints?.invoke(newBreakpoints)
 	}
 
 	private fun notifyAdded(file: String, line: Int) {
