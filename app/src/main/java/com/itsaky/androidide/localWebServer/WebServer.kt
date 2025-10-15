@@ -172,6 +172,11 @@ FROM   LastChange
             databaseTimestamp = debugDatabaseTimestamp
         }
 
+        // Handle the special "/db" endpoint with highest priority
+        if (path == "db") {
+            return handleDbEndpoint(writer, output)
+        }
+
         val query = """
 SELECT C.content, CT.value, CT.compression
 FROM   Content C, ContentTypes CT
@@ -254,6 +259,87 @@ WHERE  path = ?
         output.write(dbContent)
         output.flush()
         cursor.close()
+    }
+
+    private fun handleDbEndpoint(writer: PrintWriter, output: java.io.OutputStream) {
+        try {
+            // First, get the schema of the LastChange table to determine column count
+            val schemaQuery = "PRAGMA table_info(LastChange)"
+            val schemaCursor = database.rawQuery(schemaQuery, arrayOf())
+            val columnCount = schemaCursor.count
+            val columnNames = mutableListOf<String>()
+            
+            while (schemaCursor.moveToNext()) {
+                columnNames.add(schemaCursor.getString(1)) // Column name is at index 1
+            }
+            schemaCursor.close()
+            
+            if (debugEnabled) log.debug("LastChange table has {} columns: {}", columnCount, columnNames)
+            
+            // Build the SELECT query for the 20 most recent rows
+            val selectColumns = columnNames.joinToString(", ")
+            val dataQuery = "SELECT $selectColumns FROM LastChange ORDER BY rowid DESC LIMIT 20"
+            
+            val dataCursor = database.rawQuery(dataQuery, arrayOf())
+            val rowCount = dataCursor.count
+            
+            if (debugEnabled) log.debug("Retrieved {} rows from LastChange table", rowCount)
+            
+            // Generate HTML table
+            val html = buildString {
+                appendLine("<!DOCTYPE html>")
+                appendLine("<html>")
+                appendLine("<head>")
+                appendLine("<title>LastChange Table</title>")
+                appendLine("<style>")
+                appendLine("table { border-collapse: collapse; width: 100%; }")
+                appendLine("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }")
+                appendLine("th { background-color: #f2f2f2; }")
+                appendLine("</style>")
+                appendLine("</head>")
+                appendLine("<body>")
+                appendLine("<h1>LastChange Table (20 Most Recent Rows)</h1>")
+                appendLine("<table>")
+                
+                // Add header row
+                appendLine("<tr>")
+                for (columnName in columnNames) {
+                    appendLine("<th>$columnName</th>")
+                }
+                appendLine("</tr>")
+                
+                // Add data rows
+                while (dataCursor.moveToNext()) {
+                    appendLine("<tr>")
+                    for (i in 0 until columnCount) {
+                        val value = dataCursor.getString(i) ?: ""
+                        appendLine("<td>$value</td>")
+                    }
+                    appendLine("</tr>")
+                }
+                
+                appendLine("</table>")
+                appendLine("</body>")
+                appendLine("</html>")
+            }
+            
+            dataCursor.close()
+            
+            // Send the response
+            val htmlBytes = html.toByteArray(Charsets.UTF_8)
+            writer.println("HTTP/1.1 200 OK")
+            writer.println("Content-Type: text/html; charset=utf-8")
+            writer.println("Content-Length: ${htmlBytes.size}")
+            writer.println("Connection: close")
+            writer.println()
+            writer.flush()
+            output.write(htmlBytes)
+            output.flush()
+            
+        } catch (e: Exception) {
+            log.error("Error handling /db endpoint: {}", e.message)
+            sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
+        }
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
