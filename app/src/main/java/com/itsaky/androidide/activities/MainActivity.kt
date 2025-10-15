@@ -304,7 +304,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
                 webServer.start() 
             } catch (e: Exception) {
                 log.error("Failed to start WebServer", e)
-                Sentry.captureException(e)
             }
         }
     }
