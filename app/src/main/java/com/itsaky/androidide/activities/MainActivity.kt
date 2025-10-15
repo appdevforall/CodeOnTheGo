@@ -298,19 +298,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     private fun startWebServer() {
         try {
             val dbFile = Environment.DOC_DB
-
-            if (!dbFile.exists()) {
-                log.warn(
-                    "Database file not found at: {} - WebServer will not start",
-                    dbFile.absolutePath
-                )
-                return
-            }
-
             log.info("Starting WebServer - database file exists at: {}", dbFile.absolutePath)
             val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
             Thread { webServer.start() }.start()
-
         } catch (e: Exception) {
             log.error("Failed to start WebServer", e)
         }
