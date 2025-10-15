@@ -21,4 +21,6 @@
     <string name="retry">Retry</string>
     <string name="open_ai_settings">Open AI Settings</string>
     <string name="new_chat">New Chat</string>
+    <string name="ai_setting_initializing_engine">Initializing engine</string>
+    <string name="ai_setting_engine_ready">Engine is ready.</string>
 </resources>
