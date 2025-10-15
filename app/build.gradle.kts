@@ -108,11 +108,6 @@ android {
 		release {
 			manifestPlaceholders["sentryDsn"] =
 				props.getProperty("sentryDsnRelease") ?: propOrEnv("SENTRY_DSN_RELEASE")
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
 		}
 	}
 
