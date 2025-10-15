@@ -21,10 +21,8 @@ package com.itsaky.androidide.app
 
 import android.content.Context
 import android.content.Intent
-import android.hardware.display.DisplayManager
 import android.os.StrictMode
 import android.util.Log
-import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat

@@ -55,8 +55,6 @@ import org.slf4j.LoggerFactory
 import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
 
-import android.hardware.display.DisplayManager
-import android.view.Display
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
