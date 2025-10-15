@@ -49,15 +49,10 @@ class AppliedAttributesAdapter(
                 context = this.context,
                 anchorView = this,
                 tooltipCategory = TooltipCategory.CATEGORY_XML,
-                tooltipTag = createTooltipTag(attributeName)
+                tooltipTag = attributeName.substringAfterLast(":")
             )
         }
         holder.btnRemove.setOnClickListener { onRemoveButtonClick(position) }
-    }
-
-    private fun createTooltipTag(name: String): String {
-        val prefix = "xml.attr."
-        return "$prefix${name.substringAfterLast(":")}"
     }
 
     override fun getItemCount(): Int {
