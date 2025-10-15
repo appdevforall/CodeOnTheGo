@@ -1,22 +1,26 @@
 package com.itsaky.androidide.agent.repository
 
-// ✨ 1. Import necessary coroutine classes
 import android.content.Context
 import com.google.genai.types.Content
 import com.google.genai.types.Part
 import com.google.genai.types.Tool
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
-import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -41,9 +45,14 @@ class AgenticRunner(
     private val context: Context,
     private val maxSteps: Int = 20
 ) : GeminiRepository {
+    private val _messages = MutableStateFlow<List<ChatMessage>>(
+        listOf(
+        )
+    )
+    override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    private val runnerJob = Job()
-    private val runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
+    private var runnerJob: Job = SupervisorJob()
+    private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
 
     private val plannerClient: GeminiClient by lazy {
         // Fetch the key when the client is first needed
@@ -70,11 +79,7 @@ class AgenticRunner(
     private var executor: Executor = Executor()
 
 
-    override var onToolCall: ((ToolCall) -> Unit)? = null
-    override var onToolMessage: ((String) -> Unit)? = null
     override var onStateUpdate: ((AgentState) -> Unit)? = null
-    override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
-    override var onProgressUpdate: ((message: ChatMessage) -> Unit)? = null
 
 
     private val toolTracker = ToolExecutionTracker()
@@ -86,7 +91,9 @@ class AgenticRunner(
      */
     override fun stop() {
         log.info("Stop requested for AgenticRunner. Cancelling job.")
-        runnerJob.cancel("User requested to stop the agent.")
+        runnerScope.cancel("User requested to stop the agent.")
+        runnerJob = SupervisorJob()
+        runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
     }
 
     override fun getPartialReport(): String {
@@ -186,116 +193,111 @@ class AgenticRunner(
     override suspend fun generateASimpleResponse(
         prompt: String,
         history: List<ChatMessage>
-    ): AgentResponse {
+    ) {
+        // 1. Load the history from the current session
+        loadHistory(history)
+
+        // 2. Add the user's new message to the flow so it appears instantly
+        addMessage(prompt, Sender.USER)
+
         val finalMessage = try {
             runnerScope.async {
-                run(prompt, history)
+                run()
             }.await()
         } catch (e: CancellationException) {
             log.warn("generateASimpleResponse caught cancellation.")
+            updateLastMessage("Operation cancelled by user.") // Update UI on cancellation
             "Operation cancelled by user."
         }
 
         onStateUpdate?.invoke(AgentState.Idle)
-        return AgentResponse(text = finalMessage, report = toolTracker.generatePartialReport())
     }
 
-    private suspend fun run(
-        prompt: String,
-        chatHistory: List<ChatMessage>? = null,
-    ): String {
+    private suspend fun run(): String {
         startLog()
-        log.debug(prompt)
-        onStateUpdate?.invoke(AgentState.Processing("Initializing Agent Workflow..."))
+        addMessage("...", Sender.AGENT)
+        onStateUpdate?.invoke(AgentState.Processing("Initializing..."))
 
-        val formattedHistory = chatHistory?.takeIf { it.isNotEmpty() }?.let {
-            val historyLog = it.joinToString("\n") { msg ->
-                "${msg.sender}: ${msg.text}"
-            }
-            "\n[START OF PREVIOUS CONVERSATION]\n$historyLog\n[END OF PREVIOUS CONVERSATION]\n\n"
-        } ?: ""
-
-
-        val header = buildSystemPrompt()
-
-        val augmentedPrompt =
-            createAugmentedPrompt(prompt, header, globalStaticExamples, formattedHistory)
-
-        val history = mutableListOf(
-            Content.builder().role("user").parts(Part.builder().text(augmentedPrompt).build())
-                .build()
-        )
-        logTurn("user", history.last().parts().get())
+        val initialContent = buildInitialContent()
+        val history = mutableListOf(initialContent)
 
         try {
             for (step in 0 until maxSteps) {
                 runnerScope.ensureActive()
+                onStateUpdate?.invoke(AgentState.Processing("Step ${step + 1}..."))
 
-                val message = "Orchestrator: Step ${step + 1}..."
-                log.info(message)
-                onStateUpdate?.invoke(AgentState.Processing(message))
-
-                val plan = planner.plan(history)
-                if (plan.parts().getOrNull().isNullOrEmpty()) {
-
-                    log.warn("Planner returned an empty response, possibly due to safety filters. Halting execution.")
-                    val finalText =
-                        "I am unable to process this request. Please rephrase your prompt or check the content for any potential policy violations."
-                    logFinalText(finalText)
-                    onStateUpdate?.invoke(AgentState.Idle)
-                    return finalText
-                }
-
-                history.add(plan)
-                logTurn("model", plan.parts().get())
-
+                val plan = processPlannerStep(history)
                 val functionCalls = plan.parts().get().mapNotNull { it.functionCall().getOrNull() }
 
                 if (functionCalls.isEmpty()) {
-                    log.info("Orchestrator: Plan is a final answer. Run complete.")
                     val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
-                    logFinalText(finalText)
+                    updateLastMessage(finalText)
+                    logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
                     return finalText
                 }
 
-                val toolResultsParts = executor.execute(functionCalls)
+                val toolResultsParts = processToolExecutionStep(functionCalls)
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
                 logTurn("tool", toolResultsParts)
 
-                val lastToolName = functionCalls.lastOrNull()?.name()?.getOrNull()
-                if (lastToolName == "run_app") {
-                    val runResultJson =
-                        toolResultsParts.first().functionResponse().get().response().get()
-                    val successMessage = runResultJson["message"] as? String ?: ""
-
-                    if (successMessage.contains("App built and launched successfully")) {
-                        log.info("Orchestrator: App run was successful. Concluding workflow.")
-                        val finalText = "The application was successfully built and launched."
-                        logFinalText(finalText)
-                        return finalText
-                    }
-                }
-
-                val critiqueResult = critic.reviewAndSummarize(history)
-
-                if (critiqueResult != "OK") {
-                    history.add(
-                        Content.builder().role("user")
-                            .parts(Part.builder().text(critiqueResult).build()).build()
-                    )
-                    logTurn("system_critic", history.last().parts().get())
-                }
+                processCriticStep(history)
             }
-            throw RuntimeException("Agentic run exceeded max_steps ($maxSteps)")
+            throw RuntimeException("Exceeded max steps")
         } catch (err: Exception) {
             if (err is CancellationException) {
                 log.warn("Agentic run was cancelled during execution.")
                 return "Operation cancelled by user."
             }
             log.error("Agentic run failed", err)
+            updateLastMessage("An error occurred: ${err.message}")
             return "Agentic run failed: ${err.message}"
         } finally {
             writeLog()
+        }
+    }
+
+    // --- Helper methods for the run loop ---
+
+    private fun buildInitialContent(): Content {
+        val prompt = _messages.value.lastOrNull { it.sender == Sender.USER }?.text ?: ""
+        val currentMessages = _messages.value.dropLast(1) // Exclude placeholder
+        val formattedHistory = currentMessages.takeIf { it.isNotEmpty() }?.let {
+            val historyLog = it.joinToString("\n") { msg ->
+                "${msg.sender}: ${msg.text}"
+            }
+            "\n[START OF PREVIOUS CONVERSATION]\n$historyLog\n[END OF PREVIOUS CONVERSATION]\n\n"
+        } ?: ""
+        val header = buildSystemPrompt()
+        val augmentedPrompt =
+            createAugmentedPrompt(prompt, header, globalStaticExamples, formattedHistory)
+        return Content.builder().role("user").parts(Part.builder().text(augmentedPrompt).build())
+            .build()
+    }
+
+    private fun processPlannerStep(history: MutableList<Content>): Content {
+        updateLastMessage("Planning...")
+        val plan = planner.plan(history)
+        history.add(plan)
+        logTurn("model", plan.parts().get())
+        return plan
+    }
+
+    private suspend fun processToolExecutionStep(functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
+        val toolCallSummary =
+            functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
+        updateLastMessage(toolCallSummary)
+        return executor.execute(functionCalls)
+    }
+
+    private suspend fun processCriticStep(history: MutableList<Content>) {
+        updateLastMessage("Reviewing results...")
+        val critiqueResult = critic.reviewAndSummarize(history)
+        if (critiqueResult != "OK") {
+            history.add(
+                Content.builder().role("user")
+                    .parts(Part.builder().text(critiqueResult).build()).build()
+            )
+            logTurn("system_critic", history.last().parts().get())
         }
     }
 
@@ -351,15 +353,6 @@ class AgenticRunner(
         }
     }
 
-    private fun logFinalText(text: String) {
-        val logEntry = buildJsonObject {
-            put("step", logEntries.size + 1)
-            put("turn", "system")
-            put("final_text", text)
-        }
-        logEntries.add(logEntry)
-    }
-
     private fun writeLog() {
         try {
             // Now that logEntries is a list of JsonObject, this will work perfectly.
@@ -406,6 +399,24 @@ class AgenticRunner(
         } catch (e: Exception) {
             println("Error parsing few-shots JSON: ${e.message}")
             return emptyList()
+        }
+    }
+
+    override fun loadHistory(history: List<ChatMessage>) {
+        _messages.value = history
+    }
+
+    private fun addMessage(text: String, sender: Sender) {
+        val message = ChatMessage(text = text, sender = sender)
+        _messages.update { currentList -> currentList + message }
+    }
+
+    private fun updateLastMessage(newText: String) {
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            val updatedMessage = lastMessage.copy(text = newText)
+            currentList.dropLast(1) + updatedMessage
         }
     }
 
