@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
@@ -34,9 +35,9 @@ class InstallationViewModel : ViewModel() {
     val installationProgress: StateFlow<String> = _installationProgress.asStateFlow()
     fun onPermissionsUpdated(allGranted: Boolean) {
         if (allGranted && _state.value is InstallationPending) {
-            _state.value =InstallationGranted
+            _state.update { InstallationGranted }
         } else if (!allGranted && _state.value is InstallationGranted) {
-            _state.value =InstallationPending
+            _state.update { InstallationPending }
         }
     }
 
@@ -49,7 +50,7 @@ class InstallationViewModel : ViewModel() {
         if (!checkToolsIsInstalled()) {
             viewModelScope.launch {
                 try {
-                    _state.value =Installing()
+                    _state.update { Installing() }
 
                     withContext(Dispatchers.IO) {
                         val result = withStopWatch("Assets installation") {
@@ -67,27 +68,27 @@ class InstallationViewModel : ViewModel() {
                                 val distributionProvider = IJdkDistributionProvider.getInstance()
                                 distributionProvider.loadDistributions()
 
-                                _state.value =InstallationComplete
+                                _state.update { InstallationComplete }
                             }
                             is AssetsInstallationHelper.Result.Failure -> {
                                 result.cause?.let { Sentry.captureException(it) }
-                                _state.value =InstallationError(
-                                    R.string.title_installation_failed
-                                )
+                                _state.update {
+                                    InstallationError(R.string.title_installation_failed)
+                                }
                             }
                         }
                     }
                 } catch (e: Exception) {
                     Sentry.captureException(e)
                     log.error("IDE setup installation faileid", e)
-                    _state.value =InstallationError(
-                        R.string.unknown_error
-                    )
+                    _state.update {
+                        InstallationError(R.string.unknown_error)
+                    }
                 }
             }
         } else {
             // Tools already installed
-            _state.value =InstallationComplete
+            _state.update { InstallationComplete }
         }
     }
 
