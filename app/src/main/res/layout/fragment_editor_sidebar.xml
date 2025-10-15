@@ -23,7 +23,7 @@
   android:background="?attr/colorSurface">
 
     <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/editor_slidebar_fragment_container"
+        android:id="@+id/editor_sidebar_fragment_container"
         android:name="androidx.navigation.fragment.NavHostFragment"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -55,7 +55,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-        app:layout_constraintBottom_toTopOf="@id/editor_slidebar_fragment_container"
+        app:layout_constraintBottom_toTopOf="@id/editor_sidebar_fragment_container"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/navigation"
         app:layout_constraintTop_toTopOf="parent"

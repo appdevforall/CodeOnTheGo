@@ -155,7 +155,7 @@ import kotlin.math.roundToLong
 abstract class BaseEditorActivity :
 	EdgeToEdgeIDEActivity(),
 	TabLayout.OnTabSelectedListener,
-    DiagnosticClickListener, AgentPanelController {
+	DiagnosticClickListener, AgentPanelController {
 
 
 	protected var mLifecycleObserver: EditorActivityLifecyclerObserver? = null
@@ -163,15 +163,15 @@ abstract class BaseEditorActivity :
 	protected var filesTreeFragment: FileTreeFragment? = null
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
 	private var drawerToggle: ActionBarDrawerToggle? = null
-  private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
+	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
-    private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    var isDestroying = false
-        protected set
+	var isDestroying = false
+	protected set
 
 	/**
 	 * Editor activity's [CoroutineScope] for executing tasks in the background.
@@ -543,60 +543,60 @@ abstract class BaseEditorActivity :
 		builder.show()
 	}
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        mLifecycleObserver = EditorActivityLifecyclerObserver()
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		mLifecycleObserver = EditorActivityLifecyclerObserver()
 
-				Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
+		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
-        this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
+		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
-        registerLanguageServers()
+		registerLanguageServers()
 
-        if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
-            savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
-                ProjectManagerImpl.getInstance().projectPath = path
-            }
-        }
+		if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
+			savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
+				ProjectManagerImpl.getInstance().projectPath = path
+			}
+		}
 
-        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-        mLifecycleObserver?.let {
-          lifecycle.addObserver(it)
-        }
+		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+		mLifecycleObserver?.let {
+			lifecycle.addObserver(it)
+		}
 
-        setupToolbar()
-        setupDrawers()
-        content.tabs.addOnTabSelectedListener(this)
+		setupToolbar()
+		setupDrawers()
+		content.tabs.addOnTabSelectedListener(this)
 
-				setupStateObservers()
-        setupViews()
-        setupResizablePanel()
+		setupStateObservers()
+		setupViews()
+		setupResizablePanel()
 
-        setupContainers()
-        setupDiagnosticInfo()
+		setupContainers()
+		setupDiagnosticInfo()
 
-        uiDesignerResultLauncher = registerForActivityResult(
-            StartActivityForResult(),
-            this::handleUiDesignerResult
-        )
+		uiDesignerResultLauncher = registerForActivityResult(
+			StartActivityForResult(),
+			this::handleUiDesignerResult
+		)
 
-        content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
-            showTooltip(
-                tag = TooltipTag.EDITOR_BUILD_STATUS
-            )
-            true
-        }
+		content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
+			showTooltip(
+				tag = TooltipTag.EDITOR_BUILD_STATUS
+			)
+			true
+		}
 
-        feedbackButtonManager =
-            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
-        feedbackButtonManager?.setupDraggableFab()
+		feedbackButtonManager =
+			FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+		feedbackButtonManager?.setupDraggableFab()
 
-        setupMemUsageChart()
-        watchMemory()
-        observeFileOperations()
+		setupMemUsageChart()
+		watchMemory()
+		observeFileOperations()
 
-        setupGestureDetector()
-    }
+		setupGestureDetector()
+	}
 
     private fun setupResizablePanel() {
         Log.d(TAG, "setupResizablePanel: Initializing...")
@@ -767,7 +767,7 @@ abstract class BaseEditorActivity :
                 }
             }
 
-            drawerToggle = toggle
+						drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
@@ -1325,7 +1325,7 @@ abstract class BaseEditorActivity :
                 }
             }
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                content.apply {
+								content.apply {
                     val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
                     this.bottomSheet.onSlide(slideOffset)
                     this.viewContainer.scaleX = editorScale

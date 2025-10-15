@@ -84,7 +84,7 @@ internal object EditorSidebarActions {
     @JvmStatic
     fun setup(sidebarFragment: EditorSidebarFragment) {
         val binding = sidebarFragment.getBinding() ?: return
-        val controller = binding.editorSlidebarFragmentContainer.getFragment<NavHostFragment>().navController
+        val controller = binding.editorSidebarFragmentContainer.getFragment<NavHostFragment>().navController
         val context = sidebarFragment.requireContext()
         val rail = binding.navigation
 

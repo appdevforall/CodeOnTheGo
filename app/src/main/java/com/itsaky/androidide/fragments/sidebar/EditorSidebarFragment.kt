@@ -48,9 +48,9 @@ class EditorSidebarFragment : FragmentWithBinding<FragmentEditorSidebarBinding>(
           top = title.marginTop + insets.top,
         )
       }
-      editorSlidebarFragmentContainer.updateLayoutParams<MarginLayoutParams> {
+      editorSidebarFragmentContainer.updateLayoutParams<MarginLayoutParams> {
         updateMarginsRelative(
-          bottom = editorSlidebarFragmentContainer.marginBottom + insets.bottom,
+          bottom = editorSidebarFragmentContainer.marginBottom + insets.bottom,
         )
       }
       navigation.updatePadding(
