@@ -408,9 +408,9 @@ abstract class BaseEditorActivity :
     bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
     bottomSheetCallback = null
 
-    try { onBackPressedCallback.remove() } catch (_: Throwable) {}
+    runCatching { onBackPressedCallback.remove() }
 
-    try { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) } catch (_: Throwable) {}
+    runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
     optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
 		optionsMenuInvalidator = null
 
@@ -418,7 +418,7 @@ abstract class BaseEditorActivity :
     feedbackButtonManager = null
 
     mLifecycleObserver?.let {
-        try { lifecycle.removeObserver(it) } catch (_: Throwable) {}
+        runCatching { lifecycle.removeObserver(it) }
     }
     mLifecycleObserver = null
 
