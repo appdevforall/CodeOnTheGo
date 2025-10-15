@@ -11,9 +11,10 @@ data class ChatMessage(
     val text: String,
     val sender: Sender,
     var status: MessageStatus = MessageStatus.SENT,
-    val timestamp: Long = System.currentTimeMillis()
-) {
-    enum class Sender {
-        USER, AGENT, SYSTEM
-    }
+    val timestamp: Long = System.currentTimeMillis(),
+    val durationMs: Long? = null
+)
+
+enum class Sender {
+    USER, AGENT, SYSTEM, TOOL
 }
