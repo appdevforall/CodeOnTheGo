@@ -23,6 +23,28 @@ Android device to be able to build the project, Android Studio is always recomme
 You can refer the [AndroidIDE Developer Guide](https://docs.androidide.com/developer/index.html) to
 get started with the development or to learn more about the various components in the IDE. 
 
+## 🔒 Git Pre-Commit Hook: Branch Name Enforcement
+
+This project enforces a strict branch naming policy using a Git pre-commit hook.
+
+### ✅ Allowed Branch Formats:
+- `ADFA-123` (3 to 5 digit number)
+- `feature/ADFA-123`
+- `bugfix/ADFA-12345`
+- `chore/ADFA-9999`
+- `anyprefix/ADFA-#####`
+
+### 🛠 Setup
+
+#### Mac/Linux:
+```bash
+sh ./scripts/install-git-hooks.sh
+````
+
+#### Windows
+```bash
+scripts\install-git-hooks.bat
+````
 ## Source code format
 
 - Indents : 2-space
@@ -64,4 +86,5 @@ logs, and build outputs in `code blocks`.
 
 If you want to discuss anything about the project, you can discuss it in
 the [Telegram group](https://t.me/androidide_discussions).
+
 
