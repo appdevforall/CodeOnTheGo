@@ -399,45 +399,45 @@ abstract class BaseEditorActivity :
 	internal abstract fun doOpenHelp()
 
 	protected open fun preDestroy() {
-		BuildOutputProvider.clearBottomSheet()
+			BuildOutputProvider.clearBottomSheet()
 
-		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+			Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
-    drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
-    drawerToggle = null
-    bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
-    bottomSheetCallback = null
+			drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
+			drawerToggle = null
+			bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
+			bottomSheetCallback = null
 
-    runCatching { onBackPressedCallback.remove() }
+			runCatching { onBackPressedCallback.remove() }
 
-    runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
-    optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
-		optionsMenuInvalidator = null
+			runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
+			optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
+			optionsMenuInvalidator = null
 
-		apkInstallationViewModel.destroy(this)
-    feedbackButtonManager = null
+			apkInstallationViewModel.destroy(this)
+			feedbackButtonManager = null
 
-    mLifecycleObserver?.let {
-        runCatching { lifecycle.removeObserver(it) }
-    }
-    mLifecycleObserver = null
+			mLifecycleObserver?.let {
+					runCatching { lifecycle.removeObserver(it) }
+			}
+			mLifecycleObserver = null
 
-    IDEApplication.instance.setCurrentActivity(null)
+			IDEApplication.instance.setCurrentActivity(null)
 
-    diagnosticInfoBinding = null
-    filesTreeFragment = null
-    editorBottomSheet = null
-    gestureDetector = null
+			diagnosticInfoBinding = null
+			filesTreeFragment = null
+			editorBottomSheet = null
+			gestureDetector = null
 
-    _binding = null
+			_binding = null
 
-		if (isDestroying) {
-			memoryUsageWatcher.stopWatching(true)
-			memoryUsageWatcher.listener = null
-			editorActivityScope.cancelIfActive("Activity is being destroyed")
+			if (isDestroying) {
+					memoryUsageWatcher.stopWatching(true)
+					memoryUsageWatcher.listener = null
+					editorActivityScope.cancelIfActive("Activity is being destroyed")
 
-			unbindDebuggerService()
-		}
+					unbindDebuggerService()
+			}
 	}
 
 	protected open fun postDestroy() {
