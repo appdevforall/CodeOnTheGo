@@ -277,30 +277,34 @@ class ChatViewModel : ViewModel() {
                     )
                 }
             } catch (e: Exception) {
-                if (e is CancellationException) {
-                    log.warn("Workflow was cancelled by user.")
-                    updateMessageInCurrentSession(
-                        messageIdToUpdate,
-                        "Operation cancelled by user.",
-                        MessageStatus.ERROR
-                    )
-                    val partialReport = agentRepository?.getPartialReport()
-                    if (partialReport?.isNotBlank() == true) {
-                        addMessageToCurrentSession(
-                            ChatMessage(
-                                text = partialReport,
-                                sender = ChatMessage.Sender.SYSTEM
+                when (e) {
+                    is CancellationException -> {
+                        log.warn("Workflow was cancelled by user.")
+                        updateMessageInCurrentSession(
+                            messageIdToUpdate,
+                            "Operation cancelled by user.",
+                            MessageStatus.ERROR
+                        )
+                        val partialReport = agentRepository?.getPartialReport()
+                        if (partialReport?.isNotBlank() == true) {
+                            addMessageToCurrentSession(
+                                ChatMessage(
+                                    text = partialReport,
+                                    sender = ChatMessage.Sender.SYSTEM
+                                )
                             )
+                        }
+                    }
+
+                    else -> {
+                        log.error("An unexpected error occurred during agent workflow.", e)
+                        updateMessageInCurrentSession(
+                            messageIdToUpdate,
+                            "An error occurred: ${e.message}",
+                            MessageStatus.ERROR,
+                            originalUserPrompt
                         )
                     }
-                } else {
-                    log.error("An unexpected error occurred during agent workflow.", e)
-                    updateMessageInCurrentSession(
-                        messageIdToUpdate,
-                        "An error occurred: ${e.message}",
-                        MessageStatus.ERROR,
-                        originalUserPrompt
-                    )
                 }
             } finally {
                 val finalTimeMillis = _totalElapsedTime.value
