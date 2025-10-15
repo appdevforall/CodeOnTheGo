@@ -375,7 +375,7 @@
 //
 //        val chatHistoryAsContent = history.map {
 //            Content.builder().parts(listOf(Part.builder().text(it.text).build()))
-//                .role(if (it.sender == ChatMessage.Sender.USER) "user" else "model").build()
+//                .role(if (it.sender == Sender.USER) "user" else "model").build()
 //        }
 //
 //        var loopCount = 0
