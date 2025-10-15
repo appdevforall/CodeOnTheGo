@@ -1,6 +1,5 @@
 #define GGML_COMMON_IMPL_CPP
 #define GGML_COMMON_DECL_CPP
-
 #include "ggml-common.h"
 #include "ggml-backend-impl.h"
 
@@ -17,7 +16,6 @@
 #include <cstdio>  // for GGML_ASSERT
 
 #define GGML_CPU_CLANG_WORKAROUND
-
 #include "../../repack.h"
 
 #if defined(__GNUC__)
@@ -26,12 +24,12 @@
 
 #define UNUSED GGML_UNUSED
 
-void ggml_quantize_mat_q8_0_4x4(const float *GGML_RESTRICT x, void *GGML_RESTRICT vy, int64_t k) {
+void ggml_quantize_mat_q8_0_4x4(const float * GGML_RESTRICT x, void * GGML_RESTRICT vy, int64_t k) {
     assert(QK8_0 == 32);
     assert(k % QK8_0 == 0);
     const int nb = k / QK8_0;
 
-    block_q8_0x4 *GGML_RESTRICT y = (block_q8_0x4 *) vy;
+    block_q8_0x4 * GGML_RESTRICT y = (block_q8_0x4 *) vy;
 
 #if defined(__ARM_NEON)
     float32x4_t srcv[4][8];
@@ -42,8 +40,7 @@ void ggml_quantize_mat_q8_0_4x4(const float *GGML_RESTRICT x, void *GGML_RESTRIC
         float32x4_t amaxv[8];
 
         for (int row_iter = 0; row_iter < 4; row_iter++) {
-            for (int j = 0; j < 8; j++)
-                srcv[row_iter][j] = vld1q_f32(x + row_iter * k + i * 32 + 4 * j);
+            for (int j = 0; j < 8; j++) srcv[row_iter][j] = vld1q_f32(x + row_iter * k + i * 32 + 4 * j);
             for (int j = 0; j < 8; j++) asrcv[j] = vabsq_f32(srcv[row_iter][j]);
 
             for (int j = 0; j < 4; j++) amaxv[2 * j] = vmaxq_f32(asrcv[2 * j], asrcv[2 * j + 1]);
@@ -95,12 +92,12 @@ void ggml_quantize_mat_q8_0_4x4(const float *GGML_RESTRICT x, void *GGML_RESTRIC
 #endif
 }
 
-void ggml_quantize_mat_q8_0_4x8(const float *GGML_RESTRICT x, void *GGML_RESTRICT vy, int64_t k) {
+void ggml_quantize_mat_q8_0_4x8(const float * GGML_RESTRICT x, void * GGML_RESTRICT vy, int64_t k) {
     assert(QK8_0 == 32);
     assert(k % QK8_0 == 0);
     const int nb = k / QK8_0;
 
-    block_q8_0x4 *GGML_RESTRICT y = (block_q8_0x4 *) vy;
+    block_q8_0x4 * GGML_RESTRICT y = (block_q8_0x4 *) vy;
 
 #if defined(__ARM_NEON)
     float32x4_t srcv[4][8];
@@ -111,8 +108,7 @@ void ggml_quantize_mat_q8_0_4x8(const float *GGML_RESTRICT x, void *GGML_RESTRIC
         float32x4_t amaxv[8];
 
         for (int row_iter = 0; row_iter < 4; row_iter++) {
-            for (int j = 0; j < 8; j++)
-                srcv[row_iter][j] = vld1q_f32(x + row_iter * k + i * 32 + 4 * j);
+            for (int j = 0; j < 8; j++) srcv[row_iter][j] = vld1q_f32(x + row_iter * k + i * 32 + 4 * j);
             for (int j = 0; j < 8; j++) asrcv[j] = vabsq_f32(srcv[row_iter][j]);
 
             for (int j = 0; j < 4; j++) amaxv[2 * j] = vmaxq_f32(asrcv[2 * j], asrcv[2 * j + 1]);
@@ -189,8 +185,7 @@ void ggml_quantize_mat_q8_0_4x8(const float *GGML_RESTRICT x, void *GGML_RESTRIC
 #endif
 }
 
-void ggml_gemv_q4_0_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemv_q4_0_4x4_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 4;
@@ -199,17 +194,17 @@ void ggml_gemv_q4_0_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (n % qk == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
     const block_q4_0x4 * b_ptr = (const block_q4_0x4 *) vx;
 
     for (int c = 0; c < nc; c += ncols_interleaved) {
@@ -251,8 +246,7 @@ void ggml_gemv_q4_0_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     ggml_gemv_q4_0_4x4_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void ggml_gemv_q4_0_4x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemv_q4_0_4x8_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 4;
@@ -261,17 +255,17 @@ void ggml_gemv_q4_0_4x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (n % qk == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
     const block_q4_0x4 * b_ptr = (const block_q4_0x4 *) vx;
 
     for (int c = 0; c < nc; c += ncols_interleaved) {
@@ -318,8 +312,7 @@ void ggml_gemv_q4_0_4x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     ggml_gemv_q4_0_4x8_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void ggml_gemv_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemv_q4_0_8x8_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 8;
@@ -328,17 +321,17 @@ void ggml_gemv_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (n % qk == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__)
 #if defined(__ARM_FEATURE_SVE)
     if (ggml_cpu_get_sve_cnt() == QK8_0) {
         const void * b_ptr = vx;
@@ -411,9 +404,7 @@ void ggml_gemv_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     ggml_gemv_q4_0_8x8_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void
-ggml_gemv_iq4_nl_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                          const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemv_iq4_nl_4x4_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 4;
@@ -422,17 +413,17 @@ ggml_gemv_iq4_nl_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *
     assert (n % qk == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
     const int8x16_t kvalues = vld1q_s8(kvalues_iq4nl);
     const block_q8_0 * a_ptr = (const block_q8_0 *) vy;
     float * res_ptr = s;
@@ -483,8 +474,7 @@ ggml_gemv_iq4_nl_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *
     ggml_gemv_iq4_nl_4x4_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void ggml_gemm_q4_0_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemm_q4_0_4x4_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 4;
@@ -494,17 +484,17 @@ void ggml_gemm_q4_0_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (nr % 4 == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
     const void * b_ptr = vx;
     const void * a_ptr = vy;
     float * res_ptr = s;
@@ -965,8 +955,7 @@ void ggml_gemm_q4_0_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     ggml_gemm_q4_0_4x4_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void ggml_gemm_q4_0_4x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemm_q4_0_4x8_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 4;
@@ -976,17 +965,17 @@ void ggml_gemm_q4_0_4x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (nr % 4 == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_MATMUL_INT8)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_MATMUL_INT8)
     const void * b_ptr = vx;
     const void * a_ptr = vy;
     float * res_ptr = s;
@@ -1387,8 +1376,7 @@ void ggml_gemm_q4_0_4x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     ggml_gemm_q4_0_4x8_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void ggml_gemm_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemm_q4_0_8x8_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 8;
@@ -1398,17 +1386,17 @@ void ggml_gemm_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (nr % 4 == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__)
 #if defined(__ARM_FEATURE_SVE) && defined(__ARM_FEATURE_MATMUL_INT8)
     if (ggml_cpu_get_sve_cnt() == QK8_0) {
         const void * b_ptr = vx;
@@ -1826,9 +1814,7 @@ void ggml_gemm_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     ggml_gemm_q4_0_8x8_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void
-ggml_gemm_iq4_nl_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                          const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemm_iq4_nl_4x4_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 4;
@@ -1838,17 +1824,17 @@ ggml_gemm_iq4_nl_4x4_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *
     assert (nr % 4 == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
-#if !((defined(_MSC_VER)) && !defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+#if ! ((defined(_MSC_VER)) && ! defined(__clang__)) && defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
     const int8x16_t kvalues = vld1q_s8(kvalues_iq4nl);
 
     for (int y = 0; y < nr / 4; y++) {

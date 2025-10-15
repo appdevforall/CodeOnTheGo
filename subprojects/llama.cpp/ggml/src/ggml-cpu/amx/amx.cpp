@@ -8,10 +8,8 @@
 #include "traits.h"
 
 #if defined(__linux__)
-
 #include <sys/syscall.h>
 #include <unistd.h>
-
 #endif
 
 #include <cstdlib>

@@ -21,9 +21,9 @@ struct ggml_compute_params {
 
     // work buffer for all threads
     size_t wsize;
-    void *wdata;
+    void * wdata;
 
-    struct ggml_threadpool *threadpool;
+    struct ggml_threadpool * threadpool;
 };
 
 
@@ -78,7 +78,7 @@ struct ggml_compute_params {
 #ifdef _MSC_VER
 #define ggml_vld1q_u32(w,x,y,z) { ((w) + ((uint64_t)(x) << 32)), ((y) + ((uint64_t)(z) << 32)) }
 #else
-#define ggml_vld1q_u32(w, x, y, z) { (w), (x), (y), (z) }
+#define ggml_vld1q_u32(w,x,y,z) { (w), (x), (y), (z) }
 #endif // _MSC_VER
 
 #if !defined(__aarch64__)
@@ -304,7 +304,7 @@ inline static uint8x16_t ggml_vqtbl1q_u8(uint8x16_t a, uint8x16_t b) {
 #if !defined(__ARM_FEATURE_DOTPROD)
 
 inline static int32x4_t ggml_vdotq_s32(int32x4_t acc, int8x16_t a, int8x16_t b) {
-    const int16x8_t p0 = vmull_s8(vget_low_s8(a), vget_low_s8(b));
+    const int16x8_t p0 = vmull_s8(vget_low_s8 (a), vget_low_s8 (b));
     const int16x8_t p1 = vmull_s8(vget_high_s8(a), vget_high_s8(b));
 
     return vaddq_s32(acc, vaddq_s32(vpaddlq_s16(p0), vpaddlq_s16(p1)));
@@ -514,10 +514,10 @@ static __m256 __lasx_xvreplfr2vr_s(const float val) {
 #endif
 
 // TODO: move to ggml-threading
-void ggml_barrier(struct ggml_threadpool *tp);
+void ggml_barrier(struct ggml_threadpool * tp);
 
-void ggml_threadpool_chunk_set(struct ggml_threadpool *tp, int value);
-int ggml_threadpool_chunk_add(struct ggml_threadpool *tp, int value);
+void ggml_threadpool_chunk_set(struct ggml_threadpool * tp, int value);
+int  ggml_threadpool_chunk_add(struct ggml_threadpool * tp, int value);
 
 #ifdef __cplusplus
 }

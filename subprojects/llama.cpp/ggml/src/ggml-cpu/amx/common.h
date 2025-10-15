@@ -8,9 +8,7 @@
 #include <type_traits>
 
 #if defined(GGML_USE_OPENMP)
-
 #include <omp.h>
-
 #endif
 
 #define TILE_M 16
@@ -30,11 +28,11 @@
 #define TMM7 7
 
 // parallel routines
-template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+template <typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
 inline T div_up(T x, T y) { return (x + y - 1) / y; }
 
-template<typename T>
-inline void balance211(T n, T nth, T ith, T &n_start, T &n_end) {
+template <typename T>
+inline void balance211(T n, T nth, T ith, T& n_start, T& n_end) {
 #if 0
     // onednn partition pattern
     T& n_my = n_end;
@@ -57,24 +55,24 @@ inline void balance211(T n, T nth, T ith, T &n_start, T &n_end) {
 #endif
 }
 
-template<typename func_t>
-inline void parallel_for(int n, const func_t &f) {
+template <typename func_t>
+inline void parallel_for(int n, const func_t& f) {
 #if defined(GGML_USE_OPENMP)
 #pragma omp parallel
-    {
-        int nth = omp_get_num_threads();
-        int ith = omp_get_thread_num();
-        int tbegin, tend;
-        balance211(n, nth, ith, tbegin, tend);
-        f(tbegin, tend);
-    }
+{
+    int nth = omp_get_num_threads();
+    int ith = omp_get_thread_num();
+    int tbegin, tend;
+    balance211(n, nth, ith, tbegin, tend);
+    f(tbegin, tend);
+}
 #else
     f(0, n);
 #endif
 }
 
-template<typename func_t>
-inline void parallel_for_ggml(const ggml_compute_params *params, int n, const func_t &f) {
+template <typename func_t>
+inline void parallel_for_ggml(const ggml_compute_params * params, int n, const func_t & f) {
     int tbegin, tend;
     balance211(n, params->nth, params->ith, tbegin, tend);
     f(tbegin, tend);
@@ -84,10 +82,10 @@ inline void parallel_for_ggml(const ggml_compute_params *params, int n, const fu
 inline bool qtype_has_amx_kernels(const enum ggml_type type) {
     // TODO: fix padding for vnni format
     return (type == GGML_TYPE_Q4_0) ||
-           (type == GGML_TYPE_Q4_1) ||
-           (type == GGML_TYPE_Q8_0) ||
-           (type == GGML_TYPE_Q4_K) ||
-           (type == GGML_TYPE_Q5_K) ||
-           (type == GGML_TYPE_Q6_K) ||
-           (type == GGML_TYPE_IQ4_XS);
+        (type == GGML_TYPE_Q4_1) ||
+        (type == GGML_TYPE_Q8_0) ||
+        (type == GGML_TYPE_Q4_K) ||
+        (type == GGML_TYPE_Q5_K) ||
+        (type == GGML_TYPE_Q6_K) ||
+        (type == GGML_TYPE_IQ4_XS);
 }

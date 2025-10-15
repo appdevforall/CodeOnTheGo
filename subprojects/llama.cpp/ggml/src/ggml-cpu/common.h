@@ -41,49 +41,44 @@ static inline float f32_to_f32(float x) {
 }
 
 // TODO - merge this into the traits table, after using row-based conversions
-template<class T>
+template <class T>
 struct type_conversion_table;
 
-template<>
+template <>
 struct type_conversion_table<ggml_fp16_t> {
     static constexpr float (*to_f32)(ggml_fp16_t) = f16_to_f32;
-
     static constexpr ggml_fp16_t (*from_f32)(float) = f32_to_f16;
 };
 
-template<>
+template <>
 struct type_conversion_table<float> {
     static constexpr float (*to_f32)(float) = f32_to_f32;
-
     static constexpr float (*from_f32)(float) = f32_to_f32;
 };
 
-template<>
+template <>
 struct type_conversion_table<ggml_bf16_t> {
     static constexpr float (*to_f32)(ggml_bf16_t) = bf16_to_f32;
-
     static constexpr ggml_bf16_t (*from_f32)(float) = f32_to_bf16;
 };
 
-template<>
+template <>
 struct type_conversion_table<int32_t> {
     static constexpr float (*to_f32)(int32_t) = i32_to_f32;
-
     static constexpr int32_t (*from_f32)(float) = f32_to_i32;
 };
 
-static std::pair<int64_t, int64_t>
-get_thread_range(const struct ggml_compute_params *params, const struct ggml_tensor *src0) {
+static std::pair<int64_t, int64_t> get_thread_range(const struct ggml_compute_params * params, const struct ggml_tensor * src0) {
     const int64_t ith = params->ith;
     const int64_t nth = params->nth;
 
-    const int64_t nr = ggml_nrows(src0);
+    const int64_t nr  = ggml_nrows(src0);
 
     // rows per thread
-    const int64_t dr = (nr + nth - 1) / nth;
+    const int64_t dr = (nr + nth - 1)/nth;
 
     // row range for this thread
-    const int64_t ir0 = dr * ith;
+    const int64_t ir0 = dr*ith;
     const int64_t ir1 = MIN(ir0 + dr, nr);
 
     return {ir0, ir1};

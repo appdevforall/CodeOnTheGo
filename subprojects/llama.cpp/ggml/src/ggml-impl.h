@@ -22,7 +22,6 @@
 //   $ ln -sfn /Library/Developer/CommandLineTools/usr/lib/clang/13.1.6/include/arm_neon.h ./src/
 //
 #include <arm_neon.h>
-
 #endif
 
 #if defined(__F16C__)
@@ -51,13 +50,13 @@ void ggml_print_backtrace(void);
 // if C99 - static_assert is noop
 // ref: https://stackoverflow.com/a/53923785/4039976
 #ifndef __cplusplus
-#ifndef static_assert
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201100L)
-#define static_assert(cond, msg) _Static_assert(cond, msg)
-#else
-#define static_assert(cond, msg) struct global_scope_noop_trick
-#endif
-#endif
+    #ifndef static_assert
+        #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201100L)
+            #define static_assert(cond, msg) _Static_assert(cond, msg)
+        #else
+            #define static_assert(cond, msg) struct global_scope_noop_trick
+        #endif
+    #endif
 #endif
 
 static inline int ggml_up32(int n) {
@@ -75,7 +74,7 @@ static inline int ggml_up(int n, int m) {
 }
 
 // TODO: move to ggml.h?
-static bool ggml_are_same_layout(const struct ggml_tensor *a, const struct ggml_tensor *b) {
+static bool ggml_are_same_layout(const struct ggml_tensor * a, const struct ggml_tensor * b) {
     if (a->type != b->type) {
         return false;
     }
@@ -95,9 +94,8 @@ static bool ggml_are_same_layout(const struct ggml_tensor *a, const struct ggml_
 //
 
 GGML_ATTRIBUTE_FORMAT(2, 3)
-GGML_API void ggml_log_internal(enum ggml_log_level level, const char *format, ...);
-GGML_API void
-ggml_log_callback_default(enum ggml_log_level level, const char *text, void *user_data);
+GGML_API void ggml_log_internal        (enum ggml_log_level level, const char * format, ...);
+GGML_API void ggml_log_callback_default(enum ggml_log_level level, const char * text, void * user_data);
 
 #define GGML_LOG(...)       ggml_log_internal(GGML_LOG_LEVEL_NONE , __VA_ARGS__)
 #define GGML_LOG_INFO(...)  ggml_log_internal(GGML_LOG_LEVEL_INFO , __VA_ARGS__)
@@ -128,54 +126,54 @@ ggml_log_callback_default(enum ggml_log_level level, const char *text, void *use
 
 // tensor params
 
-static void ggml_set_op_params(struct ggml_tensor *tensor, const void *params, size_t params_size) {
+static void ggml_set_op_params(struct ggml_tensor * tensor, const void * params, size_t params_size) {
     GGML_ASSERT(tensor != NULL); // silence -Warray-bounds warnings
     assert(params_size <= GGML_MAX_OP_PARAMS);
     memcpy(tensor->op_params, params, params_size);
 }
 
-static int32_t ggml_get_op_params_i32(const struct ggml_tensor *tensor, uint32_t i) {
+static int32_t ggml_get_op_params_i32(const struct ggml_tensor * tensor, uint32_t i) {
     assert(i < GGML_MAX_OP_PARAMS / sizeof(int32_t));
-    return ((const int32_t *) (tensor->op_params))[i];
+    return ((const int32_t *)(tensor->op_params))[i];
 }
 
-static float ggml_get_op_params_f32(const struct ggml_tensor *tensor, uint32_t i) {
+static float ggml_get_op_params_f32(const struct ggml_tensor * tensor, uint32_t i) {
     assert(i < GGML_MAX_OP_PARAMS / sizeof(float));
-    return ((const float *) (tensor->op_params))[i];
+    return ((const float *)(tensor->op_params))[i];
 }
 
-static void ggml_set_op_params_i32(struct ggml_tensor *tensor, uint32_t i, int32_t value) {
+static void ggml_set_op_params_i32(struct ggml_tensor * tensor, uint32_t i, int32_t value) {
     assert(i < GGML_MAX_OP_PARAMS / sizeof(int32_t));
-    ((int32_t *) (tensor->op_params))[i] = value;
+    ((int32_t *)(tensor->op_params))[i] = value;
 }
 
-static void ggml_set_op_params_f32(struct ggml_tensor *tensor, uint32_t i, float value) {
+static void ggml_set_op_params_f32(struct ggml_tensor * tensor, uint32_t i, float value) {
     assert(i < GGML_MAX_OP_PARAMS / sizeof(float));
-    ((float *) (tensor->op_params))[i] = value;
+    ((float *)(tensor->op_params))[i] = value;
 }
 
 struct ggml_map_custom1_op_params {
-    ggml_custom1_op_t fun;
-    int n_tasks;
-    void *userdata;
+    ggml_custom1_op_t  fun;
+    int                n_tasks;
+    void             * userdata;
 };
 
 struct ggml_map_custom2_op_params {
-    ggml_custom2_op_t fun;
-    int n_tasks;
-    void *userdata;
+    ggml_custom2_op_t   fun;
+    int                 n_tasks;
+    void              * userdata;
 };
 
 struct ggml_map_custom3_op_params {
     ggml_custom3_op_t fun;
-    int n_tasks;
-    void *userdata;
+    int               n_tasks;
+    void            * userdata;
 };
 
 struct ggml_custom_op_params {
     ggml_custom_op_t fun;
-    int n_tasks;
-    void *userdata;
+    int              n_tasks;
+    void           * userdata;
 };
 
 // bitset
@@ -190,15 +188,15 @@ static size_t ggml_bitset_size(size_t n) {
     return (n + BITSET_MASK) >> BITSET_SHR;
 }
 
-static inline bool ggml_bitset_get(const ggml_bitset_t *bitset, size_t i) {
+static inline bool ggml_bitset_get(const ggml_bitset_t * bitset, size_t i) {
     return !!(bitset[i >> BITSET_SHR] & (1u << (i & BITSET_MASK)));
 }
 
-static inline void ggml_bitset_set(ggml_bitset_t *bitset, size_t i) {
+static inline void ggml_bitset_set(ggml_bitset_t * bitset, size_t i) {
     bitset[i >> BITSET_SHR] |= (1u << (i & BITSET_MASK));
 }
 
-static inline void ggml_bitset_clear(ggml_bitset_t *bitset, size_t i) {
+static inline void ggml_bitset_clear(ggml_bitset_t * bitset, size_t i) {
     bitset[i >> BITSET_SHR] &= ~(1u << (i & BITSET_MASK));
 }
 
@@ -209,38 +207,38 @@ static inline void ggml_bitset_clear(ggml_bitset_t *bitset, size_t i) {
 
 struct ggml_hash_set {
     size_t size;
-    ggml_bitset_t *used;       // whether or not the keys are in use i.e. set
-    struct ggml_tensor **keys; // actual tensors in the set, keys[i] is only defined if ggml_bitset_get(used, i)
+    ggml_bitset_t * used;       // whether or not the keys are in use i.e. set
+    struct ggml_tensor ** keys; // actual tensors in the set, keys[i] is only defined if ggml_bitset_get(used, i)
 };
 
 struct ggml_hash_set ggml_hash_set_new(size_t size);
-void ggml_hash_set_free(struct ggml_hash_set *hash_set);
+void                 ggml_hash_set_free(struct ggml_hash_set * hash_set);
 
 // returns the minimum size for a hash set that can hold min_sz elements
 size_t ggml_hash_size(size_t min_sz);
 
 // remove all elements from the hash set
-void ggml_hash_set_reset(struct ggml_hash_set *hash_set);
+void ggml_hash_set_reset(struct ggml_hash_set * hash_set);
 
 // returns true if key is in the hash set
-static bool ggml_hash_contains(const struct ggml_hash_set *hash_set, struct ggml_tensor *key);
+static bool ggml_hash_contains(const struct ggml_hash_set * hash_set, struct ggml_tensor * key);
 
 // returns GGML_HASHSET_FULL if table is full, otherwise the current index of the key or where it should be inserted
-static size_t ggml_hash_find(const struct ggml_hash_set *hash_set, const struct ggml_tensor *key);
+static size_t ggml_hash_find(const struct ggml_hash_set * hash_set, const struct ggml_tensor * key);
 
 // returns GGML_HASHSET_ALREADY_EXISTS if key already exists, index otherwise, asserts if table is full
-static size_t ggml_hash_insert(struct ggml_hash_set *hash_set, struct ggml_tensor *key);
+static size_t ggml_hash_insert(struct ggml_hash_set * hash_set, struct ggml_tensor * key);
 
 // return index, asserts if table is full
-static size_t ggml_hash_find_or_insert(struct ggml_hash_set *hash_set, struct ggml_tensor *key);
+static size_t ggml_hash_find_or_insert(struct ggml_hash_set * hash_set, struct ggml_tensor * key);
 
 // hash function for ggml_tensor
-static inline size_t ggml_hash(const struct ggml_tensor *p) {
+static inline size_t ggml_hash(const struct ggml_tensor * p) {
     // the last 4 bits are always zero due to alignment
-    return (size_t) (uintptr_t) p >> 4;
+    return (size_t)(uintptr_t)p >> 4;
 }
 
-static size_t ggml_hash_find(const struct ggml_hash_set *hash_set, const struct ggml_tensor *key) {
+static size_t ggml_hash_find(const struct ggml_hash_set * hash_set, const struct ggml_tensor * key) {
     size_t h = ggml_hash(key) % hash_set->size;
 
     // linear probing
@@ -255,12 +253,12 @@ static size_t ggml_hash_find(const struct ggml_hash_set *hash_set, const struct 
     return i;
 }
 
-static bool ggml_hash_contains(const struct ggml_hash_set *hash_set, struct ggml_tensor *key) {
+static bool ggml_hash_contains(const struct ggml_hash_set * hash_set, struct ggml_tensor * key) {
     size_t i = ggml_hash_find(hash_set, key);
     return i != GGML_HASHSET_FULL && ggml_bitset_get(hash_set->used, i);
 }
 
-static size_t ggml_hash_insert(struct ggml_hash_set *hash_set, struct ggml_tensor *key) {
+static size_t ggml_hash_insert(struct ggml_hash_set * hash_set, struct ggml_tensor * key) {
     size_t h = ggml_hash(key) % hash_set->size;
 
     // linear probing
@@ -281,7 +279,7 @@ static size_t ggml_hash_insert(struct ggml_hash_set *hash_set, struct ggml_tenso
     GGML_ABORT("fatal error");
 }
 
-static size_t ggml_hash_find_or_insert(struct ggml_hash_set *hash_set, struct ggml_tensor *key) {
+static size_t ggml_hash_find_or_insert(struct ggml_hash_set * hash_set, struct ggml_tensor * key) {
     size_t h = ggml_hash(key) % hash_set->size;
 
     // linear probing
@@ -315,11 +313,11 @@ struct ggml_cgraph {
     int n_nodes; // number of nodes currently in use
     int n_leafs; // number of leafs currently in use
 
-    struct ggml_tensor **nodes;     // tensors with data that can change if the graph is evaluated
-    struct ggml_tensor **grads;     // the outputs of these tensors are the gradients of the nodes
-    struct ggml_tensor **grad_accs; // accumulators for node gradients
-    struct ggml_tensor **leafs;     // tensors with constant data
-    int32_t *use_counts;// number of uses of each tensor, indexed by hash table slot
+    struct ggml_tensor ** nodes;     // tensors with data that can change if the graph is evaluated
+    struct ggml_tensor ** grads;     // the outputs of these tensors are the gradients of the nodes
+    struct ggml_tensor ** grad_accs; // accumulators for node gradients
+    struct ggml_tensor ** leafs;     // tensors with constant data
+    int32_t             * use_counts;// number of uses of each tensor, indexed by hash table slot
 
     struct ggml_hash_set visited_hash_set;
 
@@ -329,12 +327,12 @@ struct ggml_cgraph {
 // returns a slice of cgraph with nodes [i0, i1)
 // the slice does not have leafs or gradients
 // if you need the gradients, get them from the original graph
-struct ggml_cgraph ggml_graph_view(struct ggml_cgraph *cgraph, int i0, int i1);
+struct ggml_cgraph ggml_graph_view(struct ggml_cgraph * cgraph, int i0, int i1);
 
 // Memory allocation
 
-GGML_API void *ggml_aligned_malloc(size_t size);
-GGML_API void ggml_aligned_free(void *ptr, size_t size);
+GGML_API void * ggml_aligned_malloc(size_t size);
+GGML_API void ggml_aligned_free(void * ptr, size_t size);
 
 // FP16 <-> FP32
 // ref: https://github.com/Maratyszcza/FP16
@@ -376,8 +374,7 @@ static inline float ggml_compute_fp16_to_fp32(ggml_fp16_t h) {
 
     const uint32_t denormalized_cutoff = UINT32_C(1) << 27;
     const uint32_t result = sign |
-                            (two_w < denormalized_cutoff ? fp32_to_bits(denormalized_value)
-                                                         : fp32_to_bits(normalized_value));
+        (two_w < denormalized_cutoff ? fp32_to_bits(denormalized_value) : fp32_to_bits(normalized_value));
     return fp32_from_bits(result);
 }
 
@@ -425,16 +422,16 @@ static inline float ggml_e8m0_to_fp32(uint8_t x) {
         // Value = 0.5 * 2^(-126) = 2^(-127)
         bits = 0x00400000;
     }
-        // note: disabled as we don't need to handle NaNs
-        //// Handle special case for NaN (all bits set)
-        //else if (x == 0xFF) {
-        //    // Standard quiet NaN pattern:
-        //    // - Sign bit: 0
-        //    // - Exponent: all 1s (0xFF)
-        //    // - Mantissa: 0x400000 (quiet NaN flag)
-        //    bits = 0x7FC00000;
-        //}
-        // Normalized values (most common case)
+    // note: disabled as we don't need to handle NaNs
+    //// Handle special case for NaN (all bits set)
+    //else if (x == 0xFF) {
+    //    // Standard quiet NaN pattern:
+    //    // - Sign bit: 0
+    //    // - Exponent: all 1s (0xFF)
+    //    // - Mantissa: 0x400000 (quiet NaN flag)
+    //    bits = 0x7FC00000;
+    //}
+    // Normalized values (most common case)
     else {
         // Construct normalized float by shifting exponent into position:
         // - Exponent field: 8 bits (positions 30-23)
@@ -444,7 +441,7 @@ static inline float ggml_e8m0_to_fp32(uint8_t x) {
     }
 
     float result;  // Final float value
-    // Safely reinterpret bit pattern as float without type-punning issues
+                   // Safely reinterpret bit pattern as float without type-punning issues
     memcpy(&result, &bits, sizeof(float));
     return result;
 }
@@ -459,10 +456,10 @@ static inline float ggml_e8m0_to_fp32_half(uint8_t x) {
         // 0x00200000 = 2^(-128), 0x00400000 = 2^(-127)
         bits = 0x00200000 << x;
     }
-        // For x >= 2: normalized exponent adjustment
+    // For x >= 2: normalized exponent adjustment
     else {
         // 0.5 * 2^(x-127) = 2^(x-128) = normalized with exponent (x-1)
-        bits = (uint32_t) (x - 1) << 23;
+        bits = (uint32_t)(x - 1) << 23;
     }
     // Note: NaNs are not handled here
 
@@ -518,7 +515,7 @@ static inline float ggml_compute_bf16_to_fp32(ggml_bf16_t h) {
         float f;
         uint32_t i;
     } u;
-    u.i = (uint32_t) h.bits << 16;
+    u.i = (uint32_t)h.bits << 16;
     return u.f;
 }
 
@@ -550,14 +547,12 @@ static inline ggml_bf16_t ggml_compute_fp32_to_bf16(float s) {
 
 // return true if the node's results are only used by N other nodes
 // and can be fused into their calculations.
-static inline bool
-ggml_node_has_n_uses(const struct ggml_cgraph *cgraph, int node_idx, int32_t n_uses) {
-    const struct ggml_tensor *node = cgraph->nodes[node_idx];
+static inline bool ggml_node_has_n_uses(const struct ggml_cgraph * cgraph, int node_idx, int32_t n_uses) {
+    const struct ggml_tensor * node = cgraph->nodes[node_idx];
 
     // check the use count against how many we're replacing
     size_t hash_pos = ggml_hash_find(&cgraph->visited_hash_set, node);
-    if (!ggml_bitset_get(cgraph->visited_hash_set.used, hash_pos) ||
-        cgraph->use_counts[hash_pos] != n_uses) {
+    if (!ggml_bitset_get(cgraph->visited_hash_set.used, hash_pos) || cgraph->use_counts[hash_pos] != n_uses) {
         return false;
     }
 
@@ -581,15 +576,13 @@ ggml_node_has_n_uses(const struct ggml_cgraph *cgraph, int node_idx, int32_t n_u
 // - all nodes except the last are a src of the following node.
 // - all nodes are the same shape.
 // TODO: Consider allowing GGML_OP_NONE nodes in between
-static inline bool
-ggml_can_fuse(const struct ggml_cgraph *cgraph, int node_idx, const enum ggml_op *ops,
-              int num_ops) {
+static inline bool ggml_can_fuse(const struct ggml_cgraph * cgraph, int node_idx, const enum ggml_op * ops, int num_ops) {
     if (node_idx + num_ops > cgraph->n_nodes) {
         return false;
     }
 
     for (int i = 0; i < num_ops; ++i) {
-        struct ggml_tensor *node = cgraph->nodes[node_idx + i];
+        struct ggml_tensor * node = cgraph->nodes[node_idx + i];
         if (node->op != ops[i]) {
             return false;
         }
@@ -597,7 +590,7 @@ ggml_can_fuse(const struct ggml_cgraph *cgraph, int node_idx, const enum ggml_op
             return false;
         }
         if (i > 0) {
-            struct ggml_tensor *prev = cgraph->nodes[node_idx + i - 1];
+            struct ggml_tensor * prev = cgraph->nodes[node_idx + i - 1];
             if (node->src[0] != prev && node->src[1] != prev) {
                 return false;
             }
@@ -614,22 +607,16 @@ ggml_can_fuse(const struct ggml_cgraph *cgraph, int node_idx, const enum ggml_op
 #endif
 
 #ifdef __cplusplus
-
 #include <initializer_list>
 #include <vector>
 
 // nicer C++ syntax for ggml_can_fuse
-inline bool ggml_can_fuse(const struct ggml_cgraph *cgraph, int node_idx,
-                          std::initializer_list<enum ggml_op> ops) {
-    return ggml_can_fuse(cgraph, node_idx, ops.begin(), (int) ops.size());
+inline bool ggml_can_fuse(const struct ggml_cgraph * cgraph, int node_idx, std::initializer_list<enum ggml_op> ops) {
+    return ggml_can_fuse(cgraph, node_idx, ops.begin(), (int)ops.size());
 }
 
 // expose GGUF internals for test code
 GGML_API size_t gguf_type_size(enum gguf_type type);
-
-GGML_API struct gguf_context *gguf_init_from_file_impl(FILE *file, struct gguf_init_params params);
-
-GGML_API void
-gguf_write_to_buf(const struct gguf_context *ctx, std::vector<int8_t> &buf, bool only_meta);
-
+GGML_API struct gguf_context * gguf_init_from_file_impl(FILE * file, struct gguf_init_params params);
+GGML_API void gguf_write_to_buf(const struct gguf_context * ctx, std::vector<int8_t> & buf, bool only_meta);
 #endif // __cplusplus

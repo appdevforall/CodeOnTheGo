@@ -1,6 +1,5 @@
 #define GGML_COMMON_IMPL_CPP
 #define GGML_COMMON_DECL_CPP
-
 #include "ggml-common.h"
 #include "ggml-backend-impl.h"
 
@@ -17,7 +16,6 @@
 #include <cstdio>  // for GGML_ASSERT
 
 #define GGML_CPU_CLANG_WORKAROUND
-
 #include "../../repack.h"
 
 #if defined(__GNUC__)
@@ -26,8 +24,7 @@
 
 #define UNUSED GGML_UNUSED
 
-void ggml_gemv_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemv_q4_0_8x8_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 8;
@@ -36,15 +33,15 @@ void ggml_gemv_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (n % qk == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
 #if defined __riscv_v
     if (__riscv_vlenb() >= QK4_0) {
@@ -118,8 +115,7 @@ void ggml_gemv_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     ggml_gemv_q4_0_8x8_q8_0_generic(n, s, bs, vx, vy, nr, nc);
 }
 
-void ggml_gemm_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                             const void *GGML_RESTRICT vy, int nr, int nc) {
+void ggml_gemm_q4_0_8x8_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, const void * GGML_RESTRICT vy, int nr, int nc) {
     const int qk = QK8_0;
     const int nb = n / qk;
     const int ncols_interleaved = 8;
@@ -129,15 +125,15 @@ void ggml_gemm_q4_0_8x8_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const voi
     assert (nr % 4 == 0);
     assert (nc % ncols_interleaved == 0);
 
-            UNUSED(s);
-            UNUSED(bs);
-            UNUSED(vx);
-            UNUSED(vy);
-            UNUSED(nr);
-            UNUSED(nc);
-            UNUSED(nb);
-            UNUSED(ncols_interleaved);
-            UNUSED(blocklen);
+    UNUSED(s);
+    UNUSED(bs);
+    UNUSED(vx);
+    UNUSED(vy);
+    UNUSED(nr);
+    UNUSED(nc);
+    UNUSED(nb);
+    UNUSED(ncols_interleaved);
+    UNUSED(blocklen);
 
 #if defined __riscv_v
     if (__riscv_vlenb() >= QK4_0) {

@@ -1,5 +1,4 @@
 #define GGML_COMMON_IMPL_C
-
 #include "ggml-common.h"
 #include "ggml-quants.h"
 #include "ggml-impl.h"
@@ -24,12 +23,12 @@
 
 #define UNUSED GGML_UNUSED
 
-void quantize_row_q8_0(const float *GGML_RESTRICT x, void *GGML_RESTRICT vy, int64_t k) {
+void quantize_row_q8_0(const float * GGML_RESTRICT x, void * GGML_RESTRICT vy, int64_t k) {
     assert(QK8_0 == 32);
     assert(k % QK8_0 == 0);
     const int nb = k / QK8_0;
 
-    block_q8_0 *GGML_RESTRICT y = vy;
+    block_q8_0 * GGML_RESTRICT y = vy;
 
 #if defined(__riscv_v)
 
@@ -65,11 +64,11 @@ void quantize_row_q8_0(const float *GGML_RESTRICT x, void *GGML_RESTRICT vy, int
 #endif
 }
 
-void quantize_row_q8_1(const float *GGML_RESTRICT x, void *GGML_RESTRICT vy, int64_t k) {
+void quantize_row_q8_1(const float * GGML_RESTRICT x, void * GGML_RESTRICT vy, int64_t k) {
     assert(k % QK8_1 == 0);
     const int nb = k / QK8_1;
 
-    block_q8_1 *GGML_RESTRICT y = vy;
+    block_q8_1 * GGML_RESTRICT y = vy;
 
 #if defined(__riscv_v)
 
@@ -116,8 +115,7 @@ void quantize_row_q8_1(const float *GGML_RESTRICT x, void *GGML_RESTRICT vy, int
 
 //===================================== Dot products =================================
 
-void ggml_vec_dot_q4_0_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q4_0_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
 #if defined(__riscv_v)
     const int qk = QK8_0;
     const int nb = n / qk;
@@ -172,8 +170,7 @@ void ggml_vec_dot_q4_0_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void
 #endif
 }
 
-void ggml_vec_dot_q4_1_q8_1(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q4_1_q8_1(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
 #if defined(__riscv_v)
     const int qk = QK8_1;
     const int nb = n / qk;
@@ -224,8 +221,7 @@ void ggml_vec_dot_q4_1_q8_1(int n, float *GGML_RESTRICT s, size_t bs, const void
 #endif
 }
 
-void ggml_vec_dot_q5_0_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q5_0_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
 #if defined(__riscv_v)
     const int qk = QK8_0;
     const int nb = n / qk;
@@ -279,8 +275,7 @@ void ggml_vec_dot_q5_0_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void
 #endif
 }
 
-void ggml_vec_dot_q5_1_q8_1(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q5_1_q8_1(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
 #if defined(__riscv_v)
     const int qk = QK8_1;
     const int nb = n / qk;
@@ -333,20 +328,19 @@ void ggml_vec_dot_q5_1_q8_1(int n, float *GGML_RESTRICT s, size_t bs, const void
 #endif
 }
 
-void ggml_vec_dot_q8_0_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q8_0_q8_0(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
     const int qk = QK8_0;
     const int nb = n / qk;
 
     assert(n % qk == 0);
     assert(nrc == 1);
-            UNUSED(nrc);
-            UNUSED(bx);
-            UNUSED(by);
-            UNUSED(bs);
+    UNUSED(nrc);
+    UNUSED(bx);
+    UNUSED(by);
+    UNUSED(bs);
 
-    const block_q8_0 *GGML_RESTRICT x = vx;
-    const block_q8_0 *GGML_RESTRICT y = vy;
+    const block_q8_0 * GGML_RESTRICT x = vx;
+    const block_q8_0 * GGML_RESTRICT y = vy;
 
     int ib = 0;
     float sumf = 0;
@@ -372,26 +366,25 @@ void ggml_vec_dot_q8_0_q8_0(int n, float *GGML_RESTRICT s, size_t bs, const void
     *s = sumf;
 #else
 
-            UNUSED(nb);
-            UNUSED(x);
-            UNUSED(y);
-            UNUSED(ib);
-            UNUSED(sumf);
+    UNUSED(nb);
+    UNUSED(x);
+    UNUSED(y);
+    UNUSED(ib);
+    UNUSED(sumf);
 
     ggml_vec_dot_q8_0_q8_0_generic(n, s, bs, vx, bx, vy, by, nrc);
 #endif
 }
 
-void ggml_vec_dot_q2_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q2_K_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
     assert(nrc == 1);
-            UNUSED(nrc);
-            UNUSED(bx);
-            UNUSED(by);
-            UNUSED(bs);
+    UNUSED(nrc);
+    UNUSED(bx);
+    UNUSED(by);
+    UNUSED(bs);
 
-    const block_q2_K *GGML_RESTRICT x = vx;
-    const block_q8_K *GGML_RESTRICT y = vy;
+    const block_q2_K * GGML_RESTRICT x = vx;
+    const block_q8_K * GGML_RESTRICT y = vy;
 
     const int nb = n / QK_K;
 
@@ -676,28 +669,27 @@ void ggml_vec_dot_q2_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void
 
 #else
 
-            UNUSED(x);
-            UNUSED(y);
-            UNUSED(nb);
+    UNUSED(x);
+    UNUSED(y);
+    UNUSED(nb);
 
     ggml_vec_dot_q2_K_q8_K_generic(n, s, bs, vx, bx, vy, by, nrc);
 #endif
 }
 
-void ggml_vec_dot_q3_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q3_K_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
     assert(n % QK_K == 0);
     assert(nrc == 1);
-            UNUSED(nrc);
-            UNUSED(bx);
-            UNUSED(by);
-            UNUSED(bs);
+    UNUSED(nrc);
+    UNUSED(bx);
+    UNUSED(by);
+    UNUSED(bs);
 
     const uint32_t kmask1 = 0x03030303;
     const uint32_t kmask2 = 0x0f0f0f0f;
 
-    const block_q3_K *GGML_RESTRICT x = vx;
-    const block_q8_K *GGML_RESTRICT y = vy;
+    const block_q3_K * GGML_RESTRICT x = vx;
+    const block_q8_K * GGML_RESTRICT y = vy;
 
     const int nb = n / QK_K;
 
@@ -1054,28 +1046,27 @@ void ggml_vec_dot_q3_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void
 
 #else
 
-            UNUSED(kmask1);
-            UNUSED(kmask2);
-            UNUSED(x);
-            UNUSED(y);
-            UNUSED(nb);
+    UNUSED(kmask1);
+    UNUSED(kmask2);
+    UNUSED(x);
+    UNUSED(y);
+    UNUSED(nb);
 
     ggml_vec_dot_q3_K_q8_K_generic(n, s, bs, vx, bx, vy, by, nrc);
 #endif
 
 }
 
-void ggml_vec_dot_q4_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q4_K_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
     assert(n % QK_K == 0);
     assert(nrc == 1);
-            UNUSED(nrc);
-            UNUSED(bx);
-            UNUSED(by);
-            UNUSED(bs);
+    UNUSED(nrc);
+    UNUSED(bx);
+    UNUSED(by);
+    UNUSED(bs);
 
-    const block_q4_K *GGML_RESTRICT x = vx;
-    const block_q8_K *GGML_RESTRICT y = vy;
+    const block_q4_K * GGML_RESTRICT x = vx;
+    const block_q8_K * GGML_RESTRICT y = vy;
 
     const int nb = n / QK_K;
 
@@ -1463,29 +1454,28 @@ void ggml_vec_dot_q4_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void
 
 #else
 
-            UNUSED(x);
-            UNUSED(y);
-            UNUSED(kmask1);
-            UNUSED(kmask2);
-            UNUSED(kmask3);
-            UNUSED(nb);
-            UNUSED(utmp);
+    UNUSED(x);
+    UNUSED(y);
+    UNUSED(kmask1);
+    UNUSED(kmask2);
+    UNUSED(kmask3);
+    UNUSED(nb);
+    UNUSED(utmp);
 
     ggml_vec_dot_q4_K_q8_K_generic(n, s, bs, vx, bx, vy, by, nrc);
 #endif
 }
 
-void ggml_vec_dot_q5_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q5_K_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy,  size_t by, int nrc) {
     assert(n % QK_K == 0);
     assert(nrc == 1);
-            UNUSED(nrc);
-            UNUSED(bx);
-            UNUSED(by);
-            UNUSED(bs);
+    UNUSED(nrc);
+    UNUSED(bx);
+    UNUSED(by);
+    UNUSED(bs);
 
-    const block_q5_K *GGML_RESTRICT x = vx;
-    const block_q8_K *GGML_RESTRICT y = vy;
+    const block_q5_K * GGML_RESTRICT x = vx;
+    const block_q8_K * GGML_RESTRICT y = vy;
 
     const int nb = n / QK_K;
 
@@ -1583,29 +1573,28 @@ void ggml_vec_dot_q5_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void
 
 #else
 
-            UNUSED(x);
-            UNUSED(y);
-            UNUSED(kmask1);
-            UNUSED(kmask2);
-            UNUSED(kmask3);
-            UNUSED(nb);
-            UNUSED(utmp);
+    UNUSED(x);
+    UNUSED(y);
+    UNUSED(kmask1);
+    UNUSED(kmask2);
+    UNUSED(kmask3);
+    UNUSED(nb);
+    UNUSED(utmp);
 
     ggml_vec_dot_q5_K_q8_K_generic(n, s, bs, vx, bx, vy, by, nrc);
 #endif
 }
 
-void ggml_vec_dot_q6_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void *GGML_RESTRICT vx,
-                            size_t bx, const void *GGML_RESTRICT vy, size_t by, int nrc) {
+void ggml_vec_dot_q6_K_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
     assert(n % QK_K == 0);
     assert(nrc == 1);
-            UNUSED(nrc);
-            UNUSED(bx);
-            UNUSED(by);
-            UNUSED(bs);
+    UNUSED(nrc);
+    UNUSED(bx);
+    UNUSED(by);
+    UNUSED(bs);
 
-    const block_q6_K *GGML_RESTRICT x = vx;
-    const block_q8_K *GGML_RESTRICT y = vy;
+    const block_q6_K * GGML_RESTRICT x = vx;
+    const block_q8_K * GGML_RESTRICT y = vy;
 
     const int nb = n / QK_K;
 
@@ -1898,9 +1887,9 @@ void ggml_vec_dot_q6_K_q8_K(int n, float *GGML_RESTRICT s, size_t bs, const void
 
 #else
 
-            UNUSED(x);
-            UNUSED(y);
-            UNUSED(nb);
+    UNUSED(x);
+    UNUSED(y);
+    UNUSED(nb);
 
     ggml_vec_dot_q6_K_q8_K_generic(n, s, bs, vx, bx, vy, by, nrc);
 #endif
