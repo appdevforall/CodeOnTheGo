@@ -299,7 +299,7 @@ WHERE  path = ?
                 appendLine("</head>")
                 appendLine("<body>")
                 appendLine("<h1>LastChange Table (20 Most Recent Rows)</h1>")
-                appendLine("<table>")
+                appendLine("<table width='100%'>")
                 
                 // Add header row
                 appendLine("<tr>")
