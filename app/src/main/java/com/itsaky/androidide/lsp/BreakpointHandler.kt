@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp
 
+import androidx.annotation.VisibleForTesting
 import com.google.common.collect.HashBasedTable
 import com.google.common.collect.ImmutableTable
 import com.google.common.collect.Table
@@ -9,6 +10,7 @@ import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.Source
+import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.repositories.BreakpointRepository
 import kotlinx.coroutines.CoroutineScope
@@ -79,6 +81,69 @@ class BreakpointHandler {
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(BreakpointHandler::class.java)
+
+		@VisibleForTesting
+		internal fun computeNewBreakpointPosition(
+			line: Int,
+			column: Int,
+			start: Position,
+			end: Position,
+			changeType: ChangeType,
+		): Pair<Int, Int> {
+			var newLine = line
+			var newColumn = column
+
+			if (changeType == ChangeType.INSERT) {
+
+				// insertion before breakpoint line
+				if (line > start.line) {
+					// shift down
+					newLine += end.line - start.line
+				}
+
+				// insertion on breakpoint line, after start column
+				else if (line == start.line && column > start.column) {
+					if (start.line == end.line) {
+						// same line insertion, shift column right
+						newColumn += end.column - start.column
+					} else {
+						// multi-line insertion
+						// adjust line and column
+						newLine += end.line - start.line
+						newColumn = column - start.column + end.column
+					}
+				}
+			} else if (changeType == ChangeType.DELETE) {
+				// breakpoint after deletion range
+				if (line > end.line) {
+					// shift up
+					newLine -= end.line - start.line
+				}
+
+				// breakpoint after last line of deletion, after end column
+				else if (line == end.line && column > end.column) {
+					if (start.line == end.line) {
+						// Single-line deletion
+						newColumn -= (end.column - start.column);
+					} else {
+						// Multi-line deletion
+						newLine = start.line
+						newColumn = start.column + (column - end.column);
+					}
+				}
+
+				// breakpoint within deleted range
+				else if ((line > start.line || (line == start.line && column >= start.column))
+					&& (line < end.line || (line == end.line && column <= end.column))
+				) {
+					// mark for deletion
+					newLine = -1
+					newColumn = -1
+				}
+			}
+
+			return Pair(newLine, newColumn)
+		}
 	}
 
 	fun highlightLocation(file: String, line: Int) {
@@ -217,57 +282,7 @@ class BreakpointHandler {
 		for ((_, bp) in fileBreakpoints) {
 			val line = bp.line
 			val column = bp.column
-			var newLine = line
-			var newColumn = column
-
-			if (ev.changeType == ChangeType.INSERT) {
-
-				// insertion before breakpoint line
-				if (line > start.line) {
-					// shift down
-					newLine += end.line - start.line
-				}
-
-				// insertion on breakpoint line, after start column
-				else if (line == start.line && column > start.column) {
-					if (start.line == end.line) {
-						// same line insertion, shift column right
-						newColumn += end.column - start.column
-					} else {
-						// multi-line insertion
-						// adjust line and column
-						newLine += end.line - start.line
-						newColumn = column - start.column + end.column
-					}
-				}
-			} else if (ev.changeType == ChangeType.DELETE) {
-				// breakpoint after deletion range
-				if (line > end.line) {
-					// shift up
-					newLine -= end.line - start.line
-				}
-
-				// breakpoint after last line of deletion, after end column
-				else if (line == end.line && column > end.column) {
-					if (start.line == end.line) {
-						// Single-line deletion
-						newColumn -= (end.column - start.column);
-					} else {
-						// Multi-line deletion
-						newLine = start.line
-						newColumn = start.column + (column - end.column);
-					}
-				}
-
-				// breakpoint within deleted range
-				else if ((line > start.line || (line == start.line && column >= start.column))
-					&& (line < end.line || (line == end.line && column <= end.column))) {
-
-					// mark for deletion
-					newLine = -1
-					newColumn = -1
-				}
-			}
+			val (newLine, newColumn) = computeNewBreakpointPosition(line, column, start, end, ev.changeType)
 
 			if (newLine == line && newColumn == column) {
 				// no change
