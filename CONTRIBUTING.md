@@ -40,7 +40,7 @@ get started with the development or to learn more about the various components i
 Before proposing a change, it is always recommended to open an issue and discuss it with the
 maintainers.
 
-**The `main` branch is protected and requires all the commits to be signed with your GPG key and the
+**The `dev` branch is protected and requires all the commits to be signed with your GPG key and the
 commit history to be linear.**
 See [protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches)
 .
@@ -64,3 +64,4 @@ logs, and build outputs in `code blocks`.
 
 If you want to discuss anything about the project, you can discuss it in
 the [Telegram group](https://t.me/androidide_discussions).
+
