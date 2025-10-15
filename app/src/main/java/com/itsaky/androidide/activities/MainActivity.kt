@@ -26,8 +26,11 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -296,13 +299,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun startWebServer() {
-        try {
-            val dbFile = Environment.DOC_DB
-            log.info("Starting WebServer - database file exists at: {}", dbFile.absolutePath)
-            val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
-            Thread { webServer.start() }.start()
-        } catch (e: Exception) {
-            log.error("Failed to start WebServer", e)
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val dbFile = Environment.DOC_DB
+                log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
+                val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
+                webServer.start() 
+            } catch (e: Exception) {
+                log.error("Failed to start WebServer", e)
+            }
         }
     }
 
