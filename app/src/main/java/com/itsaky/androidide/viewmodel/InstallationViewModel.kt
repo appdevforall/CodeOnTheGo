@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.withStopWatch
 import io.sentry.Sentry
@@ -15,27 +16,27 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.itsaky.androidide.viewmodel.PermissionsState.PermissionsGranted
-import com.itsaky.androidide.viewmodel.PermissionsState.Installing
-import com.itsaky.androidide.viewmodel.PermissionsState.PermissionsPending
-import com.itsaky.androidide.viewmodel.PermissionsState.InstallationComplete
-import com.itsaky.androidide.viewmodel.PermissionsState.InstallationError
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
+import com.itsaky.androidide.viewmodel.InstallationState.Installing
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationComplete
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationError
 import org.slf4j.LoggerFactory
 
-class PermissionsViewModel : ViewModel() {
+class InstallationViewModel : ViewModel() {
 
-    private val log = LoggerFactory.getLogger(PermissionsViewModel::class.java)
+    private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
 
-    private val _state = MutableStateFlow<PermissionsState>(PermissionsPending)
-    val state: StateFlow<PermissionsState> = _state.asStateFlow()
+    private val _state = MutableStateFlow<InstallationState>(InstallationPending)
+    val state: StateFlow<InstallationState> = _state.asStateFlow()
 
     private val _installationProgress = MutableStateFlow("")
     val installationProgress: StateFlow<String> = _installationProgress.asStateFlow()
     fun onPermissionsUpdated(allGranted: Boolean) {
-        if (allGranted && _state.value is PermissionsPending) {
-            _state.value =PermissionsGranted
-        } else if (!allGranted && _state.value is PermissionsGranted) {
-            _state.value =PermissionsPending
+        if (allGranted && _state.value is InstallationPending) {
+            _state.value =InstallationGranted
+        } else if (!allGranted && _state.value is InstallationGranted) {
+            _state.value =InstallationPending
         }
     }
 
@@ -71,16 +72,16 @@ class PermissionsViewModel : ViewModel() {
                             is AssetsInstallationHelper.Result.Failure -> {
                                 result.cause?.let { Sentry.captureException(it) }
                                 _state.value =InstallationError(
-                                    result.cause?.message ?: "Installation failed"
+                                    R.string.title_installation_failed
                                 )
                             }
                         }
                     }
                 } catch (e: Exception) {
                     Sentry.captureException(e)
-                    log.error("IDE setup installation failed", e)
+                    log.error("IDE setup installation faileid", e)
                     _state.value =InstallationError(
-                        e.message ?: "An unknown error occurred"
+                        R.string.unknown_error
                     )
                 }
             }

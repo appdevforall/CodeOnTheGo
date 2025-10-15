@@ -33,7 +33,6 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
@@ -50,13 +49,13 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastT
 import com.itsaky.androidide.utils.viewLifecycleScope
-import com.itsaky.androidide.viewmodel.PermissionsState
-import com.itsaky.androidide.viewmodel.PermissionsState.InstallationComplete
-import com.itsaky.androidide.viewmodel.PermissionsState.InstallationError
-import com.itsaky.androidide.viewmodel.PermissionsState.Installing
-import com.itsaky.androidide.viewmodel.PermissionsState.PermissionsGranted
-import com.itsaky.androidide.viewmodel.PermissionsState.PermissionsPending
-import com.itsaky.androidide.viewmodel.PermissionsViewModel
+import com.itsaky.androidide.viewmodel.InstallationState
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationComplete
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationError
+import com.itsaky.androidide.viewmodel.InstallationState.Installing
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
+import com.itsaky.androidide.viewmodel.InstallationViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -70,7 +69,7 @@ class PermissionsFragment :
 	OnboardingFragment(),
 	SlidePolicy {
 	var adapter: OnboardingPermissionsAdapter? = null
-	private val viewModel: PermissionsViewModel by viewModels()
+	private val viewModel: InstallationViewModel by viewModels()
 	private var permissionsBinding: LayoutOnboardingPermissionsBinding? = null
 	private var recyclerView: RecyclerView? = null
 	private var finishButton: MaterialButton? = null
@@ -241,12 +240,12 @@ class PermissionsFragment :
 		}
 	}
 
-	private fun handleState(state: PermissionsState) {
+	private fun handleState(state: InstallationState) {
 		when (state) {
-			is PermissionsPending -> {
+			is InstallationPending -> {
 				finishButton?.isEnabled = false
 			}
-			is PermissionsGranted -> {
+			is InstallationGranted -> {
 				finishButton?.isEnabled = true
 			}
 			is Installing -> {
@@ -259,7 +258,7 @@ class PermissionsFragment :
 			is InstallationError -> {
 				finishButton?.isEnabled = true
 				finishButton?.text = getString(R.string.finish_installation)
-				activity?.flashError(state.error)
+				activity?.flashError(getString(state.errorMessageResId))
 			}
 		}
 	}
