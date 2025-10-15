@@ -152,9 +152,6 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
         return currentActivity
     }
 
-    fun getCurrentActivity(): android.app.Activity? {
-        return currentActivity
-    }
 
     /**
      * Called by activities when they become active/visible.
