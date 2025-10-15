@@ -58,8 +58,6 @@ import org.slf4j.LoggerFactory
 import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
 
-import android.hardware.display.DisplayManager
-import android.view.Display
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
@@ -115,7 +113,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         startWebServer()
 
         openLastProject()
-        setupSecondaryDisplay()
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
@@ -315,18 +312,5 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         ITemplateProvider.getInstance().release()
         super.onDestroy()
         _binding = null
-    }
-
-    private fun setupSecondaryDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-
-        val secondDisplay = displays.firstOrNull { display ->
-            display.displayId != Display.DEFAULT_DISPLAY
-        }
-        secondDisplay?.let {
-            val presentation = SecondaryScreen(this, it)
-            presentation.show()
-        }
     }
 }
