@@ -21,10 +21,9 @@
 ## Features
 
 - [x] Gradle support.
-- [x] `JDK 11` and `JDK 17` available for use.
+- [x] `JDK 21` available for use.
 - [x] Terminal with necessary packages.
 - [x] Custom environment variables (for Build & Terminal).
-- [x] SDK Manager (Available via terminal).
 - [x] API information for classes and their members (since, removed, deprecated).
 - [x] Log reader (shows your app's logs in real-time)
 - [ ] Language servers
@@ -41,29 +40,6 @@
 - [ ] String Translator
 - [ ] Asset Studio (Drawable & Icon Maker)
 - [x] Git
-
-## 🔒 Git Pre-Commit Hook: Branch Name Enforcement
-
-This project enforces a strict branch naming policy using a Git pre-commit hook.
-
-### ✅ Allowed Branch Formats:
-- `ADFA-123` (3 to 5 digit number)
-- `feature/ADFA-123`
-- `bugfix/ADFA-12345`
-- `chore/ADFA-9999`
-- `anyprefix/ADFA-#####`
-
-### 🛠 Setup
-
-#### Mac/Linux:
-```bash
-sh ./scripts/install-git-hooks.sh
-````
-
-#### Windows
-```bash
-scripts\install-git-hooks.bat
-```
 
 ## Installation
 
@@ -123,6 +99,7 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
 
