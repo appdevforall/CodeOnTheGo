@@ -304,7 +304,7 @@ WHERE  path = ?
                 // Add header row
                 appendLine("<tr>")
                 for (columnName in columnNames) {
-                    appendLine("<th>$columnName</th>")
+                    appendLine("<th>${escapeHtml(columnName)}</th>")
                 }
                 appendLine("</tr>")
                 
@@ -313,7 +313,7 @@ WHERE  path = ?
                     appendLine("<tr>")
                     for (i in 0 until columnCount) {
                         val value = dataCursor.getString(i) ?: ""
-                        appendLine("<td>$value</td>")
+                        appendLine("<td>${escapeHtml(value)}</td>")
                     }
                     appendLine("</tr>")
                 }
@@ -340,6 +340,19 @@ WHERE  path = ?
             log.error("Error handling /db endpoint: {}", e.message)
             sendError(writer, 500, "Internal Server Error", "Error generating database table: ${e.message}")
         }
+    }
+
+    /**
+     * Escapes HTML special characters to prevent XSS attacks.
+     * Converts <, >, &, ", and ' to their HTML entity equivalents.
+     */
+    private fun escapeHtml(text: String): String {
+        return text
+            .replace("&", "&amp;")   // Must be first to avoid double-escaping
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#x27;")
     }
 
     private fun sendError(writer: PrintWriter, code: Int, message: String, details: String = "") {
