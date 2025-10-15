@@ -271,6 +271,7 @@ class BreakpointHandler {
 
 			if (newLine == line && newColumn == column) {
 				// no change
+				updated[line] == bp
 				continue
 			}
 
