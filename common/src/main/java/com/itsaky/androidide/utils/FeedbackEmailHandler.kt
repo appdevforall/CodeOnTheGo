@@ -84,8 +84,7 @@ class FeedbackEmailHandler(
 				bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
 			}
 
-			val authority =
-				"${context.packageName}.providers.fileprovider"
+            val authority = "${context.packageName}.$AUTHORITY_SUFFIX"
 			val uri = FileProvider.getUriForFile(context, authority, screenshotFile)
 			uri
 		} catch (e: Exception) {
@@ -152,7 +151,7 @@ class FeedbackEmailHandler(
         attachmentUris: MutableList<Uri>
     ): Intent {
         return when {
-            // No screenshot or log file (if either files failed to be created)
+            // No screenshot or log file (if both files failed to be created)
             attachmentUris.isEmpty() -> {
                 Intent(Intent.ACTION_SEND).apply {
                     putExtra(Intent.EXTRA_EMAIL, arrayOf(emailRecipient))
@@ -180,7 +179,7 @@ class FeedbackEmailHandler(
                     putExtra(Intent.EXTRA_TEXT, body)
                     putExtra(Intent.EXTRA_STREAM, attachmentUris.first())
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    this.type = "image/jpeg"
+                    type = "*/*"
                 }
             }
         }
