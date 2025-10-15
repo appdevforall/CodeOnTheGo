@@ -311,6 +311,7 @@ dependencies {
 
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.google.genai)
     implementation(project(":llama-api"))
     coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
