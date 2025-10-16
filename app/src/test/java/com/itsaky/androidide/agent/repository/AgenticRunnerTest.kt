@@ -37,7 +37,7 @@ class AgenticRunnerTest {
             val critic = mockk<Critic>(relaxed = true)
             val executor = mockk<Executor>(relaxed = true)
 
-            every { planner.generatePlan(any()) } returns Plan(
+            every { planner.createInitialPlan(any()) } returns Plan(
                 mutableListOf(TaskStep("Prepare response"))
             )
             val planOutput = Content.builder()
@@ -45,7 +45,7 @@ class AgenticRunnerTest {
                 .parts(Part.builder().text("Final answer").build())
                 .build()
 
-            every { planner.plan(any()) } returns planOutput
+            every { planner.planForStep(any(), any(), any()) } returns planOutput
 
             val runner = AgenticRunner(
                 context = context,
@@ -67,8 +67,8 @@ class AgenticRunnerTest {
             assertEquals(Sender.USER, messages.first().sender)
             assertEquals("Final answer", messages.last().text)
             assertEquals(Sender.AGENT, messages.last().sender)
-            verify(exactly = 1) { planner.plan(any()) }
-            verify(exactly = 1) { planner.generatePlan(any()) }
+            verify(exactly = 1) { planner.planForStep(any(), any(), any()) }
+            verify(exactly = 1) { planner.createInitialPlan(any()) }
             val planState = runner.plan.value!!
             assertEquals(StepStatus.DONE, planState.steps.first().status)
             assertEquals("Final answer", planState.steps.first().result)
@@ -116,7 +116,7 @@ class AgenticRunnerTest {
             val critic = mockk<Critic>(relaxed = true)
             val executor = mockk<Executor>(relaxed = true)
 
-            every { planner.generatePlan(any()) } returns Plan(
+            every { planner.createInitialPlan(any()) } returns Plan(
                 mutableListOf(TaskStep("Attempt execution"))
             )
             val planOutput = Content.builder()
@@ -124,7 +124,13 @@ class AgenticRunnerTest {
                 .parts(Part.builder().text("Recovered answer").build())
                 .build()
 
-            every { planner.plan(any()) } throws IOException("network glitch") andThen planOutput
+            every {
+                planner.planForStep(
+                    any(),
+                    any(),
+                    any()
+                )
+            } throws IOException("network glitch") andThen planOutput
 
             val runner = AgenticRunner(
                 context = context,
@@ -143,8 +149,8 @@ class AgenticRunnerTest {
             val messages = runner.messages.value
             assertEquals(2, messages.size)
             assertEquals("Recovered answer", messages.last().text)
-            verify(exactly = 2) { planner.plan(any()) }
-            verify(exactly = 1) { planner.generatePlan(any()) }
+            verify(exactly = 2) { planner.planForStep(any(), any(), any()) }
+            verify(exactly = 1) { planner.createInitialPlan(any()) }
             val planState = runner.plan.value!!
             assertEquals(StepStatus.DONE, planState.steps.first().status)
             assertEquals("Recovered answer", planState.steps.first().result)
@@ -162,10 +168,10 @@ class AgenticRunnerTest {
             val critic = mockk<Critic>(relaxed = true)
             val executor = mockk<Executor>(relaxed = true)
 
-            every { planner.generatePlan(any()) } returns Plan(
+            every { planner.createInitialPlan(any()) } returns Plan(
                 mutableListOf(TaskStep("Attempt execution"))
             )
-            every { planner.plan(any()) } throws IOException("flaky network")
+            every { planner.planForStep(any(), any(), any()) } throws IOException("flaky network")
 
             val runner = AgenticRunner(
                 context = context,
@@ -184,8 +190,8 @@ class AgenticRunnerTest {
             val messages = runner.messages.value
             assertEquals(2, messages.size)
             assertEquals("An error occurred: flaky network", messages.last().text)
-            verify(exactly = 3) { planner.plan(any()) }
-            verify(exactly = 1) { planner.generatePlan(any()) }
+            verify(exactly = 3) { planner.planForStep(any(), any(), any()) }
+            verify(exactly = 1) { planner.createInitialPlan(any()) }
             val planState = runner.plan.value!!
             assertEquals(StepStatus.FAILED, planState.steps.first().status)
             assertEquals("flaky network", planState.steps.first().result)

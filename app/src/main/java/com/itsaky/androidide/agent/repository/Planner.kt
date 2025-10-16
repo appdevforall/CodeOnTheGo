@@ -51,7 +51,7 @@ class Planner(
         isLenient = true
     }
 
-    fun generatePlan(history: List<Content>): Plan {
+    fun createInitialPlan(history: List<Content>): Plan {
         log.info("Planner: Creating high-level plan...")
 
         val plannerHistory = mutableListOf<Content>()
@@ -74,6 +74,47 @@ class Planner(
         val normalizedSteps = steps.map { it.copy(status = StepStatus.PENDING, result = null) }
         log.info("Planner produced ${normalizedSteps.size} plan steps.")
         return Plan(normalizedSteps.toMutableList())
+    }
+
+    fun planForStep(
+        history: List<Content>,
+        plan: Plan,
+        stepIndex: Int
+    ): Content {
+        log.info("Planner: Generating tool call suggestion for step {}", stepIndex)
+        val planSummary = plan.steps.mapIndexed { idx, step ->
+            val status = step.status.name
+            val resultSuffix = step.result?.let { " -> $it" } ?: ""
+            "${idx + 1}. [$status] ${step.description}$resultSuffix"
+        }.joinToString("\n")
+
+        val currentStep = plan.steps.getOrNull(stepIndex)
+            ?: throw IllegalArgumentException("Invalid step index $stepIndex for plan of size ${plan.steps.size}")
+
+        val instruction = """
+            You are executing step ${stepIndex + 1} of the following plan:
+            $planSummary
+
+            Focus on the current step: "${currentStep.description}".
+            Respond with either:
+            1. A function call using one of the available tools if action is required.
+            2. A direct natural-language response if no tool is needed.
+        """.trimIndent()
+
+        val plannerHistory = mutableListOf(
+            Content.builder()
+                .role("user")
+                .parts(Part.builder().text(instruction).build())
+                .build()
+        )
+        plannerHistory.addAll(history)
+
+        val response = client.generateContent(plannerHistory, tools, forceToolUse = false)
+        val candidate = response.candidates().getOrNull()?.firstOrNull()
+            ?: throw IllegalStateException("API response did not contain any candidates.")
+
+        return candidate.content().getOrNull()
+            ?: throw IllegalStateException("Candidate did not contain any content.")
     }
 
     /**

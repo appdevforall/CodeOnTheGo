@@ -137,6 +137,7 @@ class AgenticRunner(
         private const val INITIAL_RETRY_DELAY_MS = 100L
         private const val MAX_RETRY_DELAY_MS = 2_000L
         private const val RETRY_BACKOFF_MULTIPLIER = 2.0
+        private const val MAX_STEP_ATTEMPTS = 3
 
         private val json = Json {
             prettyPrint = true
@@ -235,64 +236,130 @@ class AgenticRunner(
     private suspend fun run(): String {
         startLog()
         addMessage("...", Sender.AGENT)
-        onStateUpdate?.invoke(AgentState.Thinking("Gathering context..."))
+        onStateUpdate?.invoke(AgentState.Initializing("Crafting a plan..."))
 
         val initialContent = buildInitialContent()
         val history = mutableListOf(initialContent)
 
-        try {
-            initializePlan(history)
+        val initialPlan = runWithRetry("planner_initial_plan") {
+            planner.createInitialPlan(history)
+        }
 
-            for (step in 0 until maxSteps) {
+        if (initialPlan.steps.isEmpty()) {
+            val message = "I couldn't devise a plan for that request."
+            updateLastMessage(message)
+            return message
+        }
+
+        _plan.value = initialPlan
+        logPlanSnapshot("plan_created")
+        val planSummaryMessage = if (initialPlan.steps.size == 1) {
+            "Plan ready: ${initialPlan.steps.first().description}"
+        } else {
+            "Plan ready with ${initialPlan.steps.size} steps."
+        }
+        updateLastMessage(planSummaryMessage)
+        emitExecutingState(_plan.value?.firstActionableIndex())
+
+        try {
+            val plannedSteps = _plan.value?.steps?.size ?: 0
+            val totalSteps = plannedSteps.coerceAtMost(maxSteps)
+            if (plannedSteps > maxSteps) {
+                log.warn(
+                    "Plan contains {} steps but runner is limited to {}. Only the first {} steps will be executed.",
+                    plannedSteps,
+                    maxSteps,
+                    totalSteps
+                )
+            }
+            for (stepIndex in 0 until totalSteps) {
                 runnerScope.ensureActive()
 
-                val stepIndex = currentActionableStepIndex()
-                if (stepIndex == null) {
-                    val completionMessage =
-                        _messages.value.lastOrNull()?.text?.takeIf { it.isNotBlank() }
-                            ?: "Plan completed."
-                    updateLastMessage(completionMessage)
-                    emitExecutingState(null)
-                    return completionMessage
-                }
+                val currentPlanSnapshot = _plan.value
+                    ?: throw IllegalStateException("Plan disappeared during execution.")
+                val stepDescription = currentPlanSnapshot.steps[stepIndex].description
 
-                val currentStep = _plan.value!!.steps[stepIndex]
                 markStepStatus(stepIndex, StepStatus.IN_PROGRESS, null)
                 emitExecutingState(stepIndex)
+                updateLastMessage("Executing: ${stepDescription}")
 
-                updateLastMessage("Executing: ${currentStep.description}")
+                var attempts = 0
+                var stepSucceeded = false
 
-                val planContent = processPlannerStep(history)
-                val functionCalls =
-                    planContent.parts().get().mapNotNull { it.functionCall().getOrNull() }
+                while (!stepSucceeded && attempts < MAX_STEP_ATTEMPTS) {
+                    val planSnapshot = _plan.value?.deepCopy()
+                        ?: throw IllegalStateException("Plan snapshot unavailable.")
+                    onStateUpdate?.invoke(
+                        AgentState.Thinking("Determining next action for: \"$stepDescription\"")
+                    )
 
-                if (functionCalls.isEmpty()) {
-                    val finalText =
-                        planContent.parts().get().first().text().getOrNull()?.trim().orEmpty()
-                    updateLastMessage(finalText)
-                    logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
-                    markStepStatus(stepIndex, StepStatus.DONE, finalText)
-                    emitExecutingState(stepIndex)
-                    if (_plan.value?.isComplete() == true) {
-                        emitExecutingState(stepIndex)
-                        return finalText
+                    val plannerContent = runWithRetry("planner_step") {
+                        planner.planForStep(history, planSnapshot, stepIndex)
                     }
-                    emitExecutingState(currentActionableStepIndex())
-                    continue
+                    val plannerParts = plannerContent.parts().getOrNull().orEmpty()
+                    history.add(plannerContent)
+                    logTurn("model_step_${stepIndex + 1}", plannerParts)
+
+                    val functionCalls = plannerParts.mapNotNull { it.functionCall().getOrNull() }
+
+                    if (functionCalls.isEmpty()) {
+                        val responseText =
+                            plannerParts.firstOrNull()?.text()?.getOrNull()?.trim()
+                        if (!responseText.isNullOrBlank()) {
+                            updateLastMessage(responseText)
+                        }
+                        markStepStatus(stepIndex, StepStatus.DONE, responseText)
+                        emitExecutingState(stepIndex)
+                        stepSucceeded = true
+                        continue
+                    }
+
+                    onStateUpdate?.invoke(
+                        AgentState.Thinking("Calling tools for: \"$stepDescription\"")
+                    )
+                    val toolResultsParts = processToolExecutionStep(functionCalls)
+                    history.add(Content.builder().role("tool").parts(toolResultsParts).build())
+                    logTurn("tool_step_${stepIndex + 1}", toolResultsParts)
+
+                    val critique = processCriticStep(history)
+                    if (critique == "OK") {
+                        val resultSummary = toolResultsParts.joinToString("\n") { part ->
+                            part.functionResponse().getOrNull()?.response().toString()
+                        }.ifBlank { "Tools executed successfully." }
+                        markStepStatus(stepIndex, StepStatus.DONE, resultSummary)
+                        emitExecutingState(stepIndex)
+                        stepSucceeded = true
+                    } else {
+                        attempts++
+                        markStepStatus(stepIndex, StepStatus.IN_PROGRESS, critique)
+                        emitExecutingState(stepIndex)
+                    }
                 }
 
-                onStateUpdate?.invoke(AgentState.Thinking("Executing tool calls..."))
-                val toolResultsParts = processToolExecutionStep(functionCalls)
-                history.add(Content.builder().role("tool").parts(toolResultsParts).build())
-                logTurn("tool", toolResultsParts)
-
-                val critiqueResult = processCriticStep(history)
-                val resultMessage = critiqueResult.takeUnless { it == "OK" }
-                markStepStatus(stepIndex, StepStatus.DONE, resultMessage)
-                val nextIndex = currentActionableStepIndex()
-                emitExecutingState(nextIndex ?: stepIndex)
+                if (!stepSucceeded) {
+                    markStepStatus(
+                        stepIndex,
+                        StepStatus.FAILED,
+                        "Exceeded $MAX_STEP_ATTEMPTS attempts."
+                    )
+                    emitExecutingState(stepIndex)
+                    throw RuntimeException(
+                        "Failed to complete step: \"$stepDescription\" after $MAX_STEP_ATTEMPTS attempts."
+                    )
+                }
             }
-            throw RuntimeException("Exceeded max steps")
+
+            val finalPlanSnapshot = _plan.value
+            val finalAnswer = finalPlanSnapshot?.steps?.lastOrNull()?.result
+                ?.takeIf { !it.isNullOrBlank() }
+                ?: "I have completed all the steps in the plan."
+            updateLastMessage(finalAnswer)
+            logTurn(
+                "final_answer",
+                listOf(Part.builder().text(finalAnswer).build())
+            )
+            emitExecutingState(finalPlanSnapshot?.steps?.lastIndex)
+            return finalAnswer
         } catch (err: Exception) {
             if (err is CancellationException) {
                 log.warn("Agentic run was cancelled during execution.")
@@ -327,17 +394,6 @@ class AgenticRunner(
             createAugmentedPrompt(prompt, header, globalStaticExamples, formattedHistory)
         return Content.builder().role("user").parts(Part.builder().text(augmentedPrompt).build())
             .build()
-    }
-
-    private suspend fun processPlannerStep(history: MutableList<Content>): Content {
-        updateLastMessage("Planning...")
-        onStateUpdate?.invoke(AgentState.Thinking("Planning next action..."))
-        val plan = runWithRetry("planner") {
-            planner.plan(history)
-        }
-        history.add(plan)
-        logTurn("model", plan.parts().get())
-        return plan
     }
 
     private suspend fun processToolExecutionStep(functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
@@ -486,32 +542,6 @@ class AgenticRunner(
     private fun resetPlan() {
         _plan.value = null
     }
-
-    private suspend fun initializePlan(history: MutableList<Content>) {
-        if (_plan.value != null) return
-        updateLastMessage("Creating plan...")
-        onStateUpdate?.invoke(AgentState.Thinking("Drafting plan..."))
-        val generatedPlan = runWithRetry("planner_plan") {
-            planner.generatePlan(history)
-        }
-        val planToUse = if (generatedPlan.steps.isEmpty()) {
-            Plan(mutableListOf(TaskStep(description = "Address the user's request.")))
-        } else {
-            generatedPlan
-        }
-        _plan.value = planToUse
-        logPlanSnapshot("plan_created")
-        val summary = if (planToUse.steps.isEmpty()) {
-            "Plan ready."
-        } else {
-            val next = planToUse.steps.first().description
-            "Plan ready (${planToUse.steps.size} steps). Next: $next"
-        }
-        updateLastMessage(summary)
-        emitExecutingState(planToUse.firstActionableIndex())
-    }
-
-    private fun currentActionableStepIndex(): Int? = _plan.value?.firstActionableIndex()
 
     private fun markStepStatus(index: Int, status: StepStatus, result: String?) {
         mutateCurrentPlan { plan ->
