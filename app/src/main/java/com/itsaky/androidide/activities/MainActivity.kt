@@ -31,6 +31,7 @@ import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -116,9 +117,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         openLastProject()
 
-       if(FeatureFlags.isExperimentsEnabled()){
-           binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
-       }
+        lifecycleScope.launch {
+            val experimentsEnabled = withContext(Dispatchers.IO) {
+                FeatureFlags.isExperimentsEnabled()
+            }
+            if (experimentsEnabled) {
+                binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+            }
+        }
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
