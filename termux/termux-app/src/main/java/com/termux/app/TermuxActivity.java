@@ -247,7 +247,7 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
         FileReceiverActivity.updateFileReceiverActivityComponentsState(this);
 
-        feedbackButtonManager = new FeedbackButtonManager(this, findViewById(R.id.fab_feedback));
+        feedbackButtonManager = new FeedbackButtonManager(this, findViewById(R.id.fab_feedback), null);
         feedbackButtonManager.setupDraggableFab();
 
         try {
