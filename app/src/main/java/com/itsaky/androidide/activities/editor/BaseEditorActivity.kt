@@ -137,6 +137,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.utils.FeatureFlags
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -1401,9 +1402,10 @@ abstract class BaseEditorActivity :
                     return true
                 }
 
-                // --- THIS IS THE FIX ---
-                // Check for a left swipe (to show the AI Agent Panel)
                 if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    if (!FeatureFlags.isExperimentsEnabled()) {
+                        return false
+                    }
                     // Instead of opening a drawer, call our new method
                     toggleAgentPanel()
                     return true
