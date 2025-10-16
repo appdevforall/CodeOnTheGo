@@ -6,6 +6,9 @@ import com.google.genai.types.Part
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.projects.IProjectManager
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -31,21 +34,44 @@ class Executor {
 
     suspend fun execute(
         functionCalls: List<FunctionCall>
-    ): List<Part> {
+    ): List<Part> = coroutineScope {
         log.info("Executor: Executing ${functionCalls.size} tool call(s)...")
 
-        return functionCalls.map { call ->
+        val (parallelCalls, sequentialCalls) = functionCalls.partition { call ->
+            parallelSafeTools.contains(call.name().getOrNull())
+        }
+
+        val parallelResults = parallelCalls.map { call ->
+            async {
+                val toolName = call.name().getOrNull() ?: ""
+                val toolResult = dispatchToolCall(call)
+                log.info("Executor (Parallel): Resulting ${toolResult.toResultMap()}")
+
+                Part.builder().functionResponse(
+                    FunctionResponse.builder()
+                        .name(toolName)
+                        .response(toolResult.toResultMap())
+                        .build()
+                ).build()
+            }
+        }
+
+        val sequentialResults = mutableListOf<Part>()
+        for (call in sequentialCalls) {
             val toolName = call.name().getOrNull() ?: ""
             val toolResult = dispatchToolCall(call)
-            log.info("Executor: Resulting ${toolResult.toResultMap()}")
+            log.info("Executor (Sequential): Resulting ${toolResult.toResultMap()}")
 
-            Part.builder().functionResponse(
+            val part = Part.builder().functionResponse(
                 FunctionResponse.builder()
                     .name(toolName)
                     .response(toolResult.toResultMap())
                     .build()
             ).build()
+            sequentialResults.add(part)
         }
+
+        sequentialResults + parallelResults.awaitAll()
     }
 
     private suspend fun dispatchToolCall(functionCall: FunctionCall): ToolResult {

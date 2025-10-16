@@ -65,8 +65,10 @@ class GeminiClient(
         forceToolUse: Boolean
     ): GenerateContentConfig {
         val configBuilder = GenerateContentConfig.builder().tools(tools)
-        if (forceToolUse && tools.isNotEmpty()) {
-            log.info("Tool use is being forced for this API call.")
+        if (tools.isNotEmpty()) {
+            if (forceToolUse) {
+                log.info("Tool use is being forced for this API call.")
+            }
             val toolConfig = ToolConfig.builder()
                 .functionCallingConfig(
                     FunctionCallingConfig.builder()
