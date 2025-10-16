@@ -764,6 +764,8 @@ abstract class BaseEditorActivity :
                     super.onDrawerOpened(drawerView)
                     // Hide the keyboard when the drawer opens.
                     closeKeyboard()
+                    // Dismiss autocomplete and other editor windows
+                    provideCurrentEditor()?.editor?.ensureWindowsDismissed()
                 }
             }
 
@@ -1120,6 +1122,8 @@ abstract class BaseEditorActivity :
                 super.onDrawerOpened(drawerView)
                 // Hide the keyboard when the drawer opens.
                 closeKeyboard()
+                // Dismiss autocomplete and other editor windows
+                provideCurrentEditor()?.editor?.ensureWindowsDismissed()
             }
         }
 

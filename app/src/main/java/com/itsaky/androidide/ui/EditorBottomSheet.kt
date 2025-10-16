@@ -114,6 +114,7 @@ constructor(
 
 	private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 	private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
+	private lateinit var mediator: TabLayoutMediator
 
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
@@ -147,8 +148,7 @@ constructor(
 	}
 
 	private fun initialize(context: FragmentActivity) {
-		val mediator =
-			TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
+		mediator = TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
 				tab.text = pagerAdapter.getTitle(position)
 				tab.view.setOnLongClickListener { view ->
 					val tooltipTag =
@@ -164,7 +164,6 @@ constructor(
 
 		mediator.attach()
 		binding.pager.isUserInputEnabled = false
-		binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1
 
 		binding.tabs.addOnTabSelectedListener(
 			object : OnTabSelectedListener {
@@ -235,6 +234,25 @@ constructor(
 			insets
 		}
 	}
+
+  override fun onDetachedFromWindow() {
+    if (this::mediator.isInitialized) {
+        mediator.detach()
+    }
+
+    binding.tabs.clearOnTabSelectedListeners()
+    binding.shareOutputFab.setOnClickListener(null)
+    binding.shareOutputFab.setOnLongClickListener(null)
+    binding.clearFab.setOnClickListener(null)
+    binding.clearFab.setOnLongClickListener(null)
+    binding.headerContainer.setOnClickListener(null)
+    ViewCompat.setOnApplyWindowInsetsListener(this, null)
+
+    binding.pager.adapter = null
+
+    pagerAdapter.clearAll()
+    super.onDetachedFromWindow()
+  }
 
 	private fun onApkInstallationSessionChanged(state: ApkInstallationViewModel.SessionState) {
 		when (state) {

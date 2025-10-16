@@ -419,6 +419,12 @@ constructor(
         if (actionsMenu?.isShowing == true) {
             actionsMenu?.dismiss()
         }
+
+        // Dismiss autocomplete window if showing
+        val completion = getComponent(EditorAutoCompletion::class.java)
+        if (completion.isShowing) {
+            completion.hide()
+        }
     }
 
     // not overridable!
