@@ -60,6 +60,7 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -136,6 +137,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -155,7 +157,7 @@ import kotlin.math.roundToLong
 abstract class BaseEditorActivity :
 	EdgeToEdgeIDEActivity(),
 	TabLayout.OnTabSelectedListener,
-	DiagnosticClickListener, AgentPanelController {
+    DiagnosticClickListener, AgentPanelController {
 
 
 	protected var mLifecycleObserver: EditorActivityLifecyclerObserver? = null
@@ -399,45 +401,44 @@ abstract class BaseEditorActivity :
 	internal abstract fun doOpenHelp()
 
 	protected open fun preDestroy() {
-			BuildOutputProvider.clearBottomSheet()
+		BuildOutputProvider.clearBottomSheet()
 
-			Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
-			drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
-			drawerToggle = null
-			bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
-			bottomSheetCallback = null
+		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
+		drawerToggle = null
+		bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
+		bottomSheetCallback = null
 
-			runCatching { onBackPressedCallback.remove() }
+		runCatching { onBackPressedCallback.remove() }
+		runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
+		optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
+		optionsMenuInvalidator = null
 
-			runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
-			optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
-			optionsMenuInvalidator = null
+		apkInstallationViewModel.destroy(this)
 
-			apkInstallationViewModel.destroy(this)
-			feedbackButtonManager = null
+		feedbackButtonManager = null
+		mLifecycleObserver?.let {
+			runCatching { lifecycle.removeObserver(it) }
+		}
+		mLifecycleObserver = null
 
-			mLifecycleObserver?.let {
-					runCatching { lifecycle.removeObserver(it) }
-			}
-			mLifecycleObserver = null
+		IDEApplication.instance.setCurrentActivity(null)
 
-			IDEApplication.instance.setCurrentActivity(null)
+		diagnosticInfoBinding = null
+		filesTreeFragment = null
+		editorBottomSheet = null
+		gestureDetector = null
 
-			diagnosticInfoBinding = null
-			filesTreeFragment = null
-			editorBottomSheet = null
-			gestureDetector = null
+		_binding = null
 
-			_binding = null
+		if (isDestroying) {
+			memoryUsageWatcher.stopWatching(true)
+			memoryUsageWatcher.listener = null
+			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
-			if (isDestroying) {
-					memoryUsageWatcher.stopWatching(true)
-					memoryUsageWatcher.listener = null
-					editorActivityScope.cancelIfActive("Activity is being destroyed")
-
-					unbindDebuggerService()
-			}
+			unbindDebuggerService()
+		}
 	}
 
 	protected open fun postDestroy() {
@@ -476,7 +477,7 @@ abstract class BaseEditorActivity :
 		super.onApplySystemBarInsets(insets)
 		this._binding?.apply {
 			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
-        ?.onApplyWindowInsets(insets)
+				?.onApplyWindowInsets(insets)
 
 			content.apply {
 				editorAppBarLayout.updatePadding(
@@ -543,60 +544,61 @@ abstract class BaseEditorActivity :
 		builder.show()
 	}
 
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-		mLifecycleObserver = EditorActivityLifecyclerObserver()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
-		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
+        this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
-		registerLanguageServers()
+        registerLanguageServers()
 
-		if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
-			savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
-				ProjectManagerImpl.getInstance().projectPath = path
-			}
-		}
+        if (savedInstanceState != null && savedInstanceState.containsKey(KEY_PROJECT_PATH)) {
+            savedInstanceState.getString(KEY_PROJECT_PATH)?.let { path ->
+                ProjectManagerImpl.getInstance().projectPath = path
+            }
+        }
 
-		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-		mLifecycleObserver?.let {
-			lifecycle.addObserver(it)
-		}
+        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+        mLifecycleObserver?.let {
+            lifecycle.addObserver(it)
+				}
 
-		setupToolbar()
-		setupDrawers()
-		content.tabs.addOnTabSelectedListener(this)
+        setupToolbar()
+        setupDrawers()
+        content.tabs.addOnTabSelectedListener(this)
 
 		setupStateObservers()
-		setupViews()
-		setupResizablePanel()
+        setupViews()
+        setupResizablePanel()
 
-		setupContainers()
-		setupDiagnosticInfo()
+        setupContainers()
+        setupDiagnosticInfo()
 
-		uiDesignerResultLauncher = registerForActivityResult(
-			StartActivityForResult(),
-			this::handleUiDesignerResult
-		)
+        uiDesignerResultLauncher = registerForActivityResult(
+            StartActivityForResult(),
+            this::handleUiDesignerResult
+        )
 
-		content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
-			showTooltip(
-				tag = TooltipTag.EDITOR_BUILD_STATUS
-			)
-			true
-		}
+        content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
+            showTooltip(
+                tag = TooltipTag.EDITOR_BUILD_STATUS
+            )
+            true
+        }
 
-		feedbackButtonManager =
-			FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
-		feedbackButtonManager?.setupDraggableFab()
+        feedbackButtonManager =
+            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
 
-		setupMemUsageChart()
-		watchMemory()
-		observeFileOperations()
+        setupMemUsageChart()
+        watchMemory()
+        observeFileOperations()
 
-		setupGestureDetector()
-	}
+        setupGestureDetector()
+
+    }
 
     private fun setupResizablePanel() {
         Log.d(TAG, "setupResizablePanel: Initializing...")
@@ -769,7 +771,7 @@ abstract class BaseEditorActivity :
                 }
             }
 
-						drawerToggle = toggle
+            drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
@@ -1320,26 +1322,26 @@ abstract class BaseEditorActivity :
 	private fun setupBottomSheet() {
         editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
         BuildOutputProvider.setBottomSheet(content.bottomSheet)
-
         val cb = object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
-                bottomSheetViewModel.setSheetState(sheetState = newState)
-                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    provideCurrentEditor()?.editor?.ensureWindowsDismissed()
-                }
-            }
+						    // update the sheet state so that the ViewModel is in sync
+						    bottomSheetViewModel.setSheetState(sheetState = newState)
+						    if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+						        provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+						    }
+						}
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
-								content.apply {
-                    val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-                    this.bottomSheet.onSlide(slideOffset)
-                    this.viewContainer.scaleX = editorScale
-                    this.viewContainer.scaleY = editorScale
-                }
-            }
-        }
+						    content.apply {
+						        val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+						        this.bottomSheet.onSlide(slideOffset)
+						        this.viewContainer.scaleX = editorScale
+						        this.viewContainer.scaleY = editorScale
+						    }
+				    }
+				}
 
-        bottomSheetCallback = cb
-        editorBottomSheet?.addBottomSheetCallback(cb)
+				bottomSheetCallback = cb
+				editorBottomSheet?.addBottomSheetCallback(cb)
 
         val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
@@ -1451,5 +1453,19 @@ abstract class BaseEditorActivity :
             tag = tag,
         )
     }
-}
 
+    private fun getLogContent(): String? {
+        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_COLLAPSED) {
+            return null
+        }
+
+        val fragment = this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
+            bottomSheetViewModel.currentTab
+        )
+
+        return when (fragment) {
+            is ShareableOutputFragment -> fragment.getShareableContent()
+            else -> null
+        }
+    }
+}
