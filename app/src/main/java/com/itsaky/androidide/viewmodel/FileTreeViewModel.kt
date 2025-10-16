@@ -30,7 +30,7 @@ import com.unnamed.b.atv.view.AndroidTreeView
  */
 internal class FileTreeViewModel : ViewModel() {
 
-  val treeState = MutableLiveData<String>(null)
+  val treeState = MutableLiveData<String?>()
 
   val savedState: String
     get() = treeState.value ?: ""
