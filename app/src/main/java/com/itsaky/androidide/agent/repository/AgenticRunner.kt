@@ -1,6 +1,8 @@
 package com.itsaky.androidide.agent.repository
 
 import android.content.Context
+import com.google.genai.errors.ClientException
+import com.google.genai.errors.ServerException
 import com.google.genai.types.Content
 import com.google.genai.types.Part
 import com.google.genai.types.Tool
@@ -16,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,8 +40,10 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 import java.time.LocalDateTime
 import kotlin.jvm.optionals.getOrNull
+import kotlin.math.min
 
 
 class AgenticRunner(
@@ -124,6 +129,10 @@ class AgenticRunner(
 
     companion object {
         private val log = LoggerFactory.getLogger(AgenticRunner::class.java)
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val INITIAL_RETRY_DELAY_MS = 100L
+        private const val MAX_RETRY_DELAY_MS = 2_000L
+        private const val RETRY_BACKOFF_MULTIPLIER = 2.0
 
         private val json = Json {
             prettyPrint = true
@@ -275,9 +284,11 @@ class AgenticRunner(
             .build()
     }
 
-    private fun processPlannerStep(history: MutableList<Content>): Content {
+    private suspend fun processPlannerStep(history: MutableList<Content>): Content {
         updateLastMessage("Planning...")
-        val plan = planner.plan(history)
+        val plan = runWithRetry("planner") {
+            planner.plan(history)
+        }
         history.add(plan)
         logTurn("model", plan.parts().get())
         return plan
@@ -292,7 +303,9 @@ class AgenticRunner(
 
     private suspend fun processCriticStep(history: MutableList<Content>) {
         updateLastMessage("Reviewing results...")
-        val critiqueResult = critic.reviewAndSummarize(history)
+        val critiqueResult = runWithRetry("critic") {
+            critic.reviewAndSummarize(history)
+        }
         if (critiqueResult != "OK") {
             history.add(
                 Content.builder().role("user")
@@ -418,6 +431,41 @@ class AgenticRunner(
             val lastMessage = currentList.last()
             val updatedMessage = lastMessage.copy(text = newText)
             currentList.dropLast(1) + updatedMessage
+        }
+    }
+
+    private suspend fun <T> runWithRetry(
+        operationName: String,
+        block: suspend () -> T
+    ): T {
+        var currentDelay = INITIAL_RETRY_DELAY_MS
+        repeat(MAX_RETRY_ATTEMPTS) { attempt ->
+            try {
+                return block()
+            } catch (err: Throwable) {
+                if (err is CancellationException) throw err
+                if (!isRetryableNetworkError(err) || attempt == MAX_RETRY_ATTEMPTS - 1) {
+                    throw err
+                }
+                log.warn(
+                    "Retryable error during $operationName (attempt ${attempt + 1}). Retrying in ${currentDelay}ms. Cause: ${err.message}"
+                )
+                delay(currentDelay)
+                currentDelay = min(
+                    (currentDelay * RETRY_BACKOFF_MULTIPLIER).toLong(),
+                    MAX_RETRY_DELAY_MS
+                )
+            }
+        }
+        error("runWithRetry should always return or throw")
+    }
+
+    private fun isRetryableNetworkError(err: Throwable): Boolean {
+        return when (err) {
+            is IOException -> true
+            is ServerException -> true
+            is ClientException -> err.code() == 408 || err.code() == 429
+            else -> false
         }
     }
 
