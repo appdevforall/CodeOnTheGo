@@ -19,7 +19,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:text="Experimental AI. Use at your own risk."
+        android:text="@string/experimental_ai_use_at_your_own_risk"
         android:textAppearance="?attr/textAppearanceCaption" />
 
 </LinearLayout>
