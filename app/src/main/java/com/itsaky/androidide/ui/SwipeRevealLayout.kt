@@ -20,6 +20,7 @@ package com.itsaky.androidide.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -29,8 +30,10 @@ import androidx.annotation.IdRes
 import androidx.customview.widget.ViewDragHelper
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.FeatureFlags
 import kotlin.math.max
 import kotlin.math.min
+import androidx.core.content.withStyledAttributes
 
 /**
  * A layout which can be dragged vertically to reveal a hidden content.
@@ -77,6 +80,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     }
 
     override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {
+      Log.d("SwipeRevealLayout", "onViewPositionChanged: top=$top, dragHeightMax=$dragHeightMax")
       draggingViewTop = top
       onDragProgress(min(1f, top.toFloat() / dragHeightMax.toFloat()))
     }
@@ -192,11 +196,15 @@ open class SwipeRevealLayout @JvmOverloads constructor(
 
   init {
     if (attrs != null) {
-      val typedArray = context.obtainStyledAttributes(attrs, R.styleable.SwipeRevealLayout,
-        defStyleAttr, defStyleRes)
-      dragHandleViewId = typedArray.getResourceId(R.styleable.SwipeRevealLayout_dragHandle,
-        dragHandleViewId)
-      typedArray.recycle()
+        context.withStyledAttributes(
+            attrs, R.styleable.SwipeRevealLayout,
+            defStyleAttr, defStyleRes
+        ) {
+            dragHandleViewId = getResourceId(
+                R.styleable.SwipeRevealLayout_dragHandle,
+                dragHandleViewId
+            )
+        }
     }
   }
 
@@ -221,6 +229,7 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+    Log.d("SwipeRevealLayout", "onLayout: dragProgress=$dragProgress, draggingViewTop=$draggingViewTop, dragHeightMax=$dragHeightMax")
     hiddenContent.layout(0, paddingTop, r, paddingTop + hiddenContent.measuredHeight)
 
     val olapTop = paddingTop + (hiddenContent.height * dragProgress).toInt()
@@ -228,6 +237,9 @@ open class SwipeRevealLayout @JvmOverloads constructor(
   }
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+    if (!FeatureFlags.isExperimentsEnabled()) {
+        return false
+    }
     val action = ev.actionMasked
     if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
       leftDragHelper.cancel()
@@ -285,17 +297,6 @@ open class SwipeRevealLayout @JvmOverloads constructor(
     overlappingContent.scaleX = scale
     overlappingContent.scaleY = scale
     (overlappingContent.background as? MaterialShapeDrawable?)?.interpolation = progress
-  }
-
-  /**
-   * Toggles the state of the view.
-   */
-  fun toggleState(isOpen: Boolean) {
-    if (isOpen) {
-      open()
-    } else {
-      close()
-    }
   }
 
   /**
