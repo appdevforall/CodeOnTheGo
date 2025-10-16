@@ -3,7 +3,15 @@ package com.itsaky.androidide.agent.repository
 import com.google.genai.types.FunctionCall
 import com.google.genai.types.FunctionResponse
 import com.google.genai.types.Part
+import com.itsaky.androidide.agent.model.AddDependencyArgs
+import com.itsaky.androidide.agent.model.AddStringResourceArgs
+import com.itsaky.androidide.agent.model.CreateFileArgs
+import com.itsaky.androidide.agent.model.DeleteFileArgs
+import com.itsaky.androidide.agent.model.ListFilesArgs
+import com.itsaky.androidide.agent.model.ReadFileArgs
+import com.itsaky.androidide.agent.model.ReadMultipleFilesArgs
 import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.agent.model.UpdateFileArgs
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.async
@@ -11,6 +19,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.jvm.optionals.getOrNull
@@ -30,6 +44,10 @@ class Executor {
             "read_multiple_files",
             "get_build_output"
         )
+
+        private val json = Json {
+            ignoreUnknownKeys = true
+        }
     }
 
     suspend fun execute(
@@ -77,60 +95,55 @@ class Executor {
     private suspend fun dispatchToolCall(functionCall: FunctionCall): ToolResult {
         val name =
             functionCall.name().getOrNull() ?: return ToolResult.failure("Unnamed function call")
-        val args = functionCall.args().getOrNull() ?: emptyMap()
+        val args = functionCall.args().getOrNull() as? Map<String, Any?> ?: emptyMap()
         log.debug("Dispatching tool call: '$name' with args: $args")
 
         return when (name) {
             "create_file" -> {
-                val path = args["path"] as? String ?: ""
-                val content = args["content"] as? String ?: ""
-                IDEApiFacade.createFile(path, content)
+                val toolArgs = decodeArgs<CreateFileArgs>(args)
+                IDEApiFacade.createFile(toolArgs.path, toolArgs.content)
             }
 
             "read_file" -> {
-                val path = args["path"] as? String ?: ""
-                IDEApiFacade.readFile(path)
+                val toolArgs = decodeArgs<ReadFileArgs>(args)
+                IDEApiFacade.readFile(toolArgs.path)
             }
 
             "update_file" -> {
-                val path = args["path"] as? String ?: ""
-                val content = args["content"] as? String ?: ""
-                IDEApiFacade.updateFile(path, content)
+                val toolArgs = decodeArgs<UpdateFileArgs>(args)
+                IDEApiFacade.updateFile(toolArgs.path, toolArgs.content)
             }
 
             "delete_file" -> {
-                val path = args["path"] as? String ?: ""
-                IDEApiFacade.deleteFile(path)
+                val toolArgs = decodeArgs<DeleteFileArgs>(args)
+                IDEApiFacade.deleteFile(toolArgs.path)
             }
 
             "list_files" -> {
-                val path = args["path"] as? String ?: ""
-                val recursive = args["recursive"]?.toString()?.toBoolean() ?: false
-                IDEApiFacade.listFiles(path, recursive)
+                val toolArgs = decodeArgs<ListFilesArgs>(args)
+                IDEApiFacade.listFiles(toolArgs.path, toolArgs.recursive)
             }
 
             "add_dependency" -> {
-                val dependency = args["dependency"] as? String
-                val buildFilePath = args["build_file_path"] as? String
-                if (dependency.isNullOrEmpty() || buildFilePath.isNullOrEmpty()) {
+                val toolArgs = decodeArgs<AddDependencyArgs>(args)
+                if (toolArgs.dependency.isEmpty() || toolArgs.buildFilePath.isEmpty()) {
                     ToolResult.failure("Both 'dependency' and 'build_file_path' are required.")
                 } else {
-                    val dependencyString = if (buildFilePath.endsWith(".kts")) {
-                        "implementation(\"$dependency\")"
+                    val dependencyString = if (toolArgs.buildFilePath.endsWith(".kts")) {
+                        "implementation(\"${toolArgs.dependency}\")"
                     } else {
-                        "implementation '$dependency'"
+                        "implementation '${toolArgs.dependency}'"
                     }
-                    IDEApiFacade.addDependency(dependencyString, buildFilePath)
+                    IDEApiFacade.addDependency(dependencyString, toolArgs.buildFilePath)
                 }
             }
 
             "add_string_resource" -> {
-                val resourceName = args["name"] as? String
-                val resourceValue = args["value"] as? String
-                if (resourceName.isNullOrEmpty() || resourceValue.isNullOrEmpty()) {
+                val toolArgs = decodeArgs<AddStringResourceArgs>(args)
+                if (toolArgs.name.isEmpty() || toolArgs.value.isEmpty()) {
                     ToolResult.failure("Both 'name' and 'value' are required.")
                 } else {
-                    IDEApiFacade.addStringResource(resourceName, resourceValue)
+                    IDEApiFacade.addStringResource(toolArgs.name, toolArgs.value)
                 }
             }
 
@@ -139,11 +152,11 @@ class Executor {
             "get_build_output" -> IDEApiFacade.getBuildOutput()
 
             "read_multiple_files" -> {
-                val paths = args["paths"] as? List<String> ?: emptyList()
-                if (paths.isEmpty()) {
+                val toolArgs = decodeArgs<ReadMultipleFilesArgs>(args)
+                if (toolArgs.paths.isEmpty()) {
                     ToolResult.failure("The 'paths' parameter cannot be empty.")
                 } else {
-                    readMultipleFiles(paths)
+                    readMultipleFiles(toolArgs.paths)
                 }
             }
 
@@ -153,6 +166,33 @@ class Executor {
             }
         }
     }
+
+    private inline fun <reified T> decodeArgs(args: Map<String, Any?>): T {
+        val jsonElement = toJsonElement(args)
+        return json.decodeFromJsonElement(jsonElement)
+    }
+
+    private fun toJsonElement(value: Any?): JsonElement =
+        when (value) {
+            null -> JsonNull
+            is JsonElement -> value
+            is String -> JsonPrimitive(value)
+            is Number -> JsonPrimitive(value)
+            is Boolean -> JsonPrimitive(value)
+            is Map<*, *> -> {
+                val content = mutableMapOf<String, JsonElement>()
+                value.forEach { (k, v) ->
+                    if (k != null) {
+                        content[k.toString()] = toJsonElement(v)
+                    }
+                }
+                JsonObject(content)
+            }
+
+            is Iterable<*> -> JsonArray(value.map { toJsonElement(it) })
+            is Array<*> -> JsonArray(value.map { toJsonElement(it) })
+            else -> JsonPrimitive(value.toString())
+        }
 
     private fun readMultipleFiles(paths: List<String>): ToolResult {
         val results = mutableMapOf<String, String>()
@@ -174,7 +214,7 @@ class Executor {
         }
 
         // Use kotlinx.serialization to convert the map to a JSON string
-        val dataJson = Json.encodeToString(results)
+        val dataJson = json.encodeToString(results)
 
         return if (allSuccessful) {
             ToolResult.success("Successfully read ${paths.size} files.", dataJson)
