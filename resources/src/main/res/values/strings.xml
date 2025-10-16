@@ -889,8 +889,8 @@
     <string name="title_alert">Alert!</string>
 
     <!-- Strings from BaseApplication.java-->
-    <string name="telegram_group_url">https://t.me/CodeOnTheGo-IDE</string>
-    <string name="telegram_channel_url">https://t.me/CodeOnTheGo-Official</string>
+    <string name="telegram_group_url">https://t.me/CodeOnTheGoIDE</string>
+    <string name="telegram_channel_url">https://t.me/CodeOnTheGoOfficial</string>
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
