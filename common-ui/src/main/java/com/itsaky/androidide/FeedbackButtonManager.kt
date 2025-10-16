@@ -17,6 +17,7 @@ import kotlin.math.sqrt
 class FeedbackButtonManager(
     val activity: AppCompatActivity,
     val feedbackFab: FloatingActionButton?,
+    private val getLogContent: (() -> String?)? = null,
 ) {
 	companion object {
         const val FAB_PREFS = "FabPrefs"
@@ -115,11 +116,13 @@ class FeedbackButtonManager(
         }
     }
 
-	private fun performFeedbackAction() {
-		FeedbackManager.showFeedbackDialog(
-			activity = activity,
-		)
-	}
+    private fun performFeedbackAction() {
+        val currentLogContent = getLogContent?.invoke()
+        FeedbackManager.showFeedbackDialog(
+            activity = activity,
+            logContent = currentLogContent
+        )
+    }
 
 	private fun saveFabPosition(
 		x: Float,
