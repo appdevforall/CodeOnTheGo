@@ -6,12 +6,7 @@ agree to abide the terms specified in the [CODE OF CONDUCT](./CODE_OF_CONDUCT.md
 ## Requirements
 
 - Android Studio.
-- JDK 17 (prefer the one bundled with Android Studio).
-
-> NOTE:
->
-> At the time of this writing, the stable version of Android Studio (Electric Eel) is bundled with
-> JDK 11. Only Android Studio Flamingo and newer are bundled with JDK 17.
+- JDK 17
 
 ## Build the project
 
@@ -86,6 +81,7 @@ logs, and build outputs in `code blocks`.
 
 If you want to discuss anything about the project, you can discuss it in
 the [Telegram group](https://t.me/androidide_discussions).
+
 
 
 
