@@ -74,11 +74,41 @@ See the [contributing guide](./CONTRIBUTING.md).
  
 Thanks to all the developers who have contributed to this project! 
 
-## Contact Us
+## Contact us
 
 - [Website](https://www.appdevforall.org)
-- [Telegram](https://t.me/androidide_discussions) CHANGE
+- [Official Telegram channel](https://t.me/CodeOnTheGoOfficial
+- [Telegram discussions](https://t.me/CodeOnTheGoDiscussions)
 - [Email](mailto:feedback@appdevforall.org)
+
+## Documentation and reference materials
+### Creative Commons
+The following PDF is redistributed under the Creative Commons Attribution 4.0 International License (CC BY 4.0):
+- Java, Java, Java: Object-Oriented Problem Solving, Third Edition by R. Morelli and R. Walde, previously published by Pearson Education, Inc. (Source: https://open.umn.edu/opentextbooks/textbooks/java-java-java-object-oriented-problem-solving)
+  
+### Free books from Goalkicker.com
+- Android Notes for Professionals (Source: https://goalkicker.com/AndroidBook/)
+- Java Notes for Professionals (Source: https://goalkicker.com/JavaBook/)
+- Kotlin Notes for Professionals (Source: https://goalkicker.com/KotlinBook/)
+
+### Third-Party Documentation
+This project includes unmodified documentation from:
+
+#### Android Mobile App Developer Tools
+licensed under CC BY 4.0:
+https://creativecommons.org/licenses/by/4.0/   
+Source: https://developer.android.com
+
+#### Kotlin Programming Language
+licensed under CC BY 4.0:
+https://creativecommons.org/licenses/by/4.0/   
+Source: https://kotlinlang.org/
+
+#### OpenJDK Development Kit (JDK) documentation
+licensed under Debian Open Publications license: 
+https://www.debian.org/opl   
+Source: https://packages.debian.org/unstable/openjdk-17-doc
+
 
 ## License
 
@@ -99,6 +129,7 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
 
