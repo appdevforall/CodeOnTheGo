@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.PixelCopy
@@ -81,17 +82,23 @@ object FeedbackManager {
 			.show()
 	}
 
-	fun sendFeedbackWithScreenshot(
+	fun sendTooltipFeedbackWithScreenshot(
 		context: Context,
 		customSubject: String,
 		metadata: String,
 		includeScreenshot: Boolean = true,
-		shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null,
-		appVersion: String? = null
-	) {
+        shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null
+    ) {
 		val message = buildString {
 			append(metadata)
-			append("\n\nApp Version: ${appVersion ?: "Unknown"}")
+            append(
+                context.getString(
+                    R.string.feedback_device_info,
+                    BuildInfo.VERSION_NAME_SIMPLE,
+                    Build.VERSION.RELEASE,
+                    "${Build.MANUFACTURER} ${Build.MODEL}",
+                )
+            )
 		}
 
 		if (includeScreenshot) {
@@ -287,7 +294,8 @@ object FeedbackManager {
                 activity.getString(
                     R.string.feedback_message,
                     BuildInfo.VERSION_NAME_SIMPLE,
-                    "",
+                    Build.VERSION.RELEASE,
+                    "${Build.MANUFACTURER} ${Build.MODEL}",
                 )
 
             val emailIntent =

@@ -56,7 +56,7 @@
     <string name="title_unsupported_device">This device is not supported</string>
     <string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code On The Go.</string>
     <string name="title_clear_output">Clear output</string>
-    <string name="build_output">Build output</string>
+    <string name="build_output">Build Output</string>
     <string name="quick_run_debug">Quick run</string>
     <string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
     <string name="preparing">Preparing</string>
@@ -112,7 +112,7 @@
     <string name="msg_empty_search_query">Please enter text</string>
     <string name="msg_select_search_modules">Select modules to search</string>
     <string name="msg_searching_project">Searching the project…</string>
-    <string name="view_search_results">Search results</string>
+    <string name="view_search_results">Search Results</string>
     <string name="project_created_successfully">Project created successfully!</string>
     <string name="project_creation_failed">Failed to create project</string>
     <string name="msg_folder_creation_failed">Failed to create folder</string>
@@ -683,8 +683,9 @@
 	</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
 	<string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were
-		taking and in what screen.\n\nThank You.\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
-	<string name="send_feedback">Send Feedback</string>
+        taking and on what screen.\n\nThank You.\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+    <string name="send_feedback">Send Feedback</string>
 	<string name="alert_message">Alert!</string>
 	<string name="fab_more">More</string>
 	<string name="msg_recent_projects">Recent projects</string>
