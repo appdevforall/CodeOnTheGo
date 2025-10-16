@@ -18,14 +18,4 @@
 <resources>
     <!--  Required by F-Droid-->
     <string name="app_name" translatable="false">Code on the Go</string>
-    <string name="retry">Retry</string>
-    <string name="open_ai_settings">Open AI Settings</string>
-    <string name="new_chat">New Chat</string>
-    <string name="experimental_ai_use_at_your_own_risk">⚠️ Experimental AI. Use at your own risk.</string>
-    <string name="current_ai_backend">Current AI Backend</string>
-    <string name="stop_generation">Stop Generation</string>
-    <string name="send_message">Send Message</string>
-    <string name="upload_image">Upload Image</string>
-    <string name="add_context_file">Add Context File</string>
-    <string name="type_a_message_or_prompt">Type a message or prompt...</string>
 </resources>
