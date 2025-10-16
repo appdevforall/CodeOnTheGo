@@ -187,8 +187,6 @@
   <string name="title_common">Comum</string>
   <string name="title_files_unsaved">Arquivos não salvos</string>
   <string name="msg_files_unsaved">Alguns arquivos não foram salvos. Gostaria de salvá-los antes de fechar? Os arquivos não salvos são: \n%s</string>
-  <string name="idepref_editor_autoSave_title">Salvar antes de fechar os arquivos</string>
-  <string name="idepref_editor_autoSave_summary">Salve os arquivos antes de fechá-los. Este é um recurso EXPERIMENTAL. Espera-se que você mesmo salve os arquivos.</string>
   <string name="idepref_java_matchLower_summary">Se ativado, digitar letras minúsculas ou maiúsculas sugerirá nomes de classes, bem como membros do escopo.</string>
   <string name="idepref_editor_ligatures_title">Ligaduras de fonte</string>
   <string name="idepref_editor_ligatures_summary">Ativar/desativar ligaduras de fontes</string>
