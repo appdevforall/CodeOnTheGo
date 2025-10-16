@@ -62,6 +62,8 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.FeatureFlags
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -113,6 +115,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         startWebServer()
 
         openLastProject()
+
+       if(FeatureFlags.isExperimentsEnabled()){
+           binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+       }
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
@@ -210,6 +216,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             }
             true
         }
+
     }
 
     override fun bindLayout(): View {
