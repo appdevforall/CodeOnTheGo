@@ -59,6 +59,8 @@ class AgenticRunner(
         )
     )
     override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+    private val _plan = MutableStateFlow<Plan?>(null)
+    override val plan: StateFlow<Plan?> = _plan.asStateFlow()
 
     private var runnerJob: Job = SupervisorJob()
     private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
@@ -103,6 +105,7 @@ class AgenticRunner(
         runnerScope.cancel("User requested to stop the agent.")
         runnerJob = SupervisorJob()
         runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
+        _plan.value = null
     }
 
     override fun getPartialReport(): String {
@@ -205,6 +208,7 @@ class AgenticRunner(
         history: List<ChatMessage>
     ) {
         // 1. Load the history from the current session
+        resetPlan()
         loadHistory(history)
 
         // 2. Add the user's new message to the flow so it appears instantly
@@ -232,25 +236,51 @@ class AgenticRunner(
         val history = mutableListOf(initialContent)
 
         try {
+            initializePlan(history)
+
             for (step in 0 until maxSteps) {
                 runnerScope.ensureActive()
-                onStateUpdate?.invoke(AgentState.Processing("Step ${step + 1}..."))
 
-                val plan = processPlannerStep(history)
-                val functionCalls = plan.parts().get().mapNotNull { it.functionCall().getOrNull() }
+                val stepIndex = currentActionableStepIndex()
+                if (stepIndex == null) {
+                    val completionMessage =
+                        _messages.value.lastOrNull()?.text?.takeIf { it.isNotBlank() }
+                            ?: "Plan completed."
+                    updateLastMessage(completionMessage)
+                    return completionMessage
+                }
+
+                val currentStep = _plan.value!!.steps[stepIndex]
+                markStepStatus(stepIndex, StepStatus.IN_PROGRESS, null)
+
+                onStateUpdate?.invoke(
+                    AgentState.Processing("Step ${stepIndex + 1}: ${currentStep.description}")
+                )
+                updateLastMessage("Executing: ${currentStep.description}")
+
+                val planContent = processPlannerStep(history)
+                val functionCalls =
+                    planContent.parts().get().mapNotNull { it.functionCall().getOrNull() }
 
                 if (functionCalls.isEmpty()) {
-                    val finalText = plan.parts().get().first().text().getOrNull()?.trim() ?: ""
+                    val finalText =
+                        planContent.parts().get().first().text().getOrNull()?.trim().orEmpty()
                     updateLastMessage(finalText)
                     logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
-                    return finalText
+                    markStepStatus(stepIndex, StepStatus.DONE, finalText)
+                    if (_plan.value?.isComplete() == true) {
+                        return finalText
+                    }
+                    continue
                 }
 
                 val toolResultsParts = processToolExecutionStep(functionCalls)
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
                 logTurn("tool", toolResultsParts)
 
-                processCriticStep(history)
+                val critiqueResult = processCriticStep(history)
+                val resultMessage = critiqueResult.takeUnless { it == "OK" }
+                markStepStatus(stepIndex, StepStatus.DONE, resultMessage)
             }
             throw RuntimeException("Exceeded max steps")
         } catch (err: Exception) {
@@ -259,7 +289,9 @@ class AgenticRunner(
                 return "Operation cancelled by user."
             }
             log.error("Agentic run failed", err)
-            updateLastMessage("An error occurred: ${err.message}")
+            markCurrentStepFailed(err.message)
+            val errorMessage = "An error occurred: ${err.message}"
+            updateLastMessage(errorMessage)
             return "Agentic run failed: ${err.message}"
         } finally {
             writeLog()
@@ -301,7 +333,7 @@ class AgenticRunner(
         return executor.execute(functionCalls)
     }
 
-    private suspend fun processCriticStep(history: MutableList<Content>) {
+    private suspend fun processCriticStep(history: MutableList<Content>): String {
         updateLastMessage("Reviewing results...")
         val critiqueResult = runWithRetry("critic") {
             critic.reviewAndSummarize(history)
@@ -313,6 +345,7 @@ class AgenticRunner(
             )
             logTurn("system_critic", history.last().parts().get())
         }
+        return critiqueResult
     }
 
     private fun startLog() {
@@ -417,6 +450,7 @@ class AgenticRunner(
     }
 
     override fun loadHistory(history: List<ChatMessage>) {
+        _plan.value = null
         _messages.value = history
     }
 
@@ -432,6 +466,87 @@ class AgenticRunner(
             val updatedMessage = lastMessage.copy(text = newText)
             currentList.dropLast(1) + updatedMessage
         }
+    }
+
+    private fun resetPlan() {
+        _plan.value = null
+    }
+
+    private suspend fun initializePlan(history: MutableList<Content>) {
+        if (_plan.value != null) return
+        updateLastMessage("Creating plan...")
+        val generatedPlan = runWithRetry("planner_plan") {
+            planner.generatePlan(history)
+        }
+        val planToUse = if (generatedPlan.steps.isEmpty()) {
+            Plan(mutableListOf(TaskStep(description = "Address the user's request.")))
+        } else {
+            generatedPlan
+        }
+        _plan.value = planToUse
+        logPlanSnapshot("plan_created")
+        val summary = if (planToUse.steps.isEmpty()) {
+            "Plan ready."
+        } else {
+            val next = planToUse.steps.first().description
+            "Plan ready (${planToUse.steps.size} steps). Next: $next"
+        }
+        updateLastMessage(summary)
+    }
+
+    private fun currentActionableStepIndex(): Int? = _plan.value?.firstActionableIndex()
+
+    private fun markStepStatus(index: Int, status: StepStatus, result: String?) {
+        mutateCurrentPlan { plan ->
+            plan.withUpdatedStep(index) { step ->
+                val newResult = result ?: step.result
+                step.withStatus(status, newResult)
+            }
+        }
+    }
+
+    private fun markCurrentStepFailed(message: String?) {
+        val plan = _plan.value ?: return
+        val inProgress = plan.steps.indexOfFirst { it.status == StepStatus.IN_PROGRESS }
+        val fallback = plan.firstActionableIndex()
+        val targetIndex = when {
+            inProgress >= 0 -> inProgress
+            fallback != null -> fallback
+            else -> plan.steps.lastIndex.takeIf { it >= 0 }
+        } ?: return
+        markStepStatus(targetIndex, StepStatus.FAILED, message)
+    }
+
+    private fun mutateCurrentPlan(mutator: (Plan) -> Plan) {
+        val current = _plan.value ?: return
+        val workingCopy = current.deepCopy()
+        val updated = mutator(workingCopy)
+        _plan.value = updated
+        logPlanSnapshot("plan_updated")
+    }
+
+    private fun logPlanSnapshot(tag: String) {
+        val planSnapshot = _plan.value ?: return
+        val logEntry = buildJsonObject {
+            put("step", logEntries.size + 1)
+            put("turn", tag)
+            putJsonArray("content") {
+                add(buildJsonObject {
+                    put("type", "plan")
+                    putJsonArray("steps") {
+                        planSnapshot.steps.forEachIndexed { index, task ->
+                            add(buildJsonObject {
+                                put("index", index)
+                                put("description", task.description)
+                                put("status", task.status.name)
+                                task.result?.let { put("result", it) }
+                            })
+                        }
+                    }
+                })
+            }
+        }
+        logEntries.add(logEntry)
     }
 
     private suspend fun <T> runWithRetry(

@@ -54,6 +54,8 @@ class LocalLlmRepositoryImpl(
         )
     )
     override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+    private val _plan = MutableStateFlow<Plan?>(null)
+    override val plan: StateFlow<Plan?> = _plan.asStateFlow()
 
     suspend fun loadModel(modelUriString: String): Boolean {
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
@@ -101,6 +103,7 @@ class LocalLlmRepositoryImpl(
         if (!engine.isModelLoaded) {
             return
         }
+        _plan.value = null
         loadHistory(history)
         addMessage(prompt, Sender.USER)
         val placeholder = ""
@@ -320,6 +323,7 @@ Answer:
 
     override fun stop() {
         engine.stop()
+        _plan.value = null
     }
 
     private fun parseToolCall(text: String): ParsedToolCall? {
@@ -366,6 +370,7 @@ Answer:
         }
     }
     override fun loadHistory(history: List<ChatMessage>) {
+        _plan.value = null
         _messages.value = history
     }
 }

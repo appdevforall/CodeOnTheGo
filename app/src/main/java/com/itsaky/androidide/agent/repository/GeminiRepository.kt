@@ -8,6 +8,7 @@ interface GeminiRepository {
     var onStateUpdate: ((AgentState) -> Unit)?
 
     val messages: StateFlow<List<ChatMessage>>
+    val plan: StateFlow<Plan?>
 
     /**
      * Replace the in-memory history with the provided messages so observers immediately reflect the

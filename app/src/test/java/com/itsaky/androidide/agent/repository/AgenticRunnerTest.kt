@@ -37,6 +37,9 @@ class AgenticRunnerTest {
             val critic = mockk<Critic>(relaxed = true)
             val executor = mockk<Executor>(relaxed = true)
 
+            every { planner.generatePlan(any()) } returns Plan(
+                mutableListOf(TaskStep("Prepare response"))
+            )
             val planOutput = Content.builder()
                 .role("model")
                 .parts(Part.builder().text("Final answer").build())
@@ -65,6 +68,10 @@ class AgenticRunnerTest {
             assertEquals("Final answer", messages.last().text)
             assertEquals(Sender.AGENT, messages.last().sender)
             verify(exactly = 1) { planner.plan(any()) }
+            verify(exactly = 1) { planner.generatePlan(any()) }
+            val planState = runner.plan.value!!
+            assertEquals(StepStatus.DONE, planState.steps.first().status)
+            assertEquals("Final answer", planState.steps.first().result)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -109,6 +116,9 @@ class AgenticRunnerTest {
             val critic = mockk<Critic>(relaxed = true)
             val executor = mockk<Executor>(relaxed = true)
 
+            every { planner.generatePlan(any()) } returns Plan(
+                mutableListOf(TaskStep("Attempt execution"))
+            )
             val planOutput = Content.builder()
                 .role("model")
                 .parts(Part.builder().text("Recovered answer").build())
@@ -134,6 +144,10 @@ class AgenticRunnerTest {
             assertEquals(2, messages.size)
             assertEquals("Recovered answer", messages.last().text)
             verify(exactly = 2) { planner.plan(any()) }
+            verify(exactly = 1) { planner.generatePlan(any()) }
+            val planState = runner.plan.value!!
+            assertEquals(StepStatus.DONE, planState.steps.first().status)
+            assertEquals("Recovered answer", planState.steps.first().result)
         } finally {
             tempDir.deleteRecursively()
         }
@@ -148,6 +162,9 @@ class AgenticRunnerTest {
             val critic = mockk<Critic>(relaxed = true)
             val executor = mockk<Executor>(relaxed = true)
 
+            every { planner.generatePlan(any()) } returns Plan(
+                mutableListOf(TaskStep("Attempt execution"))
+            )
             every { planner.plan(any()) } throws IOException("flaky network")
 
             val runner = AgenticRunner(
@@ -168,6 +185,10 @@ class AgenticRunnerTest {
             assertEquals(2, messages.size)
             assertEquals("An error occurred: flaky network", messages.last().text)
             verify(exactly = 3) { planner.plan(any()) }
+            verify(exactly = 1) { planner.generatePlan(any()) }
+            val planState = runner.plan.value!!
+            assertEquals(StepStatus.FAILED, planState.steps.first().status)
+            assertEquals("flaky network", planState.steps.first().result)
         } finally {
             tempDir.deleteRecursively()
         }
