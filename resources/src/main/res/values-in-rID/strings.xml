@@ -187,8 +187,6 @@
   <string name="title_common">Umum</string>
   <string name="title_files_unsaved">File tidak tersimpan</string>
   <string name="msg_files_unsaved">Beberapa file belum disimpan. Apakah anda ingin menyimpan sebelum menutup file tersebut? File yang belum tersimpan: \n%s</string>
-  <string name="idepref_editor_autoSave_title">Simpan sebelum menutup file</string>
-  <string name="idepref_editor_autoSave_summary">Simpan file sebelum menutup mereka. Ini adalah fitur PERCOBAAN. Anda diharapkan menyimpan file anda sendiri.</string>
   <string name="idepref_java_matchLower_summary">Jika aktif, maka mengetik huruf kecil atau besar akan menyarankan nama Class serta yang termasuk dalam scope.</string>
   <string name="idepref_editor_ligatures_title">Ligatur font</string>
   <string name="idepref_editor_ligatures_summary">Aktifkan/matikan ligatur font</string>
