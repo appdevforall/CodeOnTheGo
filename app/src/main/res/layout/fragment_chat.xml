@@ -150,6 +150,14 @@
                     android:scrollbars="vertical" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Experimental AI. Use at your own risk."
+                android:textAppearance="?attr/textAppearanceCaption"
+                android:gravity="center_horizontal"
+                android:layout_marginTop="4dp"/>
+
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
