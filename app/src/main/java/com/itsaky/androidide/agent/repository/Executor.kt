@@ -19,6 +19,14 @@ class Executor {
 
     companion object {
         private val log = LoggerFactory.getLogger(Executor::class.java)
+
+        // Tools that only read IDE state and can be executed in parallel safely.
+        private val parallelSafeTools = setOf(
+            "read_file",
+            "list_files",
+            "read_multiple_files",
+            "get_build_output"
+        )
     }
 
     suspend fun execute(
