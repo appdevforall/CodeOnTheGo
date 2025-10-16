@@ -1,18 +1,22 @@
 package com.itsaky.androidide.agent.repository
 
-import com.itsaky.androidide.agent.data.ToolCall
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
+import kotlinx.coroutines.flow.StateFlow
 
 interface GeminiRepository {
     var onStateUpdate: ((AgentState) -> Unit)?
-    var onToolCall: ((ToolCall) -> Unit)?
-    var onToolMessage: ((String) -> Unit)?
-    var onAskUser: ((question: String, options: List<String>) -> Unit)?
-    var onProgressUpdate: ((message: ChatMessage) -> Unit)?
+
+    val messages: StateFlow<List<ChatMessage>>
+
+    /**
+     * Replace the in-memory history with the provided messages so observers immediately reflect the
+     * selected chat session.
+     */
+    fun loadHistory(history: List<ChatMessage>)
 
     fun getPartialReport(): String
-    suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>): AgentResponse
+    suspend fun generateASimpleResponse(prompt: String, history: List<ChatMessage>)
     suspend fun generateCode(
         prompt: String,
         fileContent: String,

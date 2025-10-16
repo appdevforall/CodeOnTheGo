@@ -4,20 +4,18 @@ import android.content.Context
 import android.util.Log
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
-import com.itsaky.androidide.agent.MessageStatus
+import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
-import com.itsaky.androidide.agent.data.ToolCall
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
+import java.util.concurrent.atomic.AtomicLong
 import java.util.regex.Pattern
-
-@Serializable
-data class ParsedToolCall(
-    @SerialName("tool_name") val name: String,
-    val args: Map<String, JsonElement>? = null
-)
 
 private const val SYSTEM_PROMPT = """
 You are a helpful and smart assistant integrated into an Android application.
@@ -41,22 +39,25 @@ After the tool is called, you will receive the result and you must use it to ans
 """
 
 class LocalLlmRepositoryImpl(
-    private val context: Context
+    private val context: Context,
+    private val engine: LlmInferenceEngine
 ) : GeminiRepository {
 
     private val toolTracker = ToolExecutionTracker()
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
-    override var onToolCall: ((ToolCall) -> Unit)? = null
-    override var onToolMessage: ((String) -> Unit)? = null
-    override var onAskUser: ((question: String, options: List<String>) -> Unit)? = null
-    override var onProgressUpdate: ((message: ChatMessage) -> Unit)? = null
+    private val messageIdCounter = AtomicLong(0)
 
+    private val _messages = MutableStateFlow<List<ChatMessage>>(
+        listOf(
+        )
+    )
+    override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
     suspend fun loadModel(modelUriString: String): Boolean {
         onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
-        val success = LlmInferenceEngine.initModelFromFile(context, modelUriString)
+        val success = engine.initModelFromFile(context, modelUriString)
         val status =
             if (success) "Local model loaded successfully!" else "Error: Failed to load local model."
         onStateUpdate?.invoke(AgentState.Processing(status))
@@ -66,139 +67,239 @@ class LocalLlmRepositoryImpl(
 
     private val tools: Map<String, Tool> = listOf(
         BatteryTool(),
-        GetDateTimeTool()
+        GetDateTimeTool(),
+        GetWeatherTool(),
     ).associateBy { it.name }
 
     private val masterSystemPrompt: String by lazy {
         val toolDescriptions = tools.values.joinToString("\n") { "- ${it.name}: ${it.description}" }
         SYSTEM_PROMPT.replace("[AVAILABLE_TOOLS]", toolDescriptions)
     }
+    private fun buildPromptWithHistory(
+        history: List<ChatMessage>,
+        isFinalAnswerTurn: Boolean
+    ): String {
+        return when (engine.currentModelFamily) {
+            ModelFamily.LLAMA3 -> buildLlama3Prompt(history)
+            ModelFamily.GEMMA2 -> {
+                if (isFinalAnswerTurn) {
+                    buildGemma2FinalAnswerPrompt(history)
+                } else {
+                    buildGemma2Prompt(history)
+                }
+            }
 
-    /**
-     * Constructs the full prompt string for the LLM, including system instructions and chat history,
-     * using a model-specific chat template.
-     *
-     * IMPORTANT: The current implementation uses the Llama 3.x / 3.2 chat template.
-     * It relies on special tokens like `<|begin_of_text|>`, `<|start_header_id|>`, `<|eot_id|>`, etc.
-     *
-     * To support a different model family (e.g., Mistral, Gemma, Phi-3), you MUST
-     * modify this function to adhere to that model's required template. You can usually
-     * find the correct chat template in the model's official documentation or on its
-     * Hugging Face page.
-     *
-     * @param history The list of previous chat messages to include in the prompt.
-     * @return A fully formatted string ready to be sent to the LLM.
-     */
-    private fun buildPromptWithHistory(history: List<ChatMessage>): String {
+            else -> history.lastOrNull { it.sender == Sender.USER }?.text ?: ""
+        }
+    }
+
+    @OptIn(InternalSerializationApi::class)
+    override suspend fun generateASimpleResponse(
+        prompt: String,
+        history: List<ChatMessage>
+    ) {
+        if (!engine.isModelLoaded) {
+            return
+        }
+        loadHistory(history)
+        addMessage(prompt, Sender.USER)
+        val placeholder = ""
+        addMessage(placeholder, Sender.AGENT)
+
+        runAgentLoop()
+    }
+
+    @OptIn(InternalSerializationApi::class)
+    private suspend fun runAgentLoop() {
+        toolTracker.startTracking()
+
+        val maxTurns = 5
+        var currentTurn = 0
+        while (currentTurn < maxTurns) {
+            Log.d("AgentDebug", "--- [Step ${currentTurn + 1}] ---")
+            val currentHistory = _messages.value
+            val isFinalAnswerTurn =
+                currentHistory.getOrNull(currentHistory.size - 2)?.sender == Sender.TOOL
+
+            // 2. UPDATE THE STOP STRINGS
+            val stopStrings = if (isFinalAnswerTurn) {
+                // For the final answer, stop before the model hallucinates a new question.
+                listOf("Question:", "\n\n")
+            } else {
+                // For tool selection, we now expect a structured XML tag.
+                listOf("</tool_call>")
+            }
+
+            val fullPromptHistory = buildPromptWithHistory(currentHistory, isFinalAnswerTurn)
+            Log.d("AgentDebug", "Final Prompt Sent:\n$fullPromptHistory")
+            val startTime = System.nanoTime()
+            val modelResponse = try {
+                withContext(Dispatchers.IO) {
+                    engine.runInference(fullPromptHistory, stopStrings = stopStrings)
+                }
+            } catch (e: Exception) {
+                Log.e("AgentLoop", "Model inference failed", e)
+                "Error: Could not get a response from the model."
+            }
+            val durationMs = (System.nanoTime() - startTime) / 1_000_000
+
+            val finalResponse = modelResponse.split(stopStrings.first()).first()
+            Log.d("AgentDebug", "Raw Model Result: \"$modelResponse\"")
+            Log.d("AgentDebug", "Trimmed Final Result: \"$finalResponse\"")
+
+            if (isFinalAnswerTurn) {
+                var cleanResponse = finalResponse
+                for (stopWord in stopStrings) {
+                    if (cleanResponse.contains(stopWord)) {
+                        // Take only the text *before* the first occurrence of a stop word
+                        cleanResponse = cleanResponse.substringBefore(stopWord).trim()
+                    }
+                }
+                updateLastMessage(cleanResponse)
+
+                Log.d("AgentDebug", "Final answer received. Concluding.")
+                updateLastMessageDuration(durationMs)
+                break
+            } else {
+                val toolCall = Util.parseToolCall(finalResponse, tools.keys)
+
+                if (toolCall != null) {
+                    val tool = tools[toolCall.name]
+                    if (tool != null) {
+                        Log.d(
+                            "AgentDebug",
+                            "Tool Call Detected: ${toolCall.name} with args: ${toolCall.args}"
+                        )
+                        // Display a user-friendly version of the tool call
+                        updateLastMessage(
+                            "Tool Call: ${toolCall.name}(${
+                                toolCall.args.map { "${it.key}=${it.value}" }.joinToString()
+                            })"
+                        )
+                        updateLastMessageDuration(durationMs)
+
+                        // Execute the tool with the parsed arguments
+                        val result = tool.execute(context, toolCall.args)
+                        addMessage(result, Sender.TOOL)
+                        addMessage("", Sender.AGENT)
+                    } else {
+                        // This handles the case where the model hallucinates a tool name.
+                        val errorMsg = "Error: Model tried to call unknown tool '${toolCall.name}'"
+                        updateLastMessage(errorMsg)
+                        break
+                    }
+                } else {
+                    // No tool call detected, this is a direct answer.
+                    updateLastMessage(finalResponse)
+                    updateLastMessageDuration(durationMs)
+                    Log.d("AgentDebug", "No tool call detected. Model gave a direct answer.")
+                    break
+                }
+            }
+            currentTurn++
+        }
+    }
+
+    private fun buildGemma2Prompt(history: List<ChatMessage>): String {
+        // Find if the last message was a tool result to decide which prompt to use
+        val isFinalAnswerTurn = history.lastOrNull()?.sender == Sender.AGENT &&
+                history.getOrNull(history.size - 2)?.sender == Sender.TOOL
+
+        if (isFinalAnswerTurn) {
+            // If it's the final answer turn, use the simple synthesis prompt
+            val userQuestion = history.findLast { it.sender == Sender.USER }?.text ?: ""
+            val toolResult = (history.findLast { it.sender == Sender.TOOL }?.text ?: "")
+                .replace(Regex("\\[Tool Result for [a-zA-Z_]+]:"), "")
+                .trim()
+
+            return """
+You are a helpful assistant.
+Use the following information to answer the user's question in a single, friendly sentence.
+
+Information: $toolResult
+Question: $userQuestion
+Answer:
+            """.trimIndent()
+        } else {
+            // Otherwise, build the full tool-selection prompt
+            val promptBuilder = StringBuilder()
+            val toolsAsJson = tools.values.joinToString(",\n") { tool ->
+                """  { "name": "${tool.name}", "description": "${
+                    tool.description.replace(
+                        "\"",
+                        "\\\""
+                    )
+                }" }"""
+            }
+
+            val systemInstruction = """
+You are a helpful assistant with access to the following tools:
+[$toolsAsJson]
+
+To use a tool, respond with a single `<tool_call>` XML tag containing a JSON object with the tool's 'name' and 'args'.
+If no tool is needed, answer the user's question directly.
+
+EXAMPLE:
+user: What is the weather like in Paris?
+model: <tool_call>{"name": "get_weather", "args": {"city": "Paris"}}</tool_call>
+            """.trimIndent()
+
+            promptBuilder.append(systemInstruction)
+            promptBuilder.append("\n\n**CONVERSATION:**\n")
+            history.takeLast(4).forEach { message ->
+                when (message.sender) {
+                    Sender.USER -> promptBuilder.append("user: ${message.text}\n")
+                    Sender.AGENT -> if (message.text.isNotBlank()) promptBuilder.append("model: ${message.text}\n")
+                    else -> {}
+                }
+            }
+            promptBuilder.append("model: ")
+            return promptBuilder.toString()
+        }
+    }
+
+    private fun buildGemma2FinalAnswerPrompt(history: List<ChatMessage>): String {
+        val userQuestion = history.findLast { it.sender == Sender.USER }?.text ?: ""
+        val toolResult = (history.findLast { it.sender == Sender.TOOL }?.text ?: "")
+            .replace("[Tool Result for get_current_datetime]:", "") // Keep this cleanup
+            .trim()
+
+        val finalPrompt = """
+You are a helpful assistant.
+Use the following information to answer the user's question.
+Answer in a single, friendly sentence.
+
+Information: $toolResult
+Question: $userQuestion
+Answer:
+    """.trimIndent()
+
+        return finalPrompt
+    }
+
+    private fun buildLlama3Prompt(history: List<ChatMessage>): String {
         val historyBuilder = StringBuilder()
         historyBuilder.append("<|begin_of_text|>")
         historyBuilder.append("<|start_header_id|>system<|end_header_id|>\n\n$masterSystemPrompt<|eot_id|>")
-
         for (message in history) {
             when (message.sender) {
-                ChatMessage.Sender.USER -> {
-                    historyBuilder.append("<|start_header_id|>user<|end_header_id|>\n\n${message.text}<|eot_id|>")
-                }
-
-                ChatMessage.Sender.AGENT -> {
-                    if (message.text.isNotBlank() && message.status != MessageStatus.LOADING) {
-                        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}<|eot_id|>")
+                Sender.USER -> historyBuilder.append("<|start_header_id|>user<|end_header_id|>\n\n${message.text}<|eot_id|>")
+                Sender.AGENT -> {
+                    if (message.text.isNotBlank()) {
+                        historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n${message.text}")
                     }
                 }
 
-                else -> {}
+                Sender.SYSTEM -> {}
+                Sender.TOOL -> {
+                    historyBuilder.append("<|start_header_id|>tool<|end_header_id|>\n")
+                    historyBuilder.append(message.text)
+                    historyBuilder.append("<|eot_id|>\n")
+                }
             }
         }
         historyBuilder.append("<|start_header_id|>assistant<|end_header_id|>\n\n")
         return historyBuilder.toString()
-    }
-
-    override suspend fun generateASimpleResponse(
-        prompt: String,
-        history: List<ChatMessage>
-    ): AgentResponse {
-        if (!LlmInferenceEngine.isModelLoaded) {
-            return AgentResponse(
-                text = "No local model is currently loaded. Please select one in AI Settings.",
-                report = ""
-            )
-        }
-
-        toolTracker.startTracking()
-        LlmInferenceEngine.clearKvCache()
-
-        var fullPromptHistory = buildPromptWithHistory(history)
-
-        for (i in 1..10) {
-            onStateUpdate?.invoke(AgentState.Processing("Local LLM is thinking... (Turn ${i})"))
-
-            val stopStrings = listOf("<|eot_id|>", "</tool_call>")
-            val rawResponse = LlmInferenceEngine.runInference(fullPromptHistory, stopStrings)
-            Log.d("AgentDebug", "Raw Model Result: \"$rawResponse\"")
-
-            val toolMatch = parseToolCall(rawResponse)
-            if (toolMatch == null) {
-                onStateUpdate?.invoke(AgentState.Idle)
-                Log.d("AgentDebug", "No tool call detected. Concluding.")
-                return AgentResponse(
-                    text = rawResponse.trim(),
-                    report = toolTracker.generateReport()
-                )
-            }
-
-            val toolCallEndIndex = rawResponse.indexOf("</tool_call>")
-            val toolCallText = rawResponse.substring(0, toolCallEndIndex + "</tool_call>".length)
-
-            val thoughtMessage =
-                "🤖 **Thought:** I will use the `${toolMatch.name}` tool.\n```json\n$toolCallText\n```"
-            onProgressUpdate?.invoke(
-                ChatMessage(
-                    text = thoughtMessage,
-                    sender = ChatMessage.Sender.SYSTEM
-                )
-            )
-
-            Log.d("AgentDebug", "Tool Call Detected: $toolMatch")
-
-            val tool = tools[toolMatch.name]
-            if (tool != null) {
-                val result = tool.execute(context, toolMatch.args ?: emptyMap())
-                Log.d("AgentDebug", "Tool Response: \"$result\"")
-
-                val toolResultMessage = "✅ **Tool Result:**\n```\n$result\n```"
-                onProgressUpdate?.invoke(
-                    ChatMessage(
-                        text = toolResultMessage,
-                        sender = ChatMessage.Sender.SYSTEM
-                    )
-                )
-
-                fullPromptHistory += "$toolCallText<|eot_id|>"
-                fullPromptHistory += """
-                <|start_header_id|>user<|end_header_id|>
-
-                [TOOL_RESULT]
-                $result
-                [/TOOL_RESULT]<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-                Based on the tool results, here is the answer to the user's question:
-                """.trimIndent()
-
-            } else {
-                val errorMsg = "Error: Model tried to call unknown tool '${toolMatch.name}'"
-                onProgressUpdate?.invoke(
-                    ChatMessage(
-                        text = errorMsg,
-                        sender = ChatMessage.Sender.SYSTEM
-                    )
-                )
-                Log.e("AgentDebug", errorMsg)
-                break // Exit loop on error
-            }
-        }
-
-        onStateUpdate?.invoke(AgentState.Idle)
-        return AgentResponse("Request exceeded maximum tool calls.", toolTracker.generateReport())
     }
 
     override fun getPartialReport(): String = toolTracker.generatePartialReport()
@@ -209,7 +310,7 @@ class LocalLlmRepositoryImpl(
         fileRelativePath: String
     ): String {
         onStateUpdate?.invoke(AgentState.Processing("Generating code with local LLM..."))
-        val response = LlmInferenceEngine.runInference(
+        val response = engine.runInference(
             "USER: Based on the file $fileName, $prompt\nASSISTANT:",
             emptyList()
         )
@@ -218,7 +319,7 @@ class LocalLlmRepositoryImpl(
     }
 
     override fun stop() {
-        LlmInferenceEngine.stopInference()
+        engine.stop()
     }
 
     private fun parseToolCall(text: String): ParsedToolCall? {
@@ -235,5 +336,36 @@ class LocalLlmRepositoryImpl(
             }
         }
         return null
+    }
+
+
+    private fun addMessage(text: String, type: Sender) {
+        val message = ChatMessage(messageIdCounter.getAndIncrement().toString(), text, type)
+        _messages.update { currentList -> currentList + message }
+    }
+
+    private fun updateLastMessage(updatedText: String) {
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            val updatedMessage = lastMessage.copy(text = updatedText)
+            currentList.dropLast(1) + updatedMessage
+        }
+    }
+
+    private fun updateLastMessageDuration(durationMs: Long) {
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            if (lastMessage.sender == Sender.AGENT) {
+                val updatedMessage = lastMessage.copy(durationMs = durationMs)
+                currentList.dropLast(1) + updatedMessage
+            } else {
+                currentList
+            }
+        }
+    }
+    override fun loadHistory(history: List<ChatMessage>) {
+        _messages.value = history
     }
 }
