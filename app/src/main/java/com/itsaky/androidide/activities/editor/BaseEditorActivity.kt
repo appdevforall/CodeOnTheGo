@@ -1325,25 +1325,26 @@ abstract class BaseEditorActivity :
         val cb = object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
 						    // update the sheet state so that the ViewModel is in sync
-						    bottomSheetViewModel.setSheetState(sheetState = newState)
-						    if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-						        provideCurrentEditor()?.editor?.ensureWindowsDismissed()
-						    }
+							bottomSheetViewModel.setSheetState(sheetState = newState)
+							if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+								provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+							}
 						}
-            override fun onSlide(bottomSheet: View, slideOffset: Float) {
-						    content.apply {
-						        val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-						        this.bottomSheet.onSlide(slideOffset)
-						        this.viewContainer.scaleX = editorScale
-						        this.viewContainer.scaleY = editorScale
-						    }
-				    }
+
+					override fun onSlide(bottomSheet: View, slideOffset: Float) {
+						content.apply {
+							val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+							this.bottomSheet.onSlide(slideOffset)
+							this.viewContainer.scaleX = editorScale
+							this.viewContainer.scaleY = editorScale
+						}
+					}
 				}
 
-				bottomSheetCallback = cb
-				editorBottomSheet?.addBottomSheetCallback(cb)
+		bottomSheetCallback = cb
+		editorBottomSheet?.addBottomSheetCallback(cb)
 
-        val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
+		val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 contentCardRealHeight = binding.contentCard.height
                 content.also {
