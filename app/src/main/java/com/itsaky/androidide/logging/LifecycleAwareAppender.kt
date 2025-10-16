@@ -68,9 +68,10 @@ class LifecycleAwareAppender @JvmOverloads constructor(
   }
 
   override fun stop() {
-    super.stop()
     this.logLayout.stop()
     this.consumer = null
+    currentState = null
+    super.stop()
   }
 
   override fun setContext(context: Context?) {
