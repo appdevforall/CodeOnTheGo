@@ -3,7 +3,6 @@ package com.itsaky.androidide.fragments.debug
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
 import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -12,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -47,8 +47,9 @@ import rikka.shizuku.Shizuku
  * @author Akash Yadav
  */
 class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDebuggerBinding::inflate) {
-	private lateinit var tabs: Array<Pair<String, () -> Fragment>>
+	private var tabs: Array<Pair<String, () -> Fragment>>? = null
 	private val viewModel by activityViewModels<DebuggerViewModel>()
+	private var mediator: TabLayoutMediator? = null
 
 	var currentView: Int
 		get() = viewModel.currentView
@@ -101,18 +102,18 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			}
 		}
 
-        binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
-            showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.threadLayoutSelector.root)
-        }
+    binding.debuggerContents.threadLayoutSelector.spinnerLayout.setOnLongPressListener {
+      showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.threadLayoutSelector.root)
+    }
 
-        binding.debuggerContents.debuggerContentContainer.rootView.setOnLongClickListener { view ->
-            if (viewModel.connectionState.value == DebuggerConnectionState.DETACHED) {
-                showToolTipDialog(DEBUG_NOT_CONNECTED, view)
-            }
-            true
-        }
+    binding.debuggerContents.debuggerContentContainer.rootView.setOnLongClickListener { view ->
+      if (viewModel.connectionState.value == DebuggerConnectionState.DETACHED) {
+        showToolTipDialog(DEBUG_NOT_CONNECTED, view)
+      }
+      true
+    }
 
-        viewLifecycleScope.launch(Dispatchers.Main) {
+    viewLifecycleScope.launch(Dispatchers.Main) {
 			ShizukuState.reload().await()
 		}
 
@@ -193,9 +194,9 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 							ThreadSelectorListAdapter(
 								requireContext(),
 								descriptors,
-                                onItemLongClick = { _, _, _ ->
-                                    showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.debuggerContentContainer.rootView)
-                                }
+								onItemLongClick = { _, _, _ ->
+								  showToolTipDialog(DEBUG_THREAD_SELECTOR, binding.debuggerContents.debuggerContentContainer.rootView)
+                }
 							),
 						)
 					}
@@ -240,24 +241,39 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 			}
 		}
 
-		val mediator =
+		mediator =
 			TabLayoutMediator(
 				binding.debuggerContents.tabs,
 				binding.debuggerContents.pager,
 			) { tab, position ->
-				tab.text = tabs[position].first
-                tab.view.setOnLongClickListener { view ->
-                    when(position){
-                        0 -> showToolTipDialog(DEBUG_OUTPUT_VARIABLES, view)
-                        1 -> showToolTipDialog(DEBUG_OUTPUT_CALLSTACK, view)
-                    }
-                    true
-                }
+				tab.text = tabs?.get(position)?.first
+        tab.view.setOnLongClickListener { view ->
+          when(position){
+            0 -> showToolTipDialog(DEBUG_OUTPUT_VARIABLES, view)
+            1 -> showToolTipDialog(DEBUG_OUTPUT_CALLSTACK, view)
+          }
+          true
+        }
 			}
-
-		binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(this, tabs.map { it.second })
-		mediator.attach()
+    tabs?.let { tab ->
+      binding.debuggerContents.pager.adapter = DebuggerPagerAdapter(childFragmentManager, viewLifecycleOwner.lifecycle,tab.map { it.second })
+    }
+		mediator?.attach()
 	}
+
+	override fun onDestroyView() {
+    mediator?.detach()
+    mediator = null
+    tabs = null
+
+    with(binding.debuggerContents.threadLayoutSelector.spinnerText) {
+      onItemClickListener = null
+    }
+
+    binding.debuggerContents.pager.adapter = null
+
+    super.onDestroyView()
+  }
 
 	override fun onFragmentLongPressed() {
         showToolTipDialog(DEBUG_NOT_CONNECTED)
@@ -285,9 +301,10 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 }
 
 class DebuggerPagerAdapter(
-	fragment: DebuggerFragment,
-	private val factories: List<() -> Fragment>,
-) : FragmentStateAdapter(fragment) {
+  fragmentManager: FragmentManager,
+  lifecycle: Lifecycle,
+  private val factories: List<() -> Fragment>,
+) : FragmentStateAdapter(fragmentManager, lifecycle) {
 	override fun getItemCount(): Int = factories.size
 
 	override fun createFragment(position: Int): Fragment = factories[position].invoke()
