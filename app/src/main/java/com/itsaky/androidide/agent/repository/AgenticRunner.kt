@@ -43,7 +43,11 @@ import kotlin.jvm.optionals.getOrNull
 
 class AgenticRunner(
     private val context: Context,
-    private val maxSteps: Int = 20
+    private val maxSteps: Int = 20,
+    toolsOverride: List<Tool>? = null,
+    plannerOverride: Planner? = null,
+    criticOverride: Critic? = null,
+    executorOverride: Executor? = null
 ) : GeminiRepository {
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(
@@ -76,7 +80,7 @@ class AgenticRunner(
         GeminiClient(apiKey, "gemini-2.5-flash")
     }
 
-    private var executor: Executor = Executor()
+    private var executor: Executor = executorOverride ?: Executor()
 
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
@@ -109,9 +113,9 @@ class AgenticRunner(
         TODO("Not yet implemented")
     }
 
-    private val planner: Planner
-    private val critic: Critic
-    private val tools: List<Tool>
+    private val tools: List<Tool> = toolsOverride ?: allAgentTools
+    private val planner: Planner = plannerOverride ?: Planner(plannerClient, this.tools)
+    private val critic: Critic = criticOverride ?: Critic(criticClient)
     private val globalPolicy: String
     private val globalStaticExamples: List<Map<String, Any>>
 
@@ -130,9 +134,6 @@ class AgenticRunner(
     }
 
     init {
-        this.tools = allAgentTools
-        this.planner = Planner(plannerClient, this.tools)
-        this.critic = Critic(criticClient)
         this.globalPolicy = getPolicyConfig()
         this.globalStaticExamples = getFewShotsConfig()
     }

@@ -260,8 +260,10 @@ dependencies {
 	androidTestImplementation(libs.tests.kaspresso)
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
-	androidTestUtil(libs.tests.orchestrator)
+    androidTestUtil(libs.tests.orchestrator)
 
+    testImplementation("io.mockk:mockk:1.13.3")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.1")
 	// brotli4j
 	implementation(libs.brotli4j)
 
