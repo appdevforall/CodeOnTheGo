@@ -3,6 +3,7 @@ package com.itsaky.androidide
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Rect
+import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -25,6 +26,17 @@ class FeedbackButtonManager(
         const val FAB_PREFS = "FabPrefs"
         const val KEY_FAB_X = "fab_x"
         const val KEY_FAB_Y = "fab_y"
+	}
+
+	/**
+	 * Converts dp to pixels using the provided context.
+	 */
+	private fun dpToPx( context: Context): Float {
+		return TypedValue.applyDimension(
+			TypedValue.COMPLEX_UNIT_DIP,
+			16f,
+			context.resources.displayMetrics
+		)
 	}
 
 	// This function is called in the onCreate method of the activity that contains the FAB
@@ -147,13 +159,16 @@ class FeedbackButtonManager(
 	private fun getSafeDraggingBounds(parentView: ViewGroup, fabView: FloatingActionButton): Rect {
 		val bounds = Rect()
 
+		// Convert 16dp margin to pixels
+		val fabMarginPx = dpToPx( parentView.context)
+
 		// Get system window insets (status bar, navigation bar, etc.)
 		val insets = ViewCompat.getRootWindowInsets(parentView)
 		val systemBarsInsets = insets?.getInsets(WindowInsetsCompat.Type.systemBars())
 
 		// Calculate safe minimum Y position
 		// Start with system bars top inset (status bar), add a safety margin
-		val minY = (systemBarsInsets?.top?.toFloat() ?: 0f) + 16f
+		val minY = (systemBarsInsets?.top?.toFloat() ?: 0f) + fabMarginPx
 
 		// Calculate safe bounds
 		bounds.left = 0
@@ -179,9 +194,12 @@ class FeedbackButtonManager(
 			// Position is valid, return as-is
 			Pair(x, y)
 		} else {
+			// Convert 16dp margin to pixels
+			val fabMarginPx = dpToPx( parentView.context)
+
 			// Position is invalid, return default position (bottom-left)
-			val defaultX = 16f  // 16dp margin from left
-			val defaultY = (parentView.height - fabView.height - 16).toFloat()  // 16dp margin from bottom
+			val defaultX = fabMarginPx  // 16dp margin from left
+			val defaultY = parentView.height - fabView.height - fabMarginPx  // 16dp margin from bottom
 			Pair(defaultX, defaultY)
 		}
 	}
