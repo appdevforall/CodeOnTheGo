@@ -3,7 +3,6 @@
     android:id="@+id/warning_text"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginStart="8dp"
     android:gravity="center_vertical"
     android:padding="8dp"
     android:text="@string/experimental_ai_use_at_your_own_risk"
