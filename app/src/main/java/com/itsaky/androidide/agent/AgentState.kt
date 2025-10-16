@@ -1,17 +1,15 @@
 package com.itsaky.androidide.agent
 
+import com.itsaky.androidide.agent.repository.Plan
+
 /**
  * Represents the various states of the AI agent during an operation.
  */
-sealed class AgentState {
-    object Idle : AgentState()
-    data class Processing(val message: String) : AgentState()
-
-    /**
-     * A new state to indicate that a cancellation has been requested.
-     * The UI will observe this to disable the stop button immediately.
-     */
-    object Cancelling : AgentState()
-
-    data class Error(val message: String) : AgentState()
+sealed interface AgentState {
+    object Idle : AgentState
+    data class Initializing(val message: String) : AgentState
+    data class Thinking(val thought: String) : AgentState
+    data class Executing(val plan: Plan, val currentStepIndex: Int) : AgentState
+    data class AwaitingApproval(val command: String) : AgentState
+    data class Error(val message: String) : AgentState
 }

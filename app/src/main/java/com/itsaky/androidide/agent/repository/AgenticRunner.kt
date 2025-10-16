@@ -94,6 +94,7 @@ class AgenticRunner(
 
 
     private val toolTracker = ToolExecutionTracker()
+    private var lastRunEncounteredError = false
 
     /**
      * Immediately cancels the runner's CoroutineScope.
@@ -208,6 +209,8 @@ class AgenticRunner(
         history: List<ChatMessage>
     ) {
         // 1. Load the history from the current session
+        lastRunEncounteredError = false
+        onStateUpdate?.invoke(AgentState.Initializing("Preparing agent..."))
         resetPlan()
         loadHistory(history)
 
@@ -224,13 +227,15 @@ class AgenticRunner(
             "Operation cancelled by user."
         }
 
-        onStateUpdate?.invoke(AgentState.Idle)
+        if (!lastRunEncounteredError) {
+            onStateUpdate?.invoke(AgentState.Idle)
+        }
     }
 
     private suspend fun run(): String {
         startLog()
         addMessage("...", Sender.AGENT)
-        onStateUpdate?.invoke(AgentState.Processing("Initializing..."))
+        onStateUpdate?.invoke(AgentState.Thinking("Gathering context..."))
 
         val initialContent = buildInitialContent()
         val history = mutableListOf(initialContent)
@@ -247,15 +252,14 @@ class AgenticRunner(
                         _messages.value.lastOrNull()?.text?.takeIf { it.isNotBlank() }
                             ?: "Plan completed."
                     updateLastMessage(completionMessage)
+                    emitExecutingState(null)
                     return completionMessage
                 }
 
                 val currentStep = _plan.value!!.steps[stepIndex]
                 markStepStatus(stepIndex, StepStatus.IN_PROGRESS, null)
+                emitExecutingState(stepIndex)
 
-                onStateUpdate?.invoke(
-                    AgentState.Processing("Step ${stepIndex + 1}: ${currentStep.description}")
-                )
                 updateLastMessage("Executing: ${currentStep.description}")
 
                 val planContent = processPlannerStep(history)
@@ -268,12 +272,16 @@ class AgenticRunner(
                     updateLastMessage(finalText)
                     logTurn("final_answer", listOf(Part.builder().text(finalText).build()))
                     markStepStatus(stepIndex, StepStatus.DONE, finalText)
+                    emitExecutingState(stepIndex)
                     if (_plan.value?.isComplete() == true) {
+                        emitExecutingState(stepIndex)
                         return finalText
                     }
+                    emitExecutingState(currentActionableStepIndex())
                     continue
                 }
 
+                onStateUpdate?.invoke(AgentState.Thinking("Executing tool calls..."))
                 val toolResultsParts = processToolExecutionStep(functionCalls)
                 history.add(Content.builder().role("tool").parts(toolResultsParts).build())
                 logTurn("tool", toolResultsParts)
@@ -281,6 +289,8 @@ class AgenticRunner(
                 val critiqueResult = processCriticStep(history)
                 val resultMessage = critiqueResult.takeUnless { it == "OK" }
                 markStepStatus(stepIndex, StepStatus.DONE, resultMessage)
+                val nextIndex = currentActionableStepIndex()
+                emitExecutingState(nextIndex ?: stepIndex)
             }
             throw RuntimeException("Exceeded max steps")
         } catch (err: Exception) {
@@ -289,9 +299,12 @@ class AgenticRunner(
                 return "Operation cancelled by user."
             }
             log.error("Agentic run failed", err)
-            markCurrentStepFailed(err.message)
+            lastRunEncounteredError = true
+            val failedIndex = markCurrentStepFailed(err.message)
+            emitExecutingState(failedIndex)
             val errorMessage = "An error occurred: ${err.message}"
             updateLastMessage(errorMessage)
+            onStateUpdate?.invoke(AgentState.Error(errorMessage))
             return "Agentic run failed: ${err.message}"
         } finally {
             writeLog()
@@ -318,6 +331,7 @@ class AgenticRunner(
 
     private suspend fun processPlannerStep(history: MutableList<Content>): Content {
         updateLastMessage("Planning...")
+        onStateUpdate?.invoke(AgentState.Thinking("Planning next action..."))
         val plan = runWithRetry("planner") {
             planner.plan(history)
         }
@@ -335,6 +349,7 @@ class AgenticRunner(
 
     private suspend fun processCriticStep(history: MutableList<Content>): String {
         updateLastMessage("Reviewing results...")
+        onStateUpdate?.invoke(AgentState.Thinking("Reviewing tool results..."))
         val critiqueResult = runWithRetry("critic") {
             critic.reviewAndSummarize(history)
         }
@@ -475,6 +490,7 @@ class AgenticRunner(
     private suspend fun initializePlan(history: MutableList<Content>) {
         if (_plan.value != null) return
         updateLastMessage("Creating plan...")
+        onStateUpdate?.invoke(AgentState.Thinking("Drafting plan..."))
         val generatedPlan = runWithRetry("planner_plan") {
             planner.generatePlan(history)
         }
@@ -492,6 +508,7 @@ class AgenticRunner(
             "Plan ready (${planToUse.steps.size} steps). Next: $next"
         }
         updateLastMessage(summary)
+        emitExecutingState(planToUse.firstActionableIndex())
     }
 
     private fun currentActionableStepIndex(): Int? = _plan.value?.firstActionableIndex()
@@ -505,16 +522,17 @@ class AgenticRunner(
         }
     }
 
-    private fun markCurrentStepFailed(message: String?) {
-        val plan = _plan.value ?: return
+    private fun markCurrentStepFailed(message: String?): Int? {
+        val plan = _plan.value ?: return null
         val inProgress = plan.steps.indexOfFirst { it.status == StepStatus.IN_PROGRESS }
         val fallback = plan.firstActionableIndex()
         val targetIndex = when {
             inProgress >= 0 -> inProgress
             fallback != null -> fallback
             else -> plan.steps.lastIndex.takeIf { it >= 0 }
-        } ?: return
+        } ?: return null
         markStepStatus(targetIndex, StepStatus.FAILED, message)
+        return targetIndex
     }
 
     private fun mutateCurrentPlan(mutator: (Plan) -> Plan) {
@@ -523,6 +541,17 @@ class AgenticRunner(
         val updated = mutator(workingCopy)
         _plan.value = updated
         logPlanSnapshot("plan_updated")
+    }
+
+    private fun emitExecutingState(preferredIndex: Int?) {
+        val planSnapshot = _plan.value ?: return
+        if (planSnapshot.steps.isEmpty()) return
+        val targetIndex = when {
+            preferredIndex != null && preferredIndex in planSnapshot.steps.indices -> preferredIndex
+            else -> planSnapshot.firstActionableIndex() ?: planSnapshot.steps.lastIndex
+        }
+        val planCopy = planSnapshot.deepCopy()
+        onStateUpdate?.invoke(AgentState.Executing(planCopy, targetIndex))
     }
 
     private fun logPlanSnapshot(tag: String) {

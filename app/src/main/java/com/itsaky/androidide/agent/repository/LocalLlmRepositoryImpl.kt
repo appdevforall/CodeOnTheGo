@@ -58,11 +58,11 @@ class LocalLlmRepositoryImpl(
     override val plan: StateFlow<Plan?> = _plan.asStateFlow()
 
     suspend fun loadModel(modelUriString: String): Boolean {
-        onStateUpdate?.invoke(AgentState.Processing("Loading local model..."))
+        onStateUpdate?.invoke(AgentState.Initializing("Loading local model..."))
         val success = engine.initModelFromFile(context, modelUriString)
         val status =
             if (success) "Local model loaded successfully!" else "Error: Failed to load local model."
-        onStateUpdate?.invoke(AgentState.Processing(status))
+        onStateUpdate?.invoke(AgentState.Thinking(status))
         onStateUpdate?.invoke(AgentState.Idle)
         return success
     }
@@ -312,7 +312,7 @@ Answer:
         fileName: String,
         fileRelativePath: String
     ): String {
-        onStateUpdate?.invoke(AgentState.Processing("Generating code with local LLM..."))
+        onStateUpdate?.invoke(AgentState.Thinking("Generating code with local LLM..."))
         val response = engine.runInference(
             "USER: Based on the file $fileName, $prompt\nASSISTANT:",
             emptyList()

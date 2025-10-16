@@ -198,7 +198,7 @@ class ChatViewModel : ViewModel() {
 
     fun sendMessage(fullPrompt: String, originalUserText: String, context: Context) {
         val currentState = _agentState.value
-        if (currentState is AgentState.Processing || currentState is AgentState.Cancelling) {
+        if (isAgentBusy(currentState)) {
             log.warn("sendMessage called while agent was busy. Ignoring.")
             return
         }
@@ -207,7 +207,7 @@ class ChatViewModel : ViewModel() {
             _agentState.value = AgentState.Idle
         }
 
-        _agentState.value = AgentState.Processing("Thinking...")
+        _agentState.value = AgentState.Initializing("Preparing agent...")
 
         retrieveAgentResponse(fullPrompt, originalUserText, context)
     }
@@ -313,7 +313,7 @@ class ChatViewModel : ViewModel() {
     }
 
     fun stopAgentResponse() {
-        _agentState.value = AgentState.Cancelling
+        _agentState.value = AgentState.Thinking("Stopping...")
         agentRepository?.stop()
         if (agentJob?.isActive == true) {
             agentJob?.cancel()
@@ -345,6 +345,17 @@ class ChatViewModel : ViewModel() {
         agentRepository?.loadHistory(session.messages)
         scheduleSaveCurrentSession()
         _agentState.value = AgentState.Error(message)
+    }
+
+    private fun isAgentBusy(state: AgentState): Boolean {
+        return when (state) {
+            AgentState.Idle -> false
+            is AgentState.Error -> false
+            is AgentState.Initializing,
+            is AgentState.Thinking,
+            is AgentState.Executing,
+            is AgentState.AwaitingApproval -> true
+        }
     }
 
     fun saveAllSessionsAndState(prefs: SharedPreferences) {

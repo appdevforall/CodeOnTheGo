@@ -217,7 +217,7 @@ class ChatFragment :
     private fun setupListeners() {
         binding.promptInputEdittext.doAfterTextChanged { text ->
             val currentState = chatViewModel.agentState.value
-            if (currentState !is AgentState.Processing && currentState !is AgentState.Cancelling) {
+            if (!isAgentBusy(currentState)) {
                 binding.btnSendPrompt.isEnabled = !text.isNullOrBlank()
             }
         }
@@ -282,7 +282,7 @@ class ChatFragment :
                 Triple(state, stepTime, totalTime)
             }.collect { (state, stepTime, totalTime) ->
                 when (state) {
-                    is AgentState.Idle -> {
+                    AgentState.Idle -> {
                         binding.agentStatusContainer.isVisible = false
 
                         binding.btnStopGeneration.isVisible = false
@@ -292,31 +292,54 @@ class ChatFragment :
                             binding.promptInputEdittext.text?.isNotBlank() == true
                     }
 
-                    is AgentState.Processing -> {
+                    is AgentState.Initializing -> {
+                        binding.agentStatusMessage.text = state.message
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+
+                        binding.btnStopGeneration.isVisible = true
+                        binding.btnStopGeneration.isEnabled = true
+                        binding.btnSendPrompt.isVisible = false
+                    }
+
+                    is AgentState.Thinking -> {
+                        binding.agentStatusMessage.text = state.thought
+                        binding.agentStatusTimer.isVisible = false
+                        binding.agentStatusContainer.isVisible = true
+
+                        binding.btnStopGeneration.isVisible = true
+                        binding.btnStopGeneration.isEnabled = true
+                        binding.btnSendPrompt.isVisible = false
+                    }
+
+                    is AgentState.Executing -> {
+                        val stepIndex = state.currentStepIndex
+                        val totalSteps = state.plan.steps.size
+                        val description =
+                            state.plan.steps.getOrNull(stepIndex)?.description ?: "Working..."
                         val stepTimeFormatted = chatViewModel.formatTime(stepTime)
                         val totalTimeFormatted = chatViewModel.formatTime(totalTime)
                         val timeString = "($stepTimeFormatted of $totalTimeFormatted)"
 
-                        binding.agentStatusMessage.text = state.message
+                        binding.agentStatusMessage.text =
+                            "Step ${stepIndex + 1} of $totalSteps: $description"
                         binding.agentStatusTimer.text = timeString
                         binding.agentStatusTimer.isVisible = true
                         binding.agentStatusContainer.isVisible = true
 
                         binding.btnStopGeneration.isVisible = true
-                        binding.btnSendPrompt.isVisible = false
-
                         binding.btnStopGeneration.isEnabled = true
+                        binding.btnSendPrompt.isVisible = false
                     }
 
-                    is AgentState.Cancelling -> {
-                        binding.agentStatusMessage.text = "Stopping..."
+                    is AgentState.AwaitingApproval -> {
+                        binding.agentStatusMessage.text = state.command
                         binding.agentStatusTimer.isVisible = false
                         binding.agentStatusContainer.isVisible = true
 
-                        binding.btnStopGeneration.isVisible = true
-                        binding.btnSendPrompt.isVisible = false
-
-                        binding.btnStopGeneration.isEnabled = false
+                        binding.btnStopGeneration.isVisible = false
+                        binding.btnSendPrompt.isVisible = true
+                        binding.btnSendPrompt.isEnabled = true
                     }
 
                     is AgentState.Error -> {
@@ -358,6 +381,17 @@ class ChatFragment :
             sessionTitle = chatViewModel.currentSession.value?.title,
             messages = messages
         )
+    }
+
+    private fun isAgentBusy(state: AgentState): Boolean {
+        return when (state) {
+            AgentState.Idle -> false
+            is AgentState.Error -> false
+            is AgentState.Initializing,
+            is AgentState.Thinking,
+            is AgentState.Executing,
+            is AgentState.AwaitingApproval -> true
+        }
     }
 
     private fun updateToolbar(sessionTitle: String?, messages: List<ChatMessage>) {
