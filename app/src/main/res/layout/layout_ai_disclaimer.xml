@@ -1,25 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/warning_text"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
+    android:layout_marginStart="8dp"
     android:gravity="center_vertical"
-    android:padding="8dp">
-
-    <ImageView
-        android:id="@+id/warning_icon"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:src="@drawable/ic_warning"
-        app:tint="?attr/colorError" />
-
-    <TextView
-        android:id="@+id/warning_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:text="@string/experimental_ai_use_at_your_own_risk"
-        android:textAppearance="?attr/textAppearanceCaption" />
-
-</LinearLayout>
+    android:padding="8dp"
+    android:text="@string/experimental_ai_use_at_your_own_risk"
+    android:textAppearance="?attr/textAppearanceCaption" />
