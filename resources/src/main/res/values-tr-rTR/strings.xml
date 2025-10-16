@@ -187,8 +187,6 @@
   <string name="title_common">Genel</string>
   <string name="title_files_unsaved">Kaydedilmemiş dosyalar</string>
   <string name="msg_files_unsaved">Bazı dosyalar kaydedilmedi. Kapatmadan önce kaydetmek ister misin? Kaydedilmemiş dosyalar:\n%s</string>
-  <string name="idepref_editor_autoSave_title">Dosyaları kapatmadan önce kaydet</string>
-  <string name="idepref_editor_autoSave_summary">Onları kapatmadan önce kaydet. Bu DENEYSEL bir özellik. Dosyaları kendiniz kaydetmeniz beklenir.</string>
   <string name="idepref_java_matchLower_summary">Eğer etkinleştirilirse küçük ya da büyük harflerin yazımı kapsam üyelerinin yanı sıra sınıf adlarının da önerilmesini sağlayacak.</string>
   <string name="idepref_editor_ligatures_title">Bitişik harfler fontu</string>
   <string name="idepref_editor_ligatures_summary">Yazı tipi ligatürlerini etkinleştir</string>
