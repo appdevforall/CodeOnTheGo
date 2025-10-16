@@ -26,8 +26,11 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -55,8 +58,6 @@ import org.slf4j.LoggerFactory
 import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
 
-import android.hardware.display.DisplayManager
-import android.view.Display
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
@@ -112,7 +113,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         startWebServer()
 
         openLastProject()
-        setupSecondaryDisplay()
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
@@ -296,23 +296,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun startWebServer() {
-        try {
-            val dbFile = Environment.DOC_DB
-
-            if (!dbFile.exists()) {
-                log.warn(
-                    "Database file not found at: {} - WebServer will not start",
-                    dbFile.absolutePath
-                )
-                return
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val dbFile = Environment.DOC_DB
+                log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
+                val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
+                webServer.start() 
+            } catch (e: Exception) {
+                log.error("Failed to start WebServer", e)
             }
-
-            log.info("Starting WebServer - database file exists at: {}", dbFile.absolutePath)
-            val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
-            Thread { webServer.start() }.start()
-
-        } catch (e: Exception) {
-            log.error("Failed to start WebServer", e)
         }
     }
 
@@ -320,18 +312,5 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         ITemplateProvider.getInstance().release()
         super.onDestroy()
         _binding = null
-    }
-
-    private fun setupSecondaryDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-
-        val secondDisplay = displays.firstOrNull { display ->
-            display.displayId != Display.DEFAULT_DISPLAY
-        }
-        secondDisplay?.let {
-            val presentation = SecondaryScreen(this, it)
-            presentation.show()
-        }
     }
 }
