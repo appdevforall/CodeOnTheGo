@@ -277,7 +277,7 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
     <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
     <string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
@@ -292,7 +292,7 @@
     <string name="configure">Configure</string>
     <string name="about">About</string>
     <string name="idepref_channel_summary">Subscribe for latest updates.</string>
-    <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
+    <string name="idepref_group_summary">Discuss features, bugs and improvements here.</string>
     <string name="idepref_changelog_summary">What\'s new in this version?</string>
     <string name="idepref_about_summary">More about Code on the Go</string>
     <string name="idepref_general_summary">General IDE configuration</string>
