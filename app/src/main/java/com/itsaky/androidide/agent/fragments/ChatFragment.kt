@@ -1,5 +1,7 @@
 package com.itsaky.androidide.agent.fragments
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -271,6 +273,8 @@ class ChatFragment :
                     true
                 }
 
+                R.id.menu_copy_chat -> copyVisibleChatToClipboard()
+
                 R.id.menu_ai_settings -> {
                     findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
                     true
@@ -491,6 +495,46 @@ class ChatFragment :
         menuItem?.isEnabled = !isNewChatDisplayed
         val alpha = if (!isNewChatDisplayed) 255 else (255 * 0.4f).toInt()
         menuItem?.icon?.mutate()?.alpha = alpha
+    }
+
+    private fun copyVisibleChatToClipboard(): Boolean {
+        val ctx = context ?: return false
+        if (lastRenderedMessages.isEmpty()) {
+            flashInfo(getString(R.string.copy_chat_empty))
+            return true
+        }
+
+        val transcript = lastRenderedMessages.joinToString(separator = "\n\n") { message ->
+            val senderLabel = when (message.sender) {
+                Sender.USER -> getString(R.string.copy_chat_sender_user)
+                Sender.AGENT -> getString(R.string.copy_chat_sender_agent)
+                Sender.SYSTEM -> getString(R.string.copy_chat_sender_system)
+                Sender.TOOL -> getString(R.string.copy_chat_sender_tool)
+            }
+            val body = message.text.trim().ifEmpty {
+                getString(R.string.copy_chat_empty_message_placeholder)
+            }
+            "$senderLabel:\n$body"
+        }.trim()
+
+        if (transcript.isEmpty()) {
+            flashInfo(getString(R.string.copy_chat_empty))
+            return true
+        }
+
+        val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        if (clipboard == null) {
+            flashInfo(getString(R.string.copy_chat_failed))
+            return true
+        }
+
+        val clip = ClipData.newPlainText(
+            getString(R.string.copy_chat_clip_label),
+            transcript
+        )
+        clipboard.setPrimaryClip(clip)
+        flashInfo(getString(R.string.copy_chat_success))
+        return true
     }
 
     private fun formatChatTitle(rawTitle: String?): String {

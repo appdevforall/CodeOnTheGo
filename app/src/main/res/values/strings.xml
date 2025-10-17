@@ -21,4 +21,14 @@
     <string name="retry">Retry</string>
     <string name="open_ai_settings">Open AI Settings</string>
     <string name="new_chat">New Chat</string>
+    <string name="copy_chat">Copy Chat</string>
+    <string name="copy_chat_success">Chat copied to clipboard.</string>
+    <string name="copy_chat_empty">There is nothing to copy yet.</string>
+    <string name="copy_chat_failed">Unable to access the clipboard.</string>
+    <string name="copy_chat_clip_label">Chat transcript</string>
+    <string name="copy_chat_empty_message_placeholder">[no content]</string>
+    <string name="copy_chat_sender_user">You</string>
+    <string name="copy_chat_sender_agent">Assistant</string>
+    <string name="copy_chat_sender_system">System</string>
+    <string name="copy_chat_sender_tool">Tool</string>
 </resources>

@@ -12,6 +12,10 @@
         android:icon="@drawable/chat_history"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/menu_copy_chat"
+        android:title="@string/copy_chat"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_ai_settings"
         android:title="@string/ai_settings"
         android:icon="@drawable/ic_settings" />
