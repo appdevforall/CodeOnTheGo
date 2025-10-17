@@ -805,6 +805,7 @@ constructor(
             editorScope.launch {
                 dispatchDocumentChangeEvent(event)
                 checkForSignatureHelp(event)
+				handleCustomTextReplacement(event)
             }
         }
 
@@ -828,20 +829,6 @@ constructor(
             subscribeEvent(LongPressEvent::class.java) { event, _ ->
                 EventBus.getDefault().post(EditorLongPressEvent(event.causingEvent))
                 event.intercept()
-            }
-        }
-        subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
-            if (isReleased) {
-                return@subscribeEvent
-            }
-
-            markModified()
-            file ?: return@subscribeEvent
-
-            editorScope.launch {
-                dispatchDocumentChangeEvent(event)
-                checkForSignatureHelp(event)
-                handleCustomTextReplacement(event)
             }
         }
     }
