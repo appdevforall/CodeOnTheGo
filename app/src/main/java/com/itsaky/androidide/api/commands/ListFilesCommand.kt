@@ -45,7 +45,7 @@ class ListFilesCommand(
                         else -> relative.path.replace(File.separatorChar, '/')
                     }
                     ToolResult.success(
-                        message = "Files listed successfully.",
+                        message = "Directory contents listed successfully.",
                         data = files.joinToString("\n"),
                         exploration = ExplorationMetadata(
                             kind = ExplorationKind.LIST,

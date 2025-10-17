@@ -7,7 +7,7 @@
       },
       {
         "role": "assistant",
-        "text": "[\n  {\n    \"name\": \"list_files\",\n    \"parameters\": { \"path\": \"app\" }\n  }\n]"
+        "text": "[\n  {\n    \"name\": \"list_dir\",\n    \"parameters\": { \"path\": \"app\" }\n  }\n]"
       }
     ]
   },
@@ -19,7 +19,7 @@
       },
       {
         "role": "assistant",
-        "text": "[\n  {\n    \"name\": \"read_file\",\n    \"parameters\": { \"path\": \"app/src/main/res/layout/activity_main.xml\" }\n  }\n]"
+        "text": "[\n  {\n    \"name\": \"read_file\",\n    \"parameters\": { \"file_path\": \"app/src/main/res/layout/activity_main.xml\" }\n  }\n]"
       }
     ]
   },
@@ -31,7 +31,7 @@
       },
       {
         "role": "assistant",
-        "text": "[\n  {\n    \"name\": \"read_file\",\n    \"parameters\": { \"path\": \"app/src/main/AndroidManifest.xml\" }\n  },\n  {\n    \"name\": \"list_files\",\n    \"parameters\": { \"path\": \"app/src/main/java/com/example/myapplication15\" }\n  }\n]"
+        "text": "[\n  {\n    \"name\": \"read_file\",\n    \"parameters\": { \"file_path\": \"app/src/main/AndroidManifest.xml\" }\n  },\n  {\n    \"name\": \"list_dir\",\n    \"parameters\": { \"path\": \"app/src/main/java/com/example/myapplication15\" }\n  }\n]"
       }
     ]
   },
@@ -55,7 +55,7 @@
       },
       {
         "role": "assistant",
-        "text": "[{\"name\":\"list_files\",\"parameters\":{\"path\":\"app\",\"recursive\":true}}]"
+        "text": "[{\"name\":\"list_dir\",\"parameters\":{\"path\":\"app\",\"recursive\":true}}]"
       }
     ]
   },
@@ -67,7 +67,7 @@
       },
       {
         "role": "assistant",
-        "text": "[{\"name\":\"read_file\",\"parameters\":{\"path\":\"app/build.gradle.kts\"}}]"
+        "text": "[{\"name\":\"read_file\",\"parameters\":{\"file_path\":\"app/build.gradle.kts\"}}]"
       }
     ]
   },
