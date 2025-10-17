@@ -31,7 +31,7 @@ val changelog =
     title = R.string.pref_changelog,
     summary = R.string.idepref_changelog_summary
   ) {
-    IDEApplication.instance.showChangelog()
+    IDEApplication.instance.showChangelog(it.context)
     true
   }
 val about =

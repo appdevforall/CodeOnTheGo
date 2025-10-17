@@ -57,6 +57,7 @@ import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
+import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
@@ -150,6 +151,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
     private fun getCurrentActiveActivity(): android.app.Activity? {
         return currentActivity
     }
+
 
     /**
      * Called by activities when they become active/visible.
@@ -305,20 +307,13 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
         }
     }
 
-    fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW)
+    fun showChangelog(context: Context? = null) {
         var version = BuildInfo.VERSION_NAME_SIMPLE
         if (!version.startsWith('v')) {
             version = "v$version"
         }
-        intent.data = "${BuildInfo.REPO_URL}/releases/tag/$version".toUri()
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            startActivity(intent)
-        } catch (th: Throwable) {
-            log.error("Unable to start activity to show changelog", th)
-            flashError("Unable to start activity")
-        }
+        val url = "${BuildInfo.REPO_URL}/releases/tag/$version"
+        UrlManager.openUrl(url, null, context ?: currentActivity ?: this)
     }
 
     private fun startLogcatReader() {

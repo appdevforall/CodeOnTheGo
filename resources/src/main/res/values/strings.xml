@@ -912,4 +912,11 @@
     <string name="failed_to_capture_or_save_screenshot">Failed to capture or save screenshot</string>
     <string name="back_to_cogo">Back to Code on the Go</string>
 
+    <!-- URL Consent Dialog -->
+    <string name="url_consent_title">Open External Link?</string>
+    <string name="url_consent_message">You are about to leave Code on the Go to open an external link:\n\n%s\n\nDo you want to continue?</string>
+    <string name="url_consent_cancel">Cancel</string>
+    <string name="url_consent_proceed">Proceed</string>
+    <string name="url_consent_dont_ask">Don\'t Ask Again</string>
+
 </resources>
