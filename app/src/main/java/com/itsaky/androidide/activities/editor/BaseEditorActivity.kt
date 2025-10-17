@@ -212,6 +212,8 @@ abstract class BaseEditorActivity :
 			override fun handleOnBackPressed() {
 				if (binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START)) {
 					binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+				} else if (isRightPanelOpen()) {
+					closeRightPanel()
 				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
 //				if (binding.root.isDrawerOpen(GravityCompat.START)) {
 //					binding.root.closeDrawer(GravityCompat.START)
@@ -750,6 +752,24 @@ abstract class BaseEditorActivity :
 
         animator.start()
     }
+
+    private fun isRightPanelOpen(): Boolean {
+        return if (isPortraitMode) {
+            rightPanelBottomSheetBehavior?.state != BottomSheetBehavior.STATE_HIDDEN
+        } else {
+            val visible = rightPanelContainer?.visibility == View.VISIBLE
+            val percent = (verticalGuideline?.layoutParams as? ConstraintLayout.LayoutParams)?.guidePercent ?: 1f
+            visible && percent < 1f
+        }
+    }
+
+		private fun closeRightPanel() {
+				if (isPortraitMode) {
+						rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
+				} else {
+						animateGuideline(1.0f, shouldHideOnEnd = true)
+				}
+		}
 
     private fun setupToolbar() {
         content.customToolbar.apply {
