@@ -234,7 +234,7 @@ abstract class BaseAgenticRunner(
             }.await()
         } catch (e: CancellationException) {
             log.warn("generateASimpleResponse caught cancellation.")
-            updateLastMessage("Operation cancelled by user.")
+            addMessage("Operation cancelled by user.", Sender.SYSTEM)
         }
 
         if (!lastRunEncounteredError) {
@@ -273,7 +273,7 @@ abstract class BaseAgenticRunner(
 
     private suspend fun run(): String {
         startLog()
-        addMessage("...", Sender.AGENT)
+        addMessage("Starting agent workflow...", Sender.AGENT)
         onStateUpdate?.invoke(AgentState.Initializing("Crafting a plan..."))
 
         val initialContent = buildInitialContent()
@@ -285,18 +285,13 @@ abstract class BaseAgenticRunner(
 
         if (initialPlan.steps.isEmpty()) {
             val message = "I couldn't devise a plan for that request."
-            updateLastMessage(message)
+            addMessage(message, Sender.AGENT)
             return message
         }
 
         _plan.value = initialPlan
         logPlanSnapshot("plan_created")
-        val planSummaryMessage = if (initialPlan.steps.size == 1) {
-            "Plan ready: ${initialPlan.steps.first().description}"
-        } else {
-            "Plan ready with ${initialPlan.steps.size} steps."
-        }
-        updateLastMessage(planSummaryMessage)
+        postPlanSummary(initialPlan)
         emitExecutingState(_plan.value?.firstActionableIndex())
 
         try {
@@ -319,7 +314,10 @@ abstract class BaseAgenticRunner(
 
                 markStepStatus(stepIndex, StepStatus.IN_PROGRESS, null)
                 emitExecutingState(stepIndex)
-                updateLastMessage("Executing: ${stepDescription}")
+                addMessage(
+                    "Step ${stepIndex + 1} of $totalSteps: $stepDescription",
+                    Sender.AGENT
+                )
 
                 var attempts = 0
                 var stepSucceeded = false
@@ -344,7 +342,12 @@ abstract class BaseAgenticRunner(
                         val responseText =
                             plannerParts.firstOrNull()?.text()?.getOrNull()?.trim()
                         if (!responseText.isNullOrBlank()) {
-                            updateLastMessage(responseText)
+                            addMessage(responseText, Sender.AGENT)
+                        } else {
+                            addMessage(
+                                "Step ${stepIndex + 1} resolved without additional actions.",
+                                Sender.AGENT
+                            )
                         }
                         markStepStatus(stepIndex, StepStatus.DONE, responseText)
                         emitExecutingState(stepIndex)
@@ -365,9 +368,12 @@ abstract class BaseAgenticRunner(
                             formatToolResultPart(part).takeIf { it.isNotBlank() }
                         }
                         val resultSummary = formattedResults.joinToString("\n\n")
-                            .ifBlank { "Tools executed successfully." }
+                            .ifBlank { buildToolSuccessSummary(functionCalls) }
                         markStepStatus(stepIndex, StepStatus.DONE, resultSummary)
-                        updateLastMessage(resultSummary)
+                        addMessage(
+                            "Step ${stepIndex + 1} completed successfully.",
+                            Sender.AGENT
+                        )
                         emitExecutingState(stepIndex)
                         stepSucceeded = true
                     } else {
@@ -394,7 +400,7 @@ abstract class BaseAgenticRunner(
             val finalAnswer = finalPlanSnapshot?.steps?.lastOrNull()?.result
                 ?.takeIf { !it.isNullOrBlank() }
                 ?: "I have completed all the steps in the plan."
-            updateLastMessage(finalAnswer)
+            addFinalAgentMessageIfNeeded(finalAnswer)
             logTurn(
                 "final_answer",
                 listOf(Part.builder().text(finalAnswer).build())
@@ -411,7 +417,7 @@ abstract class BaseAgenticRunner(
             val failedIndex = markCurrentStepFailed(err.message)
             emitExecutingState(failedIndex)
             val errorMessage = "An error occurred: ${err.message}"
-            updateLastMessage(errorMessage)
+            addMessage(errorMessage, Sender.SYSTEM)
             onStateUpdate?.invoke(AgentState.Error(errorMessage))
             return "Agentic run failed: ${err.message}"
         } finally {
@@ -427,10 +433,30 @@ abstract class BaseAgenticRunner(
     }
 
     private suspend fun processToolExecutionStep(functionCalls: List<FunctionCall>): List<Part> {
-        val toolCallSummary =
-            functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
-        updateLastMessage(toolCallSummary)
-        return executor.execute(functionCalls)
+        val toolNames = functionCalls.map { it.name().getOrNull() ?: "unknown" }
+        val toolCallSummary = toolNames.joinToString("\n") { name ->
+            "Calling tool: `$name`"
+        }
+        addMessage(toolCallSummary, Sender.SYSTEM)
+        val results = executor.execute(functionCalls)
+        val formatted = results.mapNotNull { part ->
+            formatToolResultPart(part).takeIf { text -> text.isNotBlank() }
+        }
+        if (formatted.isEmpty()) {
+            addMessage(buildToolSuccessSummary(functionCalls), Sender.TOOL)
+        } else {
+            formatted.forEach { addMessage(it, Sender.TOOL) }
+        }
+        return results
+    }
+
+    private fun buildToolSuccessSummary(functionCalls: List<FunctionCall>): String {
+        val toolNames = functionCalls.map { it.name().getOrNull() ?: "unknown" }
+        return if (toolNames.size == 1) {
+            "Tool `${toolNames.first()}` finished successfully."
+        } else {
+            "Tools ${toolNames.joinToString { "`$it`" }} finished successfully."
+        }
     }
 
     private fun formatToolResultPart(part: Part): String {
@@ -622,12 +648,33 @@ abstract class BaseAgenticRunner(
         _messages.update { currentList -> currentList + message }
     }
 
-    private fun updateLastMessage(newText: String) {
-        _messages.update { currentList ->
-            if (currentList.isEmpty()) return@update currentList
-            val lastMessage = currentList.last()
-            val updatedMessage = lastMessage.copy(text = newText)
-            currentList.dropLast(1) + updatedMessage
+    private fun postPlanSummary(plan: Plan) {
+        if (plan.steps.isEmpty()) return
+        val summary = buildString {
+            val stepCount = plan.steps.size
+            val header = if (stepCount == 1) {
+                "Plan created with 1 step:"
+            } else {
+                "Plan created with $stepCount steps:"
+            }
+            append(header)
+            append('\n')
+            plan.steps.forEachIndexed { index, task ->
+                append("${index + 1}. ${task.description}")
+                if (index != plan.steps.lastIndex) {
+                    append('\n')
+                }
+            }
+        }.trimEnd()
+        addMessage(summary, Sender.SYSTEM)
+    }
+
+    private fun addFinalAgentMessageIfNeeded(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        val lastText = _messages.value.lastOrNull()?.text?.trim()
+        if (lastText != trimmed) {
+            addMessage(trimmed, Sender.AGENT)
         }
     }
 
