@@ -11,6 +11,11 @@ import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
+import com.itsaky.androidide.agent.prompt.ModelFamily
+import com.itsaky.androidide.agent.prompt.ResponseItem
+import com.itsaky.androidide.agent.prompt.TurnContext
+import com.itsaky.androidide.agent.prompt.buildMessagesForChatAPI
+import com.itsaky.androidide.agent.prompt.buildPrompt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -125,6 +130,12 @@ class AgenticRunner(
     private val tools: List<Tool> = toolsOverride ?: allAgentTools
     private val planner: Planner = plannerOverride ?: Planner(plannerClient, this.tools)
     private val critic: Critic = criticOverride ?: Critic(criticClient)
+    private val modelFamily = ModelFamily(
+        id = "gemini-2.5-pro",
+        baseInstructions = DEFAULT_BASE_INSTRUCTIONS,
+        supportsParallelToolCalls = true,
+        needsSpecialApplyPatchInstructions = true
+    )
     private val globalPolicy: String
     private val globalStaticExamples: List<Map<String, Any>>
 
@@ -138,6 +149,10 @@ class AgenticRunner(
         private const val MAX_RETRY_DELAY_MS = 2_000L
         private const val RETRY_BACKOFF_MULTIPLIER = 2.0
         private const val MAX_STEP_ATTEMPTS = 3
+        private val DEFAULT_BASE_INSTRUCTIONS = """
+            You are an expert Android developer agent specializing in both Views and Jetpack Compose. Your goal is to fulfill user requests by interacting with an IDE.
+            Follow policies strictly.
+        """.trimIndent()
 
         private val json = Json {
             prettyPrint = true
@@ -152,57 +167,61 @@ class AgenticRunner(
         this.globalStaticExamples = getFewShotsConfig()
     }
 
-    private fun buildSystemPrompt(
-    ): String {
+    private fun buildInstructionOverride(): String {
         val currentTime = LocalDateTime.now()
         val formattedTime =
             "${currentTime.dayOfWeek}, ${currentTime.toLocalDate()} ${currentTime.hour}:${
                 currentTime.minute.toString().padStart(2, '0')
             }"
 
+        val builder = StringBuilder()
+        builder.append(DEFAULT_BASE_INSTRUCTIONS)
+        builder.append("\n\n[Session Information]\n- Current Date and Time: $formattedTime\n\n")
 
-        var header = """
-            You are an expert Android developer agent specializing in both Views and Jetpack Compose. Your goal is to fulfill user requests by interacting with an IDE.
-            Follow policies strictly.
-
-            [Session Information]
-            - Current Date and Time: $formattedTime
-
-        """.trimIndent()
-
-        val globalRulesText = globalPolicy
-        header += "[Global Rules]\n$globalRulesText\n"
-
-        header += "\n[Tooling]\nUse tools when they reduce uncertainty or are required by policy.\n"
-
-
-        return header
-    }
-
-    private fun createAugmentedPrompt(
-        prompt: String,
-        header: String,
-        examples: List<Map<String, Any>>,
-        formattedHistory: String
-    ): String {
-        val formattedExamples = StringBuilder()
-        examples.forEachIndexed { i, dialogueDict ->
-            formattedExamples.append("--- Example ${i + 1} ---\n")
-            val listOfTurns = dialogueDict["dialogue"] as? List<Map<String, String>> ?: emptyList()
-            listOfTurns.forEach { turn ->
-                when (turn["role"]) {
-                    "user" -> formattedExamples.append("User: ${turn["text"]}\n")
-                    "assistant" -> formattedExamples.append("Assistant: ${turn["text"]}\n")
-                }
-            }
-            formattedExamples.append("--- End Example ---\n\n")
+        if (globalPolicy.isNotBlank()) {
+            builder.append("[Global Rules]\n")
+            builder.append(globalPolicy.trim())
+            builder.append("\n\n")
         }
 
-        val finalInstruction =
-            "Based on the user's request, you MUST respond by calling one or more of the available tools. Do not provide a conversational answer."
+        builder.append("[Tooling]\nUse tools when they reduce uncertainty or are required by policy.\n\n")
 
-        return "$header$formattedExamples$formattedHistory" +
-                "$finalInstruction\n\nUser Request: $prompt"
+        val examplesBlock = formatExamples(globalStaticExamples)
+        if (examplesBlock.isNotBlank()) {
+            builder.append(examplesBlock)
+        }
+
+        builder.append("Based on the user's request, you MUST respond by calling one or more of the available tools. Do not provide a conversational answer.")
+
+        return builder.toString().trimEnd()
+    }
+
+    private fun formatExamples(examples: List<Map<String, Any>>): String {
+        if (examples.isEmpty()) return ""
+        val builder = StringBuilder()
+        examples.forEachIndexed { index, rawDialogue ->
+            val dialogueTurns =
+                (rawDialogue["dialogue"] as? List<*>)?.filterIsInstance<Map<String, String>>()
+                    ?: emptyList()
+            if (dialogueTurns.isEmpty()) {
+                return@forEachIndexed
+            }
+            builder.append("--- Example ${index + 1} ---\n")
+            dialogueTurns.forEach { turn ->
+                val role = turn["role"] ?: return@forEach
+                val text = turn["text"] ?: ""
+                val labeledRole = when (role.lowercase()) {
+                    "user" -> "User"
+                    "assistant" -> "Assistant"
+                    else -> role.replaceFirstChar { ch ->
+                        if (ch.isLowerCase()) ch.titlecase() else ch.toString()
+                    }
+                }
+                builder.append("$labeledRole: $text\n")
+            }
+            builder.append("--- End Example ---\n\n")
+        }
+        return builder.toString()
     }
 
     override suspend fun generateASimpleResponse(
@@ -381,19 +400,29 @@ class AgenticRunner(
     // --- Helper methods for the run loop ---
 
     private fun buildInitialContent(): Content {
-        val prompt = _messages.value.lastOrNull { it.sender == Sender.USER }?.text ?: ""
-        val currentMessages = _messages.value.dropLast(1) // Exclude placeholder
-        val formattedHistory = currentMessages.takeIf { it.isNotEmpty() }?.let {
-            val historyLog = it.joinToString("\n") { msg ->
-                "${msg.sender}: ${msg.text}"
-            }
-            "\n[START OF PREVIOUS CONVERSATION]\n$historyLog\n[END OF PREVIOUS CONVERSATION]\n\n"
-        } ?: ""
-        val header = buildSystemPrompt()
-        val augmentedPrompt =
-            createAugmentedPrompt(prompt, header, globalStaticExamples, formattedHistory)
-        return Content.builder().role("user").parts(Part.builder().text(augmentedPrompt).build())
-            .build()
+        val historyWithoutPlaceholder = _messages.value.dropLast(1)
+        val responseItems = historyWithoutPlaceholder.mapNotNull { it.toResponseItem() }
+        if (responseItems.isEmpty()) {
+            throw IllegalStateException("Unable to build prompt without a user message.")
+        }
+
+        val firstUserIndex = responseItems.indexOfFirst { item ->
+            item is ResponseItem.Message && item.role == "user"
+        }
+        if (firstUserIndex == -1) {
+            throw IllegalStateException("Conversation must contain at least one user message.")
+        }
+
+        val effectiveItems = responseItems.drop(firstUserIndex)
+
+        val turnContext = TurnContext(
+            modelFamily = modelFamily,
+            toolsConfig = tools,
+            baseInstructionsOverride = buildInstructionOverride()
+        )
+        val prompt = buildPrompt(turnContext, effectiveItems)
+        val messages = buildMessagesForChatAPI(prompt, modelFamily)
+        return messages.first()
     }
 
     private suspend fun processToolExecutionStep(functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
@@ -491,6 +520,16 @@ class AgenticRunner(
         }
     }
 
+    private fun ChatMessage.toResponseItem(): ResponseItem? {
+        if (text.isBlank()) return null
+        val role = when (sender) {
+            Sender.USER -> "user"
+            Sender.AGENT -> "assistant"
+            Sender.TOOL -> "tool"
+            Sender.SYSTEM -> "user"
+        }
+        return ResponseItem.Message(role, text)
+    }
 
     private fun getPolicyConfig(): String {
         return try {
