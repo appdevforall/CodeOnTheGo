@@ -106,8 +106,8 @@ class ChatViewModel : ViewModel() {
     }
 
     init {
-        val baseDir = IProjectManager.getInstance().projectDir
-        val agentDir = File(baseDir, "agent")
+        val storageRoot = File(BaseApplication.getBaseInstance().filesDir, "chat_sessions")
+        val agentDir = File(storageRoot, determineProjectBucket())
         chatStorageManager = ChatStorageManager(agentDir)
     }
 
@@ -580,6 +580,16 @@ class ChatViewModel : ViewModel() {
                 repo.loadHistory(messages)
             }
         }
+    }
+
+    private fun determineProjectBucket(): String {
+        val projectDir = runCatching { IProjectManager.getInstance().projectDir }.getOrNull()
+        val baseName = projectDir?.let {
+            val displayName = it.name.takeIf { n -> n.isNotBlank() } ?: "project"
+            val hashSuffix = it.absolutePath.hashCode().toString()
+            "${displayName}_$hashSuffix"
+        } ?: "default"
+        return baseName.replace("[^A-Za-z0-9._-]".toRegex(), "_")
     }
 
     fun submitUserApproval(id: ApprovalId, decision: ReviewDecision) {

@@ -17,8 +17,12 @@ class ChatStorageManager(private val storageDir: File) {
     private val gson = Gson()
 
     init {
-        // Ensure the target directory exists.
-        storageDir.mkdirs()
+        if (!storageDir.exists() && !storageDir.mkdirs()) {
+            Log.e(
+                "ChatStorageManager",
+                "Failed to create chat storage directory at ${storageDir.absolutePath}"
+            )
+        }
     }
 
     /**
