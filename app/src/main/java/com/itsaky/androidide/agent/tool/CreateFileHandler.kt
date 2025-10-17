@@ -6,6 +6,7 @@ import com.itsaky.androidide.api.IDEApiFacade
 
 class CreateFileHandler : ToolHandler {
     override val name: String = "create_file"
+    override val isPotentiallyDangerous: Boolean = true
 
     override suspend fun invoke(args: Map<String, Any?>): ToolResult {
         val toolArgs = decodeArgs<CreateFileArgs>(args)

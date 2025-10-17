@@ -6,6 +6,7 @@ import com.itsaky.androidide.api.IDEApiFacade
 
 class UpdateFileHandler : ToolHandler {
     override val name: String = "update_file"
+    override val isPotentiallyDangerous: Boolean = true
 
     override suspend fun invoke(args: Map<String, Any?>): ToolResult {
         val toolArgs = decodeArgs<UpdateFileArgs>(args)

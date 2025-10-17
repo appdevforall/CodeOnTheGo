@@ -9,6 +9,7 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -20,13 +21,18 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter
 import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.ACTION_EDIT
 import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.Sender
+import com.itsaky.androidide.agent.model.ReviewDecision
+import com.itsaky.androidide.agent.tool.toJsonElement
+import com.itsaky.androidide.agent.tool.toolJson
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
@@ -38,6 +44,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class ChatFragment :
@@ -69,6 +76,8 @@ class ChatFragment :
     private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
     private lateinit var markwon: Markwon
     private var lastRenderedMessages: List<ChatMessage> = emptyList()
+    private var approvalDialog: AlertDialog? = null
+    private var currentApprovalId: ApprovalId? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -281,6 +290,9 @@ class ChatFragment :
             }.combine(chatViewModel.totalElapsedTime) { (state, stepTime), totalTime ->
                 Triple(state, stepTime, totalTime)
             }.collect { (state, stepTime, totalTime) ->
+                if (state !is AgentState.AwaitingApproval) {
+                    dismissApprovalDialog()
+                }
                 when (state) {
                     AgentState.Idle -> {
                         binding.agentStatusContainer.isVisible = false
@@ -333,13 +345,15 @@ class ChatFragment :
                     }
 
                     is AgentState.AwaitingApproval -> {
-                        binding.agentStatusMessage.text = state.command
+                        binding.agentStatusMessage.text = state.reason
                         binding.agentStatusTimer.isVisible = false
                         binding.agentStatusContainer.isVisible = true
 
                         binding.btnStopGeneration.isVisible = false
                         binding.btnSendPrompt.isVisible = true
                         binding.btnSendPrompt.isEnabled = true
+
+                        showApprovalDialog(state)
                     }
 
                     is AgentState.Error -> {
@@ -356,6 +370,65 @@ class ChatFragment :
                 }
             }
         }
+    }
+
+    private fun showApprovalDialog(state: AgentState.AwaitingApproval) {
+        if (currentApprovalId == state.id && approvalDialog?.isShowing == true) {
+            return
+        }
+
+        dismissApprovalDialog()
+        currentApprovalId = state.id
+
+        val argsText = formatToolArgs(state.toolArgs)
+        val message = buildString {
+            append(state.reason)
+            append("\n\nArguments:\n")
+            append(argsText)
+        }
+
+        approvalDialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Approve '${state.toolName}'?")
+            .setMessage(message)
+            .setPositiveButton("Approve Once") { _, _ ->
+                chatViewModel.submitUserApproval(state.id, ReviewDecision.Approved)
+            }
+            .setNeutralButton("Approve for Session") { _, _ ->
+                chatViewModel.submitUserApproval(state.id, ReviewDecision.ApprovedForSession)
+            }
+            .setNegativeButton("Deny") { _, _ ->
+                chatViewModel.submitUserApproval(state.id, ReviewDecision.Denied)
+            }
+            .setOnCancelListener {
+                chatViewModel.submitUserApproval(state.id, ReviewDecision.Denied)
+            }
+            .create().apply {
+                setOnDismissListener {
+                    approvalDialog = null
+                    currentApprovalId = null
+                }
+                show()
+            }
+    }
+
+    private fun dismissApprovalDialog() {
+        approvalDialog?.setOnDismissListener(null)
+        approvalDialog?.dismiss()
+        approvalDialog = null
+        currentApprovalId = null
+    }
+
+    private fun formatToolArgs(args: Map<String, Any?>): String {
+        if (args.isEmpty()) {
+            return "{}"
+        }
+        val jsonElement: JsonElement = args.toJsonElement()
+        return toolJson.encodeToString(JsonElement.serializer(), jsonElement)
+    }
+
+    override fun onDestroyView() {
+        dismissApprovalDialog()
+        super.onDestroyView()
     }
 
     private fun updateUIState(messages: List<ChatMessage>) {

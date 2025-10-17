@@ -2,6 +2,8 @@ package com.itsaky.androidide.agent.repository
 
 import com.google.genai.types.FunctionCall
 import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.agent.tool.ToolApprovalManager
+import com.itsaky.androidide.agent.tool.ToolApprovalResponse
 import com.itsaky.androidide.agent.tool.ToolHandler
 import com.itsaky.androidide.agent.tool.ToolRouter
 import io.mockk.every
@@ -15,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
 import org.junit.Test
 import java.util.Optional
@@ -141,6 +144,31 @@ class ExecutorTest {
         )
     }
 
+    @Test
+    fun executeDeniesToolWhenApprovalRejected() = runTest {
+        var invoked = false
+        val dangerousHandler = lambdaHandler("update_file", isDangerous = true) {
+            invoked = true
+            ToolResult.success("update_file ok")
+        }
+        val denialManager = approvalManager { toolName, _, _ ->
+            ToolApprovalResponse(
+                approved = false,
+                denialMessage = "Denied $toolName"
+            )
+        }
+
+        val executor = executorWithHandlers(dangerousHandler, approvalManager = denialManager)
+
+        val parts = executor.execute(listOf(functionCall("update_file")))
+        assertFalse(invoked)
+
+        @Suppress("UNCHECKED_CAST")
+        val response = parts.single().functionResponse().get().response().get() as Map<String, Any?>
+        assertEquals(false, response["success"])
+        assertEquals("Denied update_file", response["message"])
+    }
+
     private fun functionCall(name: String): FunctionCall {
         val call = mockk<FunctionCall>()
         every { call.name() } returns Optional.of(name)
@@ -148,20 +176,39 @@ class ExecutorTest {
         return call
     }
 
-    private fun executorWithHandlers(vararg handlers: ToolHandler): Executor {
+    private fun executorWithHandlers(
+        vararg handlers: ToolHandler,
+        approvalManager: ToolApprovalManager = alwaysApproveManager()
+    ): Executor {
         val router = ToolRouter(handlers.associateBy { it.name })
-        return Executor(router)
+        return Executor(router, approvalManager)
     }
 
     private fun lambdaHandler(
         name: String,
+        isDangerous: Boolean = false,
         block: suspend (Map<String, Any?>) -> ToolResult
     ): ToolHandler = object : ToolHandler {
         override val name: String = name
+        override val isPotentiallyDangerous: Boolean = isDangerous
         override suspend fun invoke(args: Map<String, Any?>): ToolResult = block(args)
     }
 
     private fun successHandler(name: String): ToolHandler = lambdaHandler(name) {
         ToolResult.success("$name ok")
+    }
+
+    private fun alwaysApproveManager(): ToolApprovalManager = approvalManager { _, _, _ ->
+        ToolApprovalResponse(approved = true)
+    }
+
+    private fun approvalManager(
+        block: suspend (String, ToolHandler, Map<String, Any?>) -> ToolApprovalResponse
+    ): ToolApprovalManager = object : ToolApprovalManager {
+        override suspend fun ensureApproved(
+            toolName: String,
+            handler: ToolHandler,
+            args: Map<String, Any?>
+        ): ToolApprovalResponse = block(toolName, handler, args)
     }
 }

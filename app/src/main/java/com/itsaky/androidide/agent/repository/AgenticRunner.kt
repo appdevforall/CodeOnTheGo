@@ -7,19 +7,27 @@ import com.google.genai.types.Content
 import com.google.genai.types.Part
 import com.google.genai.types.Tool
 import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
+import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.ResponseItem
 import com.itsaky.androidide.agent.prompt.TurnContext
 import com.itsaky.androidide.agent.prompt.buildMessagesForChatAPI
 import com.itsaky.androidide.agent.prompt.buildPrompt
+import com.itsaky.androidide.agent.tool.ToolApprovalManager
+import com.itsaky.androidide.agent.tool.ToolApprovalResponse
+import com.itsaky.androidide.agent.tool.ToolHandler
 import com.itsaky.androidide.agent.tool.ToolsConfigParams
 import com.itsaky.androidide.agent.tool.buildToolRouter
 import com.itsaky.androidide.agent.tool.buildToolsConfig
+import com.itsaky.androidide.agent.tool.toJsonElement
+import com.itsaky.androidide.agent.tool.toolJson
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,6 +58,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.time.LocalDateTime
+import java.util.UUID
 import kotlin.jvm.optionals.getOrNull
 import kotlin.math.min
 
@@ -97,6 +106,19 @@ class AgenticRunner(
 
     private var executor: Executor = executorOverride ?: createExecutor()
 
+    private val approvedForSession = mutableSetOf<String>()
+    private val approvalLock = Any()
+    private val pendingApprovals = mutableMapOf<ApprovalId, PendingApproval>()
+    private val approvalManager = object : ToolApprovalManager {
+        override suspend fun ensureApproved(
+            toolName: String,
+            handler: ToolHandler,
+            args: Map<String, Any?>
+        ): ToolApprovalResponse {
+            return ensureToolApproved(toolName, handler, args)
+        }
+    }
+
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
 
@@ -115,6 +137,17 @@ class AgenticRunner(
         runnerJob = SupervisorJob()
         runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
         _plan.value = null
+
+        val pendingDeferreds = mutableListOf<CompletableDeferred<ReviewDecision>>()
+        synchronized(approvalLock) {
+            pendingDeferreds += pendingApprovals.values.map { it.deferred }
+            pendingApprovals.clear()
+        }
+        pendingDeferreds.forEach { deferred ->
+            if (!deferred.isCompleted) {
+                deferred.complete(ReviewDecision.Denied)
+            }
+        }
     }
 
     override fun getPartialReport(): String {
@@ -174,7 +207,7 @@ class AgenticRunner(
         val toolsConfigParams = ToolsConfigParams(modelFamily = modelFamily)
         val toolsConfig = buildToolsConfig(toolsConfigParams)
         val toolRouter = buildToolRouter(toolsConfig)
-        return Executor(toolRouter)
+        return Executor(toolRouter, approvalManager)
     }
 
     private fun buildInstructionOverride(): String {
@@ -529,6 +562,135 @@ class AgenticRunner(
             log.error("Failed to write interaction log.", e)
         }
     }
+
+    override fun submitApprovalDecision(id: ApprovalId, decision: ReviewDecision) {
+        var deferred: CompletableDeferred<ReviewDecision>? = null
+        synchronized(approvalLock) {
+            val pending = pendingApprovals[id]
+            if (pending == null) {
+                log.warn("Received decision for unknown approval id: {}", id)
+            } else {
+                deferred = pending.deferred
+            }
+        }
+
+        if (deferred == null) {
+            return
+        }
+
+        if (!deferred!!.isCompleted) {
+            deferred!!.complete(decision)
+        }
+    }
+
+    private suspend fun ensureToolApproved(
+        toolName: String,
+        handler: ToolHandler,
+        args: Map<String, Any?>
+    ): ToolApprovalResponse {
+        if (!handler.isPotentiallyDangerous) {
+            return ToolApprovalResponse(approved = true)
+        }
+
+        val signature = createToolSignature(toolName, args)
+        synchronized(approvalLock) {
+            if (approvedForSession.contains(signature)) {
+                return ToolApprovalResponse(approved = true)
+            }
+        }
+
+        val decision = requestUserApproval(signature, toolName, args)
+
+        return when (decision) {
+            ReviewDecision.Approved -> {
+                notifyApprovalResolution(toolName, decision)
+                ToolApprovalResponse(approved = true)
+            }
+
+            ReviewDecision.ApprovedForSession -> {
+                synchronized(approvalLock) {
+                    approvedForSession.add(signature)
+                }
+                notifyApprovalResolution(toolName, decision)
+                ToolApprovalResponse(approved = true)
+            }
+
+            ReviewDecision.Denied -> {
+                notifyApprovalResolution(toolName, decision)
+                ToolApprovalResponse(
+                    approved = false,
+                    denialMessage = "User denied the request for '$toolName'."
+                )
+            }
+        }
+    }
+
+    private suspend fun requestUserApproval(
+        signature: String,
+        toolName: String,
+        args: Map<String, Any?>
+    ): ReviewDecision {
+        val approvalId = UUID.randomUUID().toString()
+        val deferred = CompletableDeferred<ReviewDecision>()
+
+        synchronized(approvalLock) {
+            pendingApprovals[approvalId] = PendingApproval(signature, toolName, args, deferred)
+        }
+
+        val reason = buildApprovalReason(toolName)
+        onStateUpdate?.invoke(AgentState.AwaitingApproval(approvalId, toolName, args, reason))
+
+        return try {
+            deferred.await()
+        } finally {
+            synchronized(approvalLock) {
+                pendingApprovals.remove(approvalId)
+            }
+        }
+    }
+
+    private fun buildApprovalReason(toolName: String): String {
+        return "Tool '$toolName' wants to perform an action that may modify your project."
+    }
+
+    private fun notifyApprovalResolution(toolName: String, decision: ReviewDecision) {
+        val message = when (decision) {
+            ReviewDecision.Approved -> "Approval received for '$toolName'."
+            ReviewDecision.ApprovedForSession -> "Approved '$toolName' for the remainder of this session."
+            ReviewDecision.Denied -> "Denied '$toolName'."
+        }
+        onStateUpdate?.invoke(AgentState.Thinking(message))
+    }
+
+    private fun createToolSignature(toolName: String, args: Map<String, Any?>): String {
+        @Suppress("UNCHECKED_CAST")
+        val normalizedArgs = normalizeArgs(args) as? Map<String, Any?> ?: emptyMap()
+        val jsonElement = normalizedArgs.toJsonElement()
+        val argsJson = toolJson.encodeToString(JsonElement.serializer(), jsonElement)
+        return "$toolName|$argsJson"
+    }
+
+    private fun normalizeArgs(value: Any?): Any? {
+        return when (value) {
+            is Map<*, *> -> value.entries
+                .filter { it.key != null }
+                .sortedBy { it.key.toString() }
+                .associate { entry ->
+                    entry.key.toString() to normalizeArgs(entry.value)
+                }
+
+            is List<*> -> value.map { normalizeArgs(it) }
+            is Array<*> -> value.map { normalizeArgs(it) }
+            else -> value
+        }
+    }
+
+    private data class PendingApproval(
+        val signature: String,
+        val toolName: String,
+        val args: Map<String, Any?>,
+        val deferred: CompletableDeferred<ReviewDecision>
+    )
 
     private fun ChatMessage.toResponseItem(): ResponseItem? {
         if (text.isBlank()) return null

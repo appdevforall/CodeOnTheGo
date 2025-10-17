@@ -6,6 +6,7 @@ import com.itsaky.androidide.api.IDEApiFacade
 
 class AddDependencyHandler : ToolHandler {
     override val name: String = "add_dependency"
+    override val isPotentiallyDangerous: Boolean = true
 
     override suspend fun invoke(args: Map<String, Any?>): ToolResult {
         val toolArgs = decodeArgs<AddDependencyArgs>(args)

@@ -9,11 +9,13 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.data.ChatStorageManager
+import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.GeminiRepository
@@ -451,5 +453,9 @@ class ChatViewModel : ViewModel() {
                 scheduleSaveCurrentSession()
             }
         }
+    }
+
+    fun submitUserApproval(id: ApprovalId, decision: ReviewDecision) {
+        agentRepository?.submitApprovalDecision(id, decision)
     }
 }

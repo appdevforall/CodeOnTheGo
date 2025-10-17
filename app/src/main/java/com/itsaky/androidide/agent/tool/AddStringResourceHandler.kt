@@ -6,6 +6,7 @@ import com.itsaky.androidide.api.IDEApiFacade
 
 class AddStringResourceHandler : ToolHandler {
     override val name: String = "add_string_resource"
+    override val isPotentiallyDangerous: Boolean = true
 
     override suspend fun invoke(args: Map<String, Any?>): ToolResult {
         val toolArgs = decodeArgs<AddStringResourceArgs>(args)

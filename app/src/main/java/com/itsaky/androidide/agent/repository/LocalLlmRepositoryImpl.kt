@@ -3,9 +3,11 @@ package com.itsaky.androidide.agent.repository
 import android.content.Context
 import android.util.Log
 import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.model.ReviewDecision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -369,8 +371,15 @@ Answer:
             }
         }
     }
+    override fun submitApprovalDecision(id: ApprovalId, decision: ReviewDecision) {
+        Log.w(TAG, "Approval flow not supported for local LLM backend (id=$id, decision=$decision)")
+    }
     override fun loadHistory(history: List<ChatMessage>) {
         _plan.value = null
         _messages.value = history
+    }
+
+    companion object {
+        private const val TAG = "LocalLlmRepository"
     }
 }

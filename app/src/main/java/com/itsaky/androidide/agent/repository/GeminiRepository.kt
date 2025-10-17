@@ -1,7 +1,9 @@
 package com.itsaky.androidide.agent.repository
 
 import com.itsaky.androidide.agent.AgentState
+import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.model.ReviewDecision
 import kotlinx.coroutines.flow.StateFlow
 
 interface GeminiRepository {
@@ -24,6 +26,8 @@ interface GeminiRepository {
         fileName: String,
         fileRelativePath: String
     ): String
+
+    fun submitApprovalDecision(id: ApprovalId, decision: ReviewDecision)
 
     fun stop()
 }

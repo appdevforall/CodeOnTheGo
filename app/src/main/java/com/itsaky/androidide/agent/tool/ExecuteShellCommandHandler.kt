@@ -22,6 +22,7 @@ class ExecuteShellCommandHandler(
 ) : ToolHandler {
 
     override val name: String = TOOL_NAME
+    override val isPotentiallyDangerous: Boolean = true
 
     override suspend fun invoke(args: Map<String, Any?>): ToolResult {
         val toolArgs = decodeArgs<ShellCommandArgs>(args)

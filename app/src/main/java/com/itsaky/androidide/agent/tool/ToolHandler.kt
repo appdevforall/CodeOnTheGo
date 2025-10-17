@@ -8,5 +8,7 @@ import com.itsaky.androidide.agent.model.ToolResult
  */
 interface ToolHandler {
     val name: String
+    val isPotentiallyDangerous: Boolean
+        get() = false
     suspend fun invoke(args: Map<String, Any?>): ToolResult
 }

@@ -4,6 +4,7 @@ import com.google.genai.types.FunctionCall
 import com.google.genai.types.FunctionResponse
 import com.google.genai.types.Part
 import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.agent.tool.ToolApprovalManager
 import com.itsaky.androidide.agent.tool.ToolRouter
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -15,7 +16,8 @@ import kotlin.jvm.optionals.getOrNull
  * The "doer" of the agent. It executes tool calls by directly accessing services.
  */
 class Executor(
-    private val toolRouter: ToolRouter
+    private val toolRouter: ToolRouter,
+    private val approvalManager: ToolApprovalManager
 ) {
 
     companion object {
@@ -61,16 +63,35 @@ class Executor(
         val toolName = call.name().getOrNull()
         val args = call.args().getOrNull() as? Map<String, Any?> ?: emptyMap()
 
-        val result = if (toolName.isNullOrBlank()) {
+        if (toolName.isNullOrBlank()) {
             log.error("Executor ($executionMode): Encountered unnamed function call.")
-            ToolResult.failure("Unnamed function call")
+            return buildFunctionResponsePart(
+                "",
+                ToolResult.failure("Unnamed function call")
+            )
+        }
+
+        val handler = toolRouter.getHandler(toolName)
+        if (handler == null) {
+            log.error("Executor ($executionMode): Unknown function requested: {}", toolName)
+            return buildFunctionResponsePart(
+                toolName,
+                ToolResult.failure("Unknown function '$toolName'")
+            )
+        }
+
+        val approvalResponse = approvalManager.ensureApproved(toolName, handler, args)
+        val result = if (!approvalResponse.approved) {
+            val message = approvalResponse.denialMessage ?: "Action denied by user."
+            log.info("Executor ($executionMode): Tool '{}' denied. {}", toolName, message)
+            ToolResult.failure(message)
         } else {
             log.debug("Executor ($executionMode): Dispatching '$toolName' with args: $args")
             toolRouter.dispatch(toolName, args)
         }
 
         log.info("Executor ($executionMode): Resulting ${result.toResultMap()}")
-        return buildFunctionResponsePart(toolName.orEmpty(), result)
+        return buildFunctionResponsePart(toolName, result)
     }
 
     private fun buildFunctionResponsePart(
