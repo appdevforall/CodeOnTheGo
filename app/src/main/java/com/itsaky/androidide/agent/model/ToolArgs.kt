@@ -48,3 +48,10 @@ data class AddStringResourceArgs(
 data class ReadMultipleFilesArgs(
     val paths: List<String> = emptyList()
 )
+
+@Serializable
+data class ShellCommandArgs(
+    val command: String = "",
+    @SerialName("timeout_seconds")
+    val timeoutSeconds: Long? = null
+)

@@ -198,6 +198,29 @@ private val getBuildOutput = FunctionDeclaration.builder()
     .description("Retrieves the latest logs from the build system output. Useful for debugging build failures.")
     .build()
 
+private val executeShellCommand = FunctionDeclaration.builder()
+    .name("execute_shell_command")
+    .description("Runs a shell command inside the current project directory. Useful for invoking Gradle, git, or other CLI tools.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "command" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The shell command to execute (e.g., 'ls -la app/src').")
+                        .build(),
+                    "timeout_seconds" to Schema.builder()
+                        .type(Type.Known.INTEGER)
+                        .description("Optional timeout in seconds. If omitted, the command runs until completion.")
+                        .build()
+                )
+            )
+            .required(listOf("command"))
+            .build()
+    )
+    .build()
+
 // Create the final list of Tool objects that the Gemini client will use
 val allAgentTools: List<Tool> = listOf(
     Tool.builder().functionDeclarations(createFile).build(),
@@ -210,5 +233,6 @@ val allAgentTools: List<Tool> = listOf(
     Tool.builder().functionDeclarations(addStringResource).build(),
     Tool.builder().functionDeclarations(runApp).build(),
     Tool.builder().functionDeclarations(triggerGradleSync).build(),
-    Tool.builder().functionDeclarations(getBuildOutput).build()
+    Tool.builder().functionDeclarations(getBuildOutput).build(),
+    Tool.builder().functionDeclarations(executeShellCommand).build()
 )

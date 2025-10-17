@@ -5,11 +5,13 @@ import com.itsaky.androidide.agent.prompt.ModelFamily
 data class ToolsConfigParams(
     val modelFamily: ModelFamily,
     val enableExperimentalTools: Boolean = false,
-    val experimentalSupportedTools: Set<String> = emptySet()
+    val experimentalSupportedTools: Set<String> = emptySet(),
+    val enableShellCommandTool: Boolean = true
 )
 
 data class ToolsConfig(
-    val experimentalSupportedTools: Set<String> = emptySet()
+    val experimentalSupportedTools: Set<String> = emptySet(),
+    val enableShellCommandTool: Boolean = true
 )
 
 fun buildToolsConfig(params: ToolsConfigParams): ToolsConfig {
@@ -18,7 +20,10 @@ fun buildToolsConfig(params: ToolsConfigParams): ToolsConfig {
     } else {
         emptySet()
     }
-    return ToolsConfig(experimentalTools)
+    return ToolsConfig(
+        experimentalSupportedTools = experimentalTools,
+        enableShellCommandTool = params.enableShellCommandTool
+    )
 }
 
 fun buildToolRouter(config: ToolsConfig): ToolRouter {
@@ -37,6 +42,11 @@ fun buildToolRouter(config: ToolsConfig): ToolRouter {
         TriggerGradleSyncHandler(),
         GetBuildOutputHandler()
     ).forEach { handler ->
+        handlers[handler.name] = handler
+    }
+
+    if (config.enableShellCommandTool) {
+        val handler = ExecuteShellCommandHandler()
         handlers[handler.name] = handler
     }
 
