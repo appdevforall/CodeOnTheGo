@@ -115,6 +115,8 @@ abstract class BaseAgenticRunner(
 
     private var logTs: String = ""
     private var logEntries = mutableListOf<JsonObject>()
+    private var environmentContextSnapshot: String? = null
+    private var latestUserPrompt: String? = null
 
     private val globalPolicy: String
     private val globalStaticExamples: List<Map<String, Any>>
@@ -147,16 +149,25 @@ abstract class BaseAgenticRunner(
      */
     protected open fun buildInitialContent(): Content {
         val historyWithoutPlaceholder = _messages.value.dropLast(1)
-        val responseItems = historyWithoutPlaceholder.mapNotNull { it.toResponseItem() }
+        val responseItems =
+            historyWithoutPlaceholder.mapNotNull { it.toResponseItem() }.toMutableList()
         if (responseItems.isEmpty()) {
             throw IllegalStateException("Unable to build prompt without a user message.")
         }
 
-        val firstUserIndex = responseItems.indexOfFirst { item ->
+        var firstUserIndex = responseItems.indexOfFirst { item ->
             item is ResponseItem.Message && item.role == "user"
         }
         if (firstUserIndex == -1) {
-            throw IllegalStateException("Conversation must contain at least one user message.")
+            val fallbackPrompt = latestUserPrompt?.takeIf { it.isNotBlank() }
+            if (fallbackPrompt != null) {
+                log.error("Prompt history missing user entry. Injecting fallback with latest prompt text.")
+                responseItems += ResponseItem.Message(role = "user", content = fallbackPrompt)
+                firstUserIndex = responseItems.lastIndex
+            } else {
+                log.error("Conversation lacks a user message and no fallback prompt is available.")
+                throw IllegalStateException("Conversation must contain at least one user message.")
+            }
         }
 
         val effectiveItems = responseItems.drop(firstUserIndex)
@@ -167,6 +178,18 @@ abstract class BaseAgenticRunner(
             baseInstructionsOverride = buildInstructionOverride()
         )
         val prompt = buildPrompt(turnContext, effectiveItems)
+        val formattedPreview = prompt.getFormattedInput()
+        val latestFormattedUser = formattedPreview.lastOrNull { item ->
+            item is ResponseItem.Message && item.role == "user"
+        } as? ResponseItem.Message
+        if (latestFormattedUser == null) {
+            log.error("Formatted prompt contains no user message; aborting request.")
+            throw IllegalStateException("Unable to locate user message in formatted prompt.")
+        }
+        if (!latestFormattedUser.content.contains("<user_instructions>")) {
+            log.error("Formatted user message missing <user_instructions> wrapper.")
+            throw IllegalStateException("User instructions wrapper missing from formatted prompt.")
+        }
         val messages = buildMessagesForChatAPI(prompt, modelFamily)
         return messages.first()
     }
@@ -226,6 +249,7 @@ abstract class BaseAgenticRunner(
         resetPlan()
         loadHistory(history)
         injectFirstTurnContextIfNeeded()
+        latestUserPrompt = prompt
 
         addMessage(prompt, Sender.USER)
 
@@ -738,6 +762,10 @@ abstract class BaseAgenticRunner(
         }
 
         builder.append("Based on the user's request, you MUST respond by calling one or more of the available tools. Do not provide a conversational answer.")
+        environmentContextSnapshot?.takeIf { it.isNotBlank() }?.let { snapshot ->
+            builder.append("\n\n")
+            builder.append(snapshot.trim())
+        }
 
         return builder.toString().trimEnd()
     }
@@ -904,9 +932,12 @@ abstract class BaseAgenticRunner(
                     text = FirstTurnContextProvider.buildEnvironmentContext(context),
                     sender = Sender.SYSTEM
                 )
+                environmentContextSnapshot = environmentMessage.text
                 mutable.add(0, environmentMessage)
                 environmentIndex = 0
                 updated = true
+            } else if (environmentIndex != -1) {
+                environmentContextSnapshot = mutable[environmentIndex].text
             }
 
             val instructionsBlock = persistentInstructions?.let {
@@ -1186,7 +1217,7 @@ abstract class BaseAgenticRunner(
             Sender.USER -> "user"
             Sender.AGENT -> "assistant"
             Sender.TOOL -> "tool"
-            Sender.SYSTEM -> "user"
+            Sender.SYSTEM -> "system"
         }
         return ResponseItem.Message(role, text)
     }
