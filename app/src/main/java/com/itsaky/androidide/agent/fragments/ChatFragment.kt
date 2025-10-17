@@ -215,6 +215,11 @@ class ChatFragment :
                 super.onItemRangeInserted(positionStart, itemCount)
                 binding.chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
             }
+
+            override fun onChanged() {
+                super.onChanged()
+                chatAdapter.notifyDataSetChanged()
+            }
         })
 
         binding.chatRecyclerView.adapter = chatAdapter

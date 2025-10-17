@@ -114,8 +114,6 @@ class AgenticRunner(
         needsSpecialApplyPatchInstructions = true
     )
 
-    private var executor: Executor = executorOverride ?: createExecutor()
-
     private val approvedForSession = mutableSetOf<String>()
     private val approvalLock = Any()
     private val pendingApprovals = mutableMapOf<ApprovalId, PendingApproval>()
@@ -128,6 +126,7 @@ class AgenticRunner(
             return ensureToolApproved(toolName, handler, args)
         }
     }
+    private var executor: Executor = executorOverride ?: createExecutor()
 
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
