@@ -102,7 +102,7 @@
 
   <!-- Termux App Preferences -->
   <string name="termux_preferences_title" translatable="false">Termux</string>
-  <string name="termux_preferences_summary">Preferences for the Termux terminal.</string>
+  <string name="termux_preferences_summary">Preferences for the Termux terminal</string>
 
   <!-- Debugging Preferences -->
   <string name="termux_debugging_preferences_title">Debugging</string>

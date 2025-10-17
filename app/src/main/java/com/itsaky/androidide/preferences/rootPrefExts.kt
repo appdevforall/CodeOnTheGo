@@ -24,7 +24,6 @@ import kotlinx.parcelize.Parcelize
 internal fun IDEPreferences.addRootPreferences() {
   addPreference(ConfigurationPreferences())
   addPreference(DeveloperOptionsScreen())
-  addPreference(AboutPreferences())
 }
 
 @Parcelize
@@ -44,19 +43,9 @@ class ConfigurationPreferences(
     if (FeatureFlags.isExperimentsEnabled()) {
       addPreference(PluginManagerEntry())
     }
-  }
-}
-
-@Parcelize
-class AboutPreferences(
-  override val key: String = "idepref_category_about",
-  override val title: Int = string.about,
-  override val children: List<IPreference> = mutableListOf()
-) : IPreferenceGroup() {
-
-  init {
-    addPreference(changelog)
+    
     addPreference(about)
   }
 }
+
 
