@@ -449,10 +449,12 @@ class AgenticRunner(
     private fun formatToolResultPart(part: Part): String {
         val functionResponse = part.functionResponse().getOrNull() ?: return ""
         val toolName = functionResponse.name().getOrNull()?.takeIf { it.isNotBlank() } ?: "tool"
-        val payload = functionResponse.response()
-        val payloadMap = payload as? Map<*, *> ?: return "$toolName: $payload"
+        val payloadAny = functionResponse.response().getOrNull()
+            ?: return "$toolName finished."
 
-        val successAny = payloadMap["success"]
+        val payloadMap = payloadAny as? Map<*, *> ?: return "$toolName: ${payloadAny.toString()}"
+
+        val successAny = unwrapOptional(payloadMap["success"])
         val success = when (successAny) {
             is Boolean -> successAny
             is String -> successAny.equals("true", ignoreCase = true)
@@ -464,10 +466,11 @@ class AgenticRunner(
             null -> "finished"
         }
 
-        val message = payloadMap["message"]?.toString()?.takeIf { it.isNotBlank() }
+        val message = unwrapOptional(payloadMap["message"])?.toString()?.takeIf { it.isNotBlank() }
         val errorDetails =
-            payloadMap["error_details"]?.toString()?.takeIf { it.isNotBlank() }
-        val data = payloadMap["data"]?.toString()?.takeIf { it.isNotBlank() && it != "{}" }
+            unwrapOptional(payloadMap["error_details"])?.toString()?.takeIf { it.isNotBlank() }
+        val data = unwrapOptional(payloadMap["data"])?.toString()
+            ?.takeIf { it.isNotBlank() && it != "{}" && !it.equals("null", ignoreCase = true) }
 
         return buildString {
             append("$toolName $status")
@@ -484,6 +487,11 @@ class AgenticRunner(
                 append(data.trim())
             }
         }.trim()
+    }
+
+    private fun unwrapOptional(value: Any?): Any? = when (value) {
+        is java.util.Optional<*> -> value.getOrNull()
+        else -> value
     }
 
     // --- Helper methods for the run loop ---
