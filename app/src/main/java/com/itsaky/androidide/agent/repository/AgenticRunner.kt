@@ -388,10 +388,13 @@ class AgenticRunner(
 
                     val critique = processCriticStep(history)
                     if (critique == "OK") {
-                        val resultSummary = toolResultsParts.joinToString("\n") { part ->
-                            part.functionResponse().getOrNull()?.response().toString()
-                        }.ifBlank { "Tools executed successfully." }
+                        val formattedResults = toolResultsParts.mapNotNull { part ->
+                            formatToolResultPart(part).takeIf { it.isNotBlank() }
+                        }
+                        val resultSummary = formattedResults.joinToString("\n\n")
+                            .ifBlank { "Tools executed successfully." }
                         markStepStatus(stepIndex, StepStatus.DONE, resultSummary)
+                        updateLastMessage(resultSummary)
                         emitExecutingState(stepIndex)
                         stepSucceeded = true
                     } else {
@@ -441,6 +444,46 @@ class AgenticRunner(
         } finally {
             writeLog()
         }
+    }
+
+    private fun formatToolResultPart(part: Part): String {
+        val functionResponse = part.functionResponse().getOrNull() ?: return ""
+        val toolName = functionResponse.name().getOrNull()?.takeIf { it.isNotBlank() } ?: "tool"
+        val payload = functionResponse.response()
+        val payloadMap = payload as? Map<*, *> ?: return "$toolName: $payload"
+
+        val successAny = payloadMap["success"]
+        val success = when (successAny) {
+            is Boolean -> successAny
+            is String -> successAny.equals("true", ignoreCase = true)
+            else -> null
+        }
+        val status = when (success) {
+            true -> "succeeded"
+            false -> "failed"
+            null -> "finished"
+        }
+
+        val message = payloadMap["message"]?.toString()?.takeIf { it.isNotBlank() }
+        val errorDetails =
+            payloadMap["error_details"]?.toString()?.takeIf { it.isNotBlank() }
+        val data = payloadMap["data"]?.toString()?.takeIf { it.isNotBlank() && it != "{}" }
+
+        return buildString {
+            append("$toolName $status")
+            if (!message.isNullOrBlank()) {
+                append(": ")
+                append(message.trim())
+            }
+            if (!errorDetails.isNullOrBlank()) {
+                if (!message.isNullOrBlank()) append(" ")
+                append("(Details: ${errorDetails.trim()})")
+            }
+            if (!data.isNullOrBlank()) {
+                append("\n")
+                append(data.trim())
+            }
+        }.trim()
     }
 
     // --- Helper methods for the run loop ---
