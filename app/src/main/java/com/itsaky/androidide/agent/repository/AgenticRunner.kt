@@ -16,6 +16,9 @@ import com.itsaky.androidide.agent.prompt.ResponseItem
 import com.itsaky.androidide.agent.prompt.TurnContext
 import com.itsaky.androidide.agent.prompt.buildMessagesForChatAPI
 import com.itsaky.androidide.agent.prompt.buildPrompt
+import com.itsaky.androidide.agent.tool.ToolsConfigParams
+import com.itsaky.androidide.agent.tool.buildToolRouter
+import com.itsaky.androidide.agent.tool.buildToolsConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,7 +95,7 @@ class AgenticRunner(
         GeminiClient(apiKey, "gemini-2.5-flash")
     }
 
-    private var executor: Executor = executorOverride ?: Executor()
+    private var executor: Executor = executorOverride ?: createExecutor()
 
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
@@ -165,6 +168,13 @@ class AgenticRunner(
     init {
         this.globalPolicy = getPolicyConfig()
         this.globalStaticExamples = getFewShotsConfig()
+    }
+
+    private fun createExecutor(): Executor {
+        val toolsConfigParams = ToolsConfigParams(modelFamily = modelFamily)
+        val toolsConfig = buildToolsConfig(toolsConfigParams)
+        val toolRouter = buildToolRouter(toolsConfig)
+        return Executor(toolRouter)
     }
 
     private fun buildInstructionOverride(): String {

@@ -2,10 +2,10 @@ package com.itsaky.androidide.agent.repository
 
 import com.google.genai.types.FunctionCall
 import com.itsaky.androidide.agent.model.ToolResult
-import io.mockk.coEvery
+import com.itsaky.androidide.agent.tool.ToolHandler
+import com.itsaky.androidide.agent.tool.ToolRouter
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.spyk
 import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -29,27 +29,21 @@ class ExecutorTest {
         unmockkAll()
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun spiedExecutorWithHandler(handler: suspend (FunctionCall) -> ToolResult): Executor {
-        val executor = spyk(Executor(), recordPrivateCalls = true)
-        coEvery { executor["dispatchToolCall"](any<FunctionCall>()) } coAnswers {
-            handler(this.invocation.args[0] as FunctionCall)
-        }
-        return executor
-    }
-
     @Test
     fun executeRunsParallelSafeToolsConcurrently() = runTest {
         val startSignals = Channel<String>(capacity = 2)
         val releaseSignals = Channel<Unit>(capacity = 2)
-        val executor = spiedExecutorWithHandler { call ->
-            val name = call.name().getOrNull().orEmpty()
-            if (name == "read_file" || name == "list_files") {
-                startSignals.send(name)
-                releaseSignals.receive()
-            }
-            ToolResult.success("$name ok")
+        val readHandler = lambdaHandler("read_file") {
+            startSignals.send("read_file")
+            releaseSignals.receive()
+            ToolResult.success("read_file ok")
         }
+        val listHandler = lambdaHandler("list_files") {
+            startSignals.send("list_files")
+            releaseSignals.receive()
+            ToolResult.success("list_files ok")
+        }
+        val executor = executorWithHandlers(readHandler, listHandler)
 
         val readCall = functionCall("read_file")
         val listCall = functionCall("list_files")
@@ -78,24 +72,29 @@ class ExecutorTest {
     fun executeRunsSequentialToolsSequentially() = runTest {
         val running = AtomicInteger(0)
         val invocationOrder = mutableListOf<String>()
-        val executor = spiedExecutorWithHandler { call ->
-            val name = call.name().getOrNull().orEmpty()
-            when (name) {
-                "create_file", "update_file" -> {
-                    val previous = running.getAndIncrement()
-                    if (previous != 0) {
-                        fail("Sequential tool '$name' executed concurrently.")
-                    }
-                    invocationOrder.add("start-$name")
-                    delay(10)
-                    invocationOrder.add("end-$name")
-                    running.decrementAndGet()
-                    ToolResult.success("$name ok")
-                }
-
-                else -> ToolResult.success("$name ok")
+        val createHandler = lambdaHandler("create_file") {
+            val previous = running.getAndIncrement()
+            if (previous != 0) {
+                fail("Sequential tool 'create_file' executed concurrently.")
             }
+            invocationOrder.add("start-create_file")
+            delay(10)
+            invocationOrder.add("end-create_file")
+            running.decrementAndGet()
+            ToolResult.success("create_file ok")
         }
+        val updateHandler = lambdaHandler("update_file") {
+            val previous = running.getAndIncrement()
+            if (previous != 0) {
+                fail("Sequential tool 'update_file' executed concurrently.")
+            }
+            invocationOrder.add("start-update_file")
+            delay(10)
+            invocationOrder.add("end-update_file")
+            running.decrementAndGet()
+            ToolResult.success("update_file ok")
+        }
+        val executor = executorWithHandlers(createHandler, updateHandler)
 
         val createCall = functionCall("create_file")
         val updateCall = functionCall("update_file")
@@ -120,10 +119,12 @@ class ExecutorTest {
 
     @Test
     fun executeKeepsSequentialResultsBeforeParallelResults() = runTest {
-        val executor = spiedExecutorWithHandler { call ->
-            val name = call.name().getOrNull().orEmpty()
-            ToolResult.success("$name ok")
-        }
+        val executor = executorWithHandlers(
+            successHandler("create_file"),
+            successHandler("read_file"),
+            successHandler("update_file"),
+            successHandler("list_files")
+        )
 
         val calls = listOf(
             functionCall("create_file"),
@@ -145,5 +146,22 @@ class ExecutorTest {
         every { call.name() } returns Optional.of(name)
         every { call.args() } returns Optional.of(emptyMap<String, Any>())
         return call
+    }
+
+    private fun executorWithHandlers(vararg handlers: ToolHandler): Executor {
+        val router = ToolRouter(handlers.associateBy { it.name })
+        return Executor(router)
+    }
+
+    private fun lambdaHandler(
+        name: String,
+        block: suspend (Map<String, Any?>) -> ToolResult
+    ): ToolHandler = object : ToolHandler {
+        override val name: String = name
+        override suspend fun invoke(args: Map<String, Any?>): ToolResult = block(args)
+    }
+
+    private fun successHandler(name: String): ToolHandler = lambdaHandler(name) {
+        ToolResult.success("$name ok")
     }
 }
