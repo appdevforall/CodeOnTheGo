@@ -25,6 +25,7 @@ import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.SessionHistoryRepository
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.getFileName
@@ -116,13 +117,13 @@ class ChatViewModel : ViewModel() {
         val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
         val geminiModel = prefs.getString(PREF_KEY_GEMINI_MODEL, DEFAULT_GEMINI_MODEL)
 
-        // If the repository exists and settings haven't changed, return the existing instance.
-        if (
-            agentRepository != null &&
+        val shouldReuseExisting = agentRepository != null &&
+                agentRepository !is SessionHistoryRepository &&
             lastKnownBackendName == backendName &&
             lastKnownModelPath == modelPath &&
             lastKnownGeminiModel == geminiModel
-        ) {
+        // If the repository exists and settings haven't changed, return the existing instance.
+        if (shouldReuseExisting) {
             return agentRepository
         }
 
@@ -181,6 +182,7 @@ class ChatViewModel : ViewModel() {
             agentRepository?.stop()
             agentRepository = null
             observeRepositoryMessages(null)
+            ensureHistoryVisible(_currentSession.value?.messages ?: emptyList())
         }
 
         val displayText = buildBackendDisplayText(
@@ -354,7 +356,7 @@ class ChatViewModel : ViewModel() {
         val currentId = prefs.getString(CURRENT_CHAT_ID_PREF_KEY, null)
         val session = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
         _currentSession.value = session
-        agentRepository?.loadHistory(session.messages)
+        ensureHistoryVisible(session.messages)
     }
 
     private fun postSystemError(message: String) {
@@ -366,7 +368,7 @@ class ChatViewModel : ViewModel() {
         )
         session.messages.add(errorMessage)
         _sessions.value = _sessions.value
-        agentRepository?.loadHistory(session.messages)
+        ensureHistoryVisible(session.messages)
         scheduleSaveCurrentSession()
         _agentState.value = AgentState.Error(message)
     }
@@ -402,6 +404,7 @@ class ChatViewModel : ViewModel() {
         lastKnownModelPath = null
         lastKnownGeminiModel = null
         observeRepositoryMessages(null)
+        ensureHistoryVisible(newSession.messages)
         scheduleSaveCurrentSession()
     }
 
@@ -411,8 +414,7 @@ class ChatViewModel : ViewModel() {
         val session = _sessions.value?.find { it.id == sessionId }
         if (session != null) {
             _currentSession.value = session
-            agentRepository?.loadHistory(session.messages)
-            observeRepositoryMessages(agentRepository)
+            ensureHistoryVisible(session.messages)
         }
     }
 
@@ -477,6 +479,25 @@ class ChatViewModel : ViewModel() {
                 _currentSession.postValue(session)
                 _sessions.postValue(_sessions.value)
                 scheduleSaveCurrentSession()
+            }
+        }
+    }
+
+    private fun ensureHistoryVisible(messages: List<ChatMessage>) {
+        when (val repo = agentRepository) {
+            null -> {
+                val replayRepo = SessionHistoryRepository()
+                replayRepo.loadHistory(messages)
+                agentRepository = replayRepo
+                observeRepositoryMessages(replayRepo)
+            }
+
+            is SessionHistoryRepository -> {
+                repo.loadHistory(messages)
+            }
+
+            else -> {
+                repo.loadHistory(messages)
             }
         }
     }
