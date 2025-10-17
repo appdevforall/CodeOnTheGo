@@ -39,6 +39,7 @@ import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.fragments.EmptyStateFragment
+import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashInfo
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
@@ -48,6 +49,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import java.io.File
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
@@ -273,7 +279,7 @@ class ChatFragment :
                     true
                 }
 
-                R.id.menu_copy_chat -> copyVisibleChatToClipboard()
+                R.id.menu_copy_chat -> showCopyChatOptions()
 
                 R.id.menu_ai_settings -> {
                     findNavController().navigate(R.id.action_chatFragment_to_aiSettingsFragment)
@@ -497,11 +503,31 @@ class ChatFragment :
         menuItem?.icon?.mutate()?.alpha = alpha
     }
 
-    private fun copyVisibleChatToClipboard(): Boolean {
+    private fun showCopyChatOptions(): Boolean {
         val ctx = context ?: return false
+        val transcript = buildChatTranscript() ?: return true
+
+        val options = arrayOf(
+            getString(R.string.copy_chat_option_copy),
+            getString(R.string.copy_chat_option_share)
+        )
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(R.string.copy_chat)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> copyTranscriptToClipboard(ctx, transcript)
+                    1 -> shareTranscriptAsText(ctx, transcript)
+                }
+            }
+            .show()
+        return true
+    }
+
+    private fun buildChatTranscript(): String? {
         if (lastRenderedMessages.isEmpty()) {
             flashInfo(getString(R.string.copy_chat_empty))
-            return true
+            return null
         }
 
         val transcript = lastRenderedMessages.joinToString(separator = "\n\n") { message ->
@@ -519,13 +545,16 @@ class ChatFragment :
 
         if (transcript.isEmpty()) {
             flashInfo(getString(R.string.copy_chat_empty))
-            return true
+            return null
         }
+        return transcript
+    }
 
+    private fun copyTranscriptToClipboard(ctx: Context, transcript: String) {
         val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         if (clipboard == null) {
             flashInfo(getString(R.string.copy_chat_failed))
-            return true
+            return
         }
 
         val clip = ClipData.newPlainText(
@@ -534,7 +563,25 @@ class ChatFragment :
         )
         clipboard.setPrimaryClip(clip)
         flashInfo(getString(R.string.copy_chat_success))
-        return true
+    }
+
+    private fun shareTranscriptAsText(ctx: Context, transcript: String) {
+        val exportsDir = File(ctx.cacheDir, "chat_exports")
+        if (!exportsDir.exists() && !exportsDir.mkdirs()) {
+            flashInfo(getString(R.string.copy_chat_share_failed))
+            return
+        }
+
+        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val file = File(exportsDir, "chat-transcript-$timestamp.txt")
+
+        try {
+            file.writeText(transcript, Charsets.UTF_8)
+            IntentUtils.shareFile(ctx, file, "text/plain")
+        } catch (err: IOException) {
+            Log.e("ChatFragment", "Failed to share chat transcript", err)
+            flashInfo(getString(R.string.copy_chat_share_failed))
+        }
     }
 
     private fun formatChatTitle(rawTitle: String?): String {

@@ -31,4 +31,7 @@
     <string name="copy_chat_sender_agent">Assistant</string>
     <string name="copy_chat_sender_system">System</string>
     <string name="copy_chat_sender_tool">Tool</string>
+    <string name="copy_chat_option_copy">Copy to clipboard</string>
+    <string name="copy_chat_option_share">Share as text file</string>
+    <string name="copy_chat_share_failed">Unable to share the chat transcript.</string>
 </resources>
