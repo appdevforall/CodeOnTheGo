@@ -58,6 +58,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.time.LocalDateTime
+import java.util.Locale
 import java.util.UUID
 import kotlin.jvm.optionals.getOrNull
 import kotlin.math.min
@@ -127,7 +128,7 @@ abstract class BaseAgenticRunner(
     companion object {
         private val log = LoggerFactory.getLogger(BaseAgenticRunner::class.java)
 
-        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val MAX_RETRY_ATTEMPTS = 5
         private const val INITIAL_RETRY_DELAY_MS = 100L
         private const val MAX_RETRY_DELAY_MS = 2_000L
         private const val RETRY_BACKOFF_MULTIPLIER = 2.0
@@ -502,6 +503,32 @@ abstract class BaseAgenticRunner(
         }.trim()
     }
 
+    private fun humanizeOperationName(operationName: String): String {
+        val cleaned = operationName.replace('_', ' ').trim()
+        return if (cleaned.isEmpty()) {
+            "the request"
+        } else {
+            "operation '$cleaned'"
+        }
+    }
+
+    private fun formatDelay(delayMs: Long): String {
+        return if (delayMs < 1000) {
+            "${delayMs}ms"
+        } else {
+            String.format(Locale.US, "%.1fs", delayMs / 1000.0)
+        }
+    }
+
+    private fun Throwable.rootCause(): Throwable = generateSequence(this) { it.cause }.last()
+
+    private fun Throwable.userFacingMessage(): String {
+        val root = rootCause()
+        val message = root.message?.takeIf { it.isNotBlank() }
+        val type = root::class.simpleName ?: "Exception"
+        return message ?: type
+    }
+
     private fun unwrapOptional(value: Any?): Any? = when (value) {
         is java.util.Optional<*> -> value.getOrNull()
         else -> value
@@ -749,15 +776,37 @@ abstract class BaseAgenticRunner(
     ): T {
         var currentDelay = INITIAL_RETRY_DELAY_MS
         repeat(MAX_RETRY_ATTEMPTS) { attempt ->
+            val attemptNumber = attempt + 1
             try {
                 return block()
             } catch (err: Throwable) {
                 if (err is CancellationException) throw err
-                if (!isRetryableNetworkError(err) || attempt == MAX_RETRY_ATTEMPTS - 1) {
+                val isNetworkError = isRetryableNetworkError(err)
+                if (!isNetworkError) {
+                    throw err
+                }
+
+                val totalAttempts = MAX_RETRY_ATTEMPTS
+                val readableOperation = humanizeOperationName(operationName)
+                val errorSummary = err.userFacingMessage()
+
+                if (attempt == MAX_RETRY_ATTEMPTS - 1) {
+                    addMessage(
+                        "❌ Network error while $readableOperation after $totalAttempts attempts: $errorSummary. Please check your connection and try again.",
+                        Sender.SYSTEM
+                    )
                     throw err
                 }
                 log.warn(
-                    "Retryable error during $operationName (attempt ${attempt + 1}). Retrying in ${currentDelay}ms. Cause: ${err.message}"
+                    "Retryable error during $operationName (attempt $attemptNumber). Retrying in ${currentDelay}ms. Cause: ${err.message}"
+                )
+                addMessage(
+                    "⚠️ Network issue while $readableOperation (attempt $attemptNumber/$totalAttempts): $errorSummary. Retrying in ${
+                        formatDelay(
+                            currentDelay
+                        )
+                    }...",
+                    Sender.SYSTEM
                 )
                 delay(currentDelay)
                 currentDelay = min(
