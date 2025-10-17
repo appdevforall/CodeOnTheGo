@@ -12,6 +12,7 @@ import com.itsaky.androidide.api.commands.GetBuildOutputCommand
 import com.itsaky.androidide.api.commands.HighOrderCreateFileCommand
 import com.itsaky.androidide.api.commands.HighOrderReadFileCommand
 import com.itsaky.androidide.api.commands.ListFilesCommand
+import com.itsaky.androidide.api.commands.SearchProjectCommand
 import com.itsaky.androidide.api.commands.UpdateFileCommand
 import com.itsaky.androidide.projects.builder.BuildResult
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,16 @@ object IDEApiFacade {
     fun readFile(path: String) = HighOrderReadFileCommand(path).execute()
 
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
+
+    fun searchProject(
+        query: String,
+        path: String?,
+        maxResults: Int,
+        ignoreCase: Boolean
+    ): ToolResult {
+        val cappedResults = maxResults.coerceIn(1, 200)
+        return SearchProjectCommand(query, path, cappedResults, ignoreCase).execute()
+    }
 
     suspend fun triggerGradleSync(): ToolResult {
         val activity = ActionContextProvider.getActivity()

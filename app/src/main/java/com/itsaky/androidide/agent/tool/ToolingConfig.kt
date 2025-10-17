@@ -36,6 +36,7 @@ fun buildToolRouter(config: ToolsConfig): ToolRouter {
         DeleteFileHandler(),
         ListFilesHandler(),
         ReadMultipleFilesHandler(),
+        SearchProjectHandler(),
         AddDependencyHandler(),
         AddStringResourceHandler(),
         RunAppHandler(),

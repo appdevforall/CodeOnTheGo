@@ -12,6 +12,8 @@ import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.model.ExplorationKind
+import com.itsaky.androidide.agent.model.ExplorationMetadata
 import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.ResponseItem
@@ -365,12 +367,25 @@ abstract class BaseAgenticRunner(
 
                     val critique = processCriticStep(history)
                     if (critique == "OK") {
-                        val formattedResults = toolResultsParts.mapNotNull { part ->
-                            formatToolResultPart(part).takeIf { it.isNotBlank() }
+                        val explorationSummary = buildExplorationSummary(toolResultsParts)
+                        if (explorationSummary != null) {
+                            markStepStatus(stepIndex, StepStatus.DONE, explorationSummary)
+                            addMessage(explorationSummary, Sender.SYSTEM)
+                        } else {
+                            val formattedResults = toolResultsParts.mapNotNull { part ->
+                                formatToolResultPart(part).takeIf { it.isNotBlank() }
+                            }
+                            val resultSummary = formattedResults.joinToString("\n\n")
+                                .ifBlank { buildToolSuccessSummary(functionCalls) }
+                            markStepStatus(stepIndex, StepStatus.DONE, resultSummary)
+                            if (formattedResults.isEmpty()) {
+                                addMessage(resultSummary, Sender.TOOL)
+                            } else {
+                                formattedResults.forEach { formatted ->
+                                    addMessage(formatted, Sender.TOOL)
+                                }
+                            }
                         }
-                        val resultSummary = formattedResults.joinToString("\n\n")
-                            .ifBlank { buildToolSuccessSummary(functionCalls) }
-                        markStepStatus(stepIndex, StepStatus.DONE, resultSummary)
                         addMessage(
                             "Step ${stepIndex + 1} completed successfully.",
                             Sender.AGENT
@@ -468,6 +483,10 @@ abstract class BaseAgenticRunner(
 
         val payloadMap = payloadAny as? Map<*, *> ?: return "$toolName: ${payloadAny.toString()}"
 
+        ExplorationMetadata.fromMap(payloadMap["exploration"] as? Map<*, *>)?.let {
+            return formatExplorationLine(it)
+        }
+
         val successAny = unwrapOptional(payloadMap["success"])
         val success = when (successAny) {
             is Boolean -> successAny
@@ -501,6 +520,168 @@ abstract class BaseAgenticRunner(
                 append(data.trim())
             }
         }.trim()
+    }
+
+    private fun formatExplorationLine(exploration: ExplorationMetadata): String {
+        val items = exploration.items
+        return when (exploration.kind) {
+            ExplorationKind.READ -> {
+                val label = if (items.size == 1) "file" else "files"
+                val sample = formatItemList(items)
+                if (sample.isNotEmpty()) {
+                    "Read ${items.size} $label: $sample"
+                } else {
+                    "Read ${items.size} $label."
+                }
+            }
+
+            ExplorationKind.LIST -> {
+                val target = exploration.path ?: "."
+                val entryLabel = exploration.entryCount?.let { " (${it} entries)" } ?: ""
+                val sample = formatItemList(items)
+                if (sample.isNotEmpty()) {
+                    "Listed $target$entryLabel -> $sample"
+                } else {
+                    "Listed $target$entryLabel"
+                }
+            }
+
+            ExplorationKind.SEARCH -> {
+                val query = exploration.query ?: "?"
+                val files = items
+                val fileLabel = if (files.size == 1) "file" else "files"
+                val matchesLabel = exploration.matchCount?.let { "$it match(es)" } ?: "matches"
+                val sample = formatItemList(files)
+                if (sample.isNotEmpty()) {
+                    "Search \"$query\" -> $matchesLabel in ${files.size} $fileLabel: $sample"
+                } else {
+                    "Search \"$query\" -> $matchesLabel in ${files.size} $fileLabel"
+                }
+            }
+        }
+    }
+
+    private fun buildExplorationSummary(parts: List<Part>): String? {
+        if (parts.isEmpty()) return null
+
+        val explorations = mutableListOf<ExplorationMetadata>()
+        for (part in parts) {
+            val functionResponse = part.functionResponse().getOrNull() ?: return null
+            val payloadAny = functionResponse.response().getOrNull() ?: return null
+            val payloadMap = payloadAny as? Map<*, *> ?: return null
+            val successAny = unwrapOptional(payloadMap["success"])
+            val success = when (successAny) {
+                is Boolean -> successAny
+                is String -> successAny.equals("true", ignoreCase = true)
+                else -> true
+            }
+            if (!success) return null
+            val exploration = ExplorationMetadata.fromMap(payloadMap["exploration"] as? Map<*, *>)
+                ?: return null
+            if (exploration.kind !in setOf(
+                    ExplorationKind.READ,
+                    ExplorationKind.LIST,
+                    ExplorationKind.SEARCH
+                )
+            ) {
+                return null
+            }
+            explorations += exploration
+        }
+
+        if (explorations.isEmpty()) return null
+
+        val readItems = linkedSetOf<String>()
+
+        data class ListAggregate(var entryCount: Int?, val samples: LinkedHashSet<String>)
+
+        val listAggregates = linkedMapOf<String, ListAggregate>()
+
+        data class SearchAggregate(var matches: Int, val files: LinkedHashSet<String>)
+
+        val searchAggregates = linkedMapOf<String, SearchAggregate>()
+
+        explorations.forEach { meta ->
+            when (meta.kind) {
+                ExplorationKind.READ -> {
+                    readItems.addAll(meta.items)
+                }
+
+                ExplorationKind.LIST -> {
+                    val bucket = meta.path ?: "."
+                    val aggregate = listAggregates.getOrPut(bucket) {
+                        ListAggregate(meta.entryCount, linkedSetOf())
+                    }
+                    if (meta.entryCount != null) {
+                        aggregate.entryCount = meta.entryCount
+                    }
+                    aggregate.samples.addAll(meta.items)
+                }
+
+                ExplorationKind.SEARCH -> {
+                    val key = meta.query ?: ""
+                    val aggregate = searchAggregates.getOrPut(key) {
+                        SearchAggregate(meta.matchCount ?: 0, linkedSetOf())
+                    }
+                    aggregate.matches += meta.matchCount ?: 0
+                    aggregate.files.addAll(meta.items)
+                }
+            }
+        }
+
+        val builder = StringBuilder("Exploration summary:\n")
+        if (readItems.isNotEmpty()) {
+            val sample = formatItemList(readItems)
+            if (sample.isNotEmpty()) {
+                builder.append("  - Read ${readItems.size} file(s): $sample\n")
+            } else {
+                builder.append("  - Read ${readItems.size} file(s)\n")
+            }
+        }
+        listAggregates.forEach { (path, aggregate) ->
+            val entryCount = aggregate.entryCount ?: aggregate.samples.size
+            builder.append("  - Listed $path (${entryCount} entries)\n")
+            if (aggregate.samples.isNotEmpty()) {
+                builder.append(
+                    "      Samples: ${
+                        formatItemList(
+                            aggregate.samples,
+                            maxItems = 3
+                        )
+                    }\n"
+                )
+            }
+        }
+        searchAggregates.forEach { (query, aggregate) ->
+            val files = aggregate.files
+            val matches = aggregate.matches
+            val fileLabel = if (files.size == 1) "file" else "files"
+            val sample = formatItemList(files, maxItems = 3)
+            val queryLabel = if (query.isEmpty()) "(unnamed query)" else "\"$query\""
+            builder.append("  - Search $queryLabel -> $matches match(es) in ${files.size} $fileLabel")
+            if (sample.isNotEmpty()) {
+                builder.append(": $sample")
+            }
+            builder.append("\n")
+        }
+
+        val summary = builder.toString().trimEnd()
+        return summary.takeIf { it.isNotBlank() }
+    }
+
+    private fun formatItemList(items: Collection<String>, maxItems: Int = 5): String {
+        if (items.isEmpty()) return ""
+        val unique = LinkedHashSet<String>()
+        unique.addAll(items.filter { it.isNotBlank() })
+        if (unique.isEmpty()) return ""
+        val displayed = unique.take(maxItems)
+        val remaining = unique.size - displayed.size
+        val joined = displayed.joinToString(", ")
+        return if (remaining > 0) {
+            "$joined ...+$remaining"
+        } else {
+            joined
+        }
     }
 
     private fun humanizeOperationName(operationName: String): String {

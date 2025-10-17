@@ -55,3 +55,13 @@ data class ShellCommandArgs(
     @SerialName("timeout_seconds")
     val timeoutSeconds: Long? = null
 )
+
+@Serializable
+data class SearchProjectArgs(
+    val query: String = "",
+    val path: String? = null,
+    @SerialName("max_results")
+    val maxResults: Int = 40,
+    @SerialName("ignore_case")
+    val ignoreCase: Boolean = true
+)

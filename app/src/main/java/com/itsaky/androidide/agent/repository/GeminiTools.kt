@@ -117,6 +117,37 @@ private val listFiles = FunctionDeclaration.builder()
     )
     .build()
 
+private val searchProject = FunctionDeclaration.builder()
+    .name("search_project")
+    .description("Searches the project for a query string and returns matching locations.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "query" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("The literal text to search for.")
+                        .build(),
+                    "path" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("Optional relative directory to limit the search (defaults to project root).")
+                        .build(),
+                    "max_results" to Schema.builder()
+                        .type(Type.Known.INTEGER)
+                        .description("Optional maximum number of matches to return (defaults to 40).")
+                        .build(),
+                    "ignore_case" to Schema.builder()
+                        .type(Type.Known.BOOLEAN)
+                        .description("Set to false for case-sensitive search.")
+                        .build()
+                )
+            )
+            .required(listOf("query"))
+            .build()
+    )
+    .build()
+
 private val readMultipleFiles = FunctionDeclaration.builder()
     .name("read_multiple_files")
     .description("Reads the content of multiple files at once.")
@@ -228,6 +259,7 @@ val allAgentTools: List<Tool> = listOf(
     Tool.builder().functionDeclarations(updateFile).build(),
     Tool.builder().functionDeclarations(deleteFile).build(),
     Tool.builder().functionDeclarations(listFiles).build(),
+    Tool.builder().functionDeclarations(searchProject).build(),
     Tool.builder().functionDeclarations(readMultipleFiles).build(),
     Tool.builder().functionDeclarations(addDependency).build(),
     Tool.builder().functionDeclarations(addStringResource).build(),

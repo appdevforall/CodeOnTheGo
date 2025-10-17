@@ -28,6 +28,7 @@ class Executor(
             "read_file",
             "list_files",
             "read_multiple_files",
+            "search_project",
             "get_build_output"
         )
 

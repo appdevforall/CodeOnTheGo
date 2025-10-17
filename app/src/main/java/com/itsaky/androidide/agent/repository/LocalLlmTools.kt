@@ -27,6 +27,16 @@ object LocalLlmTools {
             )
         ),
         LocalToolDeclaration(
+            name = "search_project",
+            description = "Searches the project files for a query and returns matching locations.",
+            parameters = mapOf(
+                "query" to "The literal text to search for.",
+                "path" to "Optional relative directory to limit the search scope (defaults to project root).",
+                "max_results" to "Optional maximum number of matches to return (defaults to 40).",
+                "ignore_case" to "Set to false for case-sensitive search (defaults to true)."
+            )
+        ),
+        LocalToolDeclaration(
             name = "run_app",
             description = "Installs and launches the successfully built application on the device. Should be called after a successful build.",
             parameters = emptyMap()

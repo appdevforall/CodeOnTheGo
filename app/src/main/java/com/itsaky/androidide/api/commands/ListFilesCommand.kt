@@ -1,5 +1,7 @@
 package com.itsaky.androidide.api.commands
 
+import com.itsaky.androidide.agent.model.ExplorationKind
+import com.itsaky.androidide.agent.model.ExplorationMetadata
 import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.projects.IProjectManager
 import java.io.File
@@ -32,9 +34,25 @@ class ListFilesCommand(
                     } else {
                         targetDir.listFiles()?.map { it.relativeTo(baseDir).path } ?: emptyList()
                     }
+                    val normalized = targetDir.normalize()
+                    val relative = try {
+                        normalized.relativeTo(baseDir)
+                    } catch (_: IllegalArgumentException) {
+                        normalized
+                    }
+                    val displayPath = when (relative.path.replace(File.separatorChar, '/')) {
+                        "" -> "."
+                        else -> relative.path.replace(File.separatorChar, '/')
+                    }
                     ToolResult.success(
                         message = "Files listed successfully.",
-                        data = files.joinToString("\n")
+                        data = files.joinToString("\n"),
+                        exploration = ExplorationMetadata(
+                            kind = ExplorationKind.LIST,
+                            path = displayPath,
+                            items = files.take(10),
+                            entryCount = files.size
+                        )
                     )
                 }
             }
