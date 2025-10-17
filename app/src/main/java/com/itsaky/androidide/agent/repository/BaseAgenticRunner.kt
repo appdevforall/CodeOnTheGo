@@ -74,12 +74,11 @@ internal const val BASE_AGENT_DEFAULT_INSTRUCTIONS =
  */
 abstract class BaseAgenticRunner(
     protected val context: Context,
+    protected val modelFamily: ModelFamily,
     private val maxSteps: Int = 20,
     private val toolsOverride: List<Tool>? = null,
     private val executorOverride: Executor? = null
 ) : GeminiRepository {
-
-    protected abstract val modelFamily: ModelFamily
 
     /**
      * All tools available to the planner. Subclasses can override to customize.

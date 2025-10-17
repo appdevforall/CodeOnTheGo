@@ -17,6 +17,12 @@ class GeminiAgenticRunner(
     executorOverride: Executor? = null
 ) : BaseAgenticRunner(
     context = appContext,
+    modelFamily = ModelFamily(
+        id = plannerModel.ifBlank { DEFAULT_GEMINI_MODEL },
+        baseInstructions = BASE_AGENT_DEFAULT_INSTRUCTIONS,
+        supportsParallelToolCalls = true,
+        needsSpecialApplyPatchInstructions = true
+    ),
     maxSteps = maxSteps,
     toolsOverride = toolsOverride,
     executorOverride = executorOverride
@@ -46,13 +52,6 @@ class GeminiAgenticRunner(
 
     private val planner: Planner = plannerOverride ?: Planner(plannerClient, tools)
     private val critic: Critic? = criticOverride ?: Critic(criticClient)
-
-    override val modelFamily: ModelFamily = ModelFamily(
-        id = plannerModelName,
-        baseInstructions = BASE_AGENT_DEFAULT_INSTRUCTIONS,
-        supportsParallelToolCalls = true,
-        needsSpecialApplyPatchInstructions = true
-    )
 
     override suspend fun createInitialPlan(history: List<Content>): Plan {
         return planner.createInitialPlan(history)

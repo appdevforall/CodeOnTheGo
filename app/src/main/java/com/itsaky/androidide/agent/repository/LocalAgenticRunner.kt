@@ -23,6 +23,12 @@ class LocalAgenticRunner(
     maxSteps: Int = 20,
 ) : BaseAgenticRunner(
     context = context,
+    modelFamily = ModelFamily(
+        id = "local-llm",
+        baseInstructions = BASE_AGENT_DEFAULT_INSTRUCTIONS,
+        supportsParallelToolCalls = false,
+        needsSpecialApplyPatchInstructions = false
+    ),
     maxSteps = maxSteps
 ) {
 
@@ -30,13 +36,6 @@ class LocalAgenticRunner(
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val toolsForPrompt = LocalLlmTools.allTools
     private val toolNames = toolsForPrompt.map { it.name }.toSet()
-
-    override val modelFamily: ModelFamily = ModelFamily(
-        id = "local-llm",
-        baseInstructions = BASE_AGENT_DEFAULT_INSTRUCTIONS,
-        supportsParallelToolCalls = false,
-        needsSpecialApplyPatchInstructions = false
-    )
 
     override suspend fun generateASimpleResponse(
         prompt: String,
