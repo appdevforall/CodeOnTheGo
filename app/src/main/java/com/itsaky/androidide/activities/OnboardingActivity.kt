@@ -220,7 +220,6 @@ class OnboardingActivity : AppIntro2() {
 				tryNavigateToMainIfSetupIsCompleted()
 			}
 		}
-        feedbackButtonManager?.loadFabPosition()
 	}
 
 	override fun onDestroy() {

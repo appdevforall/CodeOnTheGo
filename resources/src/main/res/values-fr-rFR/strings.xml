@@ -188,8 +188,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="title_common">Common</string>
   <string name="title_files_unsaved">Fichiers non sauvegardés</string>
   <string name="msg_files_unsaved">Certains fichiers n\'ont pas été sauvegardés, voulez vous les sauvegarder avant de les fermer ? Fichiers non sauvegardés: \n%s</string>
-  <string name="idepref_editor_autoSave_title">Sauvegarder avant de fermer les fichiers</string>
-  <string name="idepref_editor_autoSave_summary">Sauvegarder les fichiers avant leurs fermetures, Cette option est EXPERIMENTAL. Vous devez habituellement les sauvegarder tout seul.</string>
   <string name="idepref_java_matchLower_summary">Si cette option est activée, la saisie de lettres minuscules ou majuscules suggérera des noms de classe ainsi que des membres de la portée.</string>
   <string name="idepref_editor_ligatures_title">Suppléments police</string>
   <string name="idepref_editor_ligatures_summary">Activé/désactivé suppléments police</string>

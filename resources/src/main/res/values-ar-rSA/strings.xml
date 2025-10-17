@@ -187,8 +187,6 @@
   <string name="title_common">الشائعة</string>
   <string name="title_files_unsaved">الملفات غير المحفوظة</string>
   <string name="msg_files_unsaved">لم يتم حفظ بعض الملفات. هل ترغب في حفظها قبل الإغلاق؟ الملفات غير المحفوظة هي: \n%s</string>
-  <string name="idepref_editor_autoSave_title">حفظ قبل إغلاق الملفات</string>
-  <string name="idepref_editor_autoSave_summary">حفظ الملفات قبل إغلاقها. هذه ميزة تجريبية. من المتوقع أن تحفظ الملفات بنفسك.</string>
   <string name="idepref_java_matchLower_summary">إذا تم تفعيله، فإن كتابة حالة صغيرة أو أحرف أعلى سوف تقترح أسماء الكلاس بالإضافة إلى أعضاء النطاق.</string>
   <string name="idepref_editor_ligatures_title">ميزات الخط</string>
   <string name="idepref_editor_ligatures_summary">تمكين/تعطيل ميزات الخط</string>
