@@ -61,6 +61,27 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
         setupToolbar()
         setupBackendSelector()
+        showDisclaimerDialogIfNeeded()
+
+        val disclaimerView = view.findViewById<View>(R.id.disclaimer)
+        disclaimerView.setOnClickListener {
+            showDisclaimerDialog()
+        }
+    }
+
+    private fun showDisclaimerDialogIfNeeded() {
+        val prefs = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val disclaimerShown = prefs.getBoolean("disclaimer_shown", false)
+        if (!disclaimerShown) {
+            showDisclaimerDialog()
+            prefs.edit {
+                putBoolean("disclaimer_shown", true)
+            }
+        }
+    }
+
+    private fun showDisclaimerDialog() {
+        DisclaimerDialogFragment().show(childFragmentManager, "DisclaimerDialogFragment")
     }
 
     private fun setupToolbar() {
