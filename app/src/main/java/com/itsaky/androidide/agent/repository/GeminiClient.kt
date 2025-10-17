@@ -45,7 +45,10 @@ class GeminiClient(
         forceToolUse: Boolean = false
     ): GenerateContentResponse {
         checkTokenLimit(history)
-        history.forEach { log.info("History: $it") }
+        log.info(
+            ">>> Gemini Prompt Payload (model=$modelName) >>>\n{}\n<<< End Prompt Payload <<<",
+            history.toDebugString()
+        )
 
         val config = buildGenerateContentConfig(tools, forceToolUse)
         log.info("config: $config")
@@ -147,6 +150,10 @@ class GeminiClient(
         }
 
         log.debug("Gemini API call returned the body:\n{}", content.toString())
+        log.info(
+            "<<< Gemini Raw Model Output (model=$modelName) <<<\n{}\n<<< End Model Output <<<",
+            content.toDebugString()
+        )
         return response
     }
 
@@ -169,6 +176,41 @@ class GeminiClient(
             }
         } catch (e: Exception) {
             log.error("An unexpected error occurred during token counting: ${e.message}. Proceeding with API call anyway.")
+        }
+    }
+
+    private fun List<Content>.toDebugString(): String {
+        if (isEmpty()) return "[no content]"
+        return joinToString(separator = "\n---\n") { it.toDebugString() }
+    }
+
+    private fun Content.toDebugString(): String {
+        val role = role().getOrNull() ?: "unknown"
+        val parts = parts().getOrNull() ?: emptyList()
+        if (parts.isEmpty()) {
+            return "role=$role | <no parts>"
+        }
+        return parts.joinToString(separator = "\n") { part ->
+            val text = part.text().getOrNull()
+            if (text != null) {
+                "role=$role | text=${text.trim()}"
+            } else {
+                val call = part.functionCall().getOrNull()
+                if (call != null) {
+                    "role=$role | function_call=${call.name().getOrNull()} args=${
+                        call.args().getOrNull()
+                    }"
+                } else {
+                    val response = part.functionResponse().getOrNull()
+                    if (response != null) {
+                        "role=$role | function_response=${
+                            response.name().getOrNull()
+                        } payload=${response.response().getOrNull()}"
+                    } else {
+                        "role=$role | part=${part.toString()}"
+                    }
+                }
+            }
         }
     }
 }

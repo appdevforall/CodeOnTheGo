@@ -104,9 +104,12 @@ class LlmInferenceEngine(
     suspend fun runInference(prompt: String, stopStrings: List<String> = emptyList()): String {
         if (!isModelLoaded) throw IllegalStateException("Model is not loaded.")
         llama.clearKvCache()
-        return withContext(ioDispatcher) {
+        log.info(">>> Local LLM Prompt >>>\n{}\n<<< End Local LLM Prompt <<<", prompt)
+        val result = withContext(ioDispatcher) {
             llama.send(prompt, stop = stopStrings).reduce { acc, s -> acc + s }
         }
+        log.info("<<< Local LLM Raw Output <<<\n{}\n<<< End Local LLM Output <<<", result)
+        return result
     }
 
     /**
