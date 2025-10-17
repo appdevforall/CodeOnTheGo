@@ -104,6 +104,13 @@ class AgenticRunner(
         GeminiClient(apiKey, "gemini-2.5-flash")
     }
 
+    private val modelFamily = ModelFamily(
+        id = "gemini-2.5-pro",
+        baseInstructions = DEFAULT_BASE_INSTRUCTIONS,
+        supportsParallelToolCalls = true,
+        needsSpecialApplyPatchInstructions = true
+    )
+
     private var executor: Executor = executorOverride ?: createExecutor()
 
     private val approvedForSession = mutableSetOf<String>()
@@ -166,12 +173,6 @@ class AgenticRunner(
     private val tools: List<Tool> = toolsOverride ?: allAgentTools
     private val planner: Planner = plannerOverride ?: Planner(plannerClient, this.tools)
     private val critic: Critic = criticOverride ?: Critic(criticClient)
-    private val modelFamily = ModelFamily(
-        id = "gemini-2.5-pro",
-        baseInstructions = DEFAULT_BASE_INSTRUCTIONS,
-        supportsParallelToolCalls = true,
-        needsSpecialApplyPatchInstructions = true
-    )
     private val globalPolicy: String
     private val globalStaticExamples: List<Map<String, Any>>
 
