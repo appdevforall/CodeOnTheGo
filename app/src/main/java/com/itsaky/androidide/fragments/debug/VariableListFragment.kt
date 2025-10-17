@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.LayoutInflater
@@ -27,14 +26,16 @@ class VariableListFragment : Fragment() {
 
     val fragmentTooltipTag: String = DEBUG_OUTPUT_VARIABLES
 
-    private lateinit var treeView: TreeView<ResolvableVariable<*>>
-    private lateinit var gestureDetector: GestureDetector
+    private var treeView: TreeView<ResolvableVariable<*>>? = null
+    private var gestureDetector: GestureDetector? = null
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
 
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onLongPress(e: MotionEvent) {
-            TooltipManager.showTooltip(requireContext(), treeView, fragmentTooltipTag)
+            treeView?.let {
+              TooltipManager.showTooltip(requireContext(), it, fragmentTooltipTag)
+            }
         }
     }
 
@@ -43,12 +44,9 @@ class VariableListFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        if (::treeView.isInitialized) {
-            return treeView
-        }
-
-        treeView = TreeView(requireContext())
-        return treeView
+        val view = TreeView<ResolvableVariable<*>>(requireContext())
+        treeView = view
+        return view
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -56,7 +54,7 @@ class VariableListFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
 
-        treeView.apply {
+        treeView?.apply {
             supportHorizontalScroll = true
             supportDragging = false
             tree = viewModel.variablesTree.value
@@ -75,16 +73,22 @@ class VariableListFragment : Fragment() {
                     scope = this,
                     notifyOn = Dispatchers.Main
                 ) { tree ->
-                    treeView.tree = tree
-                    treeView.refresh()
+                    treeView?.tree = tree
+                    treeView?.refresh()
 
-                    treeView.setOnTouchListener { _, event ->
-                        gestureDetector.onTouchEvent(event)
+                    treeView?.setOnTouchListener { _, event ->
+                        gestureDetector?.onTouchEvent(event)
                         false
                     }
                 }
             }
         }
 
+    }
+
+    override fun onDestroyView() {
+        treeView = null
+        gestureDetector = null
+        super.onDestroyView()
     }
 }
