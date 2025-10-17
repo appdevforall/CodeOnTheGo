@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.layouteditor.activities
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -36,6 +35,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -271,21 +271,14 @@ class EditorActivity : BaseActivity() {
                 drawerLayout.closeDrawer(GravityCompat.END)
             }
             onItemLongClickListener = { view ->
-                showTooltip(
+                TooltipManager.showTooltip(
                     context = this@EditorActivity,
                     anchorView = view,
+                    category = TooltipCategory.CATEGORY_JAVA,
                     tag = view.javaClass.superclass.name
                 )
             }
         }
-    }
-
-    private fun showTooltip(context: Context, anchorView: View, tag: String) {
-        TooltipManager.showTooltip(
-            context = context,
-            anchorView = anchorView,
-            tag = tag,
-        )
     }
 
     @SuppressLint("SetTextI18n")
