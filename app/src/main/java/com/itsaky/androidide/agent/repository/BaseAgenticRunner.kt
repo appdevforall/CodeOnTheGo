@@ -211,7 +211,11 @@ abstract class BaseAgenticRunner(
                 deferred.complete(ReviewDecision.Denied)
             }
         }
+
+        onRunnerStopped()
     }
+
+    protected open fun onRunnerStopped() {}
 
     override suspend fun generateASimpleResponse(
         prompt: String,

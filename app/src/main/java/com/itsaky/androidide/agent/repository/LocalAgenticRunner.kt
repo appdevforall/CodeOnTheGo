@@ -8,6 +8,9 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.prompt.ModelFamily
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -215,6 +218,19 @@ class LocalAgenticRunner(
             raw.substring(start, end + 1)
         } else {
             raw
+        }
+    }
+
+    override fun onRunnerStopped() {
+        engine.stop()
+    }
+
+    override fun destroy() {
+        super.destroy()
+        CoroutineScope(Dispatchers.IO).launch {
+            if (engine.isModelLoaded) {
+                engine.unloadModel()
+            }
         }
     }
 }

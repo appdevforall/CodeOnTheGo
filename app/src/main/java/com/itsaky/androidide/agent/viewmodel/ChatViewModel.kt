@@ -127,6 +127,10 @@ class ChatViewModel : ViewModel() {
             return agentRepository
         }
 
+        agentRepository?.destroy()
+        agentRepository = null
+        observeRepositoryMessages(null)
+
         log.info("Settings changed or repository not initialized. Creating new instance.")
         lastKnownBackendName = backendName
         lastKnownModelPath = modelPath
@@ -507,5 +511,14 @@ class ChatViewModel : ViewModel() {
 
     fun submitUserApproval(id: ApprovalId, decision: ReviewDecision) {
         agentRepository?.submitApprovalDecision(id, decision)
+    }
+
+    override fun onCleared() {
+        agentRepository?.destroy()
+        agentRepository = null
+        saveJob?.cancel()
+        timerJob?.cancel()
+        repoMessagesJob?.cancel()
+        super.onCleared()
     }
 }

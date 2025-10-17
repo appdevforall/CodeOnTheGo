@@ -30,4 +30,8 @@ interface GeminiRepository {
     fun submitApprovalDecision(id: ApprovalId, decision: ReviewDecision)
 
     fun stop()
+
+    fun destroy() {
+        stop()
+    }
 }
