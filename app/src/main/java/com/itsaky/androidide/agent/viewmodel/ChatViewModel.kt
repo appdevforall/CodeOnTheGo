@@ -98,6 +98,7 @@ class ChatViewModel : ViewModel() {
     private var lastKnownBackendName: String? = null
     private var lastKnownModelPath: String? = null
     private var lastKnownGeminiModel: String? = null
+    private var lastAutoLoadFailurePath: String? = null
 
     companion object {
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
@@ -192,6 +193,14 @@ class ChatViewModel : ViewModel() {
             ensureHistoryVisible(_currentSession.value?.messages ?: emptyList())
         }
 
+        if (backend == AiBackend.LOCAL_LLM) {
+            viewModelScope.launch {
+                autoLoadLocalModelIfNeeded(context)
+            }
+        } else {
+            lastAutoLoadFailurePath = null
+        }
+
         val displayText = buildBackendDisplayText(
             backend = backend,
             modelPath = currentModelPath,
@@ -266,6 +275,7 @@ class ChatViewModel : ViewModel() {
             startTimer()
             log.info("Starting agent workflow for prompt: \"{}\"", originalUserPrompt)
             try {
+                autoLoadLocalModelIfNeeded(context)
                 // Now we just get the stable repository instance.
                 val repository = getOrCreateRepository(context)
                 if (repository == null) {
@@ -364,6 +374,69 @@ class ChatViewModel : ViewModel() {
         val session = loadedSessions.find { it.id == currentId } ?: loadedSessions.first()
         _currentSession.value = session
         ensureHistoryVisible(session.messages)
+    }
+
+    private suspend fun autoLoadLocalModelIfNeeded(context: Context) {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
+        val backend = AiBackend.valueOf(backendName ?: AiBackend.GEMINI.name)
+        if (backend != AiBackend.LOCAL_LLM) {
+            return
+        }
+
+        val engine = LlmInferenceEngineProvider.instance
+        if (engine.isModelLoaded) {
+            return
+        }
+
+        val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null) ?: return
+        val modelUri = modelPath.toUri()
+        val hasPermission = context.contentResolver.persistedUriPermissions.any {
+            it.uri == modelUri && it.isReadPermission
+        }
+
+        if (!hasPermission) {
+            log.warn("Skipping auto-load. Missing persisted permission for {}", modelPath)
+            if (lastAutoLoadFailurePath != modelPath) {
+                postSystemMessage(
+                    "⚠️ System: Unable to auto-load the saved local model. Select it again in AI Settings."
+                )
+                lastAutoLoadFailurePath = modelPath
+            }
+            return
+        }
+
+        log.info("Attempting to auto-load saved local model from {}", modelPath)
+        val success = engine.initModelFromFile(context, modelPath)
+        if (success) {
+            val displayName = engine.loadedModelName ?: modelUri.getFileName(context)
+            log.info("Auto-load succeeded for local model {}", displayName)
+            lastAutoLoadFailurePath = null
+            postSystemMessage(
+                "🤖 System: Loaded saved local model \"$displayName\" automatically."
+            )
+        } else {
+            log.error("Auto-load failed for local model {}", modelPath)
+            if (lastAutoLoadFailurePath != modelPath) {
+                postSystemMessage(
+                    "⚠️ System: Failed to auto-load the saved local model. Select it again in AI Settings."
+                )
+                lastAutoLoadFailurePath = modelPath
+            }
+        }
+    }
+
+    private fun postSystemMessage(message: String) {
+        val session = _currentSession.value ?: return
+        val systemMessage = ChatMessage(
+            text = message,
+            sender = Sender.SYSTEM,
+            status = MessageStatus.SENT
+        )
+        session.messages.add(systemMessage)
+        _sessions.value = _sessions.value
+        ensureHistoryVisible(session.messages)
+        scheduleSaveCurrentSession()
     }
 
     private fun postSystemError(message: String) {
