@@ -5,6 +5,7 @@ import com.google.genai.types.Content
 import com.google.genai.types.Tool
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.prompt.ModelFamily
+import com.itsaky.androidide.agent.prompt.SystemPromptProvider
 import org.slf4j.LoggerFactory
 
 class GeminiAgenticRunner(
@@ -19,7 +20,10 @@ class GeminiAgenticRunner(
     context = appContext,
     modelFamily = ModelFamily(
         id = plannerModel.ifBlank { DEFAULT_GEMINI_MODEL },
-        baseInstructions = BASE_AGENT_DEFAULT_INSTRUCTIONS,
+        baseInstructions = SystemPromptProvider.get(
+            appContext,
+            plannerModel.ifBlank { DEFAULT_GEMINI_MODEL }
+        ),
         supportsParallelToolCalls = true,
         needsSpecialApplyPatchInstructions = true
     ),

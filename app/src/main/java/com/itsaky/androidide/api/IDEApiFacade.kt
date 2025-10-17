@@ -34,7 +34,8 @@ object IDEApiFacade {
         return command.execute()
     }
 
-    fun readFile(path: String) = HighOrderReadFileCommand(path).execute()
+    fun readFile(path: String, offset: Int?, limit: Int?) =
+        HighOrderReadFileCommand(path, offset, limit).execute()
 
     fun listFiles(path: String, recursive: Boolean) = ListFilesCommand(path, recursive).execute()
 

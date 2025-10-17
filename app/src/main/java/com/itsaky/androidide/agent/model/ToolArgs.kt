@@ -11,7 +11,10 @@ data class CreateFileArgs(
 
 @Serializable
 data class ReadFileArgs(
-    val path: String = ""
+    @SerialName("file_path")
+    val filePath: String = "",
+    val offset: Int? = null,
+    val limit: Int? = null
 )
 
 @Serializable

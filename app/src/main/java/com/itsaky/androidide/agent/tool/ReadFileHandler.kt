@@ -9,6 +9,10 @@ class ReadFileHandler : ToolHandler {
 
     override suspend fun invoke(args: Map<String, Any?>): ToolResult {
         val toolArgs = decodeArgs<ReadFileArgs>(args)
-        return IDEApiFacade.readFile(toolArgs.path)
+        return IDEApiFacade.readFile(
+            toolArgs.filePath,
+            toolArgs.offset,
+            toolArgs.limit
+        )
     }
 }

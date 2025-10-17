@@ -35,19 +35,27 @@ private val createFile = FunctionDeclaration.builder()
 
 private val readFile = FunctionDeclaration.builder()
     .name("read_file")
-    .description("Reads the entire content of a file.")
+    .description("Reads the content of a file. Use optional offset/limit to stream large files.")
     .parameters(
         Schema.builder()
             .type(Type.Known.OBJECT)
             .properties(
                 mapOf(
-                    "path" to Schema.builder()
+                    "file_path" to Schema.builder()
                         .type(Type.Known.STRING)
                         .description("The relative path of the file to read.")
+                        .build(),
+                    "offset" to Schema.builder()
+                        .type(Type.Known.INTEGER)
+                        .description("Optional byte offset to start reading from. Defaults to 0.")
+                        .build(),
+                    "limit" to Schema.builder()
+                        .type(Type.Known.INTEGER)
+                        .description("Optional maximum number of bytes to read from the offset.")
                         .build()
                 )
             )
-            .required(listOf("path"))
+            .required(listOf("file_path"))
             .build()
     )
     .build()
@@ -94,9 +102,9 @@ private val deleteFile = FunctionDeclaration.builder()
     )
     .build()
 
-private val listFiles = FunctionDeclaration.builder()
-    .name("list_files")
-    .description("Lists all files and directories within a given path.")
+private val listDir = FunctionDeclaration.builder()
+    .name("list_dir")
+    .description("Lists files and directories within the given path.")
     .parameters(
         Schema.builder()
             .type(Type.Known.OBJECT)
@@ -229,8 +237,8 @@ private val getBuildOutput = FunctionDeclaration.builder()
     .description("Retrieves the latest logs from the build system output. Useful for debugging build failures.")
     .build()
 
-private val executeShellCommand = FunctionDeclaration.builder()
-    .name("execute_shell_command")
+private val shell = FunctionDeclaration.builder()
+    .name("shell")
     .description("Runs a shell command inside the current project directory. Useful for invoking Gradle, git, or other CLI tools.")
     .parameters(
         Schema.builder()
@@ -258,7 +266,7 @@ val allAgentTools: List<Tool> = listOf(
     Tool.builder().functionDeclarations(readFile).build(),
     Tool.builder().functionDeclarations(updateFile).build(),
     Tool.builder().functionDeclarations(deleteFile).build(),
-    Tool.builder().functionDeclarations(listFiles).build(),
+    Tool.builder().functionDeclarations(listDir).build(),
     Tool.builder().functionDeclarations(searchProject).build(),
     Tool.builder().functionDeclarations(readMultipleFiles).build(),
     Tool.builder().functionDeclarations(addDependency).build(),
@@ -266,5 +274,5 @@ val allAgentTools: List<Tool> = listOf(
     Tool.builder().functionDeclarations(runApp).build(),
     Tool.builder().functionDeclarations(triggerGradleSync).build(),
     Tool.builder().functionDeclarations(getBuildOutput).build(),
-    Tool.builder().functionDeclarations(executeShellCommand).build()
+    Tool.builder().functionDeclarations(shell).build()
 )

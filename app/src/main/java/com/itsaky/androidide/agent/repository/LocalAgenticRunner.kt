@@ -8,6 +8,7 @@ import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.prompt.ModelFamily
+import com.itsaky.androidide.agent.prompt.SystemPromptProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,7 +27,7 @@ class LocalAgenticRunner(
     context = context,
     modelFamily = ModelFamily(
         id = "local-llm",
-        baseInstructions = BASE_AGENT_DEFAULT_INSTRUCTIONS,
+        baseInstructions = SystemPromptProvider.get(context),
         supportsParallelToolCalls = false,
         needsSpecialApplyPatchInstructions = false
     ),

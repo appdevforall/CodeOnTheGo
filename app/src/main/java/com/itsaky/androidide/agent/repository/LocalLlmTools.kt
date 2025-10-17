@@ -13,14 +13,16 @@ object LocalLlmTools {
         ),
         LocalToolDeclaration(
             name = "read_file",
-            description = "Reads the entire content of a file.",
+            description = "Reads the content of a file. Use offset/limit to stream large files.",
             parameters = mapOf(
-                "path" to "The relative path of the file to read."
+                "file_path" to "The relative path of the file to read.",
+                "offset" to "Optional byte offset (defaults to 0).",
+                "limit" to "Optional maximum number of bytes to read from the offset."
             )
         ),
         LocalToolDeclaration(
-            name = "list_files",
-            description = "Lists all files and directories within a given path.",
+            name = "list_dir",
+            description = "Lists files and directories within a given path.",
             parameters = mapOf(
                 "path" to "The relative path of the directory to inspect.",
                 "recursive" to "If true, lists files in all subdirectories as well."

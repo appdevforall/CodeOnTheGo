@@ -41,15 +41,15 @@ class ExecutorTest {
             releaseSignals.receive()
             ToolResult.success("read_file ok")
         }
-        val listHandler = lambdaHandler("list_files") {
-            startSignals.send("list_files")
+        val listHandler = lambdaHandler("list_dir") {
+            startSignals.send("list_dir")
             releaseSignals.receive()
-            ToolResult.success("list_files ok")
+            ToolResult.success("list_dir ok")
         }
         val executor = executorWithHandlers(readHandler, listHandler)
 
         val readCall = functionCall("read_file")
-        val listCall = functionCall("list_files")
+        val listCall = functionCall("list_dir")
 
         val execution = async { executor.execute(listOf(readCall, listCall)) }
 
@@ -59,14 +59,14 @@ class ExecutorTest {
                 started.add(startSignals.receive())
             }
         }
-        assertEquals(setOf("read_file", "list_files"), started)
+        assertEquals(setOf("read_file", "list_dir"), started)
 
         repeat(2) { releaseSignals.send(Unit) }
 
         val parts = execution.await()
         assertEquals(2, parts.size)
         assertEquals(
-            setOf("read_file", "list_files"),
+            setOf("read_file", "list_dir"),
             parts.mapNotNull { it.functionResponse().getOrNull()?.name()?.getOrNull() }.toSet()
         )
     }
@@ -126,20 +126,20 @@ class ExecutorTest {
             successHandler("create_file"),
             successHandler("read_file"),
             successHandler("update_file"),
-            successHandler("list_files")
+            successHandler("list_dir")
         )
 
         val calls = listOf(
             functionCall("create_file"),
             functionCall("read_file"),
             functionCall("update_file"),
-            functionCall("list_files")
+            functionCall("list_dir")
         )
 
         val parts = executor.execute(calls)
 
         assertEquals(
-            listOf("create_file", "update_file", "read_file", "list_files"),
+            listOf("create_file", "update_file", "read_file", "list_dir"),
             parts.mapNotNull { it.functionResponse().getOrNull()?.name()?.getOrNull() }
         )
     }

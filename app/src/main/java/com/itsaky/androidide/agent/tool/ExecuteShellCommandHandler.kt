@@ -56,7 +56,7 @@ class ExecuteShellCommandHandler(
     }
 
     companion object {
-        const val TOOL_NAME = "execute_shell_command"
+        const val TOOL_NAME = "shell"
     }
 }
 

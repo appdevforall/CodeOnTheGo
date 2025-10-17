@@ -6,9 +6,13 @@ import com.itsaky.androidide.agent.model.ToolResult
 import com.itsaky.androidide.projects.IProjectManager
 import java.io.File
 
-class HighOrderReadFileCommand(private val path: String) : Command<String> {
+class HighOrderReadFileCommand(
+    private val path: String,
+    private val offset: Int?,
+    private val limit: Int?
+) : Command<String> {
     override fun execute(): ToolResult {
-        val readFileCommand = ReadFileCommand(path)
+        val readFileCommand = ReadFileCommand(path, offset, limit)
         val result = readFileCommand.execute()
         return if (result.isSuccess) {
             val projectDir = IProjectManager.getInstance().projectDir

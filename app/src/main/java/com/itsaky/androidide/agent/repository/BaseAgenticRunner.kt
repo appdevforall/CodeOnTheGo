@@ -15,8 +15,10 @@ import com.itsaky.androidide.agent.ToolExecutionTracker
 import com.itsaky.androidide.agent.model.ExplorationKind
 import com.itsaky.androidide.agent.model.ExplorationMetadata
 import com.itsaky.androidide.agent.model.ReviewDecision
+import com.itsaky.androidide.agent.prompt.FirstTurnContextProvider
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.ResponseItem
+import com.itsaky.androidide.agent.prompt.SystemPromptProvider
 import com.itsaky.androidide.agent.prompt.TurnContext
 import com.itsaky.androidide.agent.prompt.buildMessagesForChatAPI
 import com.itsaky.androidide.agent.prompt.buildPrompt
@@ -64,11 +66,6 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.jvm.optionals.getOrNull
 import kotlin.math.min
-
-internal const val BASE_AGENT_DEFAULT_INSTRUCTIONS =
-    "You are an expert Android developer agent specializing in both Views and Jetpack Compose. " +
-            "Your goal is to fulfill user requests by interacting with an IDE.\n" +
-            "Follow policies strictly."
 
 /**
  * Contains the shared, model-agnostic logic for running a multi-step agentic workflow.
@@ -228,6 +225,7 @@ abstract class BaseAgenticRunner(
         onStateUpdate?.invoke(AgentState.Initializing("Preparing agent..."))
         resetPlan()
         loadHistory(history)
+        injectFirstTurnContextIfNeeded()
 
         addMessage(prompt, Sender.USER)
 
@@ -744,7 +742,14 @@ abstract class BaseAgenticRunner(
         return builder.toString().trimEnd()
     }
 
-    protected open fun baseInstructions(): String = BASE_AGENT_DEFAULT_INSTRUCTIONS
+    protected open fun baseInstructions(): String {
+        val fromModel = modelFamily.baseInstructions
+        return if (fromModel.isNotBlank()) {
+            fromModel
+        } else {
+            SystemPromptProvider.get(context, modelFamily.id)
+        }
+    }
 
     private fun formatExamples(examples: List<Map<String, Any>>): String {
         if (examples.isEmpty()) return ""
@@ -883,6 +888,60 @@ abstract class BaseAgenticRunner(
         val lastText = _messages.value.lastOrNull()?.text?.trim()
         if (lastText != trimmed) {
             addMessage(trimmed, Sender.AGENT)
+        }
+    }
+
+    private fun injectFirstTurnContextIfNeeded() {
+        val persistentInstructions = FirstTurnContextProvider.loadPersistentInstructions()
+        _messages.update { current ->
+            val mutable = current.toMutableList()
+            var environmentIndex = mutable.indexOfFirst { message ->
+                message.text.trimStart().startsWith("<environment_context>")
+            }
+            var updated = false
+            if (environmentIndex == -1) {
+                val environmentMessage = ChatMessage(
+                    text = FirstTurnContextProvider.buildEnvironmentContext(context),
+                    sender = Sender.SYSTEM
+                )
+                mutable.add(0, environmentMessage)
+                environmentIndex = 0
+                updated = true
+            }
+
+            val instructionsBlock = persistentInstructions?.let {
+                FirstTurnContextProvider.wrapUserInstructions(it)
+            }
+            val instructionsIndex = mutable.indexOfFirst { message ->
+                message.text.trimStart().startsWith("<user_instructions>")
+            }
+            when {
+                instructionsBlock != null && instructionsIndex == -1 -> {
+                    val insertionIndex = when {
+                        environmentIndex != -1 -> (environmentIndex + 1).coerceAtMost(mutable.size)
+                        else -> 0
+                    }
+                    mutable.add(
+                        insertionIndex,
+                        ChatMessage(text = instructionsBlock, sender = Sender.SYSTEM)
+                    )
+                    updated = true
+                }
+
+                instructionsBlock != null && instructionsIndex != -1 &&
+                        mutable[instructionsIndex].text != instructionsBlock -> {
+                    val existing = mutable[instructionsIndex]
+                    mutable[instructionsIndex] = existing.copy(text = instructionsBlock)
+                    updated = true
+                }
+
+                instructionsBlock == null && instructionsIndex != -1 -> {
+                    mutable.removeAt(instructionsIndex)
+                    updated = true
+                }
+            }
+
+            if (updated) mutable else current
         }
     }
 

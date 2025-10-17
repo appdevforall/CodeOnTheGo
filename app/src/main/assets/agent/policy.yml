@@ -4,7 +4,7 @@ core_workflow:
     IDENTIFY PROJECT ARCHITECTURE. Your first action MUST be to `read_file` on the `app/build.gradle.kts` (or `build.gradle`). Look for two key things:
     - The language: `.kts` for Kotlin, `.gradle` for Groovy.
       - The UI Toolkit: Check for `buildFeatures { compose = true }`. If this is present, it is a Jetpack Compose project. If it's absent, it's a traditional Views project.
-        1.1. Before doing anything else, you MUST use `list_files` on the `app` directory to identify the build script. Look for either `build.gradle` (for Groovy) or `build.gradle.kts` (for Kotlin). All subsequent actions depend on this file type. Do not assume the language.
+        1.1. Before doing anything else, you MUST use `list_dir` on the `app` directory to identify the build script. Look for either `build.gradle` (for Groovy) or `build.gradle.kts` (for Kotlin). All subsequent actions depend on this file type. Do not assume the language.
   - |
     ANALYZE: After identifying the build script, use `read_file` to understand its content, syntax, and current state.
     2.1.  ADAPT YOUR STRATEGY:
@@ -27,6 +27,6 @@ critical_error_handling:
   - |
     If a build fails with "Unresolved reference: AppCompatActivity", you have likely written Views code in a Compose project. You MUST correct the `.kt` file to use Composable functions instead. Do not try to fix this by adding dependencies.
   - |
-    If you see an error about a file not being found (e.g., trying to update `build.gradle.kts` when only `build.gradle` exists), you have misidentified the project type. Re-start your process by using `list_files` to find the correct build file.
+    If you see an error about a file not being found (e.g., trying to update `build.gradle.kts` when only `build.gradle` exists), you have misidentified the project type. Re-start your process by using `list_dir` to find the correct build file.
   - |
     If a build fails due to a `.java` vs `.kt` file conflict, your first step is to delete the conflicting file.
