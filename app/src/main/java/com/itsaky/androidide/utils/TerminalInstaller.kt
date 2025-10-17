@@ -415,6 +415,8 @@ object TerminalInstaller {
 
         appendVimToPath()
 
+        deleteFolder("$TERMUX_PREFIX_DIR_PATH/libexec/installed-tests")
+
         return InstallResult.Success
     }
 
@@ -437,5 +439,20 @@ object TerminalInstaller {
         }
     }
 
+    private fun deleteFolder(path: String) {
+        try {
+            val folder = File(path)
+            if (!folder.exists()) {
+                logger.error("Folder does not exist: $path")
+                return
+            }
+            val success = folder.deleteRecursively()
+            if (!success) {
+                logger.error("Failed to delete folder: $path")
+            }
+        } catch (e: Exception) {
+            logger.error("Error deleting folder: ${e.message}")
+        }
+    }
 
 }
