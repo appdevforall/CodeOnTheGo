@@ -21,7 +21,6 @@ open class BaseActivity : AppCompatActivity() {
     super.onCreate(savedInstanceState)
     instance = this
     ctx = WeakReference(this)
-    Thread.setDefaultUncaughtExceptionHandler(CrashHandler(ctx))
     app = LayoutEditor.instance
     window.statusBarColor = SurfaceColors.SURFACE_0.getColor(this)
     OrientationUtilities.setOrientation {
