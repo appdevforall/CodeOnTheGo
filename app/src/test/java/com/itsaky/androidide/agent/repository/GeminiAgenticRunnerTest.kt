@@ -21,7 +21,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 
-class AgenticRunnerTest {
+class GeminiAgenticRunnerTest {
 
     @After
     fun tearDown() {
@@ -30,7 +30,7 @@ class AgenticRunnerTest {
 
     @Test
     fun `generateASimpleResponse updates messages with planner text`() = runBlocking {
-        val tempDir = Files.createTempDirectory("agentic-runner").toFile()
+        val tempDir = Files.createTempDirectory("gemini-runner").toFile()
         try {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
@@ -47,8 +47,8 @@ class AgenticRunnerTest {
 
             every { planner.planForStep(any(), any(), any()) } returns planOutput
 
-            val runner = AgenticRunner(
-                context = context,
+            val runner = GeminiAgenticRunner(
+                appContext = context,
                 maxSteps = 1,
                 toolsOverride = emptyList(),
                 plannerOverride = planner,
@@ -79,18 +79,18 @@ class AgenticRunnerTest {
 
     @Test
     fun `stop cancels current job and replaces runner scope`() {
-        val tempDir = Files.createTempDirectory("agentic-runner-stop").toFile()
+        val tempDir = Files.createTempDirectory("gemini-runner-stop").toFile()
         try {
             val context = mockContext(tempDir)
-            val runner = AgenticRunner(
-                context = context,
+            val runner = GeminiAgenticRunner(
+                appContext = context,
                 toolsOverride = emptyList(),
                 plannerOverride = mockk<Planner>(relaxed = true),
                 criticOverride = mockk<Critic>(relaxed = true),
                 executorOverride = mockk<Executor>(relaxed = true)
             )
 
-            val jobField = AgenticRunner::class.java.getDeclaredField("runnerJob").apply {
+            val jobField = BaseAgenticRunner::class.java.getDeclaredField("runnerJob").apply {
                 isAccessible = true
             }
             val initialJob = jobField.get(runner) as Job
@@ -109,7 +109,7 @@ class AgenticRunnerTest {
 
     @Test
     fun `planner retries on transient failure`() = runBlocking {
-        val tempDir = Files.createTempDirectory("agentic-runner-retry").toFile()
+        val tempDir = Files.createTempDirectory("gemini-runner-retry").toFile()
         try {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
@@ -132,8 +132,8 @@ class AgenticRunnerTest {
                 )
             } throws IOException("network glitch") andThen planOutput
 
-            val runner = AgenticRunner(
-                context = context,
+            val runner = GeminiAgenticRunner(
+                appContext = context,
                 maxSteps = 1,
                 toolsOverride = emptyList(),
                 plannerOverride = planner,
@@ -161,7 +161,7 @@ class AgenticRunnerTest {
 
     @Test
     fun `planner gives up after max retries`() = runBlocking {
-        val tempDir = Files.createTempDirectory("agentic-runner-retry-fail").toFile()
+        val tempDir = Files.createTempDirectory("gemini-runner-retry-fail").toFile()
         try {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
@@ -173,8 +173,8 @@ class AgenticRunnerTest {
             )
             every { planner.planForStep(any(), any(), any()) } throws IOException("flaky network")
 
-            val runner = AgenticRunner(
-                context = context,
+            val runner = GeminiAgenticRunner(
+                appContext = context,
                 maxSteps = 1,
                 toolsOverride = emptyList(),
                 plannerOverride = planner,
@@ -200,12 +200,19 @@ class AgenticRunnerTest {
         }
     }
 
-    private fun mockContext(tempDir: File): Context {
-        val context = mockk<Context>()
-        val assetManager = mockk<AssetManager>()
-        every { context.assets } returns assetManager
-        every { assetManager.open(any()) } throws FileNotFoundException("missing")
-        every { context.getExternalFilesDir(null) } returns tempDir
+    private fun mockContext(filesDir: File): Context {
+        val context = mockk<Context>(relaxed = true)
+        every { context.getExternalFilesDir(null) } returns filesDir
+
+        val assets = mockk<AssetManager>()
+        every { context.assets } returns assets
+
+        every { assets.open("agent/policy.yml") } answers {
+            throw FileNotFoundException("policy.yml not found")
+        }
+        every { assets.open("agent/planner_fewshots.json") } answers {
+            throw FileNotFoundException("planner_fewshots.json not found")
+        }
         return context
     }
 }

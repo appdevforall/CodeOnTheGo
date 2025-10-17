@@ -16,12 +16,12 @@ import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.model.ReviewDecision
-import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.DEFAULT_GEMINI_MODEL
+import com.itsaky.androidide.agent.repository.GeminiAgenticRunner
 import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
-import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
+import com.itsaky.androidide.agent.repository.LocalAgenticRunner
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
@@ -135,8 +135,11 @@ class ChatViewModel : ViewModel() {
 
         agentRepository = when (backend) {
             AiBackend.GEMINI -> {
-                log.info("Creating new AgenticRunner (Gemini) instance.")
-                AgenticRunner(context, plannerModel = geminiModel ?: DEFAULT_GEMINI_MODEL).apply {
+                log.info("Creating new GeminiAgenticRunner instance.")
+                GeminiAgenticRunner(
+                    context,
+                    plannerModel = geminiModel ?: DEFAULT_GEMINI_MODEL
+                ).apply {
                     onStateUpdate = { _agentState.value = it }
                 }
             }
@@ -151,8 +154,8 @@ class ChatViewModel : ViewModel() {
                     log.error("Initialization failed: Local LLM model is not loaded.")
                     null // Return null to show an error message in the UI
                 } else {
-                    log.info("Creating LocalLlmRepositoryImpl with shared, pre-loaded engine.")
-                    LocalLlmRepositoryImpl(context, engine).apply {
+                    log.info("Creating LocalAgenticRunner instance.")
+                    LocalAgenticRunner(context, engine).apply {
                         onStateUpdate = { _agentState.value = it }
                     }
                 }

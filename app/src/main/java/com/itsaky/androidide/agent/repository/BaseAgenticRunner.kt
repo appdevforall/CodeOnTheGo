@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.genai.errors.ClientException
 import com.google.genai.errors.ServerException
 import com.google.genai.types.Content
+import com.google.genai.types.FunctionCall
 import com.google.genai.types.Part
 import com.google.genai.types.Tool
 import com.itsaky.androidide.agent.AgentState
@@ -11,7 +12,6 @@ import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
-import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.ResponseItem
@@ -62,62 +62,31 @@ import java.util.UUID
 import kotlin.jvm.optionals.getOrNull
 import kotlin.math.min
 
+internal const val BASE_AGENT_DEFAULT_INSTRUCTIONS =
+    "You are an expert Android developer agent specializing in both Views and Jetpack Compose. " +
+            "Your goal is to fulfill user requests by interacting with an IDE.\n" +
+            "Follow policies strictly."
 
-class AgenticRunner(
-    private val context: Context,
+/**
+ * Contains the shared, model-agnostic logic for running a multi-step agentic workflow.
+ *
+ * Subclasses provide the model-specific implementations for planning and action selection.
+ */
+abstract class BaseAgenticRunner(
+    protected val context: Context,
     private val maxSteps: Int = 20,
-    plannerModel: String = DEFAULT_GEMINI_MODEL,
-    toolsOverride: List<Tool>? = null,
-    plannerOverride: Planner? = null,
-    criticOverride: Critic? = null,
-    executorOverride: Executor? = null
+    private val toolsOverride: List<Tool>? = null,
+    private val executorOverride: Executor? = null
 ) : GeminiRepository {
-    private val _messages = MutableStateFlow<List<ChatMessage>>(
-        listOf(
-        )
-    )
-    override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
-    private val _plan = MutableStateFlow<Plan?>(null)
-    override val plan: StateFlow<Plan?> = _plan.asStateFlow()
 
-    private var runnerJob: Job = SupervisorJob()
-    private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
+    protected abstract val modelFamily: ModelFamily
 
-    private val plannerModelName = plannerModel.ifBlank { DEFAULT_GEMINI_MODEL }
+    /**
+     * All tools available to the planner. Subclasses can override to customize.
+     */
+    protected open val tools: List<Tool> = toolsOverride ?: allAgentTools
 
-    private val plannerClient: GeminiClient by lazy {
-        // Fetch the key when the client is first needed
-        val apiKey = EncryptedPrefs.getGeminiApiKey(context)
-        if (apiKey.isNullOrBlank()) {
-            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
-            log.error(errorMessage)
-            // Throw an exception that we can catch in the ViewModel
-            throw IllegalStateException(errorMessage)
-        }
-        GeminiClient(apiKey, plannerModelName) // Use the configured Gemini model
-    }
-
-    private val criticClient: GeminiClient by lazy {
-        val apiKey = EncryptedPrefs.getGeminiApiKey(context)
-        if (apiKey.isNullOrBlank()) {
-            val errorMessage = "Gemini API Key not found. Please set it in the AI Settings."
-            log.error(errorMessage)
-            throw IllegalStateException(errorMessage)
-        }
-        GeminiClient(apiKey, "gemini-2.5-flash")
-    }
-
-    private val modelFamily = ModelFamily(
-        id = plannerModelName,
-        baseInstructions = DEFAULT_BASE_INSTRUCTIONS,
-        supportsParallelToolCalls = true,
-        needsSpecialApplyPatchInstructions = true
-    )
-
-    private val approvedForSession = mutableSetOf<String>()
-    private val approvalLock = Any()
-    private val pendingApprovals = mutableMapOf<ApprovalId, PendingApproval>()
-    private val approvalManager = object : ToolApprovalManager {
+    protected open val approvalManager: ToolApprovalManager = object : ToolApprovalManager {
         override suspend fun ensureApproved(
             toolName: String,
             handler: ToolHandler,
@@ -126,22 +95,108 @@ class AgenticRunner(
             return ensureToolApproved(toolName, handler, args)
         }
     }
-    private var executor: Executor = executorOverride ?: createExecutor()
+    protected open val executor: Executor = executorOverride ?: createExecutor()
 
+    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+    private val _plan = MutableStateFlow<Plan?>(null)
+    override val plan: StateFlow<Plan?> = _plan.asStateFlow()
+
+    private var runnerJob: Job = SupervisorJob()
+    private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
 
     override var onStateUpdate: ((AgentState) -> Unit)? = null
-
 
     private val toolTracker = ToolExecutionTracker()
     private var lastRunEncounteredError = false
 
+    private val approvedForSession = mutableSetOf<String>()
+    private val approvalLock = Any()
+    private val pendingApprovals = mutableMapOf<ApprovalId, PendingApproval>()
+
+    private var logTs: String = ""
+    private var logEntries = mutableListOf<JsonObject>()
+
+    private val globalPolicy: String
+    private val globalStaticExamples: List<Map<String, Any>>
+
+    init {
+        this.globalPolicy = getPolicyConfig()
+        this.globalStaticExamples = getFewShotsConfig()
+    }
+
+    companion object {
+        private val log = LoggerFactory.getLogger(BaseAgenticRunner::class.java)
+
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val INITIAL_RETRY_DELAY_MS = 100L
+        private const val MAX_RETRY_DELAY_MS = 2_000L
+        private const val RETRY_BACKOFF_MULTIPLIER = 2.0
+        private const val MAX_STEP_ATTEMPTS = 3
+        private val json = Json {
+            prettyPrint = true
+            isLenient = true
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+        }
+    }
+
+    // --- Abstract hooks for subclasses ---------------------------------------------------------
+
     /**
-     * Immediately cancels the runner's CoroutineScope.
-     * This will interrupt any ongoing network calls (plan, critique) and
-     * cause the run loop to terminate with a CancellationException.
+     * Build the initial planner-ready content from the current message history.
      */
+    protected open fun buildInitialContent(): Content {
+        val historyWithoutPlaceholder = _messages.value.dropLast(1)
+        val responseItems = historyWithoutPlaceholder.mapNotNull { it.toResponseItem() }
+        if (responseItems.isEmpty()) {
+            throw IllegalStateException("Unable to build prompt without a user message.")
+        }
+
+        val firstUserIndex = responseItems.indexOfFirst { item ->
+            item is ResponseItem.Message && item.role == "user"
+        }
+        if (firstUserIndex == -1) {
+            throw IllegalStateException("Conversation must contain at least one user message.")
+        }
+
+        val effectiveItems = responseItems.drop(firstUserIndex)
+
+        val turnContext = TurnContext(
+            modelFamily = modelFamily,
+            toolsConfig = tools,
+            baseInstructionsOverride = buildInstructionOverride()
+        )
+        val prompt = buildPrompt(turnContext, effectiveItems)
+        val messages = buildMessagesForChatAPI(prompt, modelFamily)
+        return messages.first()
+    }
+
+    /**
+     * Subclasses must ask their underlying model to produce an initial plan.
+     */
+    protected abstract suspend fun createInitialPlan(history: List<Content>): Plan
+
+    /**
+     * Subclasses must ask their underlying model to decide the next action for a plan step.
+     */
+    protected abstract suspend fun planForStep(
+        history: List<Content>,
+        plan: Plan,
+        stepIndex: Int
+    ): Content
+
+    /**
+     * Allows subclasses to customize review/summarization after tool execution.
+     */
+    protected open suspend fun processCriticStep(history: MutableList<Content>): String {
+        return "OK"
+    }
+
+    // --- GeminiRepository ----------------------------------------------------------------------
+
     override fun stop() {
-        log.info("Stop requested for AgenticRunner. Cancelling job.")
+        log.info("Stop requested for BaseAgenticRunner. Cancelling job.")
         runnerScope.cancel("User requested to stop the agent.")
         runnerJob = SupervisorJob()
         runnerScope = CoroutineScope(Dispatchers.IO + runnerJob)
@@ -159,8 +214,29 @@ class AgenticRunner(
         }
     }
 
-    override fun getPartialReport(): String {
-        return toolTracker.generatePartialReport()
+    override suspend fun generateASimpleResponse(
+        prompt: String,
+        history: List<ChatMessage>
+    ) {
+        lastRunEncounteredError = false
+        onStateUpdate?.invoke(AgentState.Initializing("Preparing agent..."))
+        resetPlan()
+        loadHistory(history)
+
+        addMessage(prompt, Sender.USER)
+
+        try {
+            runnerScope.async {
+                run()
+            }.await()
+        } catch (e: CancellationException) {
+            log.warn("generateASimpleResponse caught cancellation.")
+            updateLastMessage("Operation cancelled by user.")
+        }
+
+        if (!lastRunEncounteredError) {
+            onStateUpdate?.invoke(AgentState.Idle)
+        }
     }
 
     override suspend fun generateCode(
@@ -169,134 +245,28 @@ class AgenticRunner(
         fileName: String,
         fileRelativePath: String
     ): String {
-        TODO("Not yet implemented")
+        throw UnsupportedOperationException("Code generation is not yet implemented.")
     }
 
-    private val tools: List<Tool> = toolsOverride ?: allAgentTools
-    private val planner: Planner = plannerOverride ?: Planner(plannerClient, this.tools)
-    private val critic: Critic = criticOverride ?: Critic(criticClient)
-    private val globalPolicy: String
-    private val globalStaticExamples: List<Map<String, Any>>
-
-    private var logTs: String = ""
-    private var logEntries = mutableListOf<JsonObject>()
-
-    companion object {
-        private val log = LoggerFactory.getLogger(AgenticRunner::class.java)
-        private const val MAX_RETRY_ATTEMPTS = 3
-        private const val INITIAL_RETRY_DELAY_MS = 100L
-        private const val MAX_RETRY_DELAY_MS = 2_000L
-        private const val RETRY_BACKOFF_MULTIPLIER = 2.0
-        private const val MAX_STEP_ATTEMPTS = 3
-        private val DEFAULT_BASE_INSTRUCTIONS = """
-            You are an expert Android developer agent specializing in both Views and Jetpack Compose. Your goal is to fulfill user requests by interacting with an IDE.
-            Follow policies strictly.
-        """.trimIndent()
-
-        private val json = Json {
-            prettyPrint = true
-            isLenient = true
-            ignoreUnknownKeys = true
-            coerceInputValues = true
-        }
+    override fun loadHistory(history: List<ChatMessage>) {
+        _plan.value = null
+        _messages.value = history
     }
 
-    init {
-        this.globalPolicy = getPolicyConfig()
-        this.globalStaticExamples = getFewShotsConfig()
-    }
-
-    private fun createExecutor(): Executor {
-        val toolsConfigParams = ToolsConfigParams(modelFamily = modelFamily)
-        val toolsConfig = buildToolsConfig(toolsConfigParams)
-        val toolRouter = buildToolRouter(toolsConfig)
-        return Executor(toolRouter, approvalManager)
-    }
-
-    private fun buildInstructionOverride(): String {
-        val currentTime = LocalDateTime.now()
-        val formattedTime =
-            "${currentTime.dayOfWeek}, ${currentTime.toLocalDate()} ${currentTime.hour}:${
-                currentTime.minute.toString().padStart(2, '0')
-            }"
-
-        val builder = StringBuilder()
-        builder.append(DEFAULT_BASE_INSTRUCTIONS)
-        builder.append("\n\n[Session Information]\n- Current Date and Time: $formattedTime\n\n")
-
-        if (globalPolicy.isNotBlank()) {
-            builder.append("[Global Rules]\n")
-            builder.append(globalPolicy.trim())
-            builder.append("\n\n")
-        }
-
-        builder.append("[Tooling]\nUse tools when they reduce uncertainty or are required by policy.\n\n")
-
-        val examplesBlock = formatExamples(globalStaticExamples)
-        if (examplesBlock.isNotBlank()) {
-            builder.append(examplesBlock)
-        }
-
-        builder.append("Based on the user's request, you MUST respond by calling one or more of the available tools. Do not provide a conversational answer.")
-
-        return builder.toString().trimEnd()
-    }
-
-    private fun formatExamples(examples: List<Map<String, Any>>): String {
-        if (examples.isEmpty()) return ""
-        val builder = StringBuilder()
-        examples.forEachIndexed { index, rawDialogue ->
-            val dialogueTurns =
-                (rawDialogue["dialogue"] as? List<*>)?.filterIsInstance<Map<String, String>>()
-                    ?: emptyList()
-            if (dialogueTurns.isEmpty()) {
-                return@forEachIndexed
+    override fun submitApprovalDecision(id: ApprovalId, decision: ReviewDecision) {
+        var deferred: CompletableDeferred<ReviewDecision>? = null
+        synchronized(approvalLock) {
+            val pending = pendingApprovals[id]
+            if (pending == null) {
+                log.warn("Received decision for unknown approval id: {}", id)
+            } else {
+                deferred = pending.deferred
             }
-            builder.append("--- Example ${index + 1} ---\n")
-            dialogueTurns.forEach { turn ->
-                val role = turn["role"] ?: return@forEach
-                val text = turn["text"] ?: ""
-                val labeledRole = when (role.lowercase()) {
-                    "user" -> "User"
-                    "assistant" -> "Assistant"
-                    else -> role.replaceFirstChar { ch ->
-                        if (ch.isLowerCase()) ch.titlecase() else ch.toString()
-                    }
-                }
-                builder.append("$labeledRole: $text\n")
-            }
-            builder.append("--- End Example ---\n\n")
         }
-        return builder.toString()
+        deferred?.takeIf { !it.isCompleted }?.complete(decision)
     }
 
-    override suspend fun generateASimpleResponse(
-        prompt: String,
-        history: List<ChatMessage>
-    ) {
-        // 1. Load the history from the current session
-        lastRunEncounteredError = false
-        onStateUpdate?.invoke(AgentState.Initializing("Preparing agent..."))
-        resetPlan()
-        loadHistory(history)
-
-        // 2. Add the user's new message to the flow so it appears instantly
-        addMessage(prompt, Sender.USER)
-
-        val finalMessage = try {
-            runnerScope.async {
-                run()
-            }.await()
-        } catch (e: CancellationException) {
-            log.warn("generateASimpleResponse caught cancellation.")
-            updateLastMessage("Operation cancelled by user.") // Update UI on cancellation
-            "Operation cancelled by user."
-        }
-
-        if (!lastRunEncounteredError) {
-            onStateUpdate?.invoke(AgentState.Idle)
-        }
-    }
+    // --- Core run loop -------------------------------------------------------------------------
 
     private suspend fun run(): String {
         startLog()
@@ -307,7 +277,7 @@ class AgenticRunner(
         val history = mutableListOf(initialContent)
 
         val initialPlan = runWithRetry("planner_initial_plan") {
-            planner.createInitialPlan(history)
+            createInitialPlan(history)
         }
 
         if (initialPlan.steps.isEmpty()) {
@@ -359,7 +329,7 @@ class AgenticRunner(
                     )
 
                     val plannerContent = runWithRetry("planner_step") {
-                        planner.planForStep(history, planSnapshot, stepIndex)
+                        planForStep(history, planSnapshot, stepIndex)
                     }
                     val plannerParts = plannerContent.parts().getOrNull().orEmpty()
                     history.add(plannerContent)
@@ -446,6 +416,20 @@ class AgenticRunner(
         }
     }
 
+    private fun createExecutor(): Executor {
+        val toolsConfigParams = ToolsConfigParams(modelFamily = modelFamily)
+        val toolsConfig = buildToolsConfig(toolsConfigParams)
+        val toolRouter = buildToolRouter(toolsConfig)
+        return Executor(toolRouter, approvalManager)
+    }
+
+    private suspend fun processToolExecutionStep(functionCalls: List<FunctionCall>): List<Part> {
+        val toolCallSummary =
+            functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
+        updateLastMessage(toolCallSummary)
+        return executor.execute(functionCalls)
+    }
+
     private fun formatToolResultPart(part: Part): String {
         val functionResponse = part.functionResponse().getOrNull() ?: return ""
         val toolName = functionResponse.name().getOrNull()?.takeIf { it.isNotBlank() } ?: "tool"
@@ -494,65 +478,72 @@ class AgenticRunner(
         else -> value
     }
 
-    // --- Helper methods for the run loop ---
+    private fun buildInstructionOverride(): String {
+        val currentTime = LocalDateTime.now()
+        val formattedTime =
+            "${currentTime.dayOfWeek}, ${currentTime.toLocalDate()} ${currentTime.hour}:${
+                currentTime.minute.toString().padStart(2, '0')
+            }"
 
-    private fun buildInitialContent(): Content {
-        val historyWithoutPlaceholder = _messages.value.dropLast(1)
-        val responseItems = historyWithoutPlaceholder.mapNotNull { it.toResponseItem() }
-        if (responseItems.isEmpty()) {
-            throw IllegalStateException("Unable to build prompt without a user message.")
+        val builder = StringBuilder()
+        builder.append(baseInstructions())
+        builder.append("\n\n[Session Information]\n- Current Date and Time: $formattedTime\n\n")
+
+        if (globalPolicy.isNotBlank()) {
+            builder.append("[Global Rules]\n")
+            builder.append(globalPolicy.trim())
+            builder.append("\n\n")
         }
 
-        val firstUserIndex = responseItems.indexOfFirst { item ->
-            item is ResponseItem.Message && item.role == "user"
-        }
-        if (firstUserIndex == -1) {
-            throw IllegalStateException("Conversation must contain at least one user message.")
+        builder.append("[Tooling]\nUse tools when they reduce uncertainty or are required by policy.\n\n")
+
+        val examplesBlock = formatExamples(globalStaticExamples)
+        if (examplesBlock.isNotBlank()) {
+            builder.append(examplesBlock)
         }
 
-        val effectiveItems = responseItems.drop(firstUserIndex)
+        builder.append("Based on the user's request, you MUST respond by calling one or more of the available tools. Do not provide a conversational answer.")
 
-        val turnContext = TurnContext(
-            modelFamily = modelFamily,
-            toolsConfig = tools,
-            baseInstructionsOverride = buildInstructionOverride()
-        )
-        val prompt = buildPrompt(turnContext, effectiveItems)
-        val messages = buildMessagesForChatAPI(prompt, modelFamily)
-        return messages.first()
+        return builder.toString().trimEnd()
     }
 
-    private suspend fun processToolExecutionStep(functionCalls: List<com.google.genai.types.FunctionCall>): List<Part> {
-        val toolCallSummary =
-            functionCalls.joinToString("\n") { "Calling tool: `${it.name().get()}`" }
-        updateLastMessage(toolCallSummary)
-        return executor.execute(functionCalls)
-    }
+    protected open fun baseInstructions(): String = BASE_AGENT_DEFAULT_INSTRUCTIONS
 
-    private suspend fun processCriticStep(history: MutableList<Content>): String {
-        updateLastMessage("Reviewing results...")
-        onStateUpdate?.invoke(AgentState.Thinking("Reviewing tool results..."))
-        val critiqueResult = runWithRetry("critic") {
-            critic.reviewAndSummarize(history)
+    private fun formatExamples(examples: List<Map<String, Any>>): String {
+        if (examples.isEmpty()) return ""
+        val builder = StringBuilder()
+        examples.forEachIndexed { index, rawDialogue ->
+            val dialogueTurns =
+                (rawDialogue["dialogue"] as? List<*>)?.filterIsInstance<Map<String, String>>()
+                    ?: emptyList()
+            if (dialogueTurns.isEmpty()) {
+                return@forEachIndexed
+            }
+            builder.append("--- Example ${index + 1} ---\n")
+            dialogueTurns.forEach { turn ->
+                val role = turn["role"] ?: return@forEach
+                val text = turn["text"] ?: ""
+                val labeledRole = when (role.lowercase()) {
+                    "user" -> "User"
+                    "assistant" -> "Assistant"
+                    else -> role.replaceFirstChar { ch ->
+                        if (ch.isLowerCase()) ch.titlecase() else ch.toString()
+                    }
+                }
+                builder.append("$labeledRole: $text\n")
+            }
+            builder.append("--- End Example ---\n\n")
         }
-        if (critiqueResult != "OK") {
-            history.add(
-                Content.builder().role("user")
-                    .parts(Part.builder().text(critiqueResult).build()).build()
-            )
-            logTurn("system_critic", history.last().parts().get())
-        }
-        return critiqueResult
+        return builder.toString()
     }
 
     private fun startLog() {
         val now = LocalDateTime.now()
-        logTs = now.toString() // A simplified timestamp for the filename
+        logTs = now.toString()
         logEntries.clear()
     }
 
     private fun logTurn(turn: String, parts: List<Part>) {
-        // We will now store JsonObject instead of Map<String, Any>
         val logEntry = buildJsonObject {
             put("step", logEntries.size + 1)
             put("turn", turn)
@@ -562,7 +553,6 @@ class AgenticRunner(
                 }
             }
         }
-        // Add the JsonObject to your logEntries list
         logEntries.add(logEntry)
     }
 
@@ -599,7 +589,6 @@ class AgenticRunner(
 
     private fun writeLog() {
         try {
-            // Now that logEntries is a list of JsonObject, this will work perfectly.
             val logContent =
                 json.encodeToString(ListSerializer(JsonObject.serializer()), logEntries)
 
@@ -608,7 +597,7 @@ class AgenticRunner(
                 logDir.mkdirs()
             }
 
-            val logFile = File(logDir, "gemini_run_${logTs}.interaction.json")
+            val logFile = File(logDir, "agent_run_${logTs}.interaction.json")
             logFile.writeText(logContent, Charsets.UTF_8)
             log.info("Full agent interaction logged to ${logFile.absolutePath}")
 
@@ -617,23 +606,125 @@ class AgenticRunner(
         }
     }
 
-    override fun submitApprovalDecision(id: ApprovalId, decision: ReviewDecision) {
-        var deferred: CompletableDeferred<ReviewDecision>? = null
-        synchronized(approvalLock) {
-            val pending = pendingApprovals[id]
-            if (pending == null) {
-                log.warn("Received decision for unknown approval id: {}", id)
-            } else {
-                deferred = pending.deferred
+    override fun getPartialReport(): String {
+        return toolTracker.generatePartialReport()
+    }
+
+    private fun resetPlan() {
+        _plan.value = null
+    }
+
+    private fun addMessage(text: String, sender: Sender) {
+        val message = ChatMessage(text = text, sender = sender)
+        _messages.update { currentList -> currentList + message }
+    }
+
+    private fun updateLastMessage(newText: String) {
+        _messages.update { currentList ->
+            if (currentList.isEmpty()) return@update currentList
+            val lastMessage = currentList.last()
+            val updatedMessage = lastMessage.copy(text = newText)
+            currentList.dropLast(1) + updatedMessage
+        }
+    }
+
+    private fun markStepStatus(index: Int, status: StepStatus, result: String?) {
+        mutateCurrentPlan { plan ->
+            plan.withUpdatedStep(index) { step ->
+                val newResult = result ?: step.result
+                step.withStatus(status, newResult)
             }
         }
+    }
 
-        if (deferred == null) {
-            return
+    private fun markCurrentStepFailed(message: String?): Int? {
+        val plan = _plan.value ?: return null
+        val inProgress = plan.steps.indexOfFirst { it.status == StepStatus.IN_PROGRESS }
+        val fallback = plan.firstActionableIndex()
+        val targetIndex = when {
+            inProgress >= 0 -> inProgress
+            fallback != null -> fallback
+            else -> plan.steps.lastIndex.takeIf { it >= 0 }
+        } ?: return null
+        markStepStatus(targetIndex, StepStatus.FAILED, message)
+        return targetIndex
+    }
+
+    private fun mutateCurrentPlan(mutator: (Plan) -> Plan) {
+        val current = _plan.value ?: return
+        val workingCopy = current.deepCopy()
+        val updated = mutator(workingCopy)
+        _plan.value = updated
+        logPlanSnapshot("plan_updated")
+    }
+
+    private fun emitExecutingState(preferredIndex: Int?) {
+        val planSnapshot = _plan.value ?: return
+        if (planSnapshot.steps.isEmpty()) return
+        val targetIndex = when {
+            preferredIndex != null && preferredIndex in planSnapshot.steps.indices -> preferredIndex
+            else -> planSnapshot.firstActionableIndex() ?: planSnapshot.steps.lastIndex
         }
+        val planCopy = planSnapshot.deepCopy()
+        onStateUpdate?.invoke(AgentState.Executing(planCopy, targetIndex))
+    }
 
-        if (!deferred!!.isCompleted) {
-            deferred!!.complete(decision)
+    private fun logPlanSnapshot(tag: String) {
+        val planSnapshot = _plan.value ?: return
+        val logEntry = buildJsonObject {
+            put("step", logEntries.size + 1)
+            put("turn", tag)
+            putJsonArray("content") {
+                add(buildJsonObject {
+                    put("type", "plan")
+                    putJsonArray("steps") {
+                        planSnapshot.steps.forEachIndexed { index, task ->
+                            add(buildJsonObject {
+                                put("index", index)
+                                put("description", task.description)
+                                put("status", task.status.name)
+                                task.result?.let { put("result", it) }
+                            })
+                        }
+                    }
+                })
+            }
+        }
+        logEntries.add(logEntry)
+    }
+
+    protected suspend fun <T> runWithRetry(
+        operationName: String,
+        block: suspend () -> T
+    ): T {
+        var currentDelay = INITIAL_RETRY_DELAY_MS
+        repeat(MAX_RETRY_ATTEMPTS) { attempt ->
+            try {
+                return block()
+            } catch (err: Throwable) {
+                if (err is CancellationException) throw err
+                if (!isRetryableNetworkError(err) || attempt == MAX_RETRY_ATTEMPTS - 1) {
+                    throw err
+                }
+                log.warn(
+                    "Retryable error during $operationName (attempt ${attempt + 1}). Retrying in ${currentDelay}ms. Cause: ${err.message}"
+                )
+                delay(currentDelay)
+                currentDelay = min(
+                    (currentDelay * RETRY_BACKOFF_MULTIPLIER).toLong(),
+                    MAX_RETRY_DELAY_MS
+                )
+            }
+        }
+        error("runWithRetry should always return or throw")
+    }
+
+    protected open fun isRetryableNetworkError(err: Throwable): Boolean {
+        return when (err) {
+            is IOException -> true
+            is ServerException -> true
+            is ClientException -> err.code() == 408 || err.code() == 429
+            else -> false
         }
     }
 
@@ -767,13 +858,13 @@ class AgenticRunner(
                 .bufferedReader()
                 .use { it.readText() }
         } catch (e: Exception) {
-            println("Error reading few-shots text file: ${e.message}")
-            "" // Return an empty string if the file can't be read
+            log.warn("Error reading policy text file: {}", e.message)
+            ""
         }
     }
 
     private fun getFewShotsConfig(): List<Map<String, Any>> {
-        try {
+        return try {
             val jsonString = context.assets.open("agent/planner_fewshots.json")
                 .bufferedReader()
                 .use { it.readText() }
@@ -781,151 +872,20 @@ class AgenticRunner(
             val jsonObjects =
                 json.decodeFromString(ListSerializer(JsonObject.serializer()), jsonString)
 
-            return jsonObjects.map { it.toStandardMap() }
-
+            jsonObjects.map { it.toStandardMap() }
         } catch (e: Exception) {
-            println("Error parsing few-shots JSON: ${e.message}")
-            return emptyList()
+            log.warn("Error parsing few-shots JSON: {}", e.message)
+            emptyList()
         }
     }
-
-    override fun loadHistory(history: List<ChatMessage>) {
-        _plan.value = null
-        _messages.value = history
-    }
-
-    private fun addMessage(text: String, sender: Sender) {
-        val message = ChatMessage(text = text, sender = sender)
-        _messages.update { currentList -> currentList + message }
-    }
-
-    private fun updateLastMessage(newText: String) {
-        _messages.update { currentList ->
-            if (currentList.isEmpty()) return@update currentList
-            val lastMessage = currentList.last()
-            val updatedMessage = lastMessage.copy(text = newText)
-            currentList.dropLast(1) + updatedMessage
-        }
-    }
-
-    private fun resetPlan() {
-        _plan.value = null
-    }
-
-    private fun markStepStatus(index: Int, status: StepStatus, result: String?) {
-        mutateCurrentPlan { plan ->
-            plan.withUpdatedStep(index) { step ->
-                val newResult = result ?: step.result
-                step.withStatus(status, newResult)
-            }
-        }
-    }
-
-    private fun markCurrentStepFailed(message: String?): Int? {
-        val plan = _plan.value ?: return null
-        val inProgress = plan.steps.indexOfFirst { it.status == StepStatus.IN_PROGRESS }
-        val fallback = plan.firstActionableIndex()
-        val targetIndex = when {
-            inProgress >= 0 -> inProgress
-            fallback != null -> fallback
-            else -> plan.steps.lastIndex.takeIf { it >= 0 }
-        } ?: return null
-        markStepStatus(targetIndex, StepStatus.FAILED, message)
-        return targetIndex
-    }
-
-    private fun mutateCurrentPlan(mutator: (Plan) -> Plan) {
-        val current = _plan.value ?: return
-        val workingCopy = current.deepCopy()
-        val updated = mutator(workingCopy)
-        _plan.value = updated
-        logPlanSnapshot("plan_updated")
-    }
-
-    private fun emitExecutingState(preferredIndex: Int?) {
-        val planSnapshot = _plan.value ?: return
-        if (planSnapshot.steps.isEmpty()) return
-        val targetIndex = when {
-            preferredIndex != null && preferredIndex in planSnapshot.steps.indices -> preferredIndex
-            else -> planSnapshot.firstActionableIndex() ?: planSnapshot.steps.lastIndex
-        }
-        val planCopy = planSnapshot.deepCopy()
-        onStateUpdate?.invoke(AgentState.Executing(planCopy, targetIndex))
-    }
-
-    private fun logPlanSnapshot(tag: String) {
-        val planSnapshot = _plan.value ?: return
-        val logEntry = buildJsonObject {
-            put("step", logEntries.size + 1)
-            put("turn", tag)
-            putJsonArray("content") {
-                add(buildJsonObject {
-                    put("type", "plan")
-                    putJsonArray("steps") {
-                        planSnapshot.steps.forEachIndexed { index, task ->
-                            add(buildJsonObject {
-                                put("index", index)
-                                put("description", task.description)
-                                put("status", task.status.name)
-                                task.result?.let { put("result", it) }
-                            })
-                        }
-                    }
-                })
-            }
-        }
-        logEntries.add(logEntry)
-    }
-
-    private suspend fun <T> runWithRetry(
-        operationName: String,
-        block: suspend () -> T
-    ): T {
-        var currentDelay = INITIAL_RETRY_DELAY_MS
-        repeat(MAX_RETRY_ATTEMPTS) { attempt ->
-            try {
-                return block()
-            } catch (err: Throwable) {
-                if (err is CancellationException) throw err
-                if (!isRetryableNetworkError(err) || attempt == MAX_RETRY_ATTEMPTS - 1) {
-                    throw err
-                }
-                log.warn(
-                    "Retryable error during $operationName (attempt ${attempt + 1}). Retrying in ${currentDelay}ms. Cause: ${err.message}"
-                )
-                delay(currentDelay)
-                currentDelay = min(
-                    (currentDelay * RETRY_BACKOFF_MULTIPLIER).toLong(),
-                    MAX_RETRY_DELAY_MS
-                )
-            }
-        }
-        error("runWithRetry should always return or throw")
-    }
-
-    private fun isRetryableNetworkError(err: Throwable): Boolean {
-        return when (err) {
-            is IOException -> true
-            is ServerException -> true
-            is ClientException -> err.code() == 408 || err.code() == 429
-            else -> false
-        }
-    }
-
 }
 
-/**
- * Extension function to safely convert a JsonObject to a standard Map<String, Any>.
- */
 private fun JsonObject.toStandardMap(): Map<String, Any> {
     return this.mapValues { (_, jsonElement) ->
         jsonElement.toAny()
     }
 }
 
-/**
- * Recursive helper function to convert any JsonElement into a standard Kotlin type.
- */
 private fun JsonElement.toAny(): Any {
     return when (this) {
         is JsonObject -> this.toStandardMap()
@@ -934,7 +894,6 @@ private fun JsonElement.toAny(): Any {
             if (this.isString) {
                 this.content
             } else {
-                // Handles numbers, booleans, and nulls
                 this.contentOrNull ?: this.booleanOrNull ?: this.longOrNull ?: this.doubleOrNull
                 ?: Unit
             }
