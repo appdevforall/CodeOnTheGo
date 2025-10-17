@@ -617,6 +617,10 @@ class AgenticRunner(
 
             ReviewDecision.Denied -> {
                 notifyApprovalResolution(toolName, decision)
+                addMessage(
+                    "Action '$toolName' was denied. No changes were made.",
+                    Sender.AGENT
+                )
                 ToolApprovalResponse(
                     approved = false,
                     denialMessage = "User denied the request for '$toolName'."
