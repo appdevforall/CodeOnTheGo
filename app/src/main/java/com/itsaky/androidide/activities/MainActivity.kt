@@ -31,6 +31,7 @@ import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -62,6 +63,8 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.FeatureFlags
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -113,6 +116,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         startWebServer()
 
         openLastProject()
+
+        lifecycleScope.launch {
+            val experimentsEnabled = withContext(Dispatchers.IO) {
+                FeatureFlags.isExperimentsEnabled()
+            }
+            if (experimentsEnabled) {
+                binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+            }
+        }
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
@@ -210,6 +222,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             }
             true
         }
+
     }
 
     override fun bindLayout(): View {
