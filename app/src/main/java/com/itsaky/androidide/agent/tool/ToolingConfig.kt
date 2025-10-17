@@ -1,5 +1,6 @@
 package com.itsaky.androidide.agent.tool
 
+import com.itsaky.androidide.agent.events.ShellCommandEventEmitter
 import com.itsaky.androidide.agent.prompt.ModelFamily
 
 data class ToolsConfigParams(
@@ -26,7 +27,10 @@ fun buildToolsConfig(params: ToolsConfigParams): ToolsConfig {
     )
 }
 
-fun buildToolRouter(config: ToolsConfig): ToolRouter {
+fun buildToolRouter(
+    config: ToolsConfig,
+    shellEventEmitter: ShellCommandEventEmitter = ShellCommandEventEmitter.none()
+): ToolRouter {
     val handlers = mutableMapOf<String, ToolHandler>()
 
     listOf(
@@ -47,7 +51,7 @@ fun buildToolRouter(config: ToolsConfig): ToolRouter {
     }
 
     if (config.enableShellCommandTool) {
-        val handler = ExecuteShellCommandHandler()
+        val handler = ExecuteShellCommandHandler(eventEmitter = shellEventEmitter)
         handlers[handler.name] = handler
     }
 

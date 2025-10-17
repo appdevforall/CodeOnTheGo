@@ -12,6 +12,10 @@ import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.events.ExecCommandBegin
+import com.itsaky.androidide.agent.events.ExecCommandEnd
+import com.itsaky.androidide.agent.events.ExecCommandEvent
+import com.itsaky.androidide.agent.events.ShellCommandEventEmitter
 import com.itsaky.androidide.agent.model.ExplorationKind
 import com.itsaky.androidide.agent.model.ExplorationMetadata
 import com.itsaky.androidide.agent.model.ReviewDecision
@@ -40,8 +44,11 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.builtins.ListSerializer
@@ -100,6 +107,11 @@ abstract class BaseAgenticRunner(
     override val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
     private val _plan = MutableStateFlow<Plan?>(null)
     override val plan: StateFlow<Plan?> = _plan.asStateFlow()
+    private val _execEvents = MutableSharedFlow<ExecCommandEvent>(
+        replay = 0,
+        extraBufferCapacity = 32
+    )
+    override val execEvents: SharedFlow<ExecCommandEvent> = _execEvents.asSharedFlow()
 
     private var runnerJob: Job = SupervisorJob()
     private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
@@ -466,7 +478,16 @@ abstract class BaseAgenticRunner(
     private fun createExecutor(): Executor {
         val toolsConfigParams = ToolsConfigParams(modelFamily = modelFamily)
         val toolsConfig = buildToolsConfig(toolsConfigParams)
-        val toolRouter = buildToolRouter(toolsConfig)
+        val emitter = object : ShellCommandEventEmitter {
+            override suspend fun onCommandBegin(event: ExecCommandBegin) {
+                _execEvents.emit(event)
+            }
+
+            override suspend fun onCommandEnd(event: ExecCommandEnd) {
+                _execEvents.emit(event)
+            }
+        }
+        val toolRouter = buildToolRouter(toolsConfig, emitter)
         return Executor(toolRouter, approvalManager)
     }
 

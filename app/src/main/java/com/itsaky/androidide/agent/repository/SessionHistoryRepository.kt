@@ -3,8 +3,11 @@ package com.itsaky.androidide.agent.repository
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
+import com.itsaky.androidide.agent.events.ExecCommandEvent
 import com.itsaky.androidide.agent.model.ReviewDecision
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -20,6 +23,9 @@ internal class SessionHistoryRepository : GeminiRepository {
 
     private val _plan = MutableStateFlow<Plan?>(null)
     override val plan: StateFlow<Plan?> = _plan.asStateFlow()
+
+    private val _execEvents = MutableSharedFlow<ExecCommandEvent>(replay = 0)
+    override val execEvents: SharedFlow<ExecCommandEvent> = _execEvents
 
     override fun loadHistory(history: List<ChatMessage>) {
         _messages.value = history

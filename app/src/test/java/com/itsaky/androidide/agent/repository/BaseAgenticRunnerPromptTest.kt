@@ -14,6 +14,11 @@ import kotlin.jvm.optionals.getOrNull
 class BaseAgenticRunnerPromptTest {
 
     private lateinit var context: Context
+    private val testModelFamily = ModelFamily(
+        id = "unknown",
+        baseInstructions = "BASE INSTRUCTIONS",
+        supportsParallelToolCalls = false
+    )
 
     @Before
     fun setUp() {
@@ -45,7 +50,8 @@ class BaseAgenticRunnerPromptTest {
         runner.setLatestUserPromptForTest(userPrompt)
 
         val content = runner.invokeBuildInitialContent()
-        val payload = content.parts()?.firstOrNull()?.text()?.getOrNull().orEmpty()
+        val firstPart = content.parts()?.getOrNull()?.firstOrNull()
+        val payload = firstPart?.text()?.getOrNull().orEmpty()
 
         assertTrue(payload.contains("<user_instructions>"))
         assertTrue(payload.contains(userPrompt))
@@ -68,15 +74,16 @@ class BaseAgenticRunnerPromptTest {
         runner.setLatestUserPromptForTest(userPrompt)
 
         val content = runner.invokeBuildInitialContent()
-        val payload = content.parts()?.firstOrNull()?.text()?.getOrNull().orEmpty()
+        val firstPart = content.parts()?.getOrNull()?.firstOrNull()
+        val payload = firstPart?.text()?.getOrNull().orEmpty()
 
         assertTrue(payload.contains("<user_instructions>"))
         assertTrue(payload.contains(userPrompt))
     }
 
-    private class PromptTestRunner(context: Context) : BaseAgenticRunner(
+    private inner class PromptTestRunner(context: Context) : BaseAgenticRunner(
         context = context,
-        modelFamily = ModelFamily.UNKNOWN,
+        modelFamily = testModelFamily,
         maxSteps = 1,
         toolsOverride = emptyList()
     ) {

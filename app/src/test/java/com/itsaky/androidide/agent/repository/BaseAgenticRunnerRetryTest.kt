@@ -104,7 +104,11 @@ class BaseAgenticRunnerRetryTest {
 
     private class TestRunner(context: Context) : BaseAgenticRunner(
         context = context,
-        modelFamily = ModelFamily.UNKNOWN,
+        modelFamily = ModelFamily(
+            id = "unknown",
+            baseInstructions = "",
+            supportsParallelToolCalls = false
+        ),
         maxSteps = 1,
         toolsOverride = emptyList()
     ) {

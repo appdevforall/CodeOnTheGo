@@ -15,6 +15,8 @@ import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.data.ChatStorageManager
+import com.itsaky.androidide.agent.events.ExecCommandBegin
+import com.itsaky.androidide.agent.events.ExecCommandEnd
 import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.DEFAULT_GEMINI_MODEL
@@ -26,6 +28,7 @@ import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.agent.repository.SessionHistoryRepository
+import com.itsaky.androidide.agent.tool.shell.ParsedCommand
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.getFileName
@@ -38,9 +41,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -61,12 +66,16 @@ class ChatViewModel : ViewModel() {
 
     // A flow that holds the current, active repository instance
     private val _repository = MutableStateFlow<GeminiRepository?>(null)
+    private val _commandMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
 
     // The public chatMessages flow now switches its subscription to the latest repository's flow.
     // This is the single source of truth for the UI.
     @OptIn(ExperimentalCoroutinesApi::class)
     val chatMessages: StateFlow<List<ChatMessage>> = _repository.flatMapLatest { repo ->
-        repo?.messages ?: flowOf(emptyList())
+        val baseMessages = repo?.messages ?: flowOf(emptyList())
+        baseMessages.combine(_commandMessages) { base, commands ->
+            base + commands
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
@@ -92,6 +101,7 @@ class ChatViewModel : ViewModel() {
     private var saveJob: Job? = null
     private var timerJob: Job? = null
     private var repoMessagesJob: Job? = null
+    private var repoExecEventsJob: Job? = null
     private var operationStartTime: Long = 0
     private var stepStartTime: Long = 0
     private val chatStorageManager: ChatStorageManager
@@ -131,6 +141,7 @@ class ChatViewModel : ViewModel() {
         agentRepository?.destroy()
         agentRepository = null
         observeRepositoryMessages(null)
+        _commandMessages.value = emptyList()
 
         log.info("Settings changed or repository not initialized. Creating new instance.")
         lastKnownBackendName = backendName
@@ -190,6 +201,7 @@ class ChatViewModel : ViewModel() {
             agentRepository?.stop()
             agentRepository = null
             observeRepositoryMessages(null)
+            _commandMessages.value = emptyList()
             ensureHistoryVisible(_currentSession.value?.messages ?: emptyList())
         }
 
@@ -546,6 +558,7 @@ class ChatViewModel : ViewModel() {
 
     private fun observeRepositoryMessages(repo: GeminiRepository?) {
         repoMessagesJob?.cancel()
+        repoExecEventsJob?.cancel()
         if (repo == null) {
             return
         }
@@ -560,6 +573,123 @@ class ChatViewModel : ViewModel() {
                 _sessions.postValue(_sessions.value)
                 scheduleSaveCurrentSession()
             }
+        }
+        repoExecEventsJob = viewModelScope.launch {
+            repo.execEvents.collect { event ->
+                when (event) {
+                    is ExecCommandBegin -> handleCommandBegin(event)
+                    is ExecCommandEnd -> handleCommandEnd(event)
+                }
+            }
+        }
+    }
+
+    private fun handleCommandBegin(event: ExecCommandBegin) {
+        val message = ChatMessage(
+            id = event.callId,
+            text = formatRunningCommand(event),
+            sender = Sender.TOOL,
+            status = MessageStatus.LOADING,
+            timestamp = System.currentTimeMillis()
+        )
+        _commandMessages.update { current -> current + message }
+    }
+
+    private fun handleCommandEnd(event: ExecCommandEnd) {
+        _commandMessages.update { current ->
+            val index = current.indexOfFirst { it.id == event.callId }
+            val updated = buildCompletedMessage(event, current.getOrNull(index))
+            val mutable = current.toMutableList()
+            if (index == -1) {
+                mutable += updated
+            } else {
+                mutable[index] = updated
+            }
+            mutable
+        }
+    }
+
+    private fun buildCompletedMessage(
+        event: ExecCommandEnd,
+        existing: ChatMessage?
+    ): ChatMessage {
+        val base = existing ?: ChatMessage(
+            id = event.callId,
+            text = "",
+            sender = Sender.TOOL,
+            timestamp = System.currentTimeMillis()
+        )
+        val duration = event.durationMillis.takeIf { it > 0 }
+        return base.copy(
+            text = formatCompletedCommand(event),
+            status = MessageStatus.SENT,
+            durationMs = duration
+        )
+    }
+
+    private fun formatRunningCommand(event: ExecCommandBegin): String {
+        val displayCommand = if (event.command.isBlank()) {
+            "shell command"
+        } else {
+            event.command
+        }
+        return "**Running...** `" + displayCommand + "`"
+    }
+
+    private fun formatCompletedCommand(event: ExecCommandEnd): String {
+        val commandLine = if (event.command.isBlank()) {
+            "shell command"
+        } else {
+            event.command
+        }
+        val highlightedCommand = "`$commandLine`"
+        return if (event.success) {
+            if (event.parsedCommand.isExploration) {
+                "**Ran.** $highlightedCommand\n${formatExplorationSummary(event.parsedCommand)}"
+            } else {
+                val output = event.formattedOutput.ifBlank { "Command completed with no output." }
+                buildString {
+                    append("**Ran.** $highlightedCommand\n")
+                    append("```text\n")
+                    append(output)
+                    append("\n```")
+                    if (event.truncated) {
+                        append("\n_Output truncated._")
+                    }
+                }
+            }
+        } else {
+            val failureText = (event.sandboxFailureMessage ?: event.formattedOutput)
+                .ifBlank { "Command failed." }
+            buildString {
+                append("**Failed.** $highlightedCommand\n")
+                append("```text\n")
+                append(failureText)
+                append("\n```")
+            }
+        }
+    }
+
+    private fun formatExplorationSummary(parsedCommand: ParsedCommand): String {
+        return when (parsedCommand) {
+            is ParsedCommand.Read -> {
+                val total = parsedCommand.files.size
+                val label = if (total == 1) "file" else "files"
+                val sample = parsedCommand.files.take(3).joinToString(", ")
+                val suffix = if (sample.isNotEmpty()) ": $sample" else ""
+                "• Exploring: Read $total $label$suffix"
+            }
+
+            is ParsedCommand.ListFiles -> {
+                "• Exploring: List ${parsedCommand.path}"
+            }
+
+            is ParsedCommand.Search -> {
+                val pathHint = parsedCommand.path?.let { " in $it" } ?: ""
+                "• Exploring: Search \"${parsedCommand.query}\"$pathHint"
+            }
+
+            is ParsedCommand.Unknown -> "• Exploring command"
         }
     }
 
@@ -602,6 +732,7 @@ class ChatViewModel : ViewModel() {
         saveJob?.cancel()
         timerJob?.cancel()
         repoMessagesJob?.cancel()
+        repoExecEventsJob?.cancel()
         super.onCleared()
     }
 }
