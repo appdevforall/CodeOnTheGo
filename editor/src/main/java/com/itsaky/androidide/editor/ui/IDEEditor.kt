@@ -622,7 +622,6 @@ constructor(
      * Dispatches the [DocumentSaveEvent] for this editor.
      */
     open fun dispatchDocumentSaveEvent() {
-        markUnmodified()
         if (isReleased) {
             return
         }
