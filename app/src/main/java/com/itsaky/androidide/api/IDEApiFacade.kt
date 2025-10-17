@@ -25,6 +25,9 @@ import kotlin.coroutines.resume
  * This Facade translates simple requests into executable Commands.
  */
 object IDEApiFacade {
+    private const val BUILD_STATUS_POLL_MS = 2000L
+    private const val BUILD_STATUS_MAX_ATTEMPTS = 60
+
     fun createFile(path: String, content: String): ToolResult {
         val command = HighOrderCreateFileCommand(path, content)
         return command.execute()
@@ -75,32 +78,53 @@ object IDEApiFacade {
             .findAction(ActionItem.Location.EDITOR_TOOLBAR, "ide.editor.build.quickRun")
             ?: return ToolResult.failure("Launch App action is not available.")
 
+        val registry = ActionsRegistry.getInstance() as? DefaultActionsRegistry
+            ?: return ToolResult.failure("Failed to get action registry instance.")
+
         val actionData = ActionData.create(activity)
 
+        ensureBuildQueueIdle()?.let { return it }
+
         // This suspendCancellableCoroutine will now ALSO wait for the build to finish.
-        return suspendCancellableCoroutine { continuation ->
+        return suspendCancellableCoroutine<ToolResult> { continuation ->
             val listener = java.util.function.Consumer<BuildResult> { result ->
-                when {
-                    result.isSuccess && result.launchResult != null && result.launchResult.isSuccess -> {
-                        continuation.resume(ToolResult.success("App built and launched successfully on the device."))
-                    }
+                val outcome = when {
+                    result.isSuccess && result.launchResult != null && result.launchResult.isSuccess ->
+                        ToolResult.success("App built and launched successfully on the device.")
+
                     result.isSuccess -> {
                         val launchError =
                             result.launchResult?.message ?: "Launch failed for an unknown reason."
-                        continuation.resume(ToolResult.failure("Build was successful, but the app failed to launch: $launchError"))
+                        ToolResult.failure(
+                            "Build was successful, but the app failed to launch: $launchError"
+                        )
                     }
-                    else -> {
-                        continuation.resume(ToolResult.failure("Build failed: ${result.message}"))
-                    }
+
+                    else -> ToolResult.failure("Build failed: ${result.message}")
+                }
+
+                if (!continuation.isCompleted) {
+                    continuation.resume(outcome)
                 }
             }
 
             activity.addOneTimeBuildResultListener(listener)
+            continuation.invokeOnCancellation {
+                activity.runOnUiThread { activity.removeBuildResultListener(listener) }
+            }
 
-            (ActionsRegistry.getInstance() as? DefaultActionsRegistry)?.executeAction(
-                action,
-                actionData
-            ) ?: continuation.resume(ToolResult.failure("Failed to get action registry instance."))
+            activity.runOnUiThread {
+                try {
+                    registry.executeAction(action, actionData)
+                } catch (e: Exception) {
+                    activity.removeBuildResultListener(listener)
+                    if (!continuation.isCompleted) {
+                        continuation.resume(
+                            ToolResult.failure("Failed to launch the app: ${e.message}")
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -137,7 +161,6 @@ object IDEApiFacade {
         val command = DeleteFileCommand(path)
         return command.execute()
     }
-    // Add this new function inside the IDEApiFacade object
 
     fun isBuildRunning(): ToolResult {
         val activity = ActionContextProvider.getActivity()
@@ -154,5 +177,25 @@ object IDEApiFacade {
             message = "Build status checked.",
             data = buildIsActive.toString()
         )
+    }
+
+    private suspend fun ensureBuildQueueIdle(): ToolResult? {
+        var attempts = 0
+        while (true) {
+            val status = isBuildRunning()
+            if (!status.success) {
+                return status
+            }
+            val busy = status.data?.equals("true", ignoreCase = true) == true
+            if (!busy) {
+                return null
+            }
+            if (attempts++ >= BUILD_STATUS_MAX_ATTEMPTS) {
+                return ToolResult.failure(
+                    "Gradle build or sync is still running. Try again once it finishes."
+                )
+            }
+            delay(BUILD_STATUS_POLL_MS)
+        }
     }
 }
