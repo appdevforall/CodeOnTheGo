@@ -215,9 +215,6 @@ abstract class BaseEditorActivity :
 				} else if (isRightPanelOpen()) {
 					closeRightPanel()
 				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-//				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-//					binding.root.closeDrawer(GravityCompat.START)
-                if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
 					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
 				} else if (binding.swipeReveal.isOpen) {
 					binding.swipeReveal.close()
@@ -226,7 +223,6 @@ abstract class BaseEditorActivity :
 				}
 			}
 		}
-        }
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
