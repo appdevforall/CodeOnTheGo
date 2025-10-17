@@ -5,32 +5,6 @@ import com.google.genai.types.Part
 import org.slf4j.LoggerFactory
 import kotlin.jvm.optionals.getOrNull
 
-/*
-*/
-/**
- * A data class representing a single turn in a conversation, for creating training exemplars.
- *//*
-@Serializable
-data class DialogueTurn(
-    val role: String,
-    val text: String? = null,
-    val name: String? = null,
-    val args: Map<String, Any?>? = null,
-    val result: Map<String, Any?>? = null
-)
-
-*/
-/**
- * A data class representing a complete training lesson derived from a conversation.
- *//*
-@Serializable
-data class Lesson(
-    val pattern: String,
-    val correction: String,
-    @SerialName("exemplar_dialogue")
-    val exemplarDialogue: List<DialogueTurn>
-)*/
-
 
 /**
  * Reviews and refines conversation steps, providing feedback or summarizing large tool outputs.
@@ -65,11 +39,11 @@ class Critic(private val client: GeminiClient) {
      * @param history The full conversation history.
      * @return A formatted string with feedback/summary, or null if no action is needed.
      */
-    fun reviewAndSummarize(history: List<Content>): String { // CHANGED: Return type is now non-nullable String
+    fun reviewAndSummarize(history: List<Content>): String {
         log.info("Critic: Reviewing and summarizing the last step...")
 
         if (history.size < 2 || history.last().role().getOrNull() != "tool") {
-            return "OK" // CHANGED from null
+            return "OK"
         }
 
         val lastToolPart = history.last().parts().getOrNull()?.first()
@@ -82,11 +56,10 @@ class Critic(private val client: GeminiClient) {
 
             if (!hasError) {
                 log.info("Critic: Tool output is small and successful. Skipping LLM review.")
-                return "OK" // CHANGED from null
+                return "OK"
             }
         }
 
-        // --- If output is large or has an error, ask the LLM to process it ---
         val criticHistory = mutableListOf(
             Content.builder().role("user").parts(Part.builder().text(SUMMARIZER_PROMPT).build())
                 .build(),
@@ -95,8 +68,6 @@ class Critic(private val client: GeminiClient) {
             ).build()
         )
 
-        // NEW: Frame the last tool output clearly to avoid confusion.
-        // This tells the model "the following is data, not an instruction".
         val lastTurn = history.last()
         val framedToolOutput = Content.builder()
             .role("user")
@@ -106,11 +77,8 @@ class Critic(private val client: GeminiClient) {
             )
             .build()
 
-        // Add the framed output to the history for the Critic model.
         criticHistory.add(framedToolOutput)
 
-        // The Critic only needs to see the tool output, not the entire history that led to it.
-        // We already framed it above.
         val response = client.generateContent(criticHistory, tools = emptyList())
         val summaryText = response.text()?.trim()
 
@@ -126,76 +94,4 @@ class Critic(private val client: GeminiClient) {
         return "System Note: $summaryText"
     }
 
-    /*    */
-    /**
-     * Creates a lesson from a successful question-answering interaction.
-     *//*
-    private fun createQaLesson(history: List<Content>): Lesson? {
-        val userMsg = history.firstOrNull { it.role().getOrNull() == "user" }?.parts()?.getOrNull()?.firstOrNull()?.text()
-        val finalAnswer = if (history.last().role().getOrNull() == "model") history.last().parts().getOrNull()?.firstOrNull()?.text else null
-
-        if (userMsg.isNullOrBlank() || finalAnswer.isNullOrBlank()) {
-            return null
-        }
-
-        return Lesson(
-            pattern = "Successful question-answering pair",
-            correction = "When asked a similar question, provide a direct answer synthesized from the tool results.",
-            exemplarDialogue = formatHistoryForExemplar(history)
-        )
-    }
-
-    */
-    /**
-     * Converts Content history to a list of [DialogueTurn] objects for JSON serialization.
-     *//*
-    private fun formatHistoryForExemplar(history: List<Content>): List<DialogueTurn> {
-        return history.mapNotNull { content ->
-            val part = content.parts.firstOrNull() ?: return@mapNotNull null
-            when (content.role) {
-                "user" -> DialogueTurn(role = "user", text = part.text)
-                "model" -> {
-                    when {
-                        part.text != null -> DialogueTurn(role = "assistant", text = part.text)
-                        part.functionCall != null -> DialogueTurn(
-                            role = "tool_call",
-                            name = part.functionCall.name,
-                            args = structToMap(part.functionCall.args)
-                        )
-                        else -> null
-                    }
-                }
-                "tool" -> DialogueTurn(
-                    role = "tool_result",
-                    name = part.functionResponse.name,
-                    result = structToMap(part.functionResponse.response)
-                )
-                else -> null
-            }
-        }
-    }
-
-    */
-    /**
-     * Recursively converts a GenAI [Struct] to a Kotlin [Map].
-     *//*
-    private fun structToMap(struct: Struct): Map<String, Any?> {
-        return struct.fieldsMap.mapValues { (_, value) -> valueToAny(value) }
-    }
-
-    */
-    /**
-     * Recursively converts a GenAI [Value] to a standard Kotlin type.
-     *//*
-    private fun valueToAny(value: Value): Any? {
-        return when (value.kindCase) {
-            Value.KindCase.STRING_VALUE -> value.stringValue
-            Value.KindCase.NUMBER_VALUE -> value.numberValue
-            Value.KindCase.BOOL_VALUE -> value.boolValue
-            Value.KindCase.STRUCT_VALUE -> structToMap(value.structValue)
-            Value.KindCase.LIST_VALUE -> value.listValue.valuesList.map { valueToAny(it) }
-            Value.KindCase.NULL_VALUE -> null
-            else -> null
-        }
-    }*/
 }
