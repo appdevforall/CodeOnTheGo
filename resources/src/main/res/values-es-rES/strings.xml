@@ -187,8 +187,6 @@
   <string name="title_common">General</string>
   <string name="title_files_unsaved">Archivos sin guardar</string>
   <string name="msg_files_unsaved">Algunos archivos no se han guardado. ¿Desea guardarlos antes de cerrar? Los archivos no guardados son: \n%s</string>
-  <string name="idepref_editor_autoSave_title">Guardar antes de cerrar archivos</string>
-  <string name="idepref_editor_autoSave_summary">Guardar archivos antes de cerrarlos. Esta es una función EXPERIMENTAL. Se espera que guarde los archivos usted mismo.</string>
   <string name="idepref_java_matchLower_summary">Si está activado, tecleando una letra minúscula o mayúsculas sugerirá nombres de clases así como miembros del ámbito de aplicación.</string>
   <string name="idepref_editor_ligatures_title">Font ligatures</string>
   <string name="idepref_editor_ligatures_summary">Activar/desactivar font ligatures</string>
