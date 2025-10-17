@@ -18,10 +18,12 @@ import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.repository.AgenticRunner
 import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.DEFAULT_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.LocalLlmRepositoryImpl
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
+import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
@@ -94,6 +96,7 @@ class ChatViewModel : ViewModel() {
     private val chatStorageManager: ChatStorageManager
     private var lastKnownBackendName: String? = null
     private var lastKnownModelPath: String? = null
+    private var lastKnownGeminiModel: String? = null
 
     companion object {
         private const val CURRENT_CHAT_ID_PREF_KEY = "current_chat_id_v1"
@@ -111,21 +114,28 @@ class ChatViewModel : ViewModel() {
         val prefs = BaseApplication.getBaseInstance().prefManager
         val backendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)
         val modelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+        val geminiModel = prefs.getString(PREF_KEY_GEMINI_MODEL, DEFAULT_GEMINI_MODEL)
 
         // If the repository exists and settings haven't changed, return the existing instance.
-        if (agentRepository != null && lastKnownBackendName == backendName && lastKnownModelPath == modelPath) {
+        if (
+            agentRepository != null &&
+            lastKnownBackendName == backendName &&
+            lastKnownModelPath == modelPath &&
+            lastKnownGeminiModel == geminiModel
+        ) {
             return agentRepository
         }
 
         log.info("Settings changed or repository not initialized. Creating new instance.")
         lastKnownBackendName = backendName
         lastKnownModelPath = modelPath
+        lastKnownGeminiModel = geminiModel
         val backend = AiBackend.valueOf(backendName ?: "GEMINI")
 
         agentRepository = when (backend) {
             AiBackend.GEMINI -> {
                 log.info("Creating new AgenticRunner (Gemini) instance.")
-                AgenticRunner(context).apply {
+                AgenticRunner(context, plannerModel = geminiModel ?: DEFAULT_GEMINI_MODEL).apply {
                     onStateUpdate = { _agentState.value = it }
                 }
             }
@@ -161,21 +171,29 @@ class ChatViewModel : ViewModel() {
         val prefs = BaseApplication.getBaseInstance().prefManager
         val currentBackendName = prefs.getString(PREF_KEY_AI_BACKEND, AiBackend.GEMINI.name)!!
         val currentModelPath = prefs.getString(PREF_KEY_LOCAL_MODEL_PATH, null)
+        val currentGeminiModel = prefs.getString(PREF_KEY_GEMINI_MODEL, DEFAULT_GEMINI_MODEL)
         val backend = AiBackend.valueOf(currentBackendName)
 
-        val configChanged =
-            currentBackendName != lastKnownBackendName || currentModelPath != lastKnownModelPath
+        val configChanged = currentBackendName != lastKnownBackendName ||
+            currentModelPath != lastKnownModelPath ||
+            currentGeminiModel != lastKnownGeminiModel
         if (configChanged) {
             agentRepository?.stop()
             agentRepository = null
             observeRepositoryMessages(null)
         }
 
-        val displayText = buildBackendDisplayText(backend, currentModelPath, context)
+        val displayText = buildBackendDisplayText(
+            backend = backend,
+            modelPath = currentModelPath,
+            geminiModel = currentGeminiModel,
+            context = context
+        )
         _backendStatus.value = BackendStatus(displayText)
 
         lastKnownBackendName = currentBackendName
         lastKnownModelPath = currentModelPath
+        lastKnownGeminiModel = currentGeminiModel
     }
 
     private fun buildSystemMessage(
@@ -299,10 +317,14 @@ class ChatViewModel : ViewModel() {
     private fun buildBackendDisplayText(
         backend: AiBackend,
         modelPath: String?,
+        geminiModel: String?,
         context: Context
     ): String {
         return when (backend) {
-            AiBackend.GEMINI -> "Gemini"
+            AiBackend.GEMINI -> {
+                val modelName = geminiModel ?: DEFAULT_GEMINI_MODEL
+                "Gemini ($modelName)"
+            }
             AiBackend.LOCAL_LLM -> {
                 if (modelPath != null) {
                     val fileName = modelPath.toUri().getFileName(context)

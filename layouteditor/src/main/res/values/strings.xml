@@ -165,6 +165,7 @@
     <string name="default_layout_name">layout_new</string>
 
     <string name="gemini_api_key">Gemini API Key</string>
+    <string name="gemini_model">Gemini Model</string>
     <string name="save_key">Save Key</string>
     <string name="clear">Clear</string>
     <string name="edit">Edit</string>

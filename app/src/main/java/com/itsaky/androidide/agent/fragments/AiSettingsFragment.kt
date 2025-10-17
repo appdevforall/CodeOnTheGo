@@ -16,6 +16,7 @@ import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.R
@@ -195,12 +196,36 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
 
     @SuppressLint("SetTextI18n")
     private fun setupGeminiApiUi(view: View) {
+        val modelLayout = view.findViewById<TextInputLayout>(R.id.gemini_model_layout)
+        val modelInput = view.findViewById<MaterialAutoCompleteTextView>(R.id.gemini_model_input)
         val apiKeyLayout = view.findViewById<TextInputLayout>(R.id.gemini_api_key_layout)
         val apiKeyInput = view.findViewById<TextInputEditText>(R.id.gemini_api_key_input)
         val saveButton = view.findViewById<Button>(R.id.btn_save_api_key)
         val editButton = view.findViewById<Button>(R.id.btn_edit_api_key)
         val clearButton = view.findViewById<Button>(R.id.btn_clear_api_key)
         val statusTextView = view.findViewById<TextView>(R.id.gemini_api_key_status_text)
+
+        val geminiModels = viewModel.getAvailableGeminiModels()
+        if (geminiModels.isNotEmpty()) {
+            val adapter = ArrayAdapter(
+                requireContext(),
+                android.R.layout.simple_spinner_dropdown_item,
+                geminiModels
+            )
+            modelInput.setAdapter(adapter)
+            val currentModel = viewModel.getCurrentGeminiModel()
+            val selectedModel = if (geminiModels.contains(currentModel)) {
+                currentModel
+            } else {
+                geminiModels.first().also { viewModel.saveGeminiModel(it) }
+            }
+            modelInput.setText(selectedModel, false)
+            modelInput.setOnItemClickListener { _, _, position, _ ->
+                viewModel.saveGeminiModel(geminiModels[position])
+            }
+        } else {
+            modelLayout.visibility = View.GONE
+        }
 
         fun updateUiState(isEditing: Boolean) {
             if (isEditing) {

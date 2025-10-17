@@ -9,8 +9,11 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.repository.AiBackend
+import com.itsaky.androidide.agent.repository.DEFAULT_GEMINI_MODEL
+import com.itsaky.androidide.agent.repository.GEMINI_MODEL_OPTIONS
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
+import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.app.BaseApplication
 import kotlinx.coroutines.launch
@@ -34,6 +37,8 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     fun getAvailableBackends(): List<AiBackend> {
         return AiBackend.entries
     }
+
+    fun getAvailableGeminiModels(): List<String> = GEMINI_MODEL_OPTIONS
 
     fun getCurrentBackend(): AiBackend {
         val prefs = BaseApplication.getBaseInstance().prefManager
@@ -85,6 +90,16 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
 
     fun log(message: String) {
         Log.e("ModelLoad", message)
+    }
+
+    fun getCurrentGeminiModel(): String {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        return prefs.getString(PREF_KEY_GEMINI_MODEL, DEFAULT_GEMINI_MODEL) ?: DEFAULT_GEMINI_MODEL
+    }
+
+    fun saveGeminiModel(model: String) {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        prefs.putString(PREF_KEY_GEMINI_MODEL, model)
     }
 
     fun checkInitialSavedModel(context: Context) {
