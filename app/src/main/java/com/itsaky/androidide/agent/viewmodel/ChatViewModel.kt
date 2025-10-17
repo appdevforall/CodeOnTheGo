@@ -396,8 +396,12 @@ class ChatViewModel : ViewModel() {
         _sessions.value?.add(0, newSession)
         _sessions.postValue(_sessions.value)
         _currentSession.value = newSession
-        agentRepository?.loadHistory(newSession.messages)
-        observeRepositoryMessages(agentRepository)
+        agentRepository?.stop()
+        agentRepository = null
+        lastKnownBackendName = null
+        lastKnownModelPath = null
+        lastKnownGeminiModel = null
+        observeRepositoryMessages(null)
         scheduleSaveCurrentSession()
     }
 
