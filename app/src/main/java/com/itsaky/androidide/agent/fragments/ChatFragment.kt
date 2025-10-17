@@ -193,7 +193,7 @@ class ChatFragment :
         if (selectedContext.isNotEmpty()) {
             promptBuilder.append("\nuse the context:\n")
             selectedContext.forEach { filePath ->
-                val result = ReadFileCommand(filePath).execute()
+                val result = ReadFileCommand(filePath, null, null).execute()
                 result.onSuccess { content ->
                     promptBuilder.append("--- START FILE: $filePath ---\n")
                     promptBuilder.append(content)
