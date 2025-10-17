@@ -281,6 +281,7 @@ dependencies {
 
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.google.genai)
     "v7Implementation"(files("libs/v7/llama-v7-release.aar"))
     "v8Implementation"(files("libs/v8/llama-v8-release.aar"))
