@@ -66,6 +66,7 @@ import kotlin.math.min
 class AgenticRunner(
     private val context: Context,
     private val maxSteps: Int = 20,
+    plannerModel: String = DEFAULT_GEMINI_MODEL,
     toolsOverride: List<Tool>? = null,
     plannerOverride: Planner? = null,
     criticOverride: Critic? = null,
@@ -82,6 +83,8 @@ class AgenticRunner(
     private var runnerJob: Job = SupervisorJob()
     private var runnerScope: CoroutineScope = CoroutineScope(Dispatchers.IO + runnerJob)
 
+    private val plannerModelName = plannerModel.ifBlank { DEFAULT_GEMINI_MODEL }
+
     private val plannerClient: GeminiClient by lazy {
         // Fetch the key when the client is first needed
         val apiKey = EncryptedPrefs.getGeminiApiKey(context)
@@ -91,7 +94,7 @@ class AgenticRunner(
             // Throw an exception that we can catch in the ViewModel
             throw IllegalStateException(errorMessage)
         }
-        GeminiClient(apiKey, "gemini-2.5-pro") // Use a stable model version
+        GeminiClient(apiKey, plannerModelName) // Use the configured Gemini model
     }
 
     private val criticClient: GeminiClient by lazy {
@@ -105,7 +108,7 @@ class AgenticRunner(
     }
 
     private val modelFamily = ModelFamily(
-        id = "gemini-2.5-pro",
+        id = plannerModelName,
         baseInstructions = DEFAULT_BASE_INSTRUCTIONS,
         supportsParallelToolCalls = true,
         needsSpecialApplyPatchInstructions = true
