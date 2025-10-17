@@ -4,32 +4,29 @@ import android.annotation.SuppressLint
 import android.app.AppOpsManager
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.NotificationManager
-import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.view.View
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.startForegroundService
-import androidx.core.view.isVisible
-import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import com.itsaky.androidide.databinding.FragmentWabPermissionBinding
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.itsaky.androidide.databinding.FragmentWadbConnectionBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DeviceUtils
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.isAtLeastS
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.utils.viewLifecycleScopeOrNull
+import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.WADBViewModel
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -48,6 +45,7 @@ import moe.shizuku.manager.adb.AdbKeyException
 import moe.shizuku.manager.adb.AdbMdns
 import moe.shizuku.manager.adb.AdbPairingService
 import moe.shizuku.manager.adb.PreferenceAdbKeyStore
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.net.ConnectException
@@ -58,7 +56,7 @@ import javax.net.ssl.SSLProtocolException
  */
 @RequiresApi(Build.VERSION_CODES.R)
 class WADBPermissionFragment :
-	FragmentWithBinding<FragmentWabPermissionBinding>(FragmentWabPermissionBinding::inflate) {
+	FragmentWithBinding<FragmentWadbConnectionBinding>(FragmentWadbConnectionBinding::inflate) {
 	companion object {
 		const val VIEW_PAIRING = 0
 		const val VIEW_CONNECTING = 1
@@ -72,6 +70,7 @@ class WADBPermissionFragment :
 	}
 
 	// must be activity bound since it's also used in DebuggerFragment
+	private val bottomSheetViewModel by activityViewModels<BottomSheetViewModel>()
 	private val debuggerViewModel by activityViewModels<DebuggerViewModel>()
 	private val wadbViewModel by activityViewModels<WADBViewModel>()
 
@@ -128,80 +127,38 @@ class WADBPermissionFragment :
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
-		val isMiui = DeviceUtils.isMiui()
-		val isNotificationEnabled = isNotificationEnabled()
-
 		viewLifecycleScope.launch {
 			adbMdnsConnector.start()
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				launch {
-					wadbViewModel.currentView.collectLatest { currentView ->
-						withContext(Dispatchers.Main.immediate) {
-							binding.root.displayedChild = currentView
-						}
-					}
-				}
-
-				launch {
 					wadbViewModel.connectionStatus.collectLatest { status ->
 						withContext(Dispatchers.Main.immediate) {
-							binding.connection.statusText.text = status
+							binding.statusText.text = status
 						}
 					}
 				}
 			}
 		}
-
-		binding.pairing.apply {
-			miuiCard.isVisible = isNotificationEnabled && isMiui
-			miuiAndWadbStepsCardSpacing.updateLayoutParams {
-				height = height * (if (isNotificationEnabled && isMiui) 1 else 0)
-			}
-
-			onReloadNotificationSettings()
-
-			actionOpenNotificationSettings.setOnClickListener {
-				val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-				intent.putExtra(Settings.EXTRA_APP_PACKAGE, requireContext().packageName)
-				try {
-					startActivity(intent)
-				} catch (e: ActivityNotFoundException) {
-					logger.error("Failed to open notification settings", e)
-				}
-			}
-
-			actionOpenDeveloperOptions.setOnClickListener {
-				val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-				intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-				intent.putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
-				try {
-					startActivity(intent)
-					startPairingService()
-				} catch (e: ActivityNotFoundException) {
-					logger.error("Failed to open developer options", e)
-				}
-			}
-		}
-	}
-
-	override fun onResume() {
-		super.onResume()
-		onReloadNotificationSettings()
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)
 	private fun onPairResult(intent: Intent) =
 		when (intent.action) {
 			AdbPairingService.ACTION_PAIR_SUCCEEDED -> {
+				viewLifecycleScopeOrNull?.launch(Dispatchers.Main) {
+					// show debugger UI after pairing is successful
+					bottomSheetViewModel.setSheetState(
+						sheetState = BottomSheetBehavior.STATE_EXPANDED,
+						currentTab = BottomSheetViewModel.TAB_DEBUGGER,
+					)
+					debuggerViewModel.currentView = DebuggerFragment.VIEW_WADB_PAIRING
+				}
+
 				// pairing was successful, look for ADB connection port
 				// use GlobalScope so that we can complete the connection even
 				// when the fragment is destroyed
 				GlobalScope.launch(context = Dispatchers.IO) {
 					beginShizukuConnection()
-				}
-
-				viewLifecycleScopeOrNull?.launch(Dispatchers.Main) {
-					wadbViewModel.setCurrentView(VIEW_CONNECTING)
 				}
 			}
 
@@ -249,7 +206,6 @@ class WADBPermissionFragment :
 			logger.error("Failed to connect to ADB server")
 			viewLifecycleScopeOrNull?.launch {
 				wadbViewModel.setConnectionStatus(getString(R.string.adb_connection_failed))
-				wadbViewModel.setCurrentView(VIEW_PAIRING)
 			}
 		}
 	}
@@ -364,51 +320,6 @@ class WADBPermissionFragment :
 				}
 		}
 
-	private fun isNotificationEnabled(): Boolean {
-		val context = requireContext()
-		val nm = context.getSystemService(NotificationManager::class.java)
-		val channel = nm.getNotificationChannel(AdbPairingService.NOTIFICATION_CHANNEL)
-		return nm.areNotificationsEnabled() &&
-				(channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE)
-	}
-
-	private fun onReloadNotificationSettings() {
-		val isNotificationEnabled = isNotificationEnabled()
-		binding.pairing.apply {
-			actionOpenNotificationSettings.isVisible = !isNotificationEnabled
-			networkCard.isVisible = isNotificationEnabled
-			wadbStepsCard.isVisible = isNotificationEnabled
-		}
-	}
-
-	private fun startPairingService() {
-		val context = requireContext()
-		val intent = AdbPairingService.startIntent(context)
-		try {
-			startForegroundService(context, intent)
-		} catch (e: Throwable) {
-			logger.error("Failed to start pairing service", e)
-
-			if (isAtLeastS() && e is ForegroundServiceStartNotAllowedException) {
-				val mode =
-					context
-						.getSystemService(AppOpsManager::class.java)
-						.noteOpNoThrow(
-							"android:start_foreground",
-							android.os.Process.myUid(),
-							context.packageName,
-							null,
-							null,
-						)
-				if (mode == AppOpsManager.MODE_ERRORED) {
-					flashError(getString(R.string.err_foreground_service_denial))
-				}
-
-				context.startService(intent)
-			}
-		}
-	}
-
 	/**
 	 * Called in the [GlobalScope], take care when accessing fragment's
 	 * resources here.
@@ -418,7 +329,6 @@ class WADBPermissionFragment :
 		if (Shizuku.pingBinder()) {
 			// already connected
 			// reset state
-			wadbViewModel.setCurrentView(VIEW_PAIRING)
 			debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
 			return
 		}
@@ -449,8 +359,6 @@ class WADBPermissionFragment :
 						ShizukuState.reload()
 
 						viewLifecycleScopeOrNull?.launch {
-							// reset state
-							wadbViewModel.setCurrentView(VIEW_PAIRING)
 							debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
 						}
 					}
