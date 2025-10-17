@@ -63,6 +63,8 @@ See the [contributing guide](./CONTRIBUTING.md).
 
 ## Thanks to
 
+Code on the Go includes software developed by the [Apache Software Foundation](https://www.apache.org). Additional thanks to these developers:
+
 - [Akash Yadav](https://github.com/itsaky) for [AndroidIDE](https://github.com/AndroidIDEOfficial/AndroidIDE)
 - [Rosemoe](https://github.com/Rosemoe) for [CodeEditor](https://github.com/Rosemoe/sora-editor)
 - [Termux](https://github.com/termux) for [Terminal Emulator](https://github.com/termux/termux-app)
@@ -77,7 +79,7 @@ Thanks to all the developers who have contributed to this project!
 ## Contact us
 
 - [Website](https://www.appdevforall.org)
-- [Official Telegram channel](https://t.me/CodeOnTheGoOfficial
+- [Official Telegram channel](https://t.me/CodeOnTheGoOfficial)
 - [Telegram discussions](https://t.me/CodeOnTheGoDiscussions)
 - [Email](mailto:feedback@appdevforall.org)
 
@@ -129,6 +131,7 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
 
