@@ -24,7 +24,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.IntentUtils
+import com.itsaky.androidide.utils.AppIntentUtils
 
 /**
  * File tree action to open files with external applications.
@@ -54,6 +54,11 @@ class OpenWithAction(context: Context, override val order: Int) :
   }
 
   override suspend fun execAction(data: ActionData) {
-    IntentUtils.startIntent(data.requireActivity(), data.requireFile(), "*/*", Intent.ACTION_VIEW)
+      AppIntentUtils.startIntent(
+          data.requireActivity(),
+          data.requireFile(),
+          "*/*",
+          Intent.ACTION_VIEW
+      )
   }
 }
