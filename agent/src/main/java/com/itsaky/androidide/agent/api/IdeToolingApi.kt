@@ -24,4 +24,7 @@ interface IdeToolingApi {
     fun getBuildOutput(): ToolResult
     fun getBuildOutputContent(): String?
     suspend fun executeShellCommand(command: String): ShellCommandResult
+    fun getDeviceBattery(): ToolResult
+    fun getCurrentDateTime(): ToolResult
+    fun getWeather(city: String?): ToolResult
 }

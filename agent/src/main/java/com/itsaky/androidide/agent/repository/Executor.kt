@@ -29,7 +29,10 @@ class Executor(
             "list_dir",
             "read_multiple_files",
             "search_project",
-            "get_build_output"
+            "get_build_output",
+            "get_device_battery",
+            "get_current_datetime",
+            "get_weather"
         )
 
     }

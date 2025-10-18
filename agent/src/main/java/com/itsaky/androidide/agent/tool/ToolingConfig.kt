@@ -45,7 +45,10 @@ fun buildToolRouter(
         AddStringResourceHandler(),
         RunAppHandler(),
         TriggerGradleSyncHandler(),
-        GetBuildOutputHandler()
+        GetBuildOutputHandler(),
+        GetDeviceBatteryHandler(),
+        GetCurrentDateTimeHandler(),
+        GetWeatherHandler()
     ).forEach { handler ->
         handlers[handler.name] = handler
     }

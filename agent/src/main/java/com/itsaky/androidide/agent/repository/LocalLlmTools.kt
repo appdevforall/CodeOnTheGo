@@ -73,6 +73,23 @@ object LocalLlmTools {
             parameters = emptyMap()
         ),
         LocalToolDeclaration(
+            name = "get_device_battery",
+            description = "Returns the current device battery percentage.",
+            parameters = emptyMap()
+        ),
+        LocalToolDeclaration(
+            name = "get_current_datetime",
+            description = "Returns the current date and time in Quito, Ecuador.",
+            parameters = emptyMap()
+        ),
+        LocalToolDeclaration(
+            name = "get_weather",
+            description = "Gets friendly weather information for the specified city.",
+            parameters = mapOf(
+                "city" to "Name of the city to describe the weather for."
+            )
+        ),
+        LocalToolDeclaration(
             name = "add_string_resource",
             description = "Adds a new string resource to the strings.xml file.",
             parameters = mapOf(

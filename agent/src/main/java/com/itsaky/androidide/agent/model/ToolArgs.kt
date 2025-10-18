@@ -68,3 +68,8 @@ data class SearchProjectArgs(
     @SerialName("ignore_case")
     val ignoreCase: Boolean = true
 )
+
+@Serializable
+data class GetWeatherArgs(
+    val city: String? = null
+)

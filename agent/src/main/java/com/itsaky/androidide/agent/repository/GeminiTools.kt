@@ -236,6 +236,35 @@ private val getBuildOutput = FunctionDeclaration.builder()
     .description("Retrieves the latest logs from the build system output. Useful for debugging build failures.")
     .build()
 
+private val getDeviceBattery = FunctionDeclaration.builder()
+    .name("get_device_battery")
+    .description("Returns the current device battery percentage as an integer between 0 and 100.")
+    .build()
+
+private val getCurrentDateTime = FunctionDeclaration.builder()
+    .name("get_current_datetime")
+    .description("Returns the current date and time in Quito, Ecuador formatted as 'Wednesday, March 6, 2024 3:45 PM'.")
+    .build()
+
+private val getWeather = FunctionDeclaration.builder()
+    .name("get_weather")
+    .description("Gets the current weather for a specified city.")
+    .parameters(
+        Schema.builder()
+            .type(Type.Known.OBJECT)
+            .properties(
+                mapOf(
+                    "city" to Schema.builder()
+                        .type(Type.Known.STRING)
+                        .description("Name of the city to describe the weather for.")
+                        .build()
+                )
+            )
+            .required(listOf("city"))
+            .build()
+    )
+    .build()
+
 private val shell = FunctionDeclaration.builder()
     .name("shell")
     .description("Runs a shell command inside the current project directory. Useful for invoking Gradle, git, or other CLI tools.")
@@ -273,5 +302,8 @@ val allAgentTools: List<com.google.genai.types.Tool> = listOf(
     com.google.genai.types.Tool.builder().functionDeclarations(runApp).build(),
     com.google.genai.types.Tool.builder().functionDeclarations(triggerGradleSync).build(),
     com.google.genai.types.Tool.builder().functionDeclarations(getBuildOutput).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(getDeviceBattery).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(getCurrentDateTime).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(getWeather).build(),
     com.google.genai.types.Tool.builder().functionDeclarations(shell).build()
 )
