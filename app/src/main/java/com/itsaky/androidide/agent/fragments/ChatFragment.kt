@@ -33,6 +33,7 @@ import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.model.ReviewDecision
+import com.itsaky.androidide.agent.repository.allAgentTools
 import com.itsaky.androidide.agent.tool.toJsonElement
 import com.itsaky.androidide.agent.tool.toolJson
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
@@ -279,6 +280,9 @@ class ChatFragment :
         binding.btnUploadImage.setOnClickListener {
             imagePickerLauncher.launch("image/*")
         }
+        binding.btnTestTool.setOnClickListener {
+            showToolSelectionDialog()
+        }
         binding.chatToolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.menu_new_chat -> {
@@ -308,6 +312,52 @@ class ChatFragment :
                 imm?.hideSoftInputFromWindow(view.windowToken, 0)
             }
         }
+    }
+
+    private fun showToolSelectionDialog() {
+        val toolNames =
+            allAgentTools.flatMap { it.functionDeclarations?.map { it.name } ?: emptyList() }
+                .toTypedArray()
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Select a tool to test")
+            .setItems(toolNames) { _, which ->
+                val selectedToolName = toolNames[which]
+                showArgumentInputDialog(selectedToolName)
+            }
+            .show()
+    }
+
+    private fun showArgumentInputDialog(toolName: String) {
+        val tool = allAgentTools.flatMap { it.functionDeclarations ?: emptyList() }
+            .find { it.name == toolName }
+        if (tool == null) {
+            flashInfo("Tool not found: $toolName")
+            return
+        }
+
+        val description = tool.description
+        val params = tool.parameters?.properties?.map { (name, schema) ->
+            "$name: ${schema.type.name.lowercase()}"
+        }?.joinToString("\n") ?: "No parameters"
+
+        val message = "Description: $description\n\nParameters:\n$params"
+
+        val editText = android.widget.EditText(requireContext()).apply {
+            hint = "Enter arguments as JSON"
+            maxLines = 10
+        }
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Arguments for $toolName")
+            .setMessage(message)
+            .setView(editText)
+            .setPositiveButton("Run") { _, _ ->
+                val argsJson = editText.text.toString()
+                chatViewModel.testTool(toolName, argsJson)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun setupStateObservers() {

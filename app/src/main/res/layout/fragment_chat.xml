@@ -129,6 +129,14 @@
                     android:contentDescription="Add Context File"
                     android:text="\@" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_test_tool"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="Test Tool"
+                    app:icon="@drawable/ic_science" />
+
                 <HorizontalScrollView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"

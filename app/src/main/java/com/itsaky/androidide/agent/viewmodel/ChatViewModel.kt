@@ -8,6 +8,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.genai.types.FunctionCall
 import com.itsaky.androidide.agent.AgentState
 import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
@@ -20,6 +21,7 @@ import com.itsaky.androidide.agent.events.ExecCommandEnd
 import com.itsaky.androidide.agent.model.ReviewDecision
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.DEFAULT_GEMINI_MODEL
+import com.itsaky.androidide.agent.repository.Executor
 import com.itsaky.androidide.agent.repository.GeminiAgenticRunner
 import com.itsaky.androidide.agent.repository.GeminiRepository
 import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
@@ -28,6 +30,11 @@ import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.agent.repository.SessionHistoryRepository
+import com.itsaky.androidide.agent.tool.ToolApprovalManager
+import com.itsaky.androidide.agent.tool.ToolHandler
+import com.itsaky.androidide.agent.tool.ToolsConfigParams
+import com.itsaky.androidide.agent.tool.buildToolRouter
+import com.itsaky.androidide.agent.tool.buildToolsConfig
 import com.itsaky.androidide.agent.tool.shell.ParsedCommand
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.projects.IProjectManager
@@ -48,6 +55,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.Locale
@@ -724,6 +733,54 @@ class ChatViewModel : ViewModel() {
 
     fun submitUserApproval(id: ApprovalId, decision: ReviewDecision) {
         agentRepository?.submitApprovalDecision(id, decision)
+    }
+
+    fun testTool(toolName: String, argsJson: String) {
+        viewModelScope.launch {
+            val toolsConfigParams =
+                ToolsConfigParams(modelFamily = AiBackend.GEMINI.let { com.itsaky.androidide.agent.prompt.ModelFamily.GEMINI })
+            val toolsConfig = buildToolsConfig(toolsConfigParams)
+            val toolRouter = buildToolRouter(toolsConfig, null)
+            val executor = Executor(toolRouter, object : ToolApprovalManager {
+                override suspend fun ensureApproved(
+                    toolName: String,
+                    handler: ToolHandler,
+                    args: Map<String, Any?>
+                ): com.itsaky.androidide.agent.tool.ToolApprovalResponse {
+                    return com.itsaky.androidide.agent.tool.ToolApprovalResponse(approved = true)
+                }
+            })
+
+            val args = try {
+                if (argsJson.isNotBlank()) {
+                    Json.parseToJsonElement(argsJson).jsonObject.toMap()
+                } else {
+                    emptyMap()
+                }
+            } catch (e: Exception) {
+                postSystemError("Invalid JSON arguments: ${e.message}")
+                return@launch
+            }
+
+            val functionCall = FunctionCall.builder()
+                .setName(toolName)
+                .setArgs(args)
+                .build()
+
+            val result = withContext(Dispatchers.IO) {
+                executor.execute(listOf(functionCall))
+            }
+
+            val resultText = result.joinToString("\n") { part ->
+                part.functionResponse().getOrNull()?.response()?.getOrNull()?.toString() ?: ""
+            }
+
+            val message = ChatMessage(
+                text = "Tool `$toolName` result:\n```\n$resultText\n```",
+                sender = Sender.SYSTEM
+            )
+            _messages.update { it + message }
+        }
     }
 
     override fun onCleared() {
