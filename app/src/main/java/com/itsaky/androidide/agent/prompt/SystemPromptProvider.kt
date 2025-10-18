@@ -1,7 +1,7 @@
 package com.itsaky.androidide.agent.prompt
 
 import android.content.Context
-import android.util.Log
+import org.slf4j.LoggerFactory
 
 /**
  * Lazily loads the base system prompt for the agent from the assets folder. If the asset cannot be
@@ -11,6 +11,7 @@ object SystemPromptProvider {
 
     private const val DEFAULT_ASSET_PATH = "agent/system_prompt.txt"
     private val lock = Any()
+    private val logger = LoggerFactory.getLogger(SystemPromptProvider::class.java)
 
     @Volatile
     private var cachedPrompts: MutableMap<String, String> = mutableMapOf()
@@ -20,9 +21,9 @@ object SystemPromptProvider {
         if (prompt != null) {
             return prompt
         }
-        Log.w(
-            "SystemPromptProvider",
-            "Failed to load $DEFAULT_ASSET_PATH from assets. Falling back to internal prompt."
+        logger.warn(
+            "Failed to load {} from assets. Falling back to internal prompt.",
+            DEFAULT_ASSET_PATH
         )
         return FALLBACK_PROMPT
     }

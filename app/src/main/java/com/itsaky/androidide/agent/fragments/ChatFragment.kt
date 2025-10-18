@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
@@ -54,6 +53,7 @@ import kotlinx.serialization.json.JsonElement
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -64,6 +64,7 @@ class ChatFragment :
     EmptyStateFragment<FragmentChatBinding>(FragmentChatBinding::inflate) {
 
     private val chatViewModel: ChatViewModel by activityViewModel()
+    private val logger = LoggerFactory.getLogger(ChatFragment::class.java)
 
     private val insetsListener = View.OnApplyWindowInsetsListener { _, insets ->
         if (isAdded) {
@@ -212,7 +213,7 @@ class ChatFragment :
                     promptBuilder.append(content)
                     promptBuilder.append("\n--- END FILE: $filePath ---\n\n")
                 }.onFailure { exception ->
-                    Log.e("ChatFragment", "Failed to read context file: $filePath", exception)
+                    logger.error("Failed to read context file: {}", filePath, exception)
                     promptBuilder.append("--- FAILED TO READ FILE: $filePath ---\n\n")
                 }
             }
@@ -814,7 +815,7 @@ class ChatFragment :
             file.writeText(transcript, Charsets.UTF_8)
             IntentUtils.shareFile(ctx, file, "text/plain")
         } catch (err: IOException) {
-            Log.e("ChatFragment", "Failed to share chat transcript", err)
+            logger.error("Failed to share chat transcript", err)
             flashInfo(getString(R.string.copy_chat_share_failed))
         }
     }

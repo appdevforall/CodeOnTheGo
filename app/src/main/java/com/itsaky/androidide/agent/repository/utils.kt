@@ -1,6 +1,5 @@
 package com.itsaky.androidide.agent.repository
 
-import android.util.Log
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -8,8 +7,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.slf4j.LoggerFactory
 
 object Util {
+
+    private val logger = LoggerFactory.getLogger(Util::class.java)
 
     // Define a lenient JSON parser instance
     private val jsonParser = Json {
@@ -18,16 +20,16 @@ object Util {
     }
 
     fun parseToolCall(responseText: String, toolKeys: Set<String>): LocalLLMToolCall? {
-        Log.d("ToolParse", "--- PARSER START ---")
-        Log.d("ToolParse", "Input responseText: '$responseText'")
+        logger.debug("--- PARSER START ---")
+        logger.debug("Input responseText: '{}'", responseText)
 
         // 1. Find the JSON string within the response.
         // This handles cases where the model wraps the JSON in markdown (```json ... ```)
         // or the required <tool_call> tags.
         val jsonString = findPotentialJsonObjectString(responseText)
-        Log.d("ToolParse", "Extracted JSON string: '$jsonString'")
+        logger.debug("Extracted JSON string: '{}'", jsonString)
         if (jsonString == null) {
-            Log.e("ToolParse", "No potential JSON object found in the response.")
+            logger.error("No potential JSON object found in the response.")
             return null
         }
 
@@ -36,17 +38,16 @@ object Util {
                 ?: jsonObject["tool_name"]?.jsonPrimitive?.contentOrNull
 
             if (name.isNullOrBlank()) {
-                Log.e(
-                    "ToolParse",
+                logger.error(
                     "FAILURE: Tool call did not contain a 'name' or 'tool_name' field."
                 )
                 return null
             }
 
             if (!toolKeys.contains(name)) {
-                Log.e(
-                    "ToolParse",
-                    "FAILURE: Parsed tool name '$name' is not in the list of available tools."
+                logger.error(
+                    "FAILURE: Parsed tool name '{}' is not in the list of available tools.",
+                    name
                 )
                 return null
             }
@@ -57,7 +58,7 @@ object Util {
             } ?: emptyMap()
 
             val result = LocalLLMToolCall(name, args)
-            Log.d("ToolParse", "SUCCESS: Parsed and validated tool call: $result")
+            logger.debug("SUCCESS: Parsed and validated tool call: {}", result)
             result
         }
     }
@@ -76,8 +77,8 @@ object Util {
 
     private fun parseJsonObject(jsonString: String): JsonObject? {
         return runCatching { jsonParser.parseToJsonElement(jsonString) }
-            .onFailure {
-                Log.e("ToolParse", "FAILURE: Unable to parse JSON: ${it.message}")
+            .onFailure { throwable ->
+                logger.error("FAILURE: Unable to parse JSON string.", throwable)
             }
             .getOrNull() as? JsonObject
     }

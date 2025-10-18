@@ -1,9 +1,9 @@
 package com.itsaky.androidide.agent.data
 
-import android.util.Log
 import com.google.gson.Gson
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.ChatSession
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -15,12 +15,13 @@ import java.io.File
 class ChatStorageManager(private val storageDir: File) {
 
     private val gson = Gson()
+    private val logger = LoggerFactory.getLogger(ChatStorageManager::class.java)
 
     init {
         if (!storageDir.exists() && !storageDir.mkdirs()) {
-            Log.e(
-                "ChatStorageManager",
-                "Failed to create chat storage directory at ${storageDir.absolutePath}"
+            logger.error(
+                "Failed to create chat storage directory at {}",
+                storageDir.absolutePath
             )
         }
     }
@@ -39,15 +40,15 @@ class ChatStorageManager(private val storageDir: File) {
                 val messages = file.readLines().mapNotNull { line ->
                     try {
                         gson.fromJson(line, ChatMessage::class.java)
-                    } catch (e: Exception) {
-                        // Log or ignore malformed lines
+                    } catch (_: Exception) {
+                        // Ignore malformed lines but keep remaining messages.
                         null
                     }
                 }.toMutableList()
 
                 ChatSession(id = sessionId, messages = messages)
-            } catch (e: Exception) {
-                // Log or handle file reading errors
+            } catch (_: Exception) {
+                // Ignore files that cannot be read.
                 null
             }
         }
@@ -98,7 +99,7 @@ class ChatStorageManager(private val storageDir: File) {
             sessionFile.writeText(content)
         } catch (e: Exception) {
             // It's good practice to handle potential I/O errors
-            Log.e("ChatStorageManager", "Error saving session ${session.id}", e)
+            logger.error("Error saving session {}", session.id, e)
         }
     }
 }

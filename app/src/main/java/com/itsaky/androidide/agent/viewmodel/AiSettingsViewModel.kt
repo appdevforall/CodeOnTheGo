@@ -2,7 +2,6 @@ package com.itsaky.androidide.agent.viewmodel
 
 import android.app.Application
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -17,6 +16,7 @@ import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.app.BaseApplication
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 sealed class ModelLoadingState {
     object Idle : ModelLoadingState()
@@ -27,6 +27,7 @@ sealed class ModelLoadingState {
 
 class AiSettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val llmInferenceEngine = LlmInferenceEngineProvider.instance
+    private val logger = LoggerFactory.getLogger(AiSettingsViewModel::class.java)
 
     private val _savedModelPath = MutableLiveData<String?>(null)
     val savedModelPath: LiveData<String?> get() = _savedModelPath
@@ -89,7 +90,7 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun log(message: String) {
-        Log.e("ModelLoad", message)
+        logger.error(message)
     }
 
     fun getCurrentGeminiModel(): String {
