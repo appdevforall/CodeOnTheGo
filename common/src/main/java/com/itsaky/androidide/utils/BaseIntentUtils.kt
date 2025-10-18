@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.ShareCompat
 import androidx.core.content.FileProvider
-import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -13,9 +12,6 @@ import java.io.File
  * @author Akash Yadav
  */
 object BaseIntentUtils {
-    private val logger = LoggerFactory.getLogger(BaseIntentUtils::class.java)
-
-    private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
 
     // using '*/*' results in weird syntax highlighting on github
     // use this as a workaround
