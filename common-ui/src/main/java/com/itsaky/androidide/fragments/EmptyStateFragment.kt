@@ -41,7 +41,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
         }
     }
 
-    internal var isEmpty: Boolean
+    var isEmpty: Boolean
         get() = emptyStateViewModel.isEmpty.value ?: false
         set(value) {
             emptyStateViewModel.isEmpty.value = value
