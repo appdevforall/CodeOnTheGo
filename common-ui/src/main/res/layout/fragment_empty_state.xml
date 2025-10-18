@@ -15,8 +15,16 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<resources>
-    <!--  Required by F-Droid-->
-    <string name="app_name" translatable="false">Code on the Go</string>
-    <string name="retry">Retry</string>
-</resources>
+<ViewFlipper xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.itsaky.androidide.ui.EmptyView
+        android:id="@+id/empty_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="@dimen/content_padding_double"
+        android:clickable="false"
+        android:focusable="false" />
+
+</ViewFlipper>

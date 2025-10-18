@@ -213,6 +213,7 @@ dependencies {
 	implementation(projects.buildInfo)
 	implementation(projects.common)
     implementation(projects.commonUi)
+    implementation(projects.agent)
 	implementation(projects.editor)
 	implementation(projects.termux.termuxApp)
 	implementation(projects.termux.termuxView)

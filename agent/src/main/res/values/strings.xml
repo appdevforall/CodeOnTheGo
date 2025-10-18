@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="open_ai_settings">Open AI Settings</string>
+    <string name="new_chat">New Chat</string>
+    <string name="copy_chat">Copy Chat</string>
+    <string name="copy_chat_success">Chat copied to clipboard.</string>
+    <string name="copy_chat_empty">There is nothing to copy yet.</string>
+    <string name="copy_chat_failed">Unable to access the clipboard.</string>
+    <string name="copy_chat_clip_label">Chat transcript</string>
+    <string name="copy_chat_empty_message_placeholder">[no content]</string>
+    <string name="copy_chat_sender_user">You</string>
+    <string name="copy_chat_sender_agent">Assistant</string>
+    <string name="copy_chat_sender_system">System</string>
+    <string name="copy_chat_sender_tool">Tool</string>
+    <string name="copy_chat_option_copy">Copy to clipboard</string>
+    <string name="copy_chat_option_share">Share as text file</string>
+    <string name="copy_chat_share_failed">Unable to share the chat transcript.</string>
+    <string name="ai_agent">AI Agent</string>
+    <string name="history">History</string>
+    <string name="ai_settings">AI Settings</string>
+    <string name="gemini_api_key">Gemini API Key</string>
+    <string name="gemini_model">Gemini Model</string>
+    <string name="save_key">Save Key</string>
+    <string name="clear">Clear</string>
+    <string name="edit">Edit</string>
+    <string name="gemini_api_key_saved_on">Gemini API Key saved on %s</string>
+    <string name="api_key_is_saved">API Key is saved.</string>
+    <string name="api_key_saved_securely">API Key saved securely.</string>
+    <string name="api_key_cannot_be_empty">API Key cannot be empty.</string>
+    <string name="obfuscated_api_key">••••••••••••••••••••</string>
+    <string name="api_key_cleared">API Key cleared.</string>
+</resources>

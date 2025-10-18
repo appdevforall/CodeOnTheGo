@@ -20,7 +20,7 @@ package com.itsaky.androidide.agent.fragments
 import android.os.Bundle
 import android.view.View
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
-import com.itsaky.androidide.databinding.FragmentRightEditorSidebarBinding
+import com.itsaky.androidide.agent.databinding.FragmentRightEditorSidebarBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled

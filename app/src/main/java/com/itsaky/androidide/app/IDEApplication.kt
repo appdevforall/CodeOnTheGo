@@ -19,7 +19,6 @@
 package com.itsaky.androidide.app
 
 
-import android.content.Context
 import android.content.Intent
 import android.os.StrictMode
 import android.util.Log
@@ -34,12 +33,12 @@ import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
-import com.itsaky.androidide.agent.GeminiMacroProcessor
+import com.itsaky.androidide.agent.AppIdeToolingApi
+import com.itsaky.androidide.agent.api.AgentDependencies
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
-import com.itsaky.androidide.editor.processing.TextProcessorEngine
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.events.AppEventsIndex
@@ -47,8 +46,8 @@ import com.itsaky.androidide.events.EditorEventsIndex
 import com.itsaky.androidide.events.LspApiEventsIndex
 import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
-import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.handlers.CrashEventSubscriber
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -74,7 +73,6 @@ import moe.shizuku.manager.ShizukuSettings
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -167,6 +165,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
         Thread.setDefaultUncaughtExceptionHandler { thread, th -> handleCrash(thread, th) }
 
         super<TermuxApplication>.onCreate()
+        AgentDependencies.registerToolingApi(AppIdeToolingApi)
 
         initializePluginSystem()
 

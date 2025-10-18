@@ -49,6 +49,7 @@ dependencies {
 	implementation(projects.common)
 	implementation(projects.eventbusAndroid)
 	implementation(projects.eventbusEvents)
+    implementation(projects.commonUi)
 	implementation(projects.lexers)
 	implementation(projects.shared)
 	implementation(projects.resources)
