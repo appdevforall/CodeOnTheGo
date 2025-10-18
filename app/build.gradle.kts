@@ -212,6 +212,7 @@ dependencies {
 	implementation(projects.buildInfo)
 	implementation(projects.common)
     implementation(projects.commonUi)
+    implementation(projects.agent)
 	implementation(projects.editor)
 	implementation(projects.termux.termuxApp)
 	implementation(projects.termux.termuxView)
@@ -260,8 +261,10 @@ dependencies {
 	androidTestImplementation(libs.tests.kaspresso)
 	androidTestImplementation(libs.tests.junit.kts)
 	androidTestImplementation(libs.tests.androidx.test.runner)
-	androidTestUtil(libs.tests.orchestrator)
+    androidTestUtil(libs.tests.orchestrator)
 
+    testImplementation("io.mockk:mockk:1.13.3")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.1")
 	// brotli4j
 	implementation(libs.brotli4j)
 
@@ -273,7 +276,6 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 	// Koin for Dependency Injection
 	implementation("io.insert-koin:koin-android:3.5.3")
-	implementation(libs.androidx.security.crypto)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
@@ -282,9 +284,6 @@ dependencies {
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.google.genai)
-    "v7Implementation"(files("libs/v7/llama-v7-release.aar"))
-    "v8Implementation"(files("libs/v8/llama-v8-release.aar"))
 }
 
 tasks.register("downloadDocDb") {

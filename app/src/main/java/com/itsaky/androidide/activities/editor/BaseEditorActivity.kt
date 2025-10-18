@@ -77,6 +77,7 @@ import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.build.DebugAction
@@ -89,6 +90,7 @@ import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
 import com.itsaky.androidide.events.InstallationResultEvent
+import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.fragments.sidebar.FileTreeFragment
 import com.itsaky.androidide.handlers.EditorActivityLifecyclerObserver
@@ -114,9 +116,10 @@ import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
-import com.itsaky.androidide.utils.IntentUtils
+import com.itsaky.androidide.utils.AppIntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
@@ -136,8 +139,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.itsaky.androidide.FeedbackButtonManager
-import com.itsaky.androidide.fragments.output.ShareableOutputFragment
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -486,7 +487,25 @@ abstract class BaseEditorActivity :
 				customToolbar.setContentInsetsRelative(0, 0)
 			}
 		}
+
+        // Request insets again to handle Samsung Dex caption bar
+        // This ensures the toolbar padding is correct even when Dex decorations
+        // are added after initial layout
+        _binding?.content?.editorAppBarLayout?.post {
+            window?.decorView?.requestApplyInsets()
+        }
 	}
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        // Force re-application of window insets when configuration changes
+        // This is especially important for Samsung Dex mode where the caption bar
+        // might be added/removed when entering/exiting Dex mode
+        window?.decorView?.post {
+            window?.decorView?.requestApplyInsets()
+        }
+    }
 
 	@Subscribe(threadMode = MAIN)
 	open fun onInstallationResult(event: InstallationResultEvent) {
@@ -520,7 +539,7 @@ abstract class BaseEditorActivity :
 		val performLaunch = {
 			activityScope.launch {
 				debuggerViewModel.debugeePackage = packageName
-				IntentUtils.launchApp(
+                AppIntentUtils.launchApp(
 					context = context,
 					packageName = packageName,
 					debug = debug,
@@ -1425,9 +1444,10 @@ abstract class BaseEditorActivity :
                     return true
                 }
 
-                // --- THIS IS THE FIX ---
-                // Check for a left swipe (to show the AI Agent Panel)
                 if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    if (!FeatureFlags.isExperimentsEnabled()) {
+                        return false
+                    }
                     // Instead of opening a drawer, call our new method
                     toggleAgentPanel()
                     return true
