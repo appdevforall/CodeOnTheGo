@@ -60,7 +60,12 @@ abstract class FragmentWithBinding<T : ViewBinding> : BaseFragment {
         }
     }
 
-    return inflate!!.invoke(inflater, container, false).let {
+      val inflateFunc = this.inflate
+      checkNotNull(inflateFunc) {
+          "inflate function is null. Fragment may have been recreated after onDestroyView() was called."
+      }
+
+      return inflateFunc.invoke(inflater, container, false).let {
       _binding = it
       binding.root
     }
@@ -68,8 +73,8 @@ abstract class FragmentWithBinding<T : ViewBinding> : BaseFragment {
 
   override fun onDestroyView() {
     _binding = null
-    bind = null
-    inflate = null
+      // Don't null out bind/inflate functions - they're needed if the view is recreated
+      // (e.g., during configuration changes or fragment recreation)
     super.onDestroyView()
   }
 }
