@@ -77,6 +77,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.build.DebugAction
@@ -114,6 +115,7 @@ import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
+import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
@@ -136,8 +138,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.itsaky.androidide.FeedbackButtonManager
-import com.itsaky.androidide.utils.FeatureFlags
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -467,7 +467,25 @@ abstract class BaseEditorActivity :
 				customToolbar.setContentInsetsRelative(0, 0)
 			}
 		}
+
+        // Request insets again to handle Samsung Dex caption bar
+        // This ensures the toolbar padding is correct even when Dex decorations
+        // are added after initial layout
+        content.editorAppBarLayout.post {
+            window?.decorView?.requestApplyInsets()
+        }
 	}
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        // Force re-application of window insets when configuration changes
+        // This is especially important for Samsung Dex mode where the caption bar
+        // might be added/removed when entering/exiting Dex mode
+        window?.decorView?.post {
+            window?.decorView?.requestApplyInsets()
+        }
+    }
 
 	@Subscribe(threadMode = MAIN)
 	open fun onInstallationResult(event: InstallationResultEvent) {
