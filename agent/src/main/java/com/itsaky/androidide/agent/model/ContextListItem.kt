@@ -1,4 +1,4 @@
-package com.itsaky.androidide.models
+package com.itsaky.androidide.agent.model
 
 import androidx.annotation.DrawableRes
 

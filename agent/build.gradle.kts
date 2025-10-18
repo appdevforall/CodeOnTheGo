@@ -37,4 +37,9 @@ dependencies {
     implementation(libs.common.markwon.linkify)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation(libs.tooling.slf4j)
+    implementation(libs.java.diff.utils)
+    implementation(libs.androidx.security.crypto)
+    implementation(libs.google.genai)
+    "v7Implementation"(files("../app/libs/v7/llama-v7-release.aar"))
+    "v8Implementation"(files("../app/libs/v8/llama-v8-release.aar"))
 }

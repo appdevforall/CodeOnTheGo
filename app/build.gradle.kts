@@ -168,7 +168,6 @@ dependencies {
 	implementation(libs.google.auto.service.annotations)
 	implementation(libs.google.gson)
 	implementation(libs.google.guava)
-    implementation("io.github.java-diff-utils:java-diff-utils:4.12")
 
 	// Room
 	implementation(libs.room.ktx)
@@ -277,7 +276,6 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 	// Koin for Dependency Injection
 	implementation("io.insert-koin:koin-android:3.5.3")
-	implementation(libs.androidx.security.crypto)
 
 	// Firebase Analytics
 	implementation(platform(libs.firebase.bom))
@@ -286,9 +284,6 @@ dependencies {
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.google.genai)
-    "v7Implementation"(files("libs/v7/llama-v7-release.aar"))
-    "v8Implementation"(files("libs/v8/llama-v8-release.aar"))
 }
 
 tasks.register("downloadDocDb") {

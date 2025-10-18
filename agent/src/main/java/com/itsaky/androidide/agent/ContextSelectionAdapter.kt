@@ -8,9 +8,9 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.agent.databinding.ListItemContextHeaderBinding
 import com.itsaky.androidide.agent.databinding.ListItemContextSelectableBinding
-import com.itsaky.androidide.models.ContextListItem
-import com.itsaky.androidide.models.HeaderItem
-import com.itsaky.androidide.models.SelectableItem
+import com.itsaky.androidide.agent.model.ContextListItem
+import com.itsaky.androidide.agent.model.HeaderItem
+import com.itsaky.androidide.agent.model.SelectableItem
 
 class ContextSelectionAdapter(
     private val onItemClick: (SelectableItem) -> Unit

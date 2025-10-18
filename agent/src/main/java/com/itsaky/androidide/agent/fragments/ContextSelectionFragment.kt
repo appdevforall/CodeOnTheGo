@@ -13,8 +13,8 @@ import com.itsaky.androidide.agent.ContextSelectionAdapter
 import com.itsaky.androidide.agent.R
 import com.itsaky.androidide.agent.api.AgentDependencies
 import com.itsaky.androidide.agent.databinding.FragmentContextSelectionBinding
-import com.itsaky.androidide.models.HeaderItem
-import com.itsaky.androidide.models.SelectableItem
+import com.itsaky.androidide.agent.model.HeaderItem
+import com.itsaky.androidide.agent.model.SelectableItem
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
