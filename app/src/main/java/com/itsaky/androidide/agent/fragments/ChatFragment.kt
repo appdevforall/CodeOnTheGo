@@ -50,7 +50,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
-import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
@@ -119,7 +118,7 @@ class ChatFragment :
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        EventBus.getDefault().register(this)
+        // EventBus registration is handled by parent class (EmptyStateFragment) in onResume()
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
         emptyStateViewModel.isEmpty.value = false
         markwon = Markwon.builder(requireContext())
@@ -512,7 +511,6 @@ class ChatFragment :
 
     override fun onDestroyView() {
         dismissApprovalDialog()
-        EventBus.getDefault().unregister(this)
         super.onDestroyView()
     }
 
