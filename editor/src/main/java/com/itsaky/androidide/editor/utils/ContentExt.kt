@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.editor.utils
 
+import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.treesitter.TSNode
 import com.itsaky.androidide.treesitter.TSTree
 import com.itsaky.androidide.treesitter.getNodeAt
@@ -153,4 +154,17 @@ fun Content.getLastNodeAtLine(
 
 	// we need the byte offset in the line, so we need to multiply the char offset by 2 (shl 1)
 	return node.getNodeAt(line, column)
+}
+
+/**
+ * Checks if the selected text in an XML file is an attribute.
+ * An XML attribute is identified by having an '=' sign after the selection.
+ */
+fun IDEEditor.isXmlAttribute(): Boolean {
+	val cursor = text.cursor
+	val endLine = cursor.rightLine
+	val endCol = cursor.rightColumn
+	val lineText = text.getLine(endLine)
+	val nextChar = lineText.drop(endCol).firstOrNull { !it.isWhitespace() }
+	return nextChar == '='
 }

@@ -75,8 +75,9 @@ class EditorCompletionWindow(val editor: IDEEditor) : EditorAutoCompletion(edito
                 val completionData = completionItem?.data
 
                 val tag = if (completionData == null) {
-                    // completionData is null for XML attributes; use ideLabel instead
-                    completionItem?.ideLabel?.takeIf {labelString -> labelString.contains("android") }?.substringAfterLast(":")
+                    val label = completionItem?.ideLabel ?: ""
+                    val attrName = if (label.contains(':')) label.substringAfterLast(':') else label
+                    attrName.ifEmpty { null }
                 } else {
                     DocumentationReferenceProvider.getTag(completionData)
                 }

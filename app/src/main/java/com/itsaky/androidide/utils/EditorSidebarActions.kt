@@ -47,7 +47,6 @@ import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.actions.PluginSidebarActionItem
 import com.itsaky.androidide.plugins.manager.core.PluginManager
@@ -85,7 +84,7 @@ internal object EditorSidebarActions {
     @JvmStatic
     fun setup(sidebarFragment: EditorSidebarFragment) {
         val binding = sidebarFragment.getBinding() ?: return
-        val controller = binding.fragmentContainer.getFragment<NavHostFragment>().navController
+        val controller = binding.editorSidebarFragmentContainer.getFragment<NavHostFragment>().navController
         val context = sidebarFragment.requireContext()
         val rail = binding.navigation
 

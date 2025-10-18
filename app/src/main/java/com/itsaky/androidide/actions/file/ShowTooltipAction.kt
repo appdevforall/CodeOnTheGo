@@ -23,6 +23,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.EditorRelatedAction
+import com.itsaky.androidide.editor.utils.isXmlAttribute
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -41,7 +42,6 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
     override suspend fun execAction(data: ActionData): Any {
         val editor = data.getEditor()!!
         val cursor = editor.text.cursor
-        val activity = data.getActivity()
         val category = when (editor.file?.extension) {
             "java" -> TooltipCategory.CATEGORY_JAVA
             "kt" -> TooltipCategory.CATEGORY_KOTLIN
@@ -50,16 +50,20 @@ class ShowTooltipAction(private val context: Context, override val order: Int) :
         }
         val word = editor.text.substring(cursor.left, cursor.right)
         if (cursor.isSelected) {
+            val tag = if (category == TooltipCategory.CATEGORY_XML && editor.isXmlAttribute()) {
+                word.substringAfterLast(":")
+            } else {
+                word
+            }
             TooltipManager.showTooltip(
                 context = context,
                 anchorView = editor,
                 category = category,
-                tag = word,
+                tag = tag,
             )
         }
         return true
     }
 
     override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
-
 }
