@@ -459,6 +459,10 @@ class ChatViewModel : ViewModel() {
         )
         session.messages.add(systemMessage)
         _sessions.value = _sessions.value
+
+        // Also emit through _commandMessages so the UI can see it immediately
+        _commandMessages.update { current -> current + systemMessage }
+
         ensureHistoryVisible(session.messages)
         scheduleSaveCurrentSession()
     }
@@ -472,6 +476,10 @@ class ChatViewModel : ViewModel() {
         )
         session.messages.add(errorMessage)
         _sessions.value = _sessions.value
+
+        // Also emit through _commandMessages so the UI can see it immediately
+        _commandMessages.update { current -> current + errorMessage }
+
         ensureHistoryVisible(session.messages)
         scheduleSaveCurrentSession()
         _agentState.value = AgentState.Error(message)
