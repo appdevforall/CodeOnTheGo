@@ -26,8 +26,11 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.google.android.material.transition.MaterialSharedAxis
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -39,7 +42,6 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashInfo
-import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_MAIN
@@ -56,20 +58,19 @@ import org.slf4j.LoggerFactory
 import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
 
-import android.hardware.display.DisplayManager
-import android.view.Display
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
+import com.itsaky.androidide.FeedbackButtonManager
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
-    private val DATABASENAME = "documentation.db"
     private val log = LoggerFactory.getLogger(MainActivity::class.java)
 
     private val viewModel by viewModels<MainViewModel>()
     private var _binding: ActivityMainBinding? = null
     private val analyticsManager: IAnalyticsManager by inject()
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
     companion object {
         private var instance: MainActivity? = null
@@ -112,7 +113,12 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         startWebServer()
 
         openLastProject()
-        setupSecondaryDisplay()
+
+        feedbackButtonManager = FeedbackButtonManager(
+            activity = this,
+            feedbackFab = binding.fabFeedback,
+        )
+        feedbackButtonManager?.setupDraggableFab()
 
         viewModel.currentScreen.observe(this) { screen ->
             if (screen == -1) {
@@ -134,6 +140,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
         instance = this
+    }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onApplySystemBarInsets(insets: Insets) {
@@ -263,9 +274,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         // Track project open in Firebase Analytics
         analyticsManager.trackProjectOpened(root.absolutePath)
 
+        if (isFinishing) {
+            return
+        }
+
         val intent = Intent(this, EditorActivityKt::class.java).apply {
             putExtra("PROJECT_PATH", root.absolutePath)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
 
         startActivity(intent)
@@ -281,23 +296,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun startWebServer() {
-        try {
-            val dbFile = Environment.DOC_DB
-
-            if (!dbFile.exists()) {
-                log.warn(
-                    "Database file not found at: {} - WebServer will not start",
-                    dbFile.absolutePath
-                )
-                return
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val dbFile = Environment.DOC_DB
+                log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
+                val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
+                webServer.start() 
+            } catch (e: Exception) {
+                log.error("Failed to start WebServer", e)
             }
-
-            log.info("Starting WebServer - database file exists at: {}", dbFile.absolutePath)
-            val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
-            Thread { webServer.start() }.start()
-
-        } catch (e: Exception) {
-            log.error("Failed to start WebServer", e)
         }
     }
 
@@ -305,18 +312,5 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         ITemplateProvider.getInstance().release()
         super.onDestroy()
         _binding = null
-    }
-
-    private fun setupSecondaryDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-
-        val secondDisplay = displays.firstOrNull { display ->
-            display.displayId != Display.DEFAULT_DISPLAY
-        }
-        secondDisplay?.let {
-            val presentation = SecondaryScreen(this, it)
-            presentation.show()
-        }
     }
 }

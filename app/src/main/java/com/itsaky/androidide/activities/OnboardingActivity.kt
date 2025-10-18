@@ -21,12 +21,17 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.util.TypedValue
+import android.view.View
+import android.view.ViewTreeObserver
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
@@ -54,6 +59,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.itsaky.androidide.FeedbackButtonManager
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
@@ -61,6 +67,8 @@ class OnboardingActivity : AppIntro2() {
 		CoroutineScope(Dispatchers.Main + CoroutineName("OnboardingActivity"))
 
 	private var listJdkInstallationsJob: Job? = null
+    private lateinit var feedbackButton: FloatingActionButton
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
@@ -102,6 +110,7 @@ class OnboardingActivity : AppIntro2() {
 		setTransformer(AppIntroPageTransformerType.Fade)
 		setProgressIndicator()
 		showStatusBar(true)
+        setupFeedbackButton()
 		isIndicatorEnabled = true
 		isWizardMode = true
 
@@ -156,6 +165,48 @@ class OnboardingActivity : AppIntro2() {
 			addSlide(PermissionsFragment.newInstance(this))
 		}
 	}
+
+    private fun setupFeedbackButton() {
+        val contentRootView = findViewById<View>(android.R.id.content)
+        contentRootView.viewTreeObserver.addOnGlobalLayoutListener(object :
+            ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                contentRootView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+
+                val appIntroContainer: ConstraintLayout? = findViewById(R.id.background)
+                if (appIntroContainer != null) {
+                    feedbackButton = FloatingActionButton(this@OnboardingActivity).apply {
+                        id = R.id.fab_feedback
+                        setImageResource(R.drawable.baseline_feedback_64)
+                        contentDescription = getString(string.send_feedback)
+                        val layoutParams = ConstraintLayout.LayoutParams(
+                            ConstraintLayout.LayoutParams.WRAP_CONTENT,
+                            ConstraintLayout.LayoutParams.WRAP_CONTENT
+                        )
+
+                        layoutParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                        layoutParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                        val marginInPx = TypedValue.applyDimension(
+                            TypedValue.COMPLEX_UNIT_DIP,
+                            16f,
+                            resources.displayMetrics
+                        ).toInt()
+                        layoutParams.setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
+                        this.layoutParams = layoutParams
+                    }
+
+                    appIntroContainer.addView(feedbackButton)
+                    feedbackButtonManager = FeedbackButtonManager(
+                        activity = this@OnboardingActivity,
+                        feedbackFab = feedbackButton
+                    )
+                    feedbackButtonManager?.setupDraggableFab()
+                } else {
+                    logger.error("Could not find AppIntro2 container to add FAB.")
+                }
+            }
+        })
+    }
 
 	override fun onResume() {
 		super.onResume()

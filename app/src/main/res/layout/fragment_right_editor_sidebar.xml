@@ -7,7 +7,7 @@
   android:background="?attr/colorSurface">
 
     <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/fragment_container"
+        android:id="@+id/right_editor_fragment_container"
         android:name="androidx.navigation.fragment.NavHostFragment"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -22,12 +22,11 @@
     android:background="?attr/colorSurface"
     android:layout_width="56dp"
     android:layout_height="0dp"
-    app:headerLayout="@layout/layout_editor_sidebar_header"
     app:labelVisibilityMode="unlabeled"
     app:layout_constraintBottom_toBottomOf="parent"
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintTop_toTopOf="parent"
-    app:menuGravity="bottom" />
+      app:menuGravity="top" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/title"
@@ -40,7 +39,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-        app:layout_constraintBottom_toTopOf="@id/fragment_container"
+        app:layout_constraintBottom_toTopOf="@id/right_editor_fragment_container"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@id/navigation"
         app:layout_constraintTop_toTopOf="parent"

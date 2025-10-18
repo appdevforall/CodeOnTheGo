@@ -104,6 +104,8 @@ class EditorBottomSheetTabAdapter(
 					title = fragmentActivity.getString(R.string.debugger_title),
 					fragmentClass = DebuggerFragment::class.java,
 					itemId = TAB_DEBUGGER,
+                    tooltipTag = TooltipTag.PROJECT_DEBUGGER_OUTPUT
+
 				),
 			)
 		}
@@ -113,6 +115,14 @@ class EditorBottomSheetTabAdapter(
 
 	init {
 		addPluginTabs()
+	}
+
+	fun clearAll() {
+		val size = tabs.size
+		if (size == 0) return
+		tabs.clear()
+		pluginFragmentFactories.clear()
+		notifyDataSetChanged()
 	}
 
 	fun removeFragment(klass: Class<out Fragment>) {

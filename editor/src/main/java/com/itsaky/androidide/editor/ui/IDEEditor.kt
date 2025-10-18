@@ -419,6 +419,12 @@ constructor(
         if (actionsMenu?.isShowing == true) {
             actionsMenu?.dismiss()
         }
+
+        // Dismiss autocomplete window if showing
+        val completion = getComponent(EditorAutoCompletion::class.java)
+        if (completion.isShowing) {
+            completion.hide()
+        }
     }
 
     // not overridable!
@@ -616,7 +622,6 @@ constructor(
      * Dispatches the [DocumentSaveEvent] for this editor.
      */
     open fun dispatchDocumentSaveEvent() {
-        markUnmodified()
         if (isReleased) {
             return
         }

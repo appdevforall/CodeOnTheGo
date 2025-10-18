@@ -43,6 +43,7 @@ import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
 import com.itsaky.androidide.utils.BuildInfoUtils
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.FeedbackButtonManager
 
 class AboutActivity : EdgeToEdgeIDEActivity() {
 
@@ -56,6 +57,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     _binding = ActivityAboutBinding.inflate(layoutInflater)
     return _binding!!.root
   }
+
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
   companion object {
 
@@ -76,6 +79,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       supportActionBar!!.setDisplayHomeAsUpEnabled(true)
       supportActionBar!!.setTitle(R.string.about)
       toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
 
       aboutHeader.apply {
         ideVersion.text = createVersionText()
@@ -261,6 +266,11 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
     )
   }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
 
   override fun onDestroy() {
     super.onDestroy()

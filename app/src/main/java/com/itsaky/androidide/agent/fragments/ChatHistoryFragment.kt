@@ -1,4 +1,4 @@
-package com.itsaky.androidide.actions.sidebar
+package com.itsaky.androidide.agent.fragments
 
 import android.os.Bundle
 import android.view.View
@@ -7,7 +7,7 @@ import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
-import com.itsaky.androidide.adapters.ChatHistoryAdapter
+import com.itsaky.androidide.agent.ChatHistoryAdapter
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.databinding.FragmentChatHistoryBinding
 import org.koin.androidx.viewmodel.ext.android.activityViewModel

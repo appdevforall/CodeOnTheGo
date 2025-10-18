@@ -1,7 +1,10 @@
 package com.itsaky.androidide.fragments.debug
 
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
@@ -9,6 +12,8 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
 import kotlinx.coroutines.Dispatchers
@@ -19,27 +24,37 @@ import kotlinx.coroutines.launch
  */
 class VariableListFragment : Fragment() {
 
-    private lateinit var treeView: TreeView<ResolvableVariable<*>>
+    val fragmentTooltipTag: String = DEBUG_OUTPUT_VARIABLES
+
+    private var treeView: TreeView<ResolvableVariable<*>>? = null
+    private var gestureDetector: GestureDetector? = null
 
     private val viewModel by activityViewModels<DebuggerViewModel>()
+
+    private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onLongPress(e: MotionEvent) {
+            treeView?.let {
+              TooltipManager.showTooltip(requireContext(), it, fragmentTooltipTag)
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        if (::treeView.isInitialized) {
-            return treeView
-        }
-
-        treeView = TreeView(requireContext())
-        return treeView
+        val view = TreeView<ResolvableVariable<*>>(requireContext())
+        treeView = view
+        return view
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        treeView.apply {
+
+        treeView?.apply {
             supportHorizontalScroll = true
             supportDragging = false
             tree = viewModel.variablesTree.value
@@ -48,17 +63,32 @@ class VariableListFragment : Fragment() {
             bindCoroutineScope(viewLifecycleOwner.lifecycleScope)
         }
 
+        gestureDetector = GestureDetector(requireContext(), gestureListener)
+
+
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.observeLatestVariablesTree(
                     scope = this,
                     notifyOn = Dispatchers.Main
                 ) { tree ->
-                    treeView.tree = tree
-                    treeView.refresh()
+                    treeView?.tree = tree
+                    treeView?.refresh()
+
+                    treeView?.setOnTouchListener { _, event ->
+                        gestureDetector?.onTouchEvent(event)
+                        false
+                    }
                 }
             }
         }
 
+    }
+
+    override fun onDestroyView() {
+        treeView = null
+        gestureDetector = null
+        super.onDestroyView()
     }
 }
