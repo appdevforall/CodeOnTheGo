@@ -18,7 +18,9 @@ import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.data.ChatStorageManager
 import com.itsaky.androidide.agent.events.ExecCommandBegin
 import com.itsaky.androidide.agent.events.ExecCommandEnd
+import com.itsaky.androidide.agent.events.ShellCommandEventEmitter
 import com.itsaky.androidide.agent.model.ReviewDecision
+import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.repository.AiBackend
 import com.itsaky.androidide.agent.repository.DEFAULT_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.Executor
@@ -61,6 +63,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.jvm.optionals.getOrNull
 
 data class BackendStatus(val displayText: String)
 
@@ -737,10 +740,18 @@ class ChatViewModel : ViewModel() {
 
     fun testTool(toolName: String, argsJson: String) {
         viewModelScope.launch {
-            val toolsConfigParams =
-                ToolsConfigParams(modelFamily = AiBackend.GEMINI.let { com.itsaky.androidide.agent.prompt.ModelFamily.GEMINI })
+            val modelFamily = ModelFamily(
+                id = DEFAULT_GEMINI_MODEL,
+                baseInstructions = "",
+                supportsParallelToolCalls = true
+            )
+            val toolsConfigParams = ToolsConfigParams(modelFamily = modelFamily)
             val toolsConfig = buildToolsConfig(toolsConfigParams)
-            val toolRouter = buildToolRouter(toolsConfig, null)
+            val emitter = object : ShellCommandEventEmitter {
+                override suspend fun onCommandBegin(event: ExecCommandBegin) {}
+                override suspend fun onCommandEnd(event: ExecCommandEnd) {}
+            }
+            val toolRouter = buildToolRouter(toolsConfig, emitter)
             val executor = Executor(toolRouter, object : ToolApprovalManager {
                 override suspend fun ensureApproved(
                     toolName: String,
@@ -763,8 +774,8 @@ class ChatViewModel : ViewModel() {
             }
 
             val functionCall = FunctionCall.builder()
-                .setName(toolName)
-                .setArgs(args)
+                .name(toolName)
+                .args(args)
                 .build()
 
             val result = withContext(Dispatchers.IO) {
@@ -775,11 +786,7 @@ class ChatViewModel : ViewModel() {
                 part.functionResponse().getOrNull()?.response()?.getOrNull()?.toString() ?: ""
             }
 
-            val message = ChatMessage(
-                text = "Tool `$toolName` result:\n```\n$resultText\n```",
-                sender = Sender.SYSTEM
-            )
-            _messages.update { it + message }
+            postSystemMessage("Tool `$toolName` result:\n```\n$resultText\n```")
         }
     }
 

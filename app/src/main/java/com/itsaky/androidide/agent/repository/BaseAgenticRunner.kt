@@ -386,6 +386,7 @@ abstract class BaseAgenticRunner(
                             plannerParts.firstOrNull()?.text()?.getOrNull()?.trim()
 
                         // Determine if this is an exploration-only step based on description keywords
+                        val currentStep = planSnapshot.steps[stepIndex]
                         val isExplorationStep = currentStep.description.lowercase().let { desc ->
                             desc.contains("find") || desc.contains("locate") ||
                                     desc.contains("identify") || desc.contains("determine") ||

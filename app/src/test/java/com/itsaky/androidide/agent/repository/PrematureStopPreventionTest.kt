@@ -5,6 +5,8 @@ import android.content.res.AssetManager
 import com.google.genai.types.Content
 import com.google.genai.types.FunctionCall
 import com.google.genai.types.Part
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
@@ -132,7 +134,7 @@ class PrematureStopPreventionTest {
                     0
                 )
             } returns textOnlyResponse andThen toolCallResponse
-            every { executor.execute(any()) } returns listOf(
+            coEvery { executor.execute(any()) } returns listOf(
                 Part.builder().functionResponse(
                     com.google.genai.types.FunctionResponse.builder()
                         .name("update_file")
@@ -163,7 +165,7 @@ class PrematureStopPreventionTest {
             verify(exactly = 2) { planner.planForStep(any(), any(), 0) }
 
             // Verify executor was called (tool was executed)
-            verify(exactly = 1) { executor.execute(any()) }
+            coVerify(exactly = 1) { executor.execute(any()) }
 
         } finally {
             tempDir.deleteRecursively()
@@ -214,7 +216,7 @@ class PrematureStopPreventionTest {
             verify(exactly = 3) { planner.planForStep(any(), any(), 0) }
 
             // Verify executor was NEVER called (no tools to execute)
-            verify(exactly = 0) { executor.execute(any()) }
+            coVerify(exactly = 0) { executor.execute(any()) }
 
         } finally {
             tempDir.deleteRecursively()
@@ -285,7 +287,7 @@ class PrematureStopPreventionTest {
             } returns step1TextResponse andThen step1ToolResponse
             every { planner.planForStep(any(), any(), 2) } returns step2Response
 
-            every { executor.execute(any()) } returns listOf(
+            coEvery { executor.execute(any()) } returns listOf(
                 Part.builder().functionResponse(
                     com.google.genai.types.FunctionResponse.builder()
                         .name("update_file")
@@ -321,7 +323,7 @@ class PrematureStopPreventionTest {
             verify(exactly = 1) { planner.planForStep(any(), any(), 2) }  // Step 2: no retry
 
             // Verify executor was called for implementation steps
-            verify(exactly = 2) { executor.execute(any()) }
+            coVerify(exactly = 2) { executor.execute(any()) }
 
         } finally {
             tempDir.deleteRecursively()
@@ -358,7 +360,7 @@ class PrematureStopPreventionTest {
                 .build()
 
             every { planner.planForStep(any(), any(), 0) } returns textResponse andThen toolResponse
-            every { executor.execute(any()) } returns listOf(
+            coEvery { executor.execute(any()) } returns listOf(
                 Part.builder().functionResponse(
                     com.google.genai.types.FunctionResponse.builder()
                         .name("create_file")
@@ -418,7 +420,7 @@ class PrematureStopPreventionTest {
                 .build()
 
             every { planner.planForStep(any(), any(), 0) } returns textResponse andThen toolResponse
-            every { executor.execute(any()) } returns listOf(
+            coEvery { executor.execute(any()) } returns listOf(
                 Part.builder().functionResponse(
                     com.google.genai.types.FunctionResponse.builder()
                         .name("update_file")

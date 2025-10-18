@@ -316,8 +316,11 @@ class ChatFragment :
 
     private fun showToolSelectionDialog() {
         val toolNames =
-            allAgentTools.flatMap { it.functionDeclarations?.map { it.name } ?: emptyList() }
-                .toTypedArray()
+            allAgentTools.flatMap { tool ->
+                tool.functionDeclarations().orElse(emptyList()).map { decl ->
+                    decl.name().get()
+                }
+            }.toTypedArray()
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Select a tool to test")
@@ -329,16 +332,20 @@ class ChatFragment :
     }
 
     private fun showArgumentInputDialog(toolName: String) {
-        val tool = allAgentTools.flatMap { it.functionDeclarations ?: emptyList() }
-            .find { it.name == toolName }
+        val tool = allAgentTools.flatMap { t ->
+            t.functionDeclarations().orElse(emptyList())
+        }.find { decl ->
+            decl.name().get() == toolName
+        }
         if (tool == null) {
             flashInfo("Tool not found: $toolName")
             return
         }
 
-        val description = tool.description
-        val params = tool.parameters?.properties?.map { (name, schema) ->
-            "$name: ${schema.type.name.lowercase()}"
+        val description = tool.description().orElse("No description")
+        val params = tool.parameters().orElse(null)?.properties()?.orElse(emptyMap())
+            ?.map { (name, schema) ->
+                "$name: ${schema.type().get().toString().lowercase()}"
         }?.joinToString("\n") ?: "No parameters"
 
         val message = "Description: $description\n\nParameters:\n$params"
