@@ -12,6 +12,8 @@ import com.google.genai.types.GenerateContentResponse
 import com.google.genai.types.GetModelConfig
 import com.google.genai.types.Tool
 import com.google.genai.types.ToolConfig
+import com.itsaky.androidide.events.TokenUsageEvent
+import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import kotlin.jvm.optionals.getOrNull
 import kotlin.system.measureTimeMillis
@@ -167,6 +169,8 @@ class GeminiClient(
                 client.models.countTokens(modelName, history, CountTokensConfig.builder().build())
             val tokenCount = response.totalTokens().getOrNull() ?: 0
             log.info("Prompt contains $tokenCount tokens. Limit for $modelName is $tokenLimit.")
+
+            EventBus.getDefault().post(TokenUsageEvent(tokenCount, tokenLimit))
 
             if (tokenCount >= tokenLimit) {
                 throw IllegalArgumentException(

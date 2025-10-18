@@ -63,12 +63,24 @@
             android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
             android:layout_marginEnd="8dp"
-            android:layout_toStartOf="@+id/agent_status_timer"
+            android:layout_toStartOf="@+id/token_usage_text"
             android:ellipsize="end"
             android:fontFamily="monospace"
             android:maxLines="1"
             android:textAppearance="?attr/textAppearanceCaption"
             tools:text="Executing tool: create_file..." />
+
+        <TextView
+            android:id="@+id/token_usage_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:layout_toStartOf="@id/agent_status_timer"
+            android:fontFamily="monospace"
+            android:gravity="end"
+            android:textAppearance="?attr/textAppearanceCaption"
+            tools:text="Tokens: 80%" />
 
         <TextView
             android:id="@+id/agent_status_timer"

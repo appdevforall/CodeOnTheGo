@@ -38,6 +38,7 @@ import com.itsaky.androidide.agent.tool.toolJson
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.api.commands.ReadFileCommand
 import com.itsaky.androidide.databinding.FragmentChatBinding
+import com.itsaky.androidide.events.TokenUsageEvent
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashInfo
@@ -48,6 +49,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.io.File
 import java.io.IOException
@@ -114,6 +118,7 @@ class ChatFragment :
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        EventBus.getDefault().register(this)
         emptyStateViewModel.emptyMessage.value = "No git actions yet"
         emptyStateViewModel.isEmpty.value = false
         markwon = Markwon.builder(requireContext())
@@ -162,6 +167,13 @@ class ChatFragment :
                 updateContextChips()
             }
         }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onTokenUsageEvent(event: TokenUsageEvent) {
+        binding.agentStatusContainer.isVisible = true
+        val percentage = (event.tokenCount.toFloat() / event.tokenLimit.toFloat() * 100).toInt()
+        binding.tokenUsageText.text = "Tokens: $percentage%"
     }
 
     private fun handleSendMessage() {
@@ -443,6 +455,7 @@ class ChatFragment :
 
     override fun onDestroyView() {
         dismissApprovalDialog()
+        EventBus.getDefault().unregister(this)
         super.onDestroyView()
     }
 
