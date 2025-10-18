@@ -7,11 +7,13 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 /**
- * Utilities for sharing files.
+ * Utilities for sharing files using Android's FileProvider.
+ *
+ * Provides simple methods to share files with other applications via intents.
  *
  * @author Akash Yadav
  */
-object BaseIntentUtils {
+object FileShareUtils {
 
     // using '*/*' results in weird syntax highlighting on github
     // use this as a workaround
