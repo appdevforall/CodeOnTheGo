@@ -90,6 +90,28 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
                     }
                 }
             }
+            AssetsInstallationHelper.LLAMA_AAR -> {
+                val sourceAssetName = when (cpuArch) {
+                    CpuArch.AARCH64 -> "llama-v8.aar"
+                    CpuArch.ARM -> "llama-v7.aar"
+                    else -> {
+                        logger.warn("Unsupported CPU arch for Llama AAR: $cpuArch. Skipping.")
+                        return@withContext
+                    }
+                }
+                val assetPath = "dynamic_libs/${sourceAssetName}.br"
+
+                val destDir = context.getDir("dynamic_libs", Context.MODE_PRIVATE)
+                destDir.mkdirs()
+                val destFile = File(destDir, "llama.aar")
+
+                logger.debug("Extracting '{}' to {}", assetPath, destFile.absolutePath)
+                BrotliInputStream(assets.open(assetPath)).use { input ->
+                    destFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
 
             else -> throw IllegalStateException("Unknown entry: $entryName")
         }
