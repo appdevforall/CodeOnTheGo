@@ -42,6 +42,7 @@ import com.itsaky.androidide.databinding.FragmentChatBinding
 import com.itsaky.androidide.events.TokenUsageEvent
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.utils.IntentUtils
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import io.noties.markwon.Markwon
 import io.noties.markwon.linkify.LinkifyPlugin
@@ -342,28 +343,194 @@ class ChatFragment :
         }
 
         val description = tool.description().orElse("No description")
-        val params = tool.parameters().orElse(null)?.properties()?.orElse(emptyMap())
-            ?.map { (name, schema) ->
-                "$name: ${schema.type().get().toString().lowercase()}"
-        }?.joinToString("\n") ?: "No parameters"
+        val parameters = tool.parameters().orElse(null)
+        val properties = parameters?.properties()?.orElse(emptyMap()) ?: emptyMap()
+        val requiredFields = parameters?.required()?.orElse(emptyList()) ?: emptyList()
 
-        val message = "Description: $description\n\nParameters:\n$params"
-
-        val editText = android.widget.EditText(requireContext()).apply {
-            hint = "Enter arguments as JSON"
-            maxLines = 10
+        if (properties.isEmpty()) {
+            // No parameters needed, run directly
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Run $toolName")
+                .setMessage("Description: $description\n\nThis tool has no parameters.")
+                .setPositiveButton("Run") { _, _ ->
+                    chatViewModel.testTool(toolName, "{}")
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
         }
 
+        // Create a dynamic form with input fields
+        val scrollView = android.widget.ScrollView(requireContext())
+        val paddingNormal = (16 * resources.displayMetrics.density).toInt()
+        val paddingSmall = (8 * resources.displayMetrics.density).toInt()
+
+        val container = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(paddingNormal, paddingNormal, paddingNormal, paddingNormal)
+        }
+
+        // Add description
+        container.addView(android.widget.TextView(requireContext()).apply {
+            text = description
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+            setPadding(0, 0, 0, paddingNormal)
+        })
+
+        // Map to store input fields
+        val inputFields = mutableMapOf<String, android.widget.EditText>()
+
+        // Create input field for each parameter
+        properties.forEach { (paramName, schema) ->
+            val paramType = schema.type().get().toString().lowercase()
+            val paramDescription = schema.description().orElse("")
+            val isRequired = requiredFields.contains(paramName)
+
+            // Parameter label
+            container.addView(android.widget.TextView(requireContext()).apply {
+                text = if (isRequired) "$paramName *" else paramName
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_LabelMedium)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+            })
+
+            // Parameter description
+            if (paramDescription.isNotBlank()) {
+                container.addView(android.widget.TextView(requireContext()).apply {
+                    text = paramDescription
+                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
+                    setTextColor(android.graphics.Color.GRAY)
+                })
+            }
+
+            // Input field
+            val editText =
+                com.google.android.material.textfield.TextInputEditText(requireContext()).apply {
+                    hint = getDefaultHintForParameter(toolName, paramName, paramType)
+
+                    // Set input type based on parameter type
+                    inputType = when (paramType) {
+                        "integer", "number" -> android.text.InputType.TYPE_CLASS_NUMBER
+                        "boolean" -> android.text.InputType.TYPE_CLASS_TEXT
+                        else -> android.text.InputType.TYPE_CLASS_TEXT or
+                                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                    }
+
+                    // Set default value if available
+                    setText(getDefaultValueForParameter(toolName, paramName))
+
+                    val layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = paddingNormal
+                    }
+                    this.layoutParams = layoutParams
+                }
+
+            val inputLayout =
+                com.google.android.material.textfield.TextInputLayout(requireContext()).apply {
+                    addView(editText)
+                    val layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = paddingSmall
+                    }
+                    this.layoutParams = layoutParams
+                }
+
+            container.addView(inputLayout)
+            inputFields[paramName] = editText
+        }
+
+        scrollView.addView(container)
+
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Arguments for $toolName")
-            .setMessage(message)
-            .setView(editText)
+            .setTitle("Test Tool: $toolName")
+            .setView(scrollView)
             .setPositiveButton("Run") { _, _ ->
-                val argsJson = editText.text.toString()
-                chatViewModel.testTool(toolName, argsJson)
+                val args = buildArgumentsMap(inputFields, requiredFields)
+                if (args != null) {
+                    chatViewModel.testTool(toolName, args)
+                } else {
+                    flashError("Please fill in all required fields (marked with *)")
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun getDefaultHintForParameter(
+        toolName: String,
+        paramName: String,
+        paramType: String
+    ): String {
+        return when {
+            paramName.contains(
+                "path",
+                ignoreCase = true
+            ) -> "e.g., app/src/main/AndroidManifest.xml"
+
+            paramName.contains("content", ignoreCase = true) -> "File content..."
+            paramName.contains("pattern", ignoreCase = true) -> "Search pattern..."
+            paramName.contains("offset", ignoreCase = true) -> "0"
+            paramName.contains("limit", ignoreCase = true) -> "1000"
+            paramType == "boolean" -> "true or false"
+            paramType == "integer" || paramType == "number" -> "Enter a number"
+            else -> "Enter $paramName"
+        }
+    }
+
+    private fun getDefaultValueForParameter(toolName: String, paramName: String): String {
+        return when {
+            paramName == "offset" -> "0"
+            paramName == "limit" -> "1000"
+            paramName == "file_path" && toolName == "read_file" -> {
+                // Try to get current project path
+                com.itsaky.androidide.projects.IProjectManager.getInstance().projectDir.path + "/"
+            }
+
+            paramName == "path" -> {
+                // Try to get current project path
+                com.itsaky.androidide.projects.IProjectManager.getInstance().projectDir.path + "/"
+            }
+
+            else -> ""
+        }
+    }
+
+    private fun buildArgumentsMap(
+        inputFields: Map<String, android.widget.EditText>,
+        requiredFields: List<String>
+    ): String? {
+        val argsMap = mutableMapOf<String, Any>()
+
+        for ((paramName, editText) in inputFields) {
+            val value = editText.text.toString().trim()
+
+            if (value.isEmpty()) {
+                if (requiredFields.contains(paramName)) {
+                    return null // Required field is empty
+                }
+                continue // Skip optional empty fields
+            }
+
+            // Try to parse as the appropriate type
+            argsMap[paramName] = when {
+                value.equals("true", ignoreCase = true) -> true
+                value.equals("false", ignoreCase = true) -> false
+                value.toIntOrNull() != null -> value.toInt()
+                value.toDoubleOrNull() != null -> value.toDouble()
+                else -> value
+            }
+        }
+
+        return argsMapToJson(argsMap)
+    }
+
+    private fun argsMapToJson(argsMap: Map<String, Any>): String {
+        val jsonElement: JsonElement = argsMap.toJsonElement()
+        return toolJson.encodeToString(JsonElement.serializer(), jsonElement)
     }
 
     private fun setupStateObservers() {
