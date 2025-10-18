@@ -2,11 +2,15 @@ package com.itsaky.androidide.agent
 
 import com.itsaky.androidide.agent.api.IdeToolingApi
 import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.agent.tool.ShellCommandRunner
+import com.itsaky.androidide.agent.tool.TermuxShellCommandRunner
+import com.itsaky.androidide.agent.tool.shell.ShellCommandResult
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.api.IDEApiFacade
 import com.itsaky.androidide.api.commands.ReadFileCommand
 
 object AppIdeToolingApi : IdeToolingApi {
+    private val shellRunner: ShellCommandRunner = TermuxShellCommandRunner()
     override fun createFile(path: String, content: String): ToolResult =
         IDEApiFacade.createFile(path, content)
 
@@ -45,4 +49,7 @@ object AppIdeToolingApi : IdeToolingApi {
     override fun getBuildOutput(): ToolResult = IDEApiFacade.getBuildOutput()
 
     override fun getBuildOutputContent(): String? = BuildOutputProvider.getBuildOutputContent()
+
+    override suspend fun executeShellCommand(command: String): ShellCommandResult =
+        shellRunner.run(command)
 }

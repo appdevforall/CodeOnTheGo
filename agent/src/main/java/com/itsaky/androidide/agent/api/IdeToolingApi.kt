@@ -1,6 +1,7 @@
 package com.itsaky.androidide.agent.api
 
 import com.itsaky.androidide.agent.model.ToolResult
+import com.itsaky.androidide.agent.tool.shell.ShellCommandResult
 
 interface IdeToolingApi {
     fun createFile(path: String, content: String): ToolResult
@@ -22,4 +23,5 @@ interface IdeToolingApi {
     suspend fun triggerGradleSync(): ToolResult
     fun getBuildOutput(): ToolResult
     fun getBuildOutputContent(): String?
+    suspend fun executeShellCommand(command: String): ShellCommandResult
 }
