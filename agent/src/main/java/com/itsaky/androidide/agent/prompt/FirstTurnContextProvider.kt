@@ -39,7 +39,8 @@ object FirstTurnContextProvider {
     }
 
     fun loadPersistentInstructions(): String? {
-        val prefs = BaseApplication.getBaseInstance().prefManager
+        val prefs = BaseApplication.getBaseInstance()?.prefManager
+            ?: return null
         val raw = prefs.getString(PREF_KEY_AGENT_USER_INSTRUCTIONS) ?: return null
         return raw.takeIf { it.trim().isNotEmpty() }
     }

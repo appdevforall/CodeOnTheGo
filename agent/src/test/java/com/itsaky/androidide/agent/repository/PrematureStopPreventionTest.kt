@@ -41,6 +41,7 @@ class PrematureStopPreventionTest {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
             val critic = mockk<Critic>(relaxed = true)
+            every { critic.reviewAndSummarize(any()) } returns "OK"
             val executor = mockk<Executor>(relaxed = true)
 
             // Create a plan with an exploration step
@@ -96,6 +97,7 @@ class PrematureStopPreventionTest {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
             val critic = mockk<Critic>(relaxed = true)
+            every { critic.reviewAndSummarize(any()) } returns "OK"
             val executor = mockk<Executor>(relaxed = true)
 
             // Create a plan with an implementation step
@@ -179,6 +181,7 @@ class PrematureStopPreventionTest {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
             val critic = mockk<Critic>(relaxed = true)
+            every { critic.reviewAndSummarize(any()) } returns "OK"
             val executor = mockk<Executor>(relaxed = true)
 
             every { planner.createInitialPlan(any()) } returns Plan(
@@ -230,6 +233,7 @@ class PrematureStopPreventionTest {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
             val critic = mockk<Critic>(relaxed = true)
+            every { critic.reviewAndSummarize(any()) } returns "OK"
             val executor = mockk<Executor>(relaxed = true)
 
             // Create a realistic 3-step plan
@@ -337,6 +341,7 @@ class PrematureStopPreventionTest {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
             val critic = mockk<Critic>(relaxed = true)
+            every { critic.reviewAndSummarize(any()) } returns "OK"
             val executor = mockk<Executor>(relaxed = true)
 
             every { planner.createInitialPlan(any()) } returns Plan(
@@ -399,6 +404,7 @@ class PrematureStopPreventionTest {
             val context = mockContext(tempDir)
             val planner = mockk<Planner>()
             val critic = mockk<Critic>(relaxed = true)
+            every { critic.reviewAndSummarize(any()) } returns "OK"
             val executor = mockk<Executor>(relaxed = true)
 
             every { planner.createInitialPlan(any()) } returns Plan(
@@ -474,6 +480,7 @@ class PrematureStopPreventionTest {
             for (description in explorationKeywords) {
                 val planner = mockk<Planner>()
                 val critic = mockk<Critic>(relaxed = true)
+                every { critic.reviewAndSummarize(any()) } returns "OK"
                 val executor = mockk<Executor>(relaxed = true)
 
                 every { planner.createInitialPlan(any()) } returns Plan(
