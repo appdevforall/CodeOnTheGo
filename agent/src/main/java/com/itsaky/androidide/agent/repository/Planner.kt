@@ -19,7 +19,7 @@ import kotlin.jvm.optionals.getOrNull
  */
 class Planner(
     private val client: GeminiClient,
-    private val tools: List<Tool>
+    private val tools: List<com.google.genai.types.Tool>
 ) {
 
     companion object {

@@ -11,7 +11,7 @@ class GeminiAgenticRunner(
     private val appContext: Context,
     plannerModel: String = DEFAULT_GEMINI_MODEL,
     maxSteps: Int = 20,
-    toolsOverride: List<Tool>? = null,
+    toolsOverride: List<com.google.genai.types.Tool>? = null,
     plannerOverride: Planner? = null,
     criticOverride: Critic? = null,
     executorOverride: Executor? = null

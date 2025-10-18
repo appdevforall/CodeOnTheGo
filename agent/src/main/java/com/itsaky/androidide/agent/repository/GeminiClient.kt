@@ -42,7 +42,7 @@ class GeminiClient(
      */
     fun generateContent(
         history: List<Content>,
-        tools: List<Tool>,
+        tools: List<com.google.genai.types.Tool>,
         forceToolUse: Boolean = false
     ): GenerateContentResponse {
         checkTokenLimit(history)
@@ -65,7 +65,7 @@ class GeminiClient(
      * Builds the configuration object for the Gemini API call.
      */
     private fun buildGenerateContentConfig(
-        tools: List<Tool>,
+        tools: List<com.google.genai.types.Tool>,
         forceToolUse: Boolean
     ): GenerateContentConfig {
         val configBuilder = GenerateContentConfig.builder().tools(tools)

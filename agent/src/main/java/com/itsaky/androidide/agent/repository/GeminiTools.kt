@@ -260,18 +260,18 @@ private val shell = FunctionDeclaration.builder()
     .build()
 
 // Create the final list of Tool objects that the Gemini client will use
-val allAgentTools: List<Tool> = listOf(
-    Tool.builder().functionDeclarations(createFile).build(),
-    Tool.builder().functionDeclarations(readFile).build(),
-    Tool.builder().functionDeclarations(updateFile).build(),
-    Tool.builder().functionDeclarations(deleteFile).build(),
-    Tool.builder().functionDeclarations(listDir).build(),
-    Tool.builder().functionDeclarations(searchProject).build(),
-    Tool.builder().functionDeclarations(readMultipleFiles).build(),
-    Tool.builder().functionDeclarations(addDependency).build(),
-    Tool.builder().functionDeclarations(addStringResource).build(),
-    Tool.builder().functionDeclarations(runApp).build(),
-    Tool.builder().functionDeclarations(triggerGradleSync).build(),
-    Tool.builder().functionDeclarations(getBuildOutput).build(),
-    Tool.builder().functionDeclarations(shell).build()
+val allAgentTools: List<com.google.genai.types.Tool> = listOf(
+    com.google.genai.types.Tool.builder().functionDeclarations(createFile).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(readFile).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(updateFile).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(deleteFile).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(listDir).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(searchProject).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(readMultipleFiles).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(addDependency).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(addStringResource).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(runApp).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(triggerGradleSync).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(getBuildOutput).build(),
+    com.google.genai.types.Tool.builder().functionDeclarations(shell).build()
 )
