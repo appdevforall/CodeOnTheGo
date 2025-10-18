@@ -1037,7 +1037,7 @@ abstract class BaseAgenticRunner(
         _plan.value = null
     }
 
-    private fun addMessage(
+    protected fun addMessage(
         text: String,
         sender: Sender,
         diffChanges: Map<Path, FileChange>? = null

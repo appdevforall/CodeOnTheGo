@@ -49,7 +49,193 @@ class LocalAgenticRunner(
             onStateUpdate?.invoke(AgentState.Error("Local LLM model is not loaded."))
             return
         }
-        super.generateASimpleResponse(prompt, history)
+
+        // If simplified instructions are enabled, use the simpler workflow
+        if (shouldUseSimplifiedInstructions()) {
+            runSimplifiedWorkflow(prompt, history)
+        } else {
+            super.generateASimpleResponse(prompt, history)
+        }
+    }
+
+    /**
+     * Simplified workflow that bypasses multi-step planning for simple queries.
+     * Makes a single LLM call to either respond directly or select a tool.
+     */
+    private suspend fun runSimplifiedWorkflow(prompt: String, history: List<ChatMessage>) {
+        onStateUpdate?.invoke(AgentState.Initializing("Processing request..."))
+        loadHistory(history)
+        addMessage(prompt, Sender.USER)
+
+        try {
+            // Select relevant tools based on query intent
+            val relevantTools = selectToolsForQuery(prompt)
+
+            // Build simplified prompt
+            val simplifiedPrompt = buildSimplifiedPrompt(prompt, history, relevantTools)
+
+            // Single LLM call for tool selection or direct response
+            onStateUpdate?.invoke(AgentState.Thinking("Analyzing request..."))
+            val responseText =
+                engine.runInference(simplifiedPrompt, stopStrings = listOf("</tool_call>", "\n\n"))
+
+            // Try to parse as tool call
+            val relevantToolNames = relevantTools.map { it.name }.toSet()
+            val parsedCall = Util.parseToolCall(responseText, relevantToolNames)
+
+            if (parsedCall != null) {
+                // Tool call parsed successfully - execute it
+                log.info("Simplified workflow: executing tool '{}'", parsedCall.name)
+                onStateUpdate?.invoke(AgentState.Thinking("Using ${parsedCall.name}..."))
+
+                val toolResult = executeToolCall(parsedCall)
+                val resultMessage = formatToolResult(parsedCall, toolResult)
+
+                addMessage(resultMessage, Sender.AGENT)
+                onStateUpdate?.invoke(AgentState.Idle)
+            } else {
+                // No tool call - treat as direct response
+                log.info("Simplified workflow: direct response (no tool needed)")
+                val cleanResponse = responseText.trim().takeWhile { it != '<' }.trim()
+                addMessage(cleanResponse, Sender.AGENT)
+                onStateUpdate?.invoke(AgentState.Idle)
+            }
+
+        } catch (err: Exception) {
+            log.error("Simplified workflow failed", err)
+            onStateUpdate?.invoke(AgentState.Error("Failed to process request: ${err.message}"))
+            addMessage("I encountered an error: ${err.message}", Sender.AGENT)
+        }
+    }
+
+    /**
+     * Select relevant tools based on the user's query intent.
+     * Returns only general assistant tools for non-IDE queries.
+     */
+    private fun selectToolsForQuery(query: String): List<LocalToolDeclaration> {
+        val lowerQuery = query.lowercase()
+
+        // Keywords that suggest IDE-related tasks
+        val ideKeywords = listOf(
+            "file", "build", "gradle", "dependency", "dependencies", "run", "debug",
+            "code", "create", "edit", "modify", "delete", "class", "function",
+            "project", "compile", "install", "add", "remove", "import"
+        )
+
+        val isIdeQuery = ideKeywords.any { lowerQuery.contains(it) }
+
+        return if (isIdeQuery) {
+            // Show all tools for IDE-related queries
+            toolsForPrompt
+        } else {
+            // Show only general assistant tools for simple queries
+            val generalToolNames =
+                setOf("get_current_datetime", "get_device_battery", "get_weather")
+            toolsForPrompt.filter { it.name in generalToolNames }
+        }
+    }
+
+    /**
+     * Build a simplified prompt for direct tool calling without multi-step planning.
+     */
+    private fun buildSimplifiedPrompt(
+        userMessage: String,
+        history: List<ChatMessage>,
+        tools: List<LocalToolDeclaration>
+    ): String {
+        val toolsJson = tools.joinToString(",\n  ") { tool ->
+            val escapedDescription = tool.description.replace("\"", "\\\"")
+            val args = if (tool.parameters.isEmpty()) {
+                ""
+            } else {
+                val formattedArgs = tool.parameters.entries.joinToString(", ") { (name, desc) ->
+                    val escaped = desc.replace("\"", "\\\"")
+                    "\"$name\": \"$escaped\""
+                }
+                ", \"args\": { $formattedArgs }"
+            }
+            "{ \"name\": \"${tool.name}\", \"description\": \"$escapedDescription\"$args }"
+        }
+
+        // Include recent conversation history for context
+        val historyContext = if (history.isEmpty()) {
+            ""
+        } else {
+            val recentHistory = history.takeLast(5).joinToString("\n") { msg ->
+                val senderName = when (msg.sender) {
+                    Sender.USER -> "User"
+                    Sender.AGENT -> "Assistant"
+                    Sender.TOOL -> "Tool"
+                    else -> "System"
+                }
+                "$senderName: ${msg.text}"
+            }
+            "\nConversation history:\n$recentHistory\n"
+        }
+
+        return """
+You are a helpful assistant. You can answer questions directly or use tools when needed.
+
+Available tools:
+[
+  $toolsJson
+]
+
+To use a tool, respond with a <tool_call> tag containing a JSON object:
+<tool_call>{"name": "tool_name", "args": {"argument_name": "value"}}</tool_call>
+
+To answer directly without a tool, just write your response as plain text.
+$historyContext
+User: $userMessage
+Assistant:""".trimIndent()
+    }
+
+    /**
+     * Execute a tool call and return the result.
+     */
+    private suspend fun executeToolCall(toolCall: LocalLLMToolCall): String {
+        return try {
+            // Convert LocalLLMToolCall to FunctionCall
+            val functionCall = FunctionCall.builder()
+                .name(toolCall.name)
+                .args(toolCall.args)
+                .build()
+
+            // Execute using the base class executor
+            val results = executor.execute(listOf(functionCall))
+
+            // Format the results
+            if (results.isEmpty()) {
+                "Tool executed successfully."
+            } else {
+                results.joinToString("\n") { part ->
+                    when {
+                        part.text().isPresent -> part.text().get()
+                        part.functionResponse().isPresent -> {
+                            val response = part.functionResponse().get()
+                            response.response().toString()
+                        }
+
+                        else -> "Tool executed."
+                    }
+                }
+            }
+        } catch (err: Exception) {
+            log.error("Tool execution failed for '{}'", toolCall.name, err)
+            "Error executing tool: ${err.message}"
+        }
+    }
+
+    /**
+     * Format tool result into a user-friendly message.
+     */
+    private fun formatToolResult(toolCall: LocalLLMToolCall, result: String): String {
+        return when (toolCall.name) {
+            "get_current_datetime" -> result
+            "get_device_battery" -> result
+            "get_weather" -> result
+            else -> "Result: $result"
+        }
     }
 
     override fun buildInitialContent(): Content {
@@ -103,37 +289,28 @@ class LocalAgenticRunner(
     ): Content {
         val prompt = buildToolSelectionPrompt(plan, stepIndex)
 
-        return try {
-            val responseText = engine.runInference(prompt, stopStrings = listOf("</tool_call>"))
-            val parsedCall = Util.parseToolCall(responseText, toolNames)
-            if (parsedCall != null) {
-                val functionCall = FunctionCall.builder()
-                    .name(parsedCall.name)
-                    .args(parsedCall.args.mapValues { it.value })
-                    .build()
-                Content.builder()
-                    .role("model")
-                    .parts(
-                        Part.builder()
-                            .functionCall(functionCall)
-                            .build()
-                    )
-                    .build()
-            } else {
-                Content.builder()
-                    .role("model")
-                    .parts(Part.builder().text(responseText.trim()).build())
-                    .build()
-            }
-        } catch (err: Exception) {
-            log.error("Failed to select tool for step {}", stepIndex, err)
+        // Don't catch exceptions here - let them propagate so retry logic can handle them
+        // without polluting conversation history with error messages
+        val responseText = engine.runInference(prompt, stopStrings = listOf("</tool_call>"))
+        val parsedCall = Util.parseToolCall(responseText, toolNames)
+
+        return if (parsedCall != null) {
+            val functionCall = FunctionCall.builder()
+                .name(parsedCall.name)
+                .args(parsedCall.args.mapValues { it.value })
+                .build()
             Content.builder()
                 .role("model")
                 .parts(
                     Part.builder()
-                        .text("I encountered an error while choosing a tool: ${err.message}")
+                        .functionCall(functionCall)
                         .build()
                 )
+                .build()
+        } else {
+            Content.builder()
+                .role("model")
+                .parts(Part.builder().text(responseText.trim()).build())
                 .build()
         }
     }

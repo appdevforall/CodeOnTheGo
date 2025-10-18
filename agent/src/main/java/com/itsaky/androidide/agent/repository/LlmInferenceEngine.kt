@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -106,7 +105,17 @@ class LlmInferenceEngine(
         llama.clearKvCache()
         log.info(">>> Local LLM Prompt >>>\n{}\n<<< End Local LLM Prompt <<<", prompt)
         val result = withContext(ioDispatcher) {
-            llama.send(prompt, stop = stopStrings).reduce { acc, s -> acc + s }
+            val builder = StringBuilder()
+            val stream = llama.send(prompt, stop = stopStrings)
+            try {
+                stream.collect { chunk ->
+                    builder.append(chunk)
+                }
+            } catch (err: Throwable) {
+                log.error("Local LLM streaming inference failed.", err)
+                throw err
+            }
+            builder.toString()
         }
         log.info("<<< Local LLM Raw Output <<<\n{}\n<<< End Local LLM Output <<<", result)
         return result

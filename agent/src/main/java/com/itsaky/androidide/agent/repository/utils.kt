@@ -64,14 +64,36 @@ object Util {
     }
 
     private fun findPotentialJsonObjectString(responseText: String): String? {
-        // This function is now simpler. It just looks for the content between the first '{' and the last '}'.
-        // This is robust enough to handle markdown code blocks or raw JSON output.
-        val firstBraceIndex = responseText.indexOf('{')
-        val lastBraceIndex = responseText.lastIndexOf('}')
+        // Strip common LLM artifacts: markdown code fences, XML tags, conversational prefixes
+        var cleaned = responseText
+            .replace(Regex("```json\\s*"), "")
+            .replace(Regex("```\\s*"), "")
+            .replace(Regex("<tool_call>\\s*"), "")
+            .replace(Regex("</tool_call>\\s*"), "")
+            .trim()
+
+        // Remove conversational prefixes like "Current step (2/3):" or "Here is the tool call:"
+        val colonIndex = cleaned.indexOf(':')
+        if (colonIndex != -1 && colonIndex < 100) { // Only if colon is near the start
+            val beforeColon = cleaned.substring(0, colonIndex).trim()
+            // Check if it looks like a conversational prefix (no braces before colon)
+            if (!beforeColon.contains('{') && !beforeColon.contains('}')) {
+                val afterColon = cleaned.substring(colonIndex + 1).trim()
+                if (afterColon.startsWith('{')) {
+                    cleaned = afterColon
+                }
+            }
+        }
+
+        // Look for the content between the first '{' and the last '}'
+        val firstBraceIndex = cleaned.indexOf('{')
+        val lastBraceIndex = cleaned.lastIndexOf('}')
 
         if (firstBraceIndex != -1 && lastBraceIndex != -1 && firstBraceIndex < lastBraceIndex) {
-            return responseText.substring(firstBraceIndex, lastBraceIndex + 1)
+            return cleaned.substring(firstBraceIndex, lastBraceIndex + 1)
         }
+
+        logger.debug("Could not find valid JSON braces in cleaned text: '{}'", cleaned.take(200))
         return null
     }
 
