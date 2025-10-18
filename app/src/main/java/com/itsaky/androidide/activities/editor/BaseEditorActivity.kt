@@ -119,7 +119,7 @@ import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
-import com.itsaky.androidide.utils.IntentUtils
+import com.itsaky.androidide.utils.AppIntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
@@ -539,7 +539,7 @@ abstract class BaseEditorActivity :
 		val performLaunch = {
 			activityScope.launch {
 				debuggerViewModel.debugeePackage = packageName
-				IntentUtils.launchApp(
+                AppIntentUtils.launchApp(
 					context = context,
 					packageName = packageName,
 					debug = debug,

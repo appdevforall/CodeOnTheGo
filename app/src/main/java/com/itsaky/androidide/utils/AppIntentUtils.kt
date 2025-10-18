@@ -29,15 +29,15 @@ import rikka.shizuku.Shizuku
 import java.io.File
 
 /**
- * Utilities for sharing files and launching applications.
+ * App-specific intent utilities for file sharing, image handling, and app launching.
  *
- * This extends BaseIntentUtils from the common module with app-specific functionality
+ * This extends FileShareUtils from the common module with app-specific functionality
  * for image handling and application launching.
  *
  * @author Akash Yadav
  */
-object IntentUtils {
-	private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
+object AppIntentUtils {
+    private val logger = LoggerFactory.getLogger(AppIntentUtils::class.java)
 
 	private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
 
@@ -75,8 +75,8 @@ object IntentUtils {
 		file: File,
 		mimeType: String,
 	) {
-        // Delegate to BaseIntentUtils in common module to avoid code duplication
-        BaseIntentUtils.shareFile(context, file, mimeType)
+        // Delegate to FileShareUtils in common module to avoid code duplication
+        FileShareUtils.shareFile(context, file, mimeType)
 	}
 
 	@JvmStatic
@@ -87,8 +87,8 @@ object IntentUtils {
         mimeType: String = "*/*",
 		intentAction: String = Intent.ACTION_SEND,
 	) {
-        // Delegate to BaseIntentUtils in common module to avoid code duplication
-        BaseIntentUtils.startIntent(context, file, mimeType, intentAction)
+        // Delegate to FileShareUtils in common module to avoid code duplication
+        FileShareUtils.startIntent(context, file, mimeType, intentAction)
 	}
 
 	/**

@@ -27,7 +27,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
 import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.utils.IntentUtils
+import com.itsaky.androidide.utils.AppIntentUtils
 import com.itsaky.androidide.utils.flashError
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -87,7 +87,7 @@ class LaunchAppAction(context: Context, override val order: Int) : EditorActivit
 
             val activity = data.requireActivity()
             activity.activityScope.launch {
-                IntentUtils.launchApp(
+                AppIntentUtils.launchApp(
 					context = activity,
 					packageName = applicationId,
 					logError = false

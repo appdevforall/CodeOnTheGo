@@ -4,7 +4,7 @@ import android.content.Context
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
-import com.itsaky.androidide.utils.IntentUtils
+import com.itsaky.androidide.utils.AppIntentUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -35,7 +35,7 @@ class RestartVmAction(
 
 		// then launch the debugee again
 		withContext(Dispatchers.Main.immediate) {
-			IntentUtils.launchApp(
+            AppIntentUtils.launchApp(
 				context = context,
 				packageName = debugClient.debugeePackage,
 				debug = true,
