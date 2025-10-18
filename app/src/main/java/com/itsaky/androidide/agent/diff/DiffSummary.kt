@@ -1,6 +1,7 @@
 package com.itsaky.androidide.agent.diff
 
 import com.itsaky.androidide.agent.protocol.FileChange
+import com.itsaky.androidide.agent.util.splitLinesPreserveEnding
 import java.nio.file.Path
 
 data class DiffStats(
@@ -49,9 +50,5 @@ fun formatDiffSummary(changes: Map<Path, FileChange>): String {
 
 private fun countFileLines(content: String): Int {
     if (content.isEmpty()) return 0
-    val parts = content.split('\n', ignoreCase = false, limit = -1)
-    if (parts.isEmpty()) return 0
-    val trailingBlank = parts.last().isEmpty()
-    val count = parts.size
-    return if (trailingBlank) count - 1 else count
+    return content.splitLinesPreserveEnding().size
 }

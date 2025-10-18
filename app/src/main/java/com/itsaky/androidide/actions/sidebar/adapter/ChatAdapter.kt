@@ -28,6 +28,7 @@ import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.diff.calculateDiffStats
 import com.itsaky.androidide.agent.protocol.FileChange
+import com.itsaky.androidide.agent.util.splitLinesPreserveEnding
 import com.itsaky.androidide.databinding.ListItemChatDiffBinding
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
 import com.itsaky.androidide.databinding.ListItemChatSystemMessageBinding
@@ -369,19 +370,11 @@ class ChatAdapter(
     }
 
     private fun splitContentLines(content: String): List<String> {
-        return splitLinesPreserveEnding(content)
+        return content.splitLinesPreserveEnding()
     }
 
     private fun splitDiffLines(diff: String): List<String> {
-        return splitLinesPreserveEnding(diff)
-    }
-
-    private fun splitLinesPreserveEnding(value: String): List<String> {
-        if (value.isEmpty()) return emptyList()
-        val parts = value.splitToSequence('\n').toList()
-        if (parts.isEmpty()) return emptyList()
-        val trimmed = if (parts.last().isEmpty()) parts.dropLast(1) else parts
-        return trimmed.map { line -> line.removeSuffix("\r") }
+        return diff.splitLinesPreserveEnding()
     }
 
     private fun formatSenderLabel(sender: Sender): String {
