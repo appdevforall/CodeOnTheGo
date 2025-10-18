@@ -99,7 +99,8 @@ class AgentDiffTracker(
 
     private fun String.toDiffLines(): List<String> {
         if (isEmpty()) return emptyList()
-        val parts = split('\n', ignoreCase = false, limit = -1)
+        // Use limit = 0 for unlimited splits (Kotlin requires non-negative limit)
+        val parts = split('\n', ignoreCase = false, limit = 0)
         if (parts.isEmpty()) return emptyList()
         return if (parts.last().isEmpty()) {
             parts.dropLast(1)
