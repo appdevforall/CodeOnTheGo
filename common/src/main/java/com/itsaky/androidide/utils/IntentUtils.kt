@@ -12,8 +12,8 @@ import java.io.File
  *
  * @author Akash Yadav
  */
-object IntentUtils {
-    private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
+object BaseIntentUtils {
+    private val logger = LoggerFactory.getLogger(BaseIntentUtils::class.java)
 
     private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
 

@@ -40,7 +40,7 @@ import com.itsaky.androidide.agent.ui.ChatAdapter.DiffCallback.ACTION_EDIT
 import com.itsaky.androidide.agent.viewmodel.ChatViewModel
 import com.itsaky.androidide.events.TokenUsageEvent
 import com.itsaky.androidide.fragments.EmptyStateFragment
-import com.itsaky.androidide.utils.IntentUtils
+import com.itsaky.androidide.utils.BaseIntentUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import io.noties.markwon.Markwon
@@ -814,7 +814,7 @@ class ChatFragment :
 
         try {
             file.writeText(transcript, Charsets.UTF_8)
-            IntentUtils.shareFile(ctx, file, "text/plain")
+            BaseIntentUtils.shareFile(ctx, file, "text/plain")
         } catch (err: IOException) {
             logger.error("Failed to share chat transcript", err)
             flashInfo(getString(R.string.copy_chat_share_failed))

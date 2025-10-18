@@ -21,8 +21,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.core.app.ShareCompat
-import androidx.core.content.FileProvider
 import com.blankj.utilcode.util.ImageUtils
 import com.blankj.utilcode.util.ImageUtils.ImageType.TYPE_UNKNOWN
 import com.itsaky.androidide.R
@@ -31,7 +29,10 @@ import rikka.shizuku.Shizuku
 import java.io.File
 
 /**
- * Utilities for sharing files.
+ * Utilities for sharing files and launching applications.
+ *
+ * This extends BaseIntentUtils from the common module with app-specific functionality
+ * for image handling and application launching.
  *
  * @author Akash Yadav
  */
@@ -39,10 +40,6 @@ object IntentUtils {
 	private val logger = LoggerFactory.getLogger(IntentUtils::class.java)
 
 	private const val RESULT_LAUNCH_APP_INTENT_SENDER = 223
-
-	// using '*/*' results in weird syntax highlighting on github
-	// use this as a workaround
-	private const val MIME_ANY = "*" + "/" + "*"
 
 	@JvmStatic
 	fun openImage(
@@ -78,7 +75,8 @@ object IntentUtils {
 		file: File,
 		mimeType: String,
 	) {
-		startIntent(context = context, file = file, mimeType = mimeType)
+        // Delegate to BaseIntentUtils in common module to avoid code duplication
+        BaseIntentUtils.shareFile(context, file, mimeType)
 	}
 
 	@JvmStatic
@@ -86,26 +84,11 @@ object IntentUtils {
 	fun startIntent(
 		context: Context,
 		file: File,
-		mimeType: String = MIME_ANY,
+        mimeType: String = "*/*",
 		intentAction: String = Intent.ACTION_SEND,
 	) {
-		val uri =
-			FileProvider.getUriForFile(
-				context,
-				"${context.packageName}.providers.fileprovider",
-				file,
-			)
-		val intent =
-			ShareCompat
-				.IntentBuilder(context)
-				.setType(mimeType)
-				.setStream(uri)
-				.intent
-				.setAction(intentAction)
-				.setDataAndType(uri, mimeType)
-				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-
-		context.startActivity(Intent.createChooser(intent, null))
+        // Delegate to BaseIntentUtils in common module to avoid code duplication
+        BaseIntentUtils.startIntent(context, file, mimeType, intentAction)
 	}
 
 	/**
