@@ -64,12 +64,20 @@ object Util {
     }
 
     private fun findPotentialJsonObjectString(responseText: String): String? {
-        // Strip common LLM artifacts: markdown code fences, XML tags, conversational prefixes
+        // First, try to extract content within <tool_call> tags if present
+        val toolCallMatch =
+            Regex("<tool_call>\\s*(.+?)\\s*</tool_call>", RegexOption.DOT_MATCHES_ALL)
+                .find(responseText)
+        if (toolCallMatch != null) {
+            val extracted = toolCallMatch.groupValues[1].trim()
+            logger.debug("Found content in <tool_call> tags: '{}'", extracted.take(100))
+            return extractFirstJsonObject(extracted)
+        }
+
+        // Strip common LLM artifacts: markdown code fences
         var cleaned = responseText
             .replace(Regex("```json\\s*"), "")
             .replace(Regex("```\\s*"), "")
-            .replace(Regex("<tool_call>\\s*"), "")
-            .replace(Regex("</tool_call>\\s*"), "")
             .trim()
 
         // Remove conversational prefixes like "Current step (2/3):" or "Here is the tool call:"
@@ -85,15 +93,51 @@ object Util {
             }
         }
 
-        // Look for the content between the first '{' and the last '}'
-        val firstBraceIndex = cleaned.indexOf('{')
-        val lastBraceIndex = cleaned.lastIndexOf('}')
+        return extractFirstJsonObject(cleaned)
+    }
 
-        if (firstBraceIndex != -1 && lastBraceIndex != -1 && firstBraceIndex < lastBraceIndex) {
-            return cleaned.substring(firstBraceIndex, lastBraceIndex + 1)
+    /**
+     * Extracts the FIRST complete JSON object from the string,
+     * ignoring any text that comes after it (like hallucinated conversation turns).
+     */
+    private fun extractFirstJsonObject(text: String): String? {
+        val firstBraceIndex = text.indexOf('{')
+        if (firstBraceIndex == -1) {
+            logger.debug("No opening brace '{' found in text")
+            return null
         }
 
-        logger.debug("Could not find valid JSON braces in cleaned text: '{}'", cleaned.take(200))
+        // Use a brace counter to find the matching closing brace
+        var braceCount = 0
+        var inString = false
+        var escapeNext = false
+
+        for (i in firstBraceIndex until text.length) {
+            val char = text[i]
+
+            // Handle string parsing (to ignore braces inside strings)
+            when {
+                escapeNext -> escapeNext = false
+                char == '\\' -> escapeNext = true
+                char == '"' -> inString = !inString
+                inString -> continue // Skip all other characters while in a string
+                char == '{' -> braceCount++
+                char == '}' -> {
+                    braceCount--
+                    if (braceCount == 0) {
+                        // Found the matching closing brace for the first JSON object
+                        val jsonString = text.substring(firstBraceIndex, i + 1)
+                        logger.debug(
+                            "Extracted first complete JSON object (length: {})",
+                            jsonString.length
+                        )
+                        return jsonString
+                    }
+                }
+            }
+        }
+
+        logger.debug("Could not find matching closing brace for JSON object")
         return null
     }
 

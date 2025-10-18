@@ -76,8 +76,15 @@ class LocalAgenticRunner(
 
             // Single LLM call for tool selection or direct response
             onStateUpdate?.invoke(AgentState.Thinking("Analyzing request..."))
-            val responseText =
-                engine.runInference(simplifiedPrompt, stopStrings = listOf("</tool_call>", "\n\n"))
+            val responseText = engine.runInference(
+                simplifiedPrompt,
+                stopStrings = listOf(
+                    "</tool_call>",  // Stop after closing tool_call tag
+                    "\nuser:",        // Stop if model starts hallucinating new user turn
+                    "\nUser:",        // Alternative capitalization
+                    "\n\n"           // Stop at double newline for direct answers
+                )
+            )
 
             // Try to parse as tool call
             val relevantToolNames = relevantTools.map { it.name }.toSet()
@@ -137,6 +144,7 @@ class LocalAgenticRunner(
 
     /**
      * Build a simplified prompt for direct tool calling without multi-step planning.
+     * Uses the structure from the "desired" behavior with examples.
      */
     private fun buildSimplifiedPrompt(
         userMessage: String,
@@ -158,19 +166,18 @@ class LocalAgenticRunner(
         }
 
         // Include recent conversation history for context
-        val historyContext = if (history.isEmpty()) {
+        val conversationHistory = if (history.isEmpty()) {
             ""
         } else {
-            val recentHistory = history.takeLast(5).joinToString("\n") { msg ->
+            history.takeLast(5).joinToString("\n") { msg ->
                 val senderName = when (msg.sender) {
-                    Sender.USER -> "User"
-                    Sender.AGENT -> "Assistant"
-                    Sender.TOOL -> "Tool"
-                    else -> "System"
+                    Sender.USER -> "user"
+                    Sender.AGENT -> "model"
+                    Sender.TOOL -> "tool"
+                    else -> "system"
                 }
                 "$senderName: ${msg.text}"
-            }
-            "\nConversation history:\n$recentHistory\n"
+            } + "\n"
         }
 
         return """
@@ -181,13 +188,24 @@ Available tools:
   $toolsJson
 ]
 
-To use a tool, respond with a <tool_call> tag containing a JSON object:
-<tool_call>{"name": "tool_name", "args": {"argument_name": "value"}}</tool_call>
+To use a tool, respond with a single <tool_call> XML tag containing a JSON object.
+If no tool is needed, answer the user's question directly.
 
-To answer directly without a tool, just write your response as plain text.
-$historyContext
-User: $userMessage
-Assistant:""".trimIndent()
+Respond ONLY with a single <tool_call> tag OR your direct text answer. Do not add any other text before or after.
+
+EXAMPLE:
+user: What is the weather like in Paris?
+model: <tool_call>{"name": "get_weather", "args": {"city": "Paris"}}</tool_call>
+
+user: What time is it?
+model: <tool_call>{"name": "get_current_datetime", "args": {}}</tool_call>
+
+user: Hello!
+model: Hello! How can I help you today?
+
+**CONVERSATION:**
+${conversationHistory}user: $userMessage
+model: """.trimIndent()
     }
 
     /**
