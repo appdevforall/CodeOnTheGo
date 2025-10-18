@@ -26,27 +26,53 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
+import com.google.android.material.button.MaterialButton
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.OnboardingActivity
 import com.itsaky.androidide.adapters.onboarding.OnboardingPermissionsAdapter
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
 import com.itsaky.androidide.models.OnboardingPermissionItem
+import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastT
+import com.itsaky.androidide.utils.viewLifecycleScope
+import com.itsaky.androidide.viewmodel.InstallationState
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationComplete
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationError
+import com.itsaky.androidide.viewmodel.InstallationState.Installing
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
+import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
+import com.itsaky.androidide.viewmodel.InstallationViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**
  * @author Akash Yadav
  */
 class PermissionsFragment :
-	OnboardingMultiActionFragment(),
+	OnboardingFragment(),
 	SlidePolicy {
 	var adapter: OnboardingPermissionsAdapter? = null
+	private val viewModel: InstallationViewModel by viewModels()
+	private var permissionsBinding: LayoutOnboardingPermissionsBinding? = null
+	private var recyclerView: RecyclerView? = null
+	private var finishButton: MaterialButton? = null
 
 	private val storagePermissionRequestLauncher =
 		registerForActivityResult(
@@ -182,7 +208,69 @@ class PermissionsFragment :
 			) == PackageManager.PERMISSION_GRANTED
 	}
 
-	override fun createAdapter(): RecyclerView.Adapter<*> =
+	override fun createContentView(parent: ViewGroup, attachToParent: Boolean) {
+		permissionsBinding = LayoutOnboardingPermissionsBinding.inflate(layoutInflater, parent, attachToParent)
+		permissionsBinding?.let { b ->
+			recyclerView = b.onboardingItems
+			finishButton = b.finishInstallationButton
+
+			b.onboardingItems.adapter = createAdapter()
+
+			b.finishInstallationButton.setOnClickListener {
+				startIdeSetup()
+			}
+		}
+	}
+
+	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+		super.onViewCreated(view, savedInstanceState)
+		observeViewModelState()
+
+		val allGranted = areAllPermissionsGranted(requireContext())
+		viewModel.onPermissionsUpdated(allGranted)
+	}
+
+	private fun observeViewModelState() {
+		viewLifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				viewModel.state.collect { state ->
+					handleState(state)
+				}
+			}
+		}
+	}
+
+	private fun handleState(state: InstallationState) {
+		when (state) {
+			is InstallationPending -> {
+				finishButton?.isEnabled = false
+			}
+			is InstallationGranted -> {
+				finishButton?.isEnabled = true
+			}
+			is Installing -> {
+				finishButton?.isEnabled = false
+			}
+			is InstallationComplete -> {
+				finishButton?.text = getString(R.string.finish_installation)
+				activity?.flashSuccess(getString(R.string.ide_setup_complete))
+			}
+			is InstallationError -> {
+				finishButton?.isEnabled = true
+				finishButton?.text = getString(R.string.finish_installation)
+				activity?.flashError(getString(state.errorMessageResId))
+			}
+		}
+	}
+
+	override fun onDestroyView() {
+		super.onDestroyView()
+		permissionsBinding = null
+		recyclerView = null
+		finishButton = null
+	}
+
+	private fun createAdapter(): RecyclerView.Adapter<*> =
 		OnboardingPermissionsAdapter(
 			permissions,
 			this::requestPermission,
@@ -191,6 +279,49 @@ class PermissionsFragment :
 	private fun onPermissionsUpdated() {
 		permissions.forEach { it.isGranted = isPermissionGranted(requireContext(), it.permission) }
 		recyclerView?.adapter = createAdapter()
+
+		val allGranted = areAllPermissionsGranted(requireContext())
+		viewModel.onPermissionsUpdated(allGranted)
+	}
+
+	private fun startIdeSetup() {
+		if (viewModel.isSetupComplete()) {
+			(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
+			return
+		}
+
+		viewLifecycleScope.launch {
+			doAsyncWithProgress(
+				Dispatchers.IO,
+				configureFlashbar = { builder, _ ->
+					builder.title(getString(R.string.ide_setup_in_progress))
+				},
+			) { flashbar, _ ->
+				// Launch progress collector as a child coroutine
+				launch(Dispatchers.Main) {
+					viewModel.installationProgress.collect { progress ->
+						if (progress.isNotEmpty()) {
+							flashbar.flashbarView.setMessage(progress)
+						}
+					}
+				}
+
+				viewModel.startIdeSetup(requireContext())
+
+				viewModel.state.first { state ->
+					when (state) {
+						is InstallationComplete -> {
+							withContext(Dispatchers.Main) {
+								(activity as? OnboardingActivity)?.tryNavigateToMainIfSetupIsCompleted()
+							}
+							true
+						}
+						is InstallationError -> true
+						else -> false
+					}
+				}
+			}
+		}
 	}
 
 	private fun requestPermission(permission: String) {
@@ -202,12 +333,6 @@ class PermissionsFragment :
 				)
 
 			Manifest.permission.SYSTEM_ALERT_WINDOW -> requestSettingsTogglePermission(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-			Manifest.permission.BIND_ACCESSIBILITY_SERVICE ->
-				requestSettingsTogglePermission(
-					Settings.ACTION_ACCESSIBILITY_SETTINGS,
-					false,
-				)
-
 			Manifest.permission.POST_NOTIFICATIONS ->
 				requestSettingsTogglePermission(
 					Settings.ACTION_APP_NOTIFICATION_SETTINGS,
@@ -248,9 +373,13 @@ class PermissionsFragment :
 	}
 
 	override val isPolicyRespected: Boolean
-		get() = permissions.all { it.isOptional || it.isGranted }
+		get() = permissions.all { it.isOptional || it.isGranted } && viewModel.isSetupComplete()
 
 	override fun onUserIllegallyRequestedNextPage() {
-		activity?.flashError(R.string.msg_grant_permissions)
+		if (!permissions.all { it.isOptional || it.isGranted }) {
+			activity?.flashError(R.string.msg_grant_permissions)
+		} else if (!viewModel.isSetupComplete()) {
+			activity?.flashError(R.string.msg_complete_ide_setup)
+		}
 	}
 }
