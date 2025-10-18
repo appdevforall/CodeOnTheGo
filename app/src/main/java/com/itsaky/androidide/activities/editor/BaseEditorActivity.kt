@@ -491,7 +491,7 @@ abstract class BaseEditorActivity :
         // Request insets again to handle Samsung Dex caption bar
         // This ensures the toolbar padding is correct even when Dex decorations
         // are added after initial layout
-        content.editorAppBarLayout.post {
+        _binding?.content?.editorAppBarLayout?.post {
             window?.decorView?.requestApplyInsets()
         }
 	}
