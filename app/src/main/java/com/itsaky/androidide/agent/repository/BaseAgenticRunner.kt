@@ -384,17 +384,62 @@ abstract class BaseAgenticRunner(
                     if (functionCalls.isEmpty()) {
                         val responseText =
                             plannerParts.firstOrNull()?.text()?.getOrNull()?.trim()
-                        if (!responseText.isNullOrBlank()) {
-                            addMessage(responseText, Sender.AGENT)
-                        } else {
-                            addMessage(
-                                "Step ${stepIndex + 1} resolved without additional actions.",
-                                Sender.AGENT
-                            )
+
+                        // Determine if this is an exploration-only step based on description keywords
+                        val isExplorationStep = currentStep.description.lowercase().let { desc ->
+                            desc.contains("find") || desc.contains("locate") ||
+                                    desc.contains("identify") || desc.contains("determine") ||
+                                    desc.contains("inspect") || desc.contains("examine") ||
+                                    desc.contains("check") || desc.contains("look") ||
+                                    desc.contains("search") || desc.contains("discover") ||
+                                    desc.contains("understand") || desc.contains("analyze")
                         }
-                        markStepStatus(stepIndex, StepStatus.DONE, responseText)
-                        emitExecutingState(stepIndex)
-                        stepSucceeded = true
+
+                        if (isExplorationStep) {
+                            // Exploration steps can complete without tool calls
+                            if (!responseText.isNullOrBlank()) {
+                                addMessage(responseText, Sender.AGENT)
+                            } else {
+                                addMessage(
+                                    "Step ${stepIndex + 1} resolved without additional actions.",
+                                    Sender.AGENT
+                                )
+                            }
+                            markStepStatus(stepIndex, StepStatus.DONE, responseText)
+                            emitExecutingState(stepIndex)
+                            stepSucceeded = true
+                        } else {
+                            // Implementation/action steps should retry if no tools are called
+                            val message = if (!responseText.isNullOrBlank()) {
+                                addMessage(responseText, Sender.AGENT)
+                                responseText
+                            } else {
+                                val msg =
+                                    "No tool calls were made for this implementation step. Retrying with clarification..."
+                                addMessage(msg, Sender.SYSTEM)
+                                msg
+                            }
+
+                            attempts++
+                            if (attempts >= MAX_STEP_ATTEMPTS) {
+                                val errorMsg =
+                                    "Step '${currentStep.description}' requires actions but no tools were called after $MAX_STEP_ATTEMPTS attempts."
+                                addMessage(errorMsg, Sender.SYSTEM)
+                                markStepStatus(stepIndex, StepStatus.FAILED, errorMsg)
+                                emitExecutingState(stepIndex)
+                                throw RuntimeException(errorMsg)
+                            }
+
+                            // Keep step in progress and retry
+                            markStepStatus(stepIndex, StepStatus.IN_PROGRESS, message)
+                            emitExecutingState(stepIndex)
+
+                            // Add guidance to history to help planner understand it needs to act
+                            val guidancePart = Part.builder().text(
+                                "The previous response did not include any tool calls. For step '${currentStep.description}', you must call appropriate tools to accomplish the task. Please proceed with the necessary tool calls."
+                            ).build()
+                            history.add(Content.builder().role("user").parts(guidancePart).build())
+                        }
                         continue
                     }
 
