@@ -9,6 +9,7 @@ import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.prompt.ModelFamily
 import com.itsaky.androidide.agent.prompt.SystemPromptProvider
+import com.itsaky.androidide.app.BaseApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,7 +27,7 @@ class LocalAgenticRunner(
 ) : BaseAgenticRunner(
     context = context,
     modelFamily = ModelFamily(
-        id = "local-llm",
+        id = LOCAL_LLM_MODEL_ID,
         baseInstructions = SystemPromptProvider.get(context),
         supportsParallelToolCalls = false,
         needsSpecialApplyPatchInstructions = false
@@ -135,6 +136,35 @@ class LocalAgenticRunner(
                 )
                 .build()
         }
+    }
+
+    override fun shouldUseSimplifiedInstructions(): Boolean {
+        return BaseApplication.getBaseInstance()
+            .prefManager
+            .getBoolean(PREF_KEY_USE_SIMPLE_LOCAL_PROMPT, true)
+    }
+
+    override fun buildSimplifiedInstructionOverride(): String {
+        val toolDescriptions = toolsForPrompt.joinToString(",\n  ") { tool ->
+            val escapedDescription = tool.description.replace("\"", "\\\"")
+            val args = if (tool.parameters.isEmpty()) {
+                ""
+            } else {
+                val formattedArgs = tool.parameters.entries.joinToString(", ") { (name, desc) ->
+                    val escaped = desc.replace("\"", "\\\"")
+                    "\"$name\": \"$escaped\""
+                }
+                ", \"arguments\": { $formattedArgs }"
+            }
+            "{ \"name\": \"${tool.name}\", \"description\": \"$escapedDescription\"$args }"
+        }
+
+        return buildString {
+            append("You are a helpful assistant with access to the following tools:\n")
+            append("[\n  $toolDescriptions\n]\n\n")
+            append("To use a tool, respond with a single `<tool_call>` XML tag containing a JSON object with the tool's \"name\" and \"args\".\n")
+            append("If no tool is needed, answer the user's question directly.\n")
+        }.trimEnd()
     }
 
     private fun buildToolSelectionPrompt(plan: Plan, stepIndex: Int): String {

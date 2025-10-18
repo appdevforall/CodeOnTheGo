@@ -38,4 +38,13 @@
         android:text="Load from saved"
         tools:enabled="true" />
 
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/switch_simple_local_prompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/pref_use_simple_local_prompt"
+        android:checked="true"
+        style="@style/Widget.Material3.CompoundButton.MaterialSwitch"
+        android:layout_marginTop="16dp" />
+
 </LinearLayout>

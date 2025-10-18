@@ -12,6 +12,9 @@ android {
     buildFeatures {
         viewBinding = true
     }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 dependencies {
@@ -42,4 +45,9 @@ dependencies {
     implementation(libs.google.genai)
     "v7Implementation"(files("../app/libs/v7/llama-v7-release.aar"))
     "v8Implementation"(files("../app/libs/v8/llama-v8-release.aar"))
+
+    testImplementation(projects.testing.unit)
+    testImplementation("io.mockk:mockk:1.13.3")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.1")
 }

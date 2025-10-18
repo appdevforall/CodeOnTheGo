@@ -882,7 +882,15 @@ abstract class BaseAgenticRunner(
         else -> value
     }
 
+    protected open fun shouldUseSimplifiedInstructions(): Boolean = false
+
+    protected open fun buildSimplifiedInstructionOverride(): String = baseInstructions()
+
     private fun buildInstructionOverride(): String {
+        if (shouldUseSimplifiedInstructions()) {
+            return buildSimplifiedInstructionOverride()
+        }
+
         val currentTime = LocalDateTime.now()
         val formattedTime =
             "${currentTime.dayOfWeek}, ${currentTime.toLocalDate()} ${currentTime.hour}:${

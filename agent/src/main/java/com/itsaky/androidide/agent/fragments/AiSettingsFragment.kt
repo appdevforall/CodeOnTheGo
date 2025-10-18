@@ -16,6 +16,7 @@ import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -116,6 +117,7 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         val browseButton = view.findViewById<Button>(R.id.btn_browse_model)
         val loadSavedButton = view.findViewById<Button>(R.id.loadSavedButton)
         val modelStatusTextView = view.findViewById<TextView>(R.id.model_status_text_view)
+        val simplePromptSwitch = view.findViewById<MaterialSwitch>(R.id.switch_simple_local_prompt)
 
         viewModel.checkInitialSavedModel(requireContext())
 
@@ -124,6 +126,13 @@ class AiSettingsFragment : Fragment(R.layout.fragment_ai_settings) {
         }
 
         loadSavedButton.setOnClickListener { loadFromSaved() }
+
+        simplePromptSwitch?.apply {
+            isChecked = viewModel.isUseSimpleLocalPromptEnabled()
+            setOnCheckedChangeListener { _, isChecked ->
+                viewModel.setUseSimpleLocalPrompt(isChecked)
+            }
+        }
 
         viewModel.savedModelPath.observe(viewLifecycleOwner) { uri ->
             if (uri != null) {

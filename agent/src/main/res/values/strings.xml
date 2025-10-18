@@ -29,4 +29,5 @@
     <string name="api_key_cannot_be_empty">API Key cannot be empty.</string>
     <string name="obfuscated_api_key">••••••••••••••••••••</string>
     <string name="api_key_cleared">API Key cleared.</string>
+    <string name="pref_use_simple_local_prompt">Use simplified instructions for local models</string>
 </resources>

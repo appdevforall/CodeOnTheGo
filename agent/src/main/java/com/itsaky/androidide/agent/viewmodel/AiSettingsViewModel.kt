@@ -14,6 +14,7 @@ import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_GEMINI_MODEL
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
+import com.itsaky.androidide.agent.repository.PREF_KEY_USE_SIMPLE_LOCAL_PROMPT
 import com.itsaky.androidide.app.BaseApplication
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -113,6 +114,16 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
         }
         val savedUriString = getLocalModelPath()
         _savedModelPath.value = savedUriString
+    }
+
+    fun setUseSimpleLocalPrompt(enabled: Boolean) {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        prefs.putBoolean(PREF_KEY_USE_SIMPLE_LOCAL_PROMPT, enabled)
+    }
+
+    fun isUseSimpleLocalPromptEnabled(): Boolean {
+        val prefs = BaseApplication.getBaseInstance().prefManager
+        return prefs.getBoolean(PREF_KEY_USE_SIMPLE_LOCAL_PROMPT, true)
     }
 
     fun getGeminiApiKeySaveTimestamp(): Long {

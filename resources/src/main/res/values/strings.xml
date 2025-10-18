@@ -180,6 +180,8 @@
     <string name="idepref_editor_paintingflags_summary">Choose which non-printing characters (like tabs, spaces, and line breaks) are displayed.</string>
     <string name="idepref_editor_word_wrap_title">Word wrap</string>
     <string name="idepref_editor_word_wrap_summary">Break long lines of text or code into multiple lines so they fit in the visible window.</string>
+    <string name="idepref_editor_autoSave_title">Save files before closing</string>
+    <string name="idepref_editor_autoSave_summary">Save files before closing them. This is an EXPERIMENTAL feature; you are still expected to save files yourself.</string>
     <string name="idepref_editor_use_magnifier_title">Enable magnifier</string>
     <string name="idepref_editor_use_magnifier_summary">Long-press and hold to zoom in on the area around the cursor.</string>
     <string name="idepref_editor_title">Editor</string>
