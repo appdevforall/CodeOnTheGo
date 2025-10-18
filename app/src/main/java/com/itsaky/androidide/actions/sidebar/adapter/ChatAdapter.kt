@@ -32,6 +32,7 @@ import com.itsaky.androidide.databinding.ListItemChatDiffBinding
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
 import com.itsaky.androidide.databinding.ListItemChatSystemMessageBinding
 import io.noties.markwon.Markwon
+import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
@@ -49,6 +50,7 @@ class ChatAdapter(
     private val decimalSecondsFormatter = DecimalFormat("0.0")
 
     private val expandedMessageIds = mutableSetOf<String>()
+    private val logger = LoggerFactory.getLogger(ChatAdapter::class.java)
 
     private object ExpansionPayload
 
@@ -300,14 +302,32 @@ class ChatAdapter(
 
     private fun toDiffLines(path: Path, change: FileChange): List<String> {
         return when (change) {
-            is FileChange.Update -> splitDiffLines(change.unifiedDiff)
+            is FileChange.Update -> runCatching {
+                splitDiffLines(change.unifiedDiff)
+            }.onFailure { throwable ->
+                logger.error(
+                    "Failed to split diff lines for path {}. Falling back to error message.",
+                    path,
+                    throwable
+                )
+            }.getOrElse {
+                listOf("[Failed to render diff: ${it.localizedMessage ?: "unknown error"}]")
+            }
             is FileChange.Add -> buildAdditionDiffLines(path, change.content)
             is FileChange.Delete -> buildDeletionDiffLines(path, change.content)
         }
     }
 
     private fun buildAdditionDiffLines(path: Path, content: String): List<String> {
-        val lines = splitContentLines(content)
+        val lines = runCatching { splitContentLines(content) }
+            .onFailure { throwable ->
+                logger.error(
+                    "Failed to split addition content lines for path {}",
+                    path,
+                    throwable
+                )
+            }
+            .getOrDefault(emptyList())
         val displayPath = path.pathString.ifEmpty { path.toString() }
         val header = listOf(
             "--- /dev/null",
@@ -319,7 +339,15 @@ class ChatAdapter(
     }
 
     private fun buildDeletionDiffLines(path: Path, content: String): List<String> {
-        val lines = splitContentLines(content)
+        val lines = runCatching { splitContentLines(content) }
+            .onFailure { throwable ->
+                logger.error(
+                    "Failed to split deletion content lines for path {}",
+                    path,
+                    throwable
+                )
+            }
+            .getOrDefault(emptyList())
         val displayPath = path.pathString.ifEmpty { path.toString() }
         val header = listOf(
             "--- a/$displayPath",
@@ -341,19 +369,19 @@ class ChatAdapter(
     }
 
     private fun splitContentLines(content: String): List<String> {
-        if (content.isEmpty()) return emptyList()
-        val parts = content.split('\n', ignoreCase = false, limit = -1)
-        if (parts.isEmpty()) return emptyList()
-        val trimmed = if (parts.last().isEmpty()) parts.dropLast(1) else parts
-        return trimmed.map { it.removeSuffix("\r") }
+        return splitLinesPreserveEnding(content)
     }
 
     private fun splitDiffLines(diff: String): List<String> {
-        if (diff.isEmpty()) return emptyList()
-        val parts = diff.split('\n', ignoreCase = false, limit = -1)
+        return splitLinesPreserveEnding(diff)
+    }
+
+    private fun splitLinesPreserveEnding(value: String): List<String> {
+        if (value.isEmpty()) return emptyList()
+        val parts = value.splitToSequence('\n').toList()
         if (parts.isEmpty()) return emptyList()
         val trimmed = if (parts.last().isEmpty()) parts.dropLast(1) else parts
-        return trimmed.map { it.removeSuffix("\r") }
+        return trimmed.map { line -> line.removeSuffix("\r") }
     }
 
     private fun formatSenderLabel(sender: Sender): String {
