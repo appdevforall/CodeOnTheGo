@@ -186,8 +186,6 @@
   <string name="title_common">Gewöhnlich</string>
   <string name="title_files_unsaved">Ungespeicherte Dateien</string>
   <string name="msg_files_unsaved">Einige Dateien wurden noch nicht gespeichert. Möchtest du diese nun speichern? Nicht gespeicherte Dateien: %s</string>
-  <string name="idepref_editor_autoSave_title">Dateien vor dem schließen speichern</string>
-  <string name="idepref_editor_autoSave_summary">Speicher deine Dateien vor dem schließen.</string>
   <string name="idepref_java_matchLower_summary">Wenn diese Option aktiviert ist, werden durch die Eingabe von Klein- oder Großbuchstaben Klassennamen sowie Bereichsmitglieder vorgeschlagen.</string>
   <string name="idepref_editor_ligatures_title">Schriftartligaturen</string>
   <string name="idepref_editor_ligatures_summary">Schriftartligaturen aktivieren/deaktivieren</string>
