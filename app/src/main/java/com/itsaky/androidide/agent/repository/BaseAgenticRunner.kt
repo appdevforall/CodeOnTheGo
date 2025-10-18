@@ -12,6 +12,8 @@ import com.itsaky.androidide.agent.ApprovalId
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.Sender
 import com.itsaky.androidide.agent.ToolExecutionTracker
+import com.itsaky.androidide.agent.diff.AgentDiffTracker
+import com.itsaky.androidide.agent.diff.formatDiffSummary
 import com.itsaky.androidide.agent.events.ExecCommandBegin
 import com.itsaky.androidide.agent.events.ExecCommandEnd
 import com.itsaky.androidide.agent.events.ExecCommandEvent
@@ -26,6 +28,7 @@ import com.itsaky.androidide.agent.prompt.SystemPromptProvider
 import com.itsaky.androidide.agent.prompt.TurnContext
 import com.itsaky.androidide.agent.prompt.buildMessagesForChatAPI
 import com.itsaky.androidide.agent.prompt.buildPrompt
+import com.itsaky.androidide.agent.protocol.FileChange
 import com.itsaky.androidide.agent.tool.ToolApprovalManager
 import com.itsaky.androidide.agent.tool.ToolApprovalResponse
 import com.itsaky.androidide.agent.tool.ToolHandler
@@ -34,6 +37,7 @@ import com.itsaky.androidide.agent.tool.buildToolRouter
 import com.itsaky.androidide.agent.tool.buildToolsConfig
 import com.itsaky.androidide.agent.tool.toJsonElement
 import com.itsaky.androidide.agent.tool.toolJson
+import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +72,7 @@ import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.nio.file.Path
 import java.time.LocalDateTime
 import java.util.Locale
 import java.util.UUID
@@ -152,6 +157,7 @@ abstract class BaseAgenticRunner(
             ignoreUnknownKeys = true
             coerceInputValues = true
         }
+        private val fileMutatingTools = setOf("create_file", "update_file", "delete_file")
     }
 
     // --- Abstract hooks for subclasses ---------------------------------------------------------
@@ -497,6 +503,10 @@ abstract class BaseAgenticRunner(
             "Calling tool: `$name`"
         }
         addMessage(toolCallSummary, Sender.SYSTEM)
+        val diffTracker = createDiffTrackerIfNeeded(functionCalls)
+        diffTracker?.let { tracker ->
+            snapshotFilesForDiff(tracker, functionCalls)
+        }
         val results = executor.execute(functionCalls)
         val formatted = results.mapNotNull { part ->
             formatToolResultPart(part).takeIf { text -> text.isNotBlank() }
@@ -506,7 +516,76 @@ abstract class BaseAgenticRunner(
         } else {
             formatted.forEach { addMessage(it, Sender.TOOL) }
         }
+        diffTracker?.let { tracker ->
+            val rawChanges = tracker.generateChanges()
+            val normalized = normalizeDiffPaths(tracker.projectRoot, rawChanges)
+            if (normalized.isNotEmpty()) {
+                val summary = formatDiffSummary(normalized)
+                addMessage(summary, Sender.SYSTEM_DIFF, diffChanges = normalized)
+            }
+        }
         return results
+    }
+
+    private fun createDiffTrackerIfNeeded(functionCalls: List<FunctionCall>): AgentDiffTracker? {
+        val hasFileChangeTool = functionCalls.any { call ->
+            fileMutatingTools.contains(call.name().getOrNull())
+        }
+        if (!hasFileChangeTool) return null
+        return try {
+            AgentDiffTracker(IProjectManager.getInstance().projectDir.toPath())
+        } catch (err: Exception) {
+            log.warn("Unable to initialize diff tracker: {}", err.message)
+            null
+        }
+    }
+
+    private fun snapshotFilesForDiff(
+        tracker: AgentDiffTracker,
+        functionCalls: List<FunctionCall>
+    ) {
+        functionCalls.forEach { call ->
+            val toolName = call.name().getOrNull() ?: return@forEach
+            if (!fileMutatingTools.contains(toolName)) return@forEach
+            val path = extractPathFromArgs(call.args().getOrNull())
+            if (!path.isNullOrBlank()) {
+                tracker.snapshotFile(path)
+            }
+        }
+    }
+
+    private fun extractPathFromArgs(rawArgs: Any?): String? {
+        val map = rawArgs as? Map<*, *> ?: return null
+        val candidate = map["path"] ?: map["file_path"]
+        return when (candidate) {
+            is String -> candidate.takeIf { it.isNotBlank() }
+            is CharSequence -> candidate.toString().takeIf { it.isNotBlank() }
+            else -> null
+        }
+    }
+
+    private fun normalizeDiffPaths(
+        projectRoot: Path,
+        changes: Map<Path, FileChange>
+    ): Map<Path, FileChange> {
+        if (changes.isEmpty()) return emptyMap()
+        val normalizedRoot = projectRoot.normalize()
+        val result = LinkedHashMap<Path, FileChange>(changes.size)
+        changes.forEach { (path, change) ->
+            val normalizedPath = normalizeDiffPath(normalizedRoot, path)
+            result[normalizedPath] = change
+        }
+        return result
+    }
+
+    private fun normalizeDiffPath(projectRoot: Path, path: Path): Path {
+        val normalized = path.normalize()
+        if (!normalized.isAbsolute) return normalized
+        return try {
+            projectRoot.relativize(normalized)
+        } catch (err: IllegalArgumentException) {
+            normalized
+        }
     }
 
     private fun buildToolSuccessSummary(functionCalls: List<FunctionCall>): String {
@@ -905,8 +984,12 @@ abstract class BaseAgenticRunner(
         _plan.value = null
     }
 
-    private fun addMessage(text: String, sender: Sender) {
-        val message = ChatMessage(text = text, sender = sender)
+    private fun addMessage(
+        text: String,
+        sender: Sender,
+        diffChanges: Map<Path, FileChange>? = null
+    ) {
+        val message = ChatMessage(text = text, sender = sender, diffChanges = diffChanges)
         _messages.update { currentList -> currentList + message }
     }
 
@@ -1238,7 +1321,7 @@ abstract class BaseAgenticRunner(
             Sender.USER -> "user"
             Sender.AGENT -> "assistant"
             Sender.TOOL -> "tool"
-            Sender.SYSTEM -> "system"
+            Sender.SYSTEM, Sender.SYSTEM_DIFF -> "system"
         }
         return ResponseItem.Message(role, text)
     }

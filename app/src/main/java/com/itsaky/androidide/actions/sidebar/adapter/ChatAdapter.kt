@@ -3,11 +3,21 @@ package com.itsaky.androidide.actions.sidebar.adapter
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupMenu
 import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.core.text.bold
+import androidx.core.text.buildSpannedString
+import androidx.core.text.color
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -16,13 +26,18 @@ import com.itsaky.androidide.actions.sidebar.adapter.ChatAdapter.DiffCallback.AC
 import com.itsaky.androidide.agent.ChatMessage
 import com.itsaky.androidide.agent.MessageStatus
 import com.itsaky.androidide.agent.Sender
+import com.itsaky.androidide.agent.diff.calculateDiffStats
+import com.itsaky.androidide.agent.protocol.FileChange
+import com.itsaky.androidide.databinding.ListItemChatDiffBinding
 import com.itsaky.androidide.databinding.ListItemChatMessageBinding
 import com.itsaky.androidide.databinding.ListItemChatSystemMessageBinding
 import io.noties.markwon.Markwon
+import java.nio.file.Path
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.io.path.pathString
 
 class ChatAdapter(
     private val markwon: Markwon,
@@ -40,6 +55,7 @@ class ChatAdapter(
     companion object {
         private const val VIEW_TYPE_DEFAULT = 0
         private const val VIEW_TYPE_SYSTEM = 1
+        private const val VIEW_TYPE_DIFF = 2
     }
 
     sealed class MessageViewHolder(view: View) : RecyclerView.ViewHolder(view)
@@ -50,8 +66,14 @@ class ChatAdapter(
     class SystemMessageViewHolder(val binding: ListItemChatSystemMessageBinding) :
         MessageViewHolder(binding.root)
 
+    class DiffMessageViewHolder(val binding: ListItemChatDiffBinding) :
+        MessageViewHolder(binding.root)
+
     override fun getItemViewType(position: Int): Int {
         val message = getItem(position)
+        if (message.sender == Sender.SYSTEM_DIFF || message.diffChanges != null) {
+            return VIEW_TYPE_DIFF
+        }
         return if (message.sender == Sender.SYSTEM && message.status == MessageStatus.ERROR) {
             VIEW_TYPE_DEFAULT
         } else if (message.sender == Sender.SYSTEM) {
@@ -67,6 +89,10 @@ class ChatAdapter(
             VIEW_TYPE_SYSTEM -> {
                 val binding = ListItemChatSystemMessageBinding.inflate(inflater, parent, false)
                 SystemMessageViewHolder(binding)
+            }
+            VIEW_TYPE_DIFF -> {
+                val binding = ListItemChatDiffBinding.inflate(inflater, parent, false)
+                DiffMessageViewHolder(binding)
             }
             else -> { // VIEW_TYPE_DEFAULT
                 val binding = ListItemChatMessageBinding.inflate(inflater, parent, false)
@@ -96,12 +122,12 @@ class ChatAdapter(
         when (holder) {
             is DefaultMessageViewHolder -> bindDefaultMessage(holder, message)
             is SystemMessageViewHolder -> bindSystemMessage(holder, message)
+            is DiffMessageViewHolder -> bindDiffMessage(holder, message)
         }
     }
 
     private fun bindDefaultMessage(holder: DefaultMessageViewHolder, message: ChatMessage) {
-        holder.binding.messageSender.text = message.sender.name.lowercase(Locale.getDefault())
-            .replaceFirstChar { it.titlecase(Locale.getDefault()) }
+        holder.binding.messageSender.text = formatSenderLabel(message.sender)
 
         holder.itemView.setOnLongClickListener { view ->
             if (message.status == MessageStatus.SENT) {
@@ -164,6 +190,177 @@ class ChatAdapter(
             }
             // Notify the adapter with the specific payload for an efficient update
             notifyItemChanged(holder.bindingAdapterPosition, ExpansionPayload)
+        }
+    }
+
+    private fun bindDiffMessage(holder: DiffMessageViewHolder, message: ChatMessage) {
+        val changes = message.diffChanges
+        val context = holder.itemView.context
+        if (changes.isNullOrEmpty()) {
+            holder.binding.diffHeaderText.text = message.text
+            holder.binding.diffContentText.text = ""
+            return
+        }
+
+        val stats = calculateDiffStats(changes)
+        val additionColor = ContextCompat.getColor(context, R.color.diff_green)
+        val removalColor = ContextCompat.getColor(context, R.color.diff_red)
+
+        holder.binding.diffHeaderText.text = buildSpannedString {
+            append("• ")
+            val fileLabel = if (stats.fileCount == 1) "file" else "files"
+            bold { append("Edited ${stats.fileCount} $fileLabel") }
+            append(" (")
+            color(additionColor) { append("+${stats.addedLines}") }
+            append(' ')
+            color(removalColor) { append("-${stats.removedLines}") }
+            append(')')
+        }
+
+        holder.binding.diffContentText.text = buildDiffSpannable(changes, context)
+    }
+
+    private fun buildDiffSpannable(
+        changes: Map<Path, FileChange>,
+        context: Context
+    ): SpannableString {
+        val builder = SpannableStringBuilder()
+        val additionColor = ContextCompat.getColor(context, R.color.diff_green)
+        val removalColor = ContextCompat.getColor(context, R.color.diff_red)
+        val headerColor = ContextCompat.getColor(context, R.color.diff_header)
+        val metaColor = ContextCompat.getColor(context, R.color.diff_gutter)
+        val hunkColor = ContextCompat.getColor(context, R.color.diff_hunk)
+
+        val entries = changes.entries.toList()
+        entries.forEachIndexed { index, (path, change) ->
+            if (index != 0) {
+                builder.append('\n')
+            }
+            val displayPath = path.pathString.ifEmpty { path.toString() }
+            val headerStart = builder.length
+            builder.append("  └ ")
+            builder.append(displayPath)
+            builder.append(" (")
+            builder.append(diffDescriptor(change))
+            builder.append(')')
+            builder.append('\n')
+            builder.setSpan(
+                ForegroundColorSpan(headerColor),
+                headerStart,
+                builder.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            builder.setSpan(
+                StyleSpan(Typeface.BOLD),
+                headerStart,
+                builder.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+
+            val diffLines = toDiffLines(path, change)
+            diffLines.forEach { line ->
+                val start = builder.length
+                builder.append("    ")
+                builder.append(line)
+                val end = builder.length
+                val span = when {
+                    line.startsWith("@@") -> ForegroundColorSpan(hunkColor)
+                    line.startsWith("+++") || line.startsWith("---") ->
+                        ForegroundColorSpan(metaColor)
+
+                    line.startsWith("+") && !line.startsWith("+++") ->
+                        ForegroundColorSpan(additionColor)
+
+                    line.startsWith("-") && !line.startsWith("---") ->
+                        ForegroundColorSpan(removalColor)
+
+                    else -> null
+                }
+                span?.let {
+                    builder.setSpan(it, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                builder.append('\n')
+            }
+        }
+
+        if (builder.isNotEmpty()) {
+            builder.delete(builder.length - 1, builder.length)
+        }
+
+        return SpannableString(builder)
+    }
+
+    private fun diffDescriptor(change: FileChange): String {
+        return when (change) {
+            is FileChange.Add -> "created"
+            is FileChange.Delete -> "deleted"
+            is FileChange.Update -> "edited"
+        }
+    }
+
+    private fun toDiffLines(path: Path, change: FileChange): List<String> {
+        return when (change) {
+            is FileChange.Update -> splitDiffLines(change.unifiedDiff)
+            is FileChange.Add -> buildAdditionDiffLines(path, change.content)
+            is FileChange.Delete -> buildDeletionDiffLines(path, change.content)
+        }
+    }
+
+    private fun buildAdditionDiffLines(path: Path, content: String): List<String> {
+        val lines = splitContentLines(content)
+        val displayPath = path.pathString.ifEmpty { path.toString() }
+        val header = listOf(
+            "--- /dev/null",
+            "+++ b/$displayPath",
+            buildAdditionHunkHeader(lines.size)
+        )
+        val body = lines.map { "+$it" }
+        return header + body
+    }
+
+    private fun buildDeletionDiffLines(path: Path, content: String): List<String> {
+        val lines = splitContentLines(content)
+        val displayPath = path.pathString.ifEmpty { path.toString() }
+        val header = listOf(
+            "--- a/$displayPath",
+            "+++ /dev/null",
+            buildDeletionHunkHeader(lines.size)
+        )
+        val body = lines.map { "-$it" }
+        return header + body
+    }
+
+    private fun buildAdditionHunkHeader(lineCount: Int): String {
+        val addSegment = if (lineCount == 0) "+0,0" else "+1,$lineCount"
+        return "@@ -0,0 $addSegment @@"
+    }
+
+    private fun buildDeletionHunkHeader(lineCount: Int): String {
+        val removeSegment = if (lineCount == 0) "-0,0" else "-1,$lineCount"
+        return "@@ $removeSegment +0,0 @@"
+    }
+
+    private fun splitContentLines(content: String): List<String> {
+        if (content.isEmpty()) return emptyList()
+        val parts = content.split('\n', ignoreCase = false, limit = -1)
+        if (parts.isEmpty()) return emptyList()
+        val trimmed = if (parts.last().isEmpty()) parts.dropLast(1) else parts
+        return trimmed.map { it.removeSuffix("\r") }
+    }
+
+    private fun splitDiffLines(diff: String): List<String> {
+        if (diff.isEmpty()) return emptyList()
+        val parts = diff.split('\n', ignoreCase = false, limit = -1)
+        if (parts.isEmpty()) return emptyList()
+        val trimmed = if (parts.last().isEmpty()) parts.dropLast(1) else parts
+        return trimmed.map { it.removeSuffix("\r") }
+    }
+
+    private fun formatSenderLabel(sender: Sender): String {
+        return when (sender) {
+            Sender.SYSTEM_DIFF -> "System"
+            else -> sender.name.lowercase(Locale.getDefault())
+                .replaceFirstChar { it.titlecase(Locale.getDefault()) }
         }
     }
 

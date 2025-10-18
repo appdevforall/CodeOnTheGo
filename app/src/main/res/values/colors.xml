@@ -13,4 +13,11 @@
   <color name="success">#FF4CAF50</color>
   <color name="warning">#FFFF9800</color>
   <color name="error">#FFF44336</color>
+
+    <!-- Diff rendering colors -->
+    <color name="diff_green">#FF4CAF50</color>
+    <color name="diff_red">#FFF44336</color>
+    <color name="diff_gutter">#FF9E9E9E</color>
+    <color name="diff_hunk">#FF64B5F6</color>
+    <color name="diff_header">#FF616161</color>
 </resources>

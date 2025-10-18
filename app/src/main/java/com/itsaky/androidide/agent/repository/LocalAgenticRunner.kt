@@ -57,7 +57,7 @@ class LocalAgenticRunner(
                 Sender.USER -> "User"
                 Sender.AGENT -> "Assistant"
                 Sender.TOOL -> "Tool"
-                Sender.SYSTEM -> "System"
+                Sender.SYSTEM, Sender.SYSTEM_DIFF -> "System"
             }
             "$prefix: ${message.text}"
         }.ifBlank { "User: " }
@@ -152,7 +152,7 @@ class LocalAgenticRunner(
                 Sender.USER -> "User"
                 Sender.AGENT -> "Assistant"
                 Sender.TOOL -> "Tool"
-                Sender.SYSTEM -> "System"
+                Sender.SYSTEM, Sender.SYSTEM_DIFF -> "System"
             }
             "$prefix: ${message.text}"
         }

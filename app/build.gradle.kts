@@ -168,6 +168,7 @@ dependencies {
 	implementation(libs.google.auto.service.annotations)
 	implementation(libs.google.gson)
 	implementation(libs.google.guava)
+    implementation("io.github.java-diff-utils:java-diff-utils:4.12")
 
 	// Room
 	implementation(libs.room.ktx)

@@ -534,7 +534,7 @@ class ChatFragment :
             val senderLabel = when (message.sender) {
                 Sender.USER -> getString(R.string.copy_chat_sender_user)
                 Sender.AGENT -> getString(R.string.copy_chat_sender_agent)
-                Sender.SYSTEM -> getString(R.string.copy_chat_sender_system)
+                Sender.SYSTEM, Sender.SYSTEM_DIFF -> getString(R.string.copy_chat_sender_system)
                 Sender.TOOL -> getString(R.string.copy_chat_sender_tool)
             }
             val body = message.text.trim().ifEmpty {
