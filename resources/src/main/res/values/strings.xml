@@ -911,5 +911,6 @@
     <string name="pixel_copy_failed">PixelCopy failed</string>
     <string name="failed_to_capture_or_save_screenshot">Failed to capture or save screenshot</string>
     <string name="back_to_cogo">Back to Code on the Go</string>
+    <string name="retry">Retry</string>
 
 </resources>
