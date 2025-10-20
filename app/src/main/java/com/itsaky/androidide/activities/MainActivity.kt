@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.activities
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
@@ -218,7 +217,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun showToolTip(tag: String) {
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             this, binding.root,
             tag
         )

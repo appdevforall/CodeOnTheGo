@@ -143,8 +143,9 @@ object TooltipManager {
         }
     }
 
-    // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
-    fun showTooltip(context: Context, anchorView: View, tag: String) {
+    // Displays a tooltip for category [TooltipCategory.CATEGORY_IDE] in a particular context
+    // (An Activity, Fragment, Dialog etc)
+    fun showIdeCategoryTooltip(context: Context, anchorView: View, tag: String) {
         showTooltip(
             context = context,
             anchorView = anchorView,

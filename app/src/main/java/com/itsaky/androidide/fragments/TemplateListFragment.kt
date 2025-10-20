@@ -135,7 +135,7 @@ class TemplateListFragment :
 		root: View,
 		tooltipTag: String,
 	) {
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = root.context,
             anchorView = root,
             tag = tooltipTag,

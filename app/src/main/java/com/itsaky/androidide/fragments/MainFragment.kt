@@ -139,12 +139,12 @@ class MainFragment : BaseFragment() {
 
         binding!!.headerContainer?.setOnClickListener { openQuickstartPageAction() }
         binding!!.headerContainer?.setOnLongClickListener {
-            TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
 
         binding!!.greetingText.setOnLongClickListener {
-            TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
         binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
@@ -155,7 +155,7 @@ class MainFragment : BaseFragment() {
         val tag = getToolTipTagForAction(action.id)
         if (tag.isNotEmpty()) {
             view.let {
-                TooltipManager.showTooltip(requireContext(), it!!, tag)
+                TooltipManager.showIdeCategoryTooltip(requireContext(), it!!, tag)
             }
         }
     }

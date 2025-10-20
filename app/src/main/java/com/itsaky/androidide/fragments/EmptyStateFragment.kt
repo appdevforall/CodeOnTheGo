@@ -91,7 +91,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 
   fun showTooltipDialog(tooltipTag: String) {
       val anchorView = activity?.window?.decorView ?: return
-      TooltipManager.showTooltip(
+      TooltipManager.showIdeCategoryTooltip(
           context = requireContext(),
           anchorView = anchorView,
           tag = tooltipTag,

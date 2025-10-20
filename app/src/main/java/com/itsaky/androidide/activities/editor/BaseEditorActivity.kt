@@ -1448,7 +1448,7 @@ abstract class BaseEditorActivity :
     }
 
     private fun showTooltip(tag: String) {
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = this@BaseEditorActivity,
             anchorView = content.customToolbar,
             tag = tag,
