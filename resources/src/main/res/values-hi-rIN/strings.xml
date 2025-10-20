@@ -186,8 +186,6 @@
   <string name="title_common">सामान्य</string>
   <string name="title_files_unsaved">फ़ाइल्स सेव नहीं की गयी है</string>
   <string name="msg_files_unsaved">कुछ फ़ाइलें सेव नहीं की गई हैं। क्या आप बंद करने से पहले उन्हें सेव करना चाहेंगे? सेव न की गयी फ़ाइल्स : %s</string>
-  <string name="idepref_editor_autoSave_title">फ़ाइलें बंद करने से पहले सेव करे</string>
-  <string name="idepref_editor_autoSave_summary">फ़ाइलों को बंद करने से पहले सेव करे। यह एक प्रायोगिक विशेषता है। आपसे फ़ाइलों को स्वयं सेव करने की अपेक्षा की जाती है।</string>
   <string name="idepref_java_matchLower_summary">यदि एनेबल किया गया है, तो लोअर केस या अपर केस अक्षरों को टाइप करने से वर्ग के नाम के साथ-साथ स्कोप मेंबरों का भी सुझाव मिलेगा।</string>
   <string name="idepref_editor_ligatures_title">संयुक्ताक्षर बनाना</string>
   <string name="idepref_editor_ligatures_summary">फ़ॉन्ट संयुक्ताक्षर को सक्षम/अक्षम करें</string>
