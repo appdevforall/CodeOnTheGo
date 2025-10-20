@@ -30,9 +30,6 @@
       android:windowSoftInputMode="adjustResize"
       android:parentActivityName=".activities.EditorActivity" />
     <activity
-      android:name=".activities.CrashActivity"
-      android:exported="true" />
-    <activity
       android:name=".activities.PreviewLayoutActivity"
       android:exported="true"
       android:parentActivityName=".activities.EditorActivity" />
