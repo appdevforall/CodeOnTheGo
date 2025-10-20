@@ -12,7 +12,7 @@
     <string name="about_footer">Code on the Go %1$s for %2$s</string>
     <string name="about_subtitle">Simply, an IDE for Android</string>
     <string name="msg_get_package_failed">Failed to extract package name!</string>
-    <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggesstions on our email.</string>
+    <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
     <string name="need_help">Need Help?</string>
     <string name="ide_preferences">IDE preferences</string>
     <string name="discussions_on_telegram">Discussions on Telegram</string>
@@ -679,28 +679,15 @@
 	<string name="actions">Actions</string>
 	<string name="help">Help</string>
 	<string name="code"></string>
-
-	<string name="email_feedback_warning_prompt">
-		Sending feedback will create and send a private email to feedback@appdevforall.org, if you feel that this would
-		be an unsafe action, then click
-		<b>
-			<i>Cancel</i>
-		</b>
-		, otherwise click
-		<b>
-			<i>OK</i>
-		</b>
-		to proceed
-	</string>
+	<string name="email_feedback_warning_prompt">To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
-	<string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were
-        taking and on what screen.\n\nThank You.\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as much information as possible about the issue.\n\nThanks!\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
 	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
-    <string name="send_feedback">Send Feedback</string>
-	<string name="alert_message">Alert!</string>
+  <string name="send_feedback">Send feedback</string>
+	<string name="alert_message">Send feedback</string>
 	<string name="fab_more">More</string>
 	<string name="msg_recent_projects">Recent projects</string>
-	<string name="msg_create_new_from_recent">Click the New project button to create a new project or open from a folder.</string>
+	<string name="msg_create_new_from_recent">Click the <b>New project</b> button to create a new project, or open an existing project from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
