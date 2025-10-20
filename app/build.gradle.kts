@@ -281,6 +281,7 @@ dependencies {
 
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.google.genai)
     "v7Implementation"(files("libs/v7/llama-v7-release.aar"))
     "v8Implementation"(files("libs/v8/llama-v8-release.aar"))
@@ -402,8 +403,12 @@ tasks.register("recompressApk") {
 
 		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
+        val start = System.nanoTime()
 		recompressApk(abi, buildName)
-	}
+        val durationMs = "%.2f".format((System.nanoTime() - start) / 1_000_000.0)
+
+        project.logger.lifecycle("recompressApk completed in ${durationMs}ms")
+    }
 }
 
 afterEvaluate {
