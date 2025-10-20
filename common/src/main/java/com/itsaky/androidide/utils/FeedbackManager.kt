@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.PixelCopy
@@ -40,7 +41,7 @@ object FeedbackManager {
      *
      * @param activity The context from which feedback is being sent
      */
-    fun showFeedbackDialog(activity: AppCompatActivity) {
+    fun showFeedbackDialog(activity: AppCompatActivity, logContent: String?) {
         val builder = DialogUtils.newMaterialDialogBuilder(activity)
 
         builder
@@ -53,7 +54,7 @@ object FeedbackManager {
             ).setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(android.R.string.ok) { dialog, _ ->
                 dialog.dismiss()
-                sendFeedbackWithScreenshot(activity)
+                sendFeedbackWithAttachments(activity, logContent)
             }.show()
     }
 
@@ -81,17 +82,23 @@ object FeedbackManager {
 			.show()
 	}
 
-	fun sendFeedbackWithScreenshot(
+	fun sendTooltipFeedbackWithScreenshot(
 		context: Context,
 		customSubject: String,
 		metadata: String,
 		includeScreenshot: Boolean = true,
-		shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null,
-		appVersion: String? = null
-	) {
+        shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null
+    ) {
 		val message = buildString {
 			append(metadata)
-			append("\n\nApp Version: ${appVersion ?: "Unknown"}")
+            append(
+                context.getString(
+                    R.string.feedback_device_info,
+                    BuildInfo.VERSION_NAME_SIMPLE,
+                    Build.VERSION.RELEASE,
+                    "${Build.MANUFACTURER} ${Build.MODEL}",
+                )
+            )
 		}
 
 		if (includeScreenshot) {
@@ -270,11 +277,15 @@ object FeedbackManager {
 			else -> "Unknown Screen"
 		}
 
-    private fun sendFeedbackWithScreenshot(activity: AppCompatActivity) {
+    private fun sendFeedbackWithAttachments(
+        activity: AppCompatActivity,
+        logContent: String?
+    ) {
         activity.lifecycleScope.launch {
             val handler = FeedbackEmailHandler(activity)
 
-            val screenshotData = handler.captureAndPrepareScreenshotUri(activity)
+            val screenshotUri = handler.captureAndPrepareScreenshotUri(activity)
+            val logContentUri = handler.getLogUri(activity, logContent)
 
             val feedbackRecipient = activity.getString(R.string.feedback_email)
             val feedbackSubject =
@@ -283,13 +294,14 @@ object FeedbackManager {
                 activity.getString(
                     R.string.feedback_message,
                     BuildInfo.VERSION_NAME_SIMPLE,
-                    "",
+                    Build.VERSION.RELEASE,
+                    "${Build.MANUFACTURER} ${Build.MODEL}",
                 )
 
             val emailIntent =
                 handler.prepareEmailIntent(
-                    screenshotData?.first,
-                    screenshotData?.second,
+                    screenshotUri,
+                    logContentUri,
                     feedbackRecipient,
                     feedbackSubject,
                     feedbackBody,

@@ -56,7 +56,7 @@
     <string name="title_unsupported_device">This device is not supported</string>
     <string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code On The Go.</string>
     <string name="title_clear_output">Clear output</string>
-    <string name="build_output">Build output</string>
+    <string name="build_output">Build Output</string>
     <string name="quick_run_debug">Quick run</string>
     <string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
     <string name="preparing">Preparing</string>
@@ -112,7 +112,7 @@
     <string name="msg_empty_search_query">Please enter text</string>
     <string name="msg_select_search_modules">Select modules to search</string>
     <string name="msg_searching_project">Searching the project…</string>
-    <string name="view_search_results">Search results</string>
+    <string name="view_search_results">Search Results</string>
     <string name="project_created_successfully">Project created successfully!</string>
     <string name="project_creation_failed">Failed to create project</string>
     <string name="msg_folder_creation_failed">Failed to create folder</string>
@@ -277,7 +277,7 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
     <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
     <string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
@@ -288,15 +288,15 @@
     <string name="btn_close">Close</string>
     <string name="msg_ignore_case">Ignore case</string>
     <string name="msg_use_regex">Use regex</string>
-    <string name="idepref_buildnrun_summary">Configure the Gradle build.</string>
+    <string name="idepref_buildnrun_summary">Configure the Gradle build</string>
     <string name="configure">Configure</string>
     <string name="about">About</string>
     <string name="idepref_channel_summary">Subscribe for latest updates.</string>
-    <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
+    <string name="idepref_group_summary">Discuss features, bugs and improvements here.</string>
     <string name="idepref_changelog_summary">What\'s new in this version?</string>
-    <string name="idepref_about_summary">More about Code on the Go.</string>
-    <string name="idepref_general_summary">General IDE configuration.</string>
-    <string name="idepref_editor_summary">Configure the editor.</string>
+    <string name="idepref_about_summary">More about Code on the Go</string>
+    <string name="idepref_general_summary">General IDE configuration</string>
+    <string name="idepref_editor_summary">Configure the editor</string>
     <string name="xml" translatable="false">XML</string>
     <string name="idepref_xml_trimFinalNewLine_title">Trim final new line</string>
     <string name="idepref_xml_insertFinalNewLine_title">Insert final new line</string>
@@ -671,7 +671,8 @@
 	<string name="email_feedback_warning_prompt">To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
 	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as much information as possible about the issue.\n\nThanks!\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
-	<string name="send_feedback">Send feedback</string>
+	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+  <string name="send_feedback">Send feedback</string>
 	<string name="alert_message">Send feedback</string>
 	<string name="fab_more">More</string>
 	<string name="msg_recent_projects">Recent projects</string>
@@ -880,6 +881,7 @@
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
+    <string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
     <!--  AI Agent-->

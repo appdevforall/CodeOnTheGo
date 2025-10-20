@@ -9,7 +9,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.agent.fragments.EncryptedPrefs
 import com.itsaky.androidide.agent.repository.AiBackend
-import com.itsaky.androidide.agent.repository.LlmInferenceEngine
+import com.itsaky.androidide.agent.repository.LlmInferenceEngineProvider
 import com.itsaky.androidide.agent.repository.PREF_KEY_AI_BACKEND
 import com.itsaky.androidide.agent.repository.PREF_KEY_LOCAL_MODEL_PATH
 import com.itsaky.androidide.app.BaseApplication
@@ -23,6 +23,7 @@ sealed class ModelLoadingState {
 }
 
 class AiSettingsViewModel(application: Application) : AndroidViewModel(application) {
+    private val llmInferenceEngine = LlmInferenceEngineProvider.instance
 
     private val _savedModelPath = MutableLiveData<String?>(null)
     val savedModelPath: LiveData<String?> get() = _savedModelPath
@@ -67,10 +68,11 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     fun loadModelFromUri(path: String, context: Context) {
         viewModelScope.launch {
             _modelLoadingState.value = ModelLoadingState.Loading
-            val success = LlmInferenceEngine.initModelFromFile(context, path)
-            if (success && LlmInferenceEngine.loadedModelName != null) {
+            // Use the instance method, not a static call
+            val success = llmInferenceEngine.initModelFromFile(context, path)
+            if (success && llmInferenceEngine.loadedModelName != null) {
                 _modelLoadingState.value =
-                    ModelLoadingState.Loaded(LlmInferenceEngine.loadedModelName!!)
+                    ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
             } else {
                 _modelLoadingState.value = ModelLoadingState.Error("Failed to load model")
             }
@@ -86,9 +88,10 @@ class AiSettingsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun checkInitialSavedModel(context: Context) {
-        if (LlmInferenceEngine.isModelLoaded && LlmInferenceEngine.loadedModelName != null) {
+        // Use the instance properties, not static ones
+        if (llmInferenceEngine.isModelLoaded && llmInferenceEngine.loadedModelName != null) {
             _modelLoadingState.value =
-                ModelLoadingState.Loaded(LlmInferenceEngine.loadedModelName!!)
+                ModelLoadingState.Loaded(llmInferenceEngine.loadedModelName!!)
         } else {
             _modelLoadingState.value = ModelLoadingState.Idle
         }
