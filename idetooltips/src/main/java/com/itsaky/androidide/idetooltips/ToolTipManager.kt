@@ -145,34 +145,12 @@ object TooltipManager {
 
     // Displays a tooltip in a particular context (An Activity, Fragment, Dialog etc)
     fun showTooltip(context: Context, anchorView: View, tag: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val tooltipItem = getTooltip(
-                context,
-                TooltipCategory.CATEGORY_IDE,
-                tag,
-            )
-            if (tooltipItem != null) {
-                showIDETooltip(
-                    context = context,
-                    anchorView = anchorView,
-                    level = 0,
-                    tooltipItem = tooltipItem,
-                    onHelpLinkClicked = { context, url, title ->
-                        val intent =
-                            Intent(context, HelpActivity::class.java).apply {
-                                putExtra(CONTENT_KEY, url)
-                                putExtra(CONTENT_TITLE_KEY, context.getString(R.string.back_to_cogo))
-                                if (context !is android.app.Activity) {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            }
-                        context.startActivity(intent)
-                    }
-                )
-            } else {
-                Log.e("TooltipManager", "Tooltip item $tooltipItem is null")
-            }
-        }
+        showTooltip(
+            context = context,
+            anchorView = anchorView,
+            category = TooltipCategory.CATEGORY_IDE,
+            tag = tag
+        )
     }
 
     // Displays a tooltip in a particular context with a specific category
