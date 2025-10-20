@@ -169,7 +169,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     tag.isNotEmpty() || return
     val activity = event[Context::class.java] as? EditorHandlerActivity
     activity?.let { act ->
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = act,
             anchorView = act.window.decorView,
             tag = tag,

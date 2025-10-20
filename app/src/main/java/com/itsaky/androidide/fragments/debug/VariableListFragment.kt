@@ -34,7 +34,7 @@ class VariableListFragment : Fragment() {
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onLongPress(e: MotionEvent) {
             treeView?.let {
-              TooltipManager.showTooltip(requireContext(), it, fragmentTooltipTag)
+              TooltipManager.showIdeCategoryTooltip(requireContext(), it, fragmentTooltipTag)
             }
         }
     }

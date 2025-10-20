@@ -18,19 +18,13 @@
 package com.itsaky.androidide.lsp.java.actions
 
 import android.content.Context
-import android.content.Intent
 import android.view.View
-import android.view.ViewGroup
-import android.widget.ListView
-import android.widget.Toast
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requirePath
-import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR_DIALOG
 import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG
@@ -49,14 +43,9 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.Modifier.STATIC
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.Tree.Kind.VARIABLE
 import openjdk.source.tree.VariableTree
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
@@ -257,7 +246,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
     }
 
     private fun showTooltip(context: Context, anchor: View, actionId: String) {
-        TooltipManager.showTooltip(context, anchor, getToolTipTag(actionId))
+        TooltipManager.showIdeCategoryTooltip(context, anchor, getToolTipTag(actionId))
     }
 
     fun getToolTipTag(actionId: String): String {

@@ -56,7 +56,7 @@ class IdeTooltipServiceImpl(
     override fun showTooltip(anchorView: View, tag: String) {
         try {
             // Use the themed context to ensure proper attribute resolution
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = themedContext,
                 anchorView = anchorView,
                 tag = tag
