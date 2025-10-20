@@ -3,7 +3,6 @@ package com.itsaky.androidide
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Rect
-import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -11,6 +10,7 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.blankj.utilcode.util.SizeUtils
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -26,17 +26,6 @@ class FeedbackButtonManager(
         const val FAB_PREFS = "FabPrefs"
         const val KEY_FAB_X = "fab_x"
         const val KEY_FAB_Y = "fab_y"
-	}
-
-	/**
-	 * Converts dp to pixels using the provided context.
-	 */
-	private fun dpToPx( context: Context): Float {
-		return TypedValue.applyDimension(
-			TypedValue.COMPLEX_UNIT_DIP,
-			16f,
-			context.resources.displayMetrics
-		)
 	}
 
 	// This function is called in the onCreate method of the activity that contains the FAB
@@ -159,8 +148,9 @@ class FeedbackButtonManager(
 	private fun getSafeDraggingBounds(parentView: ViewGroup, fabView: FloatingActionButton): Rect {
 		val bounds = Rect()
 
-		// Convert 16dp margin to pixels
-		val fabMarginPx = dpToPx( parentView.context)
+		// Get margin from layout params, or use default 16dp if not available
+		val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
+		val fabMarginPx = layoutParams?.topMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
 
 		// Get system window insets (status bar, navigation bar, etc.)
 		val insets = ViewCompat.getRootWindowInsets(parentView)
@@ -194,12 +184,14 @@ class FeedbackButtonManager(
 			// Position is valid, return as-is
 			Pair(x, y)
 		} else {
-			// Convert 16dp margin to pixels
-			val fabMarginPx = dpToPx( parentView.context)
+			// Get margins from layout params, or use default 16dp if not available
+			val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
+			val marginStart = layoutParams?.marginStart?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
+			val marginBottom = layoutParams?.bottomMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
 
 			// Position is invalid, return default position (bottom-left)
-			val defaultX = fabMarginPx  // 16dp margin from left
-			val defaultY = parentView.height - fabView.height - fabMarginPx  // 16dp margin from bottom
+			val defaultX = marginStart
+			val defaultY = parentView.height - fabView.height - marginBottom
 			Pair(defaultX, defaultY)
 		}
 	}
