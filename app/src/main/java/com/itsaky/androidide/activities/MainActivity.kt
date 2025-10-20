@@ -28,13 +28,13 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
@@ -59,6 +59,13 @@ import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
 import java.io.File
+
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
+import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.FeatureFlags
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -110,6 +117,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         startWebServer()
 
         openLastProject()
+
+        lifecycleScope.launch {
+            val experimentsEnabled = withContext(Dispatchers.IO) {
+                FeatureFlags.isExperimentsEnabled()
+            }
+            if (experimentsEnabled) {
+                binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+            }
+        }
 
         feedbackButtonManager = FeedbackButtonManager(
             activity = this,
@@ -207,6 +223,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
             }
             true
         }
+
     }
 
     override fun bindLayout(): View {
