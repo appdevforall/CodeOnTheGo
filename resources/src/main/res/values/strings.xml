@@ -629,7 +629,7 @@
 	<string name="summary_open_source_licenses">View open source licenses.</string>
 	<string name="idepref_jdkVersion_title">JDK version</string>
 	<string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
-	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
+	<string name="ide_setup_in_progress">Code on the Go setup is in progress</string>
 
 	<string name="debugger_title">Debugger</string>
 	<string name="debugger_starting">Starting debugger…</string>
@@ -650,7 +650,7 @@
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
-	<string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
+	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>
