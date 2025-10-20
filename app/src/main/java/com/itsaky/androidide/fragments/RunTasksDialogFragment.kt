@@ -157,7 +157,7 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
     )
 
       binding.root.applyLongPressRecursively {
-          TooltipManager.showTooltip(
+          TooltipManager.showIdeCategoryTooltip(
               context = requireContext(),
               anchorView = it,
               tag = TooltipTag.PROJECT_GRADLE_TASKS
@@ -198,7 +198,7 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
             }
         }
         setOnLongClickListener {
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = requireContext(),
                 anchorView = this,
                 tag = TooltipTag.PROJECT_RUN_GRADLE_TASKS

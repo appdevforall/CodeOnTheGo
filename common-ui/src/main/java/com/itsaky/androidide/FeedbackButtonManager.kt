@@ -8,7 +8,6 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.FeedbackManager
@@ -44,10 +43,9 @@ class FeedbackButtonManager(
                         override fun onLongPress(e: MotionEvent) {
                             if (!isDragging) {
                                 isLongPressed = true
-                                TooltipManager.showTooltip(
+                                TooltipManager.showIdeCategoryTooltip(
                                     context = activity,
                                     anchorView = feedbackFab,
-                                    category = TooltipCategory.CATEGORY_IDE,
                                     tag = TooltipTag.FEEDBACK,
                                 )
                             }

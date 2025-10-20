@@ -411,7 +411,7 @@ open class EditorActionsMenu(val editor: IDEEditor) :
                 val tag = item.contentDescription?.toString() ?: ""
 
                 if (tag.isNotEmpty()) {
-                    TooltipManager.showTooltip(
+                    TooltipManager.showIdeCategoryTooltip(
                         context = editor.context,
                         anchorView = editor,
                         tag = tag,
