@@ -504,7 +504,7 @@
     <string name="new_directory_name">New directory name</string>
     <string name="error">Error</string>
     <string name="error_deleting_directory">Error while deleting the directory: %s</string>
-    <string name="deleting_directory">Deleting Directory</string>
+    <string name="deleting_directory">Deleting directory</string>
 
     <string name="btn_sync">Sync</string>
     <string name="btn_ignore_changes">Ignore these changes</string>
