@@ -1,0 +1,16 @@
+package com.itsaky.androidide.agent.tool
+
+import com.itsaky.androidide.agent.api.AgentDependencies
+import com.itsaky.androidide.agent.model.CreateFileArgs
+import com.itsaky.androidide.agent.model.ToolResult
+
+class CreateFileHandler : ToolHandler {
+    override val name: String = "create_file"
+    override val isPotentiallyDangerous: Boolean = true
+
+    override suspend fun invoke(args: Map<String, Any?>): ToolResult {
+        val toolArgs = decodeArgs<CreateFileArgs>(args)
+        return AgentDependencies.requireToolingApi()
+            .createFile(toolArgs.path, toolArgs.content)
+    }
+}

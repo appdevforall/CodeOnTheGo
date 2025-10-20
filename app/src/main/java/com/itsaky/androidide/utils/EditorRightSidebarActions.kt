@@ -45,10 +45,13 @@ internal object RightEditorSidebarActions {
         var order = -1
 
         @Suppress("KotlinConstantConditions")
-        registry.registerAction(AgentSidebarAction(context, ++order))
+        if (FeatureFlags.isExperimentsEnabled()) {
+            registry.registerAction(AgentSidebarAction(context, ++order))
+        }
         registry.registerAction(BuildVariantsSidebarAction(context, ++order))
         registry.registerAction(GitSidebarAction(context, ++order))
     }
+
     @JvmStatic
     fun setup(sidebarFragment: RightEditorSidebarFragment) {
         val binding = sidebarFragment.getBinding() ?: return
@@ -61,8 +64,6 @@ internal object RightEditorSidebarActions {
         if (actions.isEmpty()) {
             return
         }
-        // Get the controller interface from the activity
-        val agentPanelController = if (activity is AgentPanelController) activity else null
 
         rail.background = (rail.background as MaterialShapeDrawable).apply {
             shapeAppearanceModel = shapeAppearanceModel.roundedOnLeft()
@@ -187,40 +188,12 @@ internal object RightEditorSidebarActions {
         hierarchy.any { it.id == destId }
 
     @JvmStatic
-    internal fun ShapeAppearanceModel.roundedOnRight(cornerSize: Float = 28f): ShapeAppearanceModel {
-        return toBuilder().run {
-            setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
-            setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
-            build()
-        }
-    }
-
-    @JvmStatic
     internal fun ShapeAppearanceModel.roundedOnLeft(cornerSize: Float = 28f): ShapeAppearanceModel {
         return toBuilder().run {
             setTopLeftCorner(CornerFamily.ROUNDED, cornerSize)
             setBottomLeftCorner(CornerFamily.ROUNDED, cornerSize)
             build()
         }
-    }
-
-    fun showContactDialog(context: Context) {
-        val builder = DialogUtils.newMaterialDialogBuilder(context)
-
-        builder.setTitle(R.string.msg_contact_app_dev_title)
-            .setMessage(R.string.msg_contact_app_dev_description)
-            .setNegativeButton(android.R.string.cancel) { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setPositiveButton(R.string.send_email) { dialog, _ ->
-                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = "mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
-                }
-                context.startActivity(intent)
-                dialog.dismiss()
-            }
-            .create()
-            .show()
     }
 
     fun SidebarActionItem.tooltipTag(): String {

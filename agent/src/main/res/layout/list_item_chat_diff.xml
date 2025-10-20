@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="8dp">
+
+    <TextView
+        android:id="@+id/diff_header_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        tools:text="• Edited 2 files (+5 -3)" />
+
+    <TextView
+        android:id="@+id/diff_content_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:fontFamily="monospace"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textIsSelectable="true"
+        tools:text="--- a/foo.kt\n+++ b/foo.kt\n@@ -1 +1 @@\n- old line\n+ new line" />
+</LinearLayout>
