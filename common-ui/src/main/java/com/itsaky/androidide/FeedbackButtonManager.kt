@@ -8,7 +8,6 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.FeedbackManager
@@ -17,6 +16,7 @@ import kotlin.math.sqrt
 class FeedbackButtonManager(
     val activity: AppCompatActivity,
     val feedbackFab: FloatingActionButton?,
+    private val getLogContent: (() -> String?)? = null,
 ) {
 	companion object {
         const val FAB_PREFS = "FabPrefs"
@@ -43,10 +43,9 @@ class FeedbackButtonManager(
                         override fun onLongPress(e: MotionEvent) {
                             if (!isDragging) {
                                 isLongPressed = true
-                                TooltipManager.showTooltip(
+                                TooltipManager.showIdeCategoryTooltip(
                                     context = activity,
                                     anchorView = feedbackFab,
-                                    category = TooltipCategory.CATEGORY_IDE,
                                     tag = TooltipTag.FEEDBACK,
                                 )
                             }
@@ -115,11 +114,13 @@ class FeedbackButtonManager(
         }
     }
 
-	private fun performFeedbackAction() {
-		FeedbackManager.showFeedbackDialog(
-			activity = activity,
-		)
-	}
+    private fun performFeedbackAction() {
+        val currentLogContent = getLogContent?.invoke()
+        FeedbackManager.showFeedbackDialog(
+            activity = activity,
+            logContent = currentLogContent
+        )
+    }
 
 	private fun saveFabPosition(
 		x: Float,

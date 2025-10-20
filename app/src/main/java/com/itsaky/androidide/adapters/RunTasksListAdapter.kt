@@ -70,7 +70,7 @@ constructor(
         }
 
         binding.root.setOnLongClickListener {
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = binding.root.context,
                 anchorView = binding.root,
                 tag = TooltipTag.PROJECT_GRADLE_TASKS,
