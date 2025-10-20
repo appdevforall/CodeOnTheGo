@@ -38,7 +38,6 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.TooltipUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.viewLifecycleScope
@@ -140,12 +139,12 @@ class MainFragment : BaseFragment() {
 
         binding!!.headerContainer?.setOnClickListener { openQuickstartPageAction() }
         binding!!.headerContainer?.setOnLongClickListener {
-            TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
 
         binding!!.greetingText.setOnLongClickListener {
-            TooltipManager.showTooltip(requireContext(), it, MAIN_GET_STARTED)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), it, MAIN_GET_STARTED)
             true
         }
         binding!!.greetingText.setOnClickListener { openQuickstartPageAction() }
@@ -156,7 +155,7 @@ class MainFragment : BaseFragment() {
         val tag = getToolTipTagForAction(action.id)
         if (tag.isNotEmpty()) {
             view.let {
-                TooltipManager.showTooltip(requireContext(), it!!, tag)
+                TooltipManager.showIdeCategoryTooltip(requireContext(), it!!, tag)
             }
         }
     }

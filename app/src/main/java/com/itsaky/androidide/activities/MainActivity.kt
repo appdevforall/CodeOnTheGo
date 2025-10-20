@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.activities
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
@@ -29,18 +28,22 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import com.google.android.material.transition.MaterialSharedAxis
+import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FileDeleteUtils
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -49,19 +52,13 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_SAVED_PROJ
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import org.appdevforall.localwebserver.WebServer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.appdevforall.localwebserver.ServerConfig
-import com.itsaky.androidide.utils.Environment
+import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
 import org.slf4j.LoggerFactory
-
-import com.itsaky.androidide.utils.FileDeleteUtils
 import java.io.File
-
-import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
-import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
-import com.itsaky.androidide.FeedbackButtonManager
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 
@@ -218,10 +215,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun showToolTip(tag: String) {
-        TooltipManager.showTooltip(
-            this, binding.root,
-            tag
-        )
+        TooltipManager.showIdeCategoryTooltip(this, binding.root, tag)
     }
 
     private fun openLastProject() {
@@ -301,7 +295,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
                 val dbFile = Environment.DOC_DB
                 log.info("Starting WebServer - using database file from: {}", dbFile.absolutePath)
                 val webServer = WebServer(ServerConfig(databasePath = dbFile.absolutePath))
-                webServer.start() 
+                webServer.start()
             } catch (e: Exception) {
                 log.error("Failed to start WebServer", e)
             }
