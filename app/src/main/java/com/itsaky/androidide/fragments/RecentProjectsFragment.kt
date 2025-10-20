@@ -157,10 +157,7 @@ class RecentProjectsFragment : BaseFragment() {
     }
 
     private fun showToolTip(tag: String) {
-        TooltipManager.showTooltip(
-            requireContext(), binding.root,
-            tag
-        )
+        TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
     }
 
 }

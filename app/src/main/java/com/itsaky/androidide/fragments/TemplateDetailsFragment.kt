@@ -19,7 +19,6 @@ package com.itsaky.androidide.fragments
 
 import android.os.Bundle
 import android.view.View
-import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -81,12 +80,12 @@ class TemplateDetailsFragment :
         }
 
         binding.previous.setOnLongClickListener {
-            TooltipManager.showTooltip(requireContext(), it, SETUP_PREVIOUS)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), it, SETUP_PREVIOUS)
             true
         }
 
         binding.finish.setOnLongClickListener {
-            TooltipManager.showTooltip(requireContext(), it, SETUP_CREATE_PROJECT)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), it, SETUP_CREATE_PROJECT)
             true
         }
 
@@ -149,7 +148,7 @@ class TemplateDetailsFragment :
         binding.widgets.layoutManager = LinearLayoutManager(requireContext())
 
         binding.title.setOnLongClickListener {
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 requireContext(), binding.root,
                 SETUP_OVERVIEW
             )

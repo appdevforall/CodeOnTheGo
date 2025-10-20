@@ -25,7 +25,7 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
     fun longPressAction() {
         dialog.dismiss()
         val anchor = (context as? Activity)?.window?.decorView ?: return
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = context,
             anchorView = anchor,
             tag = tooltipTag,
