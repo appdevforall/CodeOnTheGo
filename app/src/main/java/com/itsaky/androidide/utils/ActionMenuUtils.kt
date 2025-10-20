@@ -56,7 +56,7 @@ object ActionMenuUtils {
         }
 
         val tooltipListener = OnLongClickListener { view ->
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
                 anchorView = view,
                 tag = TooltipTag.DIALOG_FIND_IN_FILE_OPTIONS
@@ -85,7 +85,7 @@ object ActionMenuUtils {
                     popupWindow.dismiss()
                 }
                 setOnLongClickListener {
-                    TooltipManager.showTooltip(
+                    TooltipManager.showIdeCategoryTooltip(
                         context = context,
                         anchorView = anchorView,
                         tag = TooltipTag.EDITOR_FILE_CLOSE_OPTIONS
