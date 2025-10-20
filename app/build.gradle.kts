@@ -545,8 +545,12 @@ tasks.register("recompressApk") {
 
 		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
+        val start = System.nanoTime()
 		recompressApk(abi, buildName)
-	}
+        val durationMs = "%.2f".format((System.nanoTime() - start) / 1_000_000.0)
+
+        project.logger.lifecycle("recompressApk completed in ${durationMs}ms")
+    }
 }
 
 afterEvaluate {
