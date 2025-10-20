@@ -24,7 +24,6 @@ import android.view.ViewGroup
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVELOPER
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR_XML
@@ -88,17 +87,7 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
     }
   }
 
-
-
-  private fun showTooltip(anchorView: View, tooltipTag: String) {
-      TooltipManager.showIdeCategoryTooltip(
-          context = requireContext(),
-          anchorView = anchorView,
-          tag = tooltipTag,
-      )
-  }
-
-  fun getCurrentScreenTooltip(): String {
+    fun getCurrentScreenTooltip(): String {
     val firstChildKey = children.firstOrNull()?.key
     return when (firstChildKey) {
       "idepref_configure" -> PREFS_TOP

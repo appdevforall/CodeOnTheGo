@@ -582,9 +582,7 @@ abstract class BaseEditorActivity :
         )
 
         content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
-            showTooltip(
-                tag = TooltipTag.EDITOR_BUILD_STATUS
-            )
+            showTooltip(tag = TooltipTag.EDITOR_BUILD_STATUS)
             true
         }
 
@@ -775,9 +773,7 @@ abstract class BaseEditorActivity :
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
-                showTooltip(
-                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
-                )
+                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
             }
         }
 
@@ -1268,9 +1264,7 @@ abstract class BaseEditorActivity :
 
 	private fun setupNoEditorView() {
 		content.noEditorLayout.setOnLongClickListener {
-			showTooltip(
-				tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
-			)
+			showTooltip(tag = TooltipTag.EDITOR_PROJECT_OVERVIEW)
 			true
 		}
         content.noEditorSummary.movementMethod = LinkMovementMethod()
@@ -1449,7 +1443,7 @@ abstract class BaseEditorActivity :
 
     private fun showTooltip(tag: String) {
         TooltipManager.showIdeCategoryTooltip(
-            context = this@BaseEditorActivity,
+            context = this,
             anchorView = content.customToolbar,
             tag = tag,
         )
