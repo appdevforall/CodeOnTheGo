@@ -45,7 +45,7 @@ class RightEditorSidebarFragment : FragmentWithBinding<FragmentRightEditorSideba
     fun setupTooltip(view: View, tooltipTag: String) {
         (requireActivity() as? EditorHandlerActivity)?.let { activity ->
             view.setOnLongClickListener { view ->
-                TooltipManager.showTooltip(
+                TooltipManager.showIdeCategoryTooltip(
                     context = view.context,
                     anchorView = view,
                     tag = tooltipTag,
