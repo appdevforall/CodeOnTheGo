@@ -163,7 +163,7 @@ object TooltipManager {
                 tag,
             )
             if (tooltipItem != null) {
-                showIDETooltip(
+                showTooltipPopup(
                     context = context,
                     anchorView = anchorView,
                     level = 0,
@@ -189,7 +189,7 @@ object TooltipManager {
     /**
      * Shows a tooltip anchored to a generic view.
      */
-    fun showIDETooltip(
+    private fun showTooltipPopup(
         context: Context,
         anchorView: View,
         level: Int,
@@ -207,14 +207,14 @@ object TooltipManager {
             },
             onSeeMoreClicked = { popupWindow, nextLevel, item ->
                 popupWindow.dismiss()
-                showIDETooltip(context, anchorView, nextLevel, item, onHelpLinkClicked)
+                showTooltipPopup(context, anchorView, nextLevel, item, onHelpLinkClicked)
             }
         )
     }
 
     /**
      * Internal helper function to create, configure, and show the tooltip PopupWindow.
-     * Contains the logic common to both showIDETooltip and showEditorTooltip.
+     * Contains the logic common to both showTooltipPopup and showEditorTooltip.
      */
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupAndShowTooltipPopup(
