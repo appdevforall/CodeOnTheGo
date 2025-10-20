@@ -122,7 +122,7 @@ abstract class RecyclerViewFragment<A : RecyclerView.Adapter<*>> :
     val workingContext = context ?: return
     val anchorView = this@RecyclerViewFragment.view ?: return
     val tooltipTag = fragmentTooltipTag ?: return
-      TooltipManager.showTooltip(
+      TooltipManager.showIdeCategoryTooltip(
           context = workingContext,
           anchorView = anchorView,
           tag = tooltipTag,

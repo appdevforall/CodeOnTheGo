@@ -48,9 +48,9 @@ class EditorSidebarFragment : FragmentWithBinding<FragmentEditorSidebarBinding>(
           top = title.marginTop + insets.top,
         )
       }
-      fragmentContainer.updateLayoutParams<MarginLayoutParams> {
+      editorSidebarFragmentContainer.updateLayoutParams<MarginLayoutParams> {
         updateMarginsRelative(
-          bottom = fragmentContainer.marginBottom + insets.bottom,
+          bottom = editorSidebarFragmentContainer.marginBottom + insets.bottom,
         )
       }
       navigation.updatePadding(
@@ -66,14 +66,14 @@ class EditorSidebarFragment : FragmentWithBinding<FragmentEditorSidebarBinding>(
     EditorSidebarActions.setup(this)
   }
 
-    fun setupTooltip(view: View, tooltipTag: String) {
+  fun setupTooltip(view: View, tooltipTag: String) {
     (requireActivity() as? EditorHandlerActivity)?.let { activity ->
       view.setOnLongClickListener { view ->
-          TooltipManager.showTooltip(
-              context = view.context,
-              anchorView = view,
-              tag = tooltipTag,
-          )
+        TooltipManager.showIdeCategoryTooltip(
+          context = view.context,
+          anchorView = view,
+          tag = tooltipTag,
+        )
         true
       }
     }

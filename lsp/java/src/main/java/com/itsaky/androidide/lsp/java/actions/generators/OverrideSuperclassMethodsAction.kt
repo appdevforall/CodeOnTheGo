@@ -17,7 +17,6 @@
 package com.itsaky.androidide.lsp.java.actions.generators
 
 import android.content.Context
-import android.content.Intent
 import android.view.View
 import com.blankj.utilcode.util.ThreadUtils
 import com.itsaky.androidide.actions.ActionData
@@ -26,11 +25,8 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
-import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER_DIALOG
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
@@ -57,13 +53,8 @@ import jdkx.lang.model.element.TypeElement
 import jdkx.lang.model.type.DeclaredType
 import jdkx.lang.model.type.ExecutableType
 import jdkx.tools.JavaFileObject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import openjdk.source.tree.MethodTree
 import openjdk.source.util.Trees
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.slf4j.LoggerFactory
 import java.util.Arrays
 import java.util.Optional
@@ -235,7 +226,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
     }
 
     private fun showTooltip(context: Context, anchor: View, toolTip: String) {
-        TooltipManager.showTooltip(context, anchor, toolTip)
+        TooltipManager.showIdeCategoryTooltip(context, anchor, toolTip)
     }
 
     private fun overrideMethods(data: ActionData, checkedMethods: MutableList<MethodPtr>) {

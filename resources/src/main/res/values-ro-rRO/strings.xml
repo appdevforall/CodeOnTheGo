@@ -187,8 +187,6 @@
   <string name="title_common">Comun</string>
   <string name="title_files_unsaved">Fișiere nesalvate</string>
   <string name="msg_files_unsaved">Unele fișiere nu sunt salvate. Doriți să le salvați înainte de închidere? Fișierele nesalvate sunt: \n%s</string>
-  <string name="idepref_editor_autoSave_title">Salvare înainte de închiderea fișierelor</string>
-  <string name="idepref_editor_autoSave_summary">Salvați fișierele înainte de a le închide. Aceasta este o caracteristică experimentală. Este de așteptat să salvați singur fișierele.</string>
   <string name="idepref_java_matchLower_summary">Dacă este activată, atunci tastarea unei litere mici sau majuscule va sugera numele claselor, precum și membrii domeniului de aplicare.</string>
   <string name="idepref_editor_ligatures_title">Ligaturi de fonturi</string>
   <string name="idepref_editor_ligatures_summary">Ligaturi de fonturi activate/dezactivate</string>

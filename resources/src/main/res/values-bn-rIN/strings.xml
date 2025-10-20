@@ -187,8 +187,6 @@
   <string name="title_common">সাধারণ</string>
   <string name="title_files_unsaved">অসংরক্ষিত ফাইল</string>
   <string name="msg_files_unsaved">কিছু ফাইল সংরক্ষিত নেই৷ আপনি বন্ধ করার আগে তাদের সংরক্ষণ করতে চান? অসংরক্ষিত ফাইলগুলি হল: \n%s</string>
-  <string name="idepref_editor_autoSave_title">ফাইলগুলি বন্ধ করার আগে সংরক্ষণ করুন</string>
-  <string name="idepref_editor_autoSave_summary">ফাইলগুলি বন্ধ করার আগে সংরক্ষণ করুন৷ এটি একটি পরীক্ষামূলক বৈশিষ্ট্য। আপনি নিজেই ফাইলগুলি সংরক্ষণ করবেন বলে আশা করা হচ্ছে৷</string>
   <string name="idepref_java_matchLower_summary">যদি সক্ষম করা থাকে, তাহলে একটি ছোট হাতের বা বড় হাতের অক্ষর, ক্লাসের নামের পাশাপাশি স্কোপ মেম্বার ও প্রস্তাব করবে৷</string>
   <string name="idepref_editor_ligatures_title">ফন্ট লিগ্যাচার</string>
   <string name="idepref_editor_ligatures_summary">ফন্ট লিগ্যাচার সক্রিয়/অক্ষম করুন</string>
