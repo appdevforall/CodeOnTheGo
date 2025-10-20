@@ -204,12 +204,11 @@ internal class EventHandler(
     private fun classPrepareEvent(event: ClassPrepareEvent): Boolean {
         consumer.classPrepareEvent(event)
 
-        if (!eventRequestSpecList.resolve(event)) {
-            logger.info("Stopping VM due to deferred breakpoint errors.")
-            return true
-        } else {
-            return false
-        }
+		val success = eventRequestSpecList.resolve(event)
+		if (!success) {
+			logger.error("Error resolving event request for event: $event")
+		}
+		return false
     }
 
 
