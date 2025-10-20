@@ -15,12 +15,8 @@ object UrlManager {
     fun openUrl(url: String, pkg: String? = null, context: Context? = null) {
         val ctx = context ?: Utils.getApp().applicationContext
 
-        if (needsConsent(url, ctx)) {
-            if (ctx is Activity) {
-                showConsentDialog(url, pkg, ctx)
-            } else {
-                openUrlInternal(url, pkg, ctx)
-            }
+        if (needsConsent(url, ctx) && ctx is Activity) {
+            showConsentDialog(url, pkg, ctx)
         } else {
             openUrlInternal(url, pkg, ctx)
         }
