@@ -15,6 +15,7 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.isEmpty
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -86,6 +87,8 @@ class DesignEditor : LinearLayout {
     private var isModified = false
     private lateinit var preferencesManager: PreferencesManager
     private var parser: XmlLayoutParser? = null
+    private val attrTranslationX = "android:translationX"
+		private val attrTranslationY = "android:translationY"
 
     init {
         initAttributes()
@@ -217,6 +220,96 @@ class DesignEditor : LinearLayout {
         }
     }
 
+    private fun Float.toDp(density: Float): Float = this / density
+
+    private fun Float.format(decimals: Int = 1): String =
+			java.lang.String.format(java.util.Locale.US, "%.${decimals}f", this)
+
+    /**
+     * Places the [child] exactly at the drop position within [container].
+     * The position is clamped within the container bounds
+     * and stored in the attribute map as dp values (e.g., "120.0dp").
+     *
+     * @param child The dropped view.
+     * @param container The parent ViewGroup receiving the drop.
+     * @param x X coordinate in container space (px).
+     * @param y Y coordinate in container space (px).
+     */
+    private fun positionAtDrop(child: View, container: ViewGroup, x: Float, y: Float) {
+    		val targetX = x - child.width / 2f
+    		val targetY = y - child.height / 2f
+
+        val maxX = (container.width - child.width).coerceAtLeast(0).toFloat()
+        val maxY = (container.height - child.height).coerceAtLeast(0).toFloat()
+
+        val xPx = targetX.coerceIn(0f, maxX)
+        val yPx = targetY.coerceIn(0f, maxY)
+
+        // Apply visual offset relative to container layout origin
+        child.translationX = xPx
+        child.translationY = yPx
+
+        val density = container.resources.displayMetrics.density
+        val xDp = xPx.toDp(density).format(1)
+        val yDp = yPx.toDp(density).format(1)
+
+        viewAttributeMap[child]?.apply {
+            putValue(attrTranslationX, "${xDp}dp")
+            putValue(attrTranslationY, "${yDp}dp")
+        }
+
+        markAsModified()
+        updateStructure()
+        updateUndoRedoHistory()
+    }
+
+    /**
+     * Converts a dimension string (e.g., "12px", "8dp", "10dip", or "14") to pixels.
+     *
+     * Supported formats:
+     * - "12px" → 12 px
+     * - "8dp" / "8dip" → dp * density
+     * - "14" (no suffix) → treated as px
+     *
+     * @receiver The string representation of a dimension.
+     * @param density The display density (from resources.displayMetrics.density).
+     * @return The equivalent pixel value as Float.
+     */
+    private fun String.toPx(density: Float): Float {
+        val trimmed = trim()
+        return when {
+            trimmed.endsWith("px", true) -> trimmed.dropLast(2).toFloatOrNull() ?: 0f
+            trimmed.endsWith("dp", true) -> (trimmed.dropLast(2).toFloatOrNull() ?: 0f) * density
+            trimmed.endsWith("dip", true) -> (trimmed.dropLast(3).toFloatOrNull() ?: 0f) * density
+            else -> (trimmed.toFloatOrNull() ?: 0f) * density // assume dp if no suffix
+        }
+    }
+
+    /**
+     * Restores saved translation offsets (px/dp/dip) for each view after layout pass.
+     * Ensures that widgets appear exactly where they were placed when reopening the editor.
+     *
+     * Reads ATTR_TRANSLATION_X/Y from [viewAttributeMap] and applies translationX/Y.
+     */
+    private fun restoreTranslationsAfterLoad() = this.doOnLayout {
+        val density = resources.displayMetrics.density
+        viewAttributeMap.forEach { (view, attrs) ->
+            val container = view.parent as? ViewGroup ?: return@forEach
+            val txStr = if (attrs.contains(attrTranslationX)) attrs.getValue(attrTranslationX) else null
+            val tyStr = if (attrs.contains(attrTranslationY)) attrs.getValue(attrTranslationY) else null
+            if (txStr != null || tyStr != null) {
+            		val maxX = (container.width - view.width).coerceAtLeast(0).toFloat()
+            		val maxY = (container.height - view.height).coerceAtLeast(0).toFloat()
+
+                val txPx = txStr?.toPx(density) ?: view.translationX
+                val tyPx = tyStr?.toPx(density) ?: view.translationY
+                view.translationX = txPx.coerceIn(0f, maxX)
+                view.translationY = tyPx.coerceIn(0f, maxY)
+            }
+        }
+    }
+
+
     private fun setDragListener(group: ViewGroup) {
         group.setOnDragListener(
             OnDragListener { host, event ->
@@ -256,10 +349,7 @@ class DesignEditor : LinearLayout {
 
                             if (index != newIndex) {
                                 parent.removeView(shadow)
-                                try {
-                                    parent.addView(shadow, newIndex)
-                                } catch (_: IllegalStateException) {
-                                }
+                                runCatching { parent.addView(shadow, newIndex) }
                             }
                         } else {
                             if (shadow.parent !== parent) addWidget(shadow, parent, event)
@@ -334,12 +424,16 @@ class DesignEditor : LinearLayout {
 
                             if (data.containsKey(Constants.KEY_DEFAULT_ATTRS)) {
                                 @Suppress("UNCHECKED_CAST")
-                                initializer.applyDefaultAttributes(
-                                    newView,
-                                    data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>
-                                )
+                                val defaults = (data[Constants.KEY_DEFAULT_ATTRS] as MutableMap<String, String>).toMutableMap()
+                                defaults.remove(attrTranslationX)
+                                defaults.remove(attrTranslationY)
+                                initializer.applyDefaultAttributes(newView, defaults)
                             }
-                        } else addWidget(draggedView, parent, event)
+                            positionAtDrop(newView, parent, event.x, event.y)
+                        } else {
+													addWidget(draggedView, parent, event)
+													positionAtDrop(draggedView, parent, event.x, event.y)
+												}
                         updateStructure()
                         updateUndoRedoHistory()
                     }
@@ -392,6 +486,7 @@ class DesignEditor : LinearLayout {
 
         initializer =
             AttributeInitializer(context, viewAttributeMap, attributes, parentAttributes)
+        restoreTranslationsAfterLoad()
     }
 
     private fun ensureConstraintsApplied() {
@@ -463,6 +558,7 @@ class DesignEditor : LinearLayout {
     fun isLayoutModified(): Boolean = isModified
 
     private fun rearrangeListeners(view: View) {
+    		val container = view.parent as? ViewGroup ?: return
         when (view) {
             is Spinner -> {
                 view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -501,6 +597,10 @@ class DesignEditor : LinearLayout {
             },
             onDrag = {
                 view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
+            },
+            container = container,
+            onDrop = { child, parent, x, y ->
+                positionAtDrop(child, parent, x, y)
             }
         )
     }
