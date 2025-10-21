@@ -250,8 +250,8 @@ class DesignEditor : LinearLayout {
         child.translationY = yPx
 
         val density = container.resources.displayMetrics.density
-        val xDp = xPx.toDp(density).format(1)
-        val yDp = yPx.toDp(density).format(1)
+        val xDp = xPx.toDp(density).format(4)
+        val yDp = yPx.toDp(density).format(4)
 
         viewAttributeMap[child]?.apply {
             putValue(attrTranslationX, "${xDp}dp")
