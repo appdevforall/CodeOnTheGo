@@ -31,6 +31,7 @@ import com.itsaky.androidide.utils.Environment;
 import com.itsaky.androidide.utils.FileUtil;
 import com.itsaky.androidide.utils.FlashbarUtilsKt;
 import com.itsaky.androidide.utils.JavaCharacter;
+import com.itsaky.androidide.utils.UrlManager;
 import com.itsaky.androidide.utils.VMUtils;
 import java.io.File;
 
@@ -104,24 +105,7 @@ public class BaseApplication extends Application {
   }
 
   public void openUrl(String url, String pkg) {
-    try {
-      Intent open = new Intent();
-      open.setAction(Intent.ACTION_VIEW);
-      open.setData(Uri.parse(url));
-      open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      if (pkg != null) {
-        open.setPackage(pkg);
-      }
-      startActivity(open);
-    } catch (Throwable th) {
-      if (pkg != null) {
-        openUrl(url);
-      } else if (th instanceof ActivityNotFoundException) {
-        FlashbarUtilsKt.flashError(R.string.msg_app_unavailable_for_intent);
-      } else {
-        FlashbarUtilsKt.flashError(th.getMessage());
-      }
-    }
+    UrlManager.INSTANCE.openUrl(url, pkg, this);
   }
 
   private boolean isInstrumentedTest() {

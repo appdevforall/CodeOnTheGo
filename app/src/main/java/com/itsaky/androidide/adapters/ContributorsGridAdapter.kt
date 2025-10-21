@@ -28,6 +28,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.contributors.Contributor
 import com.itsaky.androidide.databinding.LayoutContributorsItemBinding
+import com.itsaky.androidide.utils.UrlManager
 
 /**
  * @author Akash Yadav
@@ -66,7 +67,7 @@ class ContributorsGridAdapter(
       .into(binding.root)
 
     binding.root.setOnClickListener {
-      IDEApplication.instance.openUrl(contributor.profileUrl)
+      UrlManager.openUrl(contributor.profileUrl, null, binding.root.context)
     }
   }
 
