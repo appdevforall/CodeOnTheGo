@@ -153,7 +153,7 @@ constructor(
 				tab.view.setOnLongClickListener { view ->
 					val tooltipTag =
 						pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
-					TooltipManager.showTooltip(
+					TooltipManager.showIdeCategoryTooltip(
 						context = context,
 						anchorView = view,
 						tag = tooltipTag,
@@ -281,7 +281,7 @@ constructor(
 
 	private fun generateTooltipListener(tooltipTag: String): OnLongClickListener =
 		OnLongClickListener { view: View ->
-			TooltipManager.showTooltip(
+			TooltipManager.showIdeCategoryTooltip(
 				context = context,
 				anchorView = view,
 				tag = tooltipTag,
@@ -386,7 +386,7 @@ constructor(
 
 	private val suppressedGradleWarnings =
 		listOf(
-			"The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/.androidide/aapt2' is experimental",
+            "The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/aapt2' is experimental",
 			"The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
 			"The org.gradle.api.plugins.Convention type has been deprecated.",
 			"The BasePluginExtension.archivesBaseName property has been deprecated.",

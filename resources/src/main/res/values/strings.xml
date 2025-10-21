@@ -12,7 +12,7 @@
     <string name="about_footer">Code on the Go %1$s for %2$s</string>
     <string name="about_subtitle">Simply, an IDE for Android</string>
     <string name="msg_get_package_failed">Failed to extract package name!</string>
-    <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggesstions on our email.</string>
+    <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
     <string name="need_help">Need Help?</string>
     <string name="ide_preferences">IDE preferences</string>
     <string name="discussions_on_telegram">Discussions on Telegram</string>
@@ -277,7 +277,7 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
     <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
     <string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
@@ -288,15 +288,15 @@
     <string name="btn_close">Close</string>
     <string name="msg_ignore_case">Ignore case</string>
     <string name="msg_use_regex">Use regex</string>
-    <string name="idepref_buildnrun_summary">Configure the Gradle build.</string>
+    <string name="idepref_buildnrun_summary">Configure the Gradle build</string>
     <string name="configure">Configure</string>
     <string name="about">About</string>
     <string name="idepref_channel_summary">Subscribe for latest updates.</string>
-    <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
+    <string name="idepref_group_summary">Discuss features, bugs and improvements here.</string>
     <string name="idepref_changelog_summary">What\'s new in this version?</string>
-    <string name="idepref_about_summary">More about Code on the Go.</string>
-    <string name="idepref_general_summary">General IDE configuration.</string>
-    <string name="idepref_editor_summary">Configure the editor.</string>
+    <string name="idepref_about_summary">More about Code on the Go</string>
+    <string name="idepref_general_summary">General IDE configuration</string>
+    <string name="idepref_editor_summary">Configure the editor</string>
     <string name="xml" translatable="false">XML</string>
     <string name="idepref_xml_trimFinalNewLine_title">Trim final new line</string>
     <string name="idepref_xml_insertFinalNewLine_title">Insert final new line</string>
@@ -599,6 +599,15 @@
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
     <string name="permission_title_notifications">Notifications</string>
 	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
+	<string name="permission_title_accessibility">Accessibility</string>
+	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
+	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
+	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions. All of these permissions are required for Code on the Go to work.</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
+	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
+	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> and <b>Accessibility</b> are required so you can use the debugger.</string>
+	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
 	<string name="msg_grant_permissions">Please grant the permissions to continue.</string>
@@ -630,6 +639,8 @@
 	<string name="idepref_jdkVersion_title">JDK version</string>
 	<string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
 	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
+	<string name="ide_setup_complete">Code on the Go setup complete.</string>
+	<string name="msg_complete_ide_setup">Please complete the IDE setup to continue.</string>
 
 	<string name="debugger_title">Debugger</string>
 	<string name="debugger_starting">Starting debugger…</string>
@@ -668,28 +679,15 @@
 	<string name="actions">Actions</string>
 	<string name="help">Help</string>
 	<string name="code"></string>
-
-	<string name="email_feedback_warning_prompt">
-		Sending feedback will create and send a private email to feedback@appdevforall.org, if you feel that this would
-		be an unsafe action, then click
-		<b>
-			<i>Cancel</i>
-		</b>
-		, otherwise click
-		<b>
-			<i>OK</i>
-		</b>
-		to proceed
-	</string>
+	<string name="email_feedback_warning_prompt">To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
-	<string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were
-        taking and on what screen.\n\nThank You.\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as much information as possible about the issue.\n\nThanks!\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
 	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
-    <string name="send_feedback">Send Feedback</string>
-	<string name="alert_message">Alert!</string>
+  <string name="send_feedback">Send feedback</string>
+	<string name="alert_message">Send feedback</string>
 	<string name="fab_more">More</string>
 	<string name="msg_recent_projects">Recent projects</string>
-	<string name="msg_create_new_from_recent">Click the New project button to create a new project or open from a folder.</string>
+	<string name="msg_create_new_from_recent">Click the <b>New project</b> button to create a new project, or open an existing project from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
