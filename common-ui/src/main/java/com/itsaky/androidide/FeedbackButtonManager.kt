@@ -2,13 +2,16 @@ package com.itsaky.androidide
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Rect
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import com.blankj.utilcode.util.SizeUtils
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.FeedbackManager
@@ -44,10 +47,9 @@ class FeedbackButtonManager(
                         override fun onLongPress(e: MotionEvent) {
                             if (!isDragging) {
                                 isLongPressed = true
-                                TooltipManager.showTooltip(
+                                TooltipManager.showIdeCategoryTooltip(
                                     context = activity,
                                     anchorView = feedbackFab,
-                                    category = TooltipCategory.CATEGORY_IDE,
                                     tag = TooltipTag.FEEDBACK,
                                 )
                             }
@@ -87,11 +89,16 @@ class FeedbackButtonManager(
                         }
 
                         if (isDragging) {
-                            v.x =
-                                (initialX + dX).coerceIn(0f, (parentView.width - v.width).toFloat())
+                            // Get safe dragging bounds that account for system UI
+                            val safeBounds = getSafeDraggingBounds(parentView, v as FloatingActionButton)
+
+                            v.x = (initialX + dX).coerceIn(
+                                safeBounds.left.toFloat(),
+                                safeBounds.right.toFloat()
+                            )
                             v.y = (initialY + dY).coerceIn(
-                                0f,
-                                (parentView.height - v.height).toFloat()
+                                safeBounds.top.toFloat(),
+                                safeBounds.bottom.toFloat()
                             )
                         }
                         true
@@ -135,6 +142,61 @@ class FeedbackButtonManager(
 		}
 	}
 
+	/**
+	 * Calculate safe bounds for FAB positioning, accounting for system UI elements.
+	 * Returns a Rect with the safe dragging area (left, top, right, bottom).
+	 */
+	private fun getSafeDraggingBounds(parentView: ViewGroup, fabView: FloatingActionButton): Rect {
+		val bounds = Rect()
+
+		// Get margin from layout params, or use default 16dp if not available
+		val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
+		val fabMarginPx = layoutParams?.topMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
+
+		// Get system window insets (status bar, navigation bar, etc.)
+		val insets = ViewCompat.getRootWindowInsets(parentView)
+		val systemBarsInsets = insets?.getInsets(WindowInsetsCompat.Type.systemBars())
+
+		// Calculate safe minimum Y position
+		// Start with system bars top inset (status bar), add a safety margin
+		val minY = (systemBarsInsets?.top?.toFloat() ?: 0f) + fabMarginPx
+
+		// Calculate safe bounds
+		bounds.left = 0
+		bounds.top = minY.toInt()
+		bounds.right = (parentView.width - fabView.width).coerceAtLeast(0)
+		bounds.bottom = (parentView.height - fabView.height).coerceAtLeast(0)
+
+		return bounds
+	}
+
+	/**
+	 * Validates if the given position is within safe bounds.
+	 * If not, returns a safe default position (bottom-left with margins).
+	 */
+	private fun validateAndCorrectPosition(x: Float, y: Float, parentView: ViewGroup, fabView: FloatingActionButton): Pair<Float, Float> {
+		val safeBounds = getSafeDraggingBounds(parentView, fabView)
+
+		// Check if position is within safe bounds
+		val isXValid = x >= safeBounds.left && x <= safeBounds.right
+		val isYValid = y >= safeBounds.top && y <= safeBounds.bottom
+
+		return if (isXValid && isYValid) {
+			// Position is valid, return as-is
+			Pair(x, y)
+		} else {
+			// Get margins from layout params, or use default 16dp if not available
+			val layoutParams = fabView.layoutParams as? ViewGroup.MarginLayoutParams
+			val marginStart = layoutParams?.marginStart?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
+			val marginBottom = layoutParams?.bottomMargin?.toFloat() ?: SizeUtils.dp2px(16f).toFloat()
+
+			// Position is invalid, return default position (bottom-left)
+			val defaultX = marginStart
+			val defaultY = parentView.height - fabView.height - marginBottom
+			Pair(defaultX, defaultY)
+		}
+	}
+
     // Called in onResume for returning activities to reload FAB position
     fun loadFabPosition() {
         if (feedbackFab != null) {
@@ -146,8 +208,22 @@ class FeedbackButtonManager(
 
             if (x != -1f && y != -1f) {
                 feedbackFab.post {
-                    feedbackFab.x = x
-                    feedbackFab.y = y
+                    val parentView = feedbackFab.parent as? ViewGroup
+                    if (parentView != null) {
+                        // Validate and correct the loaded position to ensure it's in a safe area
+                        val (validX, validY) = validateAndCorrectPosition(x, y, parentView, feedbackFab)
+                        feedbackFab.x = validX
+                        feedbackFab.y = validY
+
+                        // If position was corrected, save the new valid position
+                        if (validX != x || validY != y) {
+                            saveFabPosition(validX, validY)
+                        }
+                    } else {
+                        // Fallback: apply position without validation if parent not available
+                        feedbackFab.x = x
+                        feedbackFab.y = y
+                    }
                 }
             }
         }
