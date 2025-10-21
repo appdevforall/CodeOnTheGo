@@ -817,7 +817,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
         val dialog = builder.create()
         dialog.onLongPress {
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = this,
                 anchorView = binding.root,
                 tag = TooltipTag.DIALOG_FIND_IN_PROJECT

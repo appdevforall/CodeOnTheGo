@@ -281,7 +281,7 @@ class EditorActivity : BaseActivity() {
     }
 
     private fun showTooltip(context: Context, anchorView: View, tag: String) {
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = context,
             anchorView = anchorView,
             tag = tag,

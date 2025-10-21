@@ -66,7 +66,7 @@ object ReplaceAction {
 
         val dialog = builder.create()
         dialog.onLongPress {
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = binding.root.context,
                 anchorView = binding.root,
                 tag = TooltipTag.DIALOG_REPLACE_IN_FILE

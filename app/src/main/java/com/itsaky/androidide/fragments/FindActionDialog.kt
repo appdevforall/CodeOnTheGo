@@ -1,9 +1,7 @@
 package com.itsaky.androidide.fragments
 
 import android.content.Context
-import android.content.Intent
 import android.content.res.Resources
-import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -12,15 +10,8 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
-import com.itsaky.androidide.activities.editor.HelpActivity
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 
 class FindActionDialog(
     private val anchor: View,
@@ -47,7 +38,7 @@ class FindActionDialog(
             }
             setOnLongClickListener {
                 popupWindow.dismiss()
-                TooltipManager.showTooltip(
+                TooltipManager.showIdeCategoryTooltip(
                     context = context,
                     anchorView = this,
                     tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
@@ -63,7 +54,7 @@ class FindActionDialog(
             }
             setOnLongClickListener {
                 popupWindow.dismiss()
-                TooltipManager.showTooltip(
+                TooltipManager.showIdeCategoryTooltip(
                     context = context,
                     anchorView = this,
                     tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT

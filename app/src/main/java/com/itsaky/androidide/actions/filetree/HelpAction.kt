@@ -4,7 +4,6 @@ import android.content.Context
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
-import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 
@@ -26,10 +25,9 @@ class HelpAction(context: Context, override val order: Int) :
     override suspend fun execAction(data: ActionData) {
         val context = data.requireContext()
 
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = context,
             anchorView = data.requireTreeNode().viewHolder.view,
-            category = TooltipCategory.CATEGORY_IDE,
             tag = TooltipTag.PROJECT_FILE_HELP,
         )
     }
