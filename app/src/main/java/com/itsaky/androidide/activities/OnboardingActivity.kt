@@ -37,11 +37,10 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
-import com.itsaky.androidide.assets.AssetsInstallationHelper
 import com.itsaky.androidide.fragments.onboarding.GreetingFragment
-import com.itsaky.androidide.fragments.onboarding.IdeSetupConfigurationFragment
 import com.itsaky.androidide.fragments.onboarding.OnboardingInfoFragment
 import com.itsaky.androidide.fragments.onboarding.PermissionsFragment
+import com.itsaky.androidide.fragments.onboarding.PermissionsInfoFragment
 import com.itsaky.androidide.models.JdkDistribution
 import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
@@ -52,7 +51,6 @@ import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
 import com.itsaky.androidide.utils.resolveAttr
-import com.itsaky.androidide.utils.withStopWatch
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -118,6 +116,7 @@ class OnboardingActivity : AppIntro2() {
 		isWizardMode = true
 
 		addSlide(GreetingFragment())
+		addSlide(PermissionsInfoFragment())
 
 		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
 			val errorMessage =
@@ -163,12 +162,8 @@ class OnboardingActivity : AppIntro2() {
 			return
 		}
 
-		if (!PermissionsHelper.areAllPermissionsGranted(this)) {
+		if (!PermissionsHelper.areAllPermissionsGranted(this) || !checkToolsIsInstalled()) {
 			addSlide(PermissionsFragment.newInstance(this))
-		}
-
-		if (!checkToolsIsInstalled()) {
-			addSlide(IdeSetupConfigurationFragment.newInstance(this))
 		}
 	}
 
@@ -234,33 +229,23 @@ class OnboardingActivity : AppIntro2() {
 			return
 		}
 
-		if (!checkToolsIsInstalled() && currentFragment is IdeSetupConfigurationFragment) {
-			activityScope.launch {
-				doAsyncWithProgress(Dispatchers.IO) { flashbar, cancelChecker ->
-					runOnUiThread {
-						flashbar.flashbarView.setTitle(getString(R.string.ide_setup_in_progress))
-					}
-
-					val result =
-						withStopWatch("Assets installation") {
-							AssetsInstallationHelper.install(this@OnboardingActivity) { progress ->
-								logger.debug("Assets installation progress: {}", progress.message)
-							}
-						}
-
-					logger.info("Assets installation result: {}", result)
-
-					withContext(Dispatchers.Main) {
-						reloadJdkDistInfo {
-							tryNavigateToMainIfSetupIsCompleted()
-						}
-					}
-				}
-			}
-			return
-		}
-
 		tryNavigateToMainIfSetupIsCompleted()
+	}
+
+	override fun onPageSelected(position: Int) {
+		super.onPageSelected(position)
+
+		// Get the fragment at the current position
+		val fragment = supportFragmentManager.fragments.getOrNull(position)
+
+		// Hide indicator and buttons when on PermissionsFragment
+		if (fragment is PermissionsFragment) {
+			isIndicatorEnabled = false
+			isButtonsEnabled = false
+		} else {
+			isIndicatorEnabled = true
+			isButtonsEnabled = true
+		}
 	}
 
 	private fun checkToolsIsInstalled(): Boolean =
@@ -271,7 +256,7 @@ class OnboardingActivity : AppIntro2() {
 		checkToolsIsInstalled() &&
 				PermissionsHelper.areAllPermissionsGranted(this)
 
-	private fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
+	internal fun tryNavigateToMainIfSetupIsCompleted(): Boolean {
 		if (isSetupCompleted()) {
 			startActivity(Intent(this, MainActivity::class.java))
 			finish()
