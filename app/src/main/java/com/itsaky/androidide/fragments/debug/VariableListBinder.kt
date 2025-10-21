@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
@@ -106,7 +105,7 @@ class VariableListBinder(
                     showSetValueDialogOnClick(binding, data, descriptor, strValue)
 
                     binding.root.setOnLongClickListener {
-                        TooltipManager.showTooltip(context, binding.root, DEBUG_OUTPUT_VARIABLES)
+                        TooltipManager.showIdeCategoryTooltip(context, binding.root, DEBUG_OUTPUT_VARIABLES)
                         true
                     }
                 }

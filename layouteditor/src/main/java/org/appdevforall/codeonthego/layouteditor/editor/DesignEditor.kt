@@ -12,6 +12,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.view.isEmpty
@@ -462,8 +463,31 @@ class DesignEditor : LinearLayout {
     fun isLayoutModified(): Boolean = isModified
 
     private fun rearrangeListeners(view: View) {
-        view.setOnClickListener {
-            showDefinedAttributes(view)
+        when (view) {
+            is Spinner -> {
+                view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(
+                        parent: AdapterView<*>?,
+                        v: View?,
+                        position: Int,
+                        id: Long
+                    ) {
+                        showDefinedAttributes(view)
+                    }
+
+                    override fun onNothingSelected(parent: AdapterView<*>?) {
+                    }
+                }
+            }
+            is AdapterView<*> -> {
+                view.setOnItemClickListener { _, _, _, _ ->
+                    showDefinedAttributes(view)
+                }
+            }
+            else ->
+                view.setOnClickListener {
+                    showDefinedAttributes(view)
+                }
         }
 
         view.handleLongClicksAndDrag(

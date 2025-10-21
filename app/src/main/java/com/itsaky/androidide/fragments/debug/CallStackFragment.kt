@@ -1,7 +1,6 @@
 package com.itsaky.androidide.fragments.debug
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.LayoutInflater
@@ -35,7 +34,7 @@ class CallStackFragment : RecyclerViewFragment<CallStackAdapter>() {
 
 	private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
 		override fun onLongPress(e: MotionEvent) {
-            TooltipManager.showTooltip(requireContext(), _binding!!.root, fragmentTooltipTag)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), _binding!!.root, fragmentTooltipTag)
 		}
 	}
 
