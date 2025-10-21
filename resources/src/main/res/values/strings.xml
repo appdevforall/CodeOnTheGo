@@ -504,7 +504,7 @@
     <string name="new_directory_name">New directory name</string>
     <string name="error">Error</string>
     <string name="error_deleting_directory">Error while deleting the directory: %s</string>
-    <string name="deleting_directory">Deleting Directory</string>
+    <string name="deleting_directory">Deleting directory</string>
 
     <string name="btn_sync">Sync</string>
     <string name="btn_ignore_changes">Ignore these changes</string>
@@ -638,10 +638,9 @@
 	<string name="summary_open_source_licenses">View open source licenses.</string>
 	<string name="idepref_jdkVersion_title">JDK version</string>
 	<string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
-	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
+	<string name="ide_setup_in_progress">Code on the Go setup is in progress</string>
 	<string name="ide_setup_complete">Code on the Go setup complete.</string>
 	<string name="msg_complete_ide_setup">Please complete the IDE setup to continue.</string>
-
 	<string name="debugger_title">Debugger</string>
 	<string name="debugger_starting">Starting debugger…</string>
 	<string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
@@ -661,7 +660,7 @@
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
-	<string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
+	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>
