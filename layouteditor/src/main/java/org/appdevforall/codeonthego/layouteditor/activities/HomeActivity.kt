@@ -18,6 +18,7 @@ import androidx.fragment.app.FragmentTransaction
 import androidx.preference.PreferenceManager
 import com.google.android.gms.oss.licenses.OssLicensesMenuActivity
 import com.google.android.material.navigation.NavigationView
+import com.itsaky.androidide.utils.UrlManager
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.ActivityHomeBinding
@@ -112,7 +113,7 @@ class HomeActivity : BaseActivity() {
           true
         }
         R.id.nav_github -> {
-          openUrl(Constants.GITHUB_URL)
+          UrlManager.openUrl(Constants.GITHUB_URL, null, this)
           true
         }
         R.id.nav_share -> {
