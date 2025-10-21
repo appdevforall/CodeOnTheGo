@@ -9,6 +9,7 @@ import androidx.core.view.ViewCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.idetooltips.TooltipCategory
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipManager.showTooltip
 import com.itsaky.androidide.utils.setupGestureHandling
 import org.appdevforall.codeonthego.layouteditor.R
@@ -52,12 +53,11 @@ class PaletteListAdapter(private val drawerLayout: DrawerLayout) :
 
 
   private fun showTooltipForWidget(anchorView: View, widgetItem: HashMap<String, Any>) {
-    val context = anchorView.context
     val className =  getSuperClassName(widgetItem["className"].toString())
 
       className?.let {
           showTooltip(
-              context = context,
+              context = anchorView.context,
               anchorView = anchorView,
               tag = className,
               category = TooltipCategory.CATEGORY_JAVA

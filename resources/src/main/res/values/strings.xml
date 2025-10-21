@@ -16,7 +16,7 @@
     <string name="need_help">Need Help?</string>
     <string name="ide_preferences">IDE preferences</string>
     <string name="discussions_on_telegram">Discussions on Telegram</string>
-    <string name="official_tg_channel">Official Telegram Channel</string>
+    <string name="official_tg_channel">Official Telegram channel</string>
     <string name="msg_empty_view">No data</string>
     <string name="title_terminal">Terminal</string>
     <string name="reset">Reset</string>
@@ -589,7 +589,7 @@
     <string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
     <string name="msg_install_tools"> </string>
     <string name="greeting_title">Welcome</string>
-    <string name="greeting_subtitle">Learn, build, launch. All on your Android.</string>
+    <string name="greeting_subtitle">No computer? No Internet? No problem.</string>
     <string name="title_grant">Allow</string>
     <string name="permission_title_storage">Storage</string>
     <string name="permission_desc_storage">Allow Code on the Go to access files.</string>
@@ -598,7 +598,16 @@
     <string name="permission_title_overlay_window">Overlay window</string>
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
     <string name="permission_title_notifications">Notifications</string>
-	<string name="permission_desc_notifications">Allow Code on the Go to post notifications</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
+	<string name="permission_title_accessibility">Accessibility</string>
+	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
+	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
+	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions. All of these permissions are required for Code on the Go to work.</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
+	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
+	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> and <b>Accessibility</b> are required so you can use the debugger.</string>
+	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
 	<string name="msg_grant_permissions">Please grant the permissions to continue.</string>
@@ -630,7 +639,8 @@
 	<string name="idepref_jdkVersion_title">JDK version</string>
 	<string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
 	<string name="ide_setup_in_progress">Code on the Go setup is in progress</string>
-
+	<string name="ide_setup_complete">Code on the Go setup complete.</string>
+	<string name="msg_complete_ide_setup">Please complete the IDE setup to continue.</string>
 	<string name="debugger_title">Debugger</string>
 	<string name="debugger_starting">Starting debugger…</string>
 	<string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
@@ -876,8 +886,8 @@
     <string name="title_alert">Alert!</string>
 
     <!-- Strings from BaseApplication.java-->
-    <string name="telegram_group_url">https://t.me/androidide_discussions</string>
-    <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
+    <string name="telegram_group_url">https://t.me/CodeOnTheGoDiscussions</string>
+    <string name="telegram_channel_url">https://t.me/CodeOnTheGoOfficial</string>
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
