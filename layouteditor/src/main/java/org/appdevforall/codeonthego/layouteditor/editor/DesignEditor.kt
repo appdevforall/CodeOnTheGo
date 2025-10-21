@@ -226,18 +226,19 @@ class DesignEditor : LinearLayout {
 		    java.lang.String.format(java.util.Locale.US, "%.${decimals}f", this)
 
     /**
-     * Places the [child] exactly at the drop position within [container].
+     * Places the [child] exactly at the drop position within [child].container.
      * The position is clamped within the container bounds
      * and stored in the attribute map as dp values (e.g., "120.0dp").
      *
      * @param child The dropped view.
-     * @param container The parent ViewGroup receiving the drop.
      * @param x X coordinate in container space (px).
      * @param y Y coordinate in container space (px).
      */
-    private fun positionAtDrop(child: View, container: ViewGroup, x: Float, y: Float) {
+    private fun positionAtDrop(child: View, x: Float, y: Float) {
         val targetX = x - child.width / 2f
         val targetY = y - child.height / 2f
+
+        val container = child.parent as ViewGroup
 
         val maxX = (container.width - child.width).coerceAtLeast(0).toFloat()
         val maxY = (container.height - child.height).coerceAtLeast(0).toFloat()
@@ -429,10 +430,10 @@ class DesignEditor : LinearLayout {
                                 defaults.remove(attrTranslationY)
                                 initializer.applyDefaultAttributes(newView, defaults)
                             }
-                            positionAtDrop(newView, parent, event.x, event.y)
+                            positionAtDrop(newView, event.x, event.y)
                         } else {
                             addWidget(draggedView, parent, event)
-                            positionAtDrop(draggedView, parent, event.x, event.y)
+                            positionAtDrop(draggedView, event.x, event.y)
 												}
                         updateStructure()
                         updateUndoRedoHistory()
@@ -597,8 +598,8 @@ class DesignEditor : LinearLayout {
             onDrag = {
                 view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
             },
-            onDrop = { child, parent, x, y ->
-                positionAtDrop(child, parent, x, y)
+            onDrop = { child, x, y ->
+                positionAtDrop(child, x, y)
             }
         )
     }
