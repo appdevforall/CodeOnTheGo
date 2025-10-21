@@ -88,7 +88,7 @@ class DesignEditor : LinearLayout {
     private lateinit var preferencesManager: PreferencesManager
     private var parser: XmlLayoutParser? = null
     private val attrTranslationX = "android:translationX"
-		private val attrTranslationY = "android:translationY"
+    private val attrTranslationY = "android:translationY"
 
     init {
         initAttributes()
@@ -223,7 +223,7 @@ class DesignEditor : LinearLayout {
     private fun Float.toDp(density: Float): Float = this / density
 
     private fun Float.format(decimals: Int = 1): String =
-			java.lang.String.format(java.util.Locale.US, "%.${decimals}f", this)
+		    java.lang.String.format(java.util.Locale.US, "%.${decimals}f", this)
 
     /**
      * Places the [child] exactly at the drop position within [container].
@@ -236,8 +236,8 @@ class DesignEditor : LinearLayout {
      * @param y Y coordinate in container space (px).
      */
     private fun positionAtDrop(child: View, container: ViewGroup, x: Float, y: Float) {
-    		val targetX = x - child.width / 2f
-    		val targetY = y - child.height / 2f
+        val targetX = x - child.width / 2f
+        val targetY = y - child.height / 2f
 
         val maxX = (container.width - child.width).coerceAtLeast(0).toFloat()
         val maxY = (container.height - child.height).coerceAtLeast(0).toFloat()
@@ -269,7 +269,7 @@ class DesignEditor : LinearLayout {
      * Supported formats:
      * - "12px" → 12 px
      * - "8dp" / "8dip" → dp * density
-     * - "14" (no suffix) → treated as px
+     * - "14" (no suffix) → treated as dp
      *
      * @receiver The string representation of a dimension.
      * @param density The display density (from resources.displayMetrics.density).
@@ -298,8 +298,8 @@ class DesignEditor : LinearLayout {
             val txStr = if (attrs.contains(attrTranslationX)) attrs.getValue(attrTranslationX) else null
             val tyStr = if (attrs.contains(attrTranslationY)) attrs.getValue(attrTranslationY) else null
             if (txStr != null || tyStr != null) {
-            		val maxX = (container.width - view.width).coerceAtLeast(0).toFloat()
-            		val maxY = (container.height - view.height).coerceAtLeast(0).toFloat()
+                val maxX = (container.width - view.width).coerceAtLeast(0).toFloat()
+                val maxY = (container.height - view.height).coerceAtLeast(0).toFloat()
 
                 val txPx = txStr?.toPx(density) ?: view.translationX
                 val tyPx = tyStr?.toPx(density) ?: view.translationY
@@ -431,8 +431,8 @@ class DesignEditor : LinearLayout {
                             }
                             positionAtDrop(newView, parent, event.x, event.y)
                         } else {
-													addWidget(draggedView, parent, event)
-													positionAtDrop(draggedView, parent, event.x, event.y)
+                            addWidget(draggedView, parent, event)
+                            positionAtDrop(draggedView, parent, event.x, event.y)
 												}
                         updateStructure()
                         updateUndoRedoHistory()
@@ -558,7 +558,6 @@ class DesignEditor : LinearLayout {
     fun isLayoutModified(): Boolean = isModified
 
     private fun rearrangeListeners(view: View) {
-    		val container = view.parent as? ViewGroup ?: return
         when (view) {
             is Spinner -> {
                 view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -586,7 +585,7 @@ class DesignEditor : LinearLayout {
                 }
         }
 
-        view.handleLongClicksAndDrag(
+				view.handleLongClicksAndDrag(
             onLongPress = { view ->
                 TooltipManager.showTooltip(
                     context = view.context,
@@ -598,7 +597,6 @@ class DesignEditor : LinearLayout {
             onDrag = {
                 view.startDragAndDrop(null, DragShadowBuilder(view), view, 0)
             },
-            container = container,
             onDrop = { child, parent, x, y ->
                 positionAtDrop(child, parent, x, y)
             }

@@ -131,7 +131,6 @@ fun AlertDialog.onLongPress(listener: (View) -> Boolean) {
 
 @SuppressLint("ClickableViewAccessibility")
 fun View.handleLongClicksAndDrag(
-    container: ViewGroup = (this.parent as? ViewGroup) ?: this.rootView as ViewGroup,
     onDrop: ((View, ViewGroup, Float, Float) -> Unit)? = null,
     onLongPress: (View) -> Unit,
     onDrag: (View) -> Unit
@@ -201,6 +200,7 @@ fun View.handleLongClicksAndDrag(
 
                 if (wasDraggingDuringGesture) {
                     onDrag(view)
+                    val container = (this.parent as? ViewGroup) ?: this.rootView as ViewGroup
                     val root = IntArray(2)
                     container.getLocationOnScreen(root)
                     val dropX = event.rawX - root[0]
@@ -208,7 +208,6 @@ fun View.handleLongClicksAndDrag(
                     onDrop?.invoke(view, container, dropX, dropY)
                     return@setOnTouchListener true
                 }
-                
                 if (wasLongPressFiredDuringGesture) {
                     return@setOnTouchListener true
                 }
