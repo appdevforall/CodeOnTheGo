@@ -62,7 +62,7 @@ class TemplateWidgetsListAdapter(
 			val widget = widgets[position]
 			val view = viewProvider.createView(root.context, widget)
 			viewProvider.applyCallTooltip { tooltipTag ->
-                TooltipManager.showTooltip(
+                TooltipManager.showIdeCategoryTooltip(
                     context = root.context,
                     anchorView = root,
                     tag = tooltipTag,

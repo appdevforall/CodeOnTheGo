@@ -26,14 +26,11 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
 import com.itsaky.androidide.tasks.executeAsync
-import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.flashSuccess
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import org.appdevforall.codeonthego.layouteditor.databinding.TextinputlayoutBinding
-import org.appdevforall.codeonthego.layouteditor.utils.FileUtil
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -109,7 +106,7 @@ class RecentProjectsAdapter(
             }
             binding.root.setOnLongClickListener {
                 if (position < projects.size) {
-                    TooltipManager.showTooltip(
+                    TooltipManager.showIdeCategoryTooltip(
                         binding.root.context,
                         binding.root,
                         PROJECT_RECENT_TOP
@@ -148,7 +145,7 @@ class RecentProjectsAdapter(
             itemView.visibility = if (projects.isEmpty()) View.GONE else View.VISIBLE
             itemView.setOnClickListener { onOpenFileFromFolderClick(false) }
             itemView.setOnLongClickListener {
-                TooltipManager.showTooltip(
+                TooltipManager.showIdeCategoryTooltip(
                     context = itemView.context,
                     anchorView = itemView,
                     tag = PROJECT_OPEN_FOLDER
@@ -181,7 +178,7 @@ class RecentProjectsAdapter(
 
         renameItem.setOnLongClickListener {
             popupWindow.dismiss()
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
                 anchorView = view,
                 tag = PROJECT_RECENT_RENAME
@@ -196,7 +193,7 @@ class RecentProjectsAdapter(
 
         deleteItem.setOnLongClickListener {
             popupWindow.dismiss()
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = view.context,
                 anchorView = view,
                 tag = DELETE_PROJECT
@@ -229,7 +226,7 @@ class RecentProjectsAdapter(
 
         dialog.setOnShowListener {
             contentView?.applyLongPressRecursively {
-                TooltipManager.showTooltip(
+                TooltipManager.showIdeCategoryTooltip(
                     context = context,
                     anchorView = contentView,
                     tag = DELETE_PROJECT_DIALOG
@@ -274,7 +271,7 @@ class RecentProjectsAdapter(
 
         dialog.setOnShowListener {
             contentView?.applyLongPressRecursively {
-                TooltipManager.showTooltip(
+                TooltipManager.showIdeCategoryTooltip(
                     context = context,
                     anchorView = contentView,
                     tag = PROJECT_RENAME_DIALOG
