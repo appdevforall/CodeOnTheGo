@@ -145,6 +145,7 @@ class WADBPermissionFragment :
 			AdbPairingService.ACTION_PAIR_SUCCEEDED -> {
 				viewLifecycleScopeOrNull?.launch(Dispatchers.Main) {
 					// show debugger UI after pairing is successful
+					wadbViewModel.setPairingState(WADBViewModel.PairingState.Paired)
 					bottomSheetViewModel.setSheetState(
 						sheetState = BottomSheetBehavior.STATE_EXPANDED,
 						currentTab = BottomSheetViewModel.TAB_DEBUGGER,
@@ -160,10 +161,14 @@ class WADBPermissionFragment :
 				}
 			}
 
-			AdbPairingService.ACTION_PAIR_FAILED ->
+			AdbPairingService.ACTION_PAIR_FAILED -> {
+				wadbViewModel.setPairingState(WADBViewModel.PairingState.NotPaired)
 				flashError(getString(R.string.notification_adb_pairing_failed_title))
+			}
 
-			else -> Unit
+			else -> {
+				Unit
+			}
 		}
 
 	/**
@@ -176,6 +181,7 @@ class WADBPermissionFragment :
 		while (retryCount < CONNECTION_RETRY_COUNT) {
 			logger.debug("Finding ADB connection port (try {})", retryCount)
 			viewLifecycleScopeOrNull?.launch {
+				wadbViewModel.setPairingState(WADBViewModel.PairingState.Connecting)
 				wadbViewModel.setConnectionStatus(
 					getString(
 						R.string.adb_connection_finding,
@@ -203,6 +209,7 @@ class WADBPermissionFragment :
 		if (!Shizuku.pingBinder()) {
 			logger.error("Failed to connect to ADB server")
 			viewLifecycleScopeOrNull?.launch {
+				wadbViewModel.setPairingState(WADBViewModel.PairingState.NotPaired)
 				wadbViewModel.setConnectionStatus(getString(R.string.adb_connection_failed))
 			}
 		}
@@ -357,6 +364,7 @@ class WADBPermissionFragment :
 						ShizukuState.reload()
 
 						viewLifecycleScopeOrNull?.launch {
+							wadbViewModel.setPairingState(WADBViewModel.PairingState.Connected)
 							debuggerViewModel.currentView = DebuggerFragment.VIEW_DEBUGGER
 						}
 					}

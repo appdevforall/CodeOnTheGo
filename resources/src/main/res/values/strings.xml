@@ -660,7 +660,8 @@
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
-	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
+    <string name="debugger_state_not_paired">The app is not paired. Tap the debugger button to start wireless ADB pairing.</string>
+    <string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>

@@ -29,6 +29,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isAtLeastS
 import com.itsaky.androidide.utils.isAtLeastT
+import com.itsaky.androidide.viewmodel.WADBViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.adb.AdbPairingService
@@ -83,7 +84,9 @@ class DebugAction(
 		if (!Shizuku.pingBinder()) {
 			log.error("Shizuku service is not running")
 			withContext(Dispatchers.Main.immediate) {
-				showPairingDialog(activity)
+				showPairingDialog(activity) {
+					activity.wadbViewModel.setPairingState(WADBViewModel.PairingState.Pairing)
+				}
 			}
 			return false
 		}
@@ -92,7 +95,7 @@ class DebugAction(
 	}
 
 	@RequiresApi(Build.VERSION_CODES.R)
-	private fun showPairingDialog(context: Context): AlertDialog? {
+	private fun showPairingDialog(context: Context, onStarted: () -> Unit): AlertDialog? {
 		val launchHelp = { url: String ->
 			context.startActivity(Intent(context, HelpActivity::class.java).apply {
 				putExtra(CONTENT_KEY, url)
@@ -133,8 +136,10 @@ class DebugAction(
 				intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
 				intent.putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
 				try {
-					startPairingService(context)
-					context.startActivity(intent)
+					if (startPairingService(context)) {
+						context.startActivity(intent)
+						onStarted()
+					}
 				} catch (e: ActivityNotFoundException) {
 					log.error("Failed to open developer options", e)
 				}
@@ -144,10 +149,11 @@ class DebugAction(
 	}
 
 	@RequiresApi(Build.VERSION_CODES.R)
-	private fun startPairingService(context: Context) {
+	private fun startPairingService(context: Context): Boolean {
 		val intent = AdbPairingService.startIntent(context)
-		try {
+		return try {
 			startForegroundService(context, intent)
+			true
 		} catch (e: Throwable) {
 			log.error("Failed to start pairing service", e)
 
@@ -167,7 +173,8 @@ class DebugAction(
 				}
 
 				context.startService(intent)
-			}
+				true
+			} else false
 		}
 	}
 
