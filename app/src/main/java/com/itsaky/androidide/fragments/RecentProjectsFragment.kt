@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 
@@ -22,6 +23,8 @@ import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -78,39 +81,54 @@ class RecentProjectsFragment : BaseFragment() {
 	}
 
     private fun onProjectDirectoryPicked(directory: File) {
-        // Is the current folder a valid android project?
-        // Yes: Then open it.
-        if (isValidProjectDirectory(directory)) {
-        	viewModel.insertProjectFromFolder(
-        		name = directory.name,
-        		location = directory.absolutePath
-        	)
+			// Is the current folder a valid android project?
+			// Yes: Then open it.
+			if (isValidProjectDirectory(directory)) {
+				viewModel.insertProjectFromFolder(
+					name = directory.name,
+					location = directory.absolutePath
+				)
 
-        	openProject(root = directory)
-        	return
-        }
+				openProject(root = directory)
+				return
+			}
 
-        // No, the current folder is a container of Android Projects: Then open the first valid one.
-        val subDirs = directory.listFiles()?.filter { it.isDirectory } ?: return
-        val validProjects = subDirs.filter { isValidProjectDirectory(it) }
-        val invalidProjects = subDirs - validProjects.toSet()
+			// No, the current folder is a container of Android Projects: Then open the first valid one.
+			val subFolders = directory.listFiles()
 
-        if (validProjects.isEmpty()) {
-        	flashError("No valid Android projects found in ${directory.name}")
-        	return
-        }
-        if (invalidProjects.isNotEmpty()) {
-        	flashError("Some folders were skipped because they are not valid Android projects.")
-        }
+			if (subFolders == null) {
+				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+				return
+			}
+			if (subFolders.isEmpty()) {
+					flashError(getString(R.string.msg_no_subfolders, directory.name))
+					return
+			}
 
-        validProjects.forEach { sub ->
-        	viewModel.insertProjectFromFolder(
-        		name = sub.name,
-        		location = sub.absolutePath,
-        	)
-        }
+			val validSubDirs = subFolders.filter { it.isDirectory }
 
-        openProject(root = validProjects.first())
+			val validProjects = validSubDirs.filter { isValidProjectDirectory(it) }
+			val invalidProjects = validSubDirs - validProjects.toSet()
+
+			when {
+				validProjects.isEmpty() -> {
+					flashError(getString(R.string.msg_no_valid_projects, directory.name))
+					return
+				}
+				invalidProjects.isNotEmpty() -> {
+					flashError(getString(R.string.msg_skipped_invalid_projects))
+				}
+			}
+
+
+			val jobs = validProjects.map { sub ->
+				viewModel.insertProjectFromFolder(sub.name, sub.absolutePath)
+			}
+
+			lifecycleScope.launch {
+				jobs.joinAll()
+				openProject(root = validProjects.first())
+			}
     }
 
     private fun setupObservers() {
