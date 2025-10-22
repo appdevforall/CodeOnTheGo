@@ -4,6 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
+import java.io.File
+import java.io.IOException
+import kotlin.io.path.exists
 
 @Dao
 interface RecentProjectDao {
@@ -20,6 +24,8 @@ interface RecentProjectDao {
     @Query("SELECT * FROM recent_project_table WHERE name = :name LIMIT 1")
     suspend fun getProjectByName(name: String): RecentProject?
 
+    @Query("SELECT * FROM recent_project_table WHERE name IN (:names)")
+    suspend fun getProjectsByNames(names: List<String>): List<RecentProject>
 
     @Query("DELETE FROM recent_project_table")
     suspend fun deleteAll()

@@ -174,12 +174,6 @@ class RecentProjectsAdapter(
             .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(R.string.yes) { _, _ ->
                 onRemoveProjectClick(project)
-                executeAsync({ FileUtils.delete(project.path) }) {
-                    val deleted = it ?: false
-                    if (!deleted) {
-                        return@executeAsync
-                    }
-                }
             }
             .create()
 
