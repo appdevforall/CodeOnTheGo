@@ -12,6 +12,8 @@ import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import java.io.File
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.util.Date
 
@@ -19,6 +21,8 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     private val _projects = MutableLiveData<List<ProjectFile>>()
     val projects: LiveData<List<ProjectFile>> = _projects
+    private val _deletionStatus = MutableSharedFlow<Boolean>()
+    val deletionStatus = _deletionStatus.asSharedFlow()
 
 
     // Get the database and DAO instance
@@ -83,22 +87,28 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun deleteSelectedProjects(selectedNames: List<String>) =
         viewModelScope.launch(Dispatchers.IO) {
-            if (selectedNames.isEmpty()) {
-                return@launch
-            }
-            // Find the full project details for the selected project names
-            val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
-            val projectsToDelete = projectsFromDb.filter { it.name in selectedNames }
+            try {
+                if (selectedNames.isEmpty()) {
+                    return@launch
+                }
+                // Find the full project details for the selected project names
+                val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
+                val projectsToDelete = projectsFromDb.filter { it.name in selectedNames }
 
-            // Delete the selected projects from device storage
-            projectsToDelete.forEach { project ->
-                File(project.location).deleteRecursively()
-            }
+                // Delete the selected projects from device storage
+                projectsToDelete.forEach { project ->
+                    File(project.location).deleteRecursively()
+                }
 
-            // Delete the selected projects from the database
-            recentProjectDao.deleteByNames(selectedNames)
-            
-            // Reload the project list to update the UI
-            loadProjects()
+                // Delete the selected projects from the database
+                recentProjectDao.deleteByNames(selectedNames)
+
+                // Reload the project list to update the UI
+                loadProjects()
+                _deletionStatus.emit(true)
+            } catch (e: Exception) {
+                _deletionStatus.emit(false)
+            }
         }
+
 }
