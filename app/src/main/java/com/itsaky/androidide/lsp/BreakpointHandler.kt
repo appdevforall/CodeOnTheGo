@@ -4,15 +4,17 @@ import androidx.annotation.VisibleForTesting
 import com.google.common.collect.HashBasedTable
 import com.google.common.collect.ImmutableTable
 import com.google.common.collect.Table
+import com.google.common.collect.TreeBasedTable
 import com.itsaky.androidide.eventbus.events.editor.ChangeType
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
-import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
+import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
 import com.itsaky.androidide.lsp.debug.model.Source
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.repositories.BreakpointRepository
+import com.itsaky.androidide.repositories.StoredBreakpointsType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +50,11 @@ private interface BreakpointEvent {
 private data class BpState(
 	val positional: Table<String, Int, PositionalBreakpoint>,
 	val method: Table<String, String, MethodBreakpoint>
-)
+) {
+	companion object {
+		val EMPTY = BpState(ImmutableTable.of(), ImmutableTable.of())
+	}
+}
 
 class BreakpointHandler {
 
@@ -59,9 +65,7 @@ class BreakpointHandler {
 	private var onSetBreakpoints: ((List<BreakpointDefinition>) -> Unit)? = null
 	private val listeners = CopyOnWriteArrayList<EventListener>()
 
-	private val stateRef = AtomicReference(
-		BpState(ImmutableTable.of(), ImmutableTable.of())
-	)
+	private val stateRef = AtomicReference(BpState.EMPTY)
 	private var saveJob: Job? = null
 
 	val highlightedLocationState: StateFlow<Pair<String, Int>?>
@@ -155,17 +159,12 @@ class BreakpointHandler {
 		notifyUnhighlight()
 	}
 
-	fun getProjectLocation(): String {
-		val projectDir = IProjectManager.getInstance().projectDir
-		return projectDir.absolutePath
-	}
-
 	fun begin(consumer: (List<BreakpointDefinition>) -> Unit) {
-		val projectLocation = getProjectLocation()
 		onSetBreakpoints = consumer
 
 		scope.launch {
-			val loadedBreakpoints = BreakpointRepository.getBreakpointsLocalStored(projectLocation)
+			val projectDir = IProjectManager.getInstance().projectDir
+			val loadedBreakpoints = BreakpointRepository.getStoredBreakpoints(projectDir)
 
 			refreshBreakpoints(loadedBreakpoints)
 			notifyBreakpointsUpdated(loadedBreakpoints)
@@ -189,8 +188,15 @@ class BreakpointHandler {
 		listeners.remove(listener)
 	}
 
-	suspend fun positionalBreakpointsInFile(): List<PositionalBreakpoint> =
-		BreakpointRepository.getPositionalBreakpoints(getProjectLocation())
+	suspend fun positionalBreakpointsInFile(file: File): List<PositionalBreakpoint> =
+		BreakpointRepository.getStoredBreakpoints(IProjectManager.getInstance().projectDir)
+			.mapNotNull { breakpoint ->
+				if (breakpoint.source.path != file.absolutePath || breakpoint !is PositionalBreakpoint) {
+					return@mapNotNull null
+				}
+
+				breakpoint
+			}
 
 	suspend fun change(event: DocumentChangeEvent) {
 		events.send(BreakpointEvent.DocChange(event))
@@ -200,7 +206,7 @@ class BreakpointHandler {
 		events.send(BreakpointEvent.Toggle(file, line))
 	}
 
-	private fun refreshBreakpoints(loadedBreakpoints: List<BreakpointDefinition>) {
+	private fun refreshBreakpoints(loadedBreakpoints: StoredBreakpointsType) {
 		val newPos = HashBasedTable.create<String, Int, PositionalBreakpoint>()
 		val newMethod = HashBasedTable.create<String, String, MethodBreakpoint>()
 
@@ -220,12 +226,14 @@ class BreakpointHandler {
 		stateRef.set(snap)
 	}
 
-	private fun process(event: BreakpointEvent) {
+	private fun process(event: BreakpointEvent) = runCatching {
 		when (event) {
 			is BreakpointEvent.DocChange -> onChange(event)
 			is BreakpointEvent.Toggle -> onToggle(event)
 			is BreakpointEvent.Save -> onSave()
 		}
+	}.onFailure { err ->
+		logger.error("Failed to handle event {}", event.javaClass.simpleName, err)
 	}
 
 	private fun onChange(event: BreakpointEvent.DocChange) {
@@ -276,7 +284,13 @@ class BreakpointHandler {
 		for ((_, bp) in fileBreakpoints) {
 			val line = bp.line
 			val column = bp.column
-			val (newLine, newColumn) = computeNewBreakpointPosition(line, column, start, end, ev.changeType)
+			val (newLine, newColumn) = computeNewBreakpointPosition(
+				line,
+				column,
+				start,
+				end,
+				ev.changeType
+			)
 
 			if (newLine == line && newColumn == column) {
 				logger.debug("keep breakpoint at line {} in file {}", line, path)
@@ -347,7 +361,10 @@ class BreakpointHandler {
 				addAll(snap.positional.values())
 				addAll(snap.method.values())
 			}
-			BreakpointRepository.saveBreakpoints(getProjectLocation(), breakpointsToSave)
+			BreakpointRepository.saveBreakpoints(
+				projectDir = IProjectManager.getInstance().projectDir,
+				breakpoints = breakpointsToSave
+			)
 			logger.debug("Breakpoints saved to disk.")
 		}
 	}
