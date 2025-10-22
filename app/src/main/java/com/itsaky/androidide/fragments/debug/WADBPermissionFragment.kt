@@ -111,14 +111,12 @@ class WADBPermissionFragment :
 			}
 
 		ContextCompat.registerReceiver(
-			// context =
-			requireContext(),
-			// receiver =
-			pairingBroadcastReceiver,
-			// filter =
-			filter,
-			// flags =
-			ContextCompat.RECEIVER_NOT_EXPORTED,
+			/* context = */ requireContext(),
+			/* receiver = */ pairingBroadcastReceiver,
+			/* filter = */ filter,
+			/* broadcastPermission = */ AdbPairingService.PERMISSION_RECEIVE_WADB_PAIR_RESULT,
+			/* scheduler = */ null,
+			/* flags = */ ContextCompat.RECEIVER_NOT_EXPORTED,
 		)
 	}
 
