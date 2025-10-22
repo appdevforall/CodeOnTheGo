@@ -9,7 +9,6 @@ import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
-import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.adapters.DeleteProjectListAdapter
 import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -25,7 +24,6 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
-import java.io.File
 
 class DeleteProjectFragment : BaseFragment() {
 
@@ -131,10 +129,6 @@ class DeleteProjectFragment : BaseFragment() {
         }
     }
 
-    private fun deleteProject(root: File) {
-        (requireActivity() as MainActivity).deleteProject(root)
-    }
-
     fun showToolTip(
         tag: String,
         anchorView: View? = null
@@ -154,14 +148,10 @@ class DeleteProjectFragment : BaseFragment() {
             .setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
             .setPositiveButton(R.string.yes) { _, _ ->
                 try {
-                    adapter?.getSelectedProjects().let { locations ->
-                        locations?.forEach {
-                            deleteProject(File(it.path))
-                        }
-                        val names = locations?.map { it.name }
-                        if (names != null) {
-                            recentProjectsViewModel.deleteSelectedProjects(names)
-                        }
+                    adapter?.getSelectedProjects().let { projectFiles ->
+                        recentProjectsViewModel.deleteSelectedProjects(
+                            projectFiles?.map { it.name } ?: emptyList()
+                        )
                         flashSuccess(R.string.deleted)
                     }
                 } catch (e: Exception) {
