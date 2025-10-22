@@ -48,12 +48,12 @@ abstract class DialogPreference : SimplePreference() {
 
       val listView = alertDialog.listView
       listView?.setOnItemLongClickListener { _, view, position, _ ->
-          TooltipManager.showTooltip(preference.context, view, tooltipTag)
+          TooltipManager.showIdeCategoryTooltip(preference.context, view, tooltipTag)
           true
       }
 
     alertDialog.window?.decorView?.applyLongPressRecursively {
-        TooltipManager.showTooltip(preference.context, it, tooltipTag)
+        TooltipManager.showIdeCategoryTooltip(preference.context, it, tooltipTag)
         true
     }
 

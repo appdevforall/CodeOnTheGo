@@ -284,7 +284,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
         anchorView: View? = null
     ) {
         anchorView?.let {
-            TooltipManager.showTooltip(requireContext(), it, tag)
+            TooltipManager.showIdeCategoryTooltip(requireContext(), it, tag)
         }
     }
 
