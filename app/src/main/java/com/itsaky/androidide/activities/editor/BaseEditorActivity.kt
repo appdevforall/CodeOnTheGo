@@ -1266,7 +1266,7 @@ abstract class BaseEditorActivity :
 			ensureDebuggerServiceBound()
 		}
 
-		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		debuggerService?.onConnectionStateUpdated(newState = state)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			// if a VM was just attached, make sure the debugger fragment is visible
 			bottomSheetViewModel.setSheetState(
