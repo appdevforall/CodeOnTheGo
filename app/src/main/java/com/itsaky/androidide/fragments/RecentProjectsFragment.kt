@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 
@@ -30,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.itsaky.androidide.utils.flashSuccess
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -54,6 +56,7 @@ class RecentProjectsFragment : BaseFragment() {
         setupObservers()
         setupClickListeners()
         bootstrapFromFixedFolderIfNeeded(autoOpenFirst = true)
+        observeDeletionStatus()
     }
 
     private fun setupRecyclerView() {
@@ -283,6 +286,18 @@ class RecentProjectsFragment : BaseFragment() {
 
     private fun showToolTip(tag: String) {
         TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
+    }
+
+    private fun observeDeletionStatus() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.deletionStatus.collect { status ->
+                if (status) {
+                    flashSuccess(R.string.deleted)
+                } else {
+                    flashError(R.string.delete_failed)
+                }
+            }
+        }
     }
 
 }
