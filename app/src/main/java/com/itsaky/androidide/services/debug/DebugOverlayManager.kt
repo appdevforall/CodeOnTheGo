@@ -13,12 +13,6 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
-import com.itsaky.androidide.lsp.IDEDebugClientImpl
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
@@ -109,6 +103,11 @@ class DebugOverlayManager private constructor(
         isShown = false
     }
 
+	fun refreshActions() {
+		// noinspection NotifyDataSetChanged
+		binding.actions.adapter?.notifyDataSetChanged()
+	}
+
     companion object {
 
         private val logger = LoggerFactory.getLogger(DebugOverlayManager::class.java)
@@ -119,10 +118,7 @@ class DebugOverlayManager private constructor(
          * @param ctx The [Context] to use for creating the [DebugOverlayManager].
          * @return A new [DebugOverlayManager].
          */
-        fun create(
-            scope: CoroutineScope,
-            ctx: Context
-        ): DebugOverlayManager {
+        fun create(ctx: Context): DebugOverlayManager {
             // IMPORTANT!
             // Wrap the context with a theme, so we could use MaterialButtons!
             val context = ContextThemeWrapper(ctx, R.style.Theme_AndroidIDE)
@@ -139,20 +135,9 @@ class DebugOverlayManager private constructor(
             val adapter = DebuggerActionsOverlayAdapter(actions)
             layout.actions.adapter = adapter
 
-            scope.launch {
-                IDEDebugClientImpl.requireInstance().connectionStateFlow
-                    .collectLatest {
-                        logger.debug("connection state updated to: {}", it)
-                        withContext(Dispatchers.Main) {
-                            // noinspection NotifyDataSetChanged
-                            adapter.notifyDataSetChanged()
-                        }
-                    }
-            }
-
             return DebugOverlayManager(
-                windowManager,
-                layout,
+				windowManager = windowManager,
+				binding = layout,
             )
         }
     }
