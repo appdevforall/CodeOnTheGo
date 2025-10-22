@@ -240,6 +240,7 @@ class AdbPairingService : Service() {
 				}
 
 			logger.warn("Pair failed", exception)
+			sendBroadcast(Intent(ACTION_PAIR_FAILED), PERMISSION_RECEIVE_WADB_PAIR_RESULT)
 		}
 
 		getSystemService(NotificationManager::class.java).notify(
