@@ -17,6 +17,8 @@
         android:id="@+id/textinput_edittext"
         android:layout_height="wrap_content"
         android:layout_width="match_parent"
+        android:maxLines="1"
+        android:singleLine="true"
         android:textSize="16sp"/>
     
 
