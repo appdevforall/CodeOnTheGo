@@ -3,14 +3,21 @@ package com.itsaky.androidide.viewmodel
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
-import com.itsaky.androidide.fragments.debug.WADBPermissionFragment
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 @RequiresApi(Build.VERSION_CODES.R)
 class WADBViewModel : ViewModel() {
+
+	enum class PairingState {
+		NotPaired,
+		Pairing,
+		Paired,
+		Connecting,
+		Connected,
+	}
+
 	@ConsistentCopyVisibility
 	data class ConnectionState internal constructor(
 		val output: StringBuilder = StringBuilder(),
@@ -32,20 +39,17 @@ class WADBViewModel : ViewModel() {
 		}
 	}
 
-	private val _currentView = MutableStateFlow(WADBPermissionFragment.VIEW_PAIRING)
+	private val _pairingState = MutableStateFlow(PairingState.NotPaired)
 	private val _connectionStatus = MutableStateFlow("")
 
-	val currentView: StateFlow<Int>
-		get() = _currentView.asStateFlow()
-
-	val connectionStatus: StateFlow<String>
-		get() = _connectionStatus.asStateFlow()
-
-	fun setCurrentView(currentView: Int) {
-		_currentView.update { currentView }
-	}
+	val pairingState = _pairingState.asStateFlow()
+	val connectionStatus = _connectionStatus.asStateFlow()
 
 	fun setConnectionStatus(connectionStatus: String) {
 		_connectionStatus.update { connectionStatus }
+	}
+
+	fun setPairingState(newState: PairingState) {
+		_pairingState.update { newState }
 	}
 }
