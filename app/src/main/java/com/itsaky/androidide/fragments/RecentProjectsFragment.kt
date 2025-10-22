@@ -6,7 +6,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.itsaky.androidide.R
 
@@ -21,6 +20,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import kotlinx.coroutines.joinAll
@@ -125,7 +125,7 @@ class RecentProjectsFragment : BaseFragment() {
 				viewModel.insertProjectFromFolder(sub.name, sub.absolutePath)
 			}
 
-			viewLifecycleOwner.lifecycleScope.launch {
+			viewLifecycleScope.launch {
 				jobs.joinAll()
 				openProject(root = validProjects.first())
 			}
