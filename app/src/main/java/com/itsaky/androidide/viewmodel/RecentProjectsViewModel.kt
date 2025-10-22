@@ -13,6 +13,7 @@ import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
+import java.io.File
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -143,14 +144,15 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
 	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
 
-    fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
-        recentProjectDao.deleteByName(name)
-        // Update the LiveData by removing the deleted project
-        _projects.value?.let { currentList ->
-            val updatedList = currentList.filter { it.name != name }
-            _projects.postValue(updatedList)
+    private fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
+        val projectToDelete = recentProjectDao.getProjectByName(name)
+        projectToDelete?.let {
+            // Delete from device storage
+            File(it.location).deleteRecursively()
+            // Delete from the database
+            recentProjectDao.deleteByName(name)
+            loadProjects()
         }
-        loadProjects()
     }
 
 	fun updateProject(renamedFile: RecentProjectsAdapter.RenamedFile) =
@@ -183,8 +185,21 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun deleteSelectedProjects(selectedNames: List<String>) =
         viewModelScope.launch(Dispatchers.IO) {
+            if (selectedNames.isEmpty()) {
+                return@launch
+            }
+            // Find the full project details for the selected project names
+            val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
+            val projectsToDelete = projectsFromDb.filter { it.name in selectedNames }
+
+            // Delete the selected projects from device storage
+            projectsToDelete.forEach { project ->
+                File(project.location).deleteRecursively()
+            }
+
             // Delete the selected projects from the database
             recentProjectDao.deleteByNames(selectedNames)
+            // Reload the project list to update the UI
             loadProjects()
         }
 }
