@@ -9,8 +9,11 @@ import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import java.io.File
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.util.Date
 
@@ -18,6 +21,8 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     private val _projects = MutableLiveData<List<ProjectFile>>()
     val projects: LiveData<List<ProjectFile>> = _projects
+    private val _deletionStatus = MutableSharedFlow<Boolean>()
+    val deletionStatus = _deletionStatus.asSharedFlow()
 
 
     // Get the database and DAO instance
@@ -56,14 +61,26 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
 	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
 
-    fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
-        recentProjectDao.deleteByName(name)
-        // Update the LiveData by removing the deleted project
-        _projects.value?.let { currentList ->
-            val updatedList = currentList.filter { it.name != name }
-            _projects.postValue(updatedList)
+    private fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
+        try {
+            val projectToDelete = recentProjectDao.getProjectByName(name)
+            projectToDelete?.let { project ->
+                // Delete from the database
+                recentProjectDao.deleteByName(name)
+
+                // Delete from device storage
+                File(project.location).deleteRecursively()
+
+                // Update the LiveData by removing the deleted project
+                _projects.value?.let { currentList ->
+                    val updatedList = currentList.filter { it.name != name }
+                    _projects.postValue(updatedList)
+                }
+                _deletionStatus.emit(true)
+            }
+        } catch (_: Exception) {
+            _deletionStatus.emit(false)
         }
-        loadProjects()
     }
 
 	fun updateProject(renamedFile: RecentProjectsAdapter.RenamedFile) =
@@ -81,10 +98,31 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     fun deleteSelectedProjects(selectedNames: List<String>) =
         viewModelScope.launch(Dispatchers.IO) {
-            // Delete the selected projects from the database
-            recentProjectDao.deleteByNames(selectedNames)
-            //  update the LiveData to remove the deleted projects
-            _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
+            try {
+                if (selectedNames.isEmpty()) {
+                    return@launch
+                }
+                // Find the full project details for the selected project names
+                val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
+                val projectsToDelete = projectsFromDb.filter { it.name in selectedNames }
 
+                // Delete the selected projects from the database
+                recentProjectDao.deleteByNames(selectedNames)
+
+                // Delete the selected projects from device storage
+                projectsToDelete.forEach { project ->
+                    File(project.location).deleteRecursively()
+                }
+
+
+
+                // Update the LiveData to remove the deleted projects
+                _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
+
+                _deletionStatus.emit(true)
+            } catch (_: Exception) {
+                _deletionStatus.emit(false)
+            }
         }
+
 }

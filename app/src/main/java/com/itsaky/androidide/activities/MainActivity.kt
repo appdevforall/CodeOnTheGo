@@ -43,7 +43,6 @@ import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FileDeleteUtils
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_DELETE_PROJECTS
@@ -53,7 +52,6 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_D
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.appdevforall.localwebserver.ServerConfig
 import org.appdevforall.localwebserver.WebServer
 import org.koin.android.ext.android.inject
@@ -61,8 +59,6 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
-import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.FeatureFlags
@@ -295,15 +291,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         }
 
         startActivity(intent)
-    }
-
-    internal fun deleteProject(root: File) {
-        ProjectManagerImpl.getInstance().projectPath = root.absolutePath
-        try {
-            FileDeleteUtils.deleteRecursive(root)
-        } catch (e: Exception) {
-            flashInfo(string.msg_delete_existing_project_failed)
-        }
     }
 
     private fun startWebServer() {
