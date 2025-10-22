@@ -94,7 +94,7 @@ class DebuggerViewModel : ViewModel() {
 	internal val debugClient = IDEDebugClientImpl(this)
 
 	init {
-		Lookup.getDefault().update(IDEDebugClientImpl::class.java, debugClient)
+		Lookup.getDefault().register(IDEDebugClientImpl::class.java, debugClient)
 	}
 
 	companion object {
