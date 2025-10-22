@@ -13,6 +13,7 @@ import com.itsaky.androidide.actions.debug.StepOverAction
 import com.itsaky.androidide.actions.debug.SuspendResumeVmAction
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tasks.cancelIfActive
+import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
@@ -56,7 +57,7 @@ class DebuggerService : Service() {
 			}
 
 		this.actionsList.forEach(actionsRegistry::registerAction)
-		this.overlayManager = DebugOverlayManager.create(serviceScope, this)
+		this.overlayManager = DebugOverlayManager.create(this)
 
 		serviceScope.launch {
 			ForegroundAppReceiver.foregroundAppState.collectLatest { state ->
@@ -104,6 +105,11 @@ class DebuggerService : Service() {
 	}
 
 	fun setOverlayVisibility(isShown: Boolean) = if (isShown) showOverlay() else hideOverlay()
+
+	fun onConnectionStateUpdated(newState: DebuggerConnectionState) {
+		setOverlayVisibility(newState >= DebuggerConnectionState.ATTACHED)
+		overlayManager.refreshActions()
+	}
 
 	override fun onBind(intent: Intent?): IBinder {
 		logger.debug("onBind(intent={}): extras={}", intent, intent?.extras)
