@@ -63,7 +63,7 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 
 		pickDirectory { selectedDir ->
-			if (!isValidProjectDirectory(selectedDir)) {
+			if (!isValidProjectOrContainerDirectory(selectedDir)) {
 				flashError(
 					msg = requireContext().getString(
 						R.string.project_directory_invalid,
@@ -77,14 +77,41 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 	}
 
-	private fun onProjectDirectoryPicked(directory: File) {
-		viewModel.insertProjectFromFolder(
-			name = directory.name,
-			location = directory.absolutePath
-		)
+    private fun onProjectDirectoryPicked(directory: File) {
+        // Is the current folder a valid android project?
+        // Yes: Then open it.
+        if (isValidProjectDirectory(directory)) {
+        	viewModel.insertProjectFromFolder(
+        		name = directory.name,
+        		location = directory.absolutePath
+        	)
 
-		openProject(root = directory)
-	}
+        	openProject(root = directory)
+        	return
+        }
+
+        // No, the current folder is a container of Android Projects: Then open the first valid one.
+        val subDirs = directory.listFiles()?.filter { it.isDirectory } ?: return
+        val validProjects = subDirs.filter { isValidProjectDirectory(it) }
+        val invalidProjects = subDirs - validProjects.toSet()
+
+        if (validProjects.isEmpty()) {
+        	flashError("No valid Android projects found in ${directory.name}")
+        	return
+        }
+        if (invalidProjects.isNotEmpty()) {
+        	flashError("Some folders were skipped because they are not valid Android projects.")
+        }
+
+        validProjects.forEach { sub ->
+        	viewModel.insertProjectFromFolder(
+        		name = sub.name,
+        		location = sub.absolutePath,
+        	)
+        }
+
+        openProject(root = validProjects.first())
+    }
 
     private fun setupObservers() {
         viewModel.projects.observe(viewLifecycleOwner) { projects ->
@@ -118,6 +145,21 @@ class RecentProjectsFragment : BaseFragment() {
         val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
         return appFolder.exists() && appFolder.isDirectory &&
                 (buildGradleFile.exists() || buildGradleKtsFile.exists())
+    }
+
+    /**
+     * Determines if the selected directory is either:
+     *  1. A valid Android project itself, OR
+     *  2. A container that includes one or more valid Android projects.
+     */
+    fun isValidProjectOrContainerDirectory(selectedDir: File): Boolean {
+        if (isValidProjectDirectory(selectedDir)) {
+            return true
+        }
+
+        // Check if it contains valid Android projects as subdirectories
+        val subDirs = selectedDir.listFiles()?.filter { it.isDirectory } ?: return false
+        return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
 
     private fun setupClickListeners() {
