@@ -125,7 +125,7 @@ class RecentProjectsFragment : BaseFragment() {
 				viewModel.insertProjectFromFolder(sub.name, sub.absolutePath)
 			}
 
-			lifecycleScope.launch {
+			viewLifecycleOwner.lifecycleScope.launch {
 				jobs.joinAll()
 				openProject(root = validProjects.first())
 			}
