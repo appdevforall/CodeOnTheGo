@@ -62,19 +62,24 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
 
     private fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
-        val projectToDelete = recentProjectDao.getProjectByName(name)
-        projectToDelete?.let { project ->
-            // Delete from device storage
-            File(project.location).deleteRecursively()
+        try {
+            val projectToDelete = recentProjectDao.getProjectByName(name)
+            projectToDelete?.let { project ->
+                // Delete from the database
+                recentProjectDao.deleteByName(name)
 
-            // Delete from the database
-            recentProjectDao.deleteByName(name)
+                // Delete from device storage
+                File(project.location).deleteRecursively()
 
-            // Update the LiveData by removing the deleted project
-            _projects.value?.let { currentList ->
-                val updatedList = currentList.filter { it.name != name }
-                _projects.postValue(updatedList)
+                // Update the LiveData by removing the deleted project
+                _projects.value?.let { currentList ->
+                    val updatedList = currentList.filter { it.name != name }
+                    _projects.postValue(updatedList)
+                }
+                _deletionStatus.emit(true)
             }
+        } catch (_: Exception) {
+            _deletionStatus.emit(false)
         }
     }
 
@@ -101,19 +106,21 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
                 val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
                 val projectsToDelete = projectsFromDb.filter { it.name in selectedNames }
 
+                // Delete the selected projects from the database
+                recentProjectDao.deleteByNames(selectedNames)
+
                 // Delete the selected projects from device storage
                 projectsToDelete.forEach { project ->
                     File(project.location).deleteRecursively()
                 }
 
-                // Delete the selected projects from the database
-                recentProjectDao.deleteByNames(selectedNames)
+
 
                 // Update the LiveData to remove the deleted projects
                 _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
 
                 _deletionStatus.emit(true)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _deletionStatus.emit(false)
             }
         }
