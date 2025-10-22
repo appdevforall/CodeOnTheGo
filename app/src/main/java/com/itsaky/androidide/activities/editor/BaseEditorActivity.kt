@@ -210,21 +210,25 @@ abstract class BaseEditorActivity :
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START)) {
-					binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-//				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-//					binding.root.closeDrawer(GravityCompat.START)
-                if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
-				} else if (binding.swipeReveal.isOpen) {
-					binding.swipeReveal.close()
-				} else {
-					doConfirmProjectClose()
+				when {
+					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
+						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+					}
+					isRightPanelOpen() -> {
+						closeRightPanel()
+					}
+					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
+						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+					}
+					binding.swipeReveal.isOpen -> {
+						binding.swipeReveal.close()
+					}
+					else -> {
+						doConfirmProjectClose()
+					}
 				}
 			}
 		}
-        }
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
@@ -582,9 +586,7 @@ abstract class BaseEditorActivity :
         )
 
         content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
-            showTooltip(
-                tag = TooltipTag.EDITOR_BUILD_STATUS
-            )
+            showTooltip(tag = TooltipTag.EDITOR_BUILD_STATUS)
             true
         }
 
@@ -751,6 +753,24 @@ abstract class BaseEditorActivity :
         animator.start()
     }
 
+    private fun isRightPanelOpen(): Boolean {
+        return if (isPortraitMode) {
+            rightPanelBottomSheetBehavior?.state != BottomSheetBehavior.STATE_HIDDEN
+        } else {
+            val visible = rightPanelContainer?.visibility == View.VISIBLE
+            val percent = (verticalGuideline?.layoutParams as? ConstraintLayout.LayoutParams)?.guidePercent ?: 1f
+            visible && percent < 1f
+        }
+    }
+
+		private fun closeRightPanel() {
+				if (isPortraitMode) {
+						rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
+				} else {
+						animateGuideline(1.0f, shouldHideOnEnd = true)
+				}
+		}
+
     private fun setupToolbar() {
         content.customToolbar.apply {
             setTitleText(editorViewModel.getProjectName())
@@ -775,9 +795,7 @@ abstract class BaseEditorActivity :
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
-                showTooltip(
-                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
-                )
+                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
             }
         }
 
@@ -1268,9 +1286,7 @@ abstract class BaseEditorActivity :
 
 	private fun setupNoEditorView() {
 		content.noEditorLayout.setOnLongClickListener {
-			showTooltip(
-				tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
-			)
+			showTooltip(tag = TooltipTag.EDITOR_PROJECT_OVERVIEW)
 			true
 		}
         content.noEditorSummary.movementMethod = LinkMovementMethod()
@@ -1448,8 +1464,8 @@ abstract class BaseEditorActivity :
     }
 
     private fun showTooltip(tag: String) {
-        TooltipManager.showTooltip(
-            context = this@BaseEditorActivity,
+        TooltipManager.showIdeCategoryTooltip(
+            context = this,
             anchorView = content.customToolbar,
             tag = tag,
         )
