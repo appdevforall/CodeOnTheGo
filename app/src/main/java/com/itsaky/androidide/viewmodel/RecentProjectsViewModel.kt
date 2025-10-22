@@ -149,12 +149,18 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
     private fun deleteProject(name: String) = viewModelScope.launch(Dispatchers.IO) {
         val projectToDelete = recentProjectDao.getProjectByName(name)
-        projectToDelete?.let {
+        projectToDelete?.let { project ->
             // Delete from device storage
-            File(it.location).deleteRecursively()
+            File(project.location).deleteRecursively()
+
             // Delete from the database
             recentProjectDao.deleteByName(name)
-            loadProjects()
+
+            // Update the LiveData by removing the deleted project
+            _projects.value?.let { currentList ->
+                val updatedList = currentList.filter { it.name != name }
+                _projects.postValue(updatedList)
+            }
         }
     }
 
@@ -203,9 +209,13 @@ class RecentProjectsViewModel(application: Application) : AndroidViewModel(appli
 
                 // Delete the selected projects from the database
                 recentProjectDao.deleteByNames(selectedNames)
-                
+
                 // Reload the project list to update the UI
                 loadProjects()
+
+                // Update the LiveData to remove the deleted projects
+                _projects.postValue(_projects.value?.filterNot { it.name in selectedNames })
+
                 _deletionStatus.emit(true)
             } catch (e: Exception) {
                 _deletionStatus.emit(false)
