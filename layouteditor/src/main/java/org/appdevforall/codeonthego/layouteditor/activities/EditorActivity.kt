@@ -25,7 +25,6 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
-import androidx.core.view.WindowCompat
 import androidx.core.view.isEmpty
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -37,7 +36,6 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.FeedbackButtonManager
-import com.itsaky.androidide.utils.isSystemInDarkMode
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.LayoutFile
 import org.appdevforall.codeonthego.layouteditor.ProjectFile
@@ -156,12 +154,6 @@ class EditorActivity : BaseActivity() {
                 this
             )
         )
-
-        // Set status bar icons to be dark in light mode and light in dark mode
-        WindowCompat.getInsetsController(this.window, this.window.decorView).apply {
-            isAppearanceLightStatusBars = !isSystemInDarkMode()
-            isAppearanceLightNavigationBars = !isSystemInDarkMode()
-        }
     }
 
     private fun defineXmlPicker() {
