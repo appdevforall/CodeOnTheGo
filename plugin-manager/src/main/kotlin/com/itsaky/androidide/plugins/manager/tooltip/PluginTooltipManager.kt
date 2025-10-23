@@ -96,11 +96,16 @@ object PluginTooltipManager {
                         db.close()
                         return@withContext null
                     }
+
                     1 -> {
                         // Expected case, continue processing
                     }
+
                     else -> {
-                        Log.e(TAG, "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows)")
+                        Log.e(
+                            TAG,
+                            "Multiple tooltips found for category='$category', tag='$tag' (found ${cursor.count} rows)"
+                        )
                         cursor.close()
                         db.close()
                         return@withContext null
@@ -205,6 +210,7 @@ object PluginTooltipManager {
         context: Context,
         anchorView: View,
         level: Int,
+        showFeedBackIcon: Boolean = false,
         tooltipItem: IDETooltipItem,
         onActionButtonClick: (popupWindow: PopupWindow, url: Pair<String, String>) -> Unit,
         onSeeMoreClicked: (popupWindow: PopupWindow, nextLevel: Int, tooltipItem: IDETooltipItem) -> Unit,
@@ -245,12 +251,14 @@ object PluginTooltipManager {
                     detailContent
                 }
             }
+
             else -> ""
         }
 
         Log.d(TAG, "Level: $level, Content: ${tooltipHtmlContent.take(100)}...")
 
-        val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
+        val styledHtml =
+            context.getString(R.string.tooltip_html_template, hexColor, tooltipHtmlContent)
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -294,6 +302,8 @@ object PluginTooltipManager {
         popupWindow.showAtLocation(anchorView, Gravity.CENTER, 0, 0)
 
         val infoButton = popupView.findViewById<ImageButton>(R.id.icon_info)
+        val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
+        feedbackButton.visibility = if (showFeedBackIcon) View.VISIBLE else View.INVISIBLE
         if (infoButton != null) {
             // Make the info icon fully visible
             infoButton.alpha = 1.0f
@@ -375,7 +385,11 @@ object PluginTooltipManager {
             <b>Raw Detail:</b><br/>
             <small>${Html.escapeHtml(tooltip.detail)}</small><br/>
             <br/>
-            <b>Buttons:</b> ${if (tooltip.buttons.isEmpty()) "None" else tooltip.buttons.joinToString("<br/>") { "• ${it.first}" }}
+            <b>Buttons:</b> ${
+            if (tooltip.buttons.isEmpty()) "None" else tooltip.buttons.joinToString(
+                "<br/>"
+            ) { "• ${it.first}" }
+        }
         """.trimIndent()
 
         val styledHtml = context.getString(R.string.tooltip_html_template, hexColor, debugHtml)
