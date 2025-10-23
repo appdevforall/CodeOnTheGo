@@ -18,36 +18,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
-import com.itsaky.androidide.plugins.services.IdeBuildService
-import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.plugins.services.IdeProjectService
-import com.itsaky.androidide.plugins.services.IdeTooltipService
-import com.itsaky.androidide.plugins.services.IdeUIService
 import java.util.zip.ZipFile
 
 class ApkAnalyzerFragment : Fragment() {
     companion object {
         private const val PLUGIN_ID = "com.example.sampleplugin"
-        private const val ARG_CONTEXT_TYPE = "context_type"
-
-        /**
-         * Create a new instance of the fragment for a specific context
-         */
-        fun newInstance(contextType: String): ApkAnalyzerFragment {
-            val fragment = ApkAnalyzerFragment()
-            val args = Bundle()
-            args.putString(ARG_CONTEXT_TYPE, contextType)
-            fragment.arguments = args
-            return fragment
-        }
     }
-
-    // Service references
-    private var projectService: IdeProjectService? = null
-    private var uiService: IdeUIService? = null
-    private var tooltipService: IdeTooltipService? = null
-    private var fileService: IdeFileService? = null
-    private var buildService: IdeBuildService? = null
 
     private var contextText: TextView? = null
     private var btnStart: Button? = null
@@ -62,24 +38,9 @@ class ApkAnalyzerFragment : Fragment() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-
-        // Get services from the plugin's service registry
-        runCatching {
-            val serviceRegistry = PluginFragmentHelper.getServiceRegistry(ApkAnalyzerFragment.PLUGIN_ID)
-            projectService = serviceRegistry?.get(IdeProjectService::class.java)
-            uiService = serviceRegistry?.get(IdeUIService::class.java)
-            tooltipService = serviceRegistry?.get(IdeTooltipService::class.java)
-            fileService = serviceRegistry?.get(IdeFileService::class.java)
-            buildService = serviceRegistry?.get(IdeBuildService::class.java)
-        }
-    }
-
     override fun onGetLayoutInflater(savedInstanceState: Bundle?): LayoutInflater {
         val inflater = super.onGetLayoutInflater(savedInstanceState)
-        return PluginFragmentHelper.getPluginInflater(ApkAnalyzerFragment.PLUGIN_ID, inflater)
+        return PluginFragmentHelper.getPluginInflater(PLUGIN_ID, inflater)
     }
 
     override fun onCreateView(
@@ -97,15 +58,12 @@ class ApkAnalyzerFragment : Fragment() {
         btnStart = view.findViewById<Button>(R.id.btnStart)
         progressBar = view.findViewById<ProgressBar>(R.id.progressBar)
 
-        updateContent(view)
+        updateContent()
         setupClickListeners()
     }
 
-    private fun updateContent(view: View) {
-        // Update context display
-        contextText?.text =
-            "This is a test fragment for the APK Analyzer plugin."
-
+    private fun updateContent() {
+        contextText?.text = "This is a test fragment for the APK Analyzer plugin."
     }
 
     private fun setupClickListeners() {
@@ -142,15 +100,15 @@ class ApkAnalyzerFragment : Fragment() {
         }
     }
 
-    private fun analyzeApkStructure(uri : Uri): String {
+    private fun analyzeApkStructure(uri: Uri): String {
         val result = StringBuilder()
 
         // Create a temporary file to copy the APK content
-        val tempFile = java.io.File.createTempFile("apk_", ".apk", context?.cacheDir)
+        val tempFile = java.io.File.createTempFile("apk_", ".apk", requireContext().cacheDir)
 
         return runCatching {
             // Copy the content from the URI to the temp file
-            context?.contentResolver?.openInputStream(uri)?.use { input ->
+            requireContext().contentResolver.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
@@ -364,5 +322,3 @@ class ApkAnalyzerFragment : Fragment() {
         return String.format("%.2f %s", size, units[unitIndex])
     }
 }
-
-
