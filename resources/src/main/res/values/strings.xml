@@ -660,7 +660,8 @@
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
-	<string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
+    <string name="debugger_state_not_paired">The app is not paired. Tap the debugger button to start wireless ADB pairing.</string>
+    <string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>
@@ -689,6 +690,10 @@
 	<string name="msg_create_new_from_recent">Click the <b>New project</b> button to create a new project, or open an existing project from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
+	<string name="msg_no_valid_projects">No valid Android projects found in %1$s</string>
+	<string name="msg_skipped_invalid_projects">Some folders were skipped because they are not valid Android projects.</string>
+	<string name="msg_cannot_access_folder">Cannot access folder %1$s. Check storage permissions.</string>
+	<string name="msg_no_subfolders">The folder %1$s does not contain any subfolders.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
@@ -814,40 +819,14 @@
 	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
 
 	<!-- Text for an action button that initiates the wireless debugging pairing process. -->
-	<string name="adb_pairing_action_start">Click to start pairing</string>
+	<string name="adb_pairing_action_start">Start pairing</string>
 
 	<!-- Text for an action button that prompts the user to grant notification permission for wireless debugging pairing. -->
 	<string name="adb_pairing_action_enable_notifications">Grant notification permission</string>
 
 	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.</string>
-
-	<!-- Instructional text specific to MIUI users, advising them to change notification style for successful pairing. -->
-	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" -
-		\"Notification shade\" in system settings.</string>
-	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not be able to enter pairing code from the notification.</string>
-
-	<!-- Instructional text explaining that the app needs local network access for wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access the local network. It is controlled by the network permission.</string>
-
-	<!-- Instructional text for users on systems (like MIUI) that restrict background network access, advising to disable
-		battery optimization. -->
-	<string name="adb_pairing_tutorial_content_network_limation_not_foreground">Some systems (such as MIUI) disallow apps to access the network when they are not visible, even
-		if the app uses foreground service as standard. Please disable battery optimization features for Code on the Go
-		on such systems.</string>
-
-	<!-- Instructional text outlining the steps to find the pairing code in device developer options. -->
-	<string name="adb_pairing_tutorial_content_steps">Enter \"Developer options\" - \"Wireless debugging\". Tap \"Pair device with pairing code\", you
-		will see a six-digit code.</string>
-
-	<!-- Instructional text guiding the user to enter the pairing code in the notification. -->
-	<string name="adb_pairing_tutorial_content_enter_pairing_code">Enter the code in the notification to complete pairing.</string>
-
-	<!-- Instructional text clarifying how to correctly access the wireless debugging settings. -->
-	<string name="adb_pairing_tutorial_content_left_is_clickable">In addition to enabling wireless debugging, you must tap the text \"Wireless debugging\" to issue additional pairing commands.</string>
-
-	<!-- Instructional text indicating the final step after successful pairing. -->
-	<string name="adb_pairing_tutorial_content_finish">Back to Code on the Go and the Shizuku service will start automatically.</string>
+	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.
+        Please allow Code on the Go to show notifications with the \'%1$s\' notification channel.</string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
@@ -881,6 +860,29 @@
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_debugger_requires_a11">The debugger features require Android 11 to work.</string>
+
+    <!-- Title of the dialog shown to ask the user to complete the pairing process -->
+    <string name="debugger_setup_title">Wireless debugging pairing</string>
+
+    <!-- Text shown to the user in the ADB pairing dialog asking the user to follow the steps -->
+    <string name="debugger_setup_description_header"><![CDATA[<a href="http://localhost:6174/i/debug-enable.html">Read the full debugger setup guide</a>.
+    To use the debugger in this project, you must enable developer options. When you’re ready to pair with the debugger:]]></string>
+
+    <!-- Steps shown to the user in an ordered list in the ADB pairing dialog -->
+    <string-array name="debugger_setup_pairing_steps">
+        <item><![CDATA[Tap <b>Start pairing</b>. Developer options are displayed.]]></item>
+        <item><![CDATA[Enable <b>Wireless debugging</b>.]]></item>
+        <item><![CDATA[Tap the words <b>Wireless debugging</b> to display more options.]]></item>
+        <item><![CDATA[Tap <b>Pair device with pairing code</b>.]]></item>
+        <item><![CDATA[When prompted, enter the pairing code. A success message will be displayed. When you return to Code on the Go, the debugger will be connected.]]></item>
+    </string-array>
+
+	<!-- Text shown at the bottom of the ADB pairing dialog -->
+	<string name="debugger_setup_description_footer"><![CDATA[
+Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”.
+<a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.
+	]]></string>
+
     <!-- Tooltip Links HTML Template -->
     <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
     <string name="title_alert">Alert!</string>
@@ -894,6 +896,7 @@
     <string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+
     <!--  AI Agent-->
     <string name="ai_setting_saved">💾 Saved: %1$s</string>
     <string name="ai_setting_no_model_is_currently_loaded">🤷‍♀️ No model is currently loaded</string>
@@ -901,7 +904,7 @@
     <string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
     <string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
 
-<!--  Plugins-->
+    <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
 
     <string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
