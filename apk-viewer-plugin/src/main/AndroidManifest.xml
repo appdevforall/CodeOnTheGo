@@ -12,7 +12,7 @@
 
         <meta-data
             android:name="plugin.name"
-            android:value="Sample Plujsjgin" />
+            android:value="Sample Plugin" />
 
         <meta-data
             android:name="plugin.version"

@@ -4,18 +4,19 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.example.sampleplugin.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.services.IdeFileService
@@ -134,15 +135,15 @@ class ApkAnalyzerFragment : Fragment() {
         btnStart?.isEnabled = false
         contextText?.text = "Analyzing APK..."
 
-        Thread {
-            val result = analyzeApkStructure(uri)
-
-            view?.post {
-                progressBar?.visibility = View.GONE
-                btnStart?.isEnabled = true
-                contextText?.text = result
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                analyzeApkStructure(uri)
             }
-        }.start()
+
+            progressBar?.visibility = View.GONE
+            btnStart?.isEnabled = true
+            contextText?.text = result
+        }
     }
 
     private fun analyzeApkStructure(uri : Uri): String {
