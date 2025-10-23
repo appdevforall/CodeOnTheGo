@@ -20,7 +20,6 @@ package com.itsaky.androidide.activities.editor
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.CheckBox
 import androidx.activity.viewModels
@@ -70,11 +69,8 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_FOUND
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
-import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
-import com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled
-import com.itsaky.androidide.utils.InstallationResultHandler
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -90,9 +86,7 @@ import com.itsaky.androidide.viewmodel.ProjectViewModel
 import com.itsaky.androidide.viewmodel.TaskState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.HELP_PAGE_URL
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.regex.Pattern
@@ -206,12 +200,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
         observeStates()
         startServices()
-
-        binding.endNav.visibility = if (isExperimentsEnabled()) {
-            View.VISIBLE
-        } else {
-            View.GONE
-        }
     }
 
     private fun observeStates() {
@@ -269,7 +257,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
             }
 
             is BuildState.AwaitingInstall -> {
-                installApk(state.apkFile)
+                installApk(state)
                 buildViewModel.installationAttempted()
             }
         }
@@ -277,11 +265,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         invalidateOptionsMenu()
     }
 
-    private fun installApk(apk: File) {
+    private fun installApk(state: BuildState.AwaitingInstall) {
 		apkInstallationViewModel.installApk(
 			context = this,
-			file = apk,
-		)
+			apk = state.apkFile,
+			launchInDebugMode = state.launchInDebugMode,
+        )
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -828,7 +817,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
         builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
         val dialog = builder.create()
         dialog.onLongPress {
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = this,
                 anchorView = binding.root,
                 tag = TooltipTag.DIALOG_FIND_IN_PROJECT
@@ -863,7 +852,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
     private fun openHelpActivity() {
         val intent = Intent(this, HelpActivity::class.java)
-        intent.putExtra(CONTENT_KEY, HELP_PAGE_URL)
+        intent.putExtra(CONTENT_KEY, getString(string.docs_url))
         startActivity(intent)
     }
 

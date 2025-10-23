@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.os.Process
 import androidx.core.app.PendingIntentCompat
 import androidx.core.content.FileProvider
+import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.services.InstallationResultReceiver
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,7 @@ object ApkInstaller {
 	suspend fun installApk(
 		context: Context,
 		apk: File,
+		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 	): Boolean {
 		if (!apk.exists() || !apk.isFile || apk.extension != "apk") {
@@ -45,27 +47,31 @@ object ApkInstaller {
 
 		log.info("Installing APK: {}", apk)
 
+		val baseIntent = Intent()
+		if (launchInDebugMode) {
+			// add debug flag to intent, so the installation handler
+			// can launch the app in debug mode after launch
+			baseIntent.putExtra(DebugAction.ID, true)
+		}
+
 		if (DeviceUtils.isMiui() || debugFallbackInstaller) {
 			log.warn(
 				"Cannot use session-based installer on this device." +
 						" Falling back to intent-based installer."
 			)
 
-			installUsingIntent(context, apk)
+			installUsingIntent(context, apk, baseIntent)
 			return true
 		}
 
-		return installUsingSession(
-			context = context,
-			apk = apk,
-		)
+		return installUsingSession(context, apk, baseIntent)
 	}
 
 	@Suppress("DEPRECATION", "RequestInstallPackagesPolicy")
-	private fun installUsingIntent(context: Context, apk: File) {
-		val intent = Intent(Intent.ACTION_INSTALL_PACKAGE)
+	private fun installUsingIntent(context: Context, apk: File, intent: Intent) {
 		val authority = "${context.packageName}.providers.fileprovider"
 		val uri = FileProvider.getUriForFile(context, authority, apk)
+		intent.setAction(Intent.ACTION_INSTALL_PACKAGE)
 		intent.setDataAndType(uri, "application/vnd.android.package-archive")
 		intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
 
@@ -80,12 +86,13 @@ object ApkInstaller {
 	private suspend fun installUsingSession(
 		context: Context,
 		apk: File,
+		intent: Intent,
 	): Boolean {
 		val installer = context.packageManager.packageInstaller
 		val params = createSessionParams()
 		val sessionId = installer.createSession(params)
 		val session = installer.openSession(sessionId)
-		val callback = getCallbackIntent(context, sessionId)
+		val callback = getCallbackIntent(context, intent, sessionId)
 
 		return runCatching {
 			withContext(Dispatchers.IO) {
@@ -127,9 +134,10 @@ object ApkInstaller {
 			}
 		}
 
-	private fun getCallbackIntent(context: Context, sessionId: Int): PendingIntent? {
-		val intent = Intent(context, InstallationResultReceiver::class.java).apply {
+	private fun getCallbackIntent(context: Context, intent: Intent, sessionId: Int): PendingIntent? {
+		val intent = intent.apply {
 			action = InstallationResultReceiver.ACTION_INSTALL_STATUS
+			setClass(context, InstallationResultReceiver::class.java)
 			setPackage(context.packageName)
 			addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
 		}

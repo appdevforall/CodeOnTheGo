@@ -214,18 +214,23 @@ class CodeEditorView(
 
   private fun resetBreakpointsInFile(file: File) {
     val handler = IDEDebugClientImpl.requireInstance().breakpoints
-    val breakpoints = handler.breakpointsInFile(file.canonicalPath)
-    val highlightedLine = handler.highlightedLocation?.takeIf { it.first == file.canonicalPath }?.second
-    editor?.apply {
-      (editorLanguage as? IDELanguage?)?.apply {
-        removeAllBreakpoints()
-        addBreakpoints(breakpoints.map { it.line })
-        unhighlightLines()
-        if (highlightedLine != null) {
-          highlightLine(highlightedLine)
+
+    codeEditorScope.launch {
+      val breakpoints = handler.positionalBreakpointsInFile(file)
+
+      val highlightedLine = handler.highlightedLocation?.takeIf { it.first == file.canonicalPath }?.second
+      editor?.apply {
+        (editorLanguage as? IDELanguage?)?.apply {
+          removeAllBreakpoints()
+          addBreakpoints(breakpoints.map { it.line })
+          unhighlightLines()
+          if (highlightedLine != null) {
+            highlightLine(highlightedLine)
+          }
         }
       }
     }
+
   }
 
   /**

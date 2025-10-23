@@ -21,7 +21,6 @@ open class BaseActivity : AppCompatActivity() {
     super.onCreate(savedInstanceState)
     instance = this
     ctx = WeakReference(this)
-    Thread.setDefaultUncaughtExceptionHandler(CrashHandler(ctx))
     app = LayoutEditor.instance
     window.statusBarColor = SurfaceColors.SURFACE_0.getColor(this)
     OrientationUtilities.setOrientation {
@@ -29,18 +28,6 @@ open class BaseActivity : AppCompatActivity() {
     }
   }
 
-  fun openUrl(url: String) {
-    try {
-      Intent(Intent.ACTION_VIEW).apply {
-        data = Uri.parse(url)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(this)
-      }
-    } catch (th: Throwable) {
-      Toast.makeText(this, th.message, Toast.LENGTH_SHORT).show()
-      th.printStackTrace()
-    }
-  }
 
   override fun onDestroy() {
     ctx.clear()

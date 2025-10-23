@@ -21,10 +21,8 @@ package com.itsaky.androidide.app
 
 import android.content.Context
 import android.content.Intent
-import android.hardware.display.DisplayManager
 import android.os.StrictMode
 import android.util.Log
-import android.view.Display
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
@@ -35,7 +33,6 @@ import com.blankj.utilcode.util.ThrowableUtils.getFullStackTrace
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.activities.CrashHandlerActivity
-import com.itsaky.androidide.activities.SecondaryScreen
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.agent.GeminiMacroProcessor
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -60,6 +57,7 @@ import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.RecyclableObjectPool
+import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.VMUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.isAtLeastR
@@ -154,6 +152,7 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
         return currentActivity
     }
 
+
     /**
      * Called by activities when they become active/visible.
      * This is used for plugin UI service integration.
@@ -192,8 +191,6 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
             if (DevOpsPreferences.dumpLogs) {
                 startLogcatReader()
             }
-
-            checkForSecondDisplay()
         }
 
         EventBus
@@ -310,20 +307,13 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
         }
     }
 
-    fun showChangelog() {
-        val intent = Intent(Intent.ACTION_VIEW)
+    fun showChangelog(context: Context? = null) {
         var version = BuildInfo.VERSION_NAME_SIMPLE
         if (!version.startsWith('v')) {
             version = "v$version"
         }
-        intent.data = "${BuildInfo.REPO_URL}/releases/tag/$version".toUri()
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            startActivity(intent)
-        } catch (th: Throwable) {
-            log.error("Unable to start activity to show changelog", th)
-            flashError("Unable to start activity")
-        }
+        val url = "${BuildInfo.REPO_URL}/releases/tag/$version"
+        UrlManager.openUrl(url, null, context ?: currentActivity ?: this)
     }
 
     private fun startLogcatReader() {
@@ -362,22 +352,6 @@ class IDEApplication : TermuxApplication(), DefaultLifecycleObserver {
                 } ?: LocaleListCompat.getEmptyLocaleList()
 
             AppCompatDelegate.setApplicationLocales(localeListCompat)
-        }
-    }
-
-    private fun checkForSecondDisplay() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-        var secondDisplay: Display? = null
-        for (display in displays) {
-            if (display.displayId != Display.DEFAULT_DISPLAY) {
-                // This is a secondary display
-                secondDisplay = display
-            }
-        }
-        if (secondDisplay != null) {
-            val presentation = SecondaryScreen(this, secondDisplay!!)
-            presentation.show()
         }
     }
 }

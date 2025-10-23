@@ -17,8 +17,9 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
@@ -34,6 +35,7 @@ import android.text.SpannableStringBuilder
 import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.LeadingMarginSpan
+import android.util.Log
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
@@ -49,11 +51,16 @@ import androidx.annotation.GravityInt
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.collection.MutableIntIntMap
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.Guideline
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.animation.doOnEnd
 import androidx.core.graphics.Insets
 import androidx.core.view.GravityCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -68,7 +75,6 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
 import com.itsaky.androidide.R
@@ -130,6 +136,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.itsaky.androidide.FeedbackButtonManager
+import com.itsaky.androidide.fragments.output.ShareableOutputFragment
+import com.itsaky.androidide.viewmodel.WADBViewModel
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -149,18 +158,23 @@ import kotlin.math.roundToLong
 abstract class BaseEditorActivity :
 	EdgeToEdgeIDEActivity(),
 	TabLayout.OnTabSelectedListener,
-	DiagnosticClickListener {
-	protected val mLifecycleObserver = EditorActivityLifecyclerObserver()
+    DiagnosticClickListener, AgentPanelController {
+
+
+	protected var mLifecycleObserver: EditorActivityLifecyclerObserver? = null
 	protected var diagnosticInfoBinding: LayoutDiagnosticInfoBinding? = null
 	protected var filesTreeFragment: FileTreeFragment? = null
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
+	private var drawerToggle: ActionBarDrawerToggle? = null
+	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
 	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
+	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    var isDestroying = false
-        protected set
+	var isDestroying = false
+	protected set
 
 	/**
 	 * Editor activity's [CoroutineScope] for executing tasks in the background.
@@ -170,6 +184,7 @@ abstract class BaseEditorActivity :
 	var uiDesignerResultLauncher: ActivityResultLauncher<Intent>? = null
 	val editorViewModel by viewModels<EditorViewModel>()
 	val debuggerViewModel by viewModels<DebuggerViewModel>()
+	val wadbViewModel by viewModels<WADBViewModel>()
 	val bottomSheetViewModel by viewModels<BottomSheetViewModel>()
 	val apkInstallationViewModel by viewModels<ApkInstallationViewModel>()
 
@@ -183,17 +198,36 @@ abstract class BaseEditorActivity :
 	override val subscribeToEvents: Boolean
 		get() = true
 
+    // Properties for the new resizable panel
+    private var rightPanelContainer: View? = null
+    private var resizeDivider: View? = null
+    private var verticalGuideline: Guideline? = null
+
+    // Property for the bottom sheet behavior
+    private var rightPanelBottomSheetBehavior: BottomSheetBehavior<View>? = null
+
+    // Flag to check if we are in portrait mode (and thus using the bottom sheet)
+    private var isPortraitMode = false
+
 	private val onBackPressedCallback: OnBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (binding.root.isDrawerOpen(GravityCompat.START)) {
-					binding.root.closeDrawer(GravityCompat.START)
-				} else if (bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED) {
-					bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
-				} else if (binding.swipeReveal.isOpen) {
-					binding.swipeReveal.close()
-				} else {
-					doConfirmProjectClose()
+				when {
+					binding.editorDrawerLayout.isDrawerOpen(GravityCompat.START) -> {
+						binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+					}
+					isRightPanelOpen() -> {
+						closeRightPanel()
+					}
+					bottomSheetViewModel.sheetBehaviorState != BottomSheetBehavior.STATE_COLLAPSED -> {
+						bottomSheetViewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_COLLAPSED)
+					}
+					binding.swipeReveal.isOpen -> {
+						binding.swipeReveal.close()
+					}
+					else -> {
+						doConfirmProjectClose()
+					}
 				}
 			}
 		}
@@ -306,7 +340,7 @@ abstract class BaseEditorActivity :
 		isDebuggerStarting = true
 
 		val intent = Intent(this, DebuggerService::class.java)
-		if (bindService(intent, debuggerServiceConnection, Context.BIND_AUTO_CREATE)) {
+		if (bindService(intent, debuggerServiceConnection, BIND_AUTO_CREATE)) {
 			postStopDebuggerServiceIfNotConnected()
 			doSetStatus(getString(string.debugger_starting))
 		} else {
@@ -326,11 +360,13 @@ abstract class BaseEditorActivity :
 
 	protected var optionsMenuInvalidator: Runnable? = null
 
-	private lateinit var gestureDetector: GestureDetector
+	private var gestureDetector: GestureDetector? = null
     private val flingDistanceThreshold by lazy { SizeUtils.dp2px(100f) }
     private val flingVelocityThreshold by lazy { SizeUtils.dp2px(100f) }
 
     companion object {
+
+        private const val TAG = "ResizePanelDebugger"
 
         const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
@@ -372,17 +408,35 @@ abstract class BaseEditorActivity :
 
 	protected open fun preDestroy() {
 		BuildOutputProvider.clearBottomSheet()
-		_binding = null
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 
-		optionsMenuInvalidator?.also {
-			ThreadUtils.getMainHandler().removeCallbacks(it)
-		}
+		drawerToggle?.let { binding.editorDrawerLayout.removeDrawerListener(it) }
+		drawerToggle = null
+		bottomSheetCallback?.let { editorBottomSheet?.removeBottomSheetCallback(it) }
+		bottomSheetCallback = null
 
+		runCatching { onBackPressedCallback.remove() }
+		runCatching { debuggerServiceStopHandler.removeCallbacks(debuggerServiceStopRunnable) }
+		optionsMenuInvalidator?.also { ThreadUtils.getMainHandler().removeCallbacks(it) }
 		optionsMenuInvalidator = null
 
 		apkInstallationViewModel.destroy(this)
+
+		feedbackButtonManager = null
+		mLifecycleObserver?.let {
+			runCatching { lifecycle.removeObserver(it) }
+		}
+		mLifecycleObserver = null
+
+		IDEApplication.instance.setCurrentActivity(null)
+
+		diagnosticInfoBinding = null
+		filesTreeFragment = null
+		editorBottomSheet = null
+		gestureDetector = null
+
+		_binding = null
 
 		if (isDestroying) {
 			memoryUsageWatcher.stopWatching(true)
@@ -428,9 +482,8 @@ abstract class BaseEditorActivity :
 	override fun onApplySystemBarInsets(insets: Insets) {
 		super.onApplySystemBarInsets(insets)
 		this._binding?.apply {
-			drawerSidebar
-				.getFragment<EditorSidebarFragment>()
-				.onApplyWindowInsets(insets)
+			(supportFragmentManager.findFragmentById(R.id.drawer_sidebar) as? EditorSidebarFragment)
+				?.onApplyWindowInsets(insets)
 
 			content.apply {
 				editorAppBarLayout.updatePadding(
@@ -499,6 +552,7 @@ abstract class BaseEditorActivity :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mLifecycleObserver = EditorActivityLifecyclerObserver()
 
 		Shizuku.addBinderReceivedListener(shizukuBinderReceivedListener)
 
@@ -513,7 +567,9 @@ abstract class BaseEditorActivity :
         }
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-        lifecycle.addObserver(mLifecycleObserver)
+        mLifecycleObserver?.let {
+            lifecycle.addObserver(it)
+				}
 
         setupToolbar()
         setupDrawers()
@@ -521,6 +577,7 @@ abstract class BaseEditorActivity :
 
 		setupStateObservers()
         setupViews()
+        setupResizablePanel()
 
         setupContainers()
         setupDiagnosticInfo()
@@ -531,18 +588,190 @@ abstract class BaseEditorActivity :
         )
 
         content.bottomSheet.binding.buildStatus.buildStatusLayout.setOnLongClickListener {
-            showTooltip(
-                tag = TooltipTag.EDITOR_BUILD_STATUS
-            )
+            showTooltip(tag = TooltipTag.EDITOR_BUILD_STATUS)
             true
         }
+
+        feedbackButtonManager =
+            FeedbackButtonManager(activity = this, feedbackFab = binding.fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
 
         setupMemUsageChart()
         watchMemory()
         observeFileOperations()
 
         setupGestureDetector()
+
     }
+
+    private fun setupResizablePanel() {
+        Log.d(TAG, "setupResizablePanel: Initializing...")
+        rightPanelContainer = findViewById(R.id.right_panel_container)
+        Log.d(
+            TAG,
+            "setupResizablePanel: rightPanelContainer is ${if (rightPanelContainer == null) "NULL" else "FOUND"}"
+        )
+
+        if (rightPanelContainer?.layoutParams is CoordinatorLayout.LayoutParams) {
+            Log.d(TAG, "setupResizablePanel: Portrait mode detected (CoordinatorLayout).")
+            isPortraitMode = true
+            rightPanelBottomSheetBehavior = BottomSheetBehavior.from(rightPanelContainer!!)
+            rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
+        } else if (rightPanelContainer != null) {
+            Log.d(TAG, "setupResizablePanel: Landscape/Tablet mode detected (ConstraintLayout).")
+            isPortraitMode = false
+            resizeDivider = findViewById(R.id.resize_divider)
+            verticalGuideline = findViewById(R.id.guideline_vertical_end)
+            Log.d(
+                TAG,
+                "setupResizablePanel: resizeDivider is ${if (resizeDivider == null) "NULL" else "FOUND"}"
+            )
+            Log.d(
+                TAG,
+                "setupResizablePanel: verticalGuideline is ${if (verticalGuideline == null) "NULL" else "FOUND"}"
+            )
+            setupDragToResizeListener()
+        } else {
+            Log.e(TAG, "setupResizablePanel: rightPanelContainer is NULL. Cannot determine mode.")
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupDragToResizeListener() {
+
+        Log.d(TAG, "setupDragToResizeListener: Attaching touch listener.")
+        resizeDivider?.setOnTouchListener { view, event ->
+            val parentView = view.parent as? View
+            if (parentView == null) {
+                Log.e(TAG, "onDrag: Parent view is null!")
+                return@setOnTouchListener false
+            }
+            val parentWidth = parentView.width
+
+            val minEditorWidthPx = SizeUtils.dp2px(200f)
+
+            when (event.action) {
+                MotionEvent.ACTION_MOVE -> {
+                    if (parentWidth == 0) {
+                        Log.w(TAG, "onDrag: ACTION_MOVE detected but parentWidth is 0. Skipping.")
+                        return@setOnTouchListener true
+                    }
+
+                    val touchXInParent = view.x + event.x
+                    var percent = touchXInParent / parentWidth
+
+                    Log.d(
+                        TAG,
+                        "onDrag: rawX=${event.rawX}, parentWidth=$parentWidth, newPercent=$percent"
+                    )
+
+                    verticalGuideline = findViewById(R.id.guideline_vertical_end)
+                    verticalGuideline?.setGuidelinePercent(percent)
+
+                    findViewById<View>(R.id.editor_root_container).requestLayout()
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    val currentPercent =
+                        (verticalGuideline?.layoutParams as ConstraintLayout.LayoutParams).guidePercent
+
+                    val fullScreenThreshold =
+                        0.2f
+
+                    val hideThreshold: Float =
+                        if (parentWidth > 0 && minEditorWidthPx < parentWidth) {
+                            minEditorWidthPx.toFloat() / parentWidth.toFloat()
+                        } else {
+                            0.7f
+                        }
+
+                    if (currentPercent < fullScreenThreshold) {
+                        animateGuideline(0.01f)
+                    } else if (currentPercent < hideThreshold) {
+                        animateGuideline(1.0f, true)
+                    }
+                }
+
+                MotionEvent.ACTION_DOWN -> {
+                    Log.d(TAG, "onDrag: ACTION_DOWN detected on divider.")
+                }
+            }
+            true // Consume the event
+        }
+    }
+
+    /**
+     * Call this method from your action to show/hide the AI panel.
+     */
+    override fun toggleAgentPanel() {
+        Log.d(TAG, "toggleAgentPanel: Called.")
+
+            rightPanelContainer?.let {
+                val isCurrentlyVisible = it.visibility == View.VISIBLE
+
+                if (isCurrentlyVisible) {
+                    // Animate to hidden state
+                    animateGuideline(1.0f)
+                } else {
+                    // Retrieve the last saved percentage, or use the default
+                    val percentToShow: Float = 0.5f
+
+                    // Set initial state before animating
+                    it.visibility = View.VISIBLE
+                    resizeDivider?.visibility = View.VISIBLE
+                    verticalGuideline?.setGuidelinePercent(1.0f) // Start from closed position
+
+                    // Animate to the saved/default percentage
+                    animateGuideline(percentToShow)
+                }
+            } ?: Log.e(TAG, "toggleAgentPanel: rightPanelContainer is NULL!")
+
+    }
+
+    private fun animateGuideline(toPercent: Float, shouldHideOnEnd: Boolean = false) {
+        val guideline = verticalGuideline ?: return
+        val params = guideline.layoutParams as ConstraintLayout.LayoutParams
+
+        val animator = ValueAnimator.ofFloat(params.guidePercent, toPercent)
+        animator.duration = 250 // Slightly longer for a smoother feel
+
+        // Ensure views are visible before starting an "opening" animation
+        if (toPercent < 1.0f) {
+            rightPanelContainer?.visibility = View.VISIBLE
+            resizeDivider?.visibility = View.VISIBLE
+        }
+
+        animator.addUpdateListener { animation ->
+            guideline.setGuidelinePercent(animation.animatedValue as Float)
+        }
+
+        if (toPercent.toDouble() == 1.0 && shouldHideOnEnd) {
+            animator.doOnEnd {
+                rightPanelContainer?.visibility = View.GONE
+                resizeDivider?.visibility = View.GONE
+            }
+        }
+
+        animator.start()
+    }
+
+    private fun isRightPanelOpen(): Boolean {
+        return if (isPortraitMode) {
+            rightPanelBottomSheetBehavior?.state != BottomSheetBehavior.STATE_HIDDEN
+        } else {
+            val visible = rightPanelContainer?.visibility == View.VISIBLE
+            val percent = (verticalGuideline?.layoutParams as? ConstraintLayout.LayoutParams)?.guidePercent ?: 1f
+            visible && percent < 1f
+        }
+    }
+
+		private fun closeRightPanel() {
+				if (isPortraitMode) {
+						rightPanelBottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
+				} else {
+						animateGuideline(1.0f, shouldHideOnEnd = true)
+				}
+		}
 
     private fun setupToolbar() {
         content.customToolbar.apply {
@@ -559,16 +788,16 @@ abstract class BaseEditorActivity :
                     super.onDrawerOpened(drawerView)
                     // Hide the keyboard when the drawer opens.
                     closeKeyboard()
+                    // Dismiss autocomplete and other editor windows
+                    provideCurrentEditor()?.editor?.ensureWindowsDismissed()
                 }
             }
 
-
+            drawerToggle = toggle
             binding.editorDrawerLayout.addDrawerListener(toggle)
             toggle.syncState()
             setOnNavIconLongClickListener {
-                showTooltip(
-                    tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON
-                )
+                showTooltip(tag = TooltipTag.EDITOR_TOOLBAR_NAV_ICON)
             }
         }
 
@@ -699,6 +928,7 @@ abstract class BaseEditorActivity :
 
         // Set this activity as current for plugin services
         IDEApplication.instance.setCurrentActivity(this)
+        feedbackButtonManager?.loadFabPosition()
     }
 
     override fun onStop() {
@@ -914,6 +1144,8 @@ abstract class BaseEditorActivity :
                 super.onDrawerOpened(drawerView)
                 // Hide the keyboard when the drawer opens.
                 closeKeyboard()
+                // Dismiss autocomplete and other editor windows
+                provideCurrentEditor()?.editor?.ensureWindowsDismissed()
             }
         }
 
@@ -1036,7 +1268,7 @@ abstract class BaseEditorActivity :
 			ensureDebuggerServiceBound()
 		}
 
-		debuggerService?.setOverlayVisibility(state >= DebuggerConnectionState.ATTACHED)
+		debuggerService?.onConnectionStateUpdated(newState = state)
 		if (state == DebuggerConnectionState.ATTACHED) {
 			// if a VM was just attached, make sure the debugger fragment is visible
 			bottomSheetViewModel.setSheetState(
@@ -1056,9 +1288,7 @@ abstract class BaseEditorActivity :
 
 	private fun setupNoEditorView() {
 		content.noEditorLayout.setOnLongClickListener {
-			showTooltip(
-				tag = TooltipTag.EDITOR_PROJECT_OVERVIEW
-			)
+			showTooltip(tag = TooltipTag.EDITOR_PROJECT_OVERVIEW)
 			true
 		}
         content.noEditorSummary.movementMethod = LinkMovementMethod()
@@ -1110,28 +1340,29 @@ abstract class BaseEditorActivity :
 	private fun setupBottomSheet() {
         editorBottomSheet = BottomSheetBehavior.from<View>(content.bottomSheet)
         BuildOutputProvider.setBottomSheet(content.bottomSheet)
-        editorBottomSheet?.addBottomSheetCallback(object : BottomSheetCallback() {
+        val cb = object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
-				// update the sheet state so that the ViewModel is in sync
-				bottomSheetViewModel.setSheetState(sheetState = newState)
+						    // update the sheet state so that the ViewModel is in sync
+							bottomSheetViewModel.setSheetState(sheetState = newState)
+							if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+								provideCurrentEditor()?.editor?.ensureWindowsDismissed()
+							}
+						}
 
-                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    val editor = provideCurrentEditor()
-                    editor?.editor?.ensureWindowsDismissed()
-                }
-            }
+					override fun onSlide(bottomSheet: View, slideOffset: Float) {
+						content.apply {
+							val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
+							this.bottomSheet.onSlide(slideOffset)
+							this.viewContainer.scaleX = editorScale
+							this.viewContainer.scaleY = editorScale
+						}
+					}
+				}
 
-            override fun onSlide(bottomSheet: View, slideOffset: Float) {
-				content.apply {
-                    val editorScale = 1 - slideOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-                    this.bottomSheet.onSlide(slideOffset)
-                    this.viewContainer.scaleX = editorScale
-                    this.viewContainer.scaleY = editorScale
-                }
-            }
-        })
+		bottomSheetCallback = cb
+		editorBottomSheet?.addBottomSheetCallback(cb)
 
-        val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
+		val observer: OnGlobalLayoutListener = object : OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 contentCardRealHeight = binding.contentCard.height
                 content.also {
@@ -1205,15 +1436,18 @@ abstract class BaseEditorActivity :
 
                 val diffX = e2.x - (e1?.x ?: 0f)
 
-                // Check for a right swipe (to open left drawer)
+                // Check for a right swipe (to open left drawer) - This part is still correct
                 if (diffX > flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
+                    // Use the correct binding for the drawer layout
                     binding.editorDrawerLayout.openDrawer(GravityCompat.START)
                     return true
                 }
 
-                // Check for a left swipe (to open right drawer)
+                // --- THIS IS THE FIX ---
+                // Check for a left swipe (to show the AI Agent Panel)
                 if (diffX < -flingDistanceThreshold && abs(velocityX) > flingVelocityThreshold) {
-                    binding.editorDrawerLayout.openDrawer(GravityCompat.END)
+                    // Instead of opening a drawer, call our new method
+                    toggleAgentPanel()
                     return true
                 }
 
@@ -1225,18 +1459,32 @@ abstract class BaseEditorActivity :
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         // Pass the event to our gesture detector first
         if (ev != null) {
-            gestureDetector.onTouchEvent(ev)
+            gestureDetector?.onTouchEvent(ev)
         }
         // Then, let the default dispatching happen
         return super.dispatchTouchEvent(ev)
     }
 
     private fun showTooltip(tag: String) {
-        TooltipManager.showTooltip(
-            context = this@BaseEditorActivity,
+        TooltipManager.showIdeCategoryTooltip(
+            context = this,
             anchorView = content.customToolbar,
             tag = tag,
         )
     }
-}
 
+    private fun getLogContent(): String? {
+        if (bottomSheetViewModel.sheetBehaviorState == BottomSheetBehavior.STATE_COLLAPSED) {
+            return null
+        }
+
+        val fragment = this.binding.content.bottomSheet.pagerAdapter.getFragmentAtIndex<Fragment>(
+            bottomSheetViewModel.currentTab
+        )
+
+        return when (fragment) {
+            is ShareableOutputFragment -> fragment.getShareableContent()
+            else -> null
+        }
+    }
+}

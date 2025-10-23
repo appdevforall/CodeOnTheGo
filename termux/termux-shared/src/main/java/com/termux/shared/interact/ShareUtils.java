@@ -20,6 +20,7 @@ import com.termux.shared.file.FileUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.errors.Error;
 import com.termux.shared.android.PermissionUtils;
+import com.itsaky.androidide.utils.UrlManager;
 
 import java.nio.charset.Charset;
 
@@ -164,16 +165,7 @@ public class ShareUtils {
      */
     public static void openUrl(final Context context, final String url) {
         if (context == null || url == null || url.isEmpty()) return;
-        Uri uri = Uri.parse(url);
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        try {
-            context.startActivity(intent);
-        } catch (ActivityNotFoundException e) {
-            // If no activity found to handle intent, show system chooser
-            openSystemAppChooser(context, intent, context.getString(R.string.title_open_url_with));
-        } catch (Exception e) {
-            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to open url \"" + url + "\"", e);
-        }
+        UrlManager.INSTANCE.openUrl(url, null, context);
     }
 
     /**

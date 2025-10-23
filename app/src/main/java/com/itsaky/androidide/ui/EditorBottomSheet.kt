@@ -114,6 +114,7 @@ constructor(
 
 	private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 	private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
+	private lateinit var mediator: TabLayoutMediator
 
 	companion object {
 		private val log = LoggerFactory.getLogger(EditorBottomSheet::class.java)
@@ -147,13 +148,12 @@ constructor(
 	}
 
 	private fun initialize(context: FragmentActivity) {
-		val mediator =
-			TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
+		mediator = TabLayoutMediator(binding.tabs, binding.pager, true, true) { tab, position ->
 				tab.text = pagerAdapter.getTitle(position)
 				tab.view.setOnLongClickListener { view ->
 					val tooltipTag =
 						pagerAdapter.getTooltipTag(position) ?: return@setOnLongClickListener true
-					TooltipManager.showTooltip(
+					TooltipManager.showIdeCategoryTooltip(
 						context = context,
 						anchorView = view,
 						tag = tooltipTag,
@@ -164,7 +164,6 @@ constructor(
 
 		mediator.attach()
 		binding.pager.isUserInputEnabled = false
-		binding.pager.offscreenPageLimit = pagerAdapter.itemCount - 1
 
 		binding.tabs.addOnTabSelectedListener(
 			object : OnTabSelectedListener {
@@ -236,6 +235,25 @@ constructor(
 		}
 	}
 
+  override fun onDetachedFromWindow() {
+    if (this::mediator.isInitialized) {
+        mediator.detach()
+    }
+
+    binding.tabs.clearOnTabSelectedListeners()
+    binding.shareOutputFab.setOnClickListener(null)
+    binding.shareOutputFab.setOnLongClickListener(null)
+    binding.clearFab.setOnClickListener(null)
+    binding.clearFab.setOnLongClickListener(null)
+    binding.headerContainer.setOnClickListener(null)
+    ViewCompat.setOnApplyWindowInsetsListener(this, null)
+
+    binding.pager.adapter = null
+
+    pagerAdapter.clearAll()
+    super.onDetachedFromWindow()
+  }
+
 	private fun onApkInstallationSessionChanged(state: ApkInstallationViewModel.SessionState) {
 		when (state) {
 			ApkInstallationViewModel.SessionState.Idle -> {
@@ -263,7 +281,7 @@ constructor(
 
 	private fun generateTooltipListener(tooltipTag: String): OnLongClickListener =
 		OnLongClickListener { view: View ->
-			TooltipManager.showTooltip(
+			TooltipManager.showIdeCategoryTooltip(
 				context = context,
 				anchorView = view,
 				tag = tooltipTag,
@@ -368,7 +386,7 @@ constructor(
 
 	private val suppressedGradleWarnings =
 		listOf(
-			"The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/.androidide/aapt2' is experimental",
+            "The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/aapt2' is experimental",
 			"The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
 			"The org.gradle.api.plugins.Convention type has been deprecated.",
 			"The BasePluginExtension.archivesBaseName property has been deprecated.",

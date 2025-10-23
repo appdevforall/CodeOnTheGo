@@ -41,8 +41,10 @@ import com.itsaky.androidide.databinding.ActivityAboutBinding
 import com.itsaky.androidide.models.IconTitleDescriptionItem
 import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
 import com.itsaky.androidide.utils.BuildInfoUtils
+import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.FeedbackButtonManager
 
 class AboutActivity : EdgeToEdgeIDEActivity() {
 
@@ -56,6 +58,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
     _binding = ActivityAboutBinding.inflate(layoutInflater)
     return _binding!!.root
   }
+
+    private var feedbackButtonManager: FeedbackButtonManager? = null
 
   companion object {
 
@@ -76,6 +80,8 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       supportActionBar!!.setDisplayHomeAsUpEnabled(true)
       supportActionBar!!.setTitle(R.string.about)
       toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        feedbackButtonManager = FeedbackButtonManager(this@AboutActivity, fabFeedback)
+        feedbackButtonManager?.setupDraggableFab()
 
       aboutHeader.apply {
         ideVersion.text = createVersionText()
@@ -113,10 +119,10 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 
   private fun handleActionClick(action: SimpleIconTitleDescriptionItem) {
     when (action.id) {
-      ACTION_WEBSITE -> app.openWebsite()
-      ACTION_EMAIL -> app.emailUs()
-      ACTION_TG_GROUP -> app.openTelegramGroup()
-      ACTION_TG_CHANNEL -> app.openTelegramChannel()
+      ACTION_WEBSITE -> UrlManager.openUrl(BuildInfo.PROJECT_SITE, null, this)
+      ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
+      ACTION_TG_GROUP -> UrlManager.openUrl(getString(R.string.telegram_group_url), "org.telegram.messenger", this)
+      ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
       ACTION_CONTRIBUTORS -> startActivity(Intent(this, ContributorsActivity::class.java))
     }
   }
@@ -261,6 +267,11 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
       SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
     )
   }
+
+    override fun onResume() {
+        super.onResume()
+        feedbackButtonManager?.loadFabPosition()
+    }
 
   override fun onDestroy() {
     super.onDestroy()

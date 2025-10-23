@@ -48,6 +48,7 @@ object ApkChangedObservers {
 	}
 }
 
+@Suppress("DEPRECATION")
 class ApkChangedObserver(
 	private val path: String,
 ) : FileObserver(path, DELETE) {

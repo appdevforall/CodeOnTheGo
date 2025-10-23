@@ -93,7 +93,7 @@ class SymbolInputAdapter @JvmOverloads constructor(
         }
 
         holder.binding.symbol.setOnLongClickListener { view: View? ->
-            TooltipManager.showTooltip(
+            TooltipManager.showIdeCategoryTooltip(
                 context = editor.context,
                 anchorView = holder.binding.symbol,
                 tag = TooltipTag.EDITOR_CHARACTER_TOOLBAR,
