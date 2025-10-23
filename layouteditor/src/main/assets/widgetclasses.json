@@ -27,6 +27,7 @@
     "RelativeLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.RelativeLayoutDesign",
     "LinearLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.LinearLayoutDesign",
     "ConstraintLayout":"org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.ConstraintLayoutDesign",
+    "CoordinatorLayout":"org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.CoordinatorLayoutDesign",
     "FrameLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.FrameLayoutDesign",
     "TableLayout": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.TableLayoutDesign",
     "TableRow": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.TableRowDesign",
