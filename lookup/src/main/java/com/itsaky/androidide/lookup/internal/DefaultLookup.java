@@ -39,9 +39,7 @@ public final class DefaultLookup implements Lookup {
 
   @Override
   public <T> void register(final Class<T> klass, final T instance) {
-    final Key<T> key = key(klass);
-    keyTable.put(klass, key);
-    register(key, instance);
+    register(key(klass), instance);
   }
 
   @Override
@@ -101,8 +99,9 @@ public final class DefaultLookup implements Lookup {
   private <T> Key<T> key(Class<T> klass) {
     final var key = keyTable.get(klass);
     if (key == null) {
-      // Returning a new key instance will always make the lookup methods above return null
-      return new Key<>();
+      final var newKey = new Key<T>();
+      keyTable.put(klass, newKey);
+      return newKey;
     }
 
     return (Key<T>) key;
