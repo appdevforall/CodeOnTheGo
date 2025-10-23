@@ -567,6 +567,7 @@ class EditorActivity : BaseActivity() {
         if (result.isEmpty()) {
             showNothingDialog()
         } else {
+        		saveXml()
             finish()
         }
     }
