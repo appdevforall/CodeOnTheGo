@@ -15,120 +15,98 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 
+typealias StoredBreakpointsType = List<BreakpointDefinition>
+
+private val StoredBreakpointsTypeToken = object : TypeToken<StoredBreakpointsType>() {}
+
 /**
  * Repository responsible for persisting and retrieving breakpoints
  * for a given project. Breakpoints are serialized/deserialized
  * using Gson and stored in the project editor cache directory.
  */
 object BreakpointRepository {
-    private const val BREAKPOINT_FILE_NAME = "breakpoints.json"
-    private val BREAKPOINT_LIST_TYPE = object : TypeToken<List<BreakpointDefinition>>() {}.type
+	private const val BREAKPOINT_FILE_NAME = "breakpoints.json"
 
-    private val bpAdapter =
-        RuntimeTypeAdapterFactory.of(BreakpointDefinition::class.java, "kind")
-            .registerSubtype(PositionalBreakpoint::class.java, "positional")
-            .registerSubtype(MethodBreakpoint::class.java, "method")
+	private val bpAdapter =
+		RuntimeTypeAdapterFactory.of(BreakpointDefinition::class.java, "kind")
+			.registerSubtype(PositionalBreakpoint::class.java, "positional")
+			.registerSubtype(MethodBreakpoint::class.java, "method")
 
-    private val gson: Gson = GsonBuilder()
-        .registerTypeAdapterFactory(bpAdapter)
-        .create()
+	private val gson: Gson = GsonBuilder()
+		.registerTypeAdapterFactory(bpAdapter)
+		.create()
 
-    /**
-     * Returns the cache directory used by the editor for the given project.
-     *
-     * @param projectLocation Absolute path of the project.
-     * @return [File] pointing to the editor cache directory.
-     */
-    fun getEditorCacheDir(projectLocation: String): File {
-      val projectDir = File(projectLocation)
-      val projectCacheDir = Environment.getProjectCacheDir(projectDir)
-      return File(projectCacheDir, "editor")
-    }
+	/**
+	 * Returns the file where breakpoints are stored for the given project.
+	 *
+	 * @param projectDir The project directory.
+	 * @return [File] representing the JSON file containing stored breakpoints.
+	 */
+	fun getBreakpointsStorageFile(projectDir: File): File {
+		return Environment.getProjectCacheDir(projectDir).resolve("editor/$BREAKPOINT_FILE_NAME")
+	}
 
-    /**
-     * Returns the file where breakpoints are stored for the given project.
-     *
-     * @param projectLocation Absolute path of the project.
-     * @return [File] representing the JSON file containing stored breakpoints.
-     */
-    fun getStoredBreakpointsFile(projectLocation: String): File {
-        val editorCacheDir = getEditorCacheDir(projectLocation)
+	/**
+	 * Reads and deserializes the list of breakpoints from disk.
+	 */
+	suspend fun getStoredBreakpoints(projectDir: File): StoredBreakpointsType {
+		val breakpointFile = getBreakpointsStorageFile(projectDir)
 
-        return File(editorCacheDir, BREAKPOINT_FILE_NAME)
-    }
+		return withContext(Dispatchers.IO) {
+			if (!breakpointFile.exists()) {
+				return@withContext emptyList()
+			}
 
-    /**
-     * Reads and deserializes the list of breakpoints from disk.
-     *
-     * @param projectLocation Absolute path of the project.
-     * @return List of [BreakpointDefinition] objects, or an empty list if
-     *         the file does not exist, is blank, or cannot be parsed.
-     */
-    suspend fun getBreakpointsLocalStored(projectLocation: String): List<BreakpointDefinition> {
-        val breakpointFile = getStoredBreakpointsFile(projectLocation)
+			try {
+				val jsonString = breakpointFile.readText()
+				if (jsonString.isBlank()) {
+					return@withContext emptyList()
+				}
 
-        return withContext(Dispatchers.IO) {
-            if (!breakpointFile.exists()) {
-                return@withContext emptyList()
-            }
+				gson.fromJson(
+					jsonString,
+					StoredBreakpointsTypeToken.type
+				) ?: emptyList()
+			} catch (e: Exception) {
+				e.printStackTrace()
+				emptyList()
+			}
+		}
+	}
 
-            try {
-                val jsonString = breakpointFile.readText()
-                if (jsonString.isBlank()) {
-                    return@withContext emptyList()
-                }
+	/**
+	 * Serializes and saves the given list of breakpoints to disk.
+	 *
+	 * Serialization is done on [Dispatchers.Default] (CPU-bound),
+	 * and writing is performed on [Dispatchers.IO] (I/O-bound).
+	 *
+	 * @param projectDir The project directory.
+	 * @param breakpoints List of [BreakpointDefinition] to save.
+	 */
+	suspend fun saveBreakpoints(
+		projectDir: File,
+		breakpoints: StoredBreakpointsType
+	) {
+		val file = getBreakpointsStorageFile(projectDir)
 
-                val type = object : TypeToken<List<BreakpointDefinition>>() {}.type
-                gson.fromJson<List<BreakpointDefinition>>(jsonString, type) ?: emptyList()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                emptyList()
-            }
-        }
-    }
+		val jsonOut = withContext(Dispatchers.Default) {
+			gson.toJson(breakpoints, StoredBreakpointsTypeToken.type)
+		}
 
-    /**
-     * Serializes and saves the given list of breakpoints to disk.
-     *
-     * Serialization is done on [Dispatchers.Default] (CPU-bound),
-     * and writing is performed on [Dispatchers.IO] (I/O-bound).
-     *
-     * @param projectLocation Absolute path of the project.
-     * @param breakpoints List of [BreakpointDefinition] to save.
-     */
-    suspend fun saveBreakpoints(projectLocation: String, breakpoints: List<BreakpointDefinition>) {
-        val file = getStoredBreakpointsFile(projectLocation)
+		withContext(Dispatchers.IO) {
+			try {
+				file.parentFile?.mkdirs()
+				if (!file.exists()) file.createNewFile()
 
-        val jsonOut = withContext(Dispatchers.Default) {
-            gson.toJson(breakpoints, BREAKPOINT_LIST_TYPE)
-        }
-
-        withContext(Dispatchers.IO) {
-            try {
-                file.parentFile?.mkdirs()
-                if (!file.exists()) file.createNewFile()
-
-                file.writeText(jsonOut)
-            } catch (e: Exception) {
-                Log.e(
-                    "BreakpointManager",
-                    "Failed to save breakpoints to file: ${file.absolutePath}",
-                    e
-                )
-                Sentry.captureException(e)
-            }
-        }
-    }
-
-    /**
-     * Returns only the positional breakpoints stored in the project.
-     *
-     * @param projectLocation Absolute path of the project.
-     * @return List of [PositionalBreakpoint] objects.
-     */
-    suspend fun getPositionalBreakpoints(projectLocation: String): List<PositionalBreakpoint> {
-        val all = getBreakpointsLocalStored(projectLocation)
-        return all.filterIsInstance<PositionalBreakpoint>()
-    }
-
+				file.writeText(jsonOut)
+			} catch (e: Exception) {
+				Log.e(
+					"BreakpointManager",
+					"Failed to save breakpoints to file: ${file.absolutePath}",
+					e
+				)
+				Sentry.captureException(e)
+			}
+		}
+	}
 }
