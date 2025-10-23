@@ -65,19 +65,15 @@ class ApkAnalyzerFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Get context type
-        //contextType = arguments?.getString(ApkAnalyzerFragment.ARG_CONTEXT_TYPE) ?: "unknown"
 
         // Get services from the plugin's service registry
-        try {
+        runCatching {
             val serviceRegistry = PluginFragmentHelper.getServiceRegistry(ApkAnalyzerFragment.PLUGIN_ID)
             projectService = serviceRegistry?.get(IdeProjectService::class.java)
             uiService = serviceRegistry?.get(IdeUIService::class.java)
             tooltipService = serviceRegistry?.get(IdeTooltipService::class.java)
             fileService = serviceRegistry?.get(IdeFileService::class.java)
             buildService = serviceRegistry?.get(IdeBuildService::class.java)
-        } catch (e: Exception) {
-            // Services might not be available, handle gracefully
         }
     }
 
@@ -103,7 +99,6 @@ class ApkAnalyzerFragment : Fragment() {
 
         updateContent(view)
         setupClickListeners()
-//        setupTooltips()
     }
 
     private fun updateContent(view: View) {
@@ -153,7 +148,7 @@ class ApkAnalyzerFragment : Fragment() {
         // Create a temporary file to copy the APK content
         val tempFile = java.io.File.createTempFile("apk_", ".apk", context?.cacheDir)
 
-        try {
+        return runCatching {
             // Copy the content from the URI to the temp file
             context?.contentResolver?.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output ->
@@ -324,12 +319,13 @@ class ApkAnalyzerFragment : Fragment() {
 
         // Check for APK signature scheme
         val hasV1Signature = files.any { it.startsWith("META-INF/") && (it.endsWith(".RSA") || it.endsWith(".DSA")) }
-        val hasV2V3Signature = true // APK v2/v3 signatures are not stored as files in the ZIP
+        // Note: APK v2/v3 signatures are stored in the APK Signing Block, not as ZIP entries
+        // We can only reliably detect v1 signatures from ZIP file entries
         result.append("• APK Signature Scheme: ")
-        when {
-            hasV1Signature -> result.append("v1 (JAR signing)\n")
-            hasV2V3Signature -> result.append("v2+ (APK signing)\n")
-            else -> result.append("Unknown\n")
+        if (hasV1Signature) {
+            result.append("v1 (JAR signing) detected\n")
+        } else {
+            result.append("v2+ or unsigned (v2+ signatures not detectable from ZIP entries)\n")
         }
 
         // Check for multi-APK indicators
@@ -342,17 +338,17 @@ class ApkAnalyzerFragment : Fragment() {
 
         zipFile.close()
 
-            // Clean up the temporary file
-            tempFile.delete()
-
-            return result.toString()
-
-        } catch (e: Exception) {
-            // Clean up the temporary file in case of error
-            tempFile.delete()
-
-            return "Failed to analyze APK: ${e.message}"
-        }
+            result.toString()
+        }.fold(
+            onSuccess = {
+                tempFile.delete()
+                it
+            },
+            onFailure = { e ->
+                tempFile.delete()
+                "Failed to analyze APK: ${e.message}"
+            }
+        )
     }
 
     private fun formatFileSize(bytes: Long): String {
