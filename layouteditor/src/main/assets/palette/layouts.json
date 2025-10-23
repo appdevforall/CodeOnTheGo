@@ -80,5 +80,14 @@
         "defaultAttributes": {
             "android:layout_width":"match_parent"
         }
+    },
+    {
+        "name": "CoordinatorLayout",
+        "className": "org.appdevforall.codeonthego.layouteditor.editor.palette.layouts.CoordinatorLayoutDesign",
+        "iconName": "ic_palette_coordinator_layout",
+        "defaultAttributes": {
+            "android:layout_width": "match_parent",
+            "android:padding": "8dp"
+        }
     }
 ]
