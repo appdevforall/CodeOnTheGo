@@ -919,4 +919,7 @@ Some devices (including older Xiaomi devices) also require giving Code on the Go
     <string name="url_consent_proceed">Proceed</string>
     <string name="url_consent_dont_ask">Don\'t Ask Again</string>
 
+    <!-- Documentation urls -->
+    <string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
+
 </resources>
