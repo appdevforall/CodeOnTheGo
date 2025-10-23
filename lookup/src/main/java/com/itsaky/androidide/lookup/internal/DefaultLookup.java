@@ -102,13 +102,6 @@ public final class DefaultLookup implements Lookup {
 	@SuppressWarnings("unchecked")
 	@NotNull
 	private <T> Key<T> key(Class<T> klass) {
-		final var key = keyTable.get(klass);
-		if (key == null) {
-			final var newKey = new Key<T>();
-			keyTable.put(klass, newKey);
-			return newKey;
-		}
-
-		return (Key<T>) key;
+		return (Key<T>) keyTable.computeIfAbsent(klass, k -> new Key<T>());
 	}
 }
