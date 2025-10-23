@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.lookup.internal;
 
+import androidx.annotation.VisibleForTesting;
+
 import com.google.auto.service.AutoService;
 import com.itsaky.androidide.lookup.Lookup;
 import com.itsaky.androidide.lookup.ServiceRegisteredException;
@@ -35,7 +37,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @AutoService(Lookup.class)
 public final class DefaultLookup implements Lookup {
 
-	private final Map<Class<?>, Key<?>> keyTable = new ConcurrentHashMap<>();
+	@VisibleForTesting
+	final Map<Class<?>, Key<?>> keyTable = new ConcurrentHashMap<>();
+
 	private final Map<Key<?>, Object> services = new ConcurrentHashMap<>();
 
 	@Override
