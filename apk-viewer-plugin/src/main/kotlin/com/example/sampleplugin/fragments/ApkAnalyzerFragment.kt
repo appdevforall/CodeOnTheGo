@@ -23,9 +23,6 @@ import com.itsaky.androidide.plugins.services.IdeFileService
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeUIService
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.zip.ZipFile
 
 class ApkAnalyzerFragment : Fragment() {
@@ -135,9 +132,13 @@ class ApkAnalyzerFragment : Fragment() {
         btnStart?.isEnabled = false
         contextText?.text = "Analyzing APK..."
 
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                analyzeApkStructure(uri)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    analyzeApkStructure(uri)
+                }
+            }.getOrElse { e ->
+                "Failed to analyze APK: ${e.message}"
             }
 
             progressBar?.visibility = View.GONE
@@ -344,19 +345,13 @@ class ApkAnalyzerFragment : Fragment() {
             // Clean up the temporary file
             tempFile.delete()
 
-            // Log the result for debugging
-            val resultText = result.toString()
-            android.util.Log.d("ApkAnalyzer", resultText)
-
-            return resultText
+            return result.toString()
 
         } catch (e: Exception) {
             // Clean up the temporary file in case of error
             tempFile.delete()
 
-            val errorMsg = "Failed to analyze APK: ${e.message}"
-            android.util.Log.e("ApkAnalyzer", errorMsg, e)
-            return errorMsg
+            return "Failed to analyze APK: ${e.message}"
         }
     }
 
@@ -371,11 +366,6 @@ class ApkAnalyzerFragment : Fragment() {
         }
 
         return String.format("%.2f %s", size, units[unitIndex])
-    }
-
-    private fun formatDate(timestamp: Long): String {
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-        return dateFormat.format(Date(timestamp))
     }
 }
 
