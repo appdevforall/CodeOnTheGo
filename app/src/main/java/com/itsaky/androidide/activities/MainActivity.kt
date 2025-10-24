@@ -168,17 +168,17 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         val builder = AlertDialog.Builder(this)
 
         // Set the dialog's title and message
-        builder.setTitle("Warning")
+        builder.setTitle(getString(R.string.title_warning))
         builder.setMessage(getString(R.string.download_codeonthego_message))
 
         // Add the "OK" button and its click listener
-        builder.setPositiveButton("OK") { dialog, which ->
+        builder.setPositiveButton(getString(R.string.ok)) { dialog, which ->
             UrlManager.openUrl(getString(R.string.download_codeonthego_url), null)
             dialog.dismiss()
         }
 
         // Add the "Cancel" button and its click listener
-        builder.setNegativeButton("Cancel") { dialog, which ->
+        builder.setNegativeButton(getString(R.string.url_consent_cancel)) { dialog, which ->
             dialog.dismiss()
         }
 
