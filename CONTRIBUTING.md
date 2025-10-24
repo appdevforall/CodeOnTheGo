@@ -8,13 +8,6 @@ agree to abide the terms specified in the [CODE OF CONDUCT](./CODE_OF_CONDUCT.md
 - Android Studio.
 - JDK 17
 
-## Build the project
-
-Open the project in Android Studio. No extra steps are needed for this.
-
-It is possible to build AndroidIDE in AndroidIDE itself. But, as it might be a too heavy task for an
-Android device to be able to build the project, Android Studio is always recommended.
-
 ## Git Pre-Commit Hook: Branch Name Enforcement
 
 This project enforces a strict branch naming policy using a Git pre-commit hook.
@@ -76,8 +69,8 @@ logs, and build outputs in `code blocks`.
 
 ## Contact us
 
-If you want to discuss anything about the project, you can discuss it in
-the [Telegram group](https://t.me/androidide_discussions).
+If you want to discuss the project, visit our [Telegram group](https://t.me/androidide_discussions).
+
 
 
 
