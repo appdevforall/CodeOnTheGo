@@ -211,6 +211,7 @@ dependencies {
 	implementation(projects.actions)
 	implementation(projects.buildInfo)
 	implementation(projects.common)
+    implementation(projects.commonUi)
 	implementation(projects.editor)
 	implementation(projects.termux.termuxApp)
 	implementation(projects.termux.termuxView)
@@ -280,6 +281,7 @@ dependencies {
 
 	// Lifecycle Process for app lifecycle tracking
 	implementation(libs.androidx.lifecycle.process)
+	implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.google.genai)
     "v7Implementation"(files("libs/v7/llama-v7-release.aar"))
     "v8Implementation"(files("libs/v8/llama-v8-release.aar"))
@@ -401,8 +403,12 @@ tasks.register("recompressApk") {
 
 		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
+        val start = System.nanoTime()
 		recompressApk(abi, buildName)
-	}
+        val durationMs = "%.2f".format((System.nanoTime() - start) / 1_000_000.0)
+
+        project.logger.lifecycle("recompressApk completed in ${durationMs}ms")
+    }
 }
 
 afterEvaluate {
@@ -493,9 +499,12 @@ fun signApk(apkFile: File) {
 		signerExec = "apksigner.bat"
 	}
 
-	val signingConfig = android.signingConfigs.getByName("debug") // 🔥 Get existing signing config
+    val signingConfig = android.signingConfigs.findByName("common")
+        ?: android.signingConfigs.getByName("debug")
 
-	val keystorePath = signingConfig.storeFile?.absolutePath ?: error("Keystore not found!")
+    project.logger.lifecycle("Signing Config: ${signingConfig.name}")
+
+    val keystorePath = signingConfig.storeFile?.absolutePath ?: error("Keystore not found!")
 	val keystorePassword = signingConfig.storePassword ?: error("Keystore password missing!")
 	val keyAlias = signingConfig.keyAlias ?: error("Key alias missing!")
 	val keyPassword = signingConfig.keyPassword ?: error("Key password missing!")

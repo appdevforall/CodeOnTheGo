@@ -135,7 +135,6 @@ public final class Environment {
 				"tooling-api-all.jar");
 		COGO_PLUGIN_JAR = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "plugin")),
 				"cogo-plugin.jar");
-		AAPT2 = new File(ANDROIDIDE_HOME, "aapt2");
 		ANDROIDIDE_UI = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "ui"));
 
 		INIT_SCRIPT = new File(mkdirIfNotExits(new File(ANDROIDIDE_HOME, "init")), "init.gradle");
@@ -144,15 +143,14 @@ public final class Environment {
 		ANDROID_HOME = new File(DEFAULT_ANDROID_HOME);
 		JAVA_HOME = new File(DEFAULT_JAVA_HOME);
 
+		AAPT2 = new File(ANDROID_HOME, "build-tools/35.0.0/aapt2");
+
 		JAVA = new File(JAVA_HOME, "bin/java");
 		BASH_SHELL = new File(BIN_DIR, "bash");
 		LOGIN_SHELL = new File(BIN_DIR, "login");
 
 		GRADLE_DISTS = mkdirIfNotExits(new File(ANDROIDIDE_HOME, "gradle-dists"));
 		LOCAL_MAVEN_DIR = mkdirIfNotExits(new File(HOME, "maven/localMvnRepository"));
-
-		setExecutable(JAVA);
-		setExecutable(BASH_SHELL);
 
 		System.setProperty("user.home", HOME.getAbsolutePath());
 

@@ -20,8 +20,11 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
@@ -63,7 +66,7 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 
 		pickDirectory { selectedDir ->
-			if (!isValidProjectDirectory(selectedDir)) {
+			if (!isValidProjectOrContainerDirectory(selectedDir)) {
 				flashError(
 					msg = requireContext().getString(
 						R.string.project_directory_invalid,
@@ -77,14 +80,56 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 	}
 
-	private fun onProjectDirectoryPicked(directory: File) {
-		viewModel.insertProjectFromFolder(
-			name = directory.name,
-			location = directory.absolutePath
-		)
+    private fun onProjectDirectoryPicked(directory: File) {
+			// Is the current folder a valid android project?
+			// Yes: Then open it.
+			if (isValidProjectDirectory(directory)) {
+				viewModel.insertProjectFromFolder(
+					name = directory.name,
+					location = directory.absolutePath
+				)
 
-		openProject(root = directory)
-	}
+				openProject(root = directory)
+				return
+			}
+
+			// No, the current folder is a container of Android Projects: Then open the first valid one.
+			val subFolders = directory.listFiles()
+
+			if (subFolders == null) {
+				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+				return
+			}
+			if (subFolders.isEmpty()) {
+					flashError(getString(R.string.msg_no_subfolders, directory.name))
+					return
+			}
+
+			val validSubDirs = subFolders.filter { it.isDirectory }
+
+			val validProjects = validSubDirs.filter { isValidProjectDirectory(it) }
+			val invalidProjects = validSubDirs - validProjects.toSet()
+
+			when {
+				validProjects.isEmpty() -> {
+					flashError(getString(R.string.msg_no_valid_projects, directory.name))
+					return
+				}
+				invalidProjects.isNotEmpty() -> {
+					flashError(getString(R.string.msg_skipped_invalid_projects))
+				}
+			}
+
+
+			val jobs = validProjects.map { sub ->
+				viewModel.insertProjectFromFolder(sub.name, sub.absolutePath)
+			}
+
+			viewLifecycleScope.launch {
+				jobs.joinAll()
+				openProject(root = validProjects.first())
+			}
+    }
 
     private fun setupObservers() {
         viewModel.projects.observe(viewLifecycleOwner) { projects ->
@@ -118,6 +163,21 @@ class RecentProjectsFragment : BaseFragment() {
         val buildGradleKtsFile = File(appFolder, "build.gradle.kts")
         return appFolder.exists() && appFolder.isDirectory &&
                 (buildGradleFile.exists() || buildGradleKtsFile.exists())
+    }
+
+    /**
+     * Determines if the selected directory is either:
+     *  1. A valid Android project itself, OR
+     *  2. A container that includes one or more valid Android projects.
+     */
+    fun isValidProjectOrContainerDirectory(selectedDir: File): Boolean {
+        if (isValidProjectDirectory(selectedDir)) {
+            return true
+        }
+
+        // Check if it contains valid Android projects as subdirectories
+        val subDirs = selectedDir.listFiles()?.filter { it.isDirectory } ?: return false
+        return subDirs.any { sub -> isValidProjectDirectory(sub) }
     }
 
     private fun setupClickListeners() {
@@ -157,10 +217,7 @@ class RecentProjectsFragment : BaseFragment() {
     }
 
     private fun showToolTip(tag: String) {
-        TooltipManager.showTooltip(
-            requireContext(), binding.root,
-            tag
-        )
+        TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
     }
 
 }

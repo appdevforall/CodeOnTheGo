@@ -27,7 +27,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 
   protected val emptyStateViewModel by viewModels<EmptyStateFragmentViewModel>()
 
-  private lateinit var gestureDetector: GestureDetector
+  private var gestureDetector: GestureDetector? = null
 
   /**
    * Called when a long press is detected on the fragment's root view.
@@ -67,7 +67,7 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 
     // Set a non-consuming touch listener on the root ViewFlipper
     emptyStateBinding?.root?.setOnTouchListener { _, event ->
-      gestureDetector.onTouchEvent(event)
+      gestureDetector?.onTouchEvent(event)
       // Return false to allow children to handle their own touch events (e.g., scrolling)
       false
     }
@@ -85,12 +85,13 @@ abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 
   override fun onDestroyView() {
     this.emptyStateBinding = null
+    gestureDetector = null
     super.onDestroyView()
   }
 
   fun showTooltipDialog(tooltipTag: String) {
       val anchorView = activity?.window?.decorView ?: return
-      TooltipManager.showTooltip(
+      TooltipManager.showIdeCategoryTooltip(
           context = requireContext(),
           anchorView = anchorView,
           tag = tooltipTag,

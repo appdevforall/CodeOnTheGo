@@ -18,6 +18,7 @@
 package com.itsaky.androidide.handlers
 
 import android.content.Context
+import androidx.core.view.GravityCompat
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FILE_TREE
 import com.itsaky.androidide.actions.ActionMenu
@@ -68,6 +69,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     }
 
     val context = event[Context::class.java]!! as EditorHandlerActivity
+    context.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 //    context.binding.root.closeDrawer(GravityCompat.START)
     if (event.file.name.endsWith(".apk")) {
       context.apkInstallationViewModel.installApk(
@@ -167,7 +169,7 @@ class FileTreeActionHandler : BaseEventHandler() {
     tag.isNotEmpty() || return
     val activity = event[Context::class.java] as? EditorHandlerActivity
     activity?.let { act ->
-        TooltipManager.showTooltip(
+        TooltipManager.showIdeCategoryTooltip(
             context = act,
             anchorView = act.window.decorView,
             tag = tag,

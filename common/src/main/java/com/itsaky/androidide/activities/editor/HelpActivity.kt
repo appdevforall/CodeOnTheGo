@@ -20,15 +20,21 @@ package com.itsaky.androidide.activities.editor
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.utils.UrlManager
 import org.adfa.constants.CONTENT_TITLE_KEY
 
 class HelpActivity : BaseIDEActivity() {
+
+    companion object {
+        private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
+    }
 
     private var _binding: ActivityHelpBinding? = null
     private val binding: ActivityHelpBinding
@@ -47,7 +53,7 @@ class HelpActivity : BaseIDEActivity() {
         with(binding) {
             setSupportActionBar(toolbar)
             supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-            toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+            toolbar.setNavigationOnClickListener { handleBackNavigation() }
 
             // Set status bar icons to be dark in light mode and light in dark mode
             WindowCompat.getInsetsController(this@HelpActivity.window, this@HelpActivity.window.decorView).apply {
@@ -73,29 +79,18 @@ class HelpActivity : BaseIDEActivity() {
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: android.webkit.WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    android.util.Log.d("HelpActivity", "Page started loading: $url")
                 }
-                
+
                 override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    android.util.Log.d("HelpActivity", "Page finished loading: $url")
                 }
-                
+
                 override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
-                    url?.let {
-                        // Allow localhost URLs to load directly
-                        if (it.startsWith("http://localhost:6174/")) {
-                            view?.loadUrl(it)
-                            return true
-                        }
-                    }
-                    return super.shouldOverrideUrlLoading(view, url)
+                    return handleUrlLoading(view, url)
                 }
-                
+
                 override fun onReceivedError(view: android.webkit.WebView?, errorCode: Int, description: String?, failingUrl: String?) {
                     super.onReceivedError(view, errorCode, description, failingUrl)
-                    android.util.Log.e("HelpActivity", "Error loading URL: $failingUrl, Error: $description")
-                    // Show error message to user
                     view?.loadData("""
                         <html><body>
                         <h3>Error Loading Content</h3>
@@ -108,9 +103,38 @@ class HelpActivity : BaseIDEActivity() {
 
             // Load the HTML file from the assets folder
             htmlContent?.let { url ->
-                android.util.Log.d("HelpActivity", "Loading URL: $url")
                 webView.loadUrl(url)
             }
+        }
+
+        // Set up back navigation callback for system back button
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleBackNavigation()
+            }
+        })
+    }
+
+    private fun handleUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+        url ?: return false
+        return when {
+            EXTERNAL_SCHEMES.any { url.startsWith(it) } -> {
+                UrlManager.openUrl(url, context = this)
+                true
+            }
+            url.startsWith("http://localhost:6174/") -> {
+                view?.loadUrl(url)
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun handleBackNavigation() {
+        if (binding.webView.canGoBack()) {
+            binding.webView.goBack()
+        } else {
+            finish()
         }
     }
 

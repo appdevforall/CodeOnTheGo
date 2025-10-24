@@ -12,11 +12,15 @@
     <string name="about_footer">Code on the Go %1$s for %2$s</string>
     <string name="about_subtitle">Simply, an IDE for Android</string>
     <string name="msg_get_package_failed">Failed to extract package name!</string>
-    <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group ask for help there.\n\nYou can also send suggesstions on our email.</string>
+    <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
+    <string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
+    <string name="download_codeonthego_url">https://appdevforall.org/downloads</string>
+    <string name="msg_invalid_url">Invalid URL provided.</string>
+    <string name="msg_no_browser_found">No browser found to handle the request.</string>
     <string name="need_help">Need Help?</string>
     <string name="ide_preferences">IDE preferences</string>
     <string name="discussions_on_telegram">Discussions on Telegram</string>
-    <string name="official_tg_channel">Official Telegram Channel</string>
+    <string name="official_tg_channel">Official Telegram channel</string>
     <string name="msg_empty_view">No data</string>
     <string name="title_terminal">Terminal</string>
     <string name="reset">Reset</string>
@@ -56,7 +60,7 @@
     <string name="title_unsupported_device">This device is not supported</string>
     <string name="msg_unsupported_device">You are using %1$s variant of Code On The Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code On The Go.</string>
     <string name="title_clear_output">Clear output</string>
-    <string name="build_output">Build output</string>
+    <string name="build_output">Build Output</string>
     <string name="quick_run_debug">Quick run</string>
     <string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
     <string name="preparing">Preparing</string>
@@ -112,7 +116,7 @@
     <string name="msg_empty_search_query">Please enter text</string>
     <string name="msg_select_search_modules">Select modules to search</string>
     <string name="msg_searching_project">Searching the project…</string>
-    <string name="view_search_results">Search results</string>
+    <string name="view_search_results">Search Results</string>
     <string name="project_created_successfully">Project created successfully!</string>
     <string name="project_creation_failed">Failed to create project</string>
     <string name="msg_folder_creation_failed">Failed to create folder</string>
@@ -277,7 +281,7 @@
     <string name="err_authority_not_allowed">Authority \'%s\' not allowed</string>
     <string name="idepref_useIcu_title">Use spaces as word boundaries</string>
     <string name="idepref_useIcu_summary">When enabled, the editor considers blank space to be the boundary between words.</string>
-     <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
+    <string name="msg_drawer_for_files">To view the file tree and project options, swipe from left to right or tap the menu icon at the upper left.</string>
     <string name="msg_swipe_for_output">To view logs, diagnostics, and more, swipe up or tap the bottom of the page.</string>
     <string name="msg_help_hint">To view help for the Code on the Go app, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
     <string name="msg_long_press_help">To view help in Code on the Go, long-press anything to view a tooltip. In the editor, select and long-press text to show the editing toolbar and help button.</string>
@@ -288,15 +292,15 @@
     <string name="btn_close">Close</string>
     <string name="msg_ignore_case">Ignore case</string>
     <string name="msg_use_regex">Use regex</string>
-    <string name="idepref_buildnrun_summary">Configure the Gradle build.</string>
+    <string name="idepref_buildnrun_summary">Configure the Gradle build</string>
     <string name="configure">Configure</string>
     <string name="about">About</string>
     <string name="idepref_channel_summary">Subscribe for latest updates.</string>
-    <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
+    <string name="idepref_group_summary">Discuss features, bugs and improvements here.</string>
     <string name="idepref_changelog_summary">What\'s new in this version?</string>
-    <string name="idepref_about_summary">More about Code on the Go.</string>
-    <string name="idepref_general_summary">General IDE configuration.</string>
-    <string name="idepref_editor_summary">Configure the editor.</string>
+    <string name="idepref_about_summary">More about Code on the Go</string>
+    <string name="idepref_general_summary">General IDE configuration</string>
+    <string name="idepref_editor_summary">Configure the editor</string>
     <string name="xml" translatable="false">XML</string>
     <string name="idepref_xml_trimFinalNewLine_title">Trim final new line</string>
     <string name="idepref_xml_insertFinalNewLine_title">Insert final new line</string>
@@ -504,7 +508,7 @@
     <string name="new_directory_name">New directory name</string>
     <string name="error">Error</string>
     <string name="error_deleting_directory">Error while deleting the directory: %s</string>
-    <string name="deleting_directory">Deleting Directory</string>
+    <string name="deleting_directory">Deleting directory</string>
 
     <string name="btn_sync">Sync</string>
     <string name="btn_ignore_changes">Ignore these changes</string>
@@ -589,7 +593,7 @@
     <string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
     <string name="msg_install_tools"> </string>
     <string name="greeting_title">Welcome</string>
-    <string name="greeting_subtitle">Learn, build, launch. All on your Android.</string>
+    <string name="greeting_subtitle">No computer? No Internet? No problem.</string>
     <string name="title_grant">Allow</string>
     <string name="permission_title_storage">Storage</string>
     <string name="permission_desc_storage">Allow Code on the Go to access files.</string>
@@ -598,7 +602,16 @@
     <string name="permission_title_overlay_window">Overlay window</string>
     <string name="permission_desc_overlay_window">Allow Code on the Go to display overlay windows over other apps.</string>
     <string name="permission_title_notifications">Notifications</string>
-	<string name="permission_desc_notifications">Allow Code on the Go to post notifications</string>
+	<string name="permission_desc_notifications">Allow Code on the Go to post notifications.</string>
+	<string name="permission_title_accessibility">Accessibility</string>
+	<string name="permission_desc_accessibility">Allow Code on the Go to access accessibility services for debugging.</string>
+	<string name="permissions_info_title">Code on the Go is an IDE that lets you build Android apps on Android phones, even if you don\'t have Internet access.</string>
+	<string name="permissions_info_intro">On the next page, Code on the Go asks you to allow four permissions. All of these permissions are required for Code on the Go to work.</string>
+	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
+	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
+	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
+	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
 	<string name="msg_grant_permissions">Please grant the permissions to continue.</string>
@@ -629,8 +642,9 @@
 	<string name="summary_open_source_licenses">View open source licenses.</string>
 	<string name="idepref_jdkVersion_title">JDK version</string>
 	<string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
-	<string name="ide_setup_in_progress">Code on the Go setup in progress.</string>
-
+	<string name="ide_setup_in_progress">Code on the Go setup is in progress</string>
+	<string name="ide_setup_complete">Code on the Go setup complete.</string>
+	<string name="msg_complete_ide_setup">Please complete the IDE setup to continue.</string>
 	<string name="debugger_title">Debugger</string>
 	<string name="debugger_starting">Starting debugger…</string>
 	<string name="debugger_starting_failed">Failed to start debugger. See IDE logs for more details.</string>
@@ -650,7 +664,8 @@
 
 	<!-- Connected to <VM-name> (<VM-version>) -->
 	<string name="debugger_state_connected">Connected to %1$s (%2$s)</string>
-	<string name="debugger_state_not_connected">Not connected to a debuggable application.</string>
+    <string name="debugger_state_not_paired">The app is not paired. Tap the debugger button to start wireless ADB pairing.</string>
+    <string name="debugger_state_not_connected">The app is successfully paired. Tap the debugger button to build and install a debuggable version. </string>
 
 	<string name="debugger_value_unavailable">&lt;unavailable&gt;</string>
 	<string name="debugger_value_error">&lt;error&gt;</string>
@@ -668,29 +683,21 @@
 	<string name="actions">Actions</string>
 	<string name="help">Help</string>
 	<string name="code"></string>
-
-	<string name="email_feedback_warning_prompt">
-		Sending feedback will create and send a private email to feedback@appdevforall.org, if you feel that this would
-		be an unsafe action, then click
-		<b>
-			<i>Cancel</i>
-		</b>
-		, otherwise click
-		<b>
-			<i>OK</i>
-		</b>
-		to proceed
-	</string>
+	<string name="email_feedback_warning_prompt">To send a private message to feedback@appdevforall.org, tap <b>OK</b>. If you aren’t connected to the Internet, the message will not be sent immediately. Do you want to continue?</string>
 	<string name="feedback_subject">Feedback for %1$s Screen</string>
-	<string name="feedback_message">Please enter your feedback in the space below, if possible please include what actions you were
-		taking and in what screen.\n\nThank You.\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
-	<string name="send_feedback">Send Feedback</string>
-	<string name="alert_message">Alert!</string>
+	<string name="feedback_message">Please enter your feedback in the space below. If you are reporting a problem, please include as much information as possible about the issue.\n\nThanks!\n\nVersion: %1$s\n\n-------------stack trace----------\n%2$s</string>
+	<string name="feedback_device_info">\n\nApp Version: %1$s\n\nAndroid Version: %2$s\n\nDevice: %3$s</string>
+  <string name="send_feedback">Send feedback</string>
+	<string name="alert_message">Send feedback</string>
 	<string name="fab_more">More</string>
 	<string name="msg_recent_projects">Recent projects</string>
-	<string name="msg_create_new_from_recent">Click the New project button to create a new project or open from a folder.</string>
+	<string name="msg_create_new_from_recent">Click the <b>New project</b> button to create a new project, or open an existing project from a folder.</string>
 	<string name="msg_no_recent_projects">You don\'t have any recent projects</string>
 	<string name="msg_no_projects_to_delete">There are no projects available to delete.</string>
+	<string name="msg_no_valid_projects">No valid Android projects found in %1$s</string>
+	<string name="msg_skipped_invalid_projects">Some folders were skipped because they are not valid Android projects.</string>
+	<string name="msg_cannot_access_folder">Cannot access folder %1$s. Check storage permissions.</string>
+	<string name="msg_no_subfolders">The folder %1$s does not contain any subfolders.</string>
 	<string name="msg_create_new_project_instruction">Click the New project button to create a new project.</string>
 	<string name="date">Date</string>
 	<string name="project_directory_invalid">%s is not a valid Android project folder. Please open another folder instead.</string>
@@ -774,6 +781,7 @@
 		]]></string>
 
     <string name="info_icon_content_description">Info icon</string>
+    <string name="feedback_button_description">Send feedback about this tooltip</string>
     <string name="unknown_error">"An unknown error occurred."</string>
     <string name="build_in_progress_warning">Build is already in progress. Ignoring new request.</string>
     <string name="error_build_service_not_found">Build service not found.</string>
@@ -815,40 +823,14 @@
 	<string name="dialog_adb_pairing_paring_code">Pairing code</string>
 
 	<!-- Text for an action button that initiates the wireless debugging pairing process. -->
-	<string name="adb_pairing_action_start">Click to start pairing</string>
+	<string name="adb_pairing_action_start">Start pairing</string>
 
 	<!-- Text for an action button that prompts the user to grant notification permission for wireless debugging pairing. -->
 	<string name="adb_pairing_action_enable_notifications">Grant notification permission</string>
 
 	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.</string>
-
-	<!-- Instructional text specific to MIUI users, advising them to change notification style for successful pairing. -->
-	<string name="adb_pairing_tutorial_content_miui">MIUI users may need to switch notification style to \"Android\" from \"Notification\" -
-		\"Notification shade\" in system settings.</string>
-	<string name="adb_pairing_tutorial_content_miui_2">Otherwise, you may not be able to enter pairing code from the notification.</string>
-
-	<!-- Instructional text explaining that the app needs local network access for wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_network">Code on the Go needs to access the local network. It is controlled by the network permission.</string>
-
-	<!-- Instructional text for users on systems (like MIUI) that restrict background network access, advising to disable
-		battery optimization. -->
-	<string name="adb_pairing_tutorial_content_network_limation_not_foreground">Some systems (such as MIUI) disallow apps to access the network when they are not visible, even
-		if the app uses foreground service as standard. Please disable battery optimization features for Code on the Go
-		on such systems.</string>
-
-	<!-- Instructional text outlining the steps to find the pairing code in device developer options. -->
-	<string name="adb_pairing_tutorial_content_steps">Enter \"Developer options\" - \"Wireless debugging\". Tap \"Pair device with pairing code\", you
-		will see a six-digit code.</string>
-
-	<!-- Instructional text guiding the user to enter the pairing code in the notification. -->
-	<string name="adb_pairing_tutorial_content_enter_pairing_code">Enter the code in the notification to complete pairing.</string>
-
-	<!-- Instructional text clarifying how to correctly access the wireless debugging settings. -->
-	<string name="adb_pairing_tutorial_content_left_is_clickable">In addition to enabling wireless debugging, you must tap the text \"Wireless debugging\" to issue additional pairing commands.</string>
-
-	<!-- Instructional text indicating the final step after successful pairing. -->
-	<string name="adb_pairing_tutorial_content_finish">Back to Code on the Go and the Shizuku service will start automatically.</string>
+	<string name="adb_pairing_tutorial_content_notification">A notification from Code on the Go will help you complete the pairing.
+        Please allow Code on the Go to show notifications with the \'%1$s\' notification channel.</string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
@@ -882,18 +864,43 @@
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_debugger_requires_a11">The debugger features require Android 11 to work.</string>
+
+    <!-- Title of the dialog shown to ask the user to complete the pairing process -->
+    <string name="debugger_setup_title">Wireless debugging pairing</string>
+
+    <!-- Text shown to the user in the ADB pairing dialog asking the user to follow the steps -->
+    <string name="debugger_setup_description_header"><![CDATA[<a href="http://localhost:6174/i/debug-enable.html">Read the full debugger setup guide</a>.
+    To use the debugger in this project, you must enable developer options. When you’re ready to pair with the debugger:]]></string>
+
+    <!-- Steps shown to the user in an ordered list in the ADB pairing dialog -->
+    <string-array name="debugger_setup_pairing_steps">
+        <item><![CDATA[Tap <b>Start pairing</b>. Developer options are displayed.]]></item>
+        <item><![CDATA[Enable <b>Wireless debugging</b>.]]></item>
+        <item><![CDATA[Tap the words <b>Wireless debugging</b> to display more options.]]></item>
+        <item><![CDATA[Tap <b>Pair device with pairing code</b>.]]></item>
+        <item><![CDATA[When prompted, enter the pairing code. A success message will be displayed. When you return to Code on the Go, the debugger will be connected.]]></item>
+    </string-array>
+
+	<!-- Text shown at the bottom of the ADB pairing dialog -->
+	<string name="debugger_setup_description_footer"><![CDATA[
+Some devices (including older Xiaomi devices) also require giving Code on the Go the “Unrestricted battery usage permission”.
+<a href="http://localhost:6174/i/debug-enable.html">See more information including troubleshooting tips</a>.
+	]]></string>
+
     <!-- Tooltip Links HTML Template -->
     <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:#233490;text-decoration:underline;">%2$s</a>]]></string>
     <string name="title_alert">Alert!</string>
 
     <!-- Strings from BaseApplication.java-->
-    <string name="telegram_group_url">https://t.me/androidide_discussions</string>
-    <string name="telegram_channel_url">https://t.me/AndroidIDEOfficial</string>
+    <string name="telegram_group_url">https://t.me/CodeOnTheGoDiscussions</string>
+    <string name="telegram_channel_url">https://t.me/CodeOnTheGoOfficial</string>
     <string name="sponsor_url">https://m.androidide.com/donate</string>
     <string name="docs_url">http://localhost:6174/i/index.html</string>
     <string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
+    <string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
     <string name="adfa_email">info@appdevforall.org</string>
     <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+
     <!--  AI Agent-->
     <string name="ai_setting_saved">💾 Saved: %1$s</string>
     <string name="ai_setting_no_model_is_currently_loaded">🤷‍♀️ No model is currently loaded</string>
@@ -901,9 +908,22 @@
     <string name="ai_setting_model_loaded">✅ Model loaded: %1$s</string>
     <string name="ai_setting_error_loading_model">❌ Error loading model: %1$s</string>
 
-<!--  Plugins-->
+    <!--  Plugins-->
   <string name="title_plugin_manager">Plugin Manager</string>
 
+    <string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
+    <string name="pixel_copy_failed">PixelCopy failed</string>
+    <string name="failed_to_capture_or_save_screenshot">Failed to capture or save screenshot</string>
     <string name="back_to_cogo">Back to Code on the Go</string>
+
+    <!-- URL Consent Dialog -->
+    <string name="url_consent_title">Open External Link?</string>
+    <string name="url_consent_message">You are about to leave Code on the Go to open an external link:\n\n%s\n\nDo you want to continue?</string>
+    <string name="url_consent_cancel">Cancel</string>
+    <string name="url_consent_proceed">Proceed</string>
+    <string name="url_consent_dont_ask">Don\'t Ask Again</string>
+
+    <!-- Documentation urls -->
+    <string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
 
 </resources>
