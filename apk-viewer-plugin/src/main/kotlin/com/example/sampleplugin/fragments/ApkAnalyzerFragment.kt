@@ -18,11 +18,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.plugins.services.IdeTooltipService
+import com.itsaky.androidide.plugins.services.IdeUIService
 import java.util.zip.ZipFile
 
 class ApkAnalyzerFragment : Fragment() {
     companion object {
-        private const val PLUGIN_ID = "com.example.sampleplugin"
+        private const val PLUGIN_ID = "com.example.apkviewer"
     }
 
     private var contextText: TextView? = null
@@ -43,6 +48,19 @@ class ApkAnalyzerFragment : Fragment() {
         return PluginFragmentHelper.getPluginInflater(PLUGIN_ID, inflater)
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Register services from the plugin's service registry
+        runCatching {
+            val serviceRegistry = PluginFragmentHelper.getServiceRegistry(PLUGIN_ID)
+            serviceRegistry?.get(IdeProjectService::class.java)
+            serviceRegistry?.get(IdeUIService::class.java)
+            serviceRegistry?.get(IdeTooltipService::class.java)
+            serviceRegistry?.get(IdeFileService::class.java)
+            serviceRegistry?.get(IdeBuildService::class.java)
+        }
+    }
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -116,185 +134,185 @@ class ApkAnalyzerFragment : Fragment() {
 
             val zipFile = ZipFile(tempFile)
 
-        result.append(" APK STRUCTURE:\n")
+            result.append(" APK STRUCTURE:\n")
 
-        val entries = zipFile.entries().toList().sortedBy { it.name }
-        val explicitDirectories = mutableSetOf<String>()
-        val implicitDirectories = mutableSetOf<String>()
-        val files = mutableListOf<String>()
-        val nativeLibs = mutableListOf<String>()
+            val entries = zipFile.entries().toList().sortedBy { it.name }
+            val explicitDirectories = mutableSetOf<String>()
+            val implicitDirectories = mutableSetOf<String>()
+            val files = mutableListOf<String>()
+            val nativeLibs = mutableListOf<String>()
 
-        var totalUncompressedSize = 0L
-        var totalCompressedSize = 0L
-        var totalEntries = 0
-        val apkFileSize = tempFile.length()
+            var totalUncompressedSize = 0L
+            var totalCompressedSize = 0L
+            var totalEntries = 0
+            val apkFileSize = tempFile.length()
 
-        entries.forEach { entry ->
-            totalEntries++
-            totalUncompressedSize += entry.size
-            totalCompressedSize += entry.compressedSize
+            entries.forEach { entry ->
+                totalEntries++
+                totalUncompressedSize += entry.size
+                totalCompressedSize += entry.compressedSize
 
-            if (entry.isDirectory) {
-                explicitDirectories.add(entry.name)
-            } else {
-                files.add(entry.name)
-
-                // Add implicit directories from file paths
-                val pathParts = entry.name.split("/")
-                if (pathParts.size > 1) {
-                    for (i in 1 until pathParts.size) {
-                        val dirPath = pathParts.subList(0, i).joinToString("/") + "/"
-                        implicitDirectories.add(dirPath)
-                    }
-                }
-
-                // Check for native libraries
-                if (entry.name.startsWith("lib/") && entry.name.endsWith(".so")) {
-                    nativeLibs.add(entry.name)
-                }
-            }
-        }
-
-        // Calculate total directories (explicit + implicit, removing duplicates)
-        val allDirectories = explicitDirectories.union(implicitDirectories)
-
-        result.append("• APK File Size: ${formatFileSize(apkFileSize)}\n")
-        result.append("• Total Entries: $totalEntries\n")
-        result.append("• Total Uncompressed Size: ${formatFileSize(totalUncompressedSize)}\n")
-        result.append("• Total Compressed Size: ${formatFileSize(totalCompressedSize)}\n")
-        result.append("• Compression Ratio: ${String.format("%.1f%%", (totalCompressedSize.toDouble() / totalUncompressedSize.toDouble()) * 100)}\n")
-        result.append("• Directories: ${allDirectories.size} (${explicitDirectories.size} explicit, ${implicitDirectories.size} implicit)\n")
-        result.append("• Files: ${files.size}\n\n")
-
-        // Key files with both compressed and uncompressed sizes
-        result.append(" KEY FILES:\n")
-        val keyFiles = listOf(
-            "AndroidManifest.xml",
-            "classes.dex",
-            "classes2.dex",
-            "classes3.dex",
-            "resources.arsc",
-            "META-INF/MANIFEST.MF"
-        )
-
-        keyFiles.forEach { keyFile ->
-            val exists = files.any { it == keyFile }
-            if (exists) {
-                val entry = entries.find { it.name == keyFile }
-                val uncompressedSize = entry?.size?.let { formatFileSize(it) } ?: "?"
-                val compressedSize = entry?.compressedSize?.let { formatFileSize(it) } ?: "?"
-                val compressionRatio = if (entry != null && entry.size > 0) {
-                    String.format("%.1f%%", (entry.compressedSize.toDouble() / entry.size.toDouble()) * 100)
-                } else "N/A"
-                result.append("• $keyFile: ✓ Raw: $uncompressedSize, Compressed: $compressedSize ($compressionRatio)\n")
-            } else {
-                result.append("• $keyFile: ✗\n")
-            }
-        }
-
-        result.append("\n")
-
-        // Native libraries with detailed size analysis
-        if (nativeLibs.isNotEmpty()) {
-            result.append(" NATIVE LIBRARIES (${nativeLibs.size}):\n")
-            val archMap = mutableMapOf<String, MutableList<Pair<String, Pair<Long, Long>>>>()
-
-            nativeLibs.forEach { lib ->
-                val parts = lib.split("/")
-                if (parts.size >= 3) {
-                    val arch = parts[1]
-                    val libName = parts.last()
-                    val entry = entries.find { it.name == lib }
-                    val sizes = Pair(entry?.size ?: 0L, entry?.compressedSize ?: 0L)
-                    archMap.getOrPut(arch) { mutableListOf() }.add(Pair(libName, sizes))
-                }
-            }
-
-            archMap.forEach { (arch, libs) ->
-                val totalUncompressed = libs.sumOf { it.second.first }
-                val totalCompressed = libs.sumOf { it.second.second }
-                result.append("• $arch (${libs.size} libs) - Raw: ${formatFileSize(totalUncompressed)}, Compressed: ${formatFileSize(totalCompressed)}\n")
-
-                // Show largest libraries for this architecture
-                libs.sortedByDescending { it.second.first }.take(3).forEach { (libName, sizes) ->
-                    if (sizes.first > 0) {
-                        result.append("  • $libName: ${formatFileSize(sizes.first)} / ${formatFileSize(sizes.second)}\n")
-                    } else {
-                        result.append("  • $libName\n")
-                    }
-                }
-                if (libs.size > 3) {
-                    result.append("  • ... and ${libs.size - 3} more libraries\n")
-                }
-            }
-            result.append("\n")
-        }
-
-        // Resource directories with sizes
-        val resourceDirs = allDirectories.filter { it.startsWith("res/") }.sorted()
-        if (resourceDirs.isNotEmpty()) {
-            result.append(" RESOURCE DIRECTORIES (${resourceDirs.size}):\n")
-            resourceDirs.forEach { dir ->
-                // Calculate total size for files in this directory
-                val dirFiles = files.filter { it.startsWith(dir) && it.count { c -> c == '/' } == dir.count { c -> c == '/' } }
-                val dirUncompressedSize = dirFiles.sumOf { fileName -> entries.find { it.name == fileName }?.size ?: 0L }
-                val dirCompressedSize = dirFiles.sumOf { fileName -> entries.find { it.name == fileName }?.compressedSize ?: 0L }
-
-                if (dirUncompressedSize > 0) {
-                    result.append("• $dir (${dirFiles.size} files) - Raw: ${formatFileSize(dirUncompressedSize)}, Compressed: ${formatFileSize(dirCompressedSize)}\n")
+                if (entry.isDirectory) {
+                    explicitDirectories.add(entry.name)
                 } else {
-                    result.append("• $dir\n")
+                    files.add(entry.name)
+
+                    // Add implicit directories from file paths
+                    val pathParts = entry.name.split("/")
+                    if (pathParts.size > 1) {
+                        for (i in 1 until pathParts.size) {
+                            val dirPath = pathParts.subList(0, i).joinToString("/") + "/"
+                            implicitDirectories.add(dirPath)
+                        }
+                    }
+
+                    // Check for native libraries
+                    if (entry.name.startsWith("lib/") && entry.name.endsWith(".so")) {
+                        nativeLibs.add(entry.name)
+                    }
                 }
             }
+
+            // Calculate total directories (explicit + implicit, removing duplicates)
+            val allDirectories = explicitDirectories.union(implicitDirectories)
+
+            result.append("• APK File Size: ${formatFileSize(apkFileSize)}\n")
+            result.append("• Total Entries: $totalEntries\n")
+            result.append("• Total Uncompressed Size: ${formatFileSize(totalUncompressedSize)}\n")
+            result.append("• Total Compressed Size: ${formatFileSize(totalCompressedSize)}\n")
+            result.append("• Compression Ratio: ${String.format("%.1f%%", (totalCompressedSize.toDouble() / totalUncompressedSize.toDouble()) * 100)}\n")
+            result.append("• Directories: ${allDirectories.size} (${explicitDirectories.size} explicit, ${implicitDirectories.size} implicit)\n")
+            result.append("• Files: ${files.size}\n\n")
+
+            // Key files with both compressed and uncompressed sizes
+            result.append(" KEY FILES:\n")
+            val keyFiles = listOf(
+                "AndroidManifest.xml",
+                "classes.dex",
+                "classes2.dex",
+                "classes3.dex",
+                "resources.arsc",
+                "META-INF/MANIFEST.MF"
+            )
+
+            keyFiles.forEach { keyFile ->
+                val exists = files.any { it == keyFile }
+                if (exists) {
+                    val entry = entries.find { it.name == keyFile }
+                    val uncompressedSize = entry?.size?.let { formatFileSize(it) } ?: "?"
+                    val compressedSize = entry?.compressedSize?.let { formatFileSize(it) } ?: "?"
+                    val compressionRatio = if (entry != null && entry.size > 0) {
+                        String.format("%.1f%%", (entry.compressedSize.toDouble() / entry.size.toDouble()) * 100)
+                    } else "N/A"
+                    result.append("• $keyFile: ✓ Raw: $uncompressedSize, Compressed: $compressedSize ($compressionRatio)\n")
+                } else {
+                    result.append("• $keyFile: ✗\n")
+                }
+            }
+
             result.append("\n")
-        }
 
-        // Large files analysis (files > 100KB)
-        val largeFiles = files.mapNotNull { fileName ->
-            entries.find { it.name == fileName }?.let { entry ->
-                if (entry.size > 100 * 1024) {
-                    Triple(fileName, entry.size, entry.compressedSize)
-                } else null
+            // Native libraries with detailed size analysis
+            if (nativeLibs.isNotEmpty()) {
+                result.append(" NATIVE LIBRARIES (${nativeLibs.size}):\n")
+                val archMap = mutableMapOf<String, MutableList<Pair<String, Pair<Long, Long>>>>()
+
+                nativeLibs.forEach { lib ->
+                    val parts = lib.split("/")
+                    if (parts.size >= 3) {
+                        val arch = parts[1]
+                        val libName = parts.last()
+                        val entry = entries.find { it.name == lib }
+                        val sizes = Pair(entry?.size ?: 0L, entry?.compressedSize ?: 0L)
+                        archMap.getOrPut(arch) { mutableListOf() }.add(Pair(libName, sizes))
+                    }
+                }
+
+                archMap.forEach { (arch, libs) ->
+                    val totalUncompressed = libs.sumOf { it.second.first }
+                    val totalCompressed = libs.sumOf { it.second.second }
+                    result.append("• $arch (${libs.size} libs) - Raw: ${formatFileSize(totalUncompressed)}, Compressed: ${formatFileSize(totalCompressed)}\n")
+
+                    // Show largest libraries for this architecture
+                    libs.sortedByDescending { it.second.first }.take(3).forEach { (libName, sizes) ->
+                        if (sizes.first > 0) {
+                            result.append("  • $libName: ${formatFileSize(sizes.first)} / ${formatFileSize(sizes.second)}\n")
+                        } else {
+                            result.append("  • $libName\n")
+                        }
+                    }
+                    if (libs.size > 3) {
+                        result.append("  • ... and ${libs.size - 3} more libraries\n")
+                    }
+                }
+                result.append("\n")
             }
-        }.sortedByDescending { it.second }
 
-        if (largeFiles.isNotEmpty()) {
-            result.append(" LARGE FILES (>100KB, ${largeFiles.size} files):\n")
-            largeFiles.take(10).forEach { (fileName, uncompressed, compressed) ->
-                val compressionRatio = if (uncompressed > 0) {
-                    String.format("%.1f%%", (compressed.toDouble() / uncompressed.toDouble()) * 100)
-                } else "N/A"
-                result.append("• $fileName - Raw: ${formatFileSize(uncompressed)}, Compressed: ${formatFileSize(compressed)} ($compressionRatio)\n")
+            // Resource directories with sizes
+            val resourceDirs = allDirectories.filter { it.startsWith("res/") }.sorted()
+            if (resourceDirs.isNotEmpty()) {
+                result.append(" RESOURCE DIRECTORIES (${resourceDirs.size}):\n")
+                resourceDirs.forEach { dir ->
+                    // Calculate total size for files in this directory
+                    val dirFiles = files.filter { it.startsWith(dir) && it.count { c -> c == '/' } == dir.count { c -> c == '/' } }
+                    val dirUncompressedSize = dirFiles.sumOf { fileName -> entries.find { it.name == fileName }?.size ?: 0L }
+                    val dirCompressedSize = dirFiles.sumOf { fileName -> entries.find { it.name == fileName }?.compressedSize ?: 0L }
+
+                    if (dirUncompressedSize > 0) {
+                        result.append("• $dir (${dirFiles.size} files) - Raw: ${formatFileSize(dirUncompressedSize)}, Compressed: ${formatFileSize(dirCompressedSize)}\n")
+                    } else {
+                        result.append("• $dir\n")
+                    }
+                }
+                result.append("\n")
             }
-            if (largeFiles.size > 10) {
-                result.append("• ... and ${largeFiles.size - 10} more large files\n")
+
+            // Large files analysis (files > 100KB)
+            val largeFiles = files.mapNotNull { fileName ->
+                entries.find { it.name == fileName }?.let { entry ->
+                    if (entry.size > 100 * 1024) {
+                        Triple(fileName, entry.size, entry.compressedSize)
+                    } else null
+                }
+            }.sortedByDescending { it.second }
+
+            if (largeFiles.isNotEmpty()) {
+                result.append(" LARGE FILES (>100KB, ${largeFiles.size} files):\n")
+                largeFiles.take(10).forEach { (fileName, uncompressed, compressed) ->
+                    val compressionRatio = if (uncompressed > 0) {
+                        String.format("%.1f%%", (compressed.toDouble() / uncompressed.toDouble()) * 100)
+                    } else "N/A"
+                    result.append("• $fileName - Raw: ${formatFileSize(uncompressed)}, Compressed: ${formatFileSize(compressed)} ($compressionRatio)\n")
+                }
+                if (largeFiles.size > 10) {
+                    result.append("• ... and ${largeFiles.size - 10} more large files\n")
+                }
+                result.append("\n")
             }
-            result.append("\n")
-        }
 
-        // APK metadata analysis
-        result.append(" APK METADATA:\n")
+            // APK metadata analysis
+            result.append(" APK METADATA:\n")
 
-        // Check for APK signature scheme
-        val hasV1Signature = files.any { it.startsWith("META-INF/") && (it.endsWith(".RSA") || it.endsWith(".DSA")) }
-        // Note: APK v2/v3 signatures are stored in the APK Signing Block, not as ZIP entries
-        // We can only reliably detect v1 signatures from ZIP file entries
-        result.append("• APK Signature Scheme: ")
-        if (hasV1Signature) {
-            result.append("v1 (JAR signing) detected\n")
-        } else {
-            result.append("v2+ or unsigned (v2+ signatures not detectable from ZIP entries)\n")
-        }
+            // Check for APK signature scheme
+            val hasV1Signature = files.any { it.startsWith("META-INF/") && (it.endsWith(".RSA") || it.endsWith(".DSA")) }
+            // Note: APK v2/v3 signatures are stored in the APK Signing Block, not as ZIP entries
+            // We can only reliably detect v1 signatures from ZIP file entries
+            result.append("• APK Signature Scheme: ")
+            if (hasV1Signature) {
+                result.append("v1 (JAR signing) detected\n")
+            } else {
+                result.append("v2+ or unsigned (v2+ signatures not detectable from ZIP entries)\n")
+            }
 
-        // Check for multi-APK indicators
-        val hasMultipleDex = files.count { it.matches(Regex("classes\\d*\\.dex")) } > 1
-        result.append("• Multi-DEX: ${if (hasMultipleDex) "Yes" else "No"}\n")
+            // Check for multi-APK indicators
+            val hasMultipleDex = files.count { it.matches(Regex("classes\\d*\\.dex")) } > 1
+            result.append("• Multi-DEX: ${if (hasMultipleDex) "Yes" else "No"}\n")
 
-        // Check for common optimization indicators
-        val hasProguard = files.any { it == "proguard/mappings.txt" } || files.any { it.contains("mapping.txt") }
-        result.append("• Code Obfuscation: ${if (hasProguard) "Detected" else "None detected"}\n")
+            // Check for common optimization indicators
+            val hasProguard = files.any { it == "proguard/mappings.txt" } || files.any { it.contains("mapping.txt") }
+            result.append("• Code Obfuscation: ${if (hasProguard) "Detected" else "None detected"}\n")
 
-        zipFile.close()
+            zipFile.close()
 
             result.toString()
         }.fold(
@@ -322,3 +340,4 @@ class ApkAnalyzerFragment : Fragment() {
         return String.format("%.2f %s", size, units[unitIndex])
     }
 }
+

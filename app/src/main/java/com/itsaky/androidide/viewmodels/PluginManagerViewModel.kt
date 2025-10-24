@@ -225,7 +225,9 @@ class PluginManagerViewModel(
                     ?: throw Exception("Cannot open file")
 
                 // Create temporary file in cache directory (not plugins directory)
-                val extension = if (uri.path?.endsWith(".cgp") == true) ".cgp" else ".apk"
+                // Get the actual filename from the URI
+                val fileName = getFileNameFromUri(uri)
+                val extension = if (fileName?.endsWith(".cgp", ignoreCase = true) == true) ".cgp" else ".apk"
                 val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
                 val tempDir = File(filesDir, "temp")
                 tempDir.mkdirs()
@@ -305,6 +307,31 @@ class PluginManagerViewModel(
             is PluginOperation.Disabling -> operation.pluginId == pluginId
             is PluginOperation.Uninstalling -> operation.pluginId == pluginId
             else -> false
+        }
+    }
+
+    /**
+     * Get the actual filename from a content URI
+     */
+    private fun getFileNameFromUri(uri: Uri): String? {
+        return try {
+            when (uri.scheme) {
+                "content" -> {
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1 && cursor.moveToFirst()) {
+                            cursor.getString(nameIndex)
+                        } else {
+                            null
+                        }
+                    }
+                }
+                "file" -> uri.lastPathSegment
+                else -> uri.lastPathSegment
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting filename from URI", e)
+            null
         }
     }
 }

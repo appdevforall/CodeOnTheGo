@@ -45,9 +45,12 @@ android {
 }
 
 dependencies {
-    // CodeOnTheGo Plugin API - REQUIRED
-    // Use the prebuilt JAR file located in libs/plugin-api.jar
-    compileOnly(files("libs/plugin-api.jar"))
+    // COGO Plugin API
+    compileOnly(project(":plugin-api")) {
+        attributes {
+            attribute(Attribute.of("abi", String::class.java), "v8")
+        }
+    }
 
     // Android and Kotlin dependencies
     implementation("androidx.appcompat:appcompat:1.6.1")
@@ -65,31 +68,31 @@ tasks.wrapper {
 // Task to copy the plugin APK as CGP (CodeOnTheGo Plugin)
 tasks.register<Copy>("assemblePlugin") {
     group = "build"
-    description = "Builds and packages the plugin as a .cgp file"
+    description = "Builds and packages the APK Viewer plugin as a .cgp file"
 
     dependsOn("assembleRelease")
 
-    from(layout.buildDirectory.file("outputs/apk/release/sample-plugin-release-unsigned.apk"))
+    from(layout.buildDirectory.file("outputs/apk/release/apk-viewer-plugin-release-unsigned.apk"))
     into(layout.buildDirectory.dir("plugin"))
-    rename { "sample-plugin.cgp" }
+    rename { "apk-viewer.cgp" }
 
     doLast {
-        logger.lifecycle("Plugin CGP created: ${layout.buildDirectory.get().asFile.absolutePath}/plugin/sample-plugin.cgp")
+        logger.lifecycle("APK Viewer plugin CGP created: ${layout.buildDirectory.get().asFile.absolutePath}/plugin/apk-viewer.cgp")
     }
 }
 
 // Also create a debug CGP for testing
 tasks.register<Copy>("assemblePluginDebug") {
     group = "build"
-    description = "Builds and packages the debug plugin as a .cgp file"
+    description = "Builds and packages the debug APK Viewer plugin as a .cgp file"
 
     dependsOn("assembleDebug")
 
-    from(layout.buildDirectory.file("outputs/apk/debug/sample-plugin-debug.apk"))
+    from(layout.buildDirectory.file("outputs/apk/debug/apk-viewer-plugin-debug.apk"))
     into(layout.buildDirectory.dir("plugin"))
-    rename { "sample-plugin-debug.cgp" }
+    rename { "apk-viewer-debug.cgp" }
 
     doLast {
-        logger.lifecycle("Debug plugin CGP created: ${layout.buildDirectory.get().asFile.absolutePath}/plugin/sample-plugin-debug.cgp")
+        logger.lifecycle("Debug APK Viewer plugin CGP created: ${layout.buildDirectory.get().asFile.absolutePath}/plugin/apk-viewer-debug.cgp")
     }
 }
