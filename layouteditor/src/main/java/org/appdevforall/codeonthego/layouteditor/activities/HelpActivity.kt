@@ -17,13 +17,11 @@
 
 package org.appdevforall.codeonthego.layouteditor.activities
 
-import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
-import androidx.core.net.toUri
+import com.itsaky.androidide.utils.UrlManager
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.ActivityHelpBinding
@@ -32,13 +30,16 @@ import org.adfa.constants.CONTENT_TITLE_KEY
 
 class HelpActivity : BaseActivity() {
 
+    companion object {
+        private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
+    }
+
     private lateinit var binding: ActivityHelpBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         init()
-
     }
 
     private fun init() {
@@ -60,13 +61,12 @@ class HelpActivity : BaseActivity() {
             // Set WebViewClient to handle page navigation within the WebView
             webView.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
-                    return handleUrlLoading( url)
+                    return handleUrlLoading(url)
                 }
             }
 
             // Load the HTML file from the assets folder
             htmlContent?.let { webView.loadUrl(it) }
-
         }
 
         // Set up back navigation callback for system back button
@@ -79,24 +79,12 @@ class HelpActivity : BaseActivity() {
 
     private fun handleUrlLoading(url: String?): Boolean {
         url ?: return false
-
-        val externalSchemes = listOf("mailto:", "tel:", "sms:")
-
         return when {
-            externalSchemes.any { url.startsWith(it) } -> {
-                handleExternalScheme(url)
+            EXTERNAL_SCHEMES.any { url.startsWith(it) } -> {
+                UrlManager.openUrl(url, context = this)
                 true
             }
             else -> false
-        }
-    }
-
-    private fun handleExternalScheme(url: String) {
-        runCatching {
-            val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-            startActivity(intent)
-        }.onFailure { e ->
-            Log.e("HelpActivity", "Failed to open URL: $url", e)
         }
     }
 

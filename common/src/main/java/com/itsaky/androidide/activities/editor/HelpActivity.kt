@@ -17,22 +17,24 @@
 
 package com.itsaky.androidide.activities.editor
 
-import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
-import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.utils.UrlManager
 import org.adfa.constants.CONTENT_TITLE_KEY
 
 class HelpActivity : BaseIDEActivity() {
+
+    companion object {
+        private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
+    }
 
     private var _binding: ActivityHelpBinding? = null
     private val binding: ActivityHelpBinding
@@ -113,15 +115,11 @@ class HelpActivity : BaseIDEActivity() {
         })
     }
 
-
     private fun handleUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
         url ?: return false
-
-        val externalSchemes = listOf("mailto:", "tel:", "sms:")
-
         return when {
-            externalSchemes.any { url.startsWith(it) } -> {
-                handleExternalScheme(url)
+            EXTERNAL_SCHEMES.any { url.startsWith(it) } -> {
+                UrlManager.openUrl(url, context = this)
                 true
             }
             url.startsWith("http://localhost:6174/") -> {
@@ -129,15 +127,6 @@ class HelpActivity : BaseIDEActivity() {
                 true
             }
             else -> false
-        }
-    }
-
-    private fun handleExternalScheme(url: String) {
-        runCatching {
-            val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-            startActivity(intent)
-        }.onFailure { e ->
-            Log.e("HelpActivity", "Failed to open URL: $url", e)
         }
     }
 
