@@ -25,6 +25,7 @@ internal fun baseLayoutContentMain() = """
   android:fitsSystemWindows="true">
 
   <TextView
+    android:id="@+id/text_view"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:text="Hello user!"
