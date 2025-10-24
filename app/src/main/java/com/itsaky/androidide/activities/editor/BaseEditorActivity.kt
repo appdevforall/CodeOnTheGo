@@ -314,7 +314,9 @@ abstract class BaseEditorActivity :
 		try {
 			unbindService(debuggerServiceConnection)
 		} catch (e: Throwable) {
-			log.error("Failed to stop debugger service", e)
+			if (e !is IllegalArgumentException) {
+				log.error("Failed to stop debugger service", e)
+			}
 		}
 	}
 
