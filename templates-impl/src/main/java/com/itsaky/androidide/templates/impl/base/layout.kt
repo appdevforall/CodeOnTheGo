@@ -34,9 +34,7 @@ internal fun baseLayoutContentMain() = """
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent"
 		app:layout_constrainedWidth="true"
-		app:layout_constrainedHeight="true"
-	 	android:translationX="24dp"
-	 	android:translationY="-12dp" />
+		app:layout_constrainedHeight="true" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 """.trim()
