@@ -4,7 +4,7 @@
 
 <h2 align="center"><b>Code On The Go</b></h2>
 <p align="center">
- Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access.
+ Code on the Go is an IDE that lets you build Android apps on Android phones, without needing a traditional computer or Internet access.</p>
 <p><br>
 
 <p align="center">
@@ -17,28 +17,12 @@
   <a href="https://t.me/CodeOnTheGoDiscussions">Telegram discussions</a>
 </p>
 
-## Features
-
-- [x] Gradle support.
-- [x] `JDK 21` available for use.
-- [x] Terminal with necessary packages.
-- [x] Custom environment variables (for Build & Terminal).
-- [x] API information for classes and their members (since, removed, deprecated).
-- [x] Log reader (shows your app's logs in real-time)
-- [ ] Language servers
-    - [x] Java
-    - [x] XML
-    - [ ] Kotlin
-- [ ] UI Designer
-    - [x] Layout inflater
-    - [x] Resolve resource references
-    - [x] Auto-complete resource values when user edits attributes using the attribute editor
-    - [x] Drag & Drop
-    - [x] Visual attribute editor
-    - [x] Android Widgets
-- [ ] String Translator
-- [ ] Asset Studio (Drawable & Icon Maker)
-- [x] Git
+## About this release
+<p>This is an early, experimental version of Code on the Go, our offline-first Android IDE. This release is intended for Android developers who are comfortable testing rough software and providing constructive feedback. Please note:
+<ul><li>Some features are incomplete or missing
+<li>Stability may vary across devices
+<li>UI and interactions are provisional
+ </li></ul></p>
 
 ## Installation
 
@@ -53,7 +37,7 @@
   Android.
 - No official NDK support because we haven't built the NDK for Android.
 
-The app is still being developed actively. It's in beta stage and may not be stable. if you have any
+The app is still being developed actively. It's in beta stage and may not be stable. If you have any
 issues using the app, please let us know.
 
 ## Contributing
@@ -130,6 +114,7 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
+
 
 
 
