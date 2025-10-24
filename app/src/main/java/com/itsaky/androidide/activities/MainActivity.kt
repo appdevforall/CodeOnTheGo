@@ -165,26 +165,20 @@ class MainActivity : EdgeToEdgeIDEActivity() {
     }
 
     private fun showWarningDialog() {
-        val builder = AlertDialog.Builder(this)
+        val builder = DialogUtils.newMaterialDialogBuilder(this)
 
         // Set the dialog's title and message
         builder.setTitle(getString(R.string.title_warning))
         builder.setMessage(getString(R.string.download_codeonthego_message))
 
         // Add the "OK" button and its click listener
-        builder.setPositiveButton(getString(R.string.ok)) { dialog, which ->
+        builder.setPositiveButton(getString(R.string.ok)) { _, _ ->
             UrlManager.openUrl(getString(R.string.download_codeonthego_url), null)
-            dialog.dismiss()
         }
 
-        // Add the "Cancel" button and its click listener
-        builder.setNegativeButton(getString(R.string.url_consent_cancel)) { dialog, which ->
-            dialog.dismiss()
-        }
-
-        // Create and show the AlertDialog
-        val dialog: AlertDialog = builder.create()
-        dialog.show()
+        // Add the "Cancel" button
+        builder.setNegativeButton(getString(R.string.url_consent_cancel), null)
+        builder.show()
     }
 
     override fun onResume() {
