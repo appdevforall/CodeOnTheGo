@@ -12,12 +12,10 @@
 <br>
 
 <p align="center">
-  <a href="https://github.com/appdevforall/CodeOnTheGo/issues">Report a bug or request a feature</a> &nbsp; &#8226; &nbsp
-  <a href="https://t.me/CodeOnTheGoOfficial">Telegram channel</a>&nbsp; &#8226; &nbsp
+  <a href="https://github.com/appdevforall/CodeOnTheGo/issues">Report a bug or request a feature</a> &nbsp; &#8226; &nbsp;
+  <a href="https://t.me/CodeOnTheGoOfficial">Telegram channel</a>&nbsp; &#8226; &nbsp;
   <a href="https://t.me/CodeOnTheGoDiscussions">Telegram discussions</a>
 </p>
-
-## About this release
 
 ## Installation
 
@@ -105,14 +103,4 @@ along with Code On The Go.  If not, see <https://www.gnu.org/licenses/>.
 
 Any violations to the license can be reported either by opening an issue or writing a mail to us
 directly.
-
-
-
-
-
-
-
-
-
-
 
