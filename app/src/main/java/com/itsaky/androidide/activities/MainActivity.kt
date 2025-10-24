@@ -172,7 +172,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
         val builder = AlertDialog.Builder(this)
 
         // Set the dialog's title and message
-        builder.setTitle(getString(R.string.title_warning))
+        builder.setTitle("Warning")
         builder.setMessage(getString(R.string.download_codeonthego_message))
 
         // Add the "OK" button and its click listener
