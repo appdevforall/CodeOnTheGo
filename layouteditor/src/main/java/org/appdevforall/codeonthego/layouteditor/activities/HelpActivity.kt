@@ -17,10 +17,12 @@
 
 package org.appdevforall.codeonthego.layouteditor.activities
 
+import android.content.Intent
 import android.os.Bundle
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.core.net.toUri
 import org.appdevforall.codeonthego.layouteditor.BaseActivity
 import org.appdevforall.codeonthego.layouteditor.R
 import org.appdevforall.codeonthego.layouteditor.databinding.ActivityHelpBinding
@@ -55,7 +57,11 @@ class HelpActivity : BaseActivity() {
             webView.settings.javaScriptEnabled = true
 
             // Set WebViewClient to handle page navigation within the WebView
-            webView.webViewClient = WebViewClient()
+            webView.webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+                    return handleUrlLoading( url)
+                }
+            }
 
             // Load the HTML file from the assets folder
             htmlContent?.let { webView.loadUrl(it) }
@@ -70,6 +76,28 @@ class HelpActivity : BaseActivity() {
         })
     }
 
+    private fun handleUrlLoading(url: String?): Boolean {
+        url ?: return false
+
+        val externalSchemes = listOf("mailto:", "tel:", "sms:")
+
+        return when {
+            externalSchemes.any { url.startsWith(it) } -> {
+                handleExternalScheme(url)
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun handleExternalScheme(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+            startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("HelpActivity", "Failed to open URL: $url", e)
+        }
+    }
 
     private fun handleBackNavigation() {
         if (binding.webView.canGoBack()) {

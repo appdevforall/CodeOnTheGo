@@ -17,10 +17,12 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import org.adfa.constants.CONTENT_KEY
 import com.itsaky.androidide.resources.R
@@ -76,27 +78,19 @@ class HelpActivity : BaseIDEActivity() {
                     super.onPageStarted(view, url, favicon)
                     android.util.Log.d("HelpActivity", "Page started loading: $url")
                 }
-                
+
                 override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     android.util.Log.d("HelpActivity", "Page finished loading: $url")
                 }
-                
+
                 override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
-                    url?.let {
-                        // Allow localhost URLs to load directly
-                        if (it.startsWith("http://localhost:6174/")) {
-                            view?.loadUrl(it)
-                            return true
-                        }
-                    }
-                    return super.shouldOverrideUrlLoading(view, url)
+                    return handleUrlLoading(view, url)
                 }
-                
+
                 override fun onReceivedError(view: android.webkit.WebView?, errorCode: Int, description: String?, failingUrl: String?) {
                     super.onReceivedError(view, errorCode, description, failingUrl)
                     android.util.Log.e("HelpActivity", "Error loading URL: $failingUrl, Error: $description")
-                    // Show error message to user
                     view?.loadData("""
                         <html><body>
                         <h3>Error Loading Content</h3>
@@ -122,6 +116,33 @@ class HelpActivity : BaseIDEActivity() {
         })
     }
 
+
+    private fun handleUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+        url ?: return false
+
+        val externalSchemes = listOf("mailto:", "tel:", "sms:")
+
+        return when {
+            externalSchemes.any { url.startsWith(it) } -> {
+                handleExternalScheme(url)
+                true
+            }
+            url.startsWith("http://localhost:6174/") -> {
+                view?.loadUrl(url)
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun handleExternalScheme(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+            startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("HelpActivity", "Failed to open URL: $url", e)
+        }
+    }
 
     private fun handleBackNavigation() {
         if (binding.webView.canGoBack()) {
