@@ -44,10 +44,9 @@ scripts\install-git-hooks.bat
 
 ## Propose a change
 
-Before proposing a change, it is always recommended to open an issue and discuss it with the
-maintainers.
+Before proposing a change, please open an issue and discuss it with our team.
 
-**The `dev` branch is protected and requires all the commits to be signed with your GPG key and the
+**The `dev` branch is protected and requires all commits to be signed with your GPG key and the
 commit history to be linear.**
 See [protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches)
 .
@@ -58,16 +57,20 @@ To contribute to this project,
 - Clone the forked repo to your local machine.
 - Open the project.
 - Make your changes.
-- Create a pull request. Give a proper title and description to your PR.
+- Create a pull request that includes a meaningful title and description.
 
-## Issues & Pull requests
+## Report issues 
 
-Use the issue/PR templates whenever possible. Provide a proper title and a clear description of the
-issue/PR. For bug reports, provide a step-by-step procedure to reproduce the issue. Please include supporting materials including logs and build outputs in the `code blocks` secction.
+[Report issues and request features here](https://github.com/appdevforall/CodeOnTheGo/issues).
 
 ## Contact us
 
-If you want to discuss the project, visit our [Telegram group](https://t.me/androidide_discussions).
+- [Website](https://www.appdevforall.org)
+- [Official Telegram channel](https://t.me/CodeOnTheGoOfficial)
+- [Telegram discussions](https://t.me/CodeOnTheGoDiscussions)
+- [Email](mailto:feedback@appdevforall.org)
+
+
 
 
 
