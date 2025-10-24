@@ -13,6 +13,10 @@
     <string name="about_subtitle">Simply, an IDE for Android</string>
     <string name="msg_get_package_failed">Failed to extract package name!</string>
     <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
+    <string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
+    <string name="download_codeonthego_url">https://appdevforall.org/downloads</string>
+    <string name="msg_invalid_url">Invalid URL provided.</string>
+    <string name="msg_no_browser_found">No browser found to handle the request.</string>
     <string name="need_help">Need Help?</string>
     <string name="ide_preferences">IDE preferences</string>
     <string name="discussions_on_telegram">Discussions on Telegram</string>
@@ -606,7 +610,7 @@
 	<string name="permissions_info_notifications">• <b>Notifications</b> is required so you receive important status messages.</string>
 	<string name="permissions_info_storage">• <b>Storage</b> is required so you can create project directories and files.</string>
 	<string name="permissions_info_install">• <b>Install packages</b> is required so you can install the apps that you build.</string>
-	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> and <b>Accessibility</b> are required so you can use the debugger.</string>
+	<string name="permissions_info_overlay_accessibility">• <b>Overlay window</b> is required so you can use the debugger. If your device won\'t let you enable this permission, go to <b>Settings \u2192 Apps \u2192 Code on the Go</b>. In the Options menu at the upper right, tap <b>Enable restricted settings</b>. When you return to the installer, you can assign the permission. (The exact steps may vary on different devices.)</string>
 	<string name="finish_installation">Finish installation</string>
 	<string name="onboarding_title_permissions">Permissions</string>
 	<string name="onboarding_subtitle_permissions">Code on the Go requires the following permissions:</string>
