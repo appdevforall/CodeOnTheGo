@@ -26,50 +26,62 @@ import com.itsaky.androidide.editor.language.treesitter.internal.TSLanguageRegis
  */
 interface TSLanguageRegistry {
 
-  companion object {
+	companion object {
 
-    @JvmStatic
-    val instance by lazy { TSLanguageRegistryImpl() }
-  }
+		@JvmStatic
+		val instance by lazy { TSLanguageRegistryImpl() }
+	}
 
-  /**
-   * Registers the given [factory] for the given file types.
-   *
-   * @param fileType The file extension for which the given factory should be used.
-   * @param factory The factory which will create the [TreeSitterLanguage] instance.
-   * @throws AlreadyRegisteredException If an instance of [TreeSitterLanguage.Factory] is already
-   *   registered for the given file type.
-   */
-  fun <T : TreeSitterLanguage> register(fileType: String, factory: TreeSitterLanguage.Factory<T>)
+	/**
+	 * Registers the given [factory] for the given file types, if not already registered.
+	 *
+	 * @param fileType The file extension for which the given factory should be used.
+	 * @param factory The factory which will create the [TreeSitterLanguage] instance.
+	 * @return `true` if the factory was registered, `false` otherwise.
+	 */
+	fun <T : TreeSitterLanguage> registerIfNeeded(
+		fileType: String,
+		factory: TreeSitterLanguage.Factory<T>
+	): Boolean
 
-  /**
-   * Checks whether a [TreeSitterLanguage] has been registered for the given [file type][fileType].
-   *
-   * @return `true` if a [TreeSitterLanguage] has been registered for [fileType], `false` otherwise.
-   */
-  fun hasLanguage(fileType: String): Boolean
+	/**
+	 * Registers the given [factory] for the given file types.
+	 *
+	 * @param fileType The file extension for which the given factory should be used.
+	 * @param factory The factory which will create the [TreeSitterLanguage] instance.
+	 * @throws AlreadyRegisteredException If an instance of [TreeSitterLanguage.Factory] is already
+	 *   registered for the given file type.
+	 */
+	fun <T : TreeSitterLanguage> register(fileType: String, factory: TreeSitterLanguage.Factory<T>)
 
-  /**
-   * Returns the instance of the [TreeSitterLanguage.Factory] for the given file type.
-   *
-   * @param fileType The file type (extension) to create the language factory instance for.
-   * @return The [TreeSitterLanguage.Factory] implmementation.
-   * @throws NotRegisteredException If no [TreeSitterLanguage.Factory] is registered for the given
-   *   file type.
-   */
-  fun <T : TreeSitterLanguage> getFactory(fileType: String): TreeSitterLanguage.Factory<T>
+	/**
+	 * Checks whether a [TreeSitterLanguage] has been registered for the given [file type][fileType].
+	 *
+	 * @return `true` if a [TreeSitterLanguage] has been registered for [fileType], `false` otherwise.
+	 */
+	fun hasLanguage(fileType: String): Boolean
 
-  /**
-   * Destroys the language registry, removing all the registered language factory. This must be
-   * called only when the application is exiting.
-   */
-  fun destroy()
+	/**
+	 * Returns the instance of the [TreeSitterLanguage.Factory] for the given file type.
+	 *
+	 * @param fileType The file type (extension) to create the language factory instance for.
+	 * @return The [TreeSitterLanguage.Factory] implmementation.
+	 * @throws NotRegisteredException If no [TreeSitterLanguage.Factory] is registered for the given
+	 *   file type.
+	 */
+	fun <T : TreeSitterLanguage> getFactory(fileType: String): TreeSitterLanguage.Factory<T>
 
-  class AlreadyRegisteredException(type: String) :
-    IllegalStateException(
-      "An instance of TreeSitterLanguage.Factory is already registered for file type '$type'"
-    )
+	/**
+	 * Destroys the language registry, removing all the registered language factory. This must be
+	 * called only when the application is exiting.
+	 */
+	fun destroy()
 
-  class NotRegisteredException(type: String) :
-    RuntimeException("No TreeSitterLanguage.Factory registered for file type '$type'")
+	class AlreadyRegisteredException(type: String) :
+		IllegalStateException(
+			"An instance of TreeSitterLanguage.Factory is already registered for file type '$type'"
+		)
+
+	class NotRegisteredException(type: String) :
+		RuntimeException("No TreeSitterLanguage.Factory registered for file type '$type'")
 }
