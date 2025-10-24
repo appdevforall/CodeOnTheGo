@@ -13,6 +13,10 @@
     <string name="about_subtitle">Simply, an IDE for Android</string>
     <string name="msg_get_package_failed">Failed to extract package name!</string>
     <string name="msg_need_help">If you\'re facing issues while using Code on the Go or with building Android Apps, you can join the Telegram Group and ask for help there.\n\nYou can also send suggestions on our email.</string>
+    <string name="download_codeonthego_message">Download Code on the Go from the official website to get the latest features and updates.</string>
+    <string name="download_codeonthego_url">https://appdevforall.org/downloads</string>
+    <string name="msg_invalid_url">Invalid URL provided.</string>
+    <string name="msg_no_browser_found">No browser found to handle the request.</string>
     <string name="need_help">Need Help?</string>
     <string name="ide_preferences">IDE preferences</string>
     <string name="discussions_on_telegram">Discussions on Telegram</string>
